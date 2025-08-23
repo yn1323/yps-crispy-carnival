@@ -31,8 +31,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "vitest.config.mts",
-    "src/configs/vitest/vitest-setup.ts",
-    "prisma/generated/**/*"
+    "src/configs/vitest/vitest-setup.ts"
   ],
   "exclude": ["node_modules", ".scaffdog"]
 }
