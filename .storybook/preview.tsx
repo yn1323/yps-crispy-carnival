@@ -1,6 +1,5 @@
 import { ChakraProvider, defaultSystem } from "@chakra-ui/react";
-import { withThemeByClassName } from "@storybook/addon-themes";
-import type { Preview } from "@storybook/react";
+import type { Preview } from "@storybook/nextjs";
 // biome-ignore lint/correctness/noUnusedImports: temp
 import React from "react";
 import { z } from "zod";
@@ -24,10 +23,6 @@ const preview: Preview = {
         </ChakraProvider>
       );
     },
-    withThemeByClassName({
-      defaultTheme: "light",
-      themes: { light: "", dark: "dark" },
-    }),
   ],
 };
 

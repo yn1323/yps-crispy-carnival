@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/nextjs";
+import { userEvent, within } from "storybook/internal/test";
 import { ShopForm } from "./index";
 
 const meta: Meta<typeof ShopForm> = {

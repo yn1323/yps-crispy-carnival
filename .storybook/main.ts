@@ -1,5 +1,5 @@
-import type { StorybookConfig } from "@storybook/experimental-nextjs-vite";
 import path from "node:path";
+import type { StorybookConfig } from "@storybook/nextjs-vite";
 
 const config: StorybookConfig = {
   refs: {
@@ -8,25 +8,15 @@ const config: StorybookConfig = {
     },
   },
   stories: ["../src/**/*.stories.@(ts|tsx)"],
-  addons: [
-    {
-      name: "@storybook/addon-essentials",
-      options: {
-        docs: false,
-      },
-    },
-    "@storybook/addon-onboarding",
-    "@chromatic-com/storybook",
-    "@storybook/experimental-addon-test",
-  ],
+  addons: ["@storybook/addon-docs"],
   framework: {
-    name: "@storybook/experimental-nextjs-vite",
+    name: "@storybook/nextjs-vite",
     options: {},
   },
   typescript: {
     reactDocgen: process.env.NODE_ENV === "development" ? "react-docgen" : "react-docgen-typescript",
   },
-  staticDirs: ["../public"],
+  staticDirs: ["..\\public"],
   viteFinal: async (config) => {
     if (!config.resolve) {
       return config;
