@@ -1,0 +1,88 @@
+name: 📚 AI Documentation Request
+description: AIにドキュメント作成・更新を依頼する際のテンプレート
+title: "[AI Docs] "
+labels: ["documentation", "ai-request"]
+assignees: []
+body:
+  - type: input
+    id: doc_summary
+    attributes:
+      label: ドキュメントの概要
+      description: 作成・更新したいドキュメント
+      placeholder: "例: 新規ユーザー向けの認証機能の使い方ガイド"
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: doc_type
+    attributes:
+      label: ドキュメント種類
+      options:
+        - 📖 API仕様書
+        - 🚀 セットアップガイド
+        - 👥 ユーザーマニュアル
+        - 🛠️ 開発者ガイド
+        - 📋 コード説明
+        - 🎯 機能仕様書
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: doc_action
+    attributes:
+      label: アクション
+      options:
+        - ➕ 新規作成
+        - ✏️ 既存更新
+        - 🔄 刷新
+    validations:
+      required: true
+      
+  - type: textarea
+    id: content_requirements
+    attributes:
+      label: 内容要件
+      description: ドキュメントに含めるべき内容
+      placeholder: |
+        - 概要・目的
+        - 手順・使い方
+        - コード例
+        - 注意事項
+    validations:
+      required: true
+      
+  - type: textarea
+    id: related_files
+    attributes:
+      label: 関連ファイル
+      description: ドキュメント作成に関連するファイル
+      placeholder: |
+        - src/components/auth/LoginForm.tsx
+        - 既存のREADME.md
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: detail_level
+    attributes:
+      label: 詳細レベル
+      options:
+        - 📖 詳細 (初心者向け)
+        - 📋 標準 (一般レベル)
+        - ⚡ 簡潔 (要点のみ)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 追加情報
+      description: その他の要件や制約
+      placeholder: "例: 対象読者、配置場所、スタイルガイドなど"
+    validations:
+      required: false
+      
+  - type: markdown
+    attributes:
+      value: |
+        **@claude** 上記の要件に基づいてドキュメントを作成・更新してください。

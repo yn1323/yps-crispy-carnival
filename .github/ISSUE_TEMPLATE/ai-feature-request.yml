@@ -1,0 +1,74 @@
+name: ✨ AI Feature Request
+description: AIに新機能の実装を依頼する際のテンプレート
+title: "[AI Feature] "
+labels: ["enhancement", "ai-request"]
+assignees: []
+body:
+  - type: input
+    id: feature_summary
+    attributes:
+      label: 機能の概要
+      description: 実装したい機能
+      placeholder: "例: ユーザープロフィール画像のアップロード機能"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: feature_description
+    attributes:
+      label: 機能の詳細
+      description: 機能の詳細な説明と要件
+      placeholder: |
+        - どのような機能か
+        - どのようなユーザーが使用するか
+        - どのような価値を提供するか
+    validations:
+      required: true
+      
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 受け入れ条件
+      description: 機能が完成したと判断するための条件
+      placeholder: |
+        - [ ] ユーザーが画像をアップロードできる
+        - [ ] アップロードした画像がプロフィールに表示される
+        - [ ] 不正なファイル形式は拒否される
+    validations:
+      required: true
+      
+  - type: textarea
+    id: affected_files
+    attributes:
+      label: 関連ファイル
+      description: 修正・追加が必要と思われるファイル
+      placeholder: |
+        - src/components/UserProfile.tsx
+        - app/api/upload/route.ts
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      options:
+        - 🔴 高 (重要)
+        - 🟠 中 (便利)
+        - 🟡 低 (将来)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 追加情報
+      description: その他の制約や参考資料
+      placeholder: "例: 参考デザイン、技術制約など"
+    validations:
+      required: false
+      
+  - type: markdown
+    attributes:
+      value: |
+        **@claude** この機能を実装してください。

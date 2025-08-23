@@ -1,0 +1,88 @@
+name: 👀 AI Code Review Request
+description: AIにコードレビューを依頼する際のテンプレート
+title: "[AI Review] "
+labels: ["code-review", "ai-request"]
+assignees: []
+body:
+  - type: input
+    id: review_summary
+    attributes:
+      label: レビュー対象の概要
+      description: レビューしたいコード
+      placeholder: "例: 新しいユーザー認証機能の実装"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: target_files
+    attributes:
+      label: レビュー対象ファイル
+      description: レビューしたいファイル
+      placeholder: |
+        - src/components/auth/LoginForm.tsx
+        - app/api/auth/login/route.ts
+        - src/hooks/useAuth.ts
+    validations:
+      required: true
+      
+  - type: checkboxes
+    id: review_focus
+    attributes:
+      label: レビュー観点
+      description: 特に注目してほしいポイント
+      options:
+        - label: 🐛 バグ・エラーハンドリング
+        - label: 🔒 セキュリティ
+        - label: ⚡ パフォーマンス
+        - label: 📖 可読性・保守性
+        - label: 🧪 テスタビリティ
+        - label: 🔧 TypeScript型安全性
+        
+  - type: dropdown
+    id: review_depth
+    attributes:
+      label: レビューの深さ
+      options:
+        - 🔍 詳細 (細かい改善点まで)
+        - 📋 標準 (主要な問題点)
+        - ⚡ 簡潔 (重要な問題のみ)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: specific_concerns
+    attributes:
+      label: 特に気になる点
+      description: レビュー時に特に注意してほしい箇所
+      placeholder: |
+        - パフォーマンスに影響がないか
+        - セキュリティホールがないか
+        - エラーハンドリングが適切か
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: 緊急度
+      options:
+        - 🚨 緊急 (今すぐ)
+        - ⏰ 高 (本日中)
+        - 📅 中 (数日以内)
+        - 🕰️ 低 (時間があるとき)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 追加情報
+      description: その他の情報
+      placeholder: "例: 実装の背景、技術的制約、テスト状況など"
+    validations:
+      required: false
+      
+  - type: markdown
+    attributes:
+      value: |
+        **@claude** 上記のコードをレビューしてください。
