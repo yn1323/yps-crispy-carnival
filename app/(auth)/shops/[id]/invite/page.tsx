@@ -33,6 +33,8 @@ import {
 } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
 
+export const runtime = "edge";
+
 // 仮のデータ
 const getMockInviteData = (_shopId: string) => {
   return {

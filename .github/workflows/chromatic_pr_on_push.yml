@@ -1,0 +1,19 @@
+name: chromatic_pr_on_push
+
+on: pull_request
+
+jobs:
+  chromatic_pr_on_push:
+    if: (github.event.pull_request.draft == false && !contains(github.head_ref, 'renovate/'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Publish to Chromatic
+        uses: chromaui/action@latest
+        with:
+          onlyChanged: true
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}

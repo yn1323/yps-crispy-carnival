@@ -20,6 +20,8 @@ import { useState } from "react";
 import { HiArrowLeft, HiSave } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
 
+export const runtime = "edge";
+
 // 仮のデータ取得
 const getMockShopData = (id: string) => {
   const shops = {

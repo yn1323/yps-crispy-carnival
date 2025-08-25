@@ -1,5 +1,3 @@
 {
-  "recommendations": ["biomejs.biome",
-  "ms-vscode-remote.remote-wsl"
-]
+  "recommendations": ["biomejs.biome", "ms-vscode-remote.remote-wsl"]
 }
