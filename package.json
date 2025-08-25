@@ -22,9 +22,13 @@
     "scaffdog": "scaffdog generate",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
     "chromatic": "chromatic --project-token=$CHROMATIC_PROJECT_TOKEN --autoAcceptChanges=$CHROMATIC_AUTO_ACCEPT_CHANGE --onlyChanged=true"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "^1.6.5",
     "@chakra-ui/react": "^3.25.0",
     "@emotion/react": "^11.14.0",
     "@hookform/resolvers": "^5.0.1",
@@ -60,6 +64,7 @@
     "storycap-testrun": "^1.0.0",
     "tsx": "^4.19.4",
     "typescript": "^5",
-    "vitest": "^3.1.1"
+    "vitest": "^3.1.1",
+    "wrangler": "^4.32.0"
   }
 }
