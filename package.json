@@ -22,7 +22,7 @@
     "scaffdog": "scaffdog generate",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "chromatic": "chromatic --project-token=chpt_9bb94ce31874739 --exit-zero-on-changes"
+    "chromatic": "chromatic --project-token=$CHROMATIC_PROJECT_TOKEN --autoAcceptChanges=$CHROMATIC_AUTO_ACCEPT_CHANGE --onlyChanged=true"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.25.0",
