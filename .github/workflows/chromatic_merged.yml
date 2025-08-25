@@ -2,7 +2,9 @@ name: chromatic_on_merge_to_develop
 
 on:
   push:
-    branches: [develop]
+    branches:
+      - main
+      - develop
 
 jobs:
   chromatic_on_merge_to_develop:
@@ -14,7 +16,8 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
       - name: Publish to Chromatic
-        run: pnpm chromatic
-        env:
-            CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-            CHROMATIC_AUTO_ACCEPT_CHANGE: true
+        uses: chromaui/action@latest
+        with:
+          onlyChanged: true
+          autoAcceptChanges: true
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
