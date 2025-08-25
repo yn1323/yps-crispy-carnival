@@ -9,7 +9,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: /home/runner/.cache
-        key: ${{ runner.os }}-playwright-cache-${{ hashFiles('**/.storybook/test-runner.ts') }}
+        key: ${{ runner.os }}-playwright-cache-${{ hashFiles('pnpm-lock.yml') }}
         restore-keys: ${{ runner.os }}-playwright-cache-
     - name: Install Playwright browsers if cache miss
       shell: bash
