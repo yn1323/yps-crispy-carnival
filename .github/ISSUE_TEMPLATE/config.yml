@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 質問・相談
+    url: https://github.com/yn1323/yps-polar/discussions
+    about: 開発に関する質問や相談がある場合はDiscussionsをご利用ください
+  - name: 📚 プロジェクト情報
+    url: https://github.com/yn1323/yps-polar
+    about: プロジェクトの詳細情報やセットアップ方法はREADMEをご確認ください

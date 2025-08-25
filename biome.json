@@ -7,12 +7,13 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!dist", "!build"]
+    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!.scaffdog"]
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
-    "indentWidth": 2
+    "indentWidth": 2,
+    "lineWidth": 120
   },
   "linter": {
     "enabled": true,

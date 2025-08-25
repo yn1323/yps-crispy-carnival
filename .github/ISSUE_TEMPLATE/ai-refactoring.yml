@@ -1,0 +1,62 @@
+name: 🔧 AI Refactoring Request
+description: AIにリファクタリングを依頼する際のテンプレート
+title: "[AI Refactor] "
+labels: ["refactoring", "ai-request"]
+assignees: []
+body:
+  - type: input
+    id: refactoring_summary
+    attributes:
+      label: 概要
+      description: リファクタリングしたい内容
+      placeholder: "例: UserFormコンポーネントの複雑なロジックを分割"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: current_problems
+    attributes:
+      label: 現在の問題点
+      description: リファクタリングが必要な理由
+      placeholder: |
+        - コードが複雑で理解しにくい
+        - テストが困難
+        - パフォーマンスの問題
+    validations:
+      required: true
+      
+  - type: textarea
+    id: target_files
+    attributes:
+      label: 対象ファイル
+      description: リファクタリング対象のファイル
+      placeholder: |
+        - src/components/forms/UserForm.tsx
+        - src/hooks/useUserData.ts
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      options:
+        - 🔴 高 (緊急)
+        - 🟠 中 (計画的)
+        - 🟡 低 (改善)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: 追加情報
+      description: その他の制約や注意事項
+      placeholder: "例: 既存のAPIとの互換性を保つ"
+    validations:
+      required: false
+      
+  - type: markdown
+    attributes:
+      value: |
+        **@claude** このリファクタリングを実施してください。

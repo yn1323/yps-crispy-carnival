@@ -1,0 +1,48 @@
+name: Playwright setup from cache
+description: Playwright setup from cache
+
+inputs:
+  DATABASE_URL:
+    required: true
+    description: 'The database URL'
+  DIRECT_URL:
+    required: true
+    description: 'The direct URL'
+  TEST_USER_ID:
+    required: true
+    description: 'The test user ID'
+  TEST_USER_NAME:
+    required: true
+    description: 'The test user name'
+  TEST_USER_PASSWORD:
+    required: true
+    description: 'The test user password'
+  TEST_USER_EMAIL:
+    required: true
+    description: 'The test user email'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Playwright cache
+      id: playwright-cache
+      uses: actions/cache@v4
+      with:
+        path: /home/runner/.cache
+        key: ${{ runner.os }}-playwright-cache-${{ hashFiles('**/.storybook/test-runner.ts') }}
+        restore-keys: ${{ runner.os }}-playwright-cache-
+    - name: Install Playwright browsers if cache miss
+      shell: bash
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      run: pnpm exec playwright install --with-deps
+    - name: Verify and ensure Playwright browsers
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium
+      env:
+        DATABASE_URL: ${{ inputs.DATABASE_URL }}
+        DIRECT_URL: ${{ inputs.DIRECT_URL }}
+        TEST_USER_ID: ${{ inputs.TEST_USER_ID }}
+        TEST_USER_NAME: ${{ inputs.TEST_USER_NAME }}
+        TEST_USER_PASSWORD: ${{ inputs.TEST_USER_PASSWORD }}
+        TEST_USER_EMAIL: ${{ inputs.TEST_USER_EMAIL }}
+

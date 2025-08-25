@@ -1,27 +1,37 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ESNext",
+    "module": "ESNext",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "types": ["vitest/globals", "@vitest/browser/providers/playwright"],
     "plugins": [
       {
         "name": "next"
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/app/*": ["./app/*"],
+      "@/src/*": ["./src/*"],
+      "@/e2e/*": ["./e2e/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "vitest.config.mts",
+    "src/configs/vitest/vitest-setup.ts"
+  ],
+  "exclude": ["node_modules", ".scaffdog"]
 }
