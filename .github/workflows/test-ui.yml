@@ -1,0 +1,21 @@
+name: test
+
+on:
+  - push
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup Playwright
+        uses: ./.github/actions/playwright
+      - name: Run Test
+        run: pnpm vitest run --shard=${{ matrix.shard }} --project=ui

@@ -18,4 +18,4 @@ jobs:
       - name: Setup Playwright
         uses: ./.github/actions/playwright
       - name: Run Test
-        run: pnpm vitest run --shard=${{ matrix.shard }}
+        run: pnpm vitest run --shard=${{ matrix.shard }} --project=logic
