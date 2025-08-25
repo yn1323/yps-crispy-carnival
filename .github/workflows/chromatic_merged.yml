@@ -1,0 +1,23 @@
+name: chromatic_on_merge_to_develop
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  chromatic_on_merge_to_develop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Publish to Chromatic
+        uses: chromaui/action@latest
+        with:
+          onlyChanged: true
+          autoAcceptChanges: true
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
