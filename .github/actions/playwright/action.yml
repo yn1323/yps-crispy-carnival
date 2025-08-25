@@ -1,26 +1,6 @@
 name: Playwright setup from cache
 description: Playwright setup from cache
 
-inputs:
-  DATABASE_URL:
-    required: true
-    description: 'The database URL'
-  DIRECT_URL:
-    required: true
-    description: 'The direct URL'
-  TEST_USER_ID:
-    required: true
-    description: 'The test user ID'
-  TEST_USER_NAME:
-    required: true
-    description: 'The test user name'
-  TEST_USER_PASSWORD:
-    required: true
-    description: 'The test user password'
-  TEST_USER_EMAIL:
-    required: true
-    description: 'The test user email'
-
 runs:
   using: 'composite'
   steps:
