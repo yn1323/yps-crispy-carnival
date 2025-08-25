@@ -35,14 +35,3 @@ runs:
       shell: bash
       if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: pnpm exec playwright install --with-deps
-    - name: Verify and ensure Playwright browsers
-      shell: bash
-      run: pnpm exec playwright install --with-deps chromium
-      env:
-        DATABASE_URL: ${{ inputs.DATABASE_URL }}
-        DIRECT_URL: ${{ inputs.DIRECT_URL }}
-        TEST_USER_ID: ${{ inputs.TEST_USER_ID }}
-        TEST_USER_NAME: ${{ inputs.TEST_USER_NAME }}
-        TEST_USER_PASSWORD: ${{ inputs.TEST_USER_PASSWORD }}
-        TEST_USER_EMAIL: ${{ inputs.TEST_USER_EMAIL }}
-
