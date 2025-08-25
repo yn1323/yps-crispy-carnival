@@ -1,23 +1,44 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "config:recommended"
+  ],
   "timezone": "Asia/Tokyo",
-  "labels": ["renovate"],
-  "baseBranches": ["develop"],
+  "labels": [
+    "renovate"
+  ],
+  "baseBranchPatterns": [
+    "develop"
+  ],
   "automerge": true,
-  "schedule": ["every weekend"],
+  "schedule": [
+    "every weekend"
+  ],
   "packageRules": [
     {
-      "addLabels": ["react"],
-      "matchPackageNames": ["/react/"]
+      "addLabels": [
+        "react"
+      ],
+      "matchPackageNames": [
+        "/react/"
+      ]
     },
     {
-      "addLabels": ["Storybook"],
-      "matchPackageNames": ["/@storybook/", "@chromatic-com/storybook"]
+      "addLabels": [
+        "Storybook"
+      ],
+      "matchPackageNames": [
+        "/@storybook/",
+        "@chromatic-com/storybook"
+      ]
     },
     {
-      "addLabels": ["playwright"],
-      "matchPackageNames": ["/playwright/"]
+      "addLabels": [
+        "playwright"
+      ],
+      "matchPackageNames": [
+        "/playwright/"
+      ]
     }
   ]
 }
