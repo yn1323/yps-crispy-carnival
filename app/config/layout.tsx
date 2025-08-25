@@ -1,9 +1,8 @@
 import { Box } from "@chakra-ui/react";
 import { SideMenu } from "@/src/components/layout/SideMenu";
-import { isUserRegistered } from "@/src/helpers/auth/registration";
 
 export default async function ConfigLayout({ children }: { children: React.ReactNode }) {
-  const userRegistered = await isUserRegistered();
+  const userRegistered = true;
 
   if (!userRegistered) {
     // 未登録ユーザーの場合はサイドバーなしで表示

@@ -20,5 +20,8 @@
   },
   "files.watcherExclude": {
     "convex/_generated/**": true
+  },
+  "files.associations": {
+    "wrangler.json": "jsonc"
   }
 }
