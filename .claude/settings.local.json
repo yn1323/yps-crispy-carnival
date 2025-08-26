@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__activate_project",
+      "mcp__serena__onboarding",
+      "mcp__serena__list_dir",
+      "mcp__serena__read_file",
+      "mcp__serena__write_memory",
+      "Bash(similarity-ts:*)",
+      "Bash(git add:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\c\\Users\\yn132\\work"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "context7",
+    "playwright",
+    "serena"
+  ],
+  "outputStyle": "default"
+}
