@@ -8,7 +8,8 @@
       "mcp__serena__read_file",
       "mcp__serena__write_memory",
       "Bash(similarity-ts:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "additionalDirectories": [
       "C:\\c\\Users\\yn132\\work"
