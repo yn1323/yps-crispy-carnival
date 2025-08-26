@@ -1,0 +1,27 @@
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": false,
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": true,
+    "DISABLE_ERROR_REPORTING": true,
+    "DISABLE_TELEMETRY": true,
+    "DISABLE_MICROCOMPACT": true,
+    "DISABLE_INTERLEAVED_THINKING": true
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm format"
+          },
+          {
+            "type": "command",
+            "command": "pnpm test"
+          }
+        ]
+      }
+    ]
+  }
+}
