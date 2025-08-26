@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!.scaffdog"]
+    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!.scaffdog", "!convex/_generated", "!.claude"]
   },
   "formatter": {
     "enabled": true,
