@@ -52,3 +52,5 @@ node_modules/
 
 # いろいろな一時ファイルを置く
 log/
+# clerk configuration (can include secrets)
+/.clerk/
