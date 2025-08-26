@@ -21,17 +21,9 @@
       "mcp__serena__replace_regex",
       "Bash(gh pr create:*)"
     ],
-    "deny": [
-      "mcp__serena__execute_shell_command"
-    ],
-    "additionalDirectories": [
-      "C:\\c\\Users\\yn132\\work"
-    ]
+    "deny": ["mcp__serena__execute_shell_command"],
+    "additionalDirectories": ["C:\\c\\Users\\yn132\\work"]
   },
-  "enabledMcpjsonServers": [
-    "context7",
-    "playwright",
-    "serena"
-  ],
+  "enabledMcpjsonServers": ["context7", "playwright", "serena"],
   "outputStyle": "default"
 }
