@@ -11,14 +11,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)"
     ],
-    "additionalDirectories": [
-      "C:\\c\\Users\\yn132\\work"
-    ]
+    "additionalDirectories": ["C:\\c\\Users\\yn132\\work"]
   },
-  "enabledMcpjsonServers": [
-    "context7",
-    "playwright",
-    "serena"
-  ],
+  "enabledMcpjsonServers": ["context7", "playwright", "serena"],
   "outputStyle": "default"
 }
