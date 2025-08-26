@@ -9,10 +9,17 @@
       "mcp__serena__write_memory",
       "Bash(similarity-ts:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
-    "additionalDirectories": ["C:\\c\\Users\\yn132\\work"]
+    "additionalDirectories": [
+      "C:\\c\\Users\\yn132\\work"
+    ]
   },
-  "enabledMcpjsonServers": ["context7", "playwright", "serena"],
+  "enabledMcpjsonServers": [
+    "context7",
+    "playwright",
+    "serena"
+  ],
   "outputStyle": "default"
 }
