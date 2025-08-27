@@ -1,15 +1,16 @@
-import Link from "next/link";
+import { Top } from "@/src/components/features/Top";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const metadata = {
   title: "YPS-Polar",
 };
 
-export default async function Page() {
+const TopPage = () => {
   return (
     <Animation>
-      <h1 className="border text-gray-500">YPS-Polar</h1>
-      <Link href="/signin">ログイン</Link>
+      <Top />
     </Animation>
   );
-}
+};
+
+export default TopPage;
