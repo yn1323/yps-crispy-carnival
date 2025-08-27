@@ -14,3 +14,6 @@ jobs:
         uses: ./.github/actions/setup
       - name: Build
         run: pnpm build
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}

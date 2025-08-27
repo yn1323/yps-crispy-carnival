@@ -28,12 +28,33 @@ const config: StorybookConfig = {
       "@/src": path.resolve(__dirname, "../src"),
       "@/e2e": path.resolve(__dirname, "../e2e"),
     };
+
+    // @clerk/nextjs/serverのBuildエラー調整
+    // Node.jsモジュールの外部化とポリフィル設定
+    config.define = {
+      ...config.define,
+      global: "globalThis",
+    };
+
+    // Node.jsモジュールを外部化してClerkの競合を回避
+    config.optimizeDeps = {
+      ...config.optimizeDeps,
+      exclude: ["@clerk/nextjs/server"],
+    };
+
+    // Clerkのサーバーサイドモジュールを完全に外部化
+    if (!config.build) config.build = {};
+    if (!config.build.rollupOptions) config.build.rollupOptions = {};
+    if (!config.build.rollupOptions.external) config.build.rollupOptions.external = [];
+
+    const external = config.build.rollupOptions.external as string[];
+    external.push("@clerk/nextjs/server", "path", "fs", "crypto");
+
     return config;
   },
   env: (config) => ({
     ...config,
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY ?? "",
   }),
 };
 export default config;

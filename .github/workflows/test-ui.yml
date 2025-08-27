@@ -1,4 +1,4 @@
-name: test
+name: test-ui
 
 on:
   - push
@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/3, 2/3, 3/3]
+        shard: [1/2, 2/2]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -20,3 +20,6 @@ jobs:
         uses: ./.github/actions/playwright
       - name: Run Test
         run: pnpm vitest run --shard=${{ matrix.shard }} --project=ui
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY : ${{ secrets.CLERK_PUBLISHABLE_KEY }}
