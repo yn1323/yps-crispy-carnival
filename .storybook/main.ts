@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { StorybookConfig } from "@storybook/nextjs-vite";
+import "./chromaticSetup";
 
 const config: StorybookConfig = {
   refs: {
