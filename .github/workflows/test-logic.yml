@@ -21,3 +21,5 @@ jobs:
         uses: ./.github/actions/playwright
       - name: Run Test
         run: pnpm vitest run --shard=${{ matrix.shard }} --project=logic
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}

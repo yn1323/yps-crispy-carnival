@@ -16,6 +16,10 @@ jobs:
       uses: ./.github/actions/playwright
     - name: Run Playwright tests
       run: pnpm e2e
+      env:
+        CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        E2E_CLERK_USER: ${{ secrets.E2E_CLERK_USER }}
+        E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
