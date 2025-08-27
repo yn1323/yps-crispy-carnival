@@ -21,7 +21,7 @@
     "e2e:codegen": "playwright codegen",
     "scaffdog": "scaffdog generate",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
+    "build-storybook": "storybook build  --stats-json",
     "convex:dev": "npx convex dev"
   },
   "dependencies": {
