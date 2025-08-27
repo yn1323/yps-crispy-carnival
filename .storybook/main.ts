@@ -34,6 +34,8 @@ const config: StorybookConfig = {
     ...config,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY ?? "",
     CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY ?? "",
+    STORYBOOK_CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY ?? "",
+    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY ?? "",
   }),
 };
 export default config;
