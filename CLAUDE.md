@@ -18,7 +18,7 @@
 - YOU MUST: 作業時はSerenaMCPを利用してください。
 
 ### IMPORTANT（重要事項）
-- IMPORTANT: Chakra UI v3 Modern API準拠
+- IMPORTANT: Chakra UI v3 Modern API準拠（必要に’）
 - IMPORTANT: 3ステップ以上でTodoWrite使用
 - IMPORTANT: 作業開始前に計画することを好む
 - IMPORTANT: バレルエクスポート禁止
