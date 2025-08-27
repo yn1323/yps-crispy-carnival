@@ -1,4 +1,4 @@
-import { ClerkProvider, SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { ClerkProvider, SignedIn, SignedOut, SignUpButton, UserButton } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
 import { UIProvider } from "@/src/components/ui/provider";
@@ -27,7 +27,6 @@ export default function RootLayout({
       <ClerkProvider>
         <body className={`${notoSansJp.variable}`}>
           <SignedOut>
-            <SignInButton />
             <SignUpButton>
               <button type="button">Sign Up</button>
             </SignUpButton>

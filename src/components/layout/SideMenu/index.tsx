@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, Button, Text, VStack } from "@chakra-ui/react";
+import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcSettings } from "react-icons/fc";
@@ -63,10 +64,12 @@ export const SideMenu = () => {
           {colorMode === "dark" ? "ライトモード" : "ダークモード"}
         </Button>
 
-        <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray" onClick={signout}>
-          <IoLogOut size={20} />
-          ログアウト
-        </Button>
+        <SignOutButton>
+          <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray" onClick={signout}>
+            <IoLogOut size={20} />
+            ログアウト
+          </Button>
+        </SignOutButton>
       </VStack>
     </Box>
   );
