@@ -1,4 +1,5 @@
 import { ChakraProvider, defaultSystem } from "@chakra-ui/react";
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Preview } from "@storybook/nextjs-vite";
 // biome-ignore lint/correctness/noUnusedImports: temp
 import React from "react";
@@ -18,9 +19,11 @@ const preview: Preview = {
     (Story) => {
       z.setErrorMap(customErrorMap);
       return (
-        <ChakraProvider value={defaultSystem}>
-          <Story />
-        </ChakraProvider>
+        <ClerkProvider>
+          <ChakraProvider value={defaultSystem}>
+            <Story />
+          </ChakraProvider>
+        </ClerkProvider>
       );
     },
   ],
