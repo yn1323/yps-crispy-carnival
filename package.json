@@ -21,7 +21,8 @@
     "e2e:codegen": "playwright codegen",
     "scaffdog": "scaffdog generate",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build  --stats-json",
+    "convex:dev": "npx convex dev"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.25.0",
@@ -40,6 +41,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
+    "@clerk/testing": "^1.12.0",
     "@playwright/test": "^1.51.1",
     "@storybook/addon-docs": "9.1.3",
     "@storybook/addon-vitest": "9.1.3",

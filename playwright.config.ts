@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
+import { E2EAuthJsonFile } from "@/e2e/constants";
 
 dotenv.config();
 
@@ -34,8 +35,18 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      name: "setup",
+      testMatch: /fixtures\/setup\/.*\.setup\.ts/,
+    },
+    {
+      name: "認証済みテスト",
+      testMatch: /scenarios\/.*\.test\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        // 保存した認証状態を使用
+        storageState: E2EAuthJsonFile,
+      },
+      dependencies: ["setup"],
     },
   ],
 
@@ -43,5 +54,10 @@ export default defineConfig({
     command: "pnpm dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    } as Record<string, string>,
   },
 });

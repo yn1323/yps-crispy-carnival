@@ -22,8 +22,8 @@ const logicProject = defineProject({
     include: ["./src/**/*.test.ts"],
     exclude: ["node_modules"],
     env: {
-      NEXT_PUBLIC_SUPABASE_URL: "https://example.com",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "example",
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+      CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
     },
   },
   resolve: {

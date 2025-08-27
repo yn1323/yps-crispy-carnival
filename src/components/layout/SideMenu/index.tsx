@@ -1,12 +1,11 @@
 "use client";
 
 import { Box, Button, Text, VStack } from "@chakra-ui/react";
+import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcSettings } from "react-icons/fc";
-import { IoLogOut, IoMoon, IoSunny } from "react-icons/io5";
-import { useColorMode } from "@/src/components/ui/color-mode";
-import { signout } from "./actions";
+import { IoLogOut } from "react-icons/io5";
 
 const menuItems = [
   { href: "/mypage", label: "マイページ", icon: FcBusinessman },
@@ -18,7 +17,6 @@ const menuItems = [
 
 export const SideMenu = () => {
   const pathname = usePathname();
-  const { colorMode, toggleColorMode } = useColorMode();
 
   return (
     <Box
@@ -57,16 +55,12 @@ export const SideMenu = () => {
           })}
         </VStack>
 
-        {/* デバッグ用ダークモード切り替え */}
-        <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="blue" onClick={toggleColorMode}>
-          {colorMode === "dark" ? <IoSunny size={20} /> : <IoMoon size={20} />}
-          {colorMode === "dark" ? "ライトモード" : "ダークモード"}
-        </Button>
-
-        <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray" onClick={signout}>
-          <IoLogOut size={20} />
-          ログアウト
-        </Button>
+        <SignOutButton>
+          <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray">
+            <IoLogOut size={20} />
+            ログアウト
+          </Button>
+        </SignOutButton>
       </VStack>
     </Box>
   );
