@@ -22,3 +22,4 @@ jobs:
         run: pnpm vitest run --shard=${{ matrix.shard }} --project=ui
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY : ${{ secrets.CLERK_PUBLISHABLE_KEY }}
