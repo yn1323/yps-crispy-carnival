@@ -20,7 +20,8 @@
       "mcp__serena__create_text_file",
       "mcp__serena__replace_regex",
       "Bash(gh pr create:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [
       "mcp__serena__execute_shell_command",
