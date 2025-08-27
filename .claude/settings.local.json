@@ -19,11 +19,21 @@
       "Bash(npx convex:*)",
       "mcp__serena__create_text_file",
       "mcp__serena__replace_regex",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(git log:*)"
     ],
-    "deny": ["mcp__serena__execute_shell_command"],
-    "additionalDirectories": ["C:\\c\\Users\\yn132\\work"]
+    "deny": [
+      "mcp__serena__execute_shell_command",
+      "mcp__serena__replace_symbol_body"
+    ],
+    "additionalDirectories": [
+      "C:\\c\\Users\\yn132\\work"
+    ]
   },
-  "enabledMcpjsonServers": ["context7", "playwright", "serena"],
+  "enabledMcpjsonServers": [
+    "context7",
+    "playwright",
+    "serena"
+  ],
   "outputStyle": "default"
 }
