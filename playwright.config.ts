@@ -54,10 +54,5 @@ export default defineConfig({
     command: "pnpm dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
-      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
-    } as Record<string, string>,
   },
 });
