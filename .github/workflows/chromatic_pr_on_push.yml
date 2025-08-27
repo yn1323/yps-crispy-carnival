@@ -12,14 +12,14 @@ jobs:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Storybook Build  
-        run: pnpm build-storybook
-        env:
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CLERK_PUBLISHABLE_KEY : ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+      # - name: Storybook Build  
+      #   run: pnpm build-storybook
+      #   env:
+      #     CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      #     CLERK_PUBLISHABLE_KEY : ${{ secrets.CLERK_PUBLISHABLE_KEY }}
       - name: Publish to Chromatic
         uses: chromaui/action@latest
         with:
           onlyChanged: true
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          storybookBuildDir: "storybook-static"
+          # storybookBuildDir: "storybook-static"

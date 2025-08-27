@@ -19,7 +19,7 @@ Commit message guidelines:
 - Always write commit messages in Japanese
 - Use clear, descriptive language that explains the 'what' and 'why'
 - Keep the first line concise but informative (50-72 characters when possible)
-- Use appropriate prefixes when helpful: 機能追加:, バグ修正:, リファクタ:, テスト:, ドキュメント:, スタイル:, etc.
+- Use appropriate prefixes when helpful: "fix: ", "feat: ", "refactor: ", "chore: ","test: ", or "refactor: ".
 - For multi-line messages, provide additional context in the body when necessary
 
 Commit granularity principles:

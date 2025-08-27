@@ -2,7 +2,7 @@ import { Top } from "@/src/components/features/Top";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const metadata = {
-  title: "YPS-Polar",
+  title: "YPS-Crispy-Carnival",
 };
 
 const TopPage = () => {
