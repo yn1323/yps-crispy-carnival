@@ -19,7 +19,11 @@ const preview: Preview = {
     (Story) => {
       z.setErrorMap(customErrorMap);
       return (
-        <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+        <ClerkProvider
+          // STORYBOOK_CLERK_PUBLISHABLE_KEY・・・Vitest
+          // NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY・・・Chromatic
+          publishableKey={process.env.STORYBOOK_CLERK_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        >
           <ChakraProvider value={defaultSystem}>
             <Story />
           </ChakraProvider>
