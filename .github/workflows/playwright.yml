@@ -22,6 +22,8 @@ jobs:
         CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         E2E_CLERK_USER: ${{ secrets.E2E_CLERK_USER }}
         E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
+        NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL}}
+        CONVEX_DEPLOYMENT: ${{secrets.CONVEX_DEPLOYMENT}}
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:

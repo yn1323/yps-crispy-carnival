@@ -16,6 +16,8 @@ jobs:
         run: pnpm build-storybook
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL}}
+          CONVEX_DEPLOYMENT: ${{secrets.CONVEX_DEPLOYMENT}}
       - name: Publish to Chromatic
         uses: chromaui/action@latest
         with:
