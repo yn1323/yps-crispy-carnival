@@ -24,6 +24,7 @@ const logicProject = defineProject({
     env: {
       CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
       CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
+      CONVEX_DEPLOYMENT: process.env.CONVEX_DEPLOYMENT,
     },
   },
   resolve: {
