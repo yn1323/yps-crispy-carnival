@@ -16,6 +16,8 @@ jobs:
       uses: ./.github/actions/playwright
     - name: Run Playwright tests
       run: |
+        npx convex dev &
+        sleep 5
         pnpm e2e
       env:
         NEXT_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
@@ -23,7 +25,7 @@ jobs:
         CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         E2E_CLERK_USER: ${{ secrets.E2E_CLERK_USER }}
         E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
-        NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
+        NEXT_PUBLIC_CONVEX_URL: ${{ secrets.CONVEX_REMOTE_URL }}
         CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - uses: actions/upload-artifact@v4
