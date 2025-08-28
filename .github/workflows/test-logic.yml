@@ -30,3 +30,4 @@ jobs:
           CLERK_PUBLISHABLE_KEY : ${{ secrets.CLERK_PUBLISHABLE_KEY }}
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
