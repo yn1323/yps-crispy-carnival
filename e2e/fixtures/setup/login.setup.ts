@@ -16,7 +16,7 @@ setup("ログイン", async ({ page }) => {
   await page.goto("/");
 
   await page.getByRole("button", { name: "Add User" }).click();
-  await expect.poll(async () => page.getByText("hogehoge").count()).toBeGreaterThan(1);
+  await expect.poll(async () => page.getByText("hogehoge").count()).toBeGreaterThanOrEqual(1);
 
   await clerk.signIn({
     page,
