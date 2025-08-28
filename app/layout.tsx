@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
+import { ConvexClientProvider } from "@/src/components/config/ConvexProvider";
 import { UIProvider } from "@/src/components/ui/provider";
 
 const notoSansJp = Noto_Sans_JP({
@@ -25,9 +26,11 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className={`${notoSansJp.variable}`}>
-        <ClerkProvider>
-          <UIProvider>{children}</UIProvider>
-        </ClerkProvider>
+        <ConvexClientProvider>
+          <ClerkProvider>
+            <UIProvider>{children}</UIProvider>
+          </ClerkProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

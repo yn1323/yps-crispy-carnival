@@ -2,11 +2,35 @@
 
 import { Box, Button, Container, Heading, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 
 // TODO: 仮のTOPページ
 export const Top = () => {
+  const users = useQuery(api.functions.getUsers);
+  const add = useMutation(api.functions.createUser);
+
   return (
     <Box minH="100vh" display="flex" alignItems="center" justifyContent="center" bg="gray.50" py={8}>
+      <Box>
+        <div>
+          {users?.map((user, i) => (
+            <div key={i}>{user.name}</div>
+          ))}
+        </div>
+        <div>{users?.length === 0 ? "No User Exist" : ""}</div>
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              add({ name: "hogehoge", email: "hoge" });
+            }}
+          >
+            Add User
+          </button>
+        </div>
+      </Box>
+
       <Container maxW="4xl" textAlign="center">
         <VStack gap={12}>
           {/* ヒーローセクション */}
