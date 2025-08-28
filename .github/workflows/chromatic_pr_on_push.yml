@@ -12,8 +12,6 @@ jobs:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Execute Convex
-        run: pnpm convex:dev
       - name: Storybook Build  
         run: |
           npx convex dev &        

@@ -17,8 +17,6 @@ jobs:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Execute Convex
-        run: pnpm convex:dev
       - name: Setup Playwright
         uses: ./.github/actions/playwright
       - name: Run Test
