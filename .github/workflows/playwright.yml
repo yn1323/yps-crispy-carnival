@@ -19,7 +19,6 @@ jobs:
         npx convex dev &        
         sleep 5
         pnpm e2e
-        kill %1
       env:
         NEXT_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
         CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
