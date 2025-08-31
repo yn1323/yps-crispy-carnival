@@ -1,9 +1,8 @@
 #!/usr/bin/env tsx
 
-import { execSync } from "child_process";
-import console from "console";
-import { createReadStream, promises as fs } from "fs";
-import path from "path";
+import { execSync } from "node:child_process";
+import { createReadStream, promises as fs } from "node:fs";
+import path from "node:path";
 import unzipper from "unzipper";
 
 const main = async () => {
@@ -77,4 +76,3 @@ const main = async () => {
 };
 
 main();
-
