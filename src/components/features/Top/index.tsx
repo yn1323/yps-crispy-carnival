@@ -23,7 +23,7 @@ export const Top = () => {
           <button
             type="button"
             onClick={() => {
-              add({ name: "hogehoge", email: "hoge" });
+              add({ name: "hogehoge", authId: "temp-auth-id" });
             }}
           >
             Add User

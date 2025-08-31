@@ -23,6 +23,9 @@ importers:
       convex:
         specifier: ^1.26.1
         version: 1.26.1(@clerk/clerk-react@5.43.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
+      jose:
+        specifier: ^6.1.0
+        version: 6.1.0
       jotai:
         specifier: ^2.12.2
         version: 2.13.1(@babel/core@7.28.3)(@babel/template@7.27.2)(@types/react@19.1.11)(react@19.1.0)
@@ -2272,6 +2275,9 @@ packages:
   jiti@1.21.7:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
+
+  jose@6.1.0:
+    resolution: {integrity: sha512-TTQJyoEoKcC1lscpVDCSsVgYzUDg/0Bt3WE//WiTPK6uOCQC2KZS4MpugbMWt/zyjkopgZoXhZuCi00gLudfUA==}
 
   jotai@2.13.1:
     resolution: {integrity: sha512-cRsw6kFeGC9Z/D3egVKrTXRweycZ4z/k7i2MrfCzPYsL9SIWcPXTyqv258/+Ay8VUEcihNiE/coBLE6Kic6b8A==}
@@ -5684,6 +5690,8 @@ snapshots:
       '@pkgjs/parseargs': 0.11.0
 
   jiti@1.21.7: {}
+
+  jose@6.1.0: {}
 
   jotai@2.13.1(@babel/core@7.28.3)(@babel/template@7.27.2)(@types/react@19.1.11)(react@19.1.0):
     optionalDependencies:

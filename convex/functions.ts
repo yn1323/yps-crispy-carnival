@@ -9,31 +9,21 @@ export const getUsers = query({
   },
 });
 
-export const getUserByEmail = query({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .unique();
-  },
-});
-
 export const createUser = mutation({
   args: {
     name: v.string(),
-    email: v.string(),
+    authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 認証エラーで落とせる
-    // const identity = await ctx.auth.getUserIdentity();
-    // if (identity === null) {
-    //   throw new Error("Not authenticated");
-    // }
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      throw new Error("Not authenticated");
+    }
 
     const userId = await ctx.db.insert("users", {
       name: args.name,
-      email: args.email,
+      authId: args.authId,
+      hasProfile: true,
       createdAt: Date.now(),
     });
     return userId;

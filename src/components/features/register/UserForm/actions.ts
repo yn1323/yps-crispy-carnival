@@ -1,10 +1,20 @@
 "use server";
 
+import { api } from "@/convex/_generated/api";
+import { convex } from "@/src/configs/convex";
 import type { SchemaType } from "./schema";
 
-// biome-ignore lint/correctness/noUnusedFunctionParameters: temp
 export const registerUser = async (userId: string, { userName }: SchemaType) => {
-  const success = true;
+  try {
+    // Convexでプロフィール作成
+    await convex.mutation(api.auth.createProfile, {
+      name: userName,
+      authId: userId,
+    });
 
-  return { success };
+    return { success: true };
+  } catch (error) {
+    console.error("User registration error:", error);
+    return { success: false };
+  }
 };
