@@ -13,7 +13,7 @@ const main = async () => {
 
     // backup配下のファイル・ディレクトリを削除（.gitkeep以外）
     console.log("backup配下をクリーンアップ中...");
-    const backupDir = "convex/backup";
+    const backupDir = "convex-seeds/backup";
 
     try {
       const files = await fs.readdir(backupDir);
@@ -36,7 +36,7 @@ const main = async () => {
 
     // タイムスタンプ生成
     const timestamp = new Date().toISOString().replace(/[:-]/g, "").replace("T", "_").split(".")[0];
-    const zipFile = `convex/backup/${timestamp}.zip`;
+    const zipFile = `convex-seeds/backup/${timestamp}.zip`;
 
     // Convexエクスポート実行
     console.log("\nエクスポート中...");
@@ -49,7 +49,7 @@ const main = async () => {
 
     // zip展開
     console.log("\nzipファイルを展開中...");
-    const extractDir = `convex/backup/${timestamp}`;
+    const extractDir = `convex-seeds/backup/${timestamp}`;
     await fs.mkdir(extractDir, { recursive: true });
 
     try {

@@ -42,7 +42,7 @@ const main = async () => {
     }
 
     // seedsディレクトリの確認
-    const seedsDir = "./convex/seeds";
+    const seedsDir = "./convex-seeds/seeds";
     console.log("\nseedsディレクトリの確認...");
     console.log("----------------------------------------");
 
