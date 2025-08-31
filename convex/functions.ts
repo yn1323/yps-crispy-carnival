@@ -25,6 +25,12 @@ export const createUser = mutation({
     email: v.string(),
   },
   handler: async (ctx, args) => {
+    // 認証エラーで落とせる
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      throw new Error("Not authenticated");
+    }
+
     const userId = await ctx.db.insert("users", {
       name: args.name,
       email: args.email,

@@ -26,11 +26,11 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className={`${notoSansJp.variable}`}>
-        <ConvexClientProvider>
-          <ClerkProvider>
+        <ClerkProvider>
+          <ConvexClientProvider>
             <UIProvider>{children}</UIProvider>
-          </ClerkProvider>
-        </ConvexClientProvider>
+          </ConvexClientProvider>
+        </ClerkProvider>
       </body>
     </html>
   );
