@@ -21,7 +21,9 @@
       "mcp__serena__replace_regex",
       "Bash(gh pr create:*)",
       "Bash(git log:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "mcp__serena__search_for_pattern",
+      "Bash(git fetch:*)"
     ],
     "deny": [
       "mcp__serena__execute_shell_command",
