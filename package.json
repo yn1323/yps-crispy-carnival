@@ -22,7 +22,9 @@
     "scaffdog": "scaffdog generate",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build  --stats-json",
-    "convex:dev": "npx convex dev"
+    "convex:dev": "npx convex dev",
+    "convex:import": "wsl sh convex/scripts/import.sh",
+    "convex:export": "wsl sh convex/scripts/export.sh"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.25.0",
