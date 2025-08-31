@@ -55,3 +55,6 @@ log/
 # clerk configuration (can include secrets)
 /.clerk/
 e2e/.clerk
+
+# convex
+convex/backup

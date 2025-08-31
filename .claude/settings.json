@@ -8,9 +8,9 @@
     "DISABLE_INTERLEAVED_THINKING": "1"
   },
   "hooks": {
-    "Stop": [
+    "PostToolUse": [
       {
-        "matcher": "",
+        "matcher": "Edit|MultiEdit|Write",
         "hooks": [
           {
             "type": "command",

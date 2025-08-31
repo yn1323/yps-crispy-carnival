@@ -16,6 +16,7 @@
 - YOU MUST: Playwright MCPでスクリーンショットを撮るときは`.env`の`CLAUDE_PLAYWRIGHT_MCP_SCREENSHOT_STORE`にファイルを配置してください
 - YOU MUST: 質問をする場合は、1つずつ質問してください。チャットなので。。。
 - YOU MUST: 作業時はSerenaMCPを利用してください。
+- YOU MUST: ユーザーの指示で不明瞭な箇所は必ず聞き返してください。これすごく重要！！ぜひ一緒に仕様をつくっていきましょう！
 
 ### IMPORTANT（重要事項）
 - IMPORTANT: Chakra UI v3 Modern API準拠
