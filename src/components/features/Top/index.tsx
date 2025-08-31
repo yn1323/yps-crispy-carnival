@@ -30,7 +30,6 @@ export const Top = () => {
           </button>
         </div>
       </Box>
-
       <Container maxW="4xl" textAlign="center">
         <VStack gap={12}>
           {/* ヒーローセクション */}
