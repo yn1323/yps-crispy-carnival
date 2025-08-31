@@ -21,6 +21,9 @@
       "recommended": true,
       "suspicious": {
         "noArrayIndexKey": "off"
+      },
+      "complexity": {
+        "noForEach": "off"
       }
     },
     "domains": {

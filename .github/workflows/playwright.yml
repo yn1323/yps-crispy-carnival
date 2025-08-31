@@ -8,12 +8,20 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    concurrency:
+      group: "playwright-convex"  
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@v5
     - name: Setup
       uses: ./.github/actions/setup
     - name: Setup Playwright
       uses: ./.github/actions/playwright
+    - name: Reset Database
+      run: pnpm convex:import
+      env:
+        CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
       run: |
         npx convex dev &
