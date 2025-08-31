@@ -14,6 +14,11 @@ jobs:
       uses: ./.github/actions/setup
     - name: Setup Playwright
       uses: ./.github/actions/playwright
+    - name: Reset Database
+      run: pnpm convex:import
+      env:
+        CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
       run: |
         npx convex dev &
