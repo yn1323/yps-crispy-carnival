@@ -23,5 +23,6 @@
   },
   "files.associations": {
     "wrangler.json": "jsonc"
-  }
+  },
+  "files.eol": "\n"
 }
