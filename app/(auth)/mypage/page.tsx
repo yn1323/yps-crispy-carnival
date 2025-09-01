@@ -16,6 +16,8 @@ import {
 } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
 
+export const runtime = "edge";
+
 // 動的データ生成関数
 const generateShiftsFromToday = () => {
   const today = new Date();

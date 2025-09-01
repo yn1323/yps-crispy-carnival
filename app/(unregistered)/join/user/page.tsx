@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { UserForm } from "@/src/components/features/register/UserForm";
 
+export const runtime = "edge";
+
 const JoinUserPage = async () => {
   const { userId } = await auth();
 
