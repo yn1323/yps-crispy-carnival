@@ -13,18 +13,9 @@ const meta = {
       },
     },
   },
-  args: {
-    isRegistered: true,
-  },
 } satisfies Meta<typeof SideMenu>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {};
-
-export const Unregistered: Story = {
-  args: {
-    isRegistered: false,
-  },
-};
