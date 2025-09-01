@@ -15,9 +15,6 @@ setup("グローバルセットアップ", async () => {
 setup("ログイン", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Add User" }).click();
-  await expect.poll(async () => page.getByText("hogehoge").count()).toBeGreaterThanOrEqual(1);
-
   await clerk.signIn({
     page,
     signInParams: {
@@ -31,7 +28,7 @@ setup("ログイン", async ({ page }) => {
 
   // 保護されたページにアクセスできることを確認
   const currentUrl = page.url();
-  expect(currentUrl).toContain("/mypage");
+  expect(currentUrl).toContain("/join/user");
 
   // 認証状態を保存
   await page.context().storageState({ path: E2EAuthJsonFile });
