@@ -10,19 +10,17 @@ const isHomeRoute = createRouteMatcher(["/"]);
 const isJoinUserRoute = createRouteMatcher(["/join/user"]);
 
 export default clerkMiddleware(async (auth, req) => {
+  const { userId } = await auth();
   // サインイン済みユーザーがTOPページにアクセスした場合のリダイレクト
   if (isHomeRoute(req)) {
-    const { userId } = await auth();
     if (userId) {
       return NextResponse.redirect(new URL("/mypage", req.url));
     }
   }
 
-  // パブリックルート以外は認証を必須にする
   if (!isPublicRoute(req)) {
+    // パブリックルート以外は認証を必須にする
     await auth.protect();
-    // 認証済みユーザーのプロフィール完了状態をチェック
-    const { userId } = await auth();
 
     // 認証されているがuserIdがない場合
     if (!userId) {

@@ -43,7 +43,7 @@ export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
   return (
     <Card.Root w="96" p="8">
       <Stack gap="8" w="full">
-        <Text fontSize="lg">ユーザー名登録</Text>
+        <Text fontSize="lg">ユーザー登録</Text>
         <Stack
           gap="6"
           as="form"

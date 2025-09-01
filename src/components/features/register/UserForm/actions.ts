@@ -2,19 +2,19 @@
 
 import { api } from "@/convex/_generated/api";
 import { convex } from "@/src/configs/convex";
+import { addRegisterInfo } from "@/src/helpers/auth/registerUser";
 import type { SchemaType } from "./schema";
 
 export const registerUser = async (userId: string, { userName }: SchemaType) => {
-  try {
-    // Convexでプロフィール作成
-    await convex.mutation(api.auth.createProfile, {
+  const { success } = await convex
+    .mutation(api.user.createUser, {
       name: userName,
       authId: userId,
-    });
+    })
+    .then(() => ({ success: true }))
+    .catch(() => ({ success: false }));
 
-    return { success: true };
-  } catch (error) {
-    console.error("User registration error:", error);
-    return { success: false };
-  }
+  addRegisterInfo({ userId, isRegistered: success });
+
+  return { success };
 };
