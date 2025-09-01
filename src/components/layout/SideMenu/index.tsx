@@ -4,8 +4,7 @@ import { Box, Button, Text, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcSettings } from "react-icons/fc";
-import { IoLogOut } from "react-icons/io5";
+import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcSettings, FcUndo } from "react-icons/fc";
 
 const menuItems = [
   { href: "/mypage", label: "マイページ", icon: FcBusinessman },
@@ -15,49 +14,43 @@ const menuItems = [
   { href: "/settings", label: "設定", icon: FcSettings },
 ];
 
-export const SideMenu = () => {
+type Props = {
+  isRegistered?: boolean;
+};
+
+export const SideMenu = ({ isRegistered = false }: Props) => {
   const pathname = usePathname();
 
   return (
-    <Box
-      h="100vh"
-      bg="rgba(255, 255, 255, 0.01)"
-      borderRight="1px"
-      borderColor="border"
-      py={4}
-      px={4}
-      position="fixed"
-      left={0}
-      top={0}
-      zIndex={10}
-    >
+    <Box h="100vh" borderRight="1px" borderColor="border" py={4} px={4} position="fixed" left={0} top={0} zIndex={10}>
       <VStack gap={4} h="full">
         <Text fontSize="xl" fontWeight="bold">
           管理画面
         </Text>
 
         <VStack gap={2} flex={1} alignItems="stretch">
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  width="full"
-                  variant={pathname === item.href ? "solid" : "ghost"}
-                  justifyContent="flex-start"
-                  colorPalette={pathname === item.href ? "blue" : "gray"}
-                >
-                  <IconComponent size={20} />
-                  {item.label}
-                </Button>
-              </Link>
-            );
-          })}
+          {isRegistered &&
+            menuItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    width="full"
+                    variant={pathname === item.href ? "solid" : "ghost"}
+                    justifyContent="flex-start"
+                    colorPalette={pathname === item.href ? "blue" : "gray"}
+                  >
+                    <IconComponent size={20} />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
         </VStack>
 
         <SignOutButton>
           <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray">
-            <IoLogOut size={20} />
+            <FcUndo size={20} />
             ログアウト
           </Button>
         </SignOutButton>
