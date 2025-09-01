@@ -20,8 +20,6 @@ import { useState } from "react";
 import { HiArrowLeft } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
 
-export const runtime = "edge";
-
 export default function NewShopPage() {
   const router = useRouter();
   const [timeUnit, setTimeUnit] = useState("15");
