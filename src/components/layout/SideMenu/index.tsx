@@ -14,11 +14,7 @@ const menuItems = [
   { href: "/settings", label: "設定", icon: FcSettings },
 ];
 
-type Props = {
-  isRegistered?: boolean;
-};
-
-export const SideMenu = ({ isRegistered = false }: Props) => {
+export const SideMenu = () => {
   const pathname = usePathname();
 
   return (
@@ -29,23 +25,22 @@ export const SideMenu = ({ isRegistered = false }: Props) => {
         </Text>
 
         <VStack gap={2} flex={1} alignItems="stretch">
-          {isRegistered &&
-            menuItems.map((item) => {
-              const IconComponent = item.icon;
-              return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    width="full"
-                    variant={pathname === item.href ? "solid" : "ghost"}
-                    justifyContent="flex-start"
-                    colorPalette={pathname === item.href ? "blue" : "gray"}
-                  >
-                    <IconComponent size={20} />
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
+          {menuItems.map((item) => {
+            const IconComponent = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <Button
+                  width="full"
+                  variant={pathname === item.href ? "solid" : "ghost"}
+                  justifyContent="flex-start"
+                  colorPalette={pathname === item.href ? "blue" : "gray"}
+                >
+                  <IconComponent size={20} />
+                  {item.label}
+                </Button>
+              </Link>
+            );
+          })}
         </VStack>
 
         <SignOutButton>
