@@ -5,6 +5,8 @@ import { api } from "@/convex/_generated/api";
 import { convex } from "@/src/configs/convex";
 import { addRegisterInfo } from "@/src/helpers/auth/registerUser";
 
+export const runtime = "edge";
+
 // キャッシュ化されたユーザープロフィール取得関数
 const getCachedUserProfile = async (authId: string) => {
   try {
