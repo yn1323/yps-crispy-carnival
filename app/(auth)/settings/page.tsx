@@ -1,7 +1,10 @@
 import { Center, Heading } from "@chakra-ui/react";
 import { Animation } from "@/src/components/templates/Animation";
+import { verifySession } from "@/src/helpers/utils/transition";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  await verifySession();
+
   return (
     <Animation>
       <Center h="100vh">

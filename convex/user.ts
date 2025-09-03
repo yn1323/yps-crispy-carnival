@@ -29,7 +29,7 @@ export const createUser = mutation({
         authId: args.authId,
         createdAt: Date.now(),
         isDeleted: false,
-        isRegistered: false,
+        isRegistered: true,
       })
       .then((userId) => userId)
       .catch((e: unknown) => {

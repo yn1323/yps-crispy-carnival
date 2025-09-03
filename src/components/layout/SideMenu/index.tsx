@@ -14,7 +14,11 @@ const menuItems = [
   { href: "/settings", label: "設定", icon: FcSettings },
 ];
 
-export const SideMenu = () => {
+type Props = {
+  onlyLogout?: boolean;
+};
+
+export const SideMenu = ({ onlyLogout = false }: Props) => {
   const pathname = usePathname();
 
   return (
@@ -25,22 +29,23 @@ export const SideMenu = () => {
         </Text>
 
         <VStack gap={2} flex={1} alignItems="stretch">
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  width="full"
-                  variant={pathname === item.href ? "solid" : "ghost"}
-                  justifyContent="flex-start"
-                  colorPalette={pathname === item.href ? "blue" : "gray"}
-                >
-                  <IconComponent size={20} />
-                  {item.label}
-                </Button>
-              </Link>
-            );
-          })}
+          {!onlyLogout &&
+            menuItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    width="full"
+                    variant={pathname === item.href ? "solid" : "ghost"}
+                    justifyContent="flex-start"
+                    colorPalette={pathname === item.href ? "blue" : "gray"}
+                  >
+                    <IconComponent size={20} />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
         </VStack>
 
         <SignOutButton>

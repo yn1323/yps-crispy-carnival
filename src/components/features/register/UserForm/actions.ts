@@ -2,7 +2,6 @@
 
 import { api } from "@/convex/_generated/api";
 import { convex } from "@/src/configs/convex";
-import { addRegisterInfo } from "@/src/helpers/auth/registerUser";
 import type { SchemaType } from "./schema";
 
 export const registerUser = async (userId: string, { userName }: SchemaType) => {
@@ -13,8 +12,6 @@ export const registerUser = async (userId: string, { userName }: SchemaType) => 
     })
     .then(() => ({ success: true }))
     .catch(() => ({ success: false }));
-
-  addRegisterInfo({ userId, isRegistered: success });
 
   return { success };
 };

@@ -4,6 +4,7 @@ import { Badge, Box, Button, Card, Container, Flex, Grid, Heading, Stack, Text, 
 import { useParams, useRouter } from "next/navigation";
 import { HiArrowLeft, HiCalendar, HiOfficeBuilding, HiPencil, HiUser, HiUserAdd, HiUserGroup } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
+import { verifySession } from "@/src/helpers/utils/transition";
 
 export const runtime = "edge";
 
@@ -79,7 +80,9 @@ const getMockShopData = (id: string) => {
   return shops[id as keyof typeof shops];
 };
 
-export default function ShopDetailPage() {
+export default async function ShopDetailPage() {
+  await verifySession();
+
   const params = useParams();
   const router = useRouter();
   const shopId = params.id as string;
