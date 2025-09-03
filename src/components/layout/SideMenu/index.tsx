@@ -4,14 +4,14 @@ import { Box, Button, Text, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcSettings, FcUndo } from "react-icons/fc";
+import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcUndo } from "react-icons/fc";
 
 const menuItems = [
   { href: "/mypage", label: "マイページ", icon: FcBusinessman },
   { href: "/shifts", label: "シフト", icon: FcCalendar },
   { href: "/attendance", label: "勤怠記録", icon: FcClock },
   { href: "/timecard", label: "タイムカード", icon: FcDocument },
-  { href: "/settings", label: "設定", icon: FcSettings },
+  // { href: "/settings", label: "設定", icon: FcSettings },
 ];
 
 type Props = {
