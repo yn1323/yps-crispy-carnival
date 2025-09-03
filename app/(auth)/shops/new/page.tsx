@@ -19,11 +19,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { HiArrowLeft } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
-import { verifySession } from "@/src/helpers/utils/transition";
 
-export default async function NewShopPage() {
-  await verifySession();
-
+export default function NewShopPage() {
   const router = useRouter();
   const [timeUnit, setTimeUnit] = useState("15");
   const [submitFrequency, setSubmitFrequency] = useState("weekly");
