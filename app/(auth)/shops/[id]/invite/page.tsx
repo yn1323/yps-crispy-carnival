@@ -32,7 +32,6 @@ import {
   HiUserAdd,
 } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
-import { verifySession } from "@/src/helpers/utils/transition";
 
 export const runtime = "edge";
 
@@ -94,8 +93,7 @@ const getMockInviteData = (_shopId: string) => {
   };
 };
 
-export default async function ShopInvitePage() {
-  await verifySession();
+export default  function ShopInvitePage() {
 
   const params = useParams();
   const router = useRouter();

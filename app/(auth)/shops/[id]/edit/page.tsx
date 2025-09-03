@@ -19,7 +19,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { HiArrowLeft, HiSave } from "react-icons/hi";
 import { Animation } from "@/src/components/templates/Animation";
-import { verifySession } from "@/src/helpers/utils/transition";
 
 export const runtime = "edge";
 
@@ -40,8 +39,7 @@ const getMockShopData = (id: string) => {
   return shops[id as keyof typeof shops];
 };
 
-export default async function ShopEditPage() {
-  await verifySession();
+export default  function ShopEditPage() {
 
   const params = useParams();
   const router = useRouter();
