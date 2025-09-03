@@ -10,7 +10,7 @@
     "build:cf": "opennextjs-cloudflare build",
     "preview:cf": "opennextjs-cloudflare preview",
     "deploy:cf": "opennextjs-cloudflare deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "version:cf": "opennextjs-cloudflare upload",
     "lint": "biome check",
     "format": "biome check --write",
     "test": "vitest",
