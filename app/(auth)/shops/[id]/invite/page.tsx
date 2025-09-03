@@ -93,8 +93,7 @@ const getMockInviteData = (_shopId: string) => {
   };
 };
 
-export default  function ShopInvitePage() {
-
+export default function ShopInvitePage() {
   const params = useParams();
   const router = useRouter();
   const shopId = params.id as string;

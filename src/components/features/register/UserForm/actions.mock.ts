@@ -1,3 +1,3 @@
-import { fn } from "@storybook/test";
+import { fn } from "storybook/internal/test";
 
 export const registerUser = fn().mockName("registerUser");

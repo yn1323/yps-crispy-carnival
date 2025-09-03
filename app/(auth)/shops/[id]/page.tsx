@@ -79,8 +79,7 @@ const getMockShopData = (id: string) => {
   return shops[id as keyof typeof shops];
 };
 
-export default  function ShopDetailPage() {
-
+export default function ShopDetailPage() {
   const params = useParams();
   const router = useRouter();
   const shopId = params.id as string;
