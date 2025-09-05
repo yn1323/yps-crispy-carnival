@@ -4,7 +4,7 @@ import { Button, Card, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { redirect } from "next/navigation";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { registerUser } from "@/src/components/features/register/UserForm/actions";
+import { registerUser } from "#src/components/features/register/UserForm/actions";
 import { toaster } from "@/src/components/ui/toaster";
 import { type SchemaType, schema } from "./schema";
 
@@ -43,7 +43,7 @@ export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
   return (
     <Card.Root w="96" p="8">
       <Stack gap="8" w="full">
-        <Text fontSize="lg">ユーザー名登録</Text>
+        <Text fontSize="lg">ユーザー登録</Text>
         <Stack
           gap="6"
           as="form"

@@ -24,7 +24,8 @@
       "Bash(git rm:*)",
       "mcp__serena__search_for_pattern",
       "Bash(git fetch:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "WebSearch"
     ],
     "deny": [
       "mcp__serena__execute_shell_command",

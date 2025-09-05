@@ -13,7 +13,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "types": ["vitest/globals", "@vitest/browser/providers/playwright"],
+    "types": ["vitest/globals", "@vitest/browser/providers/playwright", "./cloudflare-env.d.ts"],
     "plugins": [
       {
         "name": "next"

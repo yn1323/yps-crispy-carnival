@@ -77,6 +77,8 @@ const mockShops = [
 ];
 
 export default function MyPage() {
+  // Server Component化したら解除する
+  // await verifySession();
   const router = useRouter();
   const userName = "テストユーザー"; // 仮のユーザー名
   const now = new Date();

@@ -1,21 +1,9 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 
 // パブリックルート（認証不要）を定義
-const isPublicRoute = createRouteMatcher(["/"]);
-// TOPページのルートマッチャー
-const isHomeRoute = createRouteMatcher(["/"]);
+const isPublicRoute = createRouteMatcher(["/", "/logout"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // サインイン済みユーザーがTOPページにアクセスした場合のリダイレクト
-  if (isHomeRoute(req)) {
-    const { userId } = await auth();
-    if (userId) {
-      return NextResponse.redirect(new URL("/mypage", req.url));
-    }
-  }
-
-  // パブリックルート以外は認証を必須にする
   if (!isPublicRoute(req)) {
     await auth.protect();
   }

@@ -30,6 +30,7 @@ const logicProject = defineProject({
   },
   resolve: {
     alias: resolveAlias,
+    conditions: ["mock"],
   },
 });
 
@@ -57,6 +58,7 @@ const uiProject = defineProject({
   },
   resolve: {
     alias: resolveAlias,
+    conditions: ["mock"],
   },
 });
 
