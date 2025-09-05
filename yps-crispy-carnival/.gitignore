@@ -1,0 +1,32 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+count.txt
+.env
+.nitro
+.tanstack
+
+
+# env files (can opt-in for committing if needed)
+.env*
+
+*storybook.log
+storybook-static
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# いろいろな一時ファイルを置く
+log/
+# clerk configuration (can include secrets)
+/.clerk/
+e2e/.clerk
+
+# convex
+convex-seeds/backup

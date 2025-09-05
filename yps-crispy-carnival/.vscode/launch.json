@@ -1,0 +1,23 @@
+{
+  "version": "0.3.0",
+  "configurations": [
+    {
+      "command": "pnpm dev",
+      "name": "Run Dev Server",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "command": "pnpm storybook",
+      "name": "Run Storybook Server",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "command": "pnpm e2e:codegen",
+      "name": "Playwright Codegen",
+      "request": "launch",
+      "type": "node-terminal"
+    }
+  ]
+}

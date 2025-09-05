@@ -1,0 +1,31 @@
+{
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_MICROCOMPACT": "1",
+    "DISABLE_INTERLEAVED_THINKING": "1"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm format"
+          },
+          {
+            "type": "command",
+            "command": "pnpm test"
+          },
+          {
+            "type": "command",
+            "command": "pnpm type-check"
+          }
+        ]
+      }
+    ]
+  }
+}
