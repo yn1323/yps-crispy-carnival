@@ -9,13 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as MogeRouteImport } from './routes/moge'
+import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as MogeIndexRouteImport } from './routes/moge/index'
+import { Route as AuthTimecardIndexRouteImport } from './routes/_auth/timecard/index'
+import { Route as AuthShiftsIndexRouteImport } from './routes/_auth/shifts/index'
+import { Route as AuthSettingsIndexRouteImport } from './routes/_auth/settings/index'
+import { Route as AuthMypageIndexRouteImport } from './routes/_auth/mypage/index'
+import { Route as AuthAttendanceIndexRouteImport } from './routes/_auth/attendance/index'
 
-const MogeRoute = MogeRouteImport.update({
-  id: '/moge',
-  path: '/moge',
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -23,47 +26,92 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MogeIndexRoute = MogeIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => MogeRoute,
+const AuthTimecardIndexRoute = AuthTimecardIndexRouteImport.update({
+  id: '/timecard/',
+  path: '/timecard/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthShiftsIndexRoute = AuthShiftsIndexRouteImport.update({
+  id: '/shifts/',
+  path: '/shifts/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSettingsIndexRoute = AuthSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthMypageIndexRoute = AuthMypageIndexRouteImport.update({
+  id: '/mypage/',
+  path: '/mypage/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAttendanceIndexRoute = AuthAttendanceIndexRouteImport.update({
+  id: '/attendance/',
+  path: '/attendance/',
+  getParentRoute: () => AuthRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/moge': typeof MogeRouteWithChildren
-  '/moge/': typeof MogeIndexRoute
+  '/attendance': typeof AuthAttendanceIndexRoute
+  '/mypage': typeof AuthMypageIndexRoute
+  '/settings': typeof AuthSettingsIndexRoute
+  '/shifts': typeof AuthShiftsIndexRoute
+  '/timecard': typeof AuthTimecardIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/moge': typeof MogeIndexRoute
+  '/attendance': typeof AuthAttendanceIndexRoute
+  '/mypage': typeof AuthMypageIndexRoute
+  '/settings': typeof AuthSettingsIndexRoute
+  '/shifts': typeof AuthShiftsIndexRoute
+  '/timecard': typeof AuthTimecardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/moge': typeof MogeRouteWithChildren
-  '/moge/': typeof MogeIndexRoute
+  '/_auth': typeof AuthRouteWithChildren
+  '/_auth/attendance/': typeof AuthAttendanceIndexRoute
+  '/_auth/mypage/': typeof AuthMypageIndexRoute
+  '/_auth/settings/': typeof AuthSettingsIndexRoute
+  '/_auth/shifts/': typeof AuthShiftsIndexRoute
+  '/_auth/timecard/': typeof AuthTimecardIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/moge' | '/moge/'
+  fullPaths:
+    | '/'
+    | '/attendance'
+    | '/mypage'
+    | '/settings'
+    | '/shifts'
+    | '/timecard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/moge'
-  id: '__root__' | '/' | '/moge' | '/moge/'
+  to: '/' | '/attendance' | '/mypage' | '/settings' | '/shifts' | '/timecard'
+  id:
+    | '__root__'
+    | '/'
+    | '/_auth'
+    | '/_auth/attendance/'
+    | '/_auth/mypage/'
+    | '/_auth/settings/'
+    | '/_auth/shifts/'
+    | '/_auth/timecard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  MogeRoute: typeof MogeRouteWithChildren
+  AuthRoute: typeof AuthRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/moge': {
-      id: '/moge'
-      path: '/moge'
-      fullPath: '/moge'
-      preLoaderRoute: typeof MogeRouteImport
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -73,29 +121,65 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/moge/': {
-      id: '/moge/'
-      path: '/'
-      fullPath: '/moge/'
-      preLoaderRoute: typeof MogeIndexRouteImport
-      parentRoute: typeof MogeRoute
+    '/_auth/timecard/': {
+      id: '/_auth/timecard/'
+      path: '/timecard'
+      fullPath: '/timecard'
+      preLoaderRoute: typeof AuthTimecardIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shifts/': {
+      id: '/_auth/shifts/'
+      path: '/shifts'
+      fullPath: '/shifts'
+      preLoaderRoute: typeof AuthShiftsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings/': {
+      id: '/_auth/settings/'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/mypage/': {
+      id: '/_auth/mypage/'
+      path: '/mypage'
+      fullPath: '/mypage'
+      preLoaderRoute: typeof AuthMypageIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/attendance/': {
+      id: '/_auth/attendance/'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AuthAttendanceIndexRouteImport
+      parentRoute: typeof AuthRoute
     }
   }
 }
 
-interface MogeRouteChildren {
-  MogeIndexRoute: typeof MogeIndexRoute
+interface AuthRouteChildren {
+  AuthAttendanceIndexRoute: typeof AuthAttendanceIndexRoute
+  AuthMypageIndexRoute: typeof AuthMypageIndexRoute
+  AuthSettingsIndexRoute: typeof AuthSettingsIndexRoute
+  AuthShiftsIndexRoute: typeof AuthShiftsIndexRoute
+  AuthTimecardIndexRoute: typeof AuthTimecardIndexRoute
 }
 
-const MogeRouteChildren: MogeRouteChildren = {
-  MogeIndexRoute: MogeIndexRoute,
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthAttendanceIndexRoute: AuthAttendanceIndexRoute,
+  AuthMypageIndexRoute: AuthMypageIndexRoute,
+  AuthSettingsIndexRoute: AuthSettingsIndexRoute,
+  AuthShiftsIndexRoute: AuthShiftsIndexRoute,
+  AuthTimecardIndexRoute: AuthTimecardIndexRoute,
 }
 
-const MogeRouteWithChildren = MogeRoute._addFileChildren(MogeRouteChildren)
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  MogeRoute: MogeRouteWithChildren,
+  AuthRoute: AuthRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

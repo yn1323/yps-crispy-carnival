@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/")({
   component: App,
 });
 
 function App() {
-  return <div> Top</div>;
+  return <Animation> Top</Animation>;
 }
