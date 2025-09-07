@@ -1,6 +1,6 @@
 import { ChakraProvider, defaultSystem } from "@chakra-ui/react";
-import { ClerkProvider } from "@clerk/nextjs";
-import type { Preview } from "@storybook/nextjs-vite";
+import { ClerkProvider } from "@clerk/clerk-react";
+import type { Preview } from "@storybook/react-vite";
 // biome-ignore lint/correctness/noUnusedImports: temp
 import React from "react";
 import { z } from "zod";
@@ -22,8 +22,8 @@ const preview: Preview = {
       return (
         <ClerkProvider
           // STORYBOOK_CLERK_PUBLISHABLE_KEY・・・Vitest
-          // NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY・・・Chromatic
-          publishableKey={process.env.STORYBOOK_CLERK_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+          // VITE_CLERK_PUBLISHABLE_KEY
+          publishableKey={process.env.STORYBOOK_CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY ?? ""}
         >
           <ConvexClientProvider>
             <ChakraProvider value={defaultSystem}>

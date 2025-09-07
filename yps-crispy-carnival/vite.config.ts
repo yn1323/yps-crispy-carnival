@@ -18,6 +18,7 @@ export default defineConfig({
       "@/app": path.resolve(dirname, "./app"),
       "@/src": path.resolve(dirname, "./src"),
       "@/e2e": path.resolve(dirname, "./e2e"),
+      "/zod/v4/core/": path.resolve(__dirname, "node_modules", "zod", "v4", "core"),
     },
   },
 });

@@ -2,8 +2,7 @@
 
 import { Box, Button, Text, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
-import { Link } from "@tanstack/react-router";
-import { usePathname } from "next/navigation";
+import { Link, useParams } from "@tanstack/react-router";
 import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcUndo } from "react-icons/fc";
 
 const menuItems = [
@@ -19,7 +18,8 @@ type Props = {
 };
 
 export const SideMenu = ({ onlyLogout = false }: Props) => {
-  const pathname = usePathname();
+  const params = useParams({ strict: false });
+  const pathname = params.id ?? "/";
 
   return (
     <Box h="100vh" borderRight="1px" borderColor="border" py={4} px={4} position="fixed" left={0} top={0} zIndex={10}>

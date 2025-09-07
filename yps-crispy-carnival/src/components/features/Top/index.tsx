@@ -1,5 +1,5 @@
 import { Box, Button, Container, Heading, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react";
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 
 // TODO: 仮のTOPページ
 export const Top = () => {

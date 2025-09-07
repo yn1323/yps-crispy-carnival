@@ -11,11 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthTimecardIndexRouteImport } from './routes/_auth/timecard/index'
-import { Route as AuthShiftsIndexRouteImport } from './routes/_auth/shifts/index'
-import { Route as AuthSettingsIndexRouteImport } from './routes/_auth/settings/index'
-import { Route as AuthMypageIndexRouteImport } from './routes/_auth/mypage/index'
-import { Route as AuthAttendanceIndexRouteImport } from './routes/_auth/attendance/index'
+import { Route as AuthTimecardRouteImport } from './routes/_auth/timecard'
+import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
+import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
+import { Route as AuthAttendanceRouteImport } from './routes/_auth/attendance'
+import { Route as UnregisteredJoinUserRouteImport } from './routes/_unregistered/join/user'
+import { Route as AuthShopsNewRouteImport } from './routes/_auth/shops/new'
+import { Route as AuthShopsInviteRouteImport } from './routes/_auth/shops/invite'
+import { Route as AuthShopsIdRouteImport } from './routes/_auth/shops/$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -26,57 +30,89 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthTimecardIndexRoute = AuthTimecardIndexRouteImport.update({
-  id: '/timecard/',
-  path: '/timecard/',
+const AuthTimecardRoute = AuthTimecardRouteImport.update({
+  id: '/timecard',
+  path: '/timecard',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShiftsIndexRoute = AuthShiftsIndexRouteImport.update({
-  id: '/shifts/',
-  path: '/shifts/',
+const AuthShiftsRoute = AuthShiftsRouteImport.update({
+  id: '/shifts',
+  path: '/shifts',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthSettingsIndexRoute = AuthSettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthMypageIndexRoute = AuthMypageIndexRouteImport.update({
-  id: '/mypage/',
-  path: '/mypage/',
+const AuthMypageRoute = AuthMypageRouteImport.update({
+  id: '/mypage',
+  path: '/mypage',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthAttendanceIndexRoute = AuthAttendanceIndexRouteImport.update({
-  id: '/attendance/',
-  path: '/attendance/',
+const AuthAttendanceRoute = AuthAttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
+  getParentRoute: () => AuthRoute,
+} as any)
+const UnregisteredJoinUserRoute = UnregisteredJoinUserRouteImport.update({
+  id: '/_unregistered/join/user',
+  path: '/join/user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthShopsNewRoute = AuthShopsNewRouteImport.update({
+  id: '/shops/new',
+  path: '/shops/new',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthShopsInviteRoute = AuthShopsInviteRouteImport.update({
+  id: '/shops/invite',
+  path: '/shops/invite',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthShopsIdRoute = AuthShopsIdRouteImport.update({
+  id: '/shops/$id',
+  path: '/shops/$id',
   getParentRoute: () => AuthRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/attendance': typeof AuthAttendanceIndexRoute
-  '/mypage': typeof AuthMypageIndexRoute
-  '/settings': typeof AuthSettingsIndexRoute
-  '/shifts': typeof AuthShiftsIndexRoute
-  '/timecard': typeof AuthTimecardIndexRoute
+  '/attendance': typeof AuthAttendanceRoute
+  '/mypage': typeof AuthMypageRoute
+  '/settings': typeof AuthSettingsRoute
+  '/shifts': typeof AuthShiftsRoute
+  '/timecard': typeof AuthTimecardRoute
+  '/shops/$id': typeof AuthShopsIdRoute
+  '/shops/invite': typeof AuthShopsInviteRoute
+  '/shops/new': typeof AuthShopsNewRoute
+  '/join/user': typeof UnregisteredJoinUserRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/attendance': typeof AuthAttendanceIndexRoute
-  '/mypage': typeof AuthMypageIndexRoute
-  '/settings': typeof AuthSettingsIndexRoute
-  '/shifts': typeof AuthShiftsIndexRoute
-  '/timecard': typeof AuthTimecardIndexRoute
+  '/attendance': typeof AuthAttendanceRoute
+  '/mypage': typeof AuthMypageRoute
+  '/settings': typeof AuthSettingsRoute
+  '/shifts': typeof AuthShiftsRoute
+  '/timecard': typeof AuthTimecardRoute
+  '/shops/$id': typeof AuthShopsIdRoute
+  '/shops/invite': typeof AuthShopsInviteRoute
+  '/shops/new': typeof AuthShopsNewRoute
+  '/join/user': typeof UnregisteredJoinUserRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
-  '/_auth/attendance/': typeof AuthAttendanceIndexRoute
-  '/_auth/mypage/': typeof AuthMypageIndexRoute
-  '/_auth/settings/': typeof AuthSettingsIndexRoute
-  '/_auth/shifts/': typeof AuthShiftsIndexRoute
-  '/_auth/timecard/': typeof AuthTimecardIndexRoute
+  '/_auth/attendance': typeof AuthAttendanceRoute
+  '/_auth/mypage': typeof AuthMypageRoute
+  '/_auth/settings': typeof AuthSettingsRoute
+  '/_auth/shifts': typeof AuthShiftsRoute
+  '/_auth/timecard': typeof AuthTimecardRoute
+  '/_auth/shops/$id': typeof AuthShopsIdRoute
+  '/_auth/shops/invite': typeof AuthShopsInviteRoute
+  '/_auth/shops/new': typeof AuthShopsNewRoute
+  '/_unregistered/join/user': typeof UnregisteredJoinUserRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -87,22 +123,41 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shifts'
     | '/timecard'
+    | '/shops/$id'
+    | '/shops/invite'
+    | '/shops/new'
+    | '/join/user'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/attendance' | '/mypage' | '/settings' | '/shifts' | '/timecard'
+  to:
+    | '/'
+    | '/attendance'
+    | '/mypage'
+    | '/settings'
+    | '/shifts'
+    | '/timecard'
+    | '/shops/$id'
+    | '/shops/invite'
+    | '/shops/new'
+    | '/join/user'
   id:
     | '__root__'
     | '/'
     | '/_auth'
-    | '/_auth/attendance/'
-    | '/_auth/mypage/'
-    | '/_auth/settings/'
-    | '/_auth/shifts/'
-    | '/_auth/timecard/'
+    | '/_auth/attendance'
+    | '/_auth/mypage'
+    | '/_auth/settings'
+    | '/_auth/shifts'
+    | '/_auth/timecard'
+    | '/_auth/shops/$id'
+    | '/_auth/shops/invite'
+    | '/_auth/shops/new'
+    | '/_unregistered/join/user'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  UnregisteredJoinUserRoute: typeof UnregisteredJoinUserRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -121,58 +176,92 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/timecard/': {
-      id: '/_auth/timecard/'
+    '/_auth/timecard': {
+      id: '/_auth/timecard'
       path: '/timecard'
       fullPath: '/timecard'
-      preLoaderRoute: typeof AuthTimecardIndexRouteImport
+      preLoaderRoute: typeof AuthTimecardRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shifts/': {
-      id: '/_auth/shifts/'
+    '/_auth/shifts': {
+      id: '/_auth/shifts'
       path: '/shifts'
       fullPath: '/shifts'
-      preLoaderRoute: typeof AuthShiftsIndexRouteImport
+      preLoaderRoute: typeof AuthShiftsRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/settings/': {
-      id: '/_auth/settings/'
+    '/_auth/settings': {
+      id: '/_auth/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsIndexRouteImport
+      preLoaderRoute: typeof AuthSettingsRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/mypage/': {
-      id: '/_auth/mypage/'
+    '/_auth/mypage': {
+      id: '/_auth/mypage'
       path: '/mypage'
       fullPath: '/mypage'
-      preLoaderRoute: typeof AuthMypageIndexRouteImport
+      preLoaderRoute: typeof AuthMypageRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/attendance/': {
-      id: '/_auth/attendance/'
+    '/_auth/attendance': {
+      id: '/_auth/attendance'
       path: '/attendance'
       fullPath: '/attendance'
-      preLoaderRoute: typeof AuthAttendanceIndexRouteImport
+      preLoaderRoute: typeof AuthAttendanceRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_unregistered/join/user': {
+      id: '/_unregistered/join/user'
+      path: '/join/user'
+      fullPath: '/join/user'
+      preLoaderRoute: typeof UnregisteredJoinUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth/shops/new': {
+      id: '/_auth/shops/new'
+      path: '/shops/new'
+      fullPath: '/shops/new'
+      preLoaderRoute: typeof AuthShopsNewRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/invite': {
+      id: '/_auth/shops/invite'
+      path: '/shops/invite'
+      fullPath: '/shops/invite'
+      preLoaderRoute: typeof AuthShopsInviteRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$id': {
+      id: '/_auth/shops/$id'
+      path: '/shops/$id'
+      fullPath: '/shops/$id'
+      preLoaderRoute: typeof AuthShopsIdRouteImport
       parentRoute: typeof AuthRoute
     }
   }
 }
 
 interface AuthRouteChildren {
-  AuthAttendanceIndexRoute: typeof AuthAttendanceIndexRoute
-  AuthMypageIndexRoute: typeof AuthMypageIndexRoute
-  AuthSettingsIndexRoute: typeof AuthSettingsIndexRoute
-  AuthShiftsIndexRoute: typeof AuthShiftsIndexRoute
-  AuthTimecardIndexRoute: typeof AuthTimecardIndexRoute
+  AuthAttendanceRoute: typeof AuthAttendanceRoute
+  AuthMypageRoute: typeof AuthMypageRoute
+  AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthShiftsRoute: typeof AuthShiftsRoute
+  AuthTimecardRoute: typeof AuthTimecardRoute
+  AuthShopsIdRoute: typeof AuthShopsIdRoute
+  AuthShopsInviteRoute: typeof AuthShopsInviteRoute
+  AuthShopsNewRoute: typeof AuthShopsNewRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthAttendanceIndexRoute: AuthAttendanceIndexRoute,
-  AuthMypageIndexRoute: AuthMypageIndexRoute,
-  AuthSettingsIndexRoute: AuthSettingsIndexRoute,
-  AuthShiftsIndexRoute: AuthShiftsIndexRoute,
-  AuthTimecardIndexRoute: AuthTimecardIndexRoute,
+  AuthAttendanceRoute: AuthAttendanceRoute,
+  AuthMypageRoute: AuthMypageRoute,
+  AuthSettingsRoute: AuthSettingsRoute,
+  AuthShiftsRoute: AuthShiftsRoute,
+  AuthTimecardRoute: AuthTimecardRoute,
+  AuthShopsIdRoute: AuthShopsIdRoute,
+  AuthShopsInviteRoute: AuthShopsInviteRoute,
+  AuthShopsNewRoute: AuthShopsNewRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
@@ -180,6 +269,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  UnregisteredJoinUserRoute: UnregisteredJoinUserRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
