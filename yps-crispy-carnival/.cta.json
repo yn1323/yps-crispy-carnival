@@ -2,7 +2,7 @@
   "projectName": "yps-crispy-carnival",
   "mode": "file-router",
   "typescript": true,
-  "tailwind": true,
+  "tailwind": false,
   "packageManager": "pnpm",
   "git": true,
   "version": 1,

@@ -1,5 +1,5 @@
 import { defaultSystem, ChakraProvider as LibChakraProvider } from "@chakra-ui/react";
-import { ColorModeProvider } from "./color-mode";
+import { ColorModeProvider } from "@/src/components/config/color-mode";
 
 export const ChakraProvider = ({ children }: { children: React.ReactNode }) => {
   return (

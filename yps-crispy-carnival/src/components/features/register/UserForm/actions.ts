@@ -1,5 +1,3 @@
-"use server";
-
 import { api } from "@/convex/_generated/api";
 import { convex } from "@/src/configs/convex";
 import type { SchemaType } from "./schema";

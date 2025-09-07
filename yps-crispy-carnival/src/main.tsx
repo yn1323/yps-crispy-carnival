@@ -2,8 +2,9 @@ import { ClerkProvider } from "@clerk/clerk-react";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import { ChakraProvider } from "@/src/components/ui/provider";
-import { CLERK_PUBLISHABLE_KEY } from "@/src/constants/env";
+import { ChakraProvider } from "@/src/components/config/ChakraProvider.tsx";
+import { ConvexClientProvider } from "@/src/components/config/ConvexProvider.tsx";
+import { CLERK_PUBLISHABLE_KEY, CONVEX_URL } from "@/src/constants/env";
 import reportWebVitals from "./reportWebVitals.ts";
 import { routeTree } from "./routeTree.gen";
 
@@ -32,7 +33,9 @@ if (rootElement && !rootElement.innerHTML) {
     <StrictMode>
       <ChakraProvider>
         <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
-          <RouterProvider router={router} />
+          <ConvexClientProvider env={CONVEX_URL}>
+            <RouterProvider router={router} />
+          </ConvexClientProvider>
         </ClerkProvider>
       </ChakraProvider>
     </StrictMode>,
