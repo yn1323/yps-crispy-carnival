@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Top } from "@/src/components/features/Top";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/")({
@@ -6,5 +7,9 @@ export const Route = createFileRoute("/")({
 });
 
 function App() {
-  return <Animation> Top</Animation>;
+  return (
+    <Animation>
+      <Top />
+    </Animation>
+  );
 }

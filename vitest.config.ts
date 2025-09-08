@@ -2,17 +2,16 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
-// 共通のエイリアス設定
-const resolveAlias = {
-  "@/src": path.resolve(dirname, "./src"),
-  "@/e2e": path.resolve(dirname, "./e2e"),
-};
-
-const logicProject = defineProject({
+const logicProject = defineConfig({
+  plugins: [
+    // biome-ignore lint/suspicious/noExplicitAny: temp
+    tsconfigPaths() as any,
+  ],
   test: {
     globals: true,
     name: "logic",
@@ -26,20 +25,18 @@ const logicProject = defineProject({
       NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
     },
   },
-  resolve: {
-    alias: resolveAlias,
-    conditions: ["mock"],
-  },
 });
 
-const uiProject = defineProject({
+const uiProject = defineConfig({
   plugins: [
+    // biome-ignore lint/suspicious/noExplicitAny: temp
+    tsconfigPaths() as any,
     storybookTest({
       // The location of your Storybook config, main.js|ts
       configDir: path.join(dirname, ".storybook"),
       // This should match your package.json script to run Storybook
       // The --ci flag will skip prompts and not open a browser
-      storybookScript: "pnpm storybook --ci",
+      storybookScript: "pnpm storybook",
     }),
   ],
   test: {
@@ -54,13 +51,9 @@ const uiProject = defineProject({
     },
     setupFiles: ["./.storybook/vitest.setup.ts"],
   },
-  resolve: {
-    alias: resolveAlias,
-    conditions: ["mock"],
-  },
 });
 
-export default defineConfig({
+export default defineProject({
   test: {
     projects: [logicProject, uiProject],
   },
