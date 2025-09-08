@@ -6,7 +6,7 @@ import { ChakraProvider } from "@/src/components/config/ChakraProvider.tsx";
 import { ConvexClientProvider } from "@/src/components/config/ConvexProvider.tsx";
 import { CLERK_PUBLISHABLE_KEY, CONVEX_URL } from "@/src/constants/env";
 import reportWebVitals from "./reportWebVitals.ts";
-import { routeTree } from "./routeTree.gen";
+import { routeTree } from "./routeTree.gen.ts";
 
 // Create a new router instance
 const router = createRouter({

@@ -40,5 +40,6 @@
     "playwright",
     "serena"
   ],
-  "outputStyle": "default"
+  "outputStyle": "default",
+  "enableAllProjectMcpServers": true
 }

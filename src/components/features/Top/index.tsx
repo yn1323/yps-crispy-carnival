@@ -1,16 +1,13 @@
-"use client";
-
 import { Box, Button, Container, Heading, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react";
-import { SignInButton, SignUpButton, useClerk } from "@clerk/nextjs";
-import { useEffect } from "react";
+import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 
 // TODO: 仮のTOPページ
 export const Top = () => {
-  const { signOut } = useClerk();
+  // const { signOut } = useClerk();
 
-  useEffect(() => {
-    signOut();
-  }, [signOut]);
+  // useEffect(() => {
+  //   signOut();
+  // }, [signOut]);
 
   return (
     <Box minH="100vh" display="flex" alignItems="center" justifyContent="center" bg="gray.50" py={8}>

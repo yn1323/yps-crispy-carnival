@@ -8,10 +8,8 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
 
 // 共通のエイリアス設定
 const resolveAlias = {
-  "@/app": path.resolve(dirname, "./app"),
   "@/src": path.resolve(dirname, "./src"),
   "@/e2e": path.resolve(dirname, "./e2e"),
-  "@/prisma": path.resolve(dirname, "./prisma"),
 };
 
 const logicProject = defineProject({
