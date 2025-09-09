@@ -23,7 +23,12 @@ jobs:
       env:
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
-      run: pnpm e2e
+      run: |
+        npx convex dev &
+        # Convexの起動と環境変数のセットを待つ
+        sleep 15
+        pnpm e2e
+        kill %1
       env:
         E2E_CLERK_USER: ${{ secrets.E2E_CLERK_USER }}
         E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}

@@ -21,7 +21,8 @@ jobs:
         uses: ./.github/actions/playwright
       - name: Run Test
         run: |
-          npx convex dev &        
+          npx convex dev &
+          # Convexの起動と環境変数のセットを待つ
           sleep 15
           pnpm vitest run --shard=${{ matrix.shard }} --project=ui
           kill %1
