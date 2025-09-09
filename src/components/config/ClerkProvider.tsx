@@ -12,5 +12,9 @@ console.warn = (...args) => {
 
 // biome-ignore lint/suspicious/noExplicitAny: Storybook sends as Element
 export const ClerkProvider = ({ children, env }: { children: any; env: string }) => {
-  return <LibClerkProvider publishableKey={env}>{children}</LibClerkProvider>;
+  return (
+    <LibClerkProvider publishableKey={env} afterSignOutUrl="/">
+      {children}
+    </LibClerkProvider>
+  );
 };

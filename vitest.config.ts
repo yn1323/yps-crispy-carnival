@@ -19,9 +19,7 @@ const logicProject = defineConfig({
     include: ["./src/**/*.test.ts"],
     exclude: ["node_modules"],
     env: {
-      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
-      CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
-      CONVEX_DEPLOYMENT: process.env.CONVEX_DEPLOYMENT,
+      VITE_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY,
       VITE_CONVEX_URL: process.env.VITE_CONVEX_URL,
     },
   },
