@@ -19,11 +19,13 @@ const preview: Preview = {
   },
   decorators: [
     (Story) => {
-      z.setErrorMap(customErrorMap);
+      z.config({ customError: customErrorMap });
       return (
         <ChakraProvider>
-          <ClerkProvider env={import.meta.env.STORYBOOK_CLERK_PUBLISHABLE_KEY ?? ""}>
-            <ConvexClientProvider env={import.meta.env.STORYBOOK_CONVEX_URL ?? ""}>
+          {/** biome-ignore lint/suspicious/noExplicitAny: temp */}
+          <ClerkProvider env={(import.meta as any).env.STORYBOOK_CLERK_PUBLISHABLE_KEY ?? ""}>
+            {/** biome-ignore lint/suspicious/noExplicitAny: temp */}
+            <ConvexClientProvider env={(import.meta as any).env.STORYBOOK_CONVEX_URL ?? ""}>
               <Story />
             </ConvexClientProvider>
           </ClerkProvider>
