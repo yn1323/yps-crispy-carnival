@@ -20,12 +20,8 @@ jobs:
       - name: Setup Playwright
         uses: ./.github/actions/playwright
       - name: Run Test
-        run: |
-          npx convex dev &        
-          sleep 5
-          pnpm vitest run --shard=${{ matrix.shard }} --project=ui
-          kill %1
+        run: pnpm vitest run --shard=${{ matrix.shard }} --project=ui
         env:
             CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
             VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-            # CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+            CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
