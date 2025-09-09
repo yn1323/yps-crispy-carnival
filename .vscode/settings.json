@@ -1,8 +1,38 @@
 {
-  "[prisma]": {
-    "editor.defaultFormatter": "Prisma.prisma"
+  "files.watcherExclude": {
+    "**/routeTree.gen.ts": true,
+    "convex/_generated/**": true
   },
-  "cSpell.words": ["storycap", "testrun"],
+  "search.exclude": {
+    "**/routeTree.gen.ts": true,
+    "convex/_generated/**": true
+  },
+  "files.readonlyInclude": {
+    "**/routeTree.gen.ts": true,
+    "convex/_generated/**": true
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "cSpell.words": ["storycap", "testrun", "turbopack", "unzipper", "VITE", "vitest"],
   "editor.codeActionsOnSave": {
     "source.fixAll.biome": "explicit",
     "source.addMissingImports.ts": "explicit",
@@ -15,13 +45,8 @@
   "editor.tabSize": 2,
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "favorites.resources": [],
-  "search.exclude": {
-    "convex/_generated/**": true
-  },
-  "files.watcherExclude": {
-    "convex/_generated/**": true
-  },
   "files.associations": {
     "wrangler.json": "jsonc"
-  }
+  },
+  "files.eol": "\n"
 }

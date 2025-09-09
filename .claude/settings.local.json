@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__activate_project",
+      "mcp__serena__onboarding",
+      "mcp__serena__list_dir",
+      "mcp__serena__read_file",
+      "mcp__serena__write_memory",
+      "Bash(similarity-ts:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__serena__find_file",
+      "mcp__serena__read_memory",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(pnpm:*)",
+      "Bash(npx convex:*)",
+      "mcp__serena__create_text_file",
+      "mcp__serena__replace_regex",
+      "Bash(gh pr create:*)",
+      "Bash(git log:*)",
+      "Bash(git rm:*)",
+      "mcp__serena__search_for_pattern",
+      "Bash(git fetch:*)",
+      "Bash(git reset:*)",
+      "WebSearch"
+    ],
+    "deny": [
+      "mcp__serena__execute_shell_command",
+      "mcp__serena__replace_symbol_body"
+    ],
+    "additionalDirectories": [
+      "C:\\c\\Users\\yn132\\work"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "context7",
+    "playwright",
+    "serena"
+  ],
+  "outputStyle": "default",
+  "enableAllProjectMcpServers": true
+}

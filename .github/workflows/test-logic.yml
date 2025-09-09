@@ -1,4 +1,4 @@
-name: test
+name: test-logic
 
 on:
   - push
@@ -6,11 +6,12 @@ on:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
+    environment: Preview
     strategy:
       
       fail-fast: false
       matrix:
-        shard: [1/3, 2/3, 3/3]
+        shard: [1/2, 2/2]
     steps:
       - uses: actions/checkout@v5
         with:

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { StorybookConfig } from "@storybook/nextjs-vite";
+import type { StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
   refs: {
@@ -10,7 +10,7 @@ const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-docs", "@storybook/addon-vitest"],
   framework: {
-    name: "@storybook/nextjs-vite",
+    name: "@storybook/react-vite",
     options: {},
   },
   typescript: {
@@ -24,16 +24,17 @@ const config: StorybookConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@/app": path.resolve(__dirname, "../app"),
-      "@/prisma": path.resolve(__dirname, "../prisma"),
       "@/src": path.resolve(__dirname, "../src"),
       "@/e2e": path.resolve(__dirname, "../e2e"),
+      "@/convex": path.resolve(__dirname, "../convex"),
     };
+
     return config;
   },
   env: (config) => ({
     ...config,
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+    STORYBOOK_CONVEX_URL: process.env.VITE_CONVEX_URL ?? "",
+    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "",
   }),
 };
 export default config;
