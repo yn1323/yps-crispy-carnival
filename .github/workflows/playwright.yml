@@ -21,7 +21,6 @@ jobs:
     - name: Reset Database
       run: pnpm convex:import
       env:
-        CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
       run: pnpm e2e
@@ -29,6 +28,7 @@ jobs:
         E2E_CLERK_USER: ${{ secrets.E2E_CLERK_USER }}
         E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
         CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
