@@ -17,7 +17,7 @@ jobs:
         run: |
           npx convex dev &        
           sleep 5
-          pnpm build-storybook
+          pnpm storybook:build
           kill %1
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}

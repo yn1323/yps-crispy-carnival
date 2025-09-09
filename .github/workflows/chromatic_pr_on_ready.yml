@@ -16,7 +16,7 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
       - name: Storybook Build  
-        run: pnpm build-storybook
+        run: pnpm storybook:build
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
