@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { StorybookConfig } from "@storybook/nextjs-vite";
+import type { StorybookConfig } from "@storybook/react-vite";
 
 const config: StorybookConfig = {
   refs: {
@@ -10,7 +10,7 @@ const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-docs", "@storybook/addon-vitest"],
   framework: {
-    name: "@storybook/nextjs-vite",
+    name: "@storybook/react-vite",
     options: {},
   },
   typescript: {
@@ -24,38 +24,17 @@ const config: StorybookConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       "@/app": path.resolve(__dirname, "../app"),
-      "@/prisma": path.resolve(__dirname, "../prisma"),
       "@/src": path.resolve(__dirname, "../src"),
       "@/e2e": path.resolve(__dirname, "../e2e"),
+      "@/convex": path.resolve(__dirname, "../convex"),
     };
-
-    // @clerk/nextjs/serverのBuildエラー調整
-    // Node.jsモジュールの外部化とポリフィル設定
-    config.define = {
-      ...config.define,
-      global: "globalThis",
-    };
-
-    // Node.jsモジュールを外部化してClerkの競合を回避
-    config.optimizeDeps = {
-      ...config.optimizeDeps,
-      exclude: ["@clerk/nextjs/server"],
-    };
-
-    // Clerkのサーバーサイドモジュールを完全に外部化
-    if (!config.build) config.build = {};
-    if (!config.build.rollupOptions) config.build.rollupOptions = {};
-    if (!config.build.rollupOptions.external) config.build.rollupOptions.external = [];
-
-    const external = config.build.rollupOptions.external as string[];
-    external.push("@clerk/nextjs/server", "path", "fs", "crypto");
 
     return config;
   },
   env: (config) => ({
     ...config,
-    STORYBOOK_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
-    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY ?? "",
+    STORYBOOK_CONVEX_URL: process.env.VITE_CONVEX_URL ?? "",
+    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "",
   }),
 };
 export default config;

@@ -2,23 +2,22 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
     "skipLibCheck": true,
     "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "moduleResolution": "Bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "types": ["vitest/globals", "@vitest/browser/providers/playwright", "./cloudflare-env.d.ts"],
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
     "paths": {
       "@/app/*": ["./app/*"],
       "@/src/*": ["./src/*"],
@@ -26,13 +25,13 @@
       "@/convex/*": ["./convex/*"]
     }
   },
+  "types": ["vitest/globals", "@vitest/browser/providers/playwright"],
   "include": [
     "./cloudflare-env.d.ts",
-    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "vitest.config.mts",
+    "vitest.config.ts",
+    "vite.config.ts",
     "src/configs/vitest/vitest-setup.ts"
   ],
   "exclude": ["node_modules", ".scaffdog"]

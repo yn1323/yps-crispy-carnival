@@ -1,8 +1,6 @@
-"use client";
-
 import { Button, Card, Field, Input, NativeSelect, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { redirect } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { registerShop } from "@/src/components/features/register/ShopForm/actions";
 import { toaster } from "@/src/components/ui/toaster";
@@ -13,6 +11,7 @@ type Props = {
 };
 
 export const ShopForm = ({ callbackRoutingPath }: Props) => {
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -28,7 +27,7 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
         description: "店舗登録が完了しました",
         type: "success",
       });
-      callbackRoutingPath && redirect(callbackRoutingPath);
+      callbackRoutingPath && navigate({ to: callbackRoutingPath });
     } else {
       toaster.create({
         description: "店舗登録に失敗しました",

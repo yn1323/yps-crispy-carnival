@@ -56,10 +56,8 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     env: {
       ...process.env,
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY,
       CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
-      NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
-      CONVEX_DEPLOYMENT: process.env.CONVEX_DEPLOYMENT,
+      VITE_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY,
       CONVEX_DEPLOY_KEY: process.env.CONVEX_DEPLOY_KEY,
     } as Record<string, string>,
   },

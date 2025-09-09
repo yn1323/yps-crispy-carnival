@@ -1,18 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { SideMenu } from "./index";
 
 const meta = {
   title: "layout/SideMenu",
   component: SideMenu,
-  parameters: {
-    nextjs: {
-      appDirectory: true,
-      navigation: {
-        pathname: "/mypage",
-      },
-    },
-  },
+  parameters: {},
 } satisfies Meta<typeof SideMenu>;
 
 export default meta;

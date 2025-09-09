@@ -1,9 +1,8 @@
 "use client";
 
 import { Box, Button, Text, VStack } from "@chakra-ui/react";
-import { SignOutButton } from "@clerk/nextjs";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { SignOutButton } from "@clerk/clerk-react";
+import { Link, useParams } from "@tanstack/react-router";
 import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcUndo } from "react-icons/fc";
 
 const menuItems = [
@@ -12,14 +11,15 @@ const menuItems = [
   { href: "/attendance", label: "勤怠記録", icon: FcClock },
   { href: "/timecard", label: "タイムカード", icon: FcDocument },
   // { href: "/settings", label: "設定", icon: FcSettings },
-];
+] as const;
 
 type Props = {
   onlyLogout?: boolean;
 };
 
 export const SideMenu = ({ onlyLogout = false }: Props) => {
-  const pathname = usePathname();
+  const params = useParams({ strict: false });
+  const pathname = params.id ?? "/";
 
   return (
     <Box h="100vh" borderRight="1px" borderColor="border" py={4} px={4} position="fixed" left={0} top={0} zIndex={10}>
@@ -33,7 +33,7 @@ export const SideMenu = ({ onlyLogout = false }: Props) => {
             menuItems.map((item) => {
               const IconComponent = item.icon;
               return (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.href} to={item.href}>
                   <Button
                     width="full"
                     variant={pathname === item.href ? "solid" : "ghost"}

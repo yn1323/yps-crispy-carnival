@@ -1,16 +1,18 @@
-"use client";
-
 import { Box, Button, Container, Heading, HStack, SimpleGrid, Text, VStack } from "@chakra-ui/react";
-import { SignInButton, SignUpButton, useClerk } from "@clerk/nextjs";
-import { useEffect } from "react";
+import { SignInButton, SignUpButton } from "@clerk/clerk-react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 // TODO: 仮のTOPページ
 export const Top = () => {
-  const { signOut } = useClerk();
+  const users = useQuery(api.user.getAllUsers);
+  const addUser = useMutation(api.user.createUser);
 
-  useEffect(() => {
-    signOut();
-  }, [signOut]);
+  // const { signOut } = useClerk();
+
+  // useEffect(() => {
+  //   signOut();
+  // }, [signOut]);
 
   return (
     <Box minH="100vh" display="flex" alignItems="center" justifyContent="center" bg="gray.50" py={8}>
@@ -25,6 +27,19 @@ export const Top = () => {
               シンプルなシフト管理システム
             </Text>
           </VStack>
+
+          <div>
+            {users?.map((e) => (
+              <li key={e._id}>{e.name}</li>
+            ))}
+          </div>
+          <Button
+            onClick={() => {
+              addUser({ authId: Math.random().toString(), name: Math.random().toString() });
+            }}
+          >
+            Add User
+          </Button>
 
           {/* 機能紹介 */}
           <SimpleGrid columns={[1, 3]} gap={8} w="full">
