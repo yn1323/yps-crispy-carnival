@@ -32,7 +32,7 @@ describe("UserFormSchema", () => {
     it(`${name}場合はエラー`, () => {
       const result = schema.safeParse(data);
       expect(result.success).toBe(false);
-      expect(result.error?.errors[0].message).toContain(error);
+      expect(result.error?.message).toContain(error);
     });
   });
 });
