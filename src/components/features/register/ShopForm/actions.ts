@@ -1,9 +1,6 @@
-"use server";
-
 import type { SchemaType } from "./schema";
 
-// biome-ignore lint/correctness/noUnusedFunctionParameters: tmp
-export const registerShop = async (data: SchemaType) => {
+export const registerShop = async (_data: SchemaType) => {
   const success = true;
 
   return { success };
