@@ -9,6 +9,7 @@ on:
 jobs:
   chromatic_on_merge_to_develop:
     runs-on: ubuntu-latest
+    environment: Preview
     steps:
       - uses: actions/checkout@v5
         with:
