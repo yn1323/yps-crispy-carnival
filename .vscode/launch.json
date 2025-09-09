@@ -14,12 +14,6 @@
       "type": "node-terminal"
     },
     {
-      "command": "pnpm prisma:studio",
-      "name": "Run Prisma Studio",
-      "request": "launch",
-      "type": "node-terminal"
-    },
-    {
       "command": "pnpm e2e:codegen",
       "name": "Playwright Codegen",
       "request": "launch",

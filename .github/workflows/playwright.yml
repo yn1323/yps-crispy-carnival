@@ -8,14 +8,33 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    environment: Preview
+    concurrency:
+      group: "playwright-convex"  
+      cancel-in-progress: false
     steps:
     - uses: actions/checkout@v5
     - name: Setup
       uses: ./.github/actions/setup
     - name: Setup Playwright
       uses: ./.github/actions/playwright
+    - name: Reset Database
+      run: pnpm convex:import
+      env:
+        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
-      run: pnpm e2e
+      run: |
+        npx convex dev &
+        # Convexの起動と環境変数のセットを待つ
+        sleep 15
+        pnpm e2e
+        kill %1
+      env:
+        E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
+        E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
+        CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:

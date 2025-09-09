@@ -1,0 +1,33 @@
+name: chromatic_pr_on_ready
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+jobs:
+  chromatic_pr_on_ready:
+    if: (github.event.pull_request.draft == false && !contains(github.event.pull_request.labels.*.name , 'renovate'))
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Storybook Build  
+        run: |
+          npx convex dev &        
+          sleep 15
+          pnpm storybook:build
+          kill %1
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      - name: Publish to Chromatic
+        uses: chromaui/action@latest
+        with:
+          onlyChanged: true
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          storybookBuildDir: storybook-static

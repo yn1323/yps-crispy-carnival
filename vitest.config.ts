@@ -2,19 +2,16 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
-// 共通のエイリアス設定
-const resolveAlias = {
-  "@/app": path.resolve(dirname, "./app"),
-  "@/src": path.resolve(dirname, "./src"),
-  "@/e2e": path.resolve(dirname, "./e2e"),
-  "@/prisma": path.resolve(dirname, "./prisma"),
-};
-
-const logicProject = defineProject({
+const logicProject = defineConfig({
+  plugins: [
+    // biome-ignore lint/suspicious/noExplicitAny: temp
+    tsconfigPaths() as any,
+  ],
   test: {
     globals: true,
     name: "logic",
@@ -22,23 +19,22 @@ const logicProject = defineProject({
     include: ["./src/**/*.test.ts"],
     exclude: ["node_modules"],
     env: {
-      NEXT_PUBLIC_SUPABASE_URL: "https://example.com",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "example",
+      VITE_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY,
+      VITE_CONVEX_URL: process.env.VITE_CONVEX_URL,
     },
-  },
-  resolve: {
-    alias: resolveAlias,
   },
 });
 
-const uiProject = defineProject({
+const uiProject = defineConfig({
   plugins: [
+    // biome-ignore lint/suspicious/noExplicitAny: temp
+    tsconfigPaths() as any,
     storybookTest({
       // The location of your Storybook config, main.js|ts
       configDir: path.join(dirname, ".storybook"),
       // This should match your package.json script to run Storybook
       // The --ci flag will skip prompts and not open a browser
-      storybookScript: "pnpm storybook --ci",
+      storybookScript: "pnpm storybook",
     }),
   ],
   test: {
@@ -53,12 +49,9 @@ const uiProject = defineProject({
     },
     setupFiles: ["./.storybook/vitest.setup.ts"],
   },
-  resolve: {
-    alias: resolveAlias,
-  },
 });
 
-export default defineConfig({
+export default defineProject({
   test: {
     projects: [logicProject, uiProject],
   },
