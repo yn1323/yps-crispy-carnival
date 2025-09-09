@@ -1,5 +1,5 @@
 import { clerk, clerkSetup } from "@clerk/testing/playwright";
-import { test as setup } from "@playwright/test";
+import { expect, test as setup } from "@playwright/test";
 import { E2EAuthJsonFile } from "@/e2e/constants";
 
 // Setup must be run serially, this is necessary if Playwright is configured to run fully parallel: https://playwright.dev/docs/test-parallel
@@ -25,6 +25,7 @@ setup("ログイン", async ({ page }) => {
   });
 
   await page.goto("/mypage");
+  expect(await page.textContent("h2")).toContain("テストユーザーさん！");
 
   // 保護されたページにアクセスできることを確認
   // TODO

@@ -1,10 +1,8 @@
-"use client";
-
 import { Button, Card, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { redirect } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { registerUser } from "#src/components/features/register/UserForm/actions";
+import { registerUser } from "@/src/components/features/register/UserForm/actions";
 import { toaster } from "@/src/components/ui/toaster";
 import { type SchemaType, schema } from "./schema";
 
@@ -14,6 +12,7 @@ type Props = {
 };
 
 export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -31,7 +30,7 @@ export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
         description: "ユーザー名登録が完了しました",
         type: "success",
       });
-      callbackRoutingPath && redirect(callbackRoutingPath);
+      callbackRoutingPath && navigate({ to: callbackRoutingPath });
     } else {
       toaster.create({
         description: "ユーザー名登録に失敗しました",

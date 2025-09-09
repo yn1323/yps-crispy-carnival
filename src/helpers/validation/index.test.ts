@@ -9,7 +9,7 @@ describe("Validations", () => {
     expect(zodSchema.safeParse("12345").success).toBeTruthy();
     expect(zodSchema.safeParse("123456").success).toBeTruthy();
     expect(zodSchema.safeParse("1234567890").success).toBeTruthy();
-    expect(zodSchema.safeParse("12345678901").error?.errors[0].message).toStrictEqual("5〜10文字で入力してください");
+    expect(zodSchema.safeParse("12345678901").error?.issues[0].message).toStrictEqual("5〜10文字で入力してください");
     expect(zodSchema.safeParse("12345678901").success).toBeFalsy();
   });
   it("time", () => {
@@ -20,9 +20,9 @@ describe("Validations", () => {
     expect(zodSchema.safeParse("04:60").success).toBeFalsy();
     expect(zodSchema.safeParse("23:55").success).toBeTruthy();
     expect(zodSchema.safeParse("23:49").success).toBeFalsy();
-    expect(zodSchema.safeParse("23:51").error?.errors[0].message).toStrictEqual("5分単位で入力してください");
+    expect(zodSchema.safeParse("23:51").error?.issues[0].message).toStrictEqual("5分単位で入力してください");
     expect(zodSchema.safeParse("aaa").success).toBeFalsy();
-    expect(zodSchema.safeParse("aaa").error?.errors[0].message).toStrictEqual("時刻を入力してください");
+    expect(zodSchema.safeParse("aaa").error?.issues[0].message).toStrictEqual("時刻を入力してください");
   });
   it("select", () => {
     const options = [
@@ -40,7 +40,7 @@ describe("Validations", () => {
     expect(zodSchema.safeParse("1").success).toBeTruthy();
     expect(zodSchema.safeParse("2").success).toBeTruthy();
     expect(zodSchema.safeParse("3").success).toBeTruthy();
-    expect(zodSchema.safeParse("").error?.errors[0].message).toStrictEqual("必須項目です");
-    expect(zodSchema.safeParse("4").error?.errors[0].message).toStrictEqual("必須選択です");
+    expect(zodSchema.safeParse("").error?.issues[0].message).toStrictEqual("必須項目です");
+    expect(zodSchema.safeParse("4").error?.issues[0].message).toStrictEqual("必須選択です");
   });
 });

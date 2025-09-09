@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { isNumber, makeQueryParamsString } from "./index";
 
 describe("makeQueryParamsString", () => {
