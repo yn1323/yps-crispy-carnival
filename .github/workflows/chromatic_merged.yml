@@ -17,11 +17,15 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
       - name: Storybook Build  
-        run: pnpm storybook:build
+        run: |
+          npx convex dev &        
+          sleep 15
+          pnpm storybook:build
+          kill %1
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
-          CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Publish to Chromatic
         uses: chromaui/action@latest
         with:
