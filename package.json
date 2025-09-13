@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.3",
-    "@clerk/testing": "1.12.4",
+    "@clerk/testing": "1.12.6",
     "@playwright/test": "1.55.0",
     "@storybook/addon-docs": "9.1.5",
     "@storybook/addon-vitest": "9.1.5",
