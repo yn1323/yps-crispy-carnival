@@ -17,7 +17,7 @@ export const ErrorMessages: Story = {
     const canvas = within(canvasElement);
 
     // フォームの送信ボタンを取得
-    const submitButton = canvas.getByRole("button", {
+    const submitButton = await canvas.findByRole("button", {
       name: "登録",
     });
 
