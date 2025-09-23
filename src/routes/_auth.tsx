@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { AuthGuard } from "@/src/components/features/auth/AuthGuard";
+import { AuthGuard } from "@/src/components/features/auths/AuthGuard";
 import { SideMenu } from "@/src/components/layout/SideMenu";
 
 export const Route = createFileRoute("/_auth")({
