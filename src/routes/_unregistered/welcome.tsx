@@ -1,9 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Welcome } from "@/src/components/pages/Welcome";
+import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/_unregistered/welcome")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  return <div>Hello "/_unregistered/welcome"!</div>;
+  return (
+    <Animation>
+      <Welcome />
+    </Animation>
+  );
 }

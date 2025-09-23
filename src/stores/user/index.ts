@@ -1,6 +1,13 @@
-import { atom } from "jotai";
+import { atom, useSetAtom } from "jotai";
 
-export const userAtom = atom({
-  uid: "",
+const DefaultValue = {
+  authId: "",
   name: "",
-});
+};
+
+export const userAtom = atom(DefaultValue);
+
+export const resetUserAtom = () => {
+  const setUser = useSetAtom(userAtom);
+  setUser(DefaultValue);
+};

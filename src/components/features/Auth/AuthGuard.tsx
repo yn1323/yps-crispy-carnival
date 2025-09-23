@@ -16,7 +16,7 @@ export const AuthGuard = ({ children }: Props) => {
   const isConvexLoading = userData === undefined;
 
   // ユーザーが状態管理にいれば即返却
-  if (user.uid) {
+  if (user.authId) {
     return children;
   }
 
@@ -38,12 +38,12 @@ export const AuthGuard = ({ children }: Props) => {
   if (userData) {
     setUser({
       name: userData.name,
-      uid: userData.authId,
+      authId: userData.authId,
     });
   }
 
   // 初回登録がまだの場合
-  if (isSignedIn && (!user.uid || !userData)) {
+  if (isSignedIn && (!user.name || !userData)) {
     return <Navigate to="/welcome" replace />;
   }
 

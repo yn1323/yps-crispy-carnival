@@ -38,7 +38,10 @@ export const createUser = mutation({
         });
       });
 
-    return userId;
+    return {
+      success: true,
+      data: { userId, authId: args.authId, name: args.name.trim() },
+    };
   },
 });
 
