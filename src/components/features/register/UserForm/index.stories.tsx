@@ -5,9 +5,6 @@ import { UserForm } from ".";
 const meta = {
   title: "features/register/UserForm",
   component: UserForm,
-  args: {
-    userId: "fa96ae18-86da-4e34-95c3-a63ad6879068",
-  },
 } satisfies Meta<typeof UserForm>;
 
 export default meta;
@@ -20,7 +17,7 @@ export const ErrorMessages: Story = {
     const canvas = within(canvasElement);
 
     // フォームの送信ボタンを取得
-    const submitButton = canvas.getByRole("button", {
+    const submitButton = await canvas.findByRole("button", {
       name: "登録",
     });
 

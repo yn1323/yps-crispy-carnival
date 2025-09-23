@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Top } from ".";
+import { Top } from "@/src/components/pages/Top";
 
 const meta = {
-  title: "features/Top",
+  title: "pages/Top",
   component: Top,
 } satisfies Meta<typeof Top>;
 export default meta;
