@@ -27,11 +27,6 @@ setup("ログイン", async ({ page }) => {
   await page.goto("/mypage");
   expect(await page.textContent("h2")).toContain("テストユーザーさん！");
 
-  // 保護されたページにアクセスできることを確認
-  // TODO
-  // const currentUrl = page.url();
-  // expect(currentUrl).toContain("/join/user");
-
   // 認証状態を保存
   await page.context().storageState({ path: E2EAuthJsonFile });
 });

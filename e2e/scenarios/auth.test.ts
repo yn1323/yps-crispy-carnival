@@ -5,7 +5,7 @@ test.describe("認証後のページ遷移チェック", () => {
     await page.goto("/");
   });
 
-  test("認証後、マイページにアクセスできること", async ({ page }) => {
-    await expect(page).toHaveURL("/mypage");
+  test("認証後でもTOPページにアクセスできること", async ({ page }) => {
+    await expect(page).toHaveURL("/");
   });
 });

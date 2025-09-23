@@ -1,17 +1,23 @@
 import { Button, Card, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { useAuth } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import { useSetAtom } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { registerUser } from "@/src/components/features/register/UserForm/actions";
+import { api } from "@/convex/_generated/api";
 import { toaster } from "@/src/components/ui/toaster";
+import { userAtom } from "@/src/stores/user";
 import { type SchemaType, schema } from "./schema";
 
 type Props = {
-  userId: string;
   callbackRoutingPath?: string;
 };
 
-export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
+export const UserForm = ({ callbackRoutingPath }: Props) => {
+  const setUser = useSetAtom(userAtom);
+  const { userId, isLoaded } = useAuth();
+  const createUser = useMutation(api.user.createUser);
   const navigate = useNavigate();
   const {
     register,
@@ -22,20 +28,23 @@ export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
   });
 
   const onSubmit: SubmitHandler<SchemaType> = async (data) => {
-    const { success } = await registerUser(userId, {
-      userName: data.userName,
+    const result = await createUser({
+      authId: userId ?? "",
+      name: data.userName,
+    }).catch(() => {
+      toaster.create({
+        description: "ユーザー名登録に失敗しました",
+        type: "error",
+      });
     });
-    if (success) {
+
+    if (result?.success) {
+      setUser({ authId: userId ?? "", name: data.userName });
       toaster.create({
         description: "ユーザー名登録が完了しました",
         type: "success",
       });
       callbackRoutingPath && navigate({ to: callbackRoutingPath });
-    } else {
-      toaster.create({
-        description: "ユーザー名登録に失敗しました",
-        type: "error",
-      });
     }
   };
 
@@ -57,7 +66,7 @@ export const UserForm = ({ userId, callbackRoutingPath }: Props) => {
             <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
           </Field.Root>
 
-          <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting}>
+          <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting || !isLoaded}>
             登録
           </Button>
         </Stack>
