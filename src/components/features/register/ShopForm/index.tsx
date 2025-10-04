@@ -1,10 +1,13 @@
-import { Button, Card, Field, Input, NativeSelect, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Card, Field, Flex, Input, SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText, Stack, Switch, Text, Textarea } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import { useAtom } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { registerShop } from "@/src/components/features/register/ShopForm/actions";
+import { api } from "@/convex/_generated/api";
 import { toaster } from "@/src/components/ui/toaster";
-import { type SchemaType, schema, submitFrequencyOptions } from "./schema";
+import { userAtom } from "@/src/stores/user";
+import { type SchemaType, schema, submitFrequencyOptions, timeUnitOptions } from "./schema";
 
 type Props = {
   callbackRoutingPath?: string;
@@ -12,23 +15,57 @@ type Props = {
 
 export const ShopForm = ({ callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
+  const [user] = useAtom(userAtom);
+  const createShop = useMutation(api.shop.createShop);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SchemaType>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      openTime: "09:00",
+      closeTime: "22:00",
+      timeUnit: "15",
+      submitFrequency: "1w",
+      useTimeCard: true,
+    },
   });
 
   const onSubmit: SubmitHandler<SchemaType> = async (data) => {
-    const { success } = await registerShop(data);
-    if (success) {
+    if (!user.authId) {
       toaster.create({
-        description: "店舗登録が完了しました",
-        type: "success",
+        description: "ログインが必要です",
+        type: "error",
       });
-      callbackRoutingPath && navigate({ to: callbackRoutingPath });
-    } else {
+      return;
+    }
+
+    try {
+      const result = await createShop({
+        shopName: data.shopName,
+        openTime: data.openTime,
+        closeTime: data.closeTime,
+        timeUnit: data.timeUnit ? Number(data.timeUnit) : 15,
+        submitFrequency: data.submitFrequency,
+        useTimeCard: data.useTimeCard ?? true,
+        description: data.description,
+        authId: user.authId,
+      });
+
+      if (result.success) {
+        toaster.create({
+          description: "店舗登録が完了しました",
+          type: "success",
+        });
+        if (callbackRoutingPath) {
+          navigate({ to: callbackRoutingPath });
+        } else {
+          navigate({ to: `/shops/${result.data.shopId}` });
+        }
+      }
+    } catch (error) {
+      console.error("店舗登録エラー:", error);
       toaster.create({
         description: "店舗登録に失敗しました",
         type: "error",
@@ -69,18 +106,65 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
           <Field.Root invalid={!!errors.submitFrequency}>
             <Field.Label>シフト提出頻度</Field.Label>
 
-            <NativeSelect.Root {...register("submitFrequency")}>
-              <NativeSelect.Field placeholder="選択してください">
+            <SelectRoot {...register("submitFrequency")} size="md">
+              <SelectTrigger>
+                <SelectValueText placeholder="選択してください" />
+              </SelectTrigger>
+              <SelectContent>
                 {submitFrequencyOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
+                  <SelectItem key={opt.value} item={opt.value}>
                     {opt.label}
-                  </option>
+                  </SelectItem>
                 ))}
-              </NativeSelect.Field>
-              <NativeSelect.Indicator />
-            </NativeSelect.Root>
+              </SelectContent>
+            </SelectRoot>
 
             <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
+          </Field.Root>
+
+          {/* シフト時間単位 */}
+          <Field.Root invalid={!!errors.timeUnit}>
+            <Field.Label>シフト時間単位</Field.Label>
+            <Field.HelperText>シフトを何分単位で管理するか設定します</Field.HelperText>
+            <SelectRoot {...register("timeUnit")} size="md">
+              <SelectTrigger>
+                <SelectValueText />
+              </SelectTrigger>
+              <SelectContent>
+                {timeUnitOptions.map((opt) => (
+                  <SelectItem key={opt.value} item={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </SelectRoot>
+            <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
+          </Field.Root>
+
+          {/* タイムカード機能 */}
+          <Field.Root>
+            <Flex justify="space-between" align="center">
+              <Box>
+                <Field.Label>タイムカード機能</Field.Label>
+                <Field.HelperText>出退勤の打刻機能を使用するかどうか</Field.HelperText>
+              </Box>
+              <Switch.Root {...register("useTimeCard")} defaultChecked>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Root>
+            </Flex>
+          </Field.Root>
+
+          {/* 店舗メモ */}
+          <Field.Root>
+            <Field.Label>店舗メモ（マネージャー向け）</Field.Label>
+            <Field.HelperText>運営上の注意事項、業務ルール、引き継ぎ事項など</Field.HelperText>
+            <Textarea
+              {...register("description")}
+              placeholder="例: レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など"
+              rows={4}
+            />
           </Field.Root>
 
           <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting}>

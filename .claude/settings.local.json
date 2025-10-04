@@ -25,7 +25,8 @@
       "mcp__serena__search_for_pattern",
       "Bash(git fetch:*)",
       "Bash(git reset:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(mkdir:*)"
     ],
     "deny": [
       "mcp__serena__execute_shell_command",
@@ -35,11 +36,11 @@
       "C:\\c\\Users\\yn132\\work"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "context7",
     "playwright",
     "serena"
   ],
-  "outputStyle": "default",
-  "enableAllProjectMcpServers": true
+  "outputStyle": "default"
 }
