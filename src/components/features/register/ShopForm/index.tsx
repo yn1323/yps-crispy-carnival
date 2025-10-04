@@ -1,4 +1,20 @@
-import { Box, Button, Card, Field, Flex, Input, SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText, Stack, Switch, Text, Textarea } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Card,
+  Field,
+  Flex,
+  Input,
+  SelectContent,
+  SelectItem,
+  SelectRoot,
+  SelectTrigger,
+  SelectValueText,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+} from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -26,7 +42,7 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
     defaultValues: {
       openTime: "09:00",
       closeTime: "22:00",
-      timeUnit: "15",
+      timeUnit: "1",
       submitFrequency: "1w",
       useTimeCard: true,
     },
