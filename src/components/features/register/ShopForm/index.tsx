@@ -4,9 +4,11 @@ import {
   Card,
   Field,
   Flex,
+  Heading,
   Input,
   NativeSelectField,
   NativeSelectRoot,
+  Separator,
   Stack,
   Switch,
   Text,
@@ -87,97 +89,129 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
   };
 
   return (
-    <Card.Root w="96" p="8">
-      <Stack gap="8" w="full">
-        <Text fontSize="lg">店舗登録</Text>
+    <Card.Root w={["full", "4xl"]} maxW="full">
+      <Card.Header>
+        <Heading size="lg">店舗登録</Heading>
+        <Text color="fg.muted" mt="2">
+          店舗の基本情報とシフト管理の設定を行います
+        </Text>
+      </Card.Header>
+      <Card.Body p={["6", "8"]}>
+        <Stack gap="8" w="full">
         <Stack
-          gap="6"
+          gap="8"
           as="form"
           onSubmit={(e) => {
             e.preventDefault();
             handleSubmit(onSubmit)(e);
           }}
         >
-          <Field.Root invalid={!!errors.shopName}>
-            <Field.Label>店舗名</Field.Label>
-            <Input {...register("shopName")} placeholder="店舗名" />
-            <Field.ErrorText>{errors.shopName?.message}</Field.ErrorText>
-          </Field.Root>
+          {/* 基本情報セクション */}
+          <Stack gap="4">
+            <Heading size="md" fontWeight="semibold">
+              基本情報
+            </Heading>
+            <Stack gap="6">
+              <Field.Root invalid={!!errors.shopName}>
+                <Field.Label>店舗名</Field.Label>
+                <Input {...register("shopName")} placeholder="店舗名" />
+                <Field.ErrorText>{errors.shopName?.message}</Field.ErrorText>
+              </Field.Root>
 
-          <Field.Root invalid={!!errors.openTime}>
-            <Field.Label>開店時間</Field.Label>
-            <Input {...register("openTime")} type="time" />
-            <Field.ErrorText>{errors.openTime?.message}</Field.ErrorText>
-          </Field.Root>
+              <Field.Root invalid={!!errors.openTime}>
+                <Field.Label>開店時間</Field.Label>
+                <Input {...register("openTime")} type="time" />
+                <Field.ErrorText>{errors.openTime?.message}</Field.ErrorText>
+              </Field.Root>
 
-          <Field.Root invalid={!!errors.closeTime}>
-            <Field.Label>閉店時間</Field.Label>
-            <Input {...register("closeTime")} type="time" />
-            <Field.ErrorText>{errors.closeTime?.message}</Field.ErrorText>
-          </Field.Root>
+              <Field.Root invalid={!!errors.closeTime}>
+                <Field.Label>閉店時間</Field.Label>
+                <Input {...register("closeTime")} type="time" />
+                <Field.ErrorText>{errors.closeTime?.message}</Field.ErrorText>
+              </Field.Root>
+            </Stack>
+          </Stack>
 
-          <Field.Root invalid={!!errors.submitFrequency}>
-            <Field.Label>シフト提出頻度</Field.Label>
-            <NativeSelectRoot>
-              <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
-                {submitFrequencyOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </NativeSelectField>
-            </NativeSelectRoot>
-            <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
-          </Field.Root>
+          <Separator borderWidth="2px" />
 
-          {/* シフト時間単位 */}
-          <Field.Root invalid={!!errors.timeUnit}>
-            <Field.Label>シフト時間単位</Field.Label>
-            <Field.HelperText>シフトを何分単位で管理するか設定します</Field.HelperText>
-            <NativeSelectRoot>
-              <NativeSelectField {...register("timeUnit")}>
-                {timeUnitOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </NativeSelectField>
-            </NativeSelectRoot>
-            <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
-          </Field.Root>
+          {/* シフト設定セクション */}
+          <Stack gap="4">
+            <Heading size="md" fontWeight="semibold">
+              シフト設定
+            </Heading>
+            <Stack gap="6">
+              <Field.Root invalid={!!errors.submitFrequency}>
+                <Field.Label>シフト提出頻度</Field.Label>
+                <NativeSelectRoot>
+                  <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
+                    {submitFrequencyOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </NativeSelectField>
+                </NativeSelectRoot>
+                <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
+              </Field.Root>
 
-          {/* タイムカード機能 */}
-          <Field.Root>
-            <Flex justify="space-between" align="center">
-              <Box>
-                <Field.Label>タイムカード機能</Field.Label>
-                <Field.HelperText>出退勤の打刻機能を使用するかどうか</Field.HelperText>
-              </Box>
-              <Switch.Root defaultChecked>
-                <Switch.HiddenInput {...register("useTimeCard")} />
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch.Root>
-            </Flex>
-          </Field.Root>
+              <Field.Root invalid={!!errors.timeUnit}>
+                <Field.Label>シフト時間単位</Field.Label>
+                <Field.HelperText>シフトを何分単位で管理するか設定します</Field.HelperText>
+                <NativeSelectRoot>
+                  <NativeSelectField {...register("timeUnit")}>
+                    {timeUnitOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </NativeSelectField>
+                </NativeSelectRoot>
+                <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
+              </Field.Root>
+            </Stack>
+          </Stack>
 
-          {/* 店舗メモ */}
-          <Field.Root>
-            <Field.Label>店舗メモ（マネージャー向け）</Field.Label>
-            <Field.HelperText>運営上の注意事項、業務ルール、引き継ぎ事項など</Field.HelperText>
-            <Textarea
-              {...register("description")}
-              placeholder="例: レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など"
-              rows={4}
-            />
-          </Field.Root>
+          <Separator borderWidth="2px" />
+
+          {/* オプション機能セクション */}
+          <Stack gap="4">
+            <Heading size="md" fontWeight="semibold">
+              オプション機能
+            </Heading>
+            <Stack gap="6">
+              <Field.Root>
+                <Flex justify="space-between" align="center">
+                  <Box>
+                    <Field.Label>タイムカード機能</Field.Label>
+                    <Field.HelperText>出退勤の打刻機能を使用するかどうか</Field.HelperText>
+                  </Box>
+                  <Switch.Root>
+                    <Switch.HiddenInput {...register("useTimeCard")} />
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Root>
+                </Flex>
+              </Field.Root>
+
+              <Field.Root>
+                <Field.Label>店舗メモ（マネージャー向け）</Field.Label>
+                <Field.HelperText>運営上の注意事項、業務ルール、引き継ぎ事項など</Field.HelperText>
+                <Textarea
+                  {...register("description")}
+                  placeholder="例: レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など"
+                  rows={4}
+                />
+              </Field.Root>
+            </Stack>
+          </Stack>
 
           <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting}>
             登録
           </Button>
         </Stack>
-      </Stack>
+        </Stack>
+      </Card.Body>
     </Card.Root>
   );
 };
