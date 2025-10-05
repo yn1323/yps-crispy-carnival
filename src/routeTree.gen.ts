@@ -17,6 +17,7 @@ import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
 import { Route as AuthAttendanceRouteImport } from './routes/_auth/attendance'
+import { Route as AuthShopsIndexRouteImport } from './routes/_auth/shops/index'
 import { Route as AuthShopsNewRouteImport } from './routes/_auth/shops/new'
 import { Route as AuthShopsInviteRouteImport } from './routes/_auth/shops/invite'
 import { Route as AuthShopsIdRouteImport } from './routes/_auth/shops/$id'
@@ -60,6 +61,11 @@ const AuthAttendanceRoute = AuthAttendanceRouteImport.update({
   path: '/attendance',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthShopsIndexRoute = AuthShopsIndexRouteImport.update({
+  id: '/shops/',
+  path: '/shops/',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthShopsNewRoute = AuthShopsNewRouteImport.update({
   id: '/shops/new',
   path: '/shops/new',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/shops/$id': typeof AuthShopsIdRoute
   '/shops/invite': typeof AuthShopsInviteRoute
   '/shops/new': typeof AuthShopsNewRoute
+  '/shops': typeof AuthShopsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/shops/$id': typeof AuthShopsIdRoute
   '/shops/invite': typeof AuthShopsInviteRoute
   '/shops/new': typeof AuthShopsNewRoute
+  '/shops': typeof AuthShopsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/_auth/shops/$id': typeof AuthShopsIdRoute
   '/_auth/shops/invite': typeof AuthShopsInviteRoute
   '/_auth/shops/new': typeof AuthShopsNewRoute
+  '/_auth/shops/': typeof AuthShopsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/shops/$id'
     | '/shops/invite'
     | '/shops/new'
+    | '/shops'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/shops/$id'
     | '/shops/invite'
     | '/shops/new'
+    | '/shops'
   id:
     | '__root__'
     | '/'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/_auth/shops/$id'
     | '/_auth/shops/invite'
     | '/_auth/shops/new'
+    | '/_auth/shops/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -218,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAttendanceRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/shops/': {
+      id: '/_auth/shops/'
+      path: '/shops'
+      fullPath: '/shops'
+      preLoaderRoute: typeof AuthShopsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/shops/new': {
       id: '/_auth/shops/new'
       path: '/shops/new'
@@ -251,6 +270,7 @@ interface AuthRouteChildren {
   AuthShopsIdRoute: typeof AuthShopsIdRoute
   AuthShopsInviteRoute: typeof AuthShopsInviteRoute
   AuthShopsNewRoute: typeof AuthShopsNewRoute
+  AuthShopsIndexRoute: typeof AuthShopsIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -262,6 +282,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthShopsIdRoute: AuthShopsIdRoute,
   AuthShopsInviteRoute: AuthShopsInviteRoute,
   AuthShopsNewRoute: AuthShopsNewRoute,
+  AuthShopsIndexRoute: AuthShopsIndexRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)

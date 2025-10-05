@@ -30,3 +30,9 @@ e2e/.clerk
 
 # convex
 convex-seeds/backup
+
+.serena
+
+.claude/settings.local.json
+.mcp.json
+CLAUDE.local.md

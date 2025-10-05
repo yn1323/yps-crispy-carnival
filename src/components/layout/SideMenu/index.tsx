@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Button, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { Link, useParams } from "@tanstack/react-router";
 import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcUndo } from "react-icons/fc";
@@ -24,10 +24,6 @@ export const SideMenu = ({ onlyLogout = false }: Props) => {
   return (
     <Box h="100vh" borderRight="1px" borderColor="border" py={4} px={4} position="fixed" left={0} top={0} zIndex={10}>
       <VStack gap={4} h="full">
-        <Text fontSize="xl" fontWeight="bold">
-          管理画面
-        </Text>
-
         <VStack gap={2} flex={1} alignItems="stretch">
           {!onlyLogout &&
             menuItems.map((item) => {

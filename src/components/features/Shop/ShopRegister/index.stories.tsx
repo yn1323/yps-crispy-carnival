@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/internal/test";
-import { ShopForm } from "./index";
+import { ShopRegister } from "./index";
 
-const meta: Meta<typeof ShopForm> = {
-  title: "features/register/ShopForm",
-  component: ShopForm,
+const meta: Meta<typeof ShopRegister> = {
+  title: "features/register/ShopRegister",
+  component: ShopRegister,
   parameters: {},
 };
 
 export default meta;
-type Story = StoryObj<typeof ShopForm>;
+type Story = StoryObj<typeof ShopRegister>;
 
 export const Basic: Story = {
   args: {},
