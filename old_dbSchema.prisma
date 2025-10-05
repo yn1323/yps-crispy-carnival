@@ -1,0 +1,213 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model ShopUserBelonging {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopId    String   @db.Uuid
+  userId    String   @unique
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  user      User     @relation(fields: [userId], references: [userId])
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model OrganizationShopBelonging {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String       @db.Uuid
+  shopId         String       @db.Uuid
+  shop           Shop         @relation(fields: [shopId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  isDeleted      Boolean
+  createdAt      DateTime     @default(now())
+}
+
+model Organization {
+  id               String                      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationName String
+  shop             OrganizationShopBelonging[]
+  temporaryClosed  TemporaryClosed[]
+  announce         Announce[]
+  isDeleted        Boolean                     @default(false)
+  createdAt        DateTime                    @default(now())
+}
+
+model Shop {
+  id              String                      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopName        String
+  openTime        String
+  closeTime       String
+  timeUnit        Int
+  submitFrequency String
+  avatar          String
+  useTimeCard     Boolean
+  description     String?                     // マネージャー向け店舗メモ
+  organization    OrganizationShopBelonging[]
+  user            ShopUserBelonging[]
+  operation       Operation[]
+  stableShift     StableShift[]
+  unstableShift   UnstableShift[]
+  request         Request[]
+  timeCard        TimeCard[]
+  temporaryClosed TemporaryClosed[]
+  announce        Announce[]
+  isDeleted       Boolean                     @default(false)
+  createdAt       DateTime                    @default(now())
+  Invitation      Invitation[]
+  shopInvitations ShopInvitation[]
+}
+
+model User {
+  id            String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId        String              @unique @default(dbgenerated("uuid_generate_v4()"))
+  userName      String
+  avatar        String              @default("")
+  shop          ShopUserBelonging[]
+  stableShift   StableShift[]
+  unstableShift UnstableShift[]
+  request       Request[]
+  timeCard      TimeCard[]
+  isDeleted     Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  Invitation    Invitation[]
+  invitationUses InvitationUse[]
+}
+
+model Invitation {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  invitedBy       Shop     @relation(fields: [invitedByShopId], references: [id])
+  invitedByShopId String   @db.Uuid
+  targetUser      User     @relation(fields: [targetUserId], references: [id])
+  targetUserId    String   @db.Uuid
+  accepted        Boolean  @default(false)
+  isDeleted       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Operation {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopId        String   @db.Uuid
+  operationName String
+  icon          String
+  color         String
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model StableShift {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopId    String   @db.Uuid
+  userId    String   @unique
+  workFrom  DateTime
+  workTo    DateTime
+  breakFrom DateTime
+  breakTo   DateTime
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  user      User     @relation(fields: [userId], references: [userId])
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model UnstableShift {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopId    String   @db.Uuid
+  userId    String   @unique
+  workFrom  DateTime
+  workTo    DateTime
+  breakFrom DateTime
+  breakTo   DateTime
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  user      User     @relation(fields: [userId], references: [userId])
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Request {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopId    String   @db.Uuid
+  userId    String   @unique
+  dateFrom  DateTime
+  dateTo    DateTime
+  done      Boolean  @default(false)
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  user      User     @relation(fields: [userId], references: [userId])
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model TimeCard {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shopId    String   @db.Uuid
+  userId    String   @unique
+  workFrom  DateTime
+  workTo    DateTime
+  breakFrom DateTime
+  breakTo   DateTime
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  user      User     @relation(fields: [userId], references: [userId])
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model TemporaryClosed {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String       @db.Uuid
+  shopId         String       @db.Uuid
+  date           DateTime
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  shop           Shop         @relation(fields: [shopId], references: [id])
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model Announce {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String       @db.Uuid
+  shopId         String       @db.Uuid
+  message        String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  shop           Shop         @relation(fields: [shopId], references: [id])
+  isDeleted      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model ShopInvitation {
+  id         String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  token      String          @unique @default(dbgenerated("uuid_generate_v4()"))
+  shopId     String          @db.Uuid
+  shop       Shop            @relation(fields: [shopId], references: [id])
+  expiresAt  DateTime
+  createdBy  String          // 管理者のuserId
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  usedBy     InvitationUse[]
+
+  @@index([token])
+  @@index([shopId])
+}
+
+model InvitationUse {
+  id           String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  invitationId String         @db.Uuid
+  invitation   ShopInvitation @relation(fields: [invitationId], references: [id])
+  userId       String         @db.Uuid
+  user         User           @relation(fields: [userId], references: [id])
+  usedAt       DateTime       @default(now())
+
+  @@unique([invitationId, userId])
+}

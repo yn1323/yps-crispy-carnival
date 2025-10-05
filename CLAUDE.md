@@ -4,7 +4,6 @@
 
 ## 参照ドキュメント
 - @doc/claude/basic.md
-- @doc/claude/character.md
 - @doc/claude/self.md
 
 ## 🚨 核心制約
@@ -13,7 +12,6 @@
 - NEVER: data-testidをテストで使用
 
 ### YOU MUST（必須事項）
-- YOU MUST: Playwright MCPでスクリーンショットを撮るときは`.env`の`CLAUDE_PLAYWRIGHT_MCP_SCREENSHOT_STORE`にファイルを配置してください
 - YOU MUST: 質問をする場合は、1つずつ質問してください。チャットなので。。。
 - YOU MUST: 作業時はSerenaMCPを利用してください。
 - YOU MUST: ユーザーの指示で不明瞭な箇所は必ず聞き返してください。これすごく重要！！ぜひ一緒に仕様をつくっていきましょう！
@@ -31,9 +29,10 @@
 ## 開発コマンド
 
 ### コア開発
-- `pnpm dev` - Turbopackを使用した開発サーバーの起動
-- `pnpm build` - Turbopackを使用したプロダクションビルド
-- `pnpm start` - プロダクションサーバーの起動
+- `pnpm dev` - Vite開発サーバーの起動（ポート3000）
+- `pnpm build` - Viteプロダクションビルド + TypeScript型チェック
+- `pnpm start` - 開発サーバーの起動（devと同じ）
+- `pnpm serve` - プロダクションビルドのプレビュー
 
 ### コード品質・型チェック
 - `pnpm lint` - Biomeリンティングの実行（チェックのみ）
@@ -52,37 +51,44 @@
 
 ### ドキュメント・コンポーネント
 - `pnpm storybook` - Storybook開発サーバーをポート6006で起動
-- `pnpm build-storybook` - Storybookのプロダクションビルド
+- `pnpm storybook:build` - Storybookのプロダクションビルド
 - `pnpm scaffdog` - コード雛形の生成
+
+### Convex（バックエンド）
+- `pnpm convex:dev` - Convex開発モード起動
+- `pnpm convex:import` - データインポート
+- `pnpm convex:export` - データエクスポート
 
 ## アーキテクチャ概要
 
 ### 技術スタック
-- **フレームワーク**: Next.js 15（App Router + Turbopack）
-- **UIライブラリ**: Chakra UI v3（Emotionスタイリング）
+- **ビルドツール**: Vite 7.1.7（高速開発サーバー）
+- **ルーティング**: TanStack Router 1.132.23（ファイルベースルーティング）
+- **UIフレームワーク**: React 19.1.1
+- **UIライブラリ**: Chakra UI v3.27.0（Emotionスタイリング）
 - **フォーム**: React Hook Form + Zodバリデーション
-- **状態管理**: Jotaiによるアトミック状態管理
-- **テーマ**: next-themes（ライトモードのみ）
+- **状態管理**: Jotai 2.15.0（アトミック状態管理）
+- **認証**: Clerk (@clerk/clerk-react)
+- **バックエンド**: Convex 1.27.3（リアルタイムデータベース）
 - **パッケージマネージャ**: pnpm
 
 ### プロジェクト構造
 
-#### コアアプリケーション（`app/`）
-- Next.js App Router構造を使用
-- `(auth)/` - 認証関連ページ（勤怠、シフト、店舗、タイムカード）
-- `config/` - 設定ページ
-
 #### ソースコード（`src/`）
-- `components/` - 目的別に整理されたReactコンポーネント:
-  - `features/` - 機能固有コンポーネント（登録フォームなど）
-  - `layout/` - レイアウトコンポーネント（サイドメニューなど）
-  - `templates/` - 再利用可能テンプレートコンポーネント
-  - `ui/` - UI基盤コンポーネント（カラーモード、プロバイダー、トースター、ツールチップ）
-- `services/` - API・データ取得ユーティリティ（clientFetch、serverFetch）
-- `stores/` - 状態管理用Jotaiアトム定義
-- `helpers/` - カテゴリ別に整理されたユーティリティ関数
-- `types/` - TypeScript型定義
-- `constants/` - バリデーションスキーマを含むアプリケーション定数
+- `routes/` - TanStack Routerのルート定義（ファイルベースルーティング）
+- `components/` - 目的別に整理されたReactコンポーネント
+  - `features/` - 機能固有コンポーネント
+  - `layout/` - レイアウトコンポーネント
+  - `pages/` - ページコンポーネント（店舗、シフト、勤怠等）
+  - `ui/` - UI基盤コンポーネント
+- `stores/` - Jotaiアトム定義（状態管理）
+- `helpers/` - ユーティリティ関数
+- `constants/` - 定数・バリデーションスキーマ
+- `configs/` - 設定ファイル
+
+#### Convexバックエンド（`convex/`）
+- サーバーレスバックエンドコード
+- リアルタイムデータベース機能
 
 ### テストアーキテクチャ
 プロジェクトでは多層テスト手法を採用:
@@ -106,23 +112,25 @@
 
 ### フォームアーキテクチャ
 - React Hook Form + Zodスキーマバリデーション
-- フォームコンポーネントのパターン: schema.ts + actions.ts + index.tsx + stories
+- フォームコンポーネントのパターン: schema.ts + index.tsx + index.stories.tsx
 - `src/constants/validations.ts`での一元的バリデーションパターン
+- 型は`z.infer<typeof Schema>`で自動生成
 
-### API統合
-- `src/services/common/`のカスタムフェッチユーティリティ
-- 適切なエラーハンドリングを持つ型安全APIコール
-- Cookieベース認証サポート
+### バックエンド統合
+- Convexによるリアルタイムデータベース
+- Clerkによる認証機能
+- 型安全なAPI呼び出し
 
 ## コード品質基準
 
 ### フォーマット・リンティング
 - Biome設定: 2スペースインデント、120文字行幅を強制
 - インポート整理を有効化
-- Next.js・Reactドメインルールを適用
+- Reactドメインルールを適用
 - 配列インデックスキーを許可（noArrayIndexKey無効）
+- forEachを許可（noForEach無効）
 
 ### ファイル整理
-- コンポーネントには対応する.stories.tsxと.test.tsファイルを含む
-- スキーマとアクションは専用ファイルに分離
-- パスエイリアス設定: @/app, @/src, @/e2e, @/prisma
+- コンポーネントには対応する.stories.tsxファイルを含む
+- スキーマは専用ファイルに分離（schema.ts）
+- パスエイリアス設定: @/src, @/e2e, @/convex
