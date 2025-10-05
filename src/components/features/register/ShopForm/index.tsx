@@ -34,8 +34,6 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-    watch,
-    setValue,
   } = useForm<SchemaType>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -155,10 +153,8 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
                 <Field.Label>タイムカード機能</Field.Label>
                 <Field.HelperText>出退勤の打刻機能を使用するかどうか</Field.HelperText>
               </Box>
-              <Switch.Root
-                checked={watch("useTimeCard")}
-                onCheckedChange={(e) => setValue("useTimeCard", e.checked)}
-              >
+              <Switch.Root defaultChecked>
+                <Switch.HiddenInput {...register("useTimeCard")} />
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
