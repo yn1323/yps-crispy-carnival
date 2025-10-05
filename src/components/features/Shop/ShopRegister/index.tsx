@@ -28,7 +28,7 @@ type Props = {
   callbackRoutingPath?: string;
 };
 
-export const ShopForm = ({ callbackRoutingPath }: Props) => {
+export const ShopRegister = ({ callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
   const [user] = useAtom(userAtom);
   const createShop = useMutation(api.shop.createShop);

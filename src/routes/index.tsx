@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Top } from "@/src/components/pages/Top";
+import { TopPage } from "@/src/components/pages/TopPage";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/")({
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/")({
 function App() {
   return (
     <Animation>
-      <Top />
+      <TopPage />
     </Animation>
   );
 }

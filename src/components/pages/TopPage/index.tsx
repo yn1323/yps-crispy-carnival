@@ -3,7 +3,7 @@ import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 import { resetUserAtom } from "@/src/stores/user";
 
 // TODO: 仮のTOPページ
-export const Top = () => {
+export const TopPage = () => {
   resetUserAtom();
 
   return (

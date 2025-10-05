@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ShopsNew } from "@/src/components/pages/Shops/New";
+import { ShopsNewPage } from "@/src/components/pages/Shops/NewPage";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/_auth/shops/new")({
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_auth/shops/new")({
 function RouteComponent() {
   return (
     <Animation>
-      <ShopsNew />
+      <ShopsNewPage />
     </Animation>
   );
 }

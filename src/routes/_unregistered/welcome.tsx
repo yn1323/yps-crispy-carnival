@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Welcome } from "@/src/components/pages/Welcome";
+import { Welcome } from "@/src/components/pages/WelcomePage";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/_unregistered/welcome")({
