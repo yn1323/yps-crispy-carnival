@@ -32,3 +32,5 @@ e2e/.clerk
 convex-seeds/backup
 
 .serena
+
+.claude/settings.local.json
