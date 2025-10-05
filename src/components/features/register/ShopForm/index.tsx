@@ -5,11 +5,8 @@ import {
   Field,
   Flex,
   Input,
-  SelectContent,
-  SelectItem,
-  SelectRoot,
-  SelectTrigger,
-  SelectValueText,
+  NativeSelectField,
+  NativeSelectRoot,
   Stack,
   Switch,
   Text,
@@ -37,6 +34,8 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    watch,
+    setValue,
   } = useForm<SchemaType>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -121,20 +120,15 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
 
           <Field.Root invalid={!!errors.submitFrequency}>
             <Field.Label>シフト提出頻度</Field.Label>
-
-            <SelectRoot {...register("submitFrequency")} size="md">
-              <SelectTrigger>
-                <SelectValueText placeholder="選択してください" />
-              </SelectTrigger>
-              <SelectContent>
+            <NativeSelectRoot>
+              <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
                 {submitFrequencyOptions.map((opt) => (
-                  <SelectItem key={opt.value} item={opt.value}>
+                  <option key={opt.value} value={opt.value}>
                     {opt.label}
-                  </SelectItem>
+                  </option>
                 ))}
-              </SelectContent>
-            </SelectRoot>
-
+              </NativeSelectField>
+            </NativeSelectRoot>
             <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
           </Field.Root>
 
@@ -142,18 +136,15 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
           <Field.Root invalid={!!errors.timeUnit}>
             <Field.Label>シフト時間単位</Field.Label>
             <Field.HelperText>シフトを何分単位で管理するか設定します</Field.HelperText>
-            <SelectRoot {...register("timeUnit")} size="md">
-              <SelectTrigger>
-                <SelectValueText />
-              </SelectTrigger>
-              <SelectContent>
+            <NativeSelectRoot>
+              <NativeSelectField {...register("timeUnit")}>
                 {timeUnitOptions.map((opt) => (
-                  <SelectItem key={opt.value} item={opt.value}>
+                  <option key={opt.value} value={opt.value}>
                     {opt.label}
-                  </SelectItem>
+                  </option>
                 ))}
-              </SelectContent>
-            </SelectRoot>
+              </NativeSelectField>
+            </NativeSelectRoot>
             <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
           </Field.Root>
 
@@ -164,7 +155,10 @@ export const ShopForm = ({ callbackRoutingPath }: Props) => {
                 <Field.Label>タイムカード機能</Field.Label>
                 <Field.HelperText>出退勤の打刻機能を使用するかどうか</Field.HelperText>
               </Box>
-              <Switch.Root {...register("useTimeCard")} defaultChecked>
+              <Switch.Root
+                checked={watch("useTimeCard")}
+                onCheckedChange={(e) => setValue("useTimeCard", e.checked)}
+              >
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
