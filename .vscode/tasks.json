@@ -6,6 +6,48 @@
       "command": "pnpm scaffdog",
       "label": "Scaffolding",
       "detail": "pnpm scaffdog"
+    },
+    {
+      "label": "dev",
+      "type": "shell",
+      "command": "pnpm dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "convex:dev",
+      "type": "shell",
+      "command": "pnpm convex:dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "storybook",
+      "type": "shell",
+      "command": "pnpm storybook",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "dev:all",
+      "dependsOn": ["dev", "convex:dev", "storybook"],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     }
   ]
 }
