@@ -64,6 +64,44 @@ const main = async () => {
       console.error(e);
     }
 
+    // ファイルシステムへの書き込み完了を待つ
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // dataフォルダを作成
+    console.log("\ndataフォルダを作成中...");
+    const dataDir = path.join(extractDir, "data");
+    await fs.mkdir(dataDir, { recursive: true });
+
+    // _tablesを除く各フォルダのdocuments.jsonlをコピー
+    console.log("documents.jsonlをコピー中...");
+    const entries = await fs.readdir(extractDir, { withFileTypes: true });
+
+    console.log(
+      `📂 検出されたエントリ: ${entries.map((e) => `${e.name}(${e.isDirectory() ? "dir" : "file"})`).join(", ")}`,
+    );
+
+    for (const entry of entries) {
+      console.log(`🔍 チェック中: ${entry.name}, isDirectory: ${entry.isDirectory()}`);
+
+      // ディレクトリかつ、_tablesとdataフォルダ以外を対象
+      if (entry.isDirectory() && entry.name !== "_tables" && entry.name !== "data") {
+        const sourceFile = path.join(extractDir, entry.name, "documents.jsonl");
+        const targetFile = path.join(dataDir, `${entry.name}.jsonl`);
+
+        console.log(`📄 コピー試行: ${sourceFile}`);
+
+        try {
+          await fs.copyFile(sourceFile, targetFile);
+          console.log(`✅ ${entry.name}/documents.jsonl → data/${entry.name}.jsonl`);
+        } catch (error) {
+          console.log(`⚠️ ${entry.name}/documents.jsonl のコピーに失敗しました`);
+          console.error(error);
+        }
+      }
+    }
+
+    console.log("✅ データコピー完了");
+
     console.log("\n==========================================");
     console.log("✅ エクスポートが完了しました！");
     console.log(`📦 バックアップファイル: ${zipFile}`);

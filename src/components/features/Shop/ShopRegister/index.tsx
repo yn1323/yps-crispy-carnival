@@ -5,10 +5,12 @@ import {
   Field,
   Flex,
   Heading,
+  HStack,
   Input,
   NativeSelectField,
   NativeSelectRoot,
   Separator,
+  Spacer,
   Stack,
   Switch,
   Text,
@@ -44,8 +46,8 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
     defaultValues: {
       openTime: "09:00",
       closeTime: "22:00",
-      timeUnit: "1",
-      submitFrequency: "1w",
+      timeUnit: "30",
+      submitFrequency: "2w",
       useTimeCard: true,
     },
   });
@@ -119,17 +121,19 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
                   <Field.ErrorText>{errors.shopName?.message}</Field.ErrorText>
                 </Field.Root>
 
-                <Field.Root invalid={!!errors.openTime}>
-                  <Field.Label>開店時間</Field.Label>
-                  <Input {...register("openTime")} type="time" />
-                  <Field.ErrorText>{errors.openTime?.message}</Field.ErrorText>
-                </Field.Root>
+                <Flex direction={{ base: "column", md: "row" }} gap="4">
+                  <Field.Root invalid={!!errors.openTime} flex="1">
+                    <Field.Label>開店時間</Field.Label>
+                    <Input {...register("openTime")} type="time" />
+                    <Field.ErrorText>{errors.openTime?.message}</Field.ErrorText>
+                  </Field.Root>
 
-                <Field.Root invalid={!!errors.closeTime}>
-                  <Field.Label>閉店時間</Field.Label>
-                  <Input {...register("closeTime")} type="time" />
-                  <Field.ErrorText>{errors.closeTime?.message}</Field.ErrorText>
-                </Field.Root>
+                  <Field.Root invalid={!!errors.closeTime} flex="1">
+                    <Field.Label>閉店時間</Field.Label>
+                    <Input {...register("closeTime")} type="time" />
+                    <Field.ErrorText>{errors.closeTime?.message}</Field.ErrorText>
+                  </Field.Root>
+                </Flex>
               </Stack>
             </Stack>
 
@@ -140,8 +144,8 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
               <Heading size="md" fontWeight="semibold">
                 シフト設定
               </Heading>
-              <Stack gap="6">
-                <Field.Root invalid={!!errors.submitFrequency}>
+              <Flex direction={{ base: "column", md: "row" }} gap="4">
+                <Field.Root invalid={!!errors.submitFrequency} flex="1">
                   <Field.Label>シフト提出頻度</Field.Label>
                   <NativeSelectRoot>
                     <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
@@ -155,9 +159,8 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
                   <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
                 </Field.Root>
 
-                <Field.Root invalid={!!errors.timeUnit}>
-                  <Field.Label>シフト時間単位</Field.Label>
-                  <Field.HelperText>シフトを何分単位で管理するか設定します</Field.HelperText>
+                <Field.Root invalid={!!errors.timeUnit} flex="1">
+                  <Field.Label>シフト入力の時間単位</Field.Label>
                   <NativeSelectRoot>
                     <NativeSelectField {...register("timeUnit")}>
                       {timeUnitOptions.map((opt) => (
@@ -169,7 +172,7 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
                   </NativeSelectRoot>
                   <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
                 </Field.Root>
-              </Stack>
+              </Flex>
             </Stack>
 
             <Separator />
@@ -181,7 +184,7 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
               </Heading>
               <Stack gap="6">
                 <Field.Root>
-                  <Flex justify="space-between" align="center" w="full">
+                  <HStack justify="space-between" align="center" w="full" gap={10}>
                     <Box>
                       <Field.Label>タイムカード機能</Field.Label>
                       <Field.HelperText>出退勤の打刻機能</Field.HelperText>
@@ -198,7 +201,8 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
                         </Switch.Control>
                       </Switch.Root>
                     </Box>
-                  </Flex>
+                    <Spacer hideBelow="md" />
+                  </HStack>
                 </Field.Root>
 
                 <Field.Root>
@@ -213,9 +217,11 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
               </Stack>
             </Stack>
 
-            <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting}>
-              登録
-            </Button>
+            <Box w={{ base: "full", md: "auto" }} alignSelf={{ base: "stretch", md: "flex-end" }}>
+              <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting} w="full">
+                登録
+              </Button>
+            </Box>
           </Stack>
         </Stack>
       </Card.Body>
