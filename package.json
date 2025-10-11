@@ -50,7 +50,7 @@
     "@storybook/addon-docs": "9.1.10",
     "@storybook/addon-vitest": "9.1.10",
     "@storybook/react-vite": "9.1.10",
-    "@tanstack/react-devtools": "0.7.2",
+    "@tanstack/react-devtools": "0.7.6",
     "@tanstack/react-router-devtools": "1.132.37",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.0",
