@@ -3,10 +3,11 @@
 import { Box, Button, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { Link, useParams } from "@tanstack/react-router";
-import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcUndo } from "react-icons/fc";
+import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcShop, FcUndo } from "react-icons/fc";
 
 const menuItems = [
   { href: "/mypage", label: "マイページ", icon: FcBusinessman },
+  { href: "/shops", label: "店舗一覧", icon: FcShop },
   { href: "/shifts", label: "シフト", icon: FcCalendar },
   { href: "/attendance", label: "勤怠記録", icon: FcClock },
   { href: "/timecard", label: "タイムカード", icon: FcDocument },

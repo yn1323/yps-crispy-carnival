@@ -18,9 +18,13 @@ import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
 import { Route as AuthAttendanceRouteImport } from './routes/_auth/attendance'
 import { Route as AuthShopsIndexRouteImport } from './routes/_auth/shops/index'
-import { Route as AuthShopsNewRouteImport } from './routes/_auth/shops/new'
-import { Route as AuthShopsInviteRouteImport } from './routes/_auth/shops/invite'
-import { Route as AuthShopsIdRouteImport } from './routes/_auth/shops/$id'
+import { Route as AuthShopsNewIndexRouteImport } from './routes/_auth/shops/new/index'
+import { Route as AuthShopsIdIndexRouteImport } from './routes/_auth/shops/$id/index'
+import { Route as AuthShopsIdMembersIndexRouteImport } from './routes/_auth/shops/$id/members/index'
+import { Route as AuthShopsIdEditIndexRouteImport } from './routes/_auth/shops/$id/edit/index'
+import { Route as AuthShopsIdMembersNewIndexRouteImport } from './routes/_auth/shops/$id/members/new/index'
+import { Route as AuthShopsIdMembersIdIndexRouteImport } from './routes/_auth/shops/$id/members/$id/index'
+import { Route as AuthShopsIdMembersIdEditIndexRouteImport } from './routes/_auth/shops/$id/members/$id/edit/index'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -66,21 +70,44 @@ const AuthShopsIndexRoute = AuthShopsIndexRouteImport.update({
   path: '/shops/',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShopsNewRoute = AuthShopsNewRouteImport.update({
-  id: '/shops/new',
-  path: '/shops/new',
+const AuthShopsNewIndexRoute = AuthShopsNewIndexRouteImport.update({
+  id: '/shops/new/',
+  path: '/shops/new/',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShopsInviteRoute = AuthShopsInviteRouteImport.update({
-  id: '/shops/invite',
-  path: '/shops/invite',
+const AuthShopsIdIndexRoute = AuthShopsIdIndexRouteImport.update({
+  id: '/shops/$id/',
+  path: '/shops/$id/',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShopsIdRoute = AuthShopsIdRouteImport.update({
-  id: '/shops/$id',
-  path: '/shops/$id',
+const AuthShopsIdMembersIndexRoute = AuthShopsIdMembersIndexRouteImport.update({
+  id: '/shops/$id/members/',
+  path: '/shops/$id/members/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthShopsIdEditIndexRoute = AuthShopsIdEditIndexRouteImport.update({
+  id: '/shops/$id/edit/',
+  path: '/shops/$id/edit/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthShopsIdMembersNewIndexRoute =
+  AuthShopsIdMembersNewIndexRouteImport.update({
+    id: '/shops/$id/members/new/',
+    path: '/shops/$id/members/new/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsIdMembersIdIndexRoute =
+  AuthShopsIdMembersIdIndexRouteImport.update({
+    id: '/shops/$id/members/$id/',
+    path: '/shops/$id/members/$id/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsIdMembersIdEditIndexRoute =
+  AuthShopsIdMembersIdEditIndexRouteImport.update({
+    id: '/shops/$id/members/$id/edit/',
+    path: '/shops/$id/members/$id/edit/',
+    getParentRoute: () => AuthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,10 +117,14 @@ export interface FileRoutesByFullPath {
   '/shifts': typeof AuthShiftsRoute
   '/timecard': typeof AuthTimecardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
-  '/shops/$id': typeof AuthShopsIdRoute
-  '/shops/invite': typeof AuthShopsInviteRoute
-  '/shops/new': typeof AuthShopsNewRoute
   '/shops': typeof AuthShopsIndexRoute
+  '/shops/$id': typeof AuthShopsIdIndexRoute
+  '/shops/new': typeof AuthShopsNewIndexRoute
+  '/shops/$id/edit': typeof AuthShopsIdEditIndexRoute
+  '/shops/$id/members': typeof AuthShopsIdMembersIndexRoute
+  '/shops/$id/members/$id': typeof AuthShopsIdMembersIdIndexRoute
+  '/shops/$id/members/new': typeof AuthShopsIdMembersNewIndexRoute
+  '/shops/$id/members/$id/edit': typeof AuthShopsIdMembersIdEditIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -103,10 +134,14 @@ export interface FileRoutesByTo {
   '/shifts': typeof AuthShiftsRoute
   '/timecard': typeof AuthTimecardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
-  '/shops/$id': typeof AuthShopsIdRoute
-  '/shops/invite': typeof AuthShopsInviteRoute
-  '/shops/new': typeof AuthShopsNewRoute
   '/shops': typeof AuthShopsIndexRoute
+  '/shops/$id': typeof AuthShopsIdIndexRoute
+  '/shops/new': typeof AuthShopsNewIndexRoute
+  '/shops/$id/edit': typeof AuthShopsIdEditIndexRoute
+  '/shops/$id/members': typeof AuthShopsIdMembersIndexRoute
+  '/shops/$id/members/$id': typeof AuthShopsIdMembersIdIndexRoute
+  '/shops/$id/members/new': typeof AuthShopsIdMembersNewIndexRoute
+  '/shops/$id/members/$id/edit': typeof AuthShopsIdMembersIdEditIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,10 +153,14 @@ export interface FileRoutesById {
   '/_auth/shifts': typeof AuthShiftsRoute
   '/_auth/timecard': typeof AuthTimecardRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
-  '/_auth/shops/$id': typeof AuthShopsIdRoute
-  '/_auth/shops/invite': typeof AuthShopsInviteRoute
-  '/_auth/shops/new': typeof AuthShopsNewRoute
   '/_auth/shops/': typeof AuthShopsIndexRoute
+  '/_auth/shops/$id/': typeof AuthShopsIdIndexRoute
+  '/_auth/shops/new/': typeof AuthShopsNewIndexRoute
+  '/_auth/shops/$id/edit/': typeof AuthShopsIdEditIndexRoute
+  '/_auth/shops/$id/members/': typeof AuthShopsIdMembersIndexRoute
+  '/_auth/shops/$id/members/$id/': typeof AuthShopsIdMembersIdIndexRoute
+  '/_auth/shops/$id/members/new/': typeof AuthShopsIdMembersNewIndexRoute
+  '/_auth/shops/$id/members/$id/edit/': typeof AuthShopsIdMembersIdEditIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -133,10 +172,14 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/timecard'
     | '/welcome'
-    | '/shops/$id'
-    | '/shops/invite'
-    | '/shops/new'
     | '/shops'
+    | '/shops/$id'
+    | '/shops/new'
+    | '/shops/$id/edit'
+    | '/shops/$id/members'
+    | '/shops/$id/members/$id'
+    | '/shops/$id/members/new'
+    | '/shops/$id/members/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -146,10 +189,14 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/timecard'
     | '/welcome'
-    | '/shops/$id'
-    | '/shops/invite'
-    | '/shops/new'
     | '/shops'
+    | '/shops/$id'
+    | '/shops/new'
+    | '/shops/$id/edit'
+    | '/shops/$id/members'
+    | '/shops/$id/members/$id'
+    | '/shops/$id/members/new'
+    | '/shops/$id/members/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -160,10 +207,14 @@ export interface FileRouteTypes {
     | '/_auth/shifts'
     | '/_auth/timecard'
     | '/_unregistered/welcome'
-    | '/_auth/shops/$id'
-    | '/_auth/shops/invite'
-    | '/_auth/shops/new'
     | '/_auth/shops/'
+    | '/_auth/shops/$id/'
+    | '/_auth/shops/new/'
+    | '/_auth/shops/$id/edit/'
+    | '/_auth/shops/$id/members/'
+    | '/_auth/shops/$id/members/$id/'
+    | '/_auth/shops/$id/members/new/'
+    | '/_auth/shops/$id/members/$id/edit/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -237,25 +288,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShopsIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shops/new': {
-      id: '/_auth/shops/new'
+    '/_auth/shops/new/': {
+      id: '/_auth/shops/new/'
       path: '/shops/new'
       fullPath: '/shops/new'
-      preLoaderRoute: typeof AuthShopsNewRouteImport
+      preLoaderRoute: typeof AuthShopsNewIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shops/invite': {
-      id: '/_auth/shops/invite'
-      path: '/shops/invite'
-      fullPath: '/shops/invite'
-      preLoaderRoute: typeof AuthShopsInviteRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$id': {
-      id: '/_auth/shops/$id'
+    '/_auth/shops/$id/': {
+      id: '/_auth/shops/$id/'
       path: '/shops/$id'
       fullPath: '/shops/$id'
-      preLoaderRoute: typeof AuthShopsIdRouteImport
+      preLoaderRoute: typeof AuthShopsIdIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$id/members/': {
+      id: '/_auth/shops/$id/members/'
+      path: '/shops/$id/members'
+      fullPath: '/shops/$id/members'
+      preLoaderRoute: typeof AuthShopsIdMembersIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$id/edit/': {
+      id: '/_auth/shops/$id/edit/'
+      path: '/shops/$id/edit'
+      fullPath: '/shops/$id/edit'
+      preLoaderRoute: typeof AuthShopsIdEditIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$id/members/new/': {
+      id: '/_auth/shops/$id/members/new/'
+      path: '/shops/$id/members/new'
+      fullPath: '/shops/$id/members/new'
+      preLoaderRoute: typeof AuthShopsIdMembersNewIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$id/members/$id/': {
+      id: '/_auth/shops/$id/members/$id/'
+      path: '/shops/$id/members/$id'
+      fullPath: '/shops/$id/members/$id'
+      preLoaderRoute: typeof AuthShopsIdMembersIdIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$id/members/$id/edit/': {
+      id: '/_auth/shops/$id/members/$id/edit/'
+      path: '/shops/$id/members/$id/edit'
+      fullPath: '/shops/$id/members/$id/edit'
+      preLoaderRoute: typeof AuthShopsIdMembersIdEditIndexRouteImport
       parentRoute: typeof AuthRoute
     }
   }
@@ -267,10 +346,14 @@ interface AuthRouteChildren {
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthShiftsRoute: typeof AuthShiftsRoute
   AuthTimecardRoute: typeof AuthTimecardRoute
-  AuthShopsIdRoute: typeof AuthShopsIdRoute
-  AuthShopsInviteRoute: typeof AuthShopsInviteRoute
-  AuthShopsNewRoute: typeof AuthShopsNewRoute
   AuthShopsIndexRoute: typeof AuthShopsIndexRoute
+  AuthShopsIdIndexRoute: typeof AuthShopsIdIndexRoute
+  AuthShopsNewIndexRoute: typeof AuthShopsNewIndexRoute
+  AuthShopsIdEditIndexRoute: typeof AuthShopsIdEditIndexRoute
+  AuthShopsIdMembersIndexRoute: typeof AuthShopsIdMembersIndexRoute
+  AuthShopsIdMembersIdIndexRoute: typeof AuthShopsIdMembersIdIndexRoute
+  AuthShopsIdMembersNewIndexRoute: typeof AuthShopsIdMembersNewIndexRoute
+  AuthShopsIdMembersIdEditIndexRoute: typeof AuthShopsIdMembersIdEditIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -279,10 +362,14 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthSettingsRoute: AuthSettingsRoute,
   AuthShiftsRoute: AuthShiftsRoute,
   AuthTimecardRoute: AuthTimecardRoute,
-  AuthShopsIdRoute: AuthShopsIdRoute,
-  AuthShopsInviteRoute: AuthShopsInviteRoute,
-  AuthShopsNewRoute: AuthShopsNewRoute,
   AuthShopsIndexRoute: AuthShopsIndexRoute,
+  AuthShopsIdIndexRoute: AuthShopsIdIndexRoute,
+  AuthShopsNewIndexRoute: AuthShopsNewIndexRoute,
+  AuthShopsIdEditIndexRoute: AuthShopsIdEditIndexRoute,
+  AuthShopsIdMembersIndexRoute: AuthShopsIdMembersIndexRoute,
+  AuthShopsIdMembersIdIndexRoute: AuthShopsIdMembersIdIndexRoute,
+  AuthShopsIdMembersNewIndexRoute: AuthShopsIdMembersNewIndexRoute,
+  AuthShopsIdMembersIdEditIndexRoute: AuthShopsIdMembersIdEditIndexRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
