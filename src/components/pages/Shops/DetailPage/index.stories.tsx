@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ShopsListPage } from "@/src/components/pages/Shops/ListPage";
+import { ShopsDetailPage } from "@/src/components/pages/Shops/DetailPage";
 
 const meta = {
-  title: "pages/Shops/ListPage",
-  component: ShopsListPage,
-} satisfies Meta<typeof ShopsListPage>;
+  title: "pages/Shops/ShopsDetailPage",
+  component: ShopsDetailPage,
+} satisfies Meta<typeof ShopsDetailPage>;
 export default meta;
 
 export const Basic: StoryObj<typeof meta> = {};
