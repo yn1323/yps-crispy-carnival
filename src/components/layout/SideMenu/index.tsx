@@ -3,10 +3,11 @@
 import { Box, Button, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { Link, useParams } from "@tanstack/react-router";
-import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcUndo } from "react-icons/fc";
+import { FcBusinessman, FcCalendar, FcClock, FcDocument, FcShop, FcUndo } from "react-icons/fc";
 
 const menuItems = [
   { href: "/mypage", label: "マイページ", icon: FcBusinessman },
+  { href: "/shops", label: "店舗一覧", icon: FcShop },
   { href: "/shifts", label: "シフト", icon: FcCalendar },
   { href: "/attendance", label: "勤怠記録", icon: FcClock },
   { href: "/timecard", label: "タイムカード", icon: FcDocument },
@@ -19,7 +20,7 @@ type Props = {
 
 export const SideMenu = ({ onlyLogout = false }: Props) => {
   const params = useParams({ strict: false });
-  const pathname = params.id ?? "/";
+  const pathname = params.shopId ?? "/";
 
   return (
     <Box h="100vh" borderRight="1px" borderColor="border" py={4} px={4} position="fixed" left={0} top={0} zIndex={10}>

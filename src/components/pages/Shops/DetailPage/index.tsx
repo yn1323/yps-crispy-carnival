@@ -1,0 +1,38 @@
+import { useQuery } from "convex/react";
+import { useAtom } from "jotai";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { ShopDetail, ShopDetailLoading, ShopDetailNotFound } from "@/src/components/features/Shop/ShopDetail";
+import { userAtom } from "@/src/stores/user";
+
+type Props = {
+  shopId: string;
+};
+export const ShopsDetailPage = ({ shopId }: Props) => {
+  const [user] = useAtom(userAtom);
+
+  // 店舗情報取得
+  const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
+
+  // スタッフ一覧取得
+  const users = useQuery(api.shop.getUsersInShop, { shopId: shopId as Id<"shops"> });
+
+  // 現在のユーザー権限取得
+  const userRole = useQuery(
+    api.shop.getUserRoleInShop,
+    user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
+  );
+
+  // ローディング
+  if (shop === undefined || users === undefined || userRole === undefined) {
+    return <ShopDetailLoading />;
+  }
+
+  // 店舗が見つからない
+  if (shop === null) {
+    return <ShopDetailNotFound />;
+  }
+
+  // 通常表示
+  return <ShopDetail shop={shop} users={users} userRole={userRole} />;
+};

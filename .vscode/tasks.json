@@ -41,6 +41,39 @@
       }
     },
     {
+      "label": "DBをエクスポート",
+      "type": "shell",
+      "command": "pnpm convex:export",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "DBをエクスポート&置き換え",
+      "type": "shell",
+      "command": "pnpm convex:export-and-replace",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "DBリセット（Seed）",
+      "type": "shell",
+      "command": "pnpm convex:import",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "dev:all",
       "dependsOn": ["dev", "convex:dev", "storybook"],
       "problemMatcher": [],
