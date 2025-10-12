@@ -1,36 +1,65 @@
 import { Badge, Box, Button, Card, Heading, HStack, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuPencil, LuPlus, LuStore } from "react-icons/lu";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import { convertRole, convertSubmitFrequency, convertTimeUnit } from "@/src/helpers/domain/convertShopData";
 
-type ShopType = {
-  _id: Id<"shops">;
-  shopName: string;
-  openTime: string;
-  closeTime: string;
-  timeUnit: number;
-  submitFrequency: string;
-  useTimeCard: boolean;
-  description?: string;
-};
-
-type UserType = {
-  _id: Id<"users">;
+type UserWithRole = {
+  _id: Doc<"users">["_id"];
   name: string;
   authId: string;
   role: string;
   createdAt: number;
 };
 
+type UserWithRoles = {
+  _id: Doc<"users">["_id"];
+  name: string;
+  authId: string;
+  roles: string[];
+  createdAt: number;
+};
+
 type ShopDetailProps = {
-  shop: ShopType;
-  users: UserType[];
+  shop: Doc<"shops">;
+  users: UserWithRole[];
   userRole: string | null;
 };
 
 export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
   const canEdit = userRole === "owner" || userRole === "manager";
+
+  // ユーザーごとに全てのロールをまとめる
+  const uniqueUsers = users.reduce((acc, user) => {
+    const existing = acc.find((u) => u._id === user._id);
+    if (!existing) {
+      acc.push({
+        _id: user._id,
+        name: user.name,
+        authId: user.authId,
+        roles: [user.role],
+        createdAt: user.createdAt,
+      });
+    } else {
+      if (!existing.roles.includes(user.role)) {
+        existing.roles.push(user.role);
+      }
+    }
+    return acc;
+  }, [] as UserWithRoles[]);
+
+  // ロールを優先度順にソート（owner > manager > staff）
+  const sortedUsers = uniqueUsers.map((user) => ({
+    ...user,
+    roles: user.roles.sort((a, b) => {
+      const getPriority = (role: string) => {
+        if (role === "owner") return 3;
+        if (role === "manager") return 2;
+        return 1;
+      };
+      return getPriority(b) - getPriority(a);
+    }),
+  }));
 
   return (
     <Stack gap="6" w="full">
@@ -106,7 +135,7 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
       {/* スタッフ一覧セクション */}
       <Stack gap="4">
         <HStack justifyContent="space-between" alignItems="center">
-          <Heading size="lg">所属スタッフ ({users.length}名)</Heading>
+          <Heading size="lg">所属スタッフ ({sortedUsers.length}名)</Heading>
           {canEdit && (
             <Button
               size="sm"
@@ -123,20 +152,24 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
         </HStack>
 
         <VStack gap="3" alignItems="stretch">
-          {users.map((user) => (
+          {sortedUsers.map((user) => (
             <Card.Root
               key={user._id}
               _hover={{ transform: "translateY(-2px)", shadow: "md" }}
               transition="all 0.15s ease"
             >
               <Card.Body>
-                <HStack justifyContent="space-between">
+                <HStack justifyContent="space-between" alignItems="center">
                   <Text fontSize={["md", "lg"]} fontWeight="medium">
                     {user.name}
                   </Text>
-                  <Badge colorPalette={convertRole.toBadgeColor(user.role)} size="sm">
-                    {convertRole.toLabel(user.role)}
-                  </Badge>
+                  <HStack gap="2">
+                    {user.roles.map((role) => (
+                      <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm">
+                        {convertRole.toLabel(role)}
+                      </Badge>
+                    ))}
+                  </HStack>
                 </HStack>
               </Card.Body>
             </Card.Root>
