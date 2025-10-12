@@ -20,7 +20,7 @@ type Props = {
 
 export const SideMenu = ({ onlyLogout = false }: Props) => {
   const params = useParams({ strict: false });
-  const pathname = params.id ?? "/";
+  const pathname = params.shopId ?? "/";
 
   return (
     <Box h="100vh" borderRight="1px" borderColor="border" py={4} px={4} position="fixed" left={0} top={0} zIndex={10}>
