@@ -29,7 +29,7 @@ export const ShopList = ({ shops }: ShopListProps) => {
           transition="all 0.15s ease"
           w="full"
         >
-          <Link to="/shops/$id" params={{ id: shop._id }}>
+          <Link to="/shops/$shopId" params={{ shopId: shop._id }}>
             <Card.Body>
               <Box display="flex" justifyContent="space-between" alignItems="center" gap="4">
                 <Box flex="1" minW="0">

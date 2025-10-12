@@ -25,6 +25,7 @@
 - IMPORTANT: TypeScriptの型は推論を利用すること
 - IMPORTANT: 定数化は2箇所以上で利用しているときのみとする
 - IMPORTANT: 開発者の指摘が誤っているときは、根拠を示して反論すること
+- IMPORTANT: 検索時にSerenaMCPを積極的に利用すること
 
 ## 開発コマンド
 

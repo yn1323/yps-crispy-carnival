@@ -24,7 +24,8 @@
     "storybook:build": "storybook build  --stats-json",
     "convex:dev": "npx convex dev",
     "convex:import": "tsx convex-seeds/scripts/import.ts",
-    "convex:export": "tsx convex-seeds/scripts/export.ts"
+    "convex:export": "tsx convex-seeds/scripts/export.ts",
+    "convex:export-and-replace": "tsx convex-seeds/scripts/export-and-replace.ts"
   },
   "dependencies": {
     "@chakra-ui/react": "3.27.1",

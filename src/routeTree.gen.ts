@@ -18,9 +18,13 @@ import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
 import { Route as AuthAttendanceRouteImport } from './routes/_auth/attendance'
 import { Route as AuthShopsIndexRouteImport } from './routes/_auth/shops/index'
-import { Route as AuthShopsNewRouteImport } from './routes/_auth/shops/new'
-import { Route as AuthShopsInviteRouteImport } from './routes/_auth/shops/invite'
-import { Route as AuthShopsIdRouteImport } from './routes/_auth/shops/$id'
+import { Route as AuthShopsNewIndexRouteImport } from './routes/_auth/shops/new/index'
+import { Route as AuthShopsShopIdIndexRouteImport } from './routes/_auth/shops/$shopId/index'
+import { Route as AuthShopsShopIdMembersIndexRouteImport } from './routes/_auth/shops/$shopId/members/index'
+import { Route as AuthShopsShopIdEditIndexRouteImport } from './routes/_auth/shops/$shopId/edit/index'
+import { Route as AuthShopsShopIdMembersNewIndexRouteImport } from './routes/_auth/shops/$shopId/members/new/index'
+import { Route as AuthShopsShopIdMembersUserIdIndexRouteImport } from './routes/_auth/shops/$shopId/members/$userId/index'
+import { Route as AuthShopsShopIdMembersUserIdEditIndexRouteImport } from './routes/_auth/shops/$shopId/members/$userId/edit/index'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
@@ -66,21 +70,46 @@ const AuthShopsIndexRoute = AuthShopsIndexRouteImport.update({
   path: '/shops/',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShopsNewRoute = AuthShopsNewRouteImport.update({
-  id: '/shops/new',
-  path: '/shops/new',
+const AuthShopsNewIndexRoute = AuthShopsNewIndexRouteImport.update({
+  id: '/shops/new/',
+  path: '/shops/new/',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShopsInviteRoute = AuthShopsInviteRouteImport.update({
-  id: '/shops/invite',
-  path: '/shops/invite',
+const AuthShopsShopIdIndexRoute = AuthShopsShopIdIndexRouteImport.update({
+  id: '/shops/$shopId/',
+  path: '/shops/$shopId/',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShopsIdRoute = AuthShopsIdRouteImport.update({
-  id: '/shops/$id',
-  path: '/shops/$id',
-  getParentRoute: () => AuthRoute,
-} as any)
+const AuthShopsShopIdMembersIndexRoute =
+  AuthShopsShopIdMembersIndexRouteImport.update({
+    id: '/shops/$shopId/members/',
+    path: '/shops/$shopId/members/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsShopIdEditIndexRoute =
+  AuthShopsShopIdEditIndexRouteImport.update({
+    id: '/shops/$shopId/edit/',
+    path: '/shops/$shopId/edit/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsShopIdMembersNewIndexRoute =
+  AuthShopsShopIdMembersNewIndexRouteImport.update({
+    id: '/shops/$shopId/members/new/',
+    path: '/shops/$shopId/members/new/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsShopIdMembersUserIdIndexRoute =
+  AuthShopsShopIdMembersUserIdIndexRouteImport.update({
+    id: '/shops/$shopId/members/$userId/',
+    path: '/shops/$shopId/members/$userId/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthShopsShopIdMembersUserIdEditIndexRoute =
+  AuthShopsShopIdMembersUserIdEditIndexRouteImport.update({
+    id: '/shops/$shopId/members/$userId/edit/',
+    path: '/shops/$shopId/members/$userId/edit/',
+    getParentRoute: () => AuthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,10 +119,14 @@ export interface FileRoutesByFullPath {
   '/shifts': typeof AuthShiftsRoute
   '/timecard': typeof AuthTimecardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
-  '/shops/$id': typeof AuthShopsIdRoute
-  '/shops/invite': typeof AuthShopsInviteRoute
-  '/shops/new': typeof AuthShopsNewRoute
   '/shops': typeof AuthShopsIndexRoute
+  '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
+  '/shops/new': typeof AuthShopsNewIndexRoute
+  '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
+  '/shops/$shopId/members': typeof AuthShopsShopIdMembersIndexRoute
+  '/shops/$shopId/members/$userId': typeof AuthShopsShopIdMembersUserIdIndexRoute
+  '/shops/$shopId/members/new': typeof AuthShopsShopIdMembersNewIndexRoute
+  '/shops/$shopId/members/$userId/edit': typeof AuthShopsShopIdMembersUserIdEditIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -103,10 +136,14 @@ export interface FileRoutesByTo {
   '/shifts': typeof AuthShiftsRoute
   '/timecard': typeof AuthTimecardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
-  '/shops/$id': typeof AuthShopsIdRoute
-  '/shops/invite': typeof AuthShopsInviteRoute
-  '/shops/new': typeof AuthShopsNewRoute
   '/shops': typeof AuthShopsIndexRoute
+  '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
+  '/shops/new': typeof AuthShopsNewIndexRoute
+  '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
+  '/shops/$shopId/members': typeof AuthShopsShopIdMembersIndexRoute
+  '/shops/$shopId/members/$userId': typeof AuthShopsShopIdMembersUserIdIndexRoute
+  '/shops/$shopId/members/new': typeof AuthShopsShopIdMembersNewIndexRoute
+  '/shops/$shopId/members/$userId/edit': typeof AuthShopsShopIdMembersUserIdEditIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,10 +155,14 @@ export interface FileRoutesById {
   '/_auth/shifts': typeof AuthShiftsRoute
   '/_auth/timecard': typeof AuthTimecardRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
-  '/_auth/shops/$id': typeof AuthShopsIdRoute
-  '/_auth/shops/invite': typeof AuthShopsInviteRoute
-  '/_auth/shops/new': typeof AuthShopsNewRoute
   '/_auth/shops/': typeof AuthShopsIndexRoute
+  '/_auth/shops/$shopId/': typeof AuthShopsShopIdIndexRoute
+  '/_auth/shops/new/': typeof AuthShopsNewIndexRoute
+  '/_auth/shops/$shopId/edit/': typeof AuthShopsShopIdEditIndexRoute
+  '/_auth/shops/$shopId/members/': typeof AuthShopsShopIdMembersIndexRoute
+  '/_auth/shops/$shopId/members/$userId/': typeof AuthShopsShopIdMembersUserIdIndexRoute
+  '/_auth/shops/$shopId/members/new/': typeof AuthShopsShopIdMembersNewIndexRoute
+  '/_auth/shops/$shopId/members/$userId/edit/': typeof AuthShopsShopIdMembersUserIdEditIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -133,10 +174,14 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/timecard'
     | '/welcome'
-    | '/shops/$id'
-    | '/shops/invite'
-    | '/shops/new'
     | '/shops'
+    | '/shops/$shopId'
+    | '/shops/new'
+    | '/shops/$shopId/edit'
+    | '/shops/$shopId/members'
+    | '/shops/$shopId/members/$userId'
+    | '/shops/$shopId/members/new'
+    | '/shops/$shopId/members/$userId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -146,10 +191,14 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/timecard'
     | '/welcome'
-    | '/shops/$id'
-    | '/shops/invite'
-    | '/shops/new'
     | '/shops'
+    | '/shops/$shopId'
+    | '/shops/new'
+    | '/shops/$shopId/edit'
+    | '/shops/$shopId/members'
+    | '/shops/$shopId/members/$userId'
+    | '/shops/$shopId/members/new'
+    | '/shops/$shopId/members/$userId/edit'
   id:
     | '__root__'
     | '/'
@@ -160,10 +209,14 @@ export interface FileRouteTypes {
     | '/_auth/shifts'
     | '/_auth/timecard'
     | '/_unregistered/welcome'
-    | '/_auth/shops/$id'
-    | '/_auth/shops/invite'
-    | '/_auth/shops/new'
     | '/_auth/shops/'
+    | '/_auth/shops/$shopId/'
+    | '/_auth/shops/new/'
+    | '/_auth/shops/$shopId/edit/'
+    | '/_auth/shops/$shopId/members/'
+    | '/_auth/shops/$shopId/members/$userId/'
+    | '/_auth/shops/$shopId/members/new/'
+    | '/_auth/shops/$shopId/members/$userId/edit/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -237,25 +290,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShopsIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shops/new': {
-      id: '/_auth/shops/new'
+    '/_auth/shops/new/': {
+      id: '/_auth/shops/new/'
       path: '/shops/new'
       fullPath: '/shops/new'
-      preLoaderRoute: typeof AuthShopsNewRouteImport
+      preLoaderRoute: typeof AuthShopsNewIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shops/invite': {
-      id: '/_auth/shops/invite'
-      path: '/shops/invite'
-      fullPath: '/shops/invite'
-      preLoaderRoute: typeof AuthShopsInviteRouteImport
+    '/_auth/shops/$shopId/': {
+      id: '/_auth/shops/$shopId/'
+      path: '/shops/$shopId'
+      fullPath: '/shops/$shopId'
+      preLoaderRoute: typeof AuthShopsShopIdIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shops/$id': {
-      id: '/_auth/shops/$id'
-      path: '/shops/$id'
-      fullPath: '/shops/$id'
-      preLoaderRoute: typeof AuthShopsIdRouteImport
+    '/_auth/shops/$shopId/members/': {
+      id: '/_auth/shops/$shopId/members/'
+      path: '/shops/$shopId/members'
+      fullPath: '/shops/$shopId/members'
+      preLoaderRoute: typeof AuthShopsShopIdMembersIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$shopId/edit/': {
+      id: '/_auth/shops/$shopId/edit/'
+      path: '/shops/$shopId/edit'
+      fullPath: '/shops/$shopId/edit'
+      preLoaderRoute: typeof AuthShopsShopIdEditIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$shopId/members/new/': {
+      id: '/_auth/shops/$shopId/members/new/'
+      path: '/shops/$shopId/members/new'
+      fullPath: '/shops/$shopId/members/new'
+      preLoaderRoute: typeof AuthShopsShopIdMembersNewIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$shopId/members/$userId/': {
+      id: '/_auth/shops/$shopId/members/$userId/'
+      path: '/shops/$shopId/members/$userId'
+      fullPath: '/shops/$shopId/members/$userId'
+      preLoaderRoute: typeof AuthShopsShopIdMembersUserIdIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/$shopId/members/$userId/edit/': {
+      id: '/_auth/shops/$shopId/members/$userId/edit/'
+      path: '/shops/$shopId/members/$userId/edit'
+      fullPath: '/shops/$shopId/members/$userId/edit'
+      preLoaderRoute: typeof AuthShopsShopIdMembersUserIdEditIndexRouteImport
       parentRoute: typeof AuthRoute
     }
   }
@@ -267,10 +348,14 @@ interface AuthRouteChildren {
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthShiftsRoute: typeof AuthShiftsRoute
   AuthTimecardRoute: typeof AuthTimecardRoute
-  AuthShopsIdRoute: typeof AuthShopsIdRoute
-  AuthShopsInviteRoute: typeof AuthShopsInviteRoute
-  AuthShopsNewRoute: typeof AuthShopsNewRoute
   AuthShopsIndexRoute: typeof AuthShopsIndexRoute
+  AuthShopsShopIdIndexRoute: typeof AuthShopsShopIdIndexRoute
+  AuthShopsNewIndexRoute: typeof AuthShopsNewIndexRoute
+  AuthShopsShopIdEditIndexRoute: typeof AuthShopsShopIdEditIndexRoute
+  AuthShopsShopIdMembersIndexRoute: typeof AuthShopsShopIdMembersIndexRoute
+  AuthShopsShopIdMembersUserIdIndexRoute: typeof AuthShopsShopIdMembersUserIdIndexRoute
+  AuthShopsShopIdMembersNewIndexRoute: typeof AuthShopsShopIdMembersNewIndexRoute
+  AuthShopsShopIdMembersUserIdEditIndexRoute: typeof AuthShopsShopIdMembersUserIdEditIndexRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -279,10 +364,16 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthSettingsRoute: AuthSettingsRoute,
   AuthShiftsRoute: AuthShiftsRoute,
   AuthTimecardRoute: AuthTimecardRoute,
-  AuthShopsIdRoute: AuthShopsIdRoute,
-  AuthShopsInviteRoute: AuthShopsInviteRoute,
-  AuthShopsNewRoute: AuthShopsNewRoute,
   AuthShopsIndexRoute: AuthShopsIndexRoute,
+  AuthShopsShopIdIndexRoute: AuthShopsShopIdIndexRoute,
+  AuthShopsNewIndexRoute: AuthShopsNewIndexRoute,
+  AuthShopsShopIdEditIndexRoute: AuthShopsShopIdEditIndexRoute,
+  AuthShopsShopIdMembersIndexRoute: AuthShopsShopIdMembersIndexRoute,
+  AuthShopsShopIdMembersUserIdIndexRoute:
+    AuthShopsShopIdMembersUserIdIndexRoute,
+  AuthShopsShopIdMembersNewIndexRoute: AuthShopsShopIdMembersNewIndexRoute,
+  AuthShopsShopIdMembersUserIdEditIndexRoute:
+    AuthShopsShopIdMembersUserIdEditIndexRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)

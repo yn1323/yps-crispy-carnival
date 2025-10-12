@@ -94,7 +94,7 @@ const getMockInviteData = (_shopId: string) => {
 export const InviteShopMember = () => {
   const params = useParams({ strict: false });
   const navigate = useNavigate();
-  const shopId = params.id as string;
+  const shopId = params.shopId as string;
 
   const inviteData = getMockInviteData(shopId);
   const [emailAddress, setEmailAddress] = useState("");
