@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { MemberDetail, MemberDetailLoading, MemberDetailNotFound } from "@/src/components/features/Member/MemberDetail";
+import { UserDetail, UserDetailLoading, UserDetailNotFound } from "@/src/components/features/User/UserDetail";
 import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { userAtom } from "@/src/stores/user";
 
@@ -28,18 +28,26 @@ export const MembersDetailPage = ({ userId, shopId }: Props) => {
 
   // ローディング
   if (memberData === undefined || shops === undefined || currentUserRole === undefined) {
-    return <MemberDetailLoading />;
+    return <UserDetailLoading />;
   }
 
   // メンバーが見つからない
   if (memberData === null) {
-    return <MemberDetailNotFound />;
+    return <UserDetailNotFound />;
   }
 
   // 通常表示
   return (
-    <TitleTemplate title="メンバー詳細">
-      <MemberDetail user={memberData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />
+    <TitleTemplate
+      title="メンバー詳細"
+      breadCrumbs={[
+        { label: "マイページ", path: "/mypage" },
+        { label: "所属店舗一覧", path: "/shops" },
+        { label: "店舗詳細", path: "/shops/$shopId" },
+        { label: "メンバー詳細" },
+      ]}
+    >
+      <UserDetail user={memberData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />
     </TitleTemplate>
   );
 };

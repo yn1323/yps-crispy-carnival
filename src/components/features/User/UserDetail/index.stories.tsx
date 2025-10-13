@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
-import { MemberDetail, MemberDetailLoading, MemberDetailNotFound } from "./index";
+import { UserDetail, UserDetailLoading, UserDetailNotFound } from "./index";
 
 const meta = {
-  title: "features/Member/MemberDetail",
-  component: MemberDetail,
+  title: "Features/User/UserDetail",
+  component: UserDetail,
   args: {
     user: {
       _id: "user1" as Id<"users">,
@@ -65,7 +65,7 @@ const meta = {
     currentShopRole: "owner",
     currentShopId: "shop1" as Id<"shops">,
   },
-} satisfies Meta<typeof MemberDetail>;
+} satisfies Meta<typeof UserDetail>;
 
 export default meta;
 
@@ -185,9 +185,9 @@ export const NoShops: StoryObj<typeof meta> = {
 };
 
 export const Loading: StoryObj<typeof meta> = {
-  render: () => <MemberDetailLoading />,
+  render: () => <UserDetailLoading />,
 };
 
 export const NotFound: StoryObj<typeof meta> = {
-  render: () => <MemberDetailNotFound />,
+  render: () => <UserDetailNotFound />,
 };
