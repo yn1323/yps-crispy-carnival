@@ -7,8 +7,8 @@ export const Route = createFileRoute("/_auth/shops/$shopId/members/$userId/")({
 });
 
 function RouteComponent() {
-    const { shopId, userId } = useParams({ from: "/_auth/shops/$shopId/members/$userId/" });
-  
+  const { shopId, userId } = useParams({ from: "/_auth/shops/$shopId/members/$userId/" });
+
   return (
     <Animation>
       <MembersDetailPage shopId={shopId} userId={userId} />

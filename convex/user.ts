@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 
 // ユーザー作成
@@ -131,47 +132,58 @@ export const getAllUsers = query({
 
 // ユーザーIDで取得
 export const getUserById = query({
-  args: { userId: v.id("users") },
+  args: { userId: v.string() },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user || user.isDeleted) {
+    try {
+      const userId = args.userId as Id<"users">;
+      const user = await ctx.db.get(userId);
+      if (!user || user.isDeleted) {
+        return null;
+      }
+      return user;
+    } catch {
       return null;
     }
-    return user;
   },
 });
 
-// 特定ユーザーが所属する店舗一覧取得（ロール情報付き）
+// 特定ユーザーが所属する店舗一覧取得(ロール情報付き)
 export const getUserShops = query({
-  args: { userId: v.id("users") },
+  args: { userId: v.string() },
   handler: async (ctx, args) => {
-    // ユーザー存在チェック
-    const user = await ctx.db.get(args.userId);
-    if (!user || user.isDeleted) {
+    try {
+      const userId = args.userId as Id<"users">;
+
+      // ユーザー存在チェック
+      const user = await ctx.db.get(userId);
+      if (!user || user.isDeleted) {
+        return [];
+      }
+
+      // ユーザーが所属する店舗を取得
+      const belongings = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+
+      // 各店舗情報を取得
+      const shops = await Promise.all(
+        belongings.map(async (belonging) => {
+          const shop = await ctx.db.get(belonging.shopId);
+          if (!shop || shop.isDeleted) {
+            return null;
+          }
+          return {
+            ...shop,
+            role: belonging.role,
+          };
+        }),
+      );
+
+      return shops.filter((shop) => shop !== null);
+    } catch {
       return [];
     }
-
-    // ユーザーが所属する店舗を取得
-    const belongings = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .collect();
-
-    // 各店舗情報を取得
-    const shops = await Promise.all(
-      belongings.map(async (belonging) => {
-        const shop = await ctx.db.get(belonging.shopId);
-        if (!shop || shop.isDeleted) {
-          return null;
-        }
-        return {
-          ...shop,
-          role: belonging.role,
-        };
-      }),
-    );
-
-    return shops.filter((shop) => shop !== null);
   },
 });
