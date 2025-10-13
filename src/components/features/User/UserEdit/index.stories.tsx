@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MemberEdit } from ".";
+import { UserEdit } from ".";
 
 const meta = {
-  title: "Features/Member/MemberEdit",
-  component: MemberEdit,
+  title: "Features/User/UserEdit",
+  component: UserEdit,
   parameters: {
     layout: "padded",
   },
-} satisfies Meta<typeof MemberEdit>;
+} satisfies Meta<typeof UserEdit>;
 
 export default meta;
 

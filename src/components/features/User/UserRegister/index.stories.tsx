@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/internal/test";
-import { UserForm } from ".";
+import { UserRegister } from ".";
 
 const meta = {
-  title: "features/register/UserForm",
-  component: UserForm,
-} satisfies Meta<typeof UserForm>;
+  title: "Features/User/UserRegister",
+  component: UserRegister,
+} satisfies Meta<typeof UserRegister>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

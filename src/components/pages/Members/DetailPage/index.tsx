@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { MemberDetail, MemberDetailLoading, MemberDetailNotFound } from "@/src/components/features/Member/MemberDetail";
+import { UserDetail, UserDetailLoading, UserDetailNotFound } from "@/src/components/features/User/UserDetail";
 import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { userAtom } from "@/src/stores/user";
 
@@ -28,12 +28,12 @@ export const MembersDetailPage = ({ userId, shopId }: Props) => {
 
   // ローディング
   if (memberData === undefined || shops === undefined || currentUserRole === undefined) {
-    return <MemberDetailLoading />;
+    return <UserDetailLoading />;
   }
 
   // メンバーが見つからない
   if (memberData === null) {
-    return <MemberDetailNotFound />;
+    return <UserDetailNotFound />;
   }
 
   // 通常表示
@@ -47,7 +47,7 @@ export const MembersDetailPage = ({ userId, shopId }: Props) => {
         { label: "メンバー詳細" },
       ]}
     >
-      <MemberDetail user={memberData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />
+      <UserDetail user={memberData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />
     </TitleTemplate>
   );
 };

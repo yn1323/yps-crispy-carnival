@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { MemberEdit } from "@/src/components/features/Member/MemberEdit";
+import { UserEdit } from "@/src/components/features/User/UserEdit";
 import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { userAtom } from "@/src/stores/user";
 
@@ -76,7 +76,7 @@ export const MembersEditPage = ({ userId, shopId }: Props) => {
         { label: "メンバー編集" },
       ]}
     >
-      <MemberEdit user={memberData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/members/${userId}`} />
+      <UserEdit user={memberData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/members/${userId}`} />
     </TitleTemplate>
   );
 };

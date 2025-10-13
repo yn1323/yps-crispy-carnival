@@ -14,7 +14,7 @@ type Props = {
   callbackRoutingPath?: string;
 };
 
-export const MemberEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
+export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
   const updateUser = useMutation(api.user.updateUser);
   const {
