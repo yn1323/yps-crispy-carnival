@@ -1,9 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useParams } from "@tanstack/react-router";
+import { MembersDetailPage } from "@/src/components/pages/Members/DetailPage";
+import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/_auth/shops/$shopId/members/$userId/")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  return <div>Hello "/_auth/shops/$id/members/$id/"!</div>;
+  const { shopId, userId } = useParams({ from: "/_auth/shops/$shopId/members/$userId/" });
+
+  return (
+    <Animation>
+      <MembersDetailPage shopId={shopId} userId={userId} />
+    </Animation>
+  );
 }
