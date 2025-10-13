@@ -1,5 +1,5 @@
 import { Badge, Box, Button, Card, Heading, HStack, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUser } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
@@ -16,6 +16,7 @@ type MemberDetailProps = {
 };
 
 export const MemberDetail = ({ user, shops, currentShopRole, currentShopId }: MemberDetailProps) => {
+  const navigate = useNavigate();
   const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
 
   // 同じ店舗の複数ロールをまとめる
@@ -67,8 +68,10 @@ export const MemberDetail = ({ user, shops, currentShopRole, currentShopId }: Me
                   size="sm"
                   colorPalette="teal"
                   onClick={() => {
-                    // TODO: 編集画面への遷移
-                    console.log("Edit member:", user._id);
+                    navigate({
+                      to: "/shops/$shopId/members/$userId/edit",
+                      params: { shopId: currentShopId, userId: user._id },
+                    });
                   }}
                 >
                   <LuPencil />
