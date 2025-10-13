@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Card, Heading, HStack, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuPlus } from "react-icons/lu";
+import { LuPlus, LuStore } from "react-icons/lu";
 
 type ShopListProps = {
   shops: {
@@ -33,8 +33,11 @@ export const ShopList = ({ shops }: ShopListProps) => {
             <Card.Body>
               <Box display="flex" justifyContent="space-between" alignItems="center" gap="4">
                 <Box flex="1" minW="0">
-                  <HStack alignItems="center" justifyContent="space-between">
-                    <Heading size="lg" mb="2" truncate>
+                  <HStack alignItems="center" justifyContent="flex-start">
+                    <Box color="teal.500" fontSize="xl" pb={2}>
+                      <LuStore />
+                    </Box>
+                    <Heading size="lg" mb="2">
                       {shop.shopName}
                     </Heading>
                   </HStack>

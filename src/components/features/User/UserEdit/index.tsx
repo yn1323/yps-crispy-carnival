@@ -1,4 +1,4 @@
-import { Button, Card, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Button, Card, Field, HStack, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -70,25 +70,17 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
               <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
             </Field.Root>
 
-            <Flex gap="3" w="full">
-              <Button
-                variant="outline"
-                colorPalette="gray"
-                onClick={() => navigate({ to: callbackRoutingPath ?? `/shops/${shopId}/members/${user._id}` })}
-                w={{ base: "full", md: "auto" }}
-              >
-                キャンセル
-              </Button>
+            <HStack gap="3" justifyContent="flex-end">
               <Button
                 variant="solid"
                 colorPalette="teal"
                 type="submit"
                 loading={isSubmitting}
-                w={{ base: "full", md: "auto" }}
+                w={{ base: "full", lg: "auto" }}
               >
                 更新
               </Button>
-            </Flex>
+            </HStack>
           </Stack>
         </Stack>
       </Card.Body>

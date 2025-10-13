@@ -3,7 +3,7 @@ import { userEvent, within } from "storybook/internal/test";
 import { ShopRegister } from "./index";
 
 const meta: Meta<typeof ShopRegister> = {
-  title: "features/register/ShopRegister",
+  title: "features/Shop/ShopRegister",
   component: ShopRegister,
   parameters: {},
 };

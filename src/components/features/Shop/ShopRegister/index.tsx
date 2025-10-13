@@ -217,11 +217,17 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
               </Stack>
             </Stack>
 
-            <Box w={{ base: "full", md: "auto" }} alignSelf={{ base: "stretch", md: "flex-end" }}>
-              <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting} w="full">
+            <HStack gap="3" justifyContent="flex-end">
+              <Button
+                variant="solid"
+                colorPalette="teal"
+                type="submit"
+                loading={isSubmitting}
+                w={{ base: "full", lg: "auto" }}
+              >
                 登録
               </Button>
-            </Box>
+            </HStack>
           </Stack>
         </Stack>
       </Card.Body>

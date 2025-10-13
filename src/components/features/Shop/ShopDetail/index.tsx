@@ -1,6 +1,6 @@
-import { Badge, Box, Button, Card, Heading, HStack, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Heading, HStack, Spacer, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LuPencil, LuPlus, LuStore } from "react-icons/lu";
+import { LuPencil, LuPlus, LuStore, LuUser } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { convertRole, convertSubmitFrequency, convertTimeUnit } from "@/src/helpers/domain/convertShopData";
 
@@ -68,8 +68,12 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
       <Card.Root>
         <Card.Body>
           <Stack gap="4">
-            <HStack justifyContent="space-between" alignItems="flex-start">
+            <HStack justifyContent="space-between" alignItems="center">
+              <Box color="teal.500" fontSize="xl">
+                <LuStore />
+              </Box>
               <Heading size="xl">{shop.shopName}</Heading>
+              <Spacer />
               {canEdit && (
                 <Button
                   size="sm"
@@ -161,9 +165,13 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
               <Link to="/shops/$shopId/members/$userId" params={{ shopId: shop._id, userId: user._id }}>
                 <Card.Body>
                   <HStack justifyContent="space-between" alignItems="center">
+                    <Box color="teal.500" fontSize="xl">
+                      <LuUser />
+                    </Box>
                     <Text fontSize={["md", "lg"]} fontWeight="medium">
                       {user.name}
                     </Text>
+                    <Spacer />
                     <HStack gap="2">
                       {user.roles.map((role) => (
                         <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm">
