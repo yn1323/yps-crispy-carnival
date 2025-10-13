@@ -3,6 +3,7 @@ import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShopDetail, ShopDetailLoading, ShopDetailNotFound } from "@/src/components/features/Shop/ShopDetail";
+import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -34,5 +35,10 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
   }
 
   // 通常表示
-  return <ShopDetail shop={shop} users={users} userRole={userRole} />;
+
+  return (
+    <TitleTemplate title="店舗詳細">
+      <ShopDetail shop={shop} users={users} userRole={userRole} />
+    </TitleTemplate>
+  );
 };
