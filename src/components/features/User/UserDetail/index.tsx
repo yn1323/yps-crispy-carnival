@@ -1,5 +1,5 @@
 import { Badge, Box, Button, Card, Heading, HStack, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUser } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
@@ -8,14 +8,15 @@ type ShopWithRole = Doc<"shops"> & {
   role: string;
 };
 
-type MemberDetailProps = {
+type UserDetailProps = {
   user: Doc<"users">;
   shops: ShopWithRole[];
   currentShopRole: string | null;
   currentShopId: string;
 };
 
-export const MemberDetail = ({ user, shops, currentShopRole, currentShopId }: MemberDetailProps) => {
+export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: UserDetailProps) => {
+  const navigate = useNavigate();
   const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
 
   // 同じ店舗の複数ロールをまとめる
@@ -67,8 +68,10 @@ export const MemberDetail = ({ user, shops, currentShopRole, currentShopId }: Me
                   size="sm"
                   colorPalette="teal"
                   onClick={() => {
-                    // TODO: 編集画面への遷移
-                    console.log("Edit member:", user._id);
+                    navigate({
+                      to: "/shops/$shopId/members/$userId/edit",
+                      params: { shopId: currentShopId, userId: user._id },
+                    });
                   }}
                 >
                   <LuPencil />
@@ -156,7 +159,7 @@ export const MemberDetail = ({ user, shops, currentShopRole, currentShopId }: Me
   );
 };
 
-export const MemberDetailLoading = () => {
+export const UserDetailLoading = () => {
   return (
     <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
       <VStack gap="4">
@@ -167,7 +170,7 @@ export const MemberDetailLoading = () => {
   );
 };
 
-export const MemberDetailNotFound = () => {
+export const UserDetailNotFound = () => {
   return (
     <Box textAlign="center" py="20">
       <Stack gap="6" alignItems="center">
@@ -175,9 +178,9 @@ export const MemberDetailNotFound = () => {
           <LuUser />
         </Box>
         <Heading size="lg" color="fg.muted">
-          メンバーが見つかりません
+          ユーザーが見つかりません
         </Heading>
-        <Text color="fg.muted">指定されたメンバーは存在しないか、削除された可能性があります</Text>
+        <Text color="fg.muted">指定されたユーザーは存在しないか、削除された可能性があります</Text>
       </Stack>
     </Box>
   );

@@ -18,7 +18,10 @@ export const ShopsListPage = () => {
   }
 
   return (
-    <TitleTemplate title="所属店舗一覧">
+    <TitleTemplate
+      title="所属店舗一覧"
+      breadCrumbs={[{ label: "マイページ", path: "/mypage" }, { label: "所属店舗一覧" }]}
+    >
       <ShopList shops={uniqueShops} />
     </TitleTemplate>
   );

@@ -14,7 +14,7 @@ type Props = {
   callbackRoutingPath?: string;
 };
 
-export const UserForm = ({ callbackRoutingPath }: Props) => {
+export const UserRegister = ({ callbackRoutingPath }: Props) => {
   const setUser = useSetAtom(userAtom);
   const { userId, isLoaded } = useAuth();
   const createUser = useMutation(api.user.createUser);

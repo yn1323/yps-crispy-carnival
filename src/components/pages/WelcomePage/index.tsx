@@ -1,5 +1,5 @@
 import { Box, Text } from "@chakra-ui/react";
-import { UserForm } from "@/src/components/features/register/UserForm";
+import { UserRegister } from "@/src/components/features/User/UserRegister";
 
 export const WelcomePage = () => {
   return (
@@ -13,7 +13,7 @@ export const WelcomePage = () => {
           <br />
           まずはあなたの名前を登録しましょう！
         </Text>
-        <UserForm callbackRoutingPath="/mypage" />
+        <UserRegister callbackRoutingPath="/mypage" />
       </Box>
     </Box>
   );
