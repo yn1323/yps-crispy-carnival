@@ -1,4 +1,4 @@
-import { Box, Button, Card, Container, Flex, Grid, Heading, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Card, Flex, Grid, Heading, Stack, Text, VStack } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   HiBell,
@@ -12,7 +12,6 @@ import {
   HiUser,
   HiUserGroup,
 } from "react-icons/hi";
-import { Animation } from "@/src/components/templates/Animation";
 
 // 動的データ生成関数
 const generateShiftsFromToday = () => {
@@ -129,315 +128,308 @@ export const Dashboard = () => {
   );
 
   return (
-    <Animation>
-      <Container maxW="container.xl" py={8}>
-        <VStack gap={8} align="stretch">
-          {/* ヘッダー部分 */}
-          <Flex justify="space-between" align="center">
-            <Box>
-              <Heading size="2xl" mb={2}>
-                こんにちは、{userName}さん！
-              </Heading>
-              <Text color="fg.muted">{todayString} - 今日も一日がんばりましょう！✨</Text>
-            </Box>
-          </Flex>
+    <VStack gap={8} align="stretch">
+      {/* ヘッダー部分 */}
+      <Flex justify="space-between" align="center">
+        <Box>
+          <Heading size="2xl" mb={2}>
+            こんにちは、{userName}さん！
+          </Heading>
+          <Text color="fg.muted">{todayString} - 今日も一日がんばりましょう！✨</Text>
+        </Box>
+      </Flex>
 
-          {/* スマート勤務ダッシュボード */}
-          <Stack gap={4}>
-            {/* 今日の勤務状態 */}
-            <Card.Root
-              variant="subtle"
-              colorPalette={workStatus === "off" ? "gray" : workStatus === "working" ? "green" : "teal"}
-            >
-              <Card.Body>
-                <Flex justify="space-between" align="center">
-                  <Box>
-                    <Flex align="center" gap={2} mb={2}>
-                      <Text fontSize="sm" color="fg.muted">
-                        本日の勤務
-                      </Text>
-                      {workStatus === "working" && <HiPlay size={16} color="green" />}
-                      {workStatus === "soon" && <HiExclamation size={16} color="orange" />}
-                    </Flex>
-
-                    {workStatus === "off" ? (
-                      <>
-                        <Text fontSize="2xl" fontWeight="bold">
-                          お疲れさまでした！
-                        </Text>
-                        <Text fontSize="md" color="fg.muted" mt={1}>
-                          今日はゆっくり休んでください ✨
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text fontSize="2xl" fontWeight="bold">
-                          {todayMainShift?.shopName}
-                        </Text>
-                        <Flex align="center" gap={4} mt={2}>
-                          <Text fontSize="lg" color="fg">
-                            {todayMainShift?.todayShift?.time}
-                          </Text>
-                          <Text fontSize="sm" color="fg.muted">
-                            現在 {currentTime}
-                          </Text>
-                        </Flex>
-                        {workStatus === "soon" && (
-                          <Text fontSize="sm" color="orange.600" mt={1}>
-                            💡 もうすぐ出勤時間です！
-                          </Text>
-                        )}
-                        {workStatus === "working" && (
-                          <Text fontSize="sm" color="green.600" mt={1}>
-                            🟢 勤務中です。お疲れさまです！
-                          </Text>
-                        )}
-                      </>
-                    )}
-                  </Box>
-
-                  <Stack gap={2}>
-                    {workStatus !== "off" && (
-                      <Button
-                        onClick={() => navigate({ to: "/timecard" })}
-                        colorPalette={workStatus === "working" ? "red" : "teal"}
-                        size="lg"
-                      >
-                        {workStatus === "working" ? <HiStop size={20} /> : <HiPlay size={20} />}
-                        {workStatus === "working" ? "退勤" : "出勤"}
-                      </Button>
-                    )}
-
-                    {(totalUrgentNotifications > 0 || totalPendingRequests > 0) && (
-                      <Button
-                        variant="outline"
-                        colorPalette="orange"
-                        size="sm"
-                        // onClick={() => navigate("/notifications")}
-                      >
-                        <HiExclamation size={16} />
-                        緊急 {totalUrgentNotifications + totalPendingRequests}件
-                      </Button>
-                    )}
-                  </Stack>
+      {/* スマート勤務ダッシュボード */}
+      <Stack gap={4}>
+        {/* 今日の勤務状態 */}
+        <Card.Root
+          variant="subtle"
+          colorPalette={workStatus === "off" ? "gray" : workStatus === "working" ? "green" : "teal"}
+        >
+          <Card.Body>
+            <Flex justify="space-between" align="center">
+              <Box>
+                <Flex align="center" gap={2} mb={2}>
+                  <Text fontSize="sm" color="fg.muted">
+                    本日の勤務
+                  </Text>
+                  {workStatus === "working" && <HiPlay size={16} color="green" />}
+                  {workStatus === "soon" && <HiExclamation size={16} color="orange" />}
                 </Flex>
-              </Card.Body>
-            </Card.Root>
 
-            {/* 明日の予定プレビュー */}
-            {tomorrowShifts.length > 0 && (
-              <Card.Root bg="blue.50" borderLeft="4px solid" borderColor="blue.400" _dark={{ bg: "blue.900" }}>
-                <Card.Body py={3}>
-                  <Flex justify="space-between" align="center">
-                    <Box>
-                      <Text fontSize="sm" fontWeight="medium" color="blue.700" _dark={{ color: "blue.200" }}>
-                        明日の勤務予定
-                      </Text>
-                      <Text fontSize="md" color="blue.600" _dark={{ color: "blue.300" }}>
-                        {tomorrowShifts[0].shopName} -{" "}
-                        {tomorrowShifts[0].shifts.find((s) => s.date === tomorrowString)?.time}
-                      </Text>
-                    </Box>
-                    <Button variant="ghost" size="sm" colorPalette="blue">
-                      <HiChevronRight size={16} />
-                      詳細
-                    </Button>
-                  </Flex>
-                </Card.Body>
-              </Card.Root>
-            )}
-          </Stack>
-
-          {/* 通知・お知らせセクション */}
-          <Card.Root>
-            <Card.Header>
-              <Flex justify="space-between" align="center">
-                <Heading size="md">
-                  <HiBell style={{ display: "inline", marginRight: "8px" }} />
-                  お知らせ
-                </Heading>
-                <Text fontSize="sm" color="fg.muted">
-                  すべて見る
-                </Text>
-              </Flex>
-            </Card.Header>
-            <Card.Body>
-              <Stack gap={3}>
-                <Box
-                  p={3}
-                  bg="blue.50"
-                  borderRadius="md"
-                  borderLeft="4px solid"
-                  borderColor="blue.500"
-                  _dark={{ bg: "blue.900" }}
-                >
-                  <Flex justify="space-between" align="start">
-                    <Box flex={1}>
-                      <Text fontWeight="medium" mb={1} _dark={{ color: "blue.100" }}>
-                        【重要】年末年始の営業について
-                      </Text>
-                      <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.200" }}>
-                        12/31〜1/3は全店舗休業となります
-                      </Text>
-                    </Box>
-                    <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap" ml={3}>
-                      2日前
+                {workStatus === "off" ? (
+                  <>
+                    <Text fontSize="2xl" fontWeight="bold">
+                      お疲れさまでした！
                     </Text>
-                  </Flex>
-                </Box>
-                <Box p={3} bg="bg.muted" borderRadius="md">
-                  <Flex justify="space-between" align="start">
-                    <Box flex={1}>
-                      <Text fontWeight="medium" mb={1}>
-                        シフト提出のお願い
+                    <Text fontSize="md" color="fg.muted" mt={1}>
+                      今日はゆっくり休んでください ✨
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text fontSize="2xl" fontWeight="bold">
+                      {todayMainShift?.shopName}
+                    </Text>
+                    <Flex align="center" gap={4} mt={2}>
+                      <Text fontSize="lg" color="fg">
+                        {todayMainShift?.todayShift?.time}
                       </Text>
                       <Text fontSize="sm" color="fg.muted">
-                        来月のシフト提出期限は今週金曜日です
+                        現在 {currentTime}
                       </Text>
-                    </Box>
-                    <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap" ml={3}>
-                      4日前
-                    </Text>
-                  </Flex>
-                </Box>
+                    </Flex>
+                    {workStatus === "soon" && (
+                      <Text fontSize="sm" color="orange.600" mt={1}>
+                        💡 もうすぐ出勤時間です！
+                      </Text>
+                    )}
+                    {workStatus === "working" && (
+                      <Text fontSize="sm" color="green.600" mt={1}>
+                        🟢 勤務中です。お疲れさまです！
+                      </Text>
+                    )}
+                  </>
+                )}
+              </Box>
+
+              <Stack gap={2}>
+                {workStatus !== "off" && (
+                  <Button
+                    onClick={() => navigate({ to: "/timecard" })}
+                    colorPalette={workStatus === "working" ? "red" : "teal"}
+                    size="lg"
+                  >
+                    {workStatus === "working" ? <HiStop size={20} /> : <HiPlay size={20} />}
+                    {workStatus === "working" ? "退勤" : "出勤"}
+                  </Button>
+                )}
+
+                {(totalUrgentNotifications > 0 || totalPendingRequests > 0) && (
+                  <Button
+                    variant="outline"
+                    colorPalette="orange"
+                    size="sm"
+                    // onClick={() => navigate("/notifications")}
+                  >
+                    <HiExclamation size={16} />
+                    緊急 {totalUrgentNotifications + totalPendingRequests}件
+                  </Button>
+                )}
               </Stack>
+            </Flex>
+          </Card.Body>
+        </Card.Root>
+
+        {/* 明日の予定プレビュー */}
+        {tomorrowShifts.length > 0 && (
+          <Card.Root bg="blue.50" borderLeft="4px solid" borderColor="blue.400" _dark={{ bg: "blue.900" }}>
+            <Card.Body py={3}>
+              <Flex justify="space-between" align="center">
+                <Box>
+                  <Text fontSize="sm" fontWeight="medium" color="blue.700" _dark={{ color: "blue.200" }}>
+                    明日の勤務予定
+                  </Text>
+                  <Text fontSize="md" color="blue.600" _dark={{ color: "blue.300" }}>
+                    {tomorrowShifts[0].shopName} -{" "}
+                    {tomorrowShifts[0].shifts.find((s) => s.date === tomorrowString)?.time}
+                  </Text>
+                </Box>
+                <Button variant="ghost" size="sm" colorPalette="blue">
+                  <HiChevronRight size={16} />
+                  詳細
+                </Button>
+              </Flex>
             </Card.Body>
           </Card.Root>
+        )}
+      </Stack>
 
-          {/* 店舗一覧セクション */}
-          <Box>
-            <Flex justify="space-between" align="center" mb={6}>
-              <Heading size="lg">所属店舗</Heading>
-              <Button onClick={() => navigate({ to: "/shops/new" })} colorPalette="teal" variant="solid">
-                <HiPlus />
-                新規店舗を作成
-              </Button>
-            </Flex>
-
-            <Grid
-              templateColumns={{
-                base: "1fr",
-                md: "repeat(2, 1fr)",
-                lg: "repeat(3, 1fr)",
-              }}
-              gap={6}
+      {/* 通知・お知らせセクション */}
+      <Card.Root>
+        <Card.Header>
+          <Flex justify="space-between" align="center">
+            <Heading size="md">
+              <HiBell style={{ display: "inline", marginRight: "8px" }} />
+              お知らせ
+            </Heading>
+            <Text fontSize="sm" color="fg.muted">
+              すべて見る
+            </Text>
+          </Flex>
+        </Card.Header>
+        <Card.Body>
+          <Stack gap={3}>
+            <Box
+              p={3}
+              bg="blue.50"
+              borderRadius="md"
+              borderLeft="4px solid"
+              borderColor="blue.500"
+              _dark={{ bg: "blue.900" }}
             >
-              {mockShops.map((shop) => (
-                <Card.Root
-                  key={shop.id}
-                  onClick={() => navigate({ to: `/shops/${shop.id}` })}
-                  cursor="pointer"
-                  _hover={{ shadow: "lg", transform: "translateY(-2px)" }}
-                  transition="all 0.2s"
-                >
-                  <Card.Body>
-                    <Stack gap={4}>
-                      <Flex justify="space-between" align="start">
-                        <Box>
-                          <Heading size="md" mb={1}>
-                            {shop.shopName}
-                          </Heading>
-                          <Flex align="center" gap={1}>
-                            {shop.role === "manager" ? <HiUser size={14} /> : <HiUserGroup size={14} />}
-                            <Text
-                              fontSize="sm"
-                              color={shop.role === "manager" ? "teal.600" : "fg.muted"}
-                              fontWeight="medium"
-                            >
-                              {shop.role === "manager" ? "マネージャー" : "スタッフ"}
-                            </Text>
-                          </Flex>
-                        </Box>
-                        <HiOfficeBuilding size={24} color="gray" />
-                      </Flex>
+              <Flex justify="space-between" align="start">
+                <Box flex={1}>
+                  <Text fontWeight="medium" mb={1} _dark={{ color: "blue.100" }}>
+                    【重要】年末年始の営業について
+                  </Text>
+                  <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.200" }}>
+                    12/31〜1/3は全店舗休業となります
+                  </Text>
+                </Box>
+                <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap" ml={3}>
+                  2日前
+                </Text>
+              </Flex>
+            </Box>
+            <Box p={3} bg="bg.muted" borderRadius="md">
+              <Flex justify="space-between" align="start">
+                <Box flex={1}>
+                  <Text fontWeight="medium" mb={1}>
+                    シフト提出のお願い
+                  </Text>
+                  <Text fontSize="sm" color="fg.muted">
+                    来月のシフト提出期限は今週金曜日です
+                  </Text>
+                </Box>
+                <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap" ml={3}>
+                  4日前
+                </Text>
+              </Flex>
+            </Box>
+          </Stack>
+        </Card.Body>
+      </Card.Root>
 
-                      <Box>
-                        <Flex align="center" gap={2} mb={3}>
-                          <HiCalendar size={16} />
-                          <Text fontSize="sm" fontWeight="medium">
-                            直近のシフト
-                          </Text>
-                        </Flex>
-                        <Stack gap={1}>
-                          {shop.shifts.length > 0 ? (
-                            shop.shifts.map((shift, index) => {
-                              const isToday = shift.date === todayString;
-                              const isTomorrow = shift.date === tomorrowString;
-                              return (
-                                <Flex
-                                  key={index}
-                                  justify="space-between"
-                                  align="center"
-                                  p={2}
-                                  borderRadius="md"
-                                  bg={isToday ? "teal.50" : isTomorrow ? "blue.50" : "transparent"}
-                                  borderLeft={isToday || isTomorrow ? "3px solid" : "none"}
-                                  borderColor={isToday ? "teal.500" : isTomorrow ? "blue.400" : "transparent"}
-                                >
-                                  <Flex align="center" gap={2}>
-                                    <Text
-                                      fontSize="sm"
-                                      color={isToday ? "teal.700" : isTomorrow ? "blue.600" : "fg.muted"}
-                                    >
-                                      {shift.date}
-                                    </Text>
-                                    {isToday && (
-                                      <Text fontSize="xs" color="teal.500">
-                                        今日
-                                      </Text>
-                                    )}
-                                    {isTomorrow && (
-                                      <Text fontSize="xs" color="blue.500">
-                                        明日
-                                      </Text>
-                                    )}
-                                  </Flex>
-                                  <Text
-                                    fontSize="sm"
-                                    fontWeight={isToday ? "bold" : "medium"}
-                                    color={isToday ? "teal.700" : isTomorrow ? "blue.600" : "fg"}
-                                  >
-                                    {shift.time}
-                                  </Text>
-                                </Flex>
-                              );
-                            })
-                          ) : (
-                            <Text fontSize="sm" color="fg.muted">
-                              予定されているシフトはありません
-                            </Text>
-                          )}
-                        </Stack>
-                      </Box>
+      {/* 店舗一覧セクション */}
+      <Box>
+        <Flex justify="space-between" align="center" mb={6}>
+          <Heading size="lg">所属店舗</Heading>
+          <Button onClick={() => navigate({ to: "/shops/new" })} colorPalette="teal" variant="solid">
+            <HiPlus />
+            新規店舗を作成
+          </Button>
+        </Flex>
 
-                      <Flex justify="space-between" align="center">
-                        <Text fontSize="sm" color="fg.muted">
-                          スタッフ数: {shop.staffCount}名
+        <Grid
+          templateColumns={{
+            base: "1fr",
+            md: "repeat(2, 1fr)",
+            lg: "repeat(3, 1fr)",
+          }}
+          gap={6}
+        >
+          {mockShops.map((shop) => (
+            <Card.Root
+              key={shop.id}
+              onClick={() => navigate({ to: `/shops/${shop.id}` })}
+              cursor="pointer"
+              _hover={{ shadow: "lg", transform: "translateY(-2px)" }}
+              transition="all 0.2s"
+            >
+              <Card.Body>
+                <Stack gap={4}>
+                  <Flex justify="space-between" align="start">
+                    <Box>
+                      <Heading size="md" mb={1}>
+                        {shop.shopName}
+                      </Heading>
+                      <Flex align="center" gap={1}>
+                        {shop.role === "manager" ? <HiUser size={14} /> : <HiUserGroup size={14} />}
+                        <Text
+                          fontSize="sm"
+                          color={shop.role === "manager" ? "teal.600" : "fg.muted"}
+                          fontWeight="medium"
+                        >
+                          {shop.role === "manager" ? "マネージャー" : "スタッフ"}
                         </Text>
-                        <Flex align="center" gap={2}>
-                          {(shop.pendingRequests > 0 || shop.urgentNotifications > 0) && (
-                            <Flex align="center" gap={1}>
-                              <HiExclamation size={12} color="orange" />
-                              <Text fontSize="xs" color="orange.600">
-                                {shop.pendingRequests + shop.urgentNotifications}件
+                      </Flex>
+                    </Box>
+                    <HiOfficeBuilding size={24} color="gray" />
+                  </Flex>
+
+                  <Box>
+                    <Flex align="center" gap={2} mb={3}>
+                      <HiCalendar size={16} />
+                      <Text fontSize="sm" fontWeight="medium">
+                        直近のシフト
+                      </Text>
+                    </Flex>
+                    <Stack gap={1}>
+                      {shop.shifts.length > 0 ? (
+                        shop.shifts.map((shift, index) => {
+                          const isToday = shift.date === todayString;
+                          const isTomorrow = shift.date === tomorrowString;
+                          return (
+                            <Flex
+                              key={index}
+                              justify="space-between"
+                              align="center"
+                              p={2}
+                              borderRadius="md"
+                              bg={isToday ? "teal.50" : isTomorrow ? "blue.50" : "transparent"}
+                              borderLeft={isToday || isTomorrow ? "3px solid" : "none"}
+                              borderColor={isToday ? "teal.500" : isTomorrow ? "blue.400" : "transparent"}
+                            >
+                              <Flex align="center" gap={2}>
+                                <Text fontSize="sm" color={isToday ? "teal.700" : isTomorrow ? "blue.600" : "fg.muted"}>
+                                  {shift.date}
+                                </Text>
+                                {isToday && (
+                                  <Text fontSize="xs" color="teal.500">
+                                    今日
+                                  </Text>
+                                )}
+                                {isTomorrow && (
+                                  <Text fontSize="xs" color="blue.500">
+                                    明日
+                                  </Text>
+                                )}
+                              </Flex>
+                              <Text
+                                fontSize="sm"
+                                fontWeight={isToday ? "bold" : "medium"}
+                                color={isToday ? "teal.700" : isTomorrow ? "blue.600" : "fg"}
+                              >
+                                {shift.time}
                               </Text>
                             </Flex>
-                          )}
-                          {shop.role === "manager" && (
-                            <Text fontSize="xs" color="teal.600">
-                              管理者権限
-                            </Text>
-                          )}
-                        </Flex>
-                      </Flex>
+                          );
+                        })
+                      ) : (
+                        <Text fontSize="sm" color="fg.muted">
+                          予定されているシフトはありません
+                        </Text>
+                      )}
                     </Stack>
-                  </Card.Body>
-                </Card.Root>
-              ))}
-            </Grid>
-          </Box>
-        </VStack>
-      </Container>
-    </Animation>
+                  </Box>
+
+                  <Flex justify="space-between" align="center">
+                    <Text fontSize="sm" color="fg.muted">
+                      スタッフ数: {shop.staffCount}名
+                    </Text>
+                    <Flex align="center" gap={2}>
+                      {(shop.pendingRequests > 0 || shop.urgentNotifications > 0) && (
+                        <Flex align="center" gap={1}>
+                          <HiExclamation size={12} color="orange" />
+                          <Text fontSize="xs" color="orange.600">
+                            {shop.pendingRequests + shop.urgentNotifications}件
+                          </Text>
+                        </Flex>
+                      )}
+                      {shop.role === "manager" && (
+                        <Text fontSize="xs" color="teal.600">
+                          管理者権限
+                        </Text>
+                      )}
+                    </Flex>
+                  </Flex>
+                </Stack>
+              </Card.Body>
+            </Card.Root>
+          ))}
+        </Grid>
+      </Box>
+    </VStack>
   );
 };

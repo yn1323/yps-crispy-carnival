@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Card, Heading, HStack, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Heading, HStack, Spacer, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUser } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
@@ -61,8 +61,12 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
       <Card.Root>
         <Card.Body>
           <Stack gap="4">
-            <HStack justifyContent="space-between" alignItems="flex-start">
+            <HStack justifyContent="space-between" alignItems="center">
+              <Box color="teal.500" fontSize="xl">
+                <LuUser />
+              </Box>
               <Heading size="xl">{user.name}</Heading>
+              <Spacer />
               {canEdit && (
                 <Button
                   size="sm"

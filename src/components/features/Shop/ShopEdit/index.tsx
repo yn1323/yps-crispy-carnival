@@ -218,25 +218,17 @@ export const ShopEdit = ({ shop, callbackRoutingPath }: Props) => {
               </Stack>
             </Stack>
 
-            <Flex gap="3" w={{ base: "full", md: "auto" }} alignSelf={{ base: "stretch", md: "flex-end" }}>
-              <Button
-                variant="outline"
-                colorPalette="gray"
-                onClick={() => navigate({ to: callbackRoutingPath ?? `/shops/${shop._id}` })}
-                w={{ base: "full", md: "auto" }}
-              >
-                キャンセル
-              </Button>
+            <HStack gap="3" justifyContent="flex-end">
               <Button
                 variant="solid"
                 colorPalette="teal"
                 type="submit"
                 loading={isSubmitting}
-                w={{ base: "full", md: "auto" }}
+                w={{ base: "full", lg: "auto" }}
               >
                 更新
               </Button>
-            </Flex>
+            </HStack>
           </Stack>
         </Stack>
       </Card.Body>

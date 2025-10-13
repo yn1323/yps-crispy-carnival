@@ -1,4 +1,4 @@
-import { Button, Card, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Button, Card, Field, HStack, Input, Stack, Text } from "@chakra-ui/react";
 import { useAuth } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
@@ -16,7 +16,7 @@ type Props = {
 
 export const UserRegister = ({ callbackRoutingPath }: Props) => {
   const setUser = useSetAtom(userAtom);
-  const { userId, isLoaded } = useAuth();
+  const { userId } = useAuth();
   const createUser = useMutation(api.user.createUser);
   const navigate = useNavigate();
   const {
@@ -49,28 +49,40 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
   };
 
   return (
-    <Card.Root w="96" p="8">
-      <Stack gap="8" w="full">
-        <Text fontSize="lg">ユーザー登録</Text>
-        <Stack
-          gap="6"
-          as="form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSubmit(onSubmit)(e);
-          }}
-        >
-          <Field.Root invalid={!!errors.userName}>
-            <Field.Label>ユーザー名</Field.Label>
-            <Input {...register("userName")} placeholder="ユーザー名" />
-            <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
-          </Field.Root>
+    <Card.Root w="full" maxW="2xl" mx="auto">
+      <Card.Body>
+        <Stack gap="8" w="full">
+          <Text fontSize="lg" fontWeight="semibold">
+            ユーザー登録
+          </Text>
+          <Stack
+            gap="6"
+            as="form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSubmit(onSubmit)(e);
+            }}
+          >
+            <Field.Root invalid={!!errors.userName}>
+              <Field.Label>ユーザー名</Field.Label>
+              <Input {...register("userName")} placeholder="ユーザー名" />
+              <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
+            </Field.Root>
 
-          <Button variant="solid" colorPalette="teal" type="submit" loading={isSubmitting || !isLoaded}>
-            登録
-          </Button>
+            <HStack gap="3" justifyContent="flex-end">
+              <Button
+                variant="solid"
+                colorPalette="teal"
+                type="submit"
+                loading={isSubmitting}
+                w={{ base: "full", lg: "auto" }}
+              >
+                登録
+              </Button>
+            </HStack>
+          </Stack>
         </Stack>
-      </Stack>
+      </Card.Body>
     </Card.Root>
   );
 };
