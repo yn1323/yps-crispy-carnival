@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SideMenu } from "./index";
 
 const meta = {
-  title: "layout/SideMenu",
+  title: "templates/SideMenu",
   component: SideMenu,
   parameters: {},
 } satisfies Meta<typeof SideMenu>;
