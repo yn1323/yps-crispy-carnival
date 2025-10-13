@@ -1,6 +1,6 @@
-import { Badge, Box, Button, Card, Heading, HStack, IconButton, Stack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Heading, HStack, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuPencil, LuPlus } from "react-icons/lu";
+import { LuPlus } from "react-icons/lu";
 
 type ShopListProps = {
   shops: {
@@ -37,20 +37,6 @@ export const ShopList = ({ shops }: ShopListProps) => {
                     <Heading size="lg" mb="2" truncate>
                       {shop.shopName}
                     </Heading>
-                    <IconButton
-                      aria-label="編集"
-                      size="sm"
-                      variant="ghost"
-                      flexShrink="0"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // TODO: 編集画面への遷移
-                        console.log("Edit shop:", shop._id);
-                      }}
-                    >
-                      <LuPencil />
-                    </IconButton>
                   </HStack>
                   <HStack display="flex" flexWrap="wrap" gap="4" alignItems="flex-end" justifyContent="space-between">
                     <Box>

@@ -158,20 +158,22 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
               _hover={{ transform: "translateY(-2px)", shadow: "md" }}
               transition="all 0.15s ease"
             >
-              <Card.Body>
-                <HStack justifyContent="space-between" alignItems="center">
-                  <Text fontSize={["md", "lg"]} fontWeight="medium">
-                    {user.name}
-                  </Text>
-                  <HStack gap="2">
-                    {user.roles.map((role) => (
-                      <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm">
-                        {convertRole.toLabel(role)}
-                      </Badge>
-                    ))}
+              <Link to="/shops/$shopId/members/$userId" params={{ shopId: shop._id, userId: user._id }}>
+                <Card.Body>
+                  <HStack justifyContent="space-between" alignItems="center">
+                    <Text fontSize={["md", "lg"]} fontWeight="medium">
+                      {user.name}
+                    </Text>
+                    <HStack gap="2">
+                      {user.roles.map((role) => (
+                        <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm">
+                          {convertRole.toLabel(role)}
+                        </Badge>
+                      ))}
+                    </HStack>
                   </HStack>
-                </HStack>
-              </Card.Body>
+                </Card.Body>
+              </Link>
             </Card.Root>
           ))}
         </VStack>

@@ -1,8 +1,8 @@
-import { Heading, Stack } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import { ShopList, ShopListEmpty } from "@/src/components/features/Shop/ShopList";
+import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { uniqueBy } from "@/src/helpers/utils/array";
 import { userAtom } from "@/src/stores/user";
 
@@ -18,9 +18,8 @@ export const ShopsListPage = () => {
   }
 
   return (
-    <Stack gap="6" w="full">
-      <Heading size="xl">所属店舗一覧</Heading>
+    <TitleTemplate title="所属店舗一覧">
       <ShopList shops={uniqueShops} />
-    </Stack>
+    </TitleTemplate>
   );
 };
