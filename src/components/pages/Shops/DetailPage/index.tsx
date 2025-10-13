@@ -37,7 +37,14 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
   // 通常表示
 
   return (
-    <TitleTemplate title="店舗詳細">
+    <TitleTemplate
+      title="店舗詳細"
+      breadCrumbs={[
+        { label: "マイページ", path: "/mypage" },
+        { label: "所属店舗一覧", path: "/shops" },
+        { label: "店舗詳細" },
+      ]}
+    >
       <ShopDetail shop={shop} users={users} userRole={userRole} />
     </TitleTemplate>
   );

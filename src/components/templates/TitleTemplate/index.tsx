@@ -1,9 +1,10 @@
 import { Breadcrumb, Heading, Stack } from "@chakra-ui/react";
+import { type FileRouteTypes, Link } from "@tanstack/react-router";
 import { Fragment } from "react";
 
 type BreadCrumb = {
   label: string;
-  path?: string;
+  path?: FileRouteTypes["to"];
 };
 
 type Props = {
@@ -22,7 +23,9 @@ export const TitleTemplate = ({ title, breadCrumbs, children }: Props) => {
               {path ? (
                 <Fragment>
                   <Breadcrumb.Item>
-                    <Breadcrumb.Link href={path}>{label}</Breadcrumb.Link>
+                    <Breadcrumb.Link href={path} as={Link}>
+                      {label}
+                    </Breadcrumb.Link>
                   </Breadcrumb.Item>
                   <Breadcrumb.Separator />
                 </Fragment>
