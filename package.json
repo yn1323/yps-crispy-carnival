@@ -45,7 +45,7 @@
     "zod": "4.1.12"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.5",
+    "@biomejs/biome": "2.2.6",
     "@clerk/testing": "1.13.3",
     "@playwright/test": "1.55.0",
     "@storybook/addon-docs": "9.1.10",
