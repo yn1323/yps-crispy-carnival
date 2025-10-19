@@ -62,7 +62,7 @@ To use SPA (Single Page Application) navigation you will need to import the `Lin
 import { Link } from "@tanstack/react-router";
 ```
 
-Then anywhere in your JSX you can use it like so: 
+Then anywhere in your JSX you can use it like so:
 
 ```tsx
 <Link to="/about">About</Link>
