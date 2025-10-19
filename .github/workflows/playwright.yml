@@ -10,8 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: Preview
     concurrency:
-      group: "playwright-convex"  
-      cancel-in-progress: false
+      group: "playwright-convex"
     steps:
     - uses: actions/checkout@v5
     - name: Setup
