@@ -35,7 +35,7 @@ export const AuthGuard = ({ children }: Props) => {
     return <Navigate to="/" />;
   }
 
-  if (userData) {
+  if (userData && userData.authId) {
     setUser({
       name: userData.name,
       authId: userData.authId,

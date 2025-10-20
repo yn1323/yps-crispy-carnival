@@ -7,7 +7,7 @@ import { convertRole, convertSubmitFrequency, convertTimeUnit } from "@/src/help
 type UserWithRole = {
   _id: Doc<"users">["_id"];
   name: string;
-  authId: string;
+  authId: string | undefined;
   role: string;
   createdAt: number;
 };
@@ -15,7 +15,7 @@ type UserWithRole = {
 type UserWithRoles = {
   _id: Doc<"users">["_id"];
   name: string;
-  authId: string;
+  authId: string | undefined;
   roles: string[];
   createdAt: number;
 };
