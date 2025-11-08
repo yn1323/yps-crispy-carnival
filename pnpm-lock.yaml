@@ -27,8 +27,8 @@ importers:
         specifier: 1.134.9
         version: 1.134.9(@tanstack/react-router@1.134.9(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(vite@7.1.12(@types/node@24.9.2)(jiti@1.21.7)(tsx@4.20.6))
       convex:
-        specifier: 1.28.0
-        version: 1.28.0(@clerk/clerk-react@5.53.8(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
+        specifier: 1.28.2
+        version: 1.28.2(@clerk/clerk-react@5.53.8(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)
       jotai:
         specifier: 2.15.1
         version: 2.15.1(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@19.2.2)(react@19.2.0)
@@ -1881,8 +1881,8 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  convex@1.28.0:
-    resolution: {integrity: sha512-40FgeJ/LxP9TxnkDDztU/A5gcGTdq1klcTT5mM0Ak+kSlQiDktMpjNX1TfkWLxXaE3lI4qvawKH95v2RiYgFxA==}
+  convex@1.28.2:
+    resolution: {integrity: sha512-KzNsLbcVXb1OhpVQ+vHMgu+hjrsQ1ks5BZwJ2lR8O+nfbeJXE6tHbvsg1H17+ooUDvIDBSMT3vXS+AlodDhTnQ==}
     engines: {node: '>=18.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
@@ -5620,7 +5620,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  convex@1.28.0(@clerk/clerk-react@5.53.8(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
+  convex@1.28.2(@clerk/clerk-react@5.53.8(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0):
     dependencies:
       esbuild: 0.25.4
       prettier: 3.6.2
