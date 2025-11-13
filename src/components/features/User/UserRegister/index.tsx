@@ -58,7 +58,7 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
             <Text fontSize="sm" color="gray.600">
               ステップ 1/1
             </Text>
-            <Text fontSize="sm" color="brand.600">
+            <Text fontSize="sm" color="teal.600">
               ほぼ完了
             </Text>
           </Flex>
@@ -67,8 +67,8 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
               h="full"
               w="full"
               bgGradient="to-r"
-              gradientFrom="brand.500"
-              gradientTo="brand.600"
+              gradientFrom="teal.500"
+              gradientTo="teal.600"
               borderRadius="full"
             />
           </Box>
@@ -90,7 +90,7 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
             <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
           </Field.Root>
 
-          <Button type="submit" loading={isSubmitting} w="full" h="12" colorPalette="brand">
+          <Button type="submit" loading={isSubmitting} w="full" h="12" colorPalette="teal">
             <HStack gap="2">
               <Text>始める</Text>
               <Icon as={IoArrowForward} boxSize="4" />
@@ -101,11 +101,11 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
 
       <Text textAlign="center" fontSize="xs" color="gray.500" mt="4">
         登録することで、
-        <Link href="#" color="brand.600" _hover={{ textDecoration: "underline" }}>
+        <Link href="#" color="teal.600" _hover={{ textDecoration: "underline" }}>
           利用規約
         </Link>
         と
-        <Link href="#" color="brand.600" _hover={{ textDecoration: "underline" }}>
+        <Link href="#" color="teal.600" _hover={{ textDecoration: "underline" }}>
           プライバシーポリシー
         </Link>
         に同意したものとみなされます

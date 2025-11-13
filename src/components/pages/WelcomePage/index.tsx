@@ -13,9 +13,9 @@ export const WelcomePage = () => {
     <Box
       minH="100vh"
       bgGradient="to-br"
-      gradientFrom="brand.50"
+      gradientFrom="teal.50"
       gradientVia="white"
-      gradientTo="brand.50"
+      gradientTo="teal.50"
       display="flex"
       alignItems="center"
       justifyContent="center"
@@ -29,8 +29,8 @@ export const WelcomePage = () => {
               <HStack
                 display="inline-flex"
                 gap="2"
-                bg="brand.100"
-                color="brand.700"
+                bg="teal.100"
+                color="teal.700"
                 px="4"
                 py="2"
                 borderRadius="full"
@@ -41,7 +41,7 @@ export const WelcomePage = () => {
               </HStack>
 
               <VStack gap="4" align={{ base: "center", lg: "start" }}>
-                <Text fontSize={{ base: "3xl", md: "4xl", lg: "5xl" }} color="brand.900" lineHeight="1.2">
+                <Text fontSize={{ base: "3xl", md: "4xl", lg: "5xl" }} color="teal.900" lineHeight="1.2">
                   ようこそ！
                   <br />
                   始めましょう
@@ -60,12 +60,12 @@ export const WelcomePage = () => {
                       w="10"
                       h="10"
                       borderRadius="full"
-                      bg="brand.100"
+                      bg="teal.100"
                       align="center"
                       justify="center"
                       flexShrink="0"
                     >
-                      <Icon as={feature.icon} boxSize="5" color="brand.600" />
+                      <Icon as={feature.icon} boxSize="5" color="teal.600" />
                     </Flex>
                     <Text>{feature.text}</Text>
                   </Flex>
