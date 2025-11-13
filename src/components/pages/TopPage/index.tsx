@@ -14,104 +14,101 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { AiOutlineCalendar, AiOutlineClockCircle, AiOutlineDollarCircle } from "react-icons/ai";
-import { BiChevronLeft, BiChevronRight, BiMessageSquareDetail } from "react-icons/bi";
+import { BiMessageSquareDetail } from "react-icons/bi";
 import { HiMenu, HiOutlineUsers } from "react-icons/hi";
 import { IoMapOutline } from "react-icons/io5";
 import { MdArrowForward, MdBarChart } from "react-icons/md";
 import { resetUserAtom } from "@/src/stores/user";
 
+const navItems = [
+  { name: "機能", href: "#features" },
+  { name: "ターゲット", href: "#target" },
+];
 
-  const navItems = [
-    { name: "機能", href: "#features" },
-    { name: "料金", href: "#pricing" },
-    { name: "ターゲット", href: "#target" },
-  ];
+const problems = [
+  {
+    icon: BiMessageSquareDetail,
+    title: "LINE・Excelで非効率",
+    description: "メッセージが流れる、変更のたびに再共有が必要",
+  },
+  {
+    icon: AiOutlineDollarCircle,
+    title: "既存ツールは高額",
+    description: "小規模店舗にはコストが見合わない",
+  },
+];
 
-  const problems = [
-    {
-      icon: BiMessageSquareDetail,
-      title: "LINE・Excelで非効率",
-      description: "メッセージが流れる、変更のたびに再共有が必要",
-    },
-    {
-      icon: AiOutlineDollarCircle,
-      title: "既存ツールは高額",
-      description: "小規模店舗にはコストが見合わない",
-    },
-  ];
+const features = [
+  {
+    icon: AiOutlineCalendar,
+    title: "シフト管理",
+    description: "申請、承認、確定まで一気通貫。週1回・2週間・1ヶ月のサイクル選択可能。",
+    highlight: true,
+  },
+  {
+    icon: AiOutlineClockCircle,
+    title: "タイムカード",
+    description: "スマホ・PCから出退勤を打刻。GPS機能で不正打刻を防止。",
+    highlight: false,
+  },
+  {
+    icon: MdBarChart,
+    title: "勤怠集計",
+    description: "労働時間を自動集計。CSV出力で給与計算ソフトと連携。",
+    highlight: false,
+  },
+  {
+    icon: HiOutlineUsers,
+    title: "メンバー管理",
+    description: "オーナー・マネージャー・スタッフの3役割。複数店舗も対応。",
+    highlight: false,
+  },
+];
 
-  const features = [
-    {
-      icon: AiOutlineCalendar,
-      title: "シフト管理",
-      description: "申請、承認、確定まで一気通貫。週1回・2週間・1ヶ月のサイクル選択可能。",
-      highlight: true,
-    },
-    {
-      icon: AiOutlineClockCircle,
-      title: "タイムカード",
-      description: "スマホ・PCから出退勤を打刻。GPS機能で不正打刻を防止。",
-      highlight: false,
-    },
-    {
-      icon: MdBarChart,
-      title: "勤怠集計",
-      description: "労働時間を自動集計。CSV出力で給与計算ソフトと連携。",
-      highlight: false,
-    },
-    {
-      icon: HiOutlineUsers,
-      title: "メンバー管理",
-      description: "オーナー・マネージャー・スタッフの3役割。複数店舗も対応。",
-      highlight: false,
-    },
-  ];
+const footerLinks = {
+  product: {
+    title: "プロダクト",
+    links: ["機能", "デモ", "ロードマップ"],
+  },
+  company: {
+    title: "会社",
+    links: ["会社概要", "お問い合わせ", "ブログ"],
+  },
+  legal: {
+    title: "法的事項",
+    links: ["利用規約", "プライバシーポリシー", "特定商取引法"],
+  },
+  support: {
+    title: "サポート",
+    links: ["ヘルプセンター", "よくある質問", "お問い合わせ"],
+  },
+};
 
-  const footerLinks = {
-    product: {
-      title: "プロダクト",
-      links: ["機能", "料金", "デモ", "ロードマップ"],
-    },
-    company: {
-      title: "会社",
-      links: ["会社概要", "お問い合わせ", "ブログ"],
-    },
-    legal: {
-      title: "法的事項",
-      links: ["利用規約", "プライバシーポリシー", "特定商取引法"],
-    },
-    support: {
-      title: "サポート",
-      links: ["ヘルプセンター", "よくある質問", "お問い合わせ"],
-    },
-  };
-
-  const weeks = [
-    [
-      { date: 4, day: "月", shift: null },
-      { date: 5, day: "火", shift: "10:00-18:00" },
-      { date: 6, day: "水", shift: null },
-      { date: 7, day: "木", shift: "14:00-22:00" },
-      { date: 8, day: "金", shift: "10:00-18:00" },
-      { date: 9, day: "土", shift: "09:00-17:00" },
-      { date: 10, day: "日", shift: null },
-    ],
-    [
-      { date: 11, day: "月", shift: "10:00-18:00" },
-      { date: 12, day: "火", shift: null },
-      { date: 13, day: "水", shift: "14:00-22:00" },
-      { date: 14, day: "木", shift: "10:00-18:00" },
-      { date: 15, day: "金", shift: null },
-      { date: 16, day: "土", shift: "09:00-17:00" },
-      { date: 17, day: "日", shift: "12:00-20:00" },
-    ],
-  ];
+const weeks = [
+  [
+    { date: 4, day: "月", shift: null },
+    { date: 5, day: "火", shift: "10:00-18:00" },
+    { date: 6, day: "水", shift: null },
+    { date: 7, day: "木", shift: "14:00-22:00" },
+    { date: 8, day: "金", shift: "10:00-18:00" },
+    { date: 9, day: "土", shift: "09:00-17:00" },
+    { date: 10, day: "日", shift: null },
+  ],
+  [
+    { date: 11, day: "月", shift: "10:00-18:00" },
+    { date: 12, day: "火", shift: null },
+    { date: 13, day: "水", shift: "14:00-22:00" },
+    { date: 14, day: "木", shift: "10:00-18:00" },
+    { date: 15, day: "金", shift: null },
+    { date: 16, day: "土", shift: "09:00-17:00" },
+    { date: 17, day: "日", shift: "12:00-20:00" },
+  ],
+];
 
 export const TopPage = () => {
   resetUserAtom();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
 
   return (
     <Box minH="100vh" bg="white">
@@ -273,13 +270,7 @@ export const TopPage = () => {
                       <Text>マイシフト</Text>
                     </HStack>
                     <HStack gap="2">
-                      <Button variant="ghost" size="xs" p="1" _hover={{ bg: "whiteAlpha.200" }}>
-                        <Icon as={BiChevronLeft} boxSize="4" />
-                      </Button>
                       <Text fontSize="sm">11月</Text>
-                      <Button variant="ghost" size="xs" p="1" _hover={{ bg: "whiteAlpha.200" }}>
-                        <Icon as={BiChevronRight} boxSize="4" />
-                      </Button>
                     </HStack>
                   </Flex>
                 </Box>
@@ -298,7 +289,6 @@ export const TopPage = () => {
                             border="1px"
                             borderColor={day.shift ? "teal.200" : "gray.200"}
                             bg={day.shift ? "teal.50" : "white"}
-                            _hover={{ bg: day.shift ? "teal.100" : "gray.50" }}
                             transition="all 0.15s"
                           >
                             <Box position="absolute" inset="0" p="1.5">
@@ -349,15 +339,7 @@ export const TopPage = () => {
 
             <SimpleGrid columns={{ base: 1, sm: 2 }} gap="6" maxW="3xl" mx="auto" w="full">
               {problems.map((problem, index) => (
-                <Box
-                  key={index}
-                  textAlign="center"
-                  p="6"
-                  borderRadius="xl"
-                  bg="gray.50"
-                  _hover={{ bg: "gray.100" }}
-                  transition="all 0.15s"
-                >
+                <Box key={index} textAlign="center" p="6" borderRadius="xl" bg="gray.50" transition="all 0.15s">
                   <Flex
                     w="12"
                     h="12"
@@ -408,7 +390,6 @@ export const TopPage = () => {
                 color={feature.highlight ? "white" : "gray.900"}
                 borderRadius="xl"
                 boxShadow="sm"
-                _hover={{ boxShadow: "md" }}
                 transition="all 0.15s"
                 p="6"
               >
