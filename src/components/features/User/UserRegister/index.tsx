@@ -92,7 +92,7 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
 
           <Button type="submit" loading={isSubmitting} w="full" h="12" colorPalette="teal">
             <HStack gap="2">
-              <Text>始める</Text>
+              <Text>はじめる</Text>
               <Icon as={IoArrowForward} boxSize="4" />
             </HStack>
           </Button>
