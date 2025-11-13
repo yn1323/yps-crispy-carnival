@@ -18,7 +18,7 @@ export const ErrorMessages: Story = {
 
     // フォームの送信ボタンを取得
     const submitButton = await canvas.findByRole("button", {
-      name: "登録",
+      name: "はじめる",
     });
 
     // 何も入力せずに送信
