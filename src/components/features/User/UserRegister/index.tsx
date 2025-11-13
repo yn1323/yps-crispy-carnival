@@ -1,10 +1,11 @@
-import { Button, Card, Field, HStack, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Field, Flex, HStack, Icon, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { useAuth } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useSetAtom } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
+import { IoArrowForward } from "react-icons/io5";
 import { api } from "@/convex/_generated/api";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
@@ -49,40 +50,66 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
   };
 
   return (
-    <Card.Root w="full" maxW="2xl" mx="auto">
-      <Card.Body>
-        <Stack gap="8" w="full">
-          <Text fontSize="lg" fontWeight="semibold">
-            ユーザー登録
-          </Text>
-          <Stack
-            gap="6"
-            as="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSubmit(onSubmit)(e);
-            }}
-          >
-            <Field.Root invalid={!!errors.userName}>
-              <Field.Label>ユーザー名</Field.Label>
-              <Input {...register("userName")} placeholder="ユーザー名" />
-              <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
-            </Field.Root>
+    <Box>
+      <Box bg="white" borderRadius="2xl" boxShadow="2xl" p="8">
+        {/* Progress indicator */}
+        <Box mb="8">
+          <Flex align="center" justify="space-between" mb="2">
+            <Text fontSize="sm" color="gray.600">
+              ステップ 1/1
+            </Text>
+            <Text fontSize="sm" color="teal.600">
+              ほぼ完了
+            </Text>
+          </Flex>
+          <Box w="full" h="2" bg="gray.100" borderRadius="full" overflow="hidden">
+            <Box
+              h="full"
+              w="full"
+              bgGradient="to-r"
+              gradientFrom="teal.500"
+              gradientTo="teal.600"
+              borderRadius="full"
+            />
+          </Box>
+        </Box>
 
-            <HStack gap="3" justifyContent="flex-end">
-              <Button
-                variant="solid"
-                colorPalette="teal"
-                type="submit"
-                loading={isSubmitting}
-                w={{ base: "full", lg: "auto" }}
-              >
-                登録
-              </Button>
+        {/* Form */}
+        <Stack
+          gap="6"
+          as="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit(onSubmit)(e);
+          }}
+        >
+          <Field.Root invalid={!!errors.userName} required>
+            <Field.Label>ユーザー名</Field.Label>
+            <Input {...register("userName")} placeholder="山田 太郎" h="12" autoFocus />
+            <Field.HelperText>スタッフやメンバーに表示される名前です</Field.HelperText>
+            <Field.ErrorText>{errors.userName?.message}</Field.ErrorText>
+          </Field.Root>
+
+          <Button type="submit" loading={isSubmitting} w="full" h="12" colorPalette="teal">
+            <HStack gap="2">
+              <Text>はじめる</Text>
+              <Icon as={IoArrowForward} boxSize="4" />
             </HStack>
-          </Stack>
+          </Button>
         </Stack>
-      </Card.Body>
-    </Card.Root>
+      </Box>
+
+      <Text textAlign="center" fontSize="xs" color="gray.500" mt="4">
+        登録することで、
+        <Link href="#" color="teal.600" _hover={{ textDecoration: "underline" }}>
+          利用規約
+        </Link>
+        と
+        <Link href="#" color="teal.600" _hover={{ textDecoration: "underline" }}>
+          プライバシーポリシー
+        </Link>
+        に同意したものとみなされます
+      </Text>
+    </Box>
   );
 };
