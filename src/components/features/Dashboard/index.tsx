@@ -105,7 +105,7 @@ export const Dashboard = () => {
         {/* ヘッダー */}
         <Box mb={{ base: "4", md: "8" }}>
           <Text color="gray.900" mb="1">
-            おはようございます、{user.name}さん
+            おはようございます、テストユーザーさん
           </Text>
           <Text color="gray.600" fontSize="sm">
             {todayString} 今日も一日頑張りましょう
