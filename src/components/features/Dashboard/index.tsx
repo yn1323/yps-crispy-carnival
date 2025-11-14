@@ -104,8 +104,8 @@ export const Dashboard = () => {
       <Box maxW="6xl" mx="auto" p={{ base: "4", md: "8" }} w="full">
         {/* ヘッダー */}
         <Box mb={{ base: "4", md: "8" }}>
-          <Text color="gray.900" mb="1">
-            おはようございます、テストユーザーさん
+          <Text as="h2" color="gray.900" mb="1">
+            おはようございます、{user.name}さん
           </Text>
           <Text color="gray.600" fontSize="sm">
             {todayString} 今日も一日頑張りましょう
