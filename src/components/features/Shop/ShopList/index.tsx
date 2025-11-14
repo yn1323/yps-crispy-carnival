@@ -1,6 +1,6 @@
-import { Badge, Box, Button, Card, Heading, HStack, Stack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, Container, Flex, Heading, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuPlus, LuStore } from "react-icons/lu";
+import { LuChevronRight, LuClock, LuMapPin, LuPlus, LuStore, LuUsers } from "react-icons/lu";
 
 type ShopListProps = {
   shops: {
@@ -14,53 +14,119 @@ type ShopListProps = {
 };
 
 export const ShopList = ({ shops }: ShopListProps) => {
-  const getSubmitFrequencyLabel = (freq: string) => {
-    if (freq === "1w") return "週1回";
-    if (freq === "2w") return "2週間ごと";
-    return "1ヶ月ごと";
-  };
-
   return (
-    <VStack gap="4">
-      {shops.map((shop) => (
-        <Card.Root
-          key={shop._id}
-          _hover={{ transform: "translateY(-2px)", shadow: "lg" }}
-          transition="all 0.15s ease"
-          w="full"
-        >
-          <Link to="/shops/$shopId" params={{ shopId: shop._id }}>
-            <Card.Body>
-              <Box display="flex" justifyContent="space-between" alignItems="center" gap="4">
-                <Box flex="1" minW="0">
-                  <HStack alignItems="center" justifyContent="flex-start">
-                    <Box color="teal.500" fontSize="xl" pb={2}>
-                      <LuStore />
-                    </Box>
-                    <Heading size="lg" mb="2">
-                      {shop.shopName}
-                    </Heading>
-                  </HStack>
-                  <HStack display="flex" flexWrap="wrap" gap="4" alignItems="flex-end" justifyContent="space-between">
-                    <Box>
-                      <Text color="fg.muted" fontSize={["sm", "md"]} whiteSpace="nowrap">
-                        {shop.openTime} - {shop.closeTime}
-                      </Text>
-                      <Text color="fg.muted" fontSize={["sm", "md"]} whiteSpace="nowrap">
-                        シフト提出：{getSubmitFrequencyLabel(shop.submitFrequency)}
-                      </Text>
-                    </Box>
-                    <Badge colorPalette={shop.useTimeCard ? "teal" : "gray"} size="sm">
-                      タイムカード利用： {shop.useTimeCard ? "有効" : "無効"}
-                    </Badge>
-                  </HStack>
-                </Box>
-              </Box>
-            </Card.Body>
+    <Container maxW="6xl" p={{ base: 4, md: 8 }}>
+      {/* ヘッダー */}
+      <Box mb={{ base: 4, md: 6 }}>
+        <Flex align="center" justify="space-between" mb="2">
+          <Box>
+            <Text as="h2" color="gray.900" mb="1">
+              店舗一覧
+            </Text>
+            <Text fontSize="sm" color="gray.600">
+              {shops.length}店舗
+            </Text>
+          </Box>
+          <Link to="/shops/new">
+            <Button colorPalette="teal" gap="2" display={{ base: "none", md: "flex" }}>
+              <LuPlus size={16} />
+              新規店舗
+            </Button>
           </Link>
-        </Card.Root>
-      ))}
-    </VStack>
+        </Flex>
+      </Box>
+
+      {/* 店舗カード一覧 */}
+      <VStack gap="3">
+        {shops.map((shop) => (
+          <Box key={shop._id} w="full">
+            <Link to="/shops/$shopId" params={{ shopId: shop._id }}>
+              <Box
+                bg="white"
+                borderRadius="lg"
+                boxShadow="sm"
+                _hover={{ boxShadow: "md" }}
+                _active={{ transform: "scale(0.98)", boxShadow: "sm" }}
+                transition="all 0.15s"
+                cursor="pointer"
+                role="group"
+                p={{ base: 4, md: 5 }}
+              >
+                <Flex align="center" justify="space-between" gap="4">
+                  <Flex align="center" gap={{ base: 3, md: 4 }} flex="1" minW="0">
+                    {/* アイコン */}
+                    <Flex
+                      p={{ base: 2.5, md: 3 }}
+                      bgGradient="to-br"
+                      gradientFrom="teal.50"
+                      gradientTo="teal.100"
+                      borderRadius="xl"
+                      flexShrink="0"
+                      _groupHover={{ gradientFrom: "teal.100", gradientTo: "teal.200" }}
+                      transition="all 0.15s"
+                    >
+                      <LuStore size={24} color="var(--chakra-colors-teal-600)" />
+                    </Flex>
+
+                    {/* 店舗情報 */}
+                    <VStack flex="1" minW="0" align="start" gap="2">
+                      <Flex align="center" gap="2">
+                        <Text as="h3" color="gray.900" truncate>
+                          {shop.shopName}
+                        </Text>
+                        <Badge colorPalette="teal" variant="solid" fontSize="xs" flexShrink="0">
+                          マネージャー
+                        </Badge>
+                      </Flex>
+
+                      {/* 住所 */}
+                      <Flex align="center" gap="2" fontSize="sm" color="gray.600">
+                        <LuMapPin size={16} />
+                        <Text truncate>東京都新宿区西新宿1-1-1</Text>
+                      </Flex>
+
+                      {/* 詳細情報 */}
+                      <Flex align="center" gap="4" fontSize="sm">
+                        <Flex align="center" gap="1.5" color="gray.600">
+                          <LuClock size={16} color="var(--chakra-colors-gray-400)" />
+                          <Text>
+                            {shop.openTime} - {shop.closeTime}
+                          </Text>
+                        </Flex>
+                        <Flex align="center" gap="1.5" color="gray.600">
+                          <LuUsers size={16} color="var(--chakra-colors-gray-400)" />
+                          <Text>15名</Text>
+                        </Flex>
+                      </Flex>
+                    </VStack>
+                  </Flex>
+
+                  {/* 矢印アイコン */}
+                  <Box
+                    color="gray.400"
+                    flexShrink="0"
+                    _groupHover={{ color: "teal.600", transform: "translateX(4px)" }}
+                    transition="all 0.15s"
+                  >
+                    <LuChevronRight size={20} />
+                  </Box>
+                </Flex>
+              </Box>
+            </Link>
+          </Box>
+        ))}
+      </VStack>
+
+      {/* モバイル用新規店舗ボタン */}
+      <Box mt="6" display={{ base: "block", md: "none" }}>
+        <Link to="/shops/new">
+          <Button w="full" colorPalette="teal" gap="2">
+            <LuPlus size={16} />
+            新規店舗を追加
+          </Button>
+        </Link>
+      </Box>
+    </Container>
   );
 };
 
