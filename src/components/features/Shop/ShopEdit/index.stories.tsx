@@ -16,6 +16,7 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   args: {
     shop: {
+      // biome-ignore lint/suspicious/noExplicitAny: temp
       _id: "shop123" as any,
       _creationTime: Date.now(),
       shopName: "カフェサンプル",
