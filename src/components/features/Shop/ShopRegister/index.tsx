@@ -1,26 +1,25 @@
 import {
   Box,
   Button,
-  Card,
+  Container,
   Field,
   Flex,
-  Heading,
-  HStack,
+  Grid,
+  GridItem,
   Input,
   NativeSelectField,
   NativeSelectRoot,
-  Separator,
-  Spacer,
-  Stack,
   Switch,
   Text,
   Textarea,
+  VStack,
 } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useAtom } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
+import { LuCalendar, LuSettings, LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
@@ -38,7 +37,6 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
     register,
     handleSubmit,
     watch,
-    getValues,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<SchemaType>({
@@ -90,147 +88,176 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
   };
 
   return (
-    <Card.Root>
-      <Card.Header>
-        <Heading size="lg">店舗登録</Heading>
-        <Text color="fg.muted" mt="2">
+    <Container maxW="3xl" p={{ base: 4, md: 8 }}>
+      {/* ヘッダー */}
+      <Box mb={{ base: 4, md: 6 }}>
+        <Flex align="center" gap="3" mb="2">
+          <Flex p="2" bg="teal.50" borderRadius="lg">
+            <LuStore size={20} color="var(--chakra-colors-teal-600)" />
+          </Flex>
+          <Text as="h2" color="gray.900">
+            店舗登録
+          </Text>
+        </Flex>
+        <Text fontSize="sm" color="gray.600">
           店舗の基本情報とシフト管理の設定を行います
-          <br />
-          （登録後でもいつでも変更できます）
         </Text>
-      </Card.Header>
-      <Card.Body>
-        <Stack gap="8" w="full">
-          <Stack
-            gap="8"
-            as="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSubmit(onSubmit)(e);
-            }}
-          >
-            {/* 基本情報セクション */}
-            <Stack gap="4">
-              <Heading size="md" fontWeight="semibold">
-                基本情報
-              </Heading>
-              <Stack gap="6">
-                <Field.Root invalid={!!errors.shopName}>
-                  <Field.Label>店舗名</Field.Label>
-                  <Input {...register("shopName")} placeholder="店舗名" />
-                  <Field.ErrorText>{errors.shopName?.message}</Field.ErrorText>
-                </Field.Root>
+      </Box>
 
-                <Flex direction={{ base: "column", md: "row" }} gap="4">
-                  <Field.Root invalid={!!errors.openTime} flex="1">
+      <Box
+        as="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit(onSubmit)(e);
+        }}
+      >
+        <VStack gap="6">
+          {/* 基本情報 */}
+          <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
+            <Flex align="center" gap="2" mb="4">
+              <LuStore size={16} color="var(--chakra-colors-gray-700)" />
+              <Text as="h3" color="gray.900">
+                基本情報
+              </Text>
+            </Flex>
+            <VStack gap="4" align="stretch">
+              {/* 店舗名 */}
+              <Field.Root invalid={!!errors.shopName}>
+                <Field.Label>店舗名</Field.Label>
+                <Input {...register("shopName")} placeholder="店舗名" />
+                <Field.ErrorText>{errors.shopName?.message}</Field.ErrorText>
+              </Field.Root>
+
+              {/* 営業時間 */}
+              <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }} gap="4">
+                <GridItem>
+                  <Field.Root invalid={!!errors.openTime}>
                     <Field.Label>開店時間</Field.Label>
                     <Input {...register("openTime")} type="time" />
                     <Field.ErrorText>{errors.openTime?.message}</Field.ErrorText>
                   </Field.Root>
-
-                  <Field.Root invalid={!!errors.closeTime} flex="1">
+                </GridItem>
+                <GridItem>
+                  <Field.Root invalid={!!errors.closeTime}>
                     <Field.Label>閉店時間</Field.Label>
                     <Input {...register("closeTime")} type="time" />
                     <Field.ErrorText>{errors.closeTime?.message}</Field.ErrorText>
                   </Field.Root>
-                </Flex>
-              </Stack>
-            </Stack>
+                </GridItem>
+              </Grid>
+            </VStack>
+          </Box>
 
-            <Separator />
-
-            {/* シフト設定セクション */}
-            <Stack gap="4">
-              <Heading size="md" fontWeight="semibold">
+          {/* シフト設定 */}
+          <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
+            <Flex align="center" gap="2" mb="4">
+              <LuCalendar size={16} color="var(--chakra-colors-gray-700)" />
+              <Text as="h3" color="gray.900">
                 シフト設定
-              </Heading>
-              <Flex direction={{ base: "column", md: "row" }} gap="4">
-                <Field.Root invalid={!!errors.submitFrequency} flex="1">
-                  <Field.Label>シフト提出頻度</Field.Label>
-                  <NativeSelectRoot>
-                    <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
-                      {submitFrequencyOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </NativeSelectField>
-                  </NativeSelectRoot>
-                  <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
-                </Field.Root>
+              </Text>
+            </Flex>
+            <VStack gap="4" align="stretch">
+              <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }} gap="4">
+                {/* シフト提出頻度 */}
+                <GridItem>
+                  <Field.Root invalid={!!errors.submitFrequency}>
+                    <Field.Label>シフト提出期限</Field.Label>
+                    <Field.HelperText>スタッフがシフトを提出する期限のサイクル</Field.HelperText>
+                    <NativeSelectRoot>
+                      <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
+                        {submitFrequencyOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </NativeSelectField>
+                    </NativeSelectRoot>
+                    <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
+                  </Field.Root>
+                </GridItem>
 
-                <Field.Root invalid={!!errors.timeUnit} flex="1">
-                  <Field.Label>シフト入力の時間単位</Field.Label>
-                  <NativeSelectRoot>
-                    <NativeSelectField {...register("timeUnit")}>
-                      {timeUnitOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </NativeSelectField>
-                  </NativeSelectRoot>
-                  <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
-                </Field.Root>
-              </Flex>
-            </Stack>
+                {/* 時間単位 */}
+                <GridItem>
+                  <Field.Root invalid={!!errors.timeUnit}>
+                    <Field.Label>シフト入力の時間単位</Field.Label>
+                    <Field.HelperText>シフト時間の最小入力単位</Field.HelperText>
+                    <NativeSelectRoot>
+                      <NativeSelectField {...register("timeUnit")}>
+                        {timeUnitOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </NativeSelectField>
+                    </NativeSelectRoot>
+                    <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
+                  </Field.Root>
+                </GridItem>
+              </Grid>
+            </VStack>
+          </Box>
 
-            <Separator />
-
-            {/* オプション機能セクション */}
-            <Stack gap="4">
-              <Heading size="md" fontWeight="semibold">
+          {/* オプション機能 */}
+          <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
+            <Flex align="center" gap="2" mb="4">
+              <LuSettings size={16} color="var(--chakra-colors-gray-700)" />
+              <Text as="h3" color="gray.900">
                 オプション機能
-              </Heading>
-              <Stack gap="6">
-                <Field.Root>
-                  <HStack justify="space-between" align="center" w="full" gap={10}>
-                    <Box>
-                      <Field.Label>タイムカード機能</Field.Label>
-                      <Field.HelperText>出退勤の打刻機能</Field.HelperText>
-                    </Box>
-                    <Box display="flex" alignItems="center" gap="2">
-                      <Field.HelperText>利用{watch("useTimeCard") ? "する" : "しない"}</Field.HelperText>
-                      <Switch.Root colorPalette="teal" defaultChecked={getValues("useTimeCard")}>
-                        <Switch.HiddenInput
-                          checked={watch("useTimeCard")}
-                          onChange={(e) => setValue("useTimeCard", e.target.checked)}
-                        />
-                        <Switch.Control>
-                          <Switch.Thumb />
-                        </Switch.Control>
-                      </Switch.Root>
-                    </Box>
-                    <Spacer hideBelow="md" />
-                  </HStack>
-                </Field.Root>
+              </Text>
+            </Flex>
+            <VStack gap="4" align="stretch">
+              {/* タイムカード機能 */}
+              <Flex align="center" justify="space-between" p="4" bg="gray.50" borderRadius="lg">
+                <Box flex="1">
+                  <Text fontSize="sm" color="gray.900" cursor="pointer">
+                    タイムカード機能
+                  </Text>
+                  <Text fontSize="xs" color="gray.600" mt="1">
+                    出退勤の打刻機能を有効にする
+                  </Text>
+                </Box>
+                <Switch.Root
+                  colorPalette="teal"
+                  checked={watch("useTimeCard")}
+                  onCheckedChange={(details) => setValue("useTimeCard", details.checked)}
+                  ml="4"
+                >
+                  <Switch.HiddenInput />
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Root>
+              </Flex>
 
-                <Field.Root>
-                  <Field.Label>店舗メモ（マネージャー向け）</Field.Label>
-                  <Field.HelperText>運営上の注意事項、業務ルール、引き継ぎ事項など</Field.HelperText>
-                  <Textarea
-                    {...register("description")}
-                    placeholder="例: レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など"
-                    rows={4}
-                  />
-                </Field.Root>
-              </Stack>
-            </Stack>
+              {/* 店舗メモ */}
+              <Field.Root>
+                <Field.Label>店舗メモ（マネージャー向け）</Field.Label>
+                <Field.HelperText>管理上の注意事項、業務ルール、引き継ぎ事項など</Field.HelperText>
+                <Textarea
+                  {...register("description")}
+                  placeholder="例：レジ締めの注意点、翌週の準備事項、引き継ぎルール、緊急時の連絡先など"
+                  minH="120px"
+                  resize="none"
+                />
+              </Field.Root>
+            </VStack>
+          </Box>
 
-            <HStack gap="3" justifyContent="flex-end">
-              <Button
-                variant="solid"
-                colorPalette="teal"
-                type="submit"
-                loading={isSubmitting}
-                w={{ base: "full", lg: "auto" }}
-              >
-                登録
-              </Button>
-            </HStack>
-          </Stack>
-        </Stack>
-      </Card.Body>
-    </Card.Root>
+          {/* 送信ボタン */}
+          <Flex direction={{ base: "column-reverse", sm: "row" }} gap="3" pt="2" w="full">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              flex={{ base: "1", sm: "initial" }}
+              colorPalette="teal"
+              loading={isSubmitting}
+              w={{ base: "full", sm: "auto" }}
+            >
+              登録
+            </Button>
+          </Flex>
+        </VStack>
+      </Box>
+    </Container>
   );
 };

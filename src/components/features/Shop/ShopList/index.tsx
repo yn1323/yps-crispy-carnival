@@ -46,7 +46,6 @@ export const ShopList = ({ shops }: ShopListProps) => {
                 borderRadius="lg"
                 boxShadow="sm"
                 _hover={{ boxShadow: "md" }}
-                _active={{ transform: "scale(0.98)", boxShadow: "sm" }}
                 transition="all 0.15s"
                 cursor="pointer"
                 role="group"
