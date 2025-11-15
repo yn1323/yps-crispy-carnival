@@ -13,13 +13,12 @@ import {
   DialogTitle,
   Flex,
   Icon,
-  NativeSelectField,
-  NativeSelectRoot,
   Text,
   VStack,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { LuCalendar, LuChevronLeft, LuClock, LuInfo, LuPencil, LuPlus, LuStore, LuTrash2 } from "react-icons/lu";
+import { Select } from "@/src/components/ui/Select";
 
 const mockStores = [
   { id: "1", name: "本店" },
@@ -164,15 +163,11 @@ export const ShiftTemplateList = ({
                 </Text>
               </Box>
             </Flex>
-            <NativeSelectRoot>
-              <NativeSelectField value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)}>
-                {mockStores.map((store) => (
-                  <option key={store.id} value={store.id}>
-                    {store.name}
-                  </option>
-                ))}
-              </NativeSelectField>
-            </NativeSelectRoot>
+            <Select
+              items={mockStores.map((store) => ({ value: store.id, label: store.name }))}
+              value={selectedStoreId}
+              onChange={(value) => setSelectedStoreId(value)}
+            />
           </Box>
 
           <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>

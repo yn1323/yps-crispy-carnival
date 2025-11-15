@@ -17,8 +17,6 @@ import {
   Icon,
   Input,
   List,
-  NativeSelectField,
-  NativeSelectRoot,
   Stack,
   Text,
   Textarea,
@@ -31,6 +29,7 @@ import { LuClock, LuDollarSign, LuFileText, LuSave, LuShield, LuTriangle, LuUser
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { FormCard } from "@/src/components/ui/FormCard";
+import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { type SchemaType, schema } from "./schema";
@@ -111,13 +110,16 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
               {/* 権限 */}
               <Field.Root>
                 <Field.Label>権限</Field.Label>
-                <NativeSelectRoot>
-                  <NativeSelectField defaultValue="スタッフ">
-                    <option value="スタッフ">スタッフ</option>
-                    <option value="マネージャー">マネージャー</option>
-                    <option value="オーナー">オーナー</option>
-                  </NativeSelectField>
-                </NativeSelectRoot>
+                <Select
+                  items={[
+                    { value: "スタッフ", label: "スタッフ" },
+                    { value: "マネージャー", label: "マネージャー" },
+                    { value: "オーナー", label: "オーナー" },
+                  ]}
+                  value="スタッフ"
+                  onChange={() => {}}
+                  placeholder="選択してください"
+                />
                 <Field.HelperText>マネージャーはシフト管理・スタッフ管理が可能です</Field.HelperText>
               </Field.Root>
 

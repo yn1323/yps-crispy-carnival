@@ -1,19 +1,9 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  Flex,
-  Icon,
-  Input,
-  NativeSelectField,
-  NativeSelectRoot,
-  Text,
-} from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Flex, Icon, Input, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { Select } from "@/src/components/ui/Select";
 import { Animation } from "@/src/components/templates/Animation";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 
@@ -117,23 +107,29 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
           </Box>
 
           {/* ステータスフィルター */}
-          <NativeSelectRoot w={{ base: "full", md: "180px" }}>
-            <NativeSelectField value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="active">在籍中</option>
-              <option value="resigned">退職済み</option>
-              <option value="all">全員</option>
-            </NativeSelectField>
-          </NativeSelectRoot>
+          <Select
+            items={[
+              { value: "active", label: "在籍中" },
+              { value: "resigned", label: "退職済み" },
+              { value: "all", label: "全員" },
+            ]}
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value)}
+            w={{ base: "full", md: "180px" }}
+          />
 
           {/* 役割フィルター */}
-          <NativeSelectRoot w={{ base: "full", md: "180px" }}>
-            <NativeSelectField value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-              <option value="all">全役割</option>
-              <option value="オーナー">オーナー</option>
-              <option value="マネージャー">マネージャー</option>
-              <option value="スタッフ">スタッフ</option>
-            </NativeSelectField>
-          </NativeSelectRoot>
+          <Select
+            items={[
+              { value: "all", label: "全員" },
+              { value: "オーナー", label: "オーナー" },
+              { value: "マネージャー", label: "マネージャー" },
+              { value: "スタッフ", label: "スタッフ" },
+            ]}
+            value={roleFilter}
+            onChange={(value) => setRoleFilter(value)}
+            w={{ base: "full", md: "180px" }}
+          />
         </Flex>
 
         {/* スタッフ招待ボタン */}

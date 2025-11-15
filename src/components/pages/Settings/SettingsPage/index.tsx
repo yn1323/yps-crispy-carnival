@@ -7,8 +7,6 @@ import {
   Flex,
   Icon,
   Input,
-  NativeSelectField,
-  NativeSelectRoot,
   Text,
   VStack,
 } from "@chakra-ui/react";
@@ -17,6 +15,7 @@ import { useState } from "react";
 import { IoChevronForwardSharp, IoSaveSharp, IoTimeSharp } from "react-icons/io5";
 import { LuStore, LuUser } from "react-icons/lu";
 import { FormCard } from "@/src/components/ui/FormCard";
+import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 
 // モックデータ
@@ -82,15 +81,11 @@ export const SettingsPage = () => {
             {/* 店舗選択 */}
             <Field.Root>
               <Field.Label>店舗を選択</Field.Label>
-              <NativeSelectRoot>
-                <NativeSelectField value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)}>
-                  {mockStores.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </NativeSelectField>
-              </NativeSelectRoot>
+              <Select
+                items={mockStores.map((store) => ({ value: store.id, label: store.name }))}
+                value={selectedStoreId}
+                onChange={(value) => setSelectedStoreId(value)}
+              />
             </Field.Root>
 
             {/* よく使うシフト */}

@@ -1,21 +1,8 @@
-import {
-  Box,
-  Button,
-  Field,
-  Flex,
-  Grid,
-  GridItem,
-  Input,
-  NativeSelectField,
-  NativeSelectRoot,
-  Switch,
-  Text,
-  Textarea,
-  VStack,
-} from "@chakra-ui/react";
+import { Box, Button, Field, Flex, Grid, GridItem, Input, Switch, Text, Textarea, VStack } from "@chakra-ui/react";
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { LuCalendar, LuSettings, LuStore } from "react-icons/lu";
 import { FormCard } from "@/src/components/ui/FormCard";
+import { Select } from "@/src/components/ui/Select";
 import { type SchemaType, submitFrequencyOptions, timeUnitOptions } from "../ShopRegister/schema";
 
 type ShopFormProps = {
@@ -71,15 +58,13 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
                 <Field.Root invalid={!!errors.submitFrequency}>
                   <Field.Label>シフト提出期限</Field.Label>
                   <Field.HelperText>スタッフがシフトを提出する期限のサイクル</Field.HelperText>
-                  <NativeSelectRoot>
-                    <NativeSelectField {...register("submitFrequency")} placeholder="選択してください">
-                      {submitFrequencyOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </NativeSelectField>
-                  </NativeSelectRoot>
+                  <Select
+                    items={submitFrequencyOptions}
+                    value={watch("submitFrequency")}
+                    onChange={(value) => setValue("submitFrequency", value)}
+                    invalid={!!errors.submitFrequency}
+                    placeholder="選択してください"
+                  />
                   <Field.ErrorText>{errors.submitFrequency?.message}</Field.ErrorText>
                 </Field.Root>
               </GridItem>
@@ -89,15 +74,13 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
                 <Field.Root invalid={!!errors.timeUnit}>
                   <Field.Label>シフト入力の時間単位</Field.Label>
                   <Field.HelperText>シフト時間の最小入力単位</Field.HelperText>
-                  <NativeSelectRoot>
-                    <NativeSelectField {...register("timeUnit")}>
-                      {timeUnitOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </NativeSelectField>
-                  </NativeSelectRoot>
+                  <Select
+                    items={timeUnitOptions}
+                    value={watch("timeUnit")}
+                    onChange={(value) => setValue("timeUnit", value)}
+                    invalid={!!errors.timeUnit}
+                    placeholder="選択してください"
+                  />
                   <Field.ErrorText>{errors.timeUnit?.message}</Field.ErrorText>
                 </Field.Root>
               </GridItem>
