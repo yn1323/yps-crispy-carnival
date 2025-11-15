@@ -6,6 +6,7 @@ import {
   Container,
   Flex,
   Heading,
+  Icon,
   Input,
   NativeSelectField,
   NativeSelectRoot,
@@ -138,7 +139,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
         <Flex align="center" justify="space-between">
           <Flex align="center" gap={3}>
             <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">
-              <LuStore size={24} color="var(--chakra-colors-teal-600)" />
+              <Icon boxSize="6" color="teal.600">
+                <LuStore />
+              </Icon>
             </Flex>
             <Heading as="h2" size="xl" color="gray.900">
               {shop.shopName}
@@ -178,7 +181,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
             <Card.Body p={{ base: 4, md: 6 }}>
               {/* 住所（固定値） */}
               <Flex align="center" gap={2} mb={4} pb={4} borderBottom="1px" borderColor="gray.100">
-                <LuMapPin size={20} color="var(--chakra-colors-gray-500)" />
+                <Icon size="lg" color="gray.500">
+                  <LuMapPin />
+                </Icon>
                 <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
                   東京都新宿区西新宿1-1-1
                 </Text>
@@ -188,7 +193,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
               <Box>
                 {/* 営業時間 */}
                 <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
-                  <LuClock size={20} color="var(--chakra-colors-gray-500)" />
+                  <Icon size="lg" color="gray.500">
+                    <LuClock />
+                  </Icon>
                   <Box flex={1}>
                     <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
                       営業時間
@@ -201,7 +208,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
 
                 {/* シフト提出期限 */}
                 <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
-                  <LuCalendar size={20} color="var(--chakra-colors-gray-500)" />
+                  <Icon size="lg" color="gray.500">
+                    <LuCalendar />
+                  </Icon>
                   <Box flex={1}>
                     <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
                       シフト提出期限
@@ -214,7 +223,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
 
                 {/* シフト閉鎖時間（固定値） */}
                 <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
-                  <LuClock size={20} color="var(--chakra-colors-gray-500)" />
+                  <Icon size="lg" color="gray.500">
+                    <LuClock />
+                  </Icon>
                   <Box flex={1}>
                     <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
                       シフト閉鎖時間
@@ -227,7 +238,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
 
                 {/* タイムカード */}
                 <Flex align="flex-start" gap={3}>
-                  <LuCreditCard size={20} color="var(--chakra-colors-gray-500)" />
+                  <Icon size="lg" color="gray.500">
+                    <LuCreditCard />
+                  </Icon>
                   <Box flex={1}>
                     <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={1}>
                       タイムカード
@@ -271,7 +284,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
               {/* 検索バー */}
               <Box position="relative" flex={1}>
                 <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" pointerEvents="none">
-                  <LuSearch size={16} color="var(--chakra-colors-gray-400)" />
+                  <Icon color="gray.400">
+                    <LuSearch />
+                  </Icon>
                 </Box>
                 <Input
                   type="text"
@@ -381,7 +396,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
                           </Flex>
 
                           {/* 矢印アイコン */}
-                          <LuChevronRight size={20} color="var(--chakra-colors-gray-400)" />
+                          <Icon size="lg" color="gray.400">
+                            <LuChevronRight />
+                          </Icon>
                         </Flex>
                       </Card.Body>
                     </Card.Root>
@@ -393,7 +410,9 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
             <Card.Root borderWidth={0} shadow="sm">
               <Card.Body p={8} textAlign="center">
                 <Box display="flex" justifyContent="center" mb={3}>
-                  <LuUsers size={48} color="var(--chakra-colors-gray-300)" />
+                  <Icon boxSize="12" color="gray.300">
+                    <LuUsers />
+                  </Icon>
                 </Box>
                 <Text color="gray.500">該当するスタッフが見つかりませんでした</Text>
                 <Text fontSize="sm" color="gray.400" mt={1}>

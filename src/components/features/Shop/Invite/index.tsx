@@ -5,17 +5,15 @@ import {
   Box,
   Button,
   Card,
-  Code,
   Container,
   Field,
   Flex,
-  Grid,
   Heading,
-  IconButton,
+  Icon,
   Input,
   Stack,
+  Tabs,
   Text,
-  VStack,
 } from "@chakra-ui/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
@@ -25,474 +23,576 @@ import {
   HiClipboardCopy,
   HiClock,
   HiExclamation,
-  HiEye,
   HiLink,
   HiMail,
   HiTrash,
   HiUserAdd,
 } from "react-icons/hi";
-import { Animation } from "@/src/components/templates/Animation";
-
-// 仮のデータ
-const getMockInviteData = (_shopId: string) => {
-  return {
-    shopName: "カフェ渋谷店",
-    activeInvitations: [
-      {
-        id: "1",
-        token: "abc123def456",
-        createdAt: "2024-12-18",
-        expiresAt: "2025-01-17",
-        usedCount: 1,
-        maxUses: null,
-        createdBy: "山田次郎",
-        url: "https://example.com/invite/abc123def456",
-      },
-      {
-        id: "2",
-        token: "xyz789uvw012",
-        createdAt: "2024-12-15",
-        expiresAt: "2025-01-14",
-        usedCount: 0,
-        maxUses: null,
-        createdBy: "山田次郎",
-        url: "https://example.com/invite/xyz789uvw012",
-      },
-      {
-        id: "3",
-        token: "def456ghi789",
-        createdAt: "2024-12-20",
-        expiresAt: "2025-01-19",
-        usedCount: 0,
-        maxUses: null,
-        createdBy: "山田次郎",
-        url: "https://example.com/invite/def456ghi789",
-      },
-    ],
-    inviteHistory: [
-      {
-        id: "4",
-        userName: "鈴木美咲",
-        invitedAt: "2024-12-10",
-        joinedAt: "2024-12-10",
-        invitedBy: "山田次郎",
-        status: "joined",
-      },
-      {
-        id: "5",
-        userName: "招待メール送信",
-        invitedAt: "2024-12-08",
-        joinedAt: null,
-        invitedBy: "山田次郎",
-        status: "pending",
-        email: "tanaka@example.com",
-      },
-    ],
-  };
-};
 
 export const InviteShopMember = () => {
   const params = useParams({ strict: false });
   const navigate = useNavigate();
   const shopId = params.shopId as string;
 
-  const inviteData = getMockInviteData(shopId);
-  const [emailAddress, setEmailAddress] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [showAlert, setShowAlert] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const handleGenerateInviteURL = async () => {
-    setIsGenerating(true);
-    // TODO: 実際のAPI呼び出し
-    setTimeout(() => {
-      setIsGenerating(false);
-      // 新しい招待URLを生成したとして、リストを更新
-    }, 1000);
-  };
+  // モックデータ
+  const shopName = "カフェ渋谷店";
 
-  const handleSendEmailInvite = async () => {
-    if (!emailAddress) {
+  const invitationUrls = [
+    {
+      id: "1",
+      url: "https://shift.app/invite/abc123xyz",
+      status: "未使用" as const,
+      createdAt: "11/1",
+      createdBy: "山田太郎",
+      expiresInDays: 23,
+    },
+    {
+      id: "2",
+      url: "https://shift.app/invite/def456uvw",
+      status: "未使用" as const,
+      createdAt: "11/5",
+      createdBy: "佐藤花子",
+      expiresInDays: 27,
+    },
+    {
+      id: "3",
+      url: "https://shift.app/invite/ghi789rst",
+      status: "使用済み" as const,
+      createdAt: "10/25",
+      createdBy: "山田太郎",
+      usedAt: "10/26",
+    },
+  ];
+
+  const invitationHistory = [
+    {
+      id: "1",
+      name: "佐藤花子",
+      email: "sato@example.com",
+      status: "参加済み" as const,
+      invitedAt: "11/1",
+      joinedAt: "11/3",
+      invitedBy: "山田太郎",
+    },
+    {
+      id: "2",
+      name: "鈴木一郎",
+      email: "suzuki@example.com",
+      status: "参加済み" as const,
+      invitedAt: "10/20",
+      joinedAt: "10/22",
+      invitedBy: "山田太郎",
+    },
+    {
+      id: "3",
+      email: "tanaka@example.com",
+      status: "招待中" as const,
+      invitedAt: "11/1",
+      invitedBy: "佐藤花子",
+    },
+    {
+      id: "4",
+      email: "ito@example.com",
+      status: "招待中" as const,
+      invitedAt: "11/4",
+      invitedBy: "山田太郎",
+    },
+  ];
+
+  const handleSendInvitation = () => {
+    if (!email) {
+      console.log("メールアドレスを入力してください");
       return;
     }
-
-    // TODO: 実際のAPI呼び出し
-    console.log("メール招待送信:", emailAddress);
-    setEmailAddress("");
+    console.log("招待メールを送信しました");
+    setEmail("");
   };
 
-  const handleCopyURL = async (url: string, token: string) => {
+  const handleGenerateUrl = () => {
+    console.log("招待URLを生成しました");
+  };
+
+  const handleCopyUrl = async (url: string, id: string) => {
     try {
       await navigator.clipboard.writeText(url);
-      setCopiedToken(token);
-      setTimeout(() => setCopiedToken(null), 2000);
+      setCopiedId(id);
+      console.log("URLをコピーしました");
+      setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error("コピーに失敗しました:", err);
     }
   };
 
-  const handleDeleteInvite = (inviteId: string) => {
+  const handleDeleteUrl = (inviteId: string) => {
     if (confirm("この招待を削除しますか？使用できなくなります。")) {
-      // TODO: 実際の削除処理
       console.log("招待削除:", inviteId);
     }
   };
 
+  const activeUrls = invitationUrls.filter((u) => u.status === "未使用");
+  const usedUrls = invitationUrls.filter((u) => u.status === "使用済み");
+  const joinedStaff = invitationHistory.filter((h) => h.status === "参加済み");
+  const pendingInvites = invitationHistory.filter((h) => h.status === "招待中");
+
   return (
-    <Animation>
-      <Container maxW="container.lg" py={8}>
-        <VStack gap={6} align="stretch">
-          {/* ヘッダー */}
-          <Box>
-            <Button onClick={() => navigate({ to: `/shops/${shopId}` })} variant="ghost" mb={4}>
-              <HiArrowLeft />
-              店舗詳細に戻る
-            </Button>
-            <Heading size="xl" mb={2}>
-              スタッフ招待管理
+    <Container maxW="6xl" py={{ base: 4, md: 8 }}>
+      <Stack gap={{ base: 4, md: 6 }}>
+        {/* ヘッダー */}
+        <Box>
+          <Button
+            onClick={() => navigate({ to: `/shops/${shopId}` })}
+            variant="ghost"
+            mb={{ base: 3, md: 4 }}
+            ml={-2}
+            color="gray.600"
+          >
+            <HiArrowLeft />
+            店舗詳細に戻る
+          </Button>
+
+          <Flex align="center" gap={3} mb={2}>
+            <Flex p={2} bg="teal.50" borderRadius="lg">
+              <Icon size="lg" color="teal.600">
+                <HiUserAdd />
+              </Icon>
+            </Flex>
+            <Heading size="xl" color="gray.900">
+              スタッフ招待
             </Heading>
-            <Text color="fg.muted">{inviteData.shopName}の新しいスタッフを招待・管理できます</Text>
-          </Box>
+          </Flex>
+          <Text fontSize="sm" color="gray.600">
+            {shopName}
+          </Text>
+        </Box>
 
-          {/* 新しい招待作成 */}
-          <Card.Root variant="elevated">
-            <Card.Header>
-              <Heading size="md">
-                <HiUserAdd style={{ display: "inline", marginRight: "8px" }} />
-                新しいスタッフを招待
-              </Heading>
-              <Text fontSize="sm" color="fg.muted" mt={2}>
-                以下の方法でスタッフを招待できます。招待は1回限り有効です。
-              </Text>
-            </Card.Header>
-            <Card.Body>
-              <VStack gap={6} align="stretch">
-                {/* 推奨：メール招待 */}
-                <Card.Root variant="elevated" colorPalette="blue">
-                  <Card.Header>
-                    <Flex align="center" justify="space-between">
-                      <Flex align="center" gap={3}>
-                        <Box bg="blue.500" color="white" borderRadius="full" p={2}>
-                          <HiMail size={20} />
-                        </Box>
-                        <Box>
-                          <Text fontWeight="bold" fontSize="lg">
-                            メール招待
-                          </Text>
-                          <Badge colorPalette="blue" variant="solid" size="sm">
-                            推奨
-                          </Badge>
-                        </Box>
-                      </Flex>
-                    </Flex>
-                  </Card.Header>
-                  <Card.Body>
-                    <VStack gap={4} align="stretch">
-                      <Box bg="blue.50" p={4} borderRadius="md" _dark={{ bg: "blue.900" }}>
-                        <Text fontSize="sm" color="blue.700" _dark={{ color: "blue.200" }} mb={2}>
-                          📧 <strong>こんな時におすすめ：</strong>
-                        </Text>
-                        <Stack gap={1}>
-                          <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                            • 新しいスタッフのメールアドレスを知っている
-                          </Text>
-                          <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                            • 確実に本人に届けたい
-                          </Text>
-                          <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                            • 1対1で招待したい
-                          </Text>
-                        </Stack>
-                      </Box>
+        {/* タブコンテンツ */}
+        <Tabs.Root defaultValue="send" variant="enclosed">
+          <Tabs.List gridTemplateColumns="repeat(3, 1fr)" mb={4}>
+            <Tabs.Trigger value="send" gap={2}>
+              <HiMail size={16} />
+              <Text display={{ base: "none", sm: "inline" }}>招待を送る</Text>
+              <Text display={{ base: "inline", sm: "none" }}>送る</Text>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="manage" gap={2}>
+              <HiLink size={16} />
+              <Text display={{ base: "none", sm: "inline" }}>招待管理</Text>
+              <Text display={{ base: "inline", sm: "none" }}>管理</Text>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="staff" gap={2}>
+              <HiUserAdd size={16} />
+              <Text display={{ base: "none", sm: "inline" }}>スタッフ</Text>
+              <Text display={{ base: "inline", sm: "none" }}>履歴</Text>
+            </Tabs.Trigger>
+          </Tabs.List>
 
-                      <VStack gap={3} align="stretch">
-                        <Text fontSize="sm" fontWeight="medium">
-                          ステップ 1: メールアドレスを入力
-                        </Text>
-                        <Field.Root>
-                          <Field.Label>招待したいスタッフのメールアドレス</Field.Label>
-                          <Input
-                            type="email"
-                            placeholder="staff@example.com"
-                            value={emailAddress}
-                            onChange={(e) => setEmailAddress(e.target.value)}
-                            size="lg"
-                          />
-                        </Field.Root>
-
-                        <Text fontSize="sm" fontWeight="medium">
-                          ステップ 2: 招待メールを送信
-                        </Text>
-                        <Button
-                          onClick={handleSendEmailInvite}
-                          colorPalette="blue"
-                          variant="solid"
-                          disabled={!emailAddress}
-                          size="lg"
-                          width="full"
-                        >
-                          <HiMail />
-                          招待メールを送信
-                        </Button>
-                      </VStack>
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-
-                {/* その他の方法：招待URL */}
-                <Card.Root variant="outline">
-                  <Card.Header>
-                    <Flex align="center" gap={3}>
-                      <Box bg="gray.400" color="white" borderRadius="full" p={2}>
-                        <HiLink size={20} />
-                      </Box>
-                      <Box>
-                        <Text fontWeight="bold">招待URL生成</Text>
-                        <Text fontSize="sm" color="fg.muted">
-                          その他の方法
-                        </Text>
-                      </Box>
-                    </Flex>
-                  </Card.Header>
-                  <Card.Body>
-                    <VStack gap={4} align="stretch">
-                      <Box bg="gray.50" p={4} borderRadius="md" _dark={{ bg: "gray.800" }}>
-                        <Text fontSize="sm" color="gray.700" _dark={{ color: "gray.300" }} mb={2}>
-                          🔗 <strong>こんな時に使用：</strong>
-                        </Text>
-                        <Stack gap={1}>
-                          <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.400" }}>
-                            • LINE・Slackなどで招待したい
-                          </Text>
-                          <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.400" }}>
-                            • メールアドレスが分からない
-                          </Text>
-                          <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.400" }}>
-                            • 面接時に直接渡したい
-                          </Text>
-                        </Stack>
-                      </Box>
-
-                      <VStack gap={3} align="stretch">
-                        <Text fontSize="sm" fontWeight="medium">
-                          ステップ 1: 招待URLを生成
-                        </Text>
-                        <Button onClick={handleGenerateInviteURL} variant="outline" loading={isGenerating} width="full">
-                          <HiLink />
-                          招待URLを生成
-                        </Button>
-                        <Text fontSize="xs" color="orange.600" textAlign="center">
-                          ⚠️ 生成されたURLは1回のみ使用可能です
-                        </Text>
-                      </VStack>
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-              </VStack>
-            </Card.Body>
-          </Card.Root>
-
-          {/* 招待一覧 */}
-          <Card.Root>
-            <Card.Header>
-              <Flex justify="space-between" align="center">
-                <Heading size="md">
-                  <HiEye style={{ display: "inline", marginRight: "8px" }} />
-                  招待一覧
-                </Heading>
-                <Flex gap={2}>
-                  <Badge colorPalette="teal" variant="subtle">
-                    未使用 {inviteData.activeInvitations.filter((i) => i.usedCount === 0).length}件
-                  </Badge>
-                  <Badge colorPalette="gray" variant="subtle">
-                    使用済み {inviteData.activeInvitations.filter((i) => i.usedCount > 0).length}件
-                  </Badge>
+          {/* 招待を送る */}
+          <Tabs.Content value="send">
+            <Card.Root borderWidth={0} shadow="sm">
+              <Card.Body p={{ base: 4, md: 6 }}>
+                <Flex align="start" gap={3} mb={4}>
+                  <Flex p={2} bg="teal.50" borderRadius="lg">
+                    <Icon size="lg" color="teal.600">
+                      <HiMail />
+                    </Icon>
+                  </Flex>
+                  <Box flex={1}>
+                    <Heading size="md" color="gray.900" mb={1}>
+                      メールアドレスで招待
+                    </Heading>
+                    <Text fontSize="xs" color="gray.600">
+                      相手にすぐ通知が届きます（推奨）
+                    </Text>
+                  </Box>
                 </Flex>
-              </Flex>
-            </Card.Header>
-            <Card.Body>
-              {inviteData.activeInvitations.length === 0 ? (
-                <Text color="fg.muted" textAlign="center" py={8}>
-                  招待がありません
-                </Text>
-              ) : (
-                <Stack gap={4}>
-                  {inviteData.activeInvitations.map((invite) => {
-                    const isUsed = invite.usedCount > 0;
-                    return (
-                      <Card.Root
-                        key={invite.id}
-                        variant="subtle"
-                        opacity={isUsed ? 0.6 : 1}
-                        bg={isUsed ? "gray.50" : "bg.muted"}
-                        _dark={{ bg: isUsed ? "gray.800" : "bg.muted" }}
-                      >
-                        <Card.Body>
-                          <Stack gap={4}>
-                            <Flex justify="space-between" align="start">
-                              <Box flex={1}>
-                                <Flex align="center" gap={2} mb={2}>
-                                  <Text fontWeight="medium" color={isUsed ? "fg.muted" : "fg"}>
-                                    招待URL
-                                  </Text>
-                                  <Badge
-                                    size="sm"
-                                    colorPalette={isUsed ? "gray" : "green"}
-                                    variant={isUsed ? "outline" : "subtle"}
-                                  >
-                                    {isUsed ? "使用済み" : "未使用"}
-                                  </Badge>
-                                  {isUsed && (
-                                    <Text fontSize="xs" color="fg.muted">
-                                      (1回限り使用済み)
-                                    </Text>
-                                  )}
-                                </Flex>
-                                <Code
-                                  fontSize="sm"
-                                  p={2}
-                                  borderRadius="md"
-                                  bg={isUsed ? "gray.100" : "bg.muted"}
-                                  width="full"
-                                  overflow="hidden"
-                                  color={isUsed ? "fg.muted" : "fg"}
-                                  _dark={{
-                                    bg: isUsed ? "gray.800" : "gray.700",
-                                    color: isUsed ? "gray.500" : "fg",
-                                  }}
-                                >
-                                  {invite.url}
-                                </Code>
-                              </Box>
-                              <Flex gap={2} ml={4}>
-                                {!isUsed && (
-                                  <IconButton
-                                    onClick={() => handleCopyURL(invite.url, invite.token)}
-                                    variant="ghost"
-                                    colorPalette={copiedToken === invite.token ? "green" : "gray"}
-                                    aria-label="URLをコピー"
-                                    size="sm"
-                                  >
-                                    {copiedToken === invite.token ? <HiCheckCircle /> : <HiClipboardCopy />}
-                                  </IconButton>
-                                )}
-                                <IconButton
-                                  onClick={() => handleDeleteInvite(invite.id)}
-                                  variant="ghost"
-                                  colorPalette="red"
-                                  aria-label={isUsed ? "招待を削除" : "招待をキャンセル"}
-                                  size="sm"
-                                >
-                                  <HiTrash />
-                                </IconButton>
-                              </Flex>
-                            </Flex>
 
-                            <Grid templateColumns="repeat(auto-fit, minmax(120px, 1fr))" gap={4}>
-                              <Box>
-                                <Text fontSize="xs" color="fg.muted">
-                                  作成日
-                                </Text>
-                                <Text fontSize="sm" color={isUsed ? "fg.muted" : "fg"}>
-                                  {invite.createdAt}
-                                </Text>
-                              </Box>
-                              <Box>
-                                <Text fontSize="xs" color="fg.muted">
-                                  {isUsed ? "使用期限" : "有効期限"}
-                                </Text>
-                                <Text fontSize="sm" color={isUsed ? "fg.muted" : "fg"}>
-                                  {invite.expiresAt}
-                                </Text>
-                              </Box>
-                              <Box>
-                                <Text fontSize="xs" color="fg.muted">
-                                  作成者
-                                </Text>
-                                <Text fontSize="sm" color={isUsed ? "fg.muted" : "fg"}>
-                                  {invite.createdBy}
-                                </Text>
-                              </Box>
-                            </Grid>
-                          </Stack>
-                        </Card.Body>
-                      </Card.Root>
-                    );
-                  })}
-                </Stack>
-              )}
-            </Card.Body>
-          </Card.Root>
-
-          {/* 招待履歴 */}
-          <Card.Root>
-            <Card.Header>
-              <Heading size="md">
-                <HiClock style={{ display: "inline", marginRight: "8px" }} />
-                招待履歴
-              </Heading>
-            </Card.Header>
-            <Card.Body>
-              <Stack gap={3}>
-                {inviteData.inviteHistory.map((history) => (
-                  <Flex key={history.id} justify="space-between" align="center" p={3} borderRadius="md" bg="bg.muted">
-                    <Box>
-                      <Flex align="center" gap={2} mb={1}>
-                        <Text fontWeight="medium">{history.userName}</Text>
-                        <Badge
-                          colorPalette={history.status === "joined" ? "green" : "orange"}
-                          variant="subtle"
-                          size="sm"
+                {/* 注意事項 */}
+                {showAlert && (
+                  <Box mb={4} p={4} borderWidth={1} borderColor="teal.200" bg="teal.50" borderRadius="md">
+                    <Flex gap={3}>
+                      <Icon color="teal.600" flexShrink={0}>
+                        <HiExclamation />
+                      </Icon>
+                      <Box flex={1}>
+                        <Stack gap={1} fontSize="xs" color="teal.800">
+                          <Text>• 招待URLの有効期限は30日間です</Text>
+                          <Text>• 1つのURLは1回のみ使用可能です</Text>
+                          <Text>• 複数のスタッフを招待する場合は個別に送信してください</Text>
+                        </Stack>
+                        <Button
+                          onClick={() => setShowAlert(false)}
+                          variant="plain"
+                          size="xs"
+                          color="teal.700"
+                          textDecoration="underline"
+                          mt={2}
+                          p={0}
                         >
-                          {history.status === "joined" ? "参加済み" : "招待中"}
-                        </Badge>
-                      </Flex>
-                      <Text fontSize="sm" color="fg.muted">
-                        招待日: {history.invitedAt}
-                        {history.joinedAt && ` | 参加日: ${history.joinedAt}`}
-                        {history.email && ` | ${history.email}`}
-                      </Text>
-                    </Box>
-                    <Text fontSize="sm" color="fg.muted">
-                      招待者: {history.invitedBy}
+                          閉じる
+                        </Button>
+                      </Box>
+                    </Flex>
+                  </Box>
+                )}
+
+                <Stack gap={3}>
+                  <Field.Root>
+                    <Input
+                      type="email"
+                      placeholder="例: tanaka@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      borderColor="gray.300"
+                    />
+                  </Field.Root>
+                  <Button onClick={handleSendInvitation} bg="teal.600" color="white" w="full" gap={2}>
+                    <HiMail size={16} />
+                    招待メールを送信
+                  </Button>
+                </Stack>
+
+                <Box position="relative" my={6}>
+                  <Box position="absolute" inset={0} display="flex" alignItems="center">
+                    <Box w="full" borderTopWidth={1} borderColor="gray.200" />
+                  </Box>
+                  <Flex justify="center" position="relative" fontSize="xs">
+                    <Text px={2} bg="white" color="gray.500">
+                      または
                     </Text>
                   </Flex>
-                ))}
-              </Stack>
-            </Card.Body>
-          </Card.Root>
-
-          {/* 招待に関する注意事項 */}
-          <Card.Root bg="blue.50" borderLeft="4px solid" borderColor="blue.400" _dark={{ bg: "blue.900" }}>
-            <Card.Body py={4}>
-              <Flex gap={3}>
-                <HiExclamation size={20} color="blue" style={{ marginTop: "2px", flexShrink: 0 }} />
-                <Box>
-                  <Text fontSize="sm" fontWeight="medium" color="blue.700" _dark={{ color: "blue.200" }} mb={2}>
-                    📋 招待に関する重要な注意事項
-                  </Text>
-                  <Stack gap={1}>
-                    <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                      • 招待URLの有効期限は30日間です
-                    </Text>
-                    <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                      • <strong>1つの招待URLは1回のみ使用できます</strong>
-                    </Text>
-                    <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                      • 使用済みの招待は自動的に無効化されます
-                    </Text>
-                    <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                      • メール招待は相手にすぐに通知されます
-                    </Text>
-                    <Text fontSize="sm" color="blue.600" _dark={{ color: "blue.300" }}>
-                      • 複数のスタッフを招待する場合は、それぞれ個別に招待してください
-                    </Text>
-                  </Stack>
                 </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
-        </VStack>
-      </Container>
-    </Animation>
+
+                <Flex align="start" gap={3} mb={3}>
+                  <Flex p={2} bg="gray.50" borderRadius="lg">
+                    <Icon size="lg" color="gray.600">
+                      <HiLink />
+                    </Icon>
+                  </Flex>
+                  <Box flex={1}>
+                    <Heading size="sm" color="gray.900" mb={1}>
+                      招待URLを生成
+                    </Heading>
+                    <Text fontSize="xs" color="gray.600">
+                      URLを直接共有したい場合
+                    </Text>
+                  </Box>
+                </Flex>
+
+                <Button
+                  onClick={handleGenerateUrl}
+                  variant="outline"
+                  borderColor="gray.300"
+                  color="gray.700"
+                  w="full"
+                  gap={2}
+                >
+                  <HiLink size={16} />
+                  招待URLを生成
+                </Button>
+              </Card.Body>
+            </Card.Root>
+          </Tabs.Content>
+
+          {/* 招待管理 */}
+          <Tabs.Content value="manage">
+            <Stack gap={4}>
+              {/* 未使用URL */}
+              <Box>
+                <Flex justify="space-between" align="center" mb={3}>
+                  <Heading size="md" color="gray.900">
+                    未使用のURL
+                  </Heading>
+                  <Badge variant="outline" borderColor="teal.300" color="teal.700" bg="teal.50">
+                    {activeUrls.length}件
+                  </Badge>
+                </Flex>
+
+                {activeUrls.length > 0 ? (
+                  <Stack gap={3}>
+                    {activeUrls.map((invite) => (
+                      <Card.Root key={invite.id} borderWidth={0} shadow="sm">
+                        <Card.Body p={4}>
+                          <Flex justify="space-between" align="start" gap={3} mb={3}>
+                            <Flex align="start" gap={3} flex={1} minW={0}>
+                              <Flex p={2} bg="teal.50" borderRadius="lg">
+                                <Icon color="teal.600">
+                                  <HiLink />
+                                </Icon>
+                              </Flex>
+                              <Box flex={1} minW={0}>
+                                <Flex align="center" gap={2} mb={1}>
+                                  <Badge bg="teal.600" color="white" fontSize="xs">
+                                    未使用
+                                  </Badge>
+                                  <Flex align="center" gap={1} fontSize="xs" color="gray.600">
+                                    <HiClock size={12} />
+                                    <Text>有効期限: {invite.expiresInDays}日</Text>
+                                  </Flex>
+                                </Flex>
+                                <Text fontSize="xs" color="gray.500" truncate mb={2}>
+                                  {invite.url}
+                                </Text>
+                                <Flex align="center" gap={3} fontSize="xs" color="gray.600">
+                                  <Text>作成: {invite.createdAt}</Text>
+                                  <Text>作成者: {invite.createdBy}</Text>
+                                </Flex>
+                              </Box>
+                            </Flex>
+                          </Flex>
+
+                          <Flex gap={2}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCopyUrl(invite.url, invite.id)}
+                              flex={1}
+                              borderColor="teal.300"
+                              color="teal.700"
+                              bg="teal.50"
+                              gap={2}
+                            >
+                              {copiedId === invite.id ? (
+                                <>
+                                  <HiCheckCircle size={16} />
+                                  コピー済み
+                                </>
+                              ) : (
+                                <>
+                                  <HiClipboardCopy size={16} />
+                                  コピー
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteUrl(invite.id)}
+                              borderColor="red.300"
+                              color="red.700"
+                              bg="red.50"
+                              gap={2}
+                            >
+                              <HiTrash size={16} />
+                              削除
+                            </Button>
+                          </Flex>
+                        </Card.Body>
+                      </Card.Root>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Card.Root borderWidth={0} shadow="sm">
+                    <Card.Body p={8} textAlign="center">
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiLink />
+                      </Icon>
+                      <Text fontSize="sm" color="gray.500">
+                        未使用のURLはありません
+                      </Text>
+                    </Card.Body>
+                  </Card.Root>
+                )}
+              </Box>
+
+              {/* 使用済みURL */}
+              <Box>
+                <Flex justify="space-between" align="center" mb={3}>
+                  <Heading size="md" color="gray.900">
+                    使用済みのURL
+                  </Heading>
+                  <Badge variant="outline" borderColor="gray.300" color="gray.700">
+                    {usedUrls.length}件
+                  </Badge>
+                </Flex>
+
+                {usedUrls.length > 0 ? (
+                  <Stack gap={3}>
+                    {usedUrls.map((invite) => (
+                      <Card.Root key={invite.id} borderWidth={0} shadow="sm" bg="gray.50">
+                        <Card.Body p={4}>
+                          <Flex align="start" gap={3}>
+                            <Flex p={2} bg="gray.100" borderRadius="lg">
+                              <Icon color="gray.400">
+                                <HiLink />
+                              </Icon>
+                            </Flex>
+                            <Box flex={1} minW={0}>
+                              <Flex align="center" gap={2} mb={1}>
+                                <Badge
+                                  variant="outline"
+                                  borderColor="gray.300"
+                                  color="gray.600"
+                                  bg="gray.100"
+                                  fontSize="xs"
+                                >
+                                  使用済み
+                                </Badge>
+                              </Flex>
+                              <Text fontSize="xs" color="gray.500" truncate mb={2}>
+                                {invite.url}
+                              </Text>
+                              <Flex align="center" gap={3} fontSize="xs" color="gray.600">
+                                <Text>作成: {invite.createdAt}</Text>
+                                <Text>使用: {invite.usedAt}</Text>
+                              </Flex>
+                            </Box>
+                          </Flex>
+                        </Card.Body>
+                      </Card.Root>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Card.Root borderWidth={0} shadow="sm">
+                    <Card.Body p={8} textAlign="center">
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiLink />
+                      </Icon>
+                      <Text fontSize="sm" color="gray.500">
+                        使用済みのURLはありません
+                      </Text>
+                    </Card.Body>
+                  </Card.Root>
+                )}
+              </Box>
+            </Stack>
+          </Tabs.Content>
+
+          {/* スタッフタブ */}
+          <Tabs.Content value="staff">
+            <Tabs.Root defaultValue="joined" variant="enclosed">
+              <Tabs.List gridTemplateColumns="repeat(2, 1fr)" mb={4}>
+                <Tabs.Trigger value="joined" gap={2}>
+                  <HiUserAdd size={16} />
+                  参加済み
+                  <Badge variant="outline" borderColor="teal.300" color="teal.700" bg="teal.50" ml={1}>
+                    {joinedStaff.length}
+                  </Badge>
+                </Tabs.Trigger>
+                <Tabs.Trigger value="pending" gap={2}>
+                  <HiMail size={16} />
+                  招待中
+                  <Badge variant="outline" borderColor="orange.300" color="orange.700" bg="orange.50" ml={1}>
+                    {pendingInvites.length}
+                  </Badge>
+                </Tabs.Trigger>
+              </Tabs.List>
+
+              {/* 参加済みタブ */}
+              <Tabs.Content value="joined">
+                {joinedStaff.length > 0 ? (
+                  <Stack gap={3}>
+                    {joinedStaff.map((staff) => (
+                      <Card.Root key={staff.id} borderWidth={0} shadow="sm">
+                        <Card.Body p={4}>
+                          <Flex align="center" justify="space-between" gap={3}>
+                            <Flex align="center" gap={3} flex={1} minW={0}>
+                              <Flex
+                                w={10}
+                                h={10}
+                                borderRadius="full"
+                                bgGradient="to-br"
+                                gradientFrom="teal.400"
+                                gradientTo="teal.600"
+                                align="center"
+                                justify="center"
+                                color="white"
+                                flexShrink={0}
+                              >
+                                <HiUserAdd size={20} />
+                              </Flex>
+                              <Box flex={1} minW={0}>
+                                <Text fontSize="sm" color="gray.900" mb={1}>
+                                  {staff.name}
+                                </Text>
+                                <Flex align="center" gap={2} fontSize="xs" color="gray.600">
+                                  <Text>{staff.invitedAt}招待</Text>
+                                  <Text>→</Text>
+                                  <Text>{staff.joinedAt}参加</Text>
+                                </Flex>
+                              </Box>
+                            </Flex>
+                            <Badge bg="teal.600" color="white" fontSize="xs" flexShrink={0}>
+                              参加済み
+                            </Badge>
+                          </Flex>
+                        </Card.Body>
+                      </Card.Root>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Card.Root borderWidth={0} shadow="sm">
+                    <Card.Body p={8} textAlign="center">
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiUserAdd />
+                      </Icon>
+                      <Text fontSize="sm" color="gray.500">
+                        参加済みのスタッフはいません
+                      </Text>
+                    </Card.Body>
+                  </Card.Root>
+                )}
+              </Tabs.Content>
+
+              {/* 招待中タブ */}
+              <Tabs.Content value="pending">
+                {pendingInvites.length > 0 ? (
+                  <Stack gap={3}>
+                    {pendingInvites.map((invite) => (
+                      <Card.Root key={invite.id} borderWidth={0} shadow="sm">
+                        <Card.Body p={4}>
+                          <Flex align="center" justify="space-between" gap={3}>
+                            <Flex align="center" gap={3} flex={1} minW={0}>
+                              <Flex
+                                w={10}
+                                h={10}
+                                borderRadius="full"
+                                bgGradient="to-br"
+                                gradientFrom="orange.400"
+                                gradientTo="orange.600"
+                                align="center"
+                                justify="center"
+                                color="white"
+                                flexShrink={0}
+                              >
+                                <HiMail size={20} />
+                              </Flex>
+                              <Box flex={1} minW={0}>
+                                <Text fontSize="sm" color="gray.900" mb={1} truncate>
+                                  {invite.email}
+                                </Text>
+                                <Text fontSize="xs" color="gray.600">
+                                  {invite.invitedAt}送信
+                                </Text>
+                              </Box>
+                            </Flex>
+                            <Badge bg="orange.600" color="white" fontSize="xs" flexShrink={0}>
+                              招待中
+                            </Badge>
+                          </Flex>
+                        </Card.Body>
+                      </Card.Root>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Card.Root borderWidth={0} shadow="sm">
+                    <Card.Body p={8} textAlign="center">
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiMail />
+                      </Icon>
+                      <Text fontSize="sm" color="gray.500">
+                        招待中のスタッフはいません
+                      </Text>
+                    </Card.Body>
+                  </Card.Root>
+                )}
+              </Tabs.Content>
+            </Tabs.Root>
+          </Tabs.Content>
+        </Tabs.Root>
+      </Stack>
+    </Container>
   );
 };
