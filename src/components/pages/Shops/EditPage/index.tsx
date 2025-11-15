@@ -3,7 +3,6 @@ import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShopEdit, ShopEditLoading } from "@/src/components/features/Shop/ShopEdit";
-import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { LazyShow } from "@/src/components/ui/LazyShow";
 import { userAtom } from "@/src/stores/user";
 
@@ -33,17 +32,5 @@ export const ShopsEditPage = ({ shopId }: Props) => {
   }
 
   // 通常表示
-  return (
-    <TitleTemplate
-      title="店舗編集"
-      breadCrumbs={[
-        { label: "マイページ", path: "/mypage" },
-        { label: "所属店舗一覧", path: "/shops" },
-        { label: "店舗詳細", path: `/shops/${shopId}` },
-        { label: "店舗編集" },
-      ]}
-    >
-      <ShopEdit shop={shop} userRole={userRole} callbackRoutingPath={`/shops/${shopId}`} />
-    </TitleTemplate>
-  );
+  return <ShopEdit shop={shop} userRole={userRole} callbackRoutingPath={`/shops/${shopId}`} />;
 };
