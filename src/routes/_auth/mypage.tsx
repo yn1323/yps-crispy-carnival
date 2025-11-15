@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Dashboard } from "@/src/components/features/Dashboard";
+import { MyPage as MyPageFeature } from "@/src/components/features/MyPage";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/_auth/mypage")({
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_auth/mypage")({
 function RouteComponent() {
   return (
     <Animation>
-      <Dashboard />
+      <MyPageFeature />
     </Animation>
   );
 }

@@ -19,7 +19,6 @@ import {
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  LuArrowLeft,
   LuCalendar,
   LuChevronRight,
   LuClock,
@@ -33,6 +32,7 @@ import {
   LuUsers,
 } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { Title } from "@/src/components/ui/Title";
 import { convertRole, convertSubmitFrequency } from "@/src/helpers/domain/convertShopData";
 
 type UserWithRole = {
@@ -118,23 +118,11 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
   });
 
   return (
-    <Container maxW="6xl" p={{ base: 4, md: 8 }}>
+    <Container maxW="6xl">
+      {/* ヘッダー */}
+      <Title text="店舗詳細" prev={{ url: "/shops", label: "店舗一覧に戻る" }} />
       {/* ヘッダー */}
       <Box mb={{ base: 4, md: 6 }}>
-        <Link to="/shops">
-          <Button
-            variant="ghost"
-            mb={{ base: 3, md: 4 }}
-            ml={-2}
-            color="gray.600"
-            _hover={{ color: "gray.900" }}
-            gap={2}
-          >
-            <LuArrowLeft size={16} />
-            店舗一覧に戻る
-          </Button>
-        </Link>
-
         <Flex align="center" justify="space-between">
           <Flex align="center" gap={3}>
             <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">

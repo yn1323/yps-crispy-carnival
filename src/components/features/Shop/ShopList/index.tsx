@@ -1,6 +1,7 @@
 import { Badge, Box, Button, Container, Flex, Heading, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronRight, LuClock, LuMapPin, LuPlus, LuStore, LuUsers } from "react-icons/lu";
+import { Title } from "@/src/components/ui/Title";
 
 type ShopListProps = {
   shops: {
@@ -15,26 +16,19 @@ type ShopListProps = {
 
 export const ShopList = ({ shops }: ShopListProps) => {
   return (
-    <Container maxW="6xl" p={{ base: 4, md: 8 }}>
+    <Container maxW="6xl">
       {/* ヘッダー */}
-      <Box mb={{ base: 4, md: 6 }}>
-        <Flex align="center" justify="space-between" mb="2">
-          <Box>
-            <Text as="h2" color="gray.900" mb="1">
-              店舗一覧
-            </Text>
-            <Text fontSize="sm" color="gray.600">
-              {shops.length}店舗
-            </Text>
-          </Box>
+      <Title
+        text="店舗一覧"
+        action={
           <Link to="/shops/new">
             <Button colorPalette="teal" gap="2" display={{ base: "none", md: "flex" }}>
               <LuPlus size={16} />
               新規店舗
             </Button>
           </Link>
-        </Flex>
-      </Box>
+        }
+      />
 
       {/* 店舗カード一覧 */}
       <VStack gap="3">
@@ -101,12 +95,7 @@ export const ShopList = ({ shops }: ShopListProps) => {
                   </Flex>
 
                   {/* 矢印アイコン */}
-                  <Box
-                    color="gray.400"
-                    flexShrink="0"
-                    _groupHover={{ color: "teal.600", transform: "translateX(4px)" }}
-                    transition="all 0.15s"
-                  >
+                  <Box color="gray.400">
                     <LuChevronRight size={20} />
                   </Box>
                 </Flex>

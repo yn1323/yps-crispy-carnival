@@ -6,7 +6,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuLayoutDashboard, LuLogOut, LuSettings, LuStore } from "react-icons/lu";
 
 const menuItems = [
-  { href: "/mypage", label: "ダッシュボード", icon: LuLayoutDashboard },
+  { href: "/mypage", label: "マイページ", icon: LuLayoutDashboard },
   { href: "/shifts", label: "シフト管理", icon: LuCalendar },
   { href: "/attendance", label: "勤怠記録", icon: LuClock },
   { href: "/shops", label: "店舗一覧", icon: LuStore },
