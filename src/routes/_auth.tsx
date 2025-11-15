@@ -18,7 +18,7 @@ function RouteComponent() {
         </Box>
 
         {/* Content Area */}
-        <Box ml={{ base: 0, lg: "180px" }} flex={1} display="flex" justifyContent="center">
+        <Box ml={{ base: 0, lg: "64" }} flex={1} display="flex" justifyContent="center">
           <Container maxW="container.xl" py={{ base: 2, lg: 8 }} px={4} mb={{ base: "80px", lg: 0 }} w="100%">
             <Outlet />
           </Container>
