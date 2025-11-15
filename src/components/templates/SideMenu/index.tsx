@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Button, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Icon, Text, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuLayoutDashboard, LuLogOut, LuSettings, LuStore } from "react-icons/lu";
@@ -57,7 +57,7 @@ export const SideMenu = ({ onlyLogout = false }: Props) => {
         <Box px={4} w="full">
           <SignOutButton>
             <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray">
-              <LuLogOut size={20} />
+              <Icon as={LuLogOut} boxSize={5} mr={2} />
               ログアウト
             </Button>
           </SignOutButton>

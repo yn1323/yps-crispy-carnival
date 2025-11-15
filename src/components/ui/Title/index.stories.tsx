@@ -5,7 +5,7 @@ const meta = {
   title: "ui/Title",
   component: Title,
   args: {
-    text: "セクションタイトル",
+    children: "セクションタイトル",
     prev: {
       url: "/previous-page",
       label: "前のページへ戻る",

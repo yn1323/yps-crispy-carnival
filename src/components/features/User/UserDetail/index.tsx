@@ -7,6 +7,7 @@ import {
   Flex,
   Grid,
   Heading,
+  Icon,
   Separator,
   Spinner,
   Stack,
@@ -87,7 +88,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
   };
 
   return (
-    <Container maxW="6xl" p={{ base: 4, md: 8 }}>
+    <Container maxW="6xl">
       {/* ヘッダー */}
       <Box mb={{ base: 4, md: 6 }}>
         <Link to="/shops/$shopId" params={{ shopId: currentShopId }}>
@@ -99,7 +100,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             _hover={{ color: "gray.900" }}
             gap={2}
           >
-            <LuArrowLeft size={16} />
+            <Icon as={LuArrowLeft} boxSize={4} />
             店舗詳細に戻る
           </Button>
         </Link>
@@ -129,7 +130,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
                 {user.name}
               </Heading>
               <Flex align="center" gap={2} fontSize="sm" color="gray.600">
-                <LuCalendar size={16} />
+                <Icon as={LuCalendar} boxSize={4} />
                 <Text>登録日: {new Date(user.createdAt).toLocaleDateString("ja-JP")}</Text>
               </Flex>
             </Box>
@@ -149,7 +150,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
               _hover={{ bg: "teal.50" }}
               gap={2}
             >
-              <LuPencil size={16} />
+              <Icon as={LuPencil} boxSize={4} />
               編集
             </Button>
           )}
@@ -163,7 +164,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Flex align="center" justify="space-between">
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="purple.50" borderRadius="lg">
-                  <LuUsers size={20} color="var(--chakra-colors-purple-600)" />
+                  <Icon as={LuUsers} boxSize={5} color="purple.600" />
                 </Flex>
                 <Box>
                   <Text fontSize="sm" color="gray.600" mb={1}>
@@ -200,7 +201,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Card.Body p={4}>
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="teal.50" borderRadius="lg">
-                  <LuCalendar size={20} color="var(--chakra-colors-teal-600)" />
+                  <Icon as={LuCalendar} boxSize={5} color="teal.600" />
                 </Flex>
                 <Box>
                   <Text fontSize="xs" color="gray.600" mb={1}>
@@ -219,7 +220,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Card.Body p={4}>
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="orange.50" borderRadius="lg">
-                  <LuTrendingUp size={20} color="var(--chakra-colors-orange-600)" />
+                  <Icon as={LuTrendingUp} boxSize={5} color="orange.600" />
                 </Flex>
                 <Box>
                   <Text fontSize="xs" color="gray.600" mb={1}>
@@ -238,7 +239,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Card.Body p={4}>
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="blue.50" borderRadius="lg">
-                  <LuClock size={20} color="var(--chakra-colors-blue-600)" />
+                  <Icon as={LuClock} boxSize={5} color="blue.600" />
                 </Flex>
                 <Box>
                   <Text fontSize="xs" color="gray.600" mb={1}>
@@ -258,17 +259,17 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
       <Tabs.Root defaultValue="info" w="full" variant="enclosed">
         <Tabs.List mb={{ base: 4, md: 6 }}>
           <Tabs.Trigger value="info" gap={2}>
-            <LuStore size={16} />
+            <Icon as={LuStore} boxSize={4} />
             <Text display={{ base: "none", sm: "inline" }}>基本情報</Text>
             <Text display={{ base: "inline", sm: "none" }}>情報</Text>
           </Tabs.Trigger>
           <Tabs.Trigger value="shifts" gap={2}>
-            <LuCalendar size={16} />
+            <Icon as={LuCalendar} boxSize={4} />
             <Text display={{ base: "none", sm: "inline" }}>シフト履歴</Text>
             <Text display={{ base: "inline", sm: "none" }}>シフト</Text>
           </Tabs.Trigger>
           <Tabs.Trigger value="attendance" gap={2}>
-            <LuClock size={16} />
+            <Icon as={LuClock} boxSize={4} />
             <Text display={{ base: "none", sm: "inline" }}>勤怠記録</Text>
             <Text display={{ base: "inline", sm: "none" }}>勤怠</Text>
           </Tabs.Trigger>
@@ -288,7 +289,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
                       <Flex align="center" justify="space-between" p={3} bg="gray.50" borderRadius="lg">
                         <Flex align="center" gap={3}>
                           <Flex p={2} bg="white" borderRadius="lg">
-                            <LuStore size={16} color="var(--chakra-colors-teal-600)" />
+                            <Icon as={LuStore} boxSize={4} color="teal.600" />
                           </Flex>
                           <Text fontSize="sm" color="gray.900">
                             {shop.shopName}
@@ -427,7 +428,7 @@ export const UserDetailNotFound = () => {
     <Box textAlign="center" py="20">
       <Stack gap="6" alignItems="center">
         <Box fontSize="6xl" color="fg.muted">
-          <LuUser />
+          <Icon as={LuUser} boxSize={12} />
         </Box>
         <Heading size="lg" color="fg.muted">
           ユーザーが見つかりません

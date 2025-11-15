@@ -1,8 +1,10 @@
+import { Box, Button, Heading, Icon, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useAtom } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
+import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { toaster } from "@/src/components/ui/toaster";
@@ -11,11 +13,17 @@ import { ShopForm } from "../ShopForm";
 import { type SchemaType, schema, submitFrequencyOptions, timeUnitOptions } from "./schema";
 
 type Props = {
+  shop: Doc<"shops"> | null | undefined;
+  userRole: string | null | undefined;
+  callbackRoutingPath?: string;
+};
+
+type ShopEditFormProps = {
   shop: Doc<"shops">;
   callbackRoutingPath?: string;
 };
 
-export const ShopEdit = ({ shop, callbackRoutingPath }: Props) => {
+const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
   const navigate = useNavigate();
   const [user] = useAtom(userAtom);
   const updateShop = useMutation(api.shop.updateShop);
@@ -84,6 +92,78 @@ export const ShopEdit = ({ shop, callbackRoutingPath }: Props) => {
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
     />
+  );
+};
+
+export const ShopEdit = ({ shop, userRole, callbackRoutingPath }: Props) => {
+  // ローディング処理
+  if (shop === undefined || userRole === undefined) {
+    return <ShopEditLoading />;
+  }
+
+  // 店舗なし処理
+  if (shop === null) {
+    return <ShopEditNotFound />;
+  }
+
+  // 権限チェック
+  if (userRole !== "owner" && userRole !== "manager") {
+    return <ShopEditUnauthorized />;
+  }
+
+  return <ShopEditForm shop={shop} callbackRoutingPath={callbackRoutingPath} />;
+};
+
+export const ShopEditLoading = () => {
+  return (
+    <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
+      <VStack gap="4">
+        <Spinner size="xl" color="teal.500" />
+        <Text color="fg.muted">読み込み中...</Text>
+      </VStack>
+    </Box>
+  );
+};
+
+export const ShopEditNotFound = () => {
+  return (
+    <Box textAlign="center" py="20">
+      <Stack gap="6" alignItems="center">
+        <Box fontSize="6xl" color="fg.muted">
+          <Icon as={LuStore} boxSize={12} />
+        </Box>
+        <Heading size="lg" color="fg.muted">
+          店舗が見つかりません
+        </Heading>
+        <Text color="fg.muted">指定された店舗は存在しないか、削除された可能性があります</Text>
+        <Link to="/shops">
+          <Button colorPalette="teal" size="lg">
+            店舗一覧に戻る
+          </Button>
+        </Link>
+      </Stack>
+    </Box>
+  );
+};
+
+export const ShopEditUnauthorized = () => {
+  return (
+    <Box textAlign="center" py="20">
+      <Stack gap="6" alignItems="center">
+        <Heading size="lg" color="red.500">
+          アクセス権限がありません
+        </Heading>
+        <Text color="fg.muted">この店舗を編集する権限がありません</Text>
+        <Text color="fg.muted" fontSize="sm">
+          オーナーまたはマネージャーのみが店舗情報を編集できます
+        </Text>
+        <Link to="/shops">
+          <Button colorPalette="teal" size="lg">
+            店舗一覧に戻る
+          </Button>
+        </Link>
+      </Stack>
+    </Box>
   );
 };
 
