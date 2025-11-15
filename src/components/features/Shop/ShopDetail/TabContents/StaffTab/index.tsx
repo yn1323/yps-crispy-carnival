@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { Select } from "@/src/components/ui/Select";
 import { Animation } from "@/src/components/templates/Animation";
+import { Select } from "@/src/components/ui/Select";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 
 type UserWithRole = {
@@ -134,18 +134,12 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
 
         {/* スタッフ招待ボタン */}
         {canEdit && (
-          <Button
-            w={{ base: "full", md: "auto" }}
-            colorPalette="teal"
-            gap={2}
-            onClick={() => {
-              // TODO: スタッフ追加画面への遷移
-              console.log("Add staff to shop:", shop._id);
-            }}
-          >
-            <Icon as={LuPlus} boxSize={4} />
-            スタッフを招待
-          </Button>
+          <Link to="/shops/invite">
+            <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2}>
+              <Icon as={LuPlus} boxSize={4} />
+              スタッフを招待
+            </Button>
+          </Link>
         )}
       </Box>
 

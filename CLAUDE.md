@@ -137,7 +137,8 @@
 - パスエイリアス設定: @/src, @/e2e, @/convex
 
 ### デザイン
-- アイコンは react-iconsのLucideセットを利用すること
+- アイコンは react-iconsのLucideセットを利用すること(Chakraの Iconタグで呼び出すこと<Icon as={SomeIcon}>)
+- `"@storybook/react"`; は、 ` "@storybook/react-vite";`で呼び出すこと
 
 ### 汎用コンポーネント
 - Selectボックス：@yps-crispy-carnival/src/components/ui/Select/index.tsx  
