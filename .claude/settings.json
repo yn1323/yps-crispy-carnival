@@ -22,5 +22,12 @@
   },
   "env": {
     "MAX_MCP_OUTPUT_TOKENS": "100000"
+  },
+ "permissions": {
+    "allow": [
+      "Bash(pnpm *)"
+    ],
+    "deny": [],
+    "ask": []
   }
 }
