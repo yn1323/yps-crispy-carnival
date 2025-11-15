@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import { ShopList, ShopListEmpty } from "@/src/components/features/Shop/ShopList";
-import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
+import { LazyShow } from "@/src/components/ui/LazyShow";
 import { uniqueBy } from "@/src/helpers/utils/array";
 import { userAtom } from "@/src/stores/user";
 
@@ -14,15 +14,12 @@ export const ShopsListPage = () => {
   const uniqueShops = shops ? uniqueBy(shops, ["_id"]) : [];
 
   if (!uniqueShops || uniqueShops.length === 0) {
-    return <ShopListEmpty />;
+    return (
+      <LazyShow>
+        <ShopListEmpty />
+      </LazyShow>
+    );
   }
 
-  return (
-    <TitleTemplate
-      title="所属店舗一覧"
-      breadCrumbs={[{ label: "マイページ", path: "/mypage" }, { label: "所属店舗一覧" }]}
-    >
-      <ShopList shops={uniqueShops} />
-    </TitleTemplate>
-  );
+  return <ShopList shops={uniqueShops} />;
 };

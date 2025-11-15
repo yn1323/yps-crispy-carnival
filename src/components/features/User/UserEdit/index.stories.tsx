@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Id } from "@/convex/_generated/dataModel";
 import { UserEdit } from ".";
 
 const meta = {
@@ -16,7 +17,7 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   args: {
     user: {
-      _id: "user123" as any,
+      _id: "user123" as Id<"users">,
       _creationTime: Date.now(),
       name: "山田太郎",
       authId: "auth123",

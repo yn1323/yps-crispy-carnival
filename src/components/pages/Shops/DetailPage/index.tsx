@@ -3,7 +3,7 @@ import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShopDetail, ShopDetailLoading, ShopDetailNotFound } from "@/src/components/features/Shop/ShopDetail";
-import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
+import { LazyShow } from "@/src/components/ui/LazyShow";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -26,7 +26,11 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
 
   // ローディング
   if (shop === undefined || users === undefined || userRole === undefined) {
-    return <ShopDetailLoading />;
+    return (
+      <LazyShow>
+        <ShopDetailLoading />
+      </LazyShow>
+    );
   }
 
   // 店舗が見つからない
@@ -36,16 +40,5 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
 
   // 通常表示
 
-  return (
-    <TitleTemplate
-      title="店舗詳細"
-      breadCrumbs={[
-        { label: "マイページ", path: "/mypage" },
-        { label: "所属店舗一覧", path: "/shops" },
-        { label: "店舗詳細" },
-      ]}
-    >
-      <ShopDetail shop={shop} users={users} userRole={userRole} />
-    </TitleTemplate>
-  );
+  return <ShopDetail shop={shop} users={users} userRole={userRole} />;
 };

@@ -4,7 +4,6 @@ import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserEdit } from "@/src/components/features/User/UserEdit";
-import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -65,18 +64,5 @@ export const MembersEditPage = ({ userId, shopId }: Props) => {
   }
 
   // 通常表示
-  return (
-    <TitleTemplate
-      title="メンバー編集"
-      breadCrumbs={[
-        { label: "マイページ", path: "/mypage" },
-        { label: "所属店舗一覧", path: "/shops" },
-        { label: "店舗詳細", path: `/shops/${shopId}` },
-        { label: "メンバー詳細", path: `/shops/${shopId}/members/${userId}` },
-        { label: "メンバー編集" },
-      ]}
-    >
-      <UserEdit user={memberData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/members/${userId}`} />
-    </TitleTemplate>
-  );
+  return <UserEdit user={memberData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/members/${userId}`} />;
 };

@@ -95,7 +95,7 @@ const announcements = [
   },
 ];
 
-export const Dashboard = () => {
+export const MyPage = () => {
   const today = new Date();
   const todayString = `${today.getMonth() + 1}/${today.getDate()}(${["日", "月", "火", "水", "木", "金", "土"][today.getDay()]})`;
 

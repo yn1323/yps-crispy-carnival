@@ -22,5 +22,14 @@
   },
   "env": {
     "MAX_MCP_OUTPUT_TOKENS": "100000"
+  },
+ "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "mcp__serena__*",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
   }
 }
