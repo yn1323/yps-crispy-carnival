@@ -7,6 +7,7 @@ import {
   Flex,
   Grid,
   Heading,
+  Icon,
   Separator,
   Spinner,
   Stack,
@@ -163,7 +164,9 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Flex align="center" justify="space-between">
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="purple.50" borderRadius="lg">
-                  <LuUsers size={20} color="var(--chakra-colors-purple-600)" />
+                  <Icon size="lg" color="purple.600">
+                    <LuUsers />
+                  </Icon>
                 </Flex>
                 <Box>
                   <Text fontSize="sm" color="gray.600" mb={1}>
@@ -200,7 +203,9 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Card.Body p={4}>
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="teal.50" borderRadius="lg">
-                  <LuCalendar size={20} color="var(--chakra-colors-teal-600)" />
+                  <Icon size="lg" color="teal.600">
+                    <LuCalendar />
+                  </Icon>
                 </Flex>
                 <Box>
                   <Text fontSize="xs" color="gray.600" mb={1}>
@@ -219,7 +224,9 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Card.Body p={4}>
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="orange.50" borderRadius="lg">
-                  <LuTrendingUp size={20} color="var(--chakra-colors-orange-600)" />
+                  <Icon size="lg" color="orange.600">
+                    <LuTrendingUp />
+                  </Icon>
                 </Flex>
                 <Box>
                   <Text fontSize="xs" color="gray.600" mb={1}>
@@ -238,7 +245,9 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Card.Body p={4}>
               <Flex align="center" gap={3}>
                 <Flex p={2} bg="blue.50" borderRadius="lg">
-                  <LuClock size={20} color="var(--chakra-colors-blue-600)" />
+                  <Icon size="lg" color="blue.600">
+                    <LuClock />
+                  </Icon>
                 </Flex>
                 <Box>
                   <Text fontSize="xs" color="gray.600" mb={1}>
@@ -288,7 +297,9 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
                       <Flex align="center" justify="space-between" p={3} bg="gray.50" borderRadius="lg">
                         <Flex align="center" gap={3}>
                           <Flex p={2} bg="white" borderRadius="lg">
-                            <LuStore size={16} color="var(--chakra-colors-teal-600)" />
+                            <Icon color="teal.600">
+                              <LuStore />
+                            </Icon>
                           </Flex>
                           <Text fontSize="sm" color="gray.900">
                             {shop.shopName}

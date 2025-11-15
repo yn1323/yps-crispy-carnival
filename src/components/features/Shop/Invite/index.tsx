@@ -1,6 +1,20 @@
 "use client";
 
-import { Badge, Box, Button, Card, Container, Field, Flex, Heading, Input, Stack, Tabs, Text } from "@chakra-ui/react";
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Container,
+  Field,
+  Flex,
+  Heading,
+  Icon,
+  Input,
+  Stack,
+  Tabs,
+  Text,
+} from "@chakra-ui/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -142,7 +156,9 @@ export const InviteShopMember = () => {
 
           <Flex align="center" gap={3} mb={2}>
             <Flex p={2} bg="teal.50" borderRadius="lg">
-              <HiUserAdd size={20} color="var(--chakra-colors-teal-600)" />
+              <Icon size="lg" color="teal.600">
+                <HiUserAdd />
+              </Icon>
             </Flex>
             <Heading size="xl" color="gray.900">
               スタッフ招待
@@ -179,7 +195,9 @@ export const InviteShopMember = () => {
               <Card.Body p={{ base: 4, md: 6 }}>
                 <Flex align="start" gap={3} mb={4}>
                   <Flex p={2} bg="teal.50" borderRadius="lg">
-                    <HiMail size={20} color="var(--chakra-colors-teal-600)" />
+                    <Icon size="lg" color="teal.600">
+                      <HiMail />
+                    </Icon>
                   </Flex>
                   <Box flex={1}>
                     <Heading size="md" color="gray.900" mb={1}>
@@ -195,7 +213,9 @@ export const InviteShopMember = () => {
                 {showAlert && (
                   <Box mb={4} p={4} borderWidth={1} borderColor="teal.200" bg="teal.50" borderRadius="md">
                     <Flex gap={3}>
-                      <HiExclamation size={16} color="var(--chakra-colors-teal-600)" style={{ flexShrink: 0 }} />
+                      <Icon color="teal.600" flexShrink={0}>
+                        <HiExclamation />
+                      </Icon>
                       <Box flex={1}>
                         <Stack gap={1} fontSize="xs" color="teal.800">
                           <Text>• 招待URLの有効期限は30日間です</Text>
@@ -247,7 +267,9 @@ export const InviteShopMember = () => {
 
                 <Flex align="start" gap={3} mb={3}>
                   <Flex p={2} bg="gray.50" borderRadius="lg">
-                    <HiLink size={20} color="var(--chakra-colors-gray-600)" />
+                    <Icon size="lg" color="gray.600">
+                      <HiLink />
+                    </Icon>
                   </Flex>
                   <Box flex={1}>
                     <Heading size="sm" color="gray.900" mb={1}>
@@ -296,7 +318,9 @@ export const InviteShopMember = () => {
                           <Flex justify="space-between" align="start" gap={3} mb={3}>
                             <Flex align="start" gap={3} flex={1} minW={0}>
                               <Flex p={2} bg="teal.50" borderRadius="lg">
-                                <HiLink size={16} color="var(--chakra-colors-teal-600)" />
+                                <Icon color="teal.600">
+                                  <HiLink />
+                                </Icon>
                               </Flex>
                               <Box flex={1} minW={0}>
                                 <Flex align="center" gap={2} mb={1}>
@@ -362,7 +386,9 @@ export const InviteShopMember = () => {
                 ) : (
                   <Card.Root borderWidth={0} shadow="sm">
                     <Card.Body p={8} textAlign="center">
-                      <HiLink size={48} color="var(--chakra-colors-gray-300)" style={{ margin: "0 auto 12px" }} />
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiLink />
+                      </Icon>
                       <Text fontSize="sm" color="gray.500">
                         未使用のURLはありません
                       </Text>
@@ -389,7 +415,9 @@ export const InviteShopMember = () => {
                         <Card.Body p={4}>
                           <Flex align="start" gap={3}>
                             <Flex p={2} bg="gray.100" borderRadius="lg">
-                              <HiLink size={16} color="var(--chakra-colors-gray-400)" />
+                              <Icon color="gray.400">
+                                <HiLink />
+                              </Icon>
                             </Flex>
                             <Box flex={1} minW={0}>
                               <Flex align="center" gap={2} mb={1}>
@@ -419,7 +447,9 @@ export const InviteShopMember = () => {
                 ) : (
                   <Card.Root borderWidth={0} shadow="sm">
                     <Card.Body p={8} textAlign="center">
-                      <HiLink size={48} color="var(--chakra-colors-gray-300)" style={{ margin: "0 auto 12px" }} />
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiLink />
+                      </Icon>
                       <Text fontSize="sm" color="gray.500">
                         使用済みのURLはありません
                       </Text>
@@ -495,7 +525,9 @@ export const InviteShopMember = () => {
                 ) : (
                   <Card.Root borderWidth={0} shadow="sm">
                     <Card.Body p={8} textAlign="center">
-                      <HiUserAdd size={48} color="var(--chakra-colors-gray-300)" style={{ margin: "0 auto 12px" }} />
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiUserAdd />
+                      </Icon>
                       <Text fontSize="sm" color="gray.500">
                         参加済みのスタッフはいません
                       </Text>
@@ -547,7 +579,9 @@ export const InviteShopMember = () => {
                 ) : (
                   <Card.Root borderWidth={0} shadow="sm">
                     <Card.Body p={8} textAlign="center">
-                      <HiMail size={48} color="var(--chakra-colors-gray-300)" style={{ margin: "0 auto 12px" }} />
+                      <Icon boxSize="12" color="gray.300" margin="0 auto 12px">
+                        <HiMail />
+                      </Icon>
                       <Text fontSize="sm" color="gray.500">
                         招待中のスタッフはいません
                       </Text>
