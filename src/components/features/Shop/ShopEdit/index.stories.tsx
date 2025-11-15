@@ -31,5 +31,6 @@ export const Basic: Story = {
       createdAt: Date.now(),
       isDeleted: false,
     },
+    userRole: "admin",
   },
 };

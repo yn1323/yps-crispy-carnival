@@ -15,9 +15,11 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { LuArrowLeft, LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser, LuUsers } from "react-icons/lu";
+import { useNavigate } from "@tanstack/react-router";
+import { LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { Animation } from "@/src/components/templates/Animation";
+import { Title } from "@/src/components/ui/Title";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 
 type ShopWithRole = Doc<"shops"> & {
@@ -90,53 +92,10 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
   return (
     <Container maxW="6xl">
       {/* ヘッダー */}
-      <Box mb={{ base: 4, md: 6 }}>
-        <Link to="/shops/$shopId" params={{ shopId: currentShopId }}>
-          <Button
-            variant="ghost"
-            mb={{ base: 3, md: 4 }}
-            ml={-2}
-            color="gray.600"
-            _hover={{ color: "gray.900" }}
-            gap={2}
-          >
-            <Icon as={LuArrowLeft} boxSize={4} />
-            店舗詳細に戻る
-          </Button>
-        </Link>
-
-        <Flex align="flex-start" justify="space-between" gap={4}>
-          <Flex align="center" gap={4}>
-            {/* アバター */}
-            <Flex
-              w={{ base: 16, md: 20 }}
-              h={{ base: 16, md: 20 }}
-              borderRadius="full"
-              bgGradient="to-br"
-              gradientFrom="teal.400"
-              gradientTo="teal.600"
-              align="center"
-              justify="center"
-              color="white"
-              flexShrink={0}
-            >
-              <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">
-                {getInitials(user.name)}
-              </Text>
-            </Flex>
-
-            <Box>
-              <Heading as="h2" size="xl" color="gray.900" mb={2}>
-                {user.name}
-              </Heading>
-              <Flex align="center" gap={2} fontSize="sm" color="gray.600">
-                <Icon as={LuCalendar} boxSize={4} />
-                <Text>登録日: {new Date(user.createdAt).toLocaleDateString("ja-JP")}</Text>
-              </Flex>
-            </Box>
-          </Flex>
-
-          {canEdit && (
+      <Title
+        prev={{ url: `/shops/${currentShopId}`, label: "店舗詳細に戻る" }}
+        action={
+          canEdit ? (
             <Button
               onClick={() => {
                 navigate({
@@ -153,9 +112,39 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
               <Icon as={LuPencil} boxSize={4} />
               編集
             </Button>
-          )}
+          ) : undefined
+        }
+      >
+        <Flex align="center" gap={4}>
+          {/* アバター */}
+          <Flex
+            w={{ base: 16, md: 20 }}
+            h={{ base: 16, md: 20 }}
+            borderRadius="full"
+            bgGradient="to-br"
+            gradientFrom="teal.400"
+            gradientTo="teal.600"
+            align="center"
+            justify="center"
+            color="white"
+            flexShrink={0}
+          >
+            <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">
+              {getInitials(user.name)}
+            </Text>
+          </Flex>
+
+          <Box>
+            <Heading as="h2" size="xl" color="gray.900" mb={2}>
+              {user.name}
+            </Heading>
+            <Flex align="center" gap={2} fontSize="sm" color="gray.600">
+              <Icon as={LuCalendar} boxSize={4} />
+              <Text>登録日: {new Date(user.createdAt).toLocaleDateString("ja-JP")}</Text>
+            </Flex>
+          </Box>
         </Flex>
-      </Box>
+      </Title>
 
       {/* この店舗での役割カード */}
       <Box mb={{ base: 4, md: 6 }}>
@@ -277,135 +266,141 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
 
         {/* 基本情報タブ */}
         <Tabs.Content value="info">
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={{ base: 4, md: 6 }}>
-              <Heading as="h4" size="md" color="gray.900" mb={4}>
-                所属店舗一覧
-              </Heading>
-              {sortedShops.length > 0 ? (
-                <Box>
-                  {sortedShops.map((shop, index) => (
-                    <Box key={shop._id}>
-                      <Flex align="center" justify="space-between" p={3} bg="gray.50" borderRadius="lg">
-                        <Flex align="center" gap={3}>
-                          <Flex p={2} bg="white" borderRadius="lg">
-                            <Icon as={LuStore} boxSize={4} color="teal.600" />
+          <Animation>
+            <Card.Root borderWidth={0} shadow="sm">
+              <Card.Body p={{ base: 4, md: 6 }}>
+                <Heading as="h4" size="md" color="gray.900" mb={4}>
+                  所属店舗一覧
+                </Heading>
+                {sortedShops.length > 0 ? (
+                  <Box>
+                    {sortedShops.map((shop, index) => (
+                      <Box key={shop._id}>
+                        <Flex align="center" justify="space-between" p={3} bg="gray.50" borderRadius="lg">
+                          <Flex align="center" gap={3}>
+                            <Flex p={2} bg="white" borderRadius="lg">
+                              <Icon as={LuStore} boxSize={4} color="teal.600" />
+                            </Flex>
+                            <Text fontSize="sm" color="gray.900">
+                              {shop.shopName}
+                            </Text>
                           </Flex>
-                          <Text fontSize="sm" color="gray.900">
-                            {shop.shopName}
-                          </Text>
+                          <Flex gap={2}>
+                            {shop.roles.map((role) => (
+                              <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm">
+                                {convertRole.toLabel(role)}
+                              </Badge>
+                            ))}
+                          </Flex>
                         </Flex>
-                        <Flex gap={2}>
-                          {shop.roles.map((role) => (
-                            <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm">
-                              {convertRole.toLabel(role)}
-                            </Badge>
-                          ))}
-                        </Flex>
-                      </Flex>
-                      {index < sortedShops.length - 1 && <Box h={3} />}
-                    </Box>
-                  ))}
-                </Box>
-              ) : (
-                <Text color="gray.500" textAlign="center" py={4}>
-                  所属店舗がありません
-                </Text>
-              )}
-            </Card.Body>
-          </Card.Root>
+                        {index < sortedShops.length - 1 && <Box h={3} />}
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Text color="gray.500" textAlign="center" py={4}>
+                    所属店舗がありません
+                  </Text>
+                )}
+              </Card.Body>
+            </Card.Root>
+          </Animation>
         </Tabs.Content>
 
         {/* シフト履歴タブ（固定データ） */}
         <Tabs.Content value="shifts">
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={{ base: 4, md: 6 }}>
-              {[
-                { date: "11/9", day: "土", shift: "10:00 - 18:00", status: "確定" },
-                { date: "11/8", day: "金", shift: "10:00 - 18:00", status: "完了" },
-                { date: "11/7", day: "木", shift: "休み", status: "休日" },
-                { date: "11/6", day: "水", shift: "13:00 - 21:00", status: "完了" },
-                { date: "11/5", day: "火", shift: "10:00 - 18:00", status: "完了" },
-              ].map((shift, index) => (
-                <Box key={index}>
-                  <Flex align="center" justify="space-between" py={3}>
-                    <Flex align="center" gap={{ base: 3, md: 4 }}>
-                      <Box textAlign="center" minW="48px">
-                        <Text fontSize="sm" color="gray.900">
-                          {shift.date}
-                        </Text>
-                        <Text fontSize="xs" color="gray.600">
-                          {shift.day}
-                        </Text>
-                      </Box>
-                      <Separator orientation="vertical" h={8} />
-                      <Box>
-                        <Text fontSize="sm" color={shift.status === "休日" ? "gray.500" : "gray.900"}>
-                          {shift.shift}
-                        </Text>
-                      </Box>
+          <Animation>
+            <Card.Root borderWidth={0} shadow="sm">
+              <Card.Body p={{ base: 4, md: 6 }}>
+                {[
+                  { date: "11/9", day: "土", shift: "10:00 - 18:00", status: "確定" },
+                  { date: "11/8", day: "金", shift: "10:00 - 18:00", status: "完了" },
+                  { date: "11/7", day: "木", shift: "休み", status: "休日" },
+                  { date: "11/6", day: "水", shift: "13:00 - 21:00", status: "完了" },
+                  { date: "11/5", day: "火", shift: "10:00 - 18:00", status: "完了" },
+                ].map((shift, index) => (
+                  <Box key={index}>
+                    <Flex align="center" justify="space-between" py={3}>
+                      <Flex align="center" gap={{ base: 3, md: 4 }}>
+                        <Box textAlign="center" minW="48px">
+                          <Text fontSize="sm" color="gray.900">
+                            {shift.date}
+                          </Text>
+                          <Text fontSize="xs" color="gray.600">
+                            {shift.day}
+                          </Text>
+                        </Box>
+                        <Separator orientation="vertical" h={8} />
+                        <Box>
+                          <Text fontSize="sm" color={shift.status === "休日" ? "gray.500" : "gray.900"}>
+                            {shift.shift}
+                          </Text>
+                        </Box>
+                      </Flex>
+                      <Badge
+                        variant="outline"
+                        fontSize="xs"
+                        bg={shift.status === "確定" ? "teal.600" : shift.status === "完了" ? "transparent" : "gray.50"}
+                        color={shift.status === "確定" ? "white" : shift.status === "完了" ? "gray.700" : "gray.600"}
+                        borderColor={shift.status === "確定" ? "teal.600" : "gray.300"}
+                      >
+                        {shift.status}
+                      </Badge>
                     </Flex>
-                    <Badge
-                      variant="outline"
-                      fontSize="xs"
-                      bg={shift.status === "確定" ? "teal.600" : shift.status === "完了" ? "transparent" : "gray.50"}
-                      color={shift.status === "確定" ? "white" : shift.status === "完了" ? "gray.700" : "gray.600"}
-                      borderColor={shift.status === "確定" ? "teal.600" : "gray.300"}
-                    >
-                      {shift.status}
-                    </Badge>
-                  </Flex>
-                  {index < 4 && <Separator />}
-                </Box>
-              ))}
-            </Card.Body>
-          </Card.Root>
+                    {index < 4 && <Separator />}
+                  </Box>
+                ))}
+              </Card.Body>
+            </Card.Root>
+          </Animation>
         </Tabs.Content>
 
         {/* 勤怠記録タブ（固定データ） */}
         <Tabs.Content value="attendance">
-          <Box>
-            {[
-              { date: "11/8", day: "金", checkIn: "09:58", checkOut: "18:05", workHours: "8.1時間", status: "正常" },
-              { date: "11/6", day: "水", checkIn: "12:55", checkOut: "21:10", workHours: "8.3時間", status: "正常" },
-              { date: "11/5", day: "火", checkIn: "10:05", checkOut: "18:02", workHours: "8.0時間", status: "正常" },
-              { date: "11/4", day: "月", checkIn: "09:50", checkOut: "17:55", workHours: "8.1時間", status: "正常" },
-              { date: "11/1", day: "金", checkIn: "10:15", checkOut: "18:00", workHours: "7.8時間", status: "遅刻" },
-            ].map((record, index) => (
-              <Card.Root key={index} borderWidth={0} shadow="sm" mb={3}>
-                <Card.Body p={{ base: 3, md: 4 }}>
-                  <Flex align="center" justify="space-between" mb={2}>
-                    <Flex align="center" gap={3}>
-                      <Box textAlign="center" minW="48px">
-                        <Text fontSize="sm" color="gray.900">
-                          {record.date}
-                        </Text>
-                        <Text fontSize="xs" color="gray.600">
-                          {record.day}
-                        </Text>
-                      </Box>
-                      <Badge
-                        variant={record.status === "正常" ? "outline" : "solid"}
-                        fontSize="xs"
-                        borderColor={record.status === "正常" ? "teal.300" : undefined}
-                        color={record.status === "正常" ? "teal.700" : "white"}
-                        bg={record.status === "正常" ? "teal.50" : "orange.600"}
-                      >
-                        {record.status}
-                      </Badge>
+          <Animation>
+            <Box>
+              {[
+                { date: "11/8", day: "金", checkIn: "09:58", checkOut: "18:05", workHours: "8.1時間", status: "正常" },
+                { date: "11/6", day: "水", checkIn: "12:55", checkOut: "21:10", workHours: "8.3時間", status: "正常" },
+                { date: "11/5", day: "火", checkIn: "10:05", checkOut: "18:02", workHours: "8.0時間", status: "正常" },
+                { date: "11/4", day: "月", checkIn: "09:50", checkOut: "17:55", workHours: "8.1時間", status: "正常" },
+                { date: "11/1", day: "金", checkIn: "10:15", checkOut: "18:00", workHours: "7.8時間", status: "遅刻" },
+              ].map((record, index) => (
+                <Card.Root key={index} borderWidth={0} shadow="sm" mb={3}>
+                  <Card.Body p={{ base: 3, md: 4 }}>
+                    <Flex align="center" justify="space-between" mb={2}>
+                      <Flex align="center" gap={3}>
+                        <Box textAlign="center" minW="48px">
+                          <Text fontSize="sm" color="gray.900">
+                            {record.date}
+                          </Text>
+                          <Text fontSize="xs" color="gray.600">
+                            {record.day}
+                          </Text>
+                        </Box>
+                        <Badge
+                          variant={record.status === "正常" ? "outline" : "solid"}
+                          fontSize="xs"
+                          borderColor={record.status === "正常" ? "teal.300" : undefined}
+                          color={record.status === "正常" ? "teal.700" : "white"}
+                          bg={record.status === "正常" ? "teal.50" : "orange.600"}
+                        >
+                          {record.status}
+                        </Badge>
+                      </Flex>
+                      <Text fontSize="sm" color="gray.900" fontWeight="medium">
+                        {record.workHours}
+                      </Text>
                     </Flex>
-                    <Text fontSize="sm" color="gray.900" fontWeight="medium">
-                      {record.workHours}
-                    </Text>
-                  </Flex>
-                  <Flex align="center" gap={4} fontSize="xs" color="gray.600" ml="60px">
-                    <Text>出勤: {record.checkIn}</Text>
-                    <Text>退勤: {record.checkOut}</Text>
-                  </Flex>
-                </Card.Body>
-              </Card.Root>
-            ))}
-          </Box>
+                    <Flex align="center" gap={4} fontSize="xs" color="gray.600" ml="60px">
+                      <Text>出勤: {record.checkIn}</Text>
+                      <Text>退勤: {record.checkOut}</Text>
+                    </Flex>
+                  </Card.Body>
+                </Card.Root>
+              ))}
+            </Box>
+          </Animation>
         </Tabs.Content>
       </Tabs.Root>
     </Container>

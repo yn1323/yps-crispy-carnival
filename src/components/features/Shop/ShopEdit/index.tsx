@@ -1,4 +1,4 @@
-import { Box, Button, Heading, Icon, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Heading, Icon, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -7,6 +7,7 @@ import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
 import { ShopForm } from "../ShopForm";
@@ -83,15 +84,27 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
   };
 
   return (
-    <ShopForm
-      mode="edit"
-      register={register}
-      errors={errors}
-      watch={watch}
-      setValue={setValue}
-      isSubmitting={isSubmitting}
-      onSubmit={handleSubmit(onSubmit)}
-    />
+    <Container maxW="6xl">
+      <Title prev={{ url: `/shops/${shop._id}`, label: "店舗詳細に戻る" }}>
+        <Flex align="center" gap={3}>
+          <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">
+            <Icon as={LuStore} boxSize={6} color="teal.600" />
+          </Flex>
+          <Heading as="h2" size="xl" color="gray.900">
+            店舗編集
+          </Heading>
+        </Flex>
+      </Title>
+      <ShopForm
+        mode="edit"
+        register={register}
+        errors={errors}
+        watch={watch}
+        setValue={setValue}
+        isSubmitting={isSubmitting}
+        onSubmit={handleSubmit(onSubmit)}
+      />
+    </Container>
   );
 };
 

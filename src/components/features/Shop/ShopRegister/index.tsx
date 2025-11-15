@@ -1,9 +1,12 @@
+import { Container, Flex, Heading, Icon } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useAtom } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
+import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
+import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
 import { ShopForm } from "../ShopForm";
@@ -72,14 +75,26 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
   };
 
   return (
-    <ShopForm
-      mode="create"
-      register={register}
-      errors={errors}
-      watch={watch}
-      setValue={setValue}
-      isSubmitting={isSubmitting}
-      onSubmit={handleSubmit(onSubmit)}
-    />
+    <Container maxW="6xl">
+      <Title prev={{ url: "/shops", label: "店舗一覧に戻る" }}>
+        <Flex align="center" gap={3}>
+          <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">
+            <Icon as={LuStore} boxSize={6} color="teal.600" />
+          </Flex>
+          <Heading as="h2" size="xl" color="gray.900">
+            店舗登録
+          </Heading>
+        </Flex>
+      </Title>
+      <ShopForm
+        mode="create"
+        register={register}
+        errors={errors}
+        watch={watch}
+        setValue={setValue}
+        isSubmitting={isSubmitting}
+        onSubmit={handleSubmit(onSubmit)}
+      />
+    </Container>
   );
 };

@@ -33,6 +33,7 @@ import {
   LuUsers,
 } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { Animation } from "@/src/components/templates/Animation";
 import { Title } from "@/src/components/ui/Title";
 import { convertRole, convertSubmitFrequency } from "@/src/helpers/domain/convertShopData";
 
@@ -165,234 +166,238 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
 
         {/* 店舗情報タブ */}
         <Tabs.Content value="info">
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={{ base: 4, md: 6 }}>
-              {/* 住所（固定値） */}
-              <Flex align="center" gap={2} mb={4} pb={4} borderBottom="1px" borderColor="gray.100">
-                <Icon as={LuMapPin} boxSize={5} color="gray.500" />
-                <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
-                  東京都新宿区西新宿1-1-1
-                </Text>
-              </Flex>
-
-              {/* 詳細情報グリッド */}
-              <Box>
-                {/* 営業時間 */}
-                <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
-                  <Icon as={LuClock} boxSize={5} color="gray.500" />
-                  <Box flex={1}>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
-                      営業時間
-                    </Text>
-                    <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
-                      {shop.openTime} - {shop.closeTime}
-                    </Text>
-                  </Box>
+          <Animation>
+            <Card.Root borderWidth={0} shadow="sm">
+              <Card.Body p={{ base: 4, md: 6 }}>
+                {/* 住所（固定値） */}
+                <Flex align="center" gap={2} mb={4} pb={4} borderBottom="1px" borderColor="gray.100">
+                  <Icon as={LuMapPin} boxSize={5} color="gray.500" />
+                  <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                    東京都新宿区西新宿1-1-1
+                  </Text>
                 </Flex>
 
-                {/* シフト提出期限 */}
-                <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
-                  <Icon as={LuCalendar} boxSize={5} color="gray.500" />
-                  <Box flex={1}>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
-                      シフト提出期限
-                    </Text>
-                    <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
-                      {convertSubmitFrequency.toLabel(shop.submitFrequency)}
-                    </Text>
-                  </Box>
-                </Flex>
+                {/* 詳細情報グリッド */}
+                <Box>
+                  {/* 営業時間 */}
+                  <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
+                    <Icon as={LuClock} boxSize={5} color="gray.500" />
+                    <Box flex={1}>
+                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
+                        営業時間
+                      </Text>
+                      <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                        {shop.openTime} - {shop.closeTime}
+                      </Text>
+                    </Box>
+                  </Flex>
 
-                {/* シフト閉鎖時間（固定値） */}
-                <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
-                  <Icon as={LuClock} boxSize={5} color="gray.500" />
-                  <Box flex={1}>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
-                      シフト閉鎖時間
-                    </Text>
-                    <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
-                      30分
-                    </Text>
-                  </Box>
-                </Flex>
+                  {/* シフト提出期限 */}
+                  <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
+                    <Icon as={LuCalendar} boxSize={5} color="gray.500" />
+                    <Box flex={1}>
+                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
+                        シフト提出期限
+                      </Text>
+                      <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                        {convertSubmitFrequency.toLabel(shop.submitFrequency)}
+                      </Text>
+                    </Box>
+                  </Flex>
 
-                {/* タイムカード */}
-                <Flex align="flex-start" gap={3}>
-                  <Icon as={LuCreditCard} boxSize={5} color="gray.500" />
-                  <Box flex={1}>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={1}>
-                      タイムカード
-                    </Text>
-                    <Badge
-                      variant="outline"
-                      fontSize="xs"
-                      borderColor={shop.useTimeCard ? "teal.300" : "gray.300"}
-                      color={shop.useTimeCard ? "teal.700" : "gray.600"}
-                      bg={shop.useTimeCard ? "teal.50" : "transparent"}
-                    >
-                      {shop.useTimeCard ? "利用中" : "未利用"}
-                    </Badge>
-                  </Box>
-                </Flex>
-              </Box>
+                  {/* シフト閉鎖時間（固定値） */}
+                  <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
+                    <Icon as={LuClock} boxSize={5} color="gray.500" />
+                    <Box flex={1}>
+                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
+                        シフト閉鎖時間
+                      </Text>
+                      <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                        30分
+                      </Text>
+                    </Box>
+                  </Flex>
 
-              {/* 説明 */}
-              {shop.description && (
-                <>
-                  <Separator my={4} />
-                  <Box>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={2}>
-                      説明
-                    </Text>
-                    <Text fontSize={{ base: "sm", md: "base" }} color="gray.700" lineHeight="relaxed">
-                      {shop.description}
-                    </Text>
-                  </Box>
-                </>
-              )}
-            </Card.Body>
-          </Card.Root>
+                  {/* タイムカード */}
+                  <Flex align="flex-start" gap={3}>
+                    <Icon as={LuCreditCard} boxSize={5} color="gray.500" />
+                    <Box flex={1}>
+                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={1}>
+                        タイムカード
+                      </Text>
+                      <Badge
+                        variant="outline"
+                        fontSize="xs"
+                        borderColor={shop.useTimeCard ? "teal.300" : "gray.300"}
+                        color={shop.useTimeCard ? "teal.700" : "gray.600"}
+                        bg={shop.useTimeCard ? "teal.50" : "transparent"}
+                      >
+                        {shop.useTimeCard ? "利用中" : "未利用"}
+                      </Badge>
+                    </Box>
+                  </Flex>
+                </Box>
+
+                {/* 説明 */}
+                {shop.description && (
+                  <>
+                    <Separator my={4} />
+                    <Box>
+                      <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={2}>
+                        説明
+                      </Text>
+                      <Text fontSize={{ base: "sm", md: "base" }} color="gray.700" lineHeight="relaxed">
+                        {shop.description}
+                      </Text>
+                    </Box>
+                  </>
+                )}
+              </Card.Body>
+            </Card.Root>
+          </Animation>
         </Tabs.Content>
 
         {/* スタッフタブ */}
         <Tabs.Content value="staff">
-          {/* 検索とフィルター */}
-          <Box mb={4}>
-            <Flex direction={{ base: "column", md: "row" }} gap={3} mb={3}>
-              {/* 検索バー */}
-              <Box position="relative" flex={1}>
-                <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" pointerEvents="none">
-                  <Icon as={LuSearch} boxSize={4} color="gray.400" />
+          <Animation>
+            {/* 検索とフィルター */}
+            <Box mb={4}>
+              <Flex direction={{ base: "column", md: "row" }} gap={3} mb={3}>
+                {/* 検索バー */}
+                <Box position="relative" flex={1}>
+                  <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" pointerEvents="none">
+                    <Icon as={LuSearch} boxSize={4} color="gray.400" />
+                  </Box>
+                  <Input
+                    type="text"
+                    placeholder="名前で検索..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    pl={10}
+                  />
                 </Box>
-                <Input
-                  type="text"
-                  placeholder="名前で検索..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  pl={10}
-                />
-              </Box>
 
-              {/* ステータスフィルター */}
-              <NativeSelectRoot w={{ base: "full", md: "180px" }}>
-                <NativeSelectField value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="active">在籍中</option>
-                  <option value="resigned">退職済み</option>
-                  <option value="all">全員</option>
-                </NativeSelectField>
-              </NativeSelectRoot>
+                {/* ステータスフィルター */}
+                <NativeSelectRoot w={{ base: "full", md: "180px" }}>
+                  <NativeSelectField value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="active">在籍中</option>
+                    <option value="resigned">退職済み</option>
+                    <option value="all">全員</option>
+                  </NativeSelectField>
+                </NativeSelectRoot>
 
-              {/* 役割フィルター */}
-              <NativeSelectRoot w={{ base: "full", md: "180px" }}>
-                <NativeSelectField value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-                  <option value="all">全役割</option>
-                  <option value="オーナー">オーナー</option>
-                  <option value="マネージャー">マネージャー</option>
-                  <option value="スタッフ">スタッフ</option>
-                </NativeSelectField>
-              </NativeSelectRoot>
-            </Flex>
+                {/* 役割フィルター */}
+                <NativeSelectRoot w={{ base: "full", md: "180px" }}>
+                  <NativeSelectField value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+                    <option value="all">全役割</option>
+                    <option value="オーナー">オーナー</option>
+                    <option value="マネージャー">マネージャー</option>
+                    <option value="スタッフ">スタッフ</option>
+                  </NativeSelectField>
+                </NativeSelectRoot>
+              </Flex>
 
-            {/* スタッフ招待ボタン */}
-            {canEdit && (
-              <Button
-                w={{ base: "full", md: "auto" }}
-                colorPalette="teal"
-                gap={2}
-                onClick={() => {
-                  // TODO: スタッフ追加画面への遷移
-                  console.log("Add staff to shop:", shop._id);
-                }}
-              >
-                <Icon as={LuPlus} boxSize={4} />
-                スタッフを招待
-              </Button>
-            )}
-          </Box>
+              {/* スタッフ招待ボタン */}
+              {canEdit && (
+                <Button
+                  w={{ base: "full", md: "auto" }}
+                  colorPalette="teal"
+                  gap={2}
+                  onClick={() => {
+                    // TODO: スタッフ追加画面への遷移
+                    console.log("Add staff to shop:", shop._id);
+                  }}
+                >
+                  <Icon as={LuPlus} boxSize={4} />
+                  スタッフを招待
+                </Button>
+              )}
+            </Box>
 
-          {/* フィルター結果表示 */}
-          {filteredUsers.length > 0 ? (
-            <>
-              <Text fontSize="sm" color="gray.600" mb={3}>
-                {filteredUsers.length}名のスタッフ
-              </Text>
-              <Box>
-                {filteredUsers.map((user) => (
-                  <Link
-                    key={user._id}
-                    to="/shops/$shopId/members/$userId"
-                    params={{ shopId: shop._id, userId: user._id }}
-                  >
-                    <Card.Root
-                      mb={{ base: 2, md: 3 }}
-                      borderWidth={0}
-                      shadow="sm"
-                      _hover={{ shadow: "md" }}
-                      transition="all 0.15s"
-                      cursor="pointer"
+            {/* フィルター結果表示 */}
+            {filteredUsers.length > 0 ? (
+              <>
+                <Text fontSize="sm" color="gray.600" mb={3}>
+                  {filteredUsers.length}名のスタッフ
+                </Text>
+                <Box>
+                  {filteredUsers.map((user) => (
+                    <Link
+                      key={user._id}
+                      to="/shops/$shopId/members/$userId"
+                      params={{ shopId: shop._id, userId: user._id }}
                     >
-                      <Card.Body p={{ base: 3, md: 4 }}>
-                        <Flex align="center" justify="space-between" gap={4}>
-                          <Flex align="center" gap={3} flex={1} minW={0}>
-                            {/* アバター */}
-                            <Flex
-                              w={{ base: 10, md: 12 }}
-                              h={{ base: 10, md: 12 }}
-                              borderRadius="full"
-                              bgGradient="to-br"
-                              gradientFrom="teal.400"
-                              gradientTo="teal.600"
-                              align="center"
-                              justify="center"
-                              color="white"
-                              flexShrink={0}
-                            >
-                              <Icon as={LuUser} boxSize={6} />
+                      <Card.Root
+                        mb={{ base: 2, md: 3 }}
+                        borderWidth={0}
+                        shadow="sm"
+                        _hover={{ shadow: "md" }}
+                        transition="all 0.15s"
+                        cursor="pointer"
+                      >
+                        <Card.Body p={{ base: 3, md: 4 }}>
+                          <Flex align="center" justify="space-between" gap={4}>
+                            <Flex align="center" gap={3} flex={1} minW={0}>
+                              {/* アバター */}
+                              <Flex
+                                w={{ base: 10, md: 12 }}
+                                h={{ base: 10, md: 12 }}
+                                borderRadius="full"
+                                bgGradient="to-br"
+                                gradientFrom="teal.400"
+                                gradientTo="teal.600"
+                                align="center"
+                                justify="center"
+                                color="white"
+                                flexShrink={0}
+                              >
+                                <Icon as={LuUser} boxSize={6} />
+                              </Flex>
+
+                              {/* スタッフ情報 */}
+                              <Box flex={1} minW={0}>
+                                <Flex align="center" gap={2}>
+                                  <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
+                                    {user.name}
+                                  </Text>
+                                  {/* 役割バッジ */}
+                                  {user.roles.map((role) => (
+                                    <Badge
+                                      key={role}
+                                      colorPalette={convertRole.toBadgeColor(role)}
+                                      size="sm"
+                                      flexShrink={0}
+                                    >
+                                      {convertRole.toLabel(role)}
+                                    </Badge>
+                                  ))}
+                                </Flex>
+                              </Box>
                             </Flex>
 
-                            {/* スタッフ情報 */}
-                            <Box flex={1} minW={0}>
-                              <Flex align="center" gap={2}>
-                                <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
-                                  {user.name}
-                                </Text>
-                                {/* 役割バッジ */}
-                                {user.roles.map((role) => (
-                                  <Badge
-                                    key={role}
-                                    colorPalette={convertRole.toBadgeColor(role)}
-                                    size="sm"
-                                    flexShrink={0}
-                                  >
-                                    {convertRole.toLabel(role)}
-                                  </Badge>
-                                ))}
-                              </Flex>
-                            </Box>
+                            {/* 矢印アイコン */}
+                            <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
                           </Flex>
-
-                          {/* 矢印アイコン */}
-                          <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
-                        </Flex>
-                      </Card.Body>
-                    </Card.Root>
-                  </Link>
-                ))}
-              </Box>
-            </>
-          ) : (
-            <Card.Root borderWidth={0} shadow="sm">
-              <Card.Body p={8} textAlign="center">
-                <Box display="flex" justifyContent="center" mb={3}>
-                  <Icon as={LuUsers} boxSize={12} color="gray.300" />
+                        </Card.Body>
+                      </Card.Root>
+                    </Link>
+                  ))}
                 </Box>
-                <Text color="gray.500">該当するスタッフが見つかりませんでした</Text>
-                <Text fontSize="sm" color="gray.400" mt={1}>
-                  検索条件を変更してください
-                </Text>
-              </Card.Body>
-            </Card.Root>
-          )}
+              </>
+            ) : (
+              <Card.Root borderWidth={0} shadow="sm">
+                <Card.Body p={8} textAlign="center">
+                  <Box display="flex" justifyContent="center" mb={3}>
+                    <Icon as={LuUsers} boxSize={12} color="gray.300" />
+                  </Box>
+                  <Text color="gray.500">該当するスタッフが見つかりませんでした</Text>
+                  <Text fontSize="sm" color="gray.400" mt={1}>
+                    検索条件を変更してください
+                  </Text>
+                </Card.Body>
+              </Card.Root>
+            )}
+          </Animation>
         </Tabs.Content>
       </Tabs.Root>
     </Container>
