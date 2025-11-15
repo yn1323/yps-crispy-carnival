@@ -6,6 +6,7 @@ import {
   Flex,
   Grid,
   GridItem,
+  Icon,
   Input,
   NativeSelectField,
   NativeSelectRoot,
@@ -35,7 +36,9 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
       <Box mb={{ base: 4, md: 6 }}>
         <Flex align="center" gap="3" mb="2">
           <Flex p="2" bg="teal.50" borderRadius="lg">
-            <LuStore size={20} color="var(--chakra-colors-teal-600)" />
+            <Icon size="lg" color="teal.600">
+              <LuStore />
+            </Icon>
           </Flex>
           <Text as="h2" color="gray.900">
             {mode === "create" ? "店舗登録" : "店舗編集"}
@@ -53,7 +56,9 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
           {/* 基本情報 */}
           <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
             <Flex align="center" gap="2" mb="4">
-              <LuStore size={16} color="var(--chakra-colors-gray-700)" />
+              <Icon color="gray.700">
+                <LuStore />
+              </Icon>
               <Text as="h3" color="gray.900">
                 基本情報
               </Text>
@@ -89,7 +94,9 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
           {/* シフト設定 */}
           <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
             <Flex align="center" gap="2" mb="4">
-              <LuCalendar size={16} color="var(--chakra-colors-gray-700)" />
+              <Icon color="gray.700">
+                <LuCalendar />
+              </Icon>
               <Text as="h3" color="gray.900">
                 シフト設定
               </Text>
@@ -138,7 +145,9 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
           {/* オプション機能 */}
           <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
             <Flex align="center" gap="2" mb="4">
-              <LuSettings size={16} color="var(--chakra-colors-gray-700)" />
+              <Icon color="gray.700">
+                <LuSettings />
+              </Icon>
               <Text as="h3" color="gray.900">
                 オプション機能
               </Text>

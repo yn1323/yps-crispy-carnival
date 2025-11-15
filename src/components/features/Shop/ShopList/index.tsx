@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Container, Flex, Heading, Stack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, Container, Flex, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronRight, LuClock, LuMapPin, LuPlus, LuStore, LuUsers } from "react-icons/lu";
 
@@ -64,7 +64,9 @@ export const ShopList = ({ shops }: ShopListProps) => {
                       _groupHover={{ gradientFrom: "teal.100", gradientTo: "teal.200" }}
                       transition="all 0.15s"
                     >
-                      <LuStore size={24} color="var(--chakra-colors-teal-600)" />
+                      <Icon boxSize="6" color="teal.600">
+                        <LuStore />
+                      </Icon>
                     </Flex>
 
                     {/* 店舗情報 */}
@@ -87,13 +89,17 @@ export const ShopList = ({ shops }: ShopListProps) => {
                       {/* 詳細情報 */}
                       <Flex align="center" gap="4" fontSize="sm">
                         <Flex align="center" gap="1.5" color="gray.600">
-                          <LuClock size={16} color="var(--chakra-colors-gray-400)" />
+                          <Icon color="gray.400">
+                            <LuClock />
+                          </Icon>
                           <Text>
                             {shop.openTime} - {shop.closeTime}
                           </Text>
                         </Flex>
                         <Flex align="center" gap="1.5" color="gray.600">
-                          <LuUsers size={16} color="var(--chakra-colors-gray-400)" />
+                          <Icon color="gray.400">
+                            <LuUsers />
+                          </Icon>
                           <Text>15名</Text>
                         </Flex>
                       </Flex>

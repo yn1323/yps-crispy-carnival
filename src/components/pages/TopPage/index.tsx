@@ -12,6 +12,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
+import { SignInButton } from "@clerk/clerk-react";
 import { useState } from "react";
 import { AiOutlineCalendar, AiOutlineClockCircle, AiOutlineDollarCircle } from "react-icons/ai";
 import { BiMessageSquareDetail } from "react-icons/bi";
@@ -152,10 +153,11 @@ export const TopPage = () => {
 
             {/* Right side - Login button */}
             <HStack gap="4">
-              <Button variant="outline" display={{ base: "none", sm: "flex" }}>
-                ログイン
-              </Button>
-
+              <SignInButton forceRedirectUrl="/mypage">
+                <Button variant="outline" display={{ base: "none", sm: "flex" }}>
+                  ログイン
+                </Button>
+              </SignInButton>
               {/* Mobile menu button */}
               <Button
                 display={{ base: "flex", md: "none" }}
