@@ -135,3 +135,12 @@
 - コンポーネントには対応する.stories.tsxファイルを含む
 - スキーマは専用ファイルに分離（schema.ts）
 - パスエイリアス設定: @/src, @/e2e, @/convex
+
+### デザイン
+- アイコンは react-iconsのLucideセットを利用すること(Chakraの Iconタグで呼び出すこと<Icon as={SomeIcon}>)
+- `"@storybook/react"`; は、 ` "@storybook/react-vite";`で呼び出すこと
+
+### 汎用コンポーネント
+- Selectボックス：@yps-crispy-carnival/src/components/ui/Select/index.tsx  
+- Formのカード：@yps-crispy-carnival/src/components/ui/FormCard/index.tsx
+- ページタイトル：@yps-crispy-carnival/src/components/ui/Title/index.tsx

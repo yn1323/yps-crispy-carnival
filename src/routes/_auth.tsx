@@ -18,7 +18,7 @@ function RouteComponent() {
         </Box>
 
         {/* Content Area */}
-        <Box ml={{ base: 0, lg: "180px" }} flex={1} display="flex" justifyContent="center">
+        <Box ml={{ base: 0, lg: "64" }} flex={1} display="flex" justifyContent="center" bg="gray.50" minH="100vh">
           <Container maxW="container.xl" py={{ base: 2, lg: 8 }} px={4} mb={{ base: "80px", lg: 0 }} w="100%">
             <Outlet />
           </Container>
@@ -26,7 +26,7 @@ function RouteComponent() {
       </Box>
 
       {/* SP: BottomMenu - flex containerの外に配置 */}
-      <Box hideFrom="lg">
+      <Box hideFrom="lg" bg="gray.50" minH="100vh">
         <BottomMenu />
       </Box>
     </AuthGuard>

@@ -31,5 +31,28 @@ export const Basic: Story = {
       createdAt: Date.now(),
       isDeleted: false,
     },
+    userRole: "owner",
+  },
+};
+
+export const NoAdmin: Story = {
+  args: {
+    shop: {
+      // biome-ignore lint/suspicious/noExplicitAny: temp
+      _id: "shop123" as any,
+      _creationTime: Date.now(),
+      shopName: "カフェサンプル",
+      openTime: "09:00",
+      closeTime: "22:00",
+      timeUnit: 30,
+      submitFrequency: "2w",
+      avatar: "",
+      useTimeCard: true,
+      description: "レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など",
+      createdBy: "user123",
+      createdAt: Date.now(),
+      isDeleted: false,
+    },
+    userRole: "other",
   },
 };

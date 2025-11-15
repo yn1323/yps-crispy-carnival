@@ -1,6 +1,7 @@
 import { Badge, Box, Button, Container, Flex, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronRight, LuClock, LuMapPin, LuPlus, LuStore, LuUsers } from "react-icons/lu";
+import { Title } from "@/src/components/ui/Title";
 
 type ShopListProps = {
   shops: {
@@ -15,26 +16,20 @@ type ShopListProps = {
 
 export const ShopList = ({ shops }: ShopListProps) => {
   return (
-    <Container maxW="6xl" p={{ base: 4, md: 8 }}>
+    <Container maxW="6xl">
       {/* ヘッダー */}
-      <Box mb={{ base: 4, md: 6 }}>
-        <Flex align="center" justify="space-between" mb="2">
-          <Box>
-            <Text as="h2" color="gray.900" mb="1">
-              店舗一覧
-            </Text>
-            <Text fontSize="sm" color="gray.600">
-              {shops.length}店舗
-            </Text>
-          </Box>
+      <Title
+        action={
           <Link to="/shops/new">
             <Button colorPalette="teal" gap="2" display={{ base: "none", md: "flex" }}>
-              <LuPlus size={16} />
+              <Icon as={LuPlus} boxSize={4} />
               新規店舗
             </Button>
           </Link>
-        </Flex>
-      </Box>
+        }
+      >
+        店舗一覧
+      </Title>
 
       {/* 店舗カード一覧 */}
       <VStack gap="3">
@@ -64,9 +59,7 @@ export const ShopList = ({ shops }: ShopListProps) => {
                       _groupHover={{ gradientFrom: "teal.100", gradientTo: "teal.200" }}
                       transition="all 0.15s"
                     >
-                      <Icon boxSize="6" color="teal.600">
-                        <LuStore />
-                      </Icon>
+                      <Icon as={LuStore} boxSize={6} color="teal.600" />
                     </Flex>
 
                     {/* 店舗情報 */}
@@ -82,24 +75,20 @@ export const ShopList = ({ shops }: ShopListProps) => {
 
                       {/* 住所 */}
                       <Flex align="center" gap="2" fontSize="sm" color="gray.600">
-                        <LuMapPin size={16} />
+                        <Icon as={LuMapPin} boxSize={4} />
                         <Text truncate>東京都新宿区西新宿1-1-1</Text>
                       </Flex>
 
                       {/* 詳細情報 */}
                       <Flex align="center" gap="4" fontSize="sm">
                         <Flex align="center" gap="1.5" color="gray.600">
-                          <Icon color="gray.400">
-                            <LuClock />
-                          </Icon>
+                          <Icon as={LuClock} boxSize={4} color="gray.400" />
                           <Text>
                             {shop.openTime} - {shop.closeTime}
                           </Text>
                         </Flex>
                         <Flex align="center" gap="1.5" color="gray.600">
-                          <Icon color="gray.400">
-                            <LuUsers />
-                          </Icon>
+                          <Icon as={LuUsers} boxSize={4} color="gray.400" />
                           <Text>15名</Text>
                         </Flex>
                       </Flex>
@@ -107,13 +96,8 @@ export const ShopList = ({ shops }: ShopListProps) => {
                   </Flex>
 
                   {/* 矢印アイコン */}
-                  <Box
-                    color="gray.400"
-                    flexShrink="0"
-                    _groupHover={{ color: "teal.600", transform: "translateX(4px)" }}
-                    transition="all 0.15s"
-                  >
-                    <LuChevronRight size={20} />
+                  <Box color="gray.400">
+                    <Icon as={LuChevronRight} boxSize={5} />
                   </Box>
                 </Flex>
               </Box>
@@ -126,7 +110,7 @@ export const ShopList = ({ shops }: ShopListProps) => {
       <Box mt="6" display={{ base: "block", md: "none" }}>
         <Link to="/shops/new">
           <Button w="full" colorPalette="teal" gap="2">
-            <LuPlus size={16} />
+            <Icon as={LuPlus} boxSize={4} />
             新規店舗を追加
           </Button>
         </Link>
@@ -145,7 +129,7 @@ export const ShopListEmpty = () => {
         <Text color="fg.muted">まずは店舗を登録してシフト管理を始めましょう</Text>
         <Link to="/shops/new">
           <Button colorPalette="teal" size="lg">
-            <LuPlus />
+            <Icon as={LuPlus} boxSize={4} />
             店舗を登録する
           </Button>
         </Link>

@@ -14,12 +14,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
 import { Route as AuthTimecardRouteImport } from './routes/_auth/timecard'
 import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
-import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
 import { Route as AuthAttendanceRouteImport } from './routes/_auth/attendance'
 import { Route as AuthShopsIndexRouteImport } from './routes/_auth/shops/index'
+import { Route as AuthSettingsIndexRouteImport } from './routes/_auth/settings/index'
+import { Route as AuthShopsInviteRouteImport } from './routes/_auth/shops/invite'
 import { Route as AuthShopsNewIndexRouteImport } from './routes/_auth/shops/new/index'
 import { Route as AuthShopsShopIdIndexRouteImport } from './routes/_auth/shops/$shopId/index'
+import { Route as AuthSettingsShiftTemplateIndexRouteImport } from './routes/_auth/settings/shift-template/index'
+import { Route as AuthSettingsShiftTemplateEditRouteImport } from './routes/_auth/settings/shift-template/edit'
 import { Route as AuthShopsShopIdMembersIndexRouteImport } from './routes/_auth/shops/$shopId/members/index'
 import { Route as AuthShopsShopIdEditIndexRouteImport } from './routes/_auth/shops/$shopId/edit/index'
 import { Route as AuthShopsShopIdMembersNewIndexRouteImport } from './routes/_auth/shops/$shopId/members/new/index'
@@ -50,11 +53,6 @@ const AuthShiftsRoute = AuthShiftsRouteImport.update({
   path: '/shifts',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthSettingsRoute = AuthSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthRoute,
-} as any)
 const AuthMypageRoute = AuthMypageRouteImport.update({
   id: '/mypage',
   path: '/mypage',
@@ -70,6 +68,16 @@ const AuthShopsIndexRoute = AuthShopsIndexRouteImport.update({
   path: '/shops/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthSettingsIndexRoute = AuthSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthShopsInviteRoute = AuthShopsInviteRouteImport.update({
+  id: '/shops/invite',
+  path: '/shops/invite',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthShopsNewIndexRoute = AuthShopsNewIndexRouteImport.update({
   id: '/shops/new/',
   path: '/shops/new/',
@@ -80,6 +88,18 @@ const AuthShopsShopIdIndexRoute = AuthShopsShopIdIndexRouteImport.update({
   path: '/shops/$shopId/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthSettingsShiftTemplateIndexRoute =
+  AuthSettingsShiftTemplateIndexRouteImport.update({
+    id: '/settings/shift-template/',
+    path: '/settings/shift-template/',
+    getParentRoute: () => AuthRoute,
+  } as any)
+const AuthSettingsShiftTemplateEditRoute =
+  AuthSettingsShiftTemplateEditRouteImport.update({
+    id: '/settings/shift-template/edit',
+    path: '/settings/shift-template/edit',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const AuthShopsShopIdMembersIndexRoute =
   AuthShopsShopIdMembersIndexRouteImport.update({
     id: '/shops/$shopId/members/',
@@ -115,11 +135,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/attendance': typeof AuthAttendanceRoute
   '/mypage': typeof AuthMypageRoute
-  '/settings': typeof AuthSettingsRoute
   '/shifts': typeof AuthShiftsRoute
   '/timecard': typeof AuthTimecardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
+  '/shops/invite': typeof AuthShopsInviteRoute
+  '/settings': typeof AuthSettingsIndexRoute
   '/shops': typeof AuthShopsIndexRoute
+  '/settings/shift-template/edit': typeof AuthSettingsShiftTemplateEditRoute
+  '/settings/shift-template': typeof AuthSettingsShiftTemplateIndexRoute
   '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
   '/shops/new': typeof AuthShopsNewIndexRoute
   '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
@@ -132,11 +155,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/attendance': typeof AuthAttendanceRoute
   '/mypage': typeof AuthMypageRoute
-  '/settings': typeof AuthSettingsRoute
   '/shifts': typeof AuthShiftsRoute
   '/timecard': typeof AuthTimecardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
+  '/shops/invite': typeof AuthShopsInviteRoute
+  '/settings': typeof AuthSettingsIndexRoute
   '/shops': typeof AuthShopsIndexRoute
+  '/settings/shift-template/edit': typeof AuthSettingsShiftTemplateEditRoute
+  '/settings/shift-template': typeof AuthSettingsShiftTemplateIndexRoute
   '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
   '/shops/new': typeof AuthShopsNewIndexRoute
   '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
@@ -151,11 +177,14 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_auth/attendance': typeof AuthAttendanceRoute
   '/_auth/mypage': typeof AuthMypageRoute
-  '/_auth/settings': typeof AuthSettingsRoute
   '/_auth/shifts': typeof AuthShiftsRoute
   '/_auth/timecard': typeof AuthTimecardRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
+  '/_auth/shops/invite': typeof AuthShopsInviteRoute
+  '/_auth/settings/': typeof AuthSettingsIndexRoute
   '/_auth/shops/': typeof AuthShopsIndexRoute
+  '/_auth/settings/shift-template/edit': typeof AuthSettingsShiftTemplateEditRoute
+  '/_auth/settings/shift-template/': typeof AuthSettingsShiftTemplateIndexRoute
   '/_auth/shops/$shopId/': typeof AuthShopsShopIdIndexRoute
   '/_auth/shops/new/': typeof AuthShopsNewIndexRoute
   '/_auth/shops/$shopId/edit/': typeof AuthShopsShopIdEditIndexRoute
@@ -170,11 +199,14 @@ export interface FileRouteTypes {
     | '/'
     | '/attendance'
     | '/mypage'
-    | '/settings'
     | '/shifts'
     | '/timecard'
     | '/welcome'
+    | '/shops/invite'
+    | '/settings'
     | '/shops'
+    | '/settings/shift-template/edit'
+    | '/settings/shift-template'
     | '/shops/$shopId'
     | '/shops/new'
     | '/shops/$shopId/edit'
@@ -187,11 +219,14 @@ export interface FileRouteTypes {
     | '/'
     | '/attendance'
     | '/mypage'
-    | '/settings'
     | '/shifts'
     | '/timecard'
     | '/welcome'
+    | '/shops/invite'
+    | '/settings'
     | '/shops'
+    | '/settings/shift-template/edit'
+    | '/settings/shift-template'
     | '/shops/$shopId'
     | '/shops/new'
     | '/shops/$shopId/edit'
@@ -205,11 +240,14 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_auth/attendance'
     | '/_auth/mypage'
-    | '/_auth/settings'
     | '/_auth/shifts'
     | '/_auth/timecard'
     | '/_unregistered/welcome'
+    | '/_auth/shops/invite'
+    | '/_auth/settings/'
     | '/_auth/shops/'
+    | '/_auth/settings/shift-template/edit'
+    | '/_auth/settings/shift-template/'
     | '/_auth/shops/$shopId/'
     | '/_auth/shops/new/'
     | '/_auth/shops/$shopId/edit/'
@@ -262,13 +300,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShiftsRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/settings': {
-      id: '/_auth/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsRouteImport
-      parentRoute: typeof AuthRoute
-    }
     '/_auth/mypage': {
       id: '/_auth/mypage'
       path: '/mypage'
@@ -290,6 +321,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShopsIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/settings/': {
+      id: '/_auth/settings/'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/shops/invite': {
+      id: '/_auth/shops/invite'
+      path: '/shops/invite'
+      fullPath: '/shops/invite'
+      preLoaderRoute: typeof AuthShopsInviteRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/shops/new/': {
       id: '/_auth/shops/new/'
       path: '/shops/new'
@@ -302,6 +347,20 @@ declare module '@tanstack/react-router' {
       path: '/shops/$shopId'
       fullPath: '/shops/$shopId'
       preLoaderRoute: typeof AuthShopsShopIdIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings/shift-template/': {
+      id: '/_auth/settings/shift-template/'
+      path: '/settings/shift-template'
+      fullPath: '/settings/shift-template'
+      preLoaderRoute: typeof AuthSettingsShiftTemplateIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings/shift-template/edit': {
+      id: '/_auth/settings/shift-template/edit'
+      path: '/settings/shift-template/edit'
+      fullPath: '/settings/shift-template/edit'
+      preLoaderRoute: typeof AuthSettingsShiftTemplateEditRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/shops/$shopId/members/': {
@@ -345,10 +404,13 @@ declare module '@tanstack/react-router' {
 interface AuthRouteChildren {
   AuthAttendanceRoute: typeof AuthAttendanceRoute
   AuthMypageRoute: typeof AuthMypageRoute
-  AuthSettingsRoute: typeof AuthSettingsRoute
   AuthShiftsRoute: typeof AuthShiftsRoute
   AuthTimecardRoute: typeof AuthTimecardRoute
+  AuthShopsInviteRoute: typeof AuthShopsInviteRoute
+  AuthSettingsIndexRoute: typeof AuthSettingsIndexRoute
   AuthShopsIndexRoute: typeof AuthShopsIndexRoute
+  AuthSettingsShiftTemplateEditRoute: typeof AuthSettingsShiftTemplateEditRoute
+  AuthSettingsShiftTemplateIndexRoute: typeof AuthSettingsShiftTemplateIndexRoute
   AuthShopsShopIdIndexRoute: typeof AuthShopsShopIdIndexRoute
   AuthShopsNewIndexRoute: typeof AuthShopsNewIndexRoute
   AuthShopsShopIdEditIndexRoute: typeof AuthShopsShopIdEditIndexRoute
@@ -361,10 +423,13 @@ interface AuthRouteChildren {
 const AuthRouteChildren: AuthRouteChildren = {
   AuthAttendanceRoute: AuthAttendanceRoute,
   AuthMypageRoute: AuthMypageRoute,
-  AuthSettingsRoute: AuthSettingsRoute,
   AuthShiftsRoute: AuthShiftsRoute,
   AuthTimecardRoute: AuthTimecardRoute,
+  AuthShopsInviteRoute: AuthShopsInviteRoute,
+  AuthSettingsIndexRoute: AuthSettingsIndexRoute,
   AuthShopsIndexRoute: AuthShopsIndexRoute,
+  AuthSettingsShiftTemplateEditRoute: AuthSettingsShiftTemplateEditRoute,
+  AuthSettingsShiftTemplateIndexRoute: AuthSettingsShiftTemplateIndexRoute,
   AuthShopsShopIdIndexRoute: AuthShopsShopIdIndexRoute,
   AuthShopsNewIndexRoute: AuthShopsNewIndexRoute,
   AuthShopsShopIdEditIndexRoute: AuthShopsShopIdEditIndexRoute,
