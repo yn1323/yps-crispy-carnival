@@ -1,7 +1,6 @@
+import { Box, Button, Card, Field, Flex, Heading, Icon, Input, List, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { Box, Button, Card, Flex, Heading, Icon, Input, Stack, Text, List } from "@chakra-ui/react";
 import { LuInfo, LuLink2, LuMail, LuSend } from "react-icons/lu";
-import { Field } from "@chakra-ui/react";
 
 type SendTabProps = {
   shopId: string;

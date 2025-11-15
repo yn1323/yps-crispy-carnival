@@ -1,15 +1,4 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Container,
-  Field,
-  Flex,
-  Icon,
-  Input,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Badge, Box, Button, Container, Field, Flex, Icon, Input, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { IoChevronForwardSharp, IoSaveSharp, IoTimeSharp } from "react-icons/io5";

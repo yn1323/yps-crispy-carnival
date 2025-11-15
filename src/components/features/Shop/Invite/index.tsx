@@ -1,10 +1,10 @@
 import { Container, Icon, Tabs, Text } from "@chakra-ui/react";
 import { useParams } from "@tanstack/react-router";
 import { LuLink2, LuSend, LuUsers } from "react-icons/lu";
-import { Title } from "@/src/components/ui/Title";
 import { Animation } from "@/src/components/templates/Animation";
-import { SendTab } from "./TabContents/SendTab";
+import { Title } from "@/src/components/ui/Title";
 import { ManageTab } from "./TabContents/ManageTab";
+import { SendTab } from "./TabContents/SendTab";
 import { StaffHistoryTab } from "./TabContents/StaffHistoryTab";
 
 export const InviteShopMember = () => {
