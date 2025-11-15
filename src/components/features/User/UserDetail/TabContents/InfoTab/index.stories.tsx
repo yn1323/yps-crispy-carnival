@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Id } from "@/convex/_generated/dataModel";
 import { InfoTab } from ".";
 
 const meta: Meta<typeof InfoTab> = {
@@ -14,7 +15,7 @@ export const Basic: Story = {
   args: {
     shops: [
       {
-        _id: "shop1" as any,
+        _id: "shop1" as Id<"shops">,
         _creationTime: Date.now(),
         shopName: "Crispy Carnival 渋谷店",
         openTime: "10:00",
@@ -28,7 +29,7 @@ export const Basic: Story = {
         roles: ["owner"],
       },
       {
-        _id: "shop2" as any,
+        _id: "shop2" as Id<"shops">,
         _creationTime: Date.now(),
         shopName: "Crispy Carnival 新宿店",
         openTime: "09:00",
@@ -42,7 +43,7 @@ export const Basic: Story = {
         roles: ["manager"],
       },
       {
-        _id: "shop3" as any,
+        _id: "shop3" as Id<"shops">,
         _creationTime: Date.now(),
         shopName: "Crispy Carnival 池袋店",
         openTime: "10:00",
@@ -54,27 +55,6 @@ export const Basic: Story = {
         isDeleted: false,
         createdBy: "user789",
         roles: ["staff"],
-      },
-    ],
-  },
-};
-
-export const MultipleRoles: Story = {
-  args: {
-    shops: [
-      {
-        _id: "shop1" as any,
-        _creationTime: Date.now(),
-        shopName: "Crispy Carnival 本店",
-        openTime: "10:00",
-        closeTime: "22:00",
-        timeUnit: 30,
-        submitFrequency: "2w",
-        useTimeCard: true,
-        createdAt: Date.now(),
-        isDeleted: false,
-        createdBy: "user123",
-        roles: ["owner", "manager"],
       },
     ],
   },

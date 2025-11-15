@@ -5,7 +5,6 @@ import {
   Flex,
   Grid,
   GridItem,
-  Icon,
   Input,
   NativeSelectField,
   NativeSelectRoot,
@@ -16,6 +15,7 @@ import {
 } from "@chakra-ui/react";
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { LuCalendar, LuSettings, LuStore } from "react-icons/lu";
+import { FormCard } from "@/src/components/ui/FormCard";
 import { type SchemaType, submitFrequencyOptions, timeUnitOptions } from "../ShopRegister/schema";
 
 type ShopFormProps = {
@@ -33,13 +33,7 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
     <Box as="form" onSubmit={onSubmit}>
       <VStack gap="6">
         {/* 基本情報 */}
-        <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
-          <Flex align="center" gap="2" mb="4">
-            <Icon as={LuStore} boxSize={5} color="gray.700" />
-            <Text as="h3" color="gray.900">
-              基本情報
-            </Text>
-          </Flex>
+        <FormCard icon={LuStore} iconColor="gray.700" title="基本情報">
           <VStack gap="4" align="stretch">
             {/* 店舗名 */}
             <Field.Root invalid={!!errors.shopName}>
@@ -66,16 +60,10 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
               </GridItem>
             </Grid>
           </VStack>
-        </Box>
+        </FormCard>
 
         {/* シフト設定 */}
-        <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
-          <Flex align="center" gap="2" mb="4">
-            <Icon as={LuCalendar} boxSize={5} color="gray.700" />
-            <Text as="h3" color="gray.900">
-              シフト設定
-            </Text>
-          </Flex>
+        <FormCard icon={LuCalendar} iconColor="gray.700" title="シフト設定">
           <VStack gap="4" align="stretch">
             <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }} gap="4">
               {/* シフト提出頻度 */}
@@ -115,16 +103,10 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
               </GridItem>
             </Grid>
           </VStack>
-        </Box>
+        </FormCard>
 
         {/* オプション機能 */}
-        <Box w="full" bg="white" borderRadius="lg" boxShadow="sm" p={{ base: 4, md: 6 }}>
-          <Flex align="center" gap="2" mb="4">
-            <Icon as={LuSettings} boxSize={5} color="gray.700" />
-            <Text as="h3" color="gray.900">
-              オプション機能
-            </Text>
-          </Flex>
+        <FormCard icon={LuSettings} iconColor="gray.700" title="オプション機能">
           <VStack gap="4" align="stretch">
             {/* タイムカード機能 */}
             <Flex align="center" justify="space-between" p="4" bg="gray.50" borderRadius="lg">
@@ -161,7 +143,7 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
               />
             </Field.Root>
           </VStack>
-        </Box>
+        </FormCard>
 
         {/* 送信ボタン */}
         <Flex direction={{ base: "column-reverse", sm: "row" }} gap="3" pt="2" w="full">

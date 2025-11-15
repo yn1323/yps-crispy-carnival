@@ -1,7 +1,6 @@
 import {
   Box,
   Button,
-  Card,
   Container,
   DialogActionTrigger,
   DialogBody,
@@ -31,6 +30,7 @@ import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuClock, LuDollarSign, LuFileText, LuSave, LuShield, LuTriangle, LuUser, LuUserX } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import { FormCard } from "@/src/components/ui/FormCard";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { type SchemaType, schema } from "./schema";
@@ -48,9 +48,8 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   // 店舗情報を取得
   const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
   const {
-    register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { isSubmitting },
   } = useForm<SchemaType>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -107,79 +106,63 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
       >
         <Stack gap={6}>
           {/* 基本情報 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={{ base: 4, md: 6 }}>
-              <Flex align="center" gap={2} mb={4}>
-                <Icon as={LuShield} boxSize={4} color="gray.700" />
-                <Heading as="h3" size="md" color="gray.900">
-                  基本情報
-                </Heading>
-              </Flex>
-              <Stack gap={4}>
-                {/* 権限 */}
-                <Field.Root>
-                  <Field.Label>権限</Field.Label>
-                  <NativeSelectRoot>
-                    <NativeSelectField defaultValue="スタッフ">
-                      <option value="スタッフ">スタッフ</option>
-                      <option value="マネージャー">マネージャー</option>
-                      <option value="オーナー">オーナー</option>
-                    </NativeSelectField>
-                  </NativeSelectRoot>
-                  <Field.HelperText>マネージャーはシフト管理・スタッフ管理が可能です</Field.HelperText>
-                </Field.Root>
+          <FormCard icon={LuShield} iconColor="gray.700" title="基本情報">
+            <Stack gap={4}>
+              {/* 権限 */}
+              <Field.Root>
+                <Field.Label>権限</Field.Label>
+                <NativeSelectRoot>
+                  <NativeSelectField defaultValue="スタッフ">
+                    <option value="スタッフ">スタッフ</option>
+                    <option value="マネージャー">マネージャー</option>
+                    <option value="オーナー">オーナー</option>
+                  </NativeSelectField>
+                </NativeSelectRoot>
+                <Field.HelperText>マネージャーはシフト管理・スタッフ管理が可能です</Field.HelperText>
+              </Field.Root>
 
-                {/* 最大勤務時間/月 */}
-                <Field.Root>
-                  <Field.Label>最大勤務時間/月（任意）</Field.Label>
-                  <Flex align="center" gap={2}>
-                    <Flex align="center" gap={2} flex={1}>
-                      <Icon as={LuClock} boxSize={4} color="gray.500" />
-                      <Input type="number" min="0" step="1" placeholder="160" />
-                    </Flex>
-                    <Text fontSize="sm" color="gray.600" minW="fit-content">
-                      時間
-                    </Text>
+              {/* 最大勤務時間/月 */}
+              <Field.Root>
+                <Field.Label>最大勤務時間/月（任意）</Field.Label>
+                <Flex align="center" gap={2}>
+                  <Flex align="center" gap={2} flex={1}>
+                    <Icon as={LuClock} boxSize={4} color="gray.500" />
+                    <Input type="number" min="0" step="1" placeholder="160" />
                   </Flex>
-                  <Field.HelperText>設定すると、この時間を超えないようアラートが表示されます</Field.HelperText>
-                </Field.Root>
+                  <Text fontSize="sm" color="gray.600" minW="fit-content">
+                    時間
+                  </Text>
+                </Flex>
+                <Field.HelperText>設定すると、この時間を超えないようアラートが表示されます</Field.HelperText>
+              </Field.Root>
 
-                {/* 時給 */}
-                <Field.Root>
-                  <Field.Label>時給（任意）</Field.Label>
-                  <Flex align="center" gap={2}>
-                    <Flex align="center" gap={2} flex={1}>
-                      <Icon as={LuDollarSign} boxSize={4} color="gray.500" />
-                      <Input type="number" min="0" step="1" placeholder="1200" />
-                    </Flex>
-                    <Text fontSize="sm" color="gray.600" minW="fit-content">
-                      円
-                    </Text>
+              {/* 時給 */}
+              <Field.Root>
+                <Field.Label>時給（任意）</Field.Label>
+                <Flex align="center" gap={2}>
+                  <Flex align="center" gap={2} flex={1}>
+                    <Icon as={LuDollarSign} boxSize={4} color="gray.500" />
+                    <Input type="number" min="0" step="1" placeholder="1200" />
                   </Flex>
-                  <Field.HelperText>人件費計算に使用されます</Field.HelperText>
-                </Field.Root>
-              </Stack>
-            </Card.Body>
-          </Card.Root>
+                  <Text fontSize="sm" color="gray.600" minW="fit-content">
+                    円
+                  </Text>
+                </Flex>
+                <Field.HelperText>人件費計算に使用されます</Field.HelperText>
+              </Field.Root>
+            </Stack>
+          </FormCard>
 
           {/* スタッフメモ */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={{ base: 4, md: 6 }}>
-              <Flex align="center" gap={2} mb={4}>
-                <Icon as={LuFileText} boxSize={4} color="gray.700" />
-                <Heading as="h3" size="md" color="gray.900">
-                  スタッフメモ
-                </Heading>
-              </Flex>
-              <Stack gap={4}>
-                <Field.Root>
-                  <Field.Label>メモ（管理者のみ閲覧可能・任意）</Field.Label>
-                  <Textarea placeholder="例：シフト希望、スキル、注意事項など" minH="150px" resize="none" />
-                  <Field.HelperText>このスタッフに関する管理メモを記録できます</Field.HelperText>
-                </Field.Root>
-              </Stack>
-            </Card.Body>
-          </Card.Root>
+          <FormCard icon={LuFileText} iconColor="gray.700" title="スタッフメモ">
+            <Stack gap={4}>
+              <Field.Root>
+                <Field.Label>メモ（管理者のみ閲覧可能・任意）</Field.Label>
+                <Textarea placeholder="例：シフト希望、スキル、注意事項など" minH="150px" resize="none" />
+                <Field.HelperText>このスタッフに関する管理メモを記録できます</Field.HelperText>
+              </Field.Root>
+            </Stack>
+          </FormCard>
 
           {/* 保存ボタン */}
           <Button
@@ -196,67 +179,58 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
           </Button>
 
           {/* 退職処理 */}
-          <Card.Root borderWidth={0} shadow="sm" borderColor="red.200">
-            <Card.Body p={{ base: 4, md: 6 }}>
-              <Flex align="center" gap={2} mb={4}>
-                <Icon as={LuTriangle} boxSize={4} color="red.600" />
-                <Heading as="h3" size="md" color="red.600">
-                  退職処理
-                </Heading>
-              </Flex>
+          <FormCard icon={LuTriangle} iconColor="red.600" title="退職処理">
+            {/* 警告ボックス */}
+            <Box bg="red.50" p={4} borderRadius="md" mb={4}>
+              <Text fontSize="sm" color="red.800" fontWeight="medium" mb={2}>
+                ⚠️ この操作は慎重に行ってください
+              </Text>
+              <Text fontSize="xs" color="red.700" mb={3}>
+                スタッフを退職処理すると、以下の影響があります：
+              </Text>
+              <List.Root fontSize="xs" color="red.700" gap={1}>
+                <List.Item>このスタッフは店舗メンバーから削除されます</List.Item>
+                <List.Item>過去のシフト履歴・勤怠記録は保持されます</List.Item>
+                <List.Item>再度招待することで復帰が可能です</List.Item>
+                <List.Item>退職日は記録され、統計データに反映されます</List.Item>
+              </List.Root>
+            </Box>
 
-              {/* 警告ボックス */}
-              <Box bg="red.50" p={4} borderRadius="md" mb={4}>
-                <Text fontSize="sm" color="red.800" fontWeight="medium" mb={2}>
-                  ⚠️ この操作は慎重に行ってください
-                </Text>
-                <Text fontSize="xs" color="red.700" mb={3}>
-                  スタッフを退職処理すると、以下の影響があります：
-                </Text>
-                <List.Root fontSize="xs" color="red.700" gap={1}>
-                  <List.Item>このスタッフは店舗メンバーから削除されます</List.Item>
-                  <List.Item>過去のシフト履歴・勤怠記録は保持されます</List.Item>
-                  <List.Item>再度招待することで復帰が可能です</List.Item>
-                  <List.Item>退職日は記録され、統計データに反映されます</List.Item>
-                </List.Root>
-              </Box>
-
-              {/* 退職処理ダイアログ */}
-              <DialogRoot>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    borderColor="red.500"
-                    color="red.600"
-                    _hover={{ bg: "red.50" }}
-                    gap={2}
-                    w="full"
-                  >
-                    <Icon as={LuUserX} boxSize={4} />
-                    退職処理を実行
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>退職処理の確認</DialogTitle>
-                  </DialogHeader>
-                  <DialogBody>
-                    <Text mb={2}>本当に {user.name} を退職処理しますか？</Text>
-                    <Text fontSize="sm" color="gray.600">
-                      この操作により、スタッフは店舗メンバーから削除されます。過去の記録は保持され、後で再招待することも可能です。
-                    </Text>
-                  </DialogBody>
-                  <DialogFooter>
-                    <DialogActionTrigger asChild>
-                      <Button variant="outline">キャンセル</Button>
-                    </DialogActionTrigger>
-                    <Button colorPalette="red">退職処理を実行</Button>
-                  </DialogFooter>
-                  <DialogCloseTrigger />
-                </DialogContent>
-              </DialogRoot>
-            </Card.Body>
-          </Card.Root>
+            {/* 退職処理ダイアログ */}
+            <DialogRoot>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  borderColor="red.500"
+                  color="red.600"
+                  _hover={{ bg: "red.50" }}
+                  gap={2}
+                  w="full"
+                >
+                  <Icon as={LuUserX} boxSize={4} />
+                  退職処理を実行
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>退職処理の確認</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  <Text mb={2}>本当に {user.name} を退職処理しますか？</Text>
+                  <Text fontSize="sm" color="gray.600">
+                    この操作により、スタッフは店舗メンバーから削除されます。過去の記録は保持され、後で再招待することも可能です。
+                  </Text>
+                </DialogBody>
+                <DialogFooter>
+                  <DialogActionTrigger asChild>
+                    <Button variant="outline">キャンセル</Button>
+                  </DialogActionTrigger>
+                  <Button colorPalette="red">退職処理を実行</Button>
+                </DialogFooter>
+                <DialogCloseTrigger />
+              </DialogContent>
+            </DialogRoot>
+          </FormCard>
         </Stack>
       </Box>
     </Container>
