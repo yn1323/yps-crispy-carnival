@@ -16,6 +16,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuCalendar, LuChevronLeft, LuClock, LuInfo, LuPencil, LuPlus, LuStore, LuTrash2 } from "react-icons/lu";
 import { Select } from "@/src/components/ui/Select";
@@ -52,17 +53,9 @@ const MAX_TEMPLATES = 5;
 
 type ShiftTemplateListProps = {
   storeId?: string;
-  onBack?: () => void;
-  onNavigateToAdd?: () => void;
-  onNavigateToEdit?: (templateId: string) => void;
 };
 
-export const ShiftTemplateList = ({
-  storeId = "1",
-  onBack,
-  onNavigateToAdd,
-  onNavigateToEdit,
-}: ShiftTemplateListProps) => {
+export const ShiftTemplateList = ({ storeId = "1" }: ShiftTemplateListProps) => {
   const [selectedStoreId, setSelectedStoreId] = useState(storeId);
   const [shiftTemplates, setShiftTemplates] = useState(mockShiftTemplates);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -106,16 +99,11 @@ export const ShiftTemplateList = ({
   return (
     <Container maxW="6xl" p={{ base: 4, md: 8 }}>
       <Box mb={{ base: 4, md: 6 }}>
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          mb={{ base: 3, md: 4 }}
-          ml={-2}
-          color="gray.600"
-          _hover={{ color: "gray.900" }}
-        >
-          <Icon as={LuChevronLeft} boxSize={4} mr={2} />
-          設定に戻る
+        <Button variant="ghost" mb={{ base: 3, md: 4 }} ml={-2} color="gray.600" _hover={{ color: "gray.900" }} asChild>
+          <Link to="/settings">
+            <Icon as={LuChevronLeft} boxSize={4} mr={2} />
+            設定に戻る
+          </Link>
         </Button>
 
         <Flex align="center" gap={3} mb={2}>
@@ -180,16 +168,11 @@ export const ShiftTemplateList = ({
                   {currentTemplates.length}/{MAX_TEMPLATES}件
                 </Badge>
               </Flex>
-              <Button
-                size="sm"
-                onClick={onNavigateToAdd}
-                disabled={!canAddMore}
-                colorPalette="teal"
-                gap={2}
-                flexShrink={0}
-              >
-                <Icon as={LuPlus} boxSize={4} />
-                <Text display={{ base: "none", sm: "inline" }}>追加</Text>
+              <Button size="sm" disabled={!canAddMore} colorPalette="teal" gap={2} flexShrink={0} asChild>
+                <Link to="/settings/shift-template/add">
+                  <Icon as={LuPlus} boxSize={4} />
+                  <Text display={{ base: "none", sm: "inline" }}>追加</Text>
+                </Link>
               </Button>
             </Flex>
 
@@ -253,14 +236,16 @@ export const ShiftTemplateList = ({
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => onNavigateToEdit?.(template.id)}
                           h={8}
                           w={8}
                           p={0}
                           color="gray.600"
                           _hover={{ color: "teal.600", bg: "teal.50" }}
+                          asChild
                         >
-                          <Icon as={LuPencil} boxSize={4} />
+                          <Link to="/settings/shift-template/edit" search={{ id: template.id }}>
+                            <Icon as={LuPencil} boxSize={4} />
+                          </Link>
                         </Button>
                         <Button
                           size="sm"

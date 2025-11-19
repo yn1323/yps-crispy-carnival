@@ -4,7 +4,6 @@ import { useState } from "react";
 import { IoChevronForwardSharp, IoSaveSharp, IoTimeSharp } from "react-icons/io5";
 import { LuStore, LuUser } from "react-icons/lu";
 import { FormCard } from "@/src/components/ui/FormCard";
-import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 
 // モックデータ
@@ -28,7 +27,7 @@ const mockShiftTemplateCounts: Record<string, number> = {
 
 export const SettingsPage = () => {
   const [userName, setUserName] = useState(mockUser.name);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>("1");
+  const selectedStoreId = "1";
 
   const selectedStore = mockStores.find((s) => s.id === selectedStoreId);
   const templateCount = mockShiftTemplateCounts[selectedStoreId] || 0;
@@ -68,14 +67,6 @@ export const SettingsPage = () => {
         <FormCard icon={LuStore} iconColor="gray.700" title="店舗別設定">
           <VStack gap="4" align="stretch">
             {/* 店舗選択 */}
-            <Field.Root>
-              <Field.Label>店舗を選択</Field.Label>
-              <Select
-                items={mockStores.map((store) => ({ value: store.id, label: store.name }))}
-                value={selectedStoreId}
-                onChange={(value) => setSelectedStoreId(value)}
-              />
-            </Field.Root>
 
             {/* よく使うシフト */}
             <Link to="/settings/shift-template">
