@@ -1,4 +1,5 @@
 import { Badge, Box, Button, Container, Field, Flex, Grid, Icon, Input, Text, VStack } from "@chakra-ui/react";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronLeft, LuClock, LuPlus, LuSave, LuX } from "react-icons/lu";
 
@@ -16,11 +17,10 @@ type ShiftTemplateFormProps = {
   mode: "add" | "edit";
   storeName?: string;
   template?: ShiftTemplate;
-  onBack?: () => void;
   onSave?: (data: Omit<ShiftTemplate, "id">) => void;
 };
 
-export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onBack, onSave }: ShiftTemplateFormProps) => {
+export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onSave }: ShiftTemplateFormProps) => {
   const [formData, setFormData] = useState({
     name: template?.name || "",
     daysOfWeek: template?.daysOfWeek || ([] as string[]),
@@ -33,10 +33,6 @@ export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onBack
       ...prev,
       daysOfWeek: prev.daysOfWeek.includes(day) ? prev.daysOfWeek.filter((d) => d !== day) : [...prev.daysOfWeek, day],
     }));
-  };
-
-  const handleCancel = () => {
-    onBack?.();
   };
 
   const handleSave = () => {
@@ -54,16 +50,11 @@ export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onBack
   return (
     <Container maxW="3xl" p={{ base: 4, md: 8 }}>
       <Box mb={{ base: 4, md: 6 }}>
-        <Button
-          variant="ghost"
-          onClick={handleCancel}
-          mb={{ base: 3, md: 4 }}
-          ml={-2}
-          color="gray.600"
-          _hover={{ color: "gray.900" }}
-        >
-          <Icon as={LuChevronLeft} boxSize={4} mr={2} />
-          一覧に戻る
+        <Button variant="ghost" mb={{ base: 3, md: 4 }} ml={-2} color="gray.600" _hover={{ color: "gray.900" }} asChild>
+          <Link to="/settings/shift-template">
+            <Icon as={LuChevronLeft} boxSize={4} mr={2} />
+            一覧に戻る
+          </Link>
         </Button>
 
         <Flex align="center" gap={3} mb={2}>
@@ -170,9 +161,11 @@ export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onBack
             borderTopWidth="1px"
             borderColor="gray.200"
           >
-            <Button variant="outline" onClick={handleCancel} flex={{ base: 1, sm: "none" }}>
-              <Icon as={LuX} boxSize={4} mr={2} />
-              キャンセル
+            <Button variant="outline" flex={{ base: 1, sm: "none" }} asChild>
+              <Link to="/settings/shift-template">
+                <Icon as={LuX} boxSize={4} mr={2} />
+                キャンセル
+              </Link>
             </Button>
             <Button onClick={handleSave} flex={{ base: 1, sm: "none" }} colorPalette="teal">
               {mode === "add" ? (
