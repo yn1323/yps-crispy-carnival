@@ -54,7 +54,7 @@ export const Basic: Story = {
         createdAt: Date.now(),
         isDeleted: false,
         createdBy: "user789",
-        roles: ["staff"],
+        roles: ["general"],
       },
     ],
   },

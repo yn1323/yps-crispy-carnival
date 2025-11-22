@@ -77,7 +77,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
       user.roles.some((role) => {
         if (roleFilter === "オーナー") return role === "owner";
         if (roleFilter === "マネージャー") return role === "manager";
-        if (roleFilter === "スタッフ") return role === "staff";
+        if (roleFilter === "スタッフ") return role === "general";
         return false;
       });
 
@@ -151,7 +151,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
           </Text>
           <Box>
             {filteredUsers.map((user) => (
-              <Link key={user._id} to="/shops/$shopId/members/$userId" params={{ shopId: shop._id, userId: user._id }}>
+              <Link key={user._id} to="/shops/$shopId/staffs/$userId" params={{ shopId: shop._id, userId: user._id }}>
                 <Card.Root
                   mb={{ base: 2, md: 3 }}
                   borderWidth={0}

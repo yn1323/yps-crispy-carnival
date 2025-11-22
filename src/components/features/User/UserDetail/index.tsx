@@ -38,13 +38,13 @@ export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
 
 export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: UserDetailProps) => {
   const navigate = useNavigate();
-  const search = useSearch({ from: "/_auth/shops/$shopId/members/$userId/" });
+  const search = useSearch({ from: "/_auth/shops/$shopId/staffs/$userId/" });
   const currentTab = search.tab || "info";
   const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
 
   const handleTabChange = (value: string) => {
     navigate({
-      to: "/shops/$shopId/members/$userId",
+      to: "/shops/$shopId/staffs/$userId",
       params: { shopId: currentShopId, userId: user._id },
       search: { tab: value as (typeof UserDetailTabTypes)[number] },
       replace: true,
@@ -113,7 +113,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Button
               onClick={() => {
                 navigate({
-                  to: "/shops/$shopId/members/$userId/edit",
+                  to: "/shops/$shopId/staffs/$userId/edit",
                   params: { shopId: currentShopId, userId: user._id },
                 });
               }}

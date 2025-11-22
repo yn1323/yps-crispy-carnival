@@ -11,7 +11,7 @@ type Props = {
   shopId: string;
 };
 
-export const MembersEditPage = ({ userId, shopId }: Props) => {
+export const StaffEditPage = ({ userId, shopId }: Props) => {
   const [user] = useAtom(userAtom);
 
   // ユーザー情報取得

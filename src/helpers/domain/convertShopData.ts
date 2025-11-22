@@ -36,13 +36,13 @@ export const convertRole = {
   toLabel: (role: string): string => {
     if (role === "owner") return "オーナー";
     if (role === "manager") return "マネージャー";
-    if (role === "staff") return "スタッフ";
+    if (role === "general") return "一般";
     return role;
   },
   toValue: (label: string): string => {
     if (label === "オーナー") return "owner";
     if (label === "マネージャー") return "manager";
-    if (label === "スタッフ") return "staff";
+    if (label === "一般") return "general";
     return label;
   },
   toBadgeColor: (role: string): string => {
