@@ -14,7 +14,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Title } from "@/src/components/ui/Title";
@@ -34,9 +34,22 @@ type UserDetailProps = {
   currentShopId: string;
 };
 
+export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
+
 export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: UserDetailProps) => {
   const navigate = useNavigate();
+  const search = useSearch({ from: "/_auth/shops/$shopId/members/$userId/" });
+  const currentTab = search.tab || "info";
   const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
+
+  const handleTabChange = (value: string) => {
+    navigate({
+      to: "/shops/$shopId/members/$userId",
+      params: { shopId: currentShopId, userId: user._id },
+      search: { tab: value as (typeof UserDetailTabTypes)[number] },
+      replace: true,
+    });
+  };
 
   // 同じ店舗の複数ロールをまとめる
   const uniqueShops = shops.reduce(
@@ -243,7 +256,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
       </Box>
 
       {/* タブコンテンツ */}
-      <Tabs.Root defaultValue="info" w="full" variant="enclosed">
+      <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
         <Tabs.List mb={{ base: 4, md: 6 }}>
           <Tabs.Trigger value="info" gap={2}>
             <Icon as={LuStore} boxSize={4} />
