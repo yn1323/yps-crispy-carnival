@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Card, Flex, Icon, Input, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Flex, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
@@ -94,16 +94,16 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
         <Flex direction={{ base: "column", md: "row" }} gap={3} mb={3}>
           {/* 検索バー */}
           <Box position="relative" flex={1}>
-            <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" pointerEvents="none">
-              <Icon as={LuSearch} boxSize={4} color="gray.400" />
-            </Box>
-            <Input
-              type="text"
-              placeholder="名前で検索..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              pl={10}
-            />
+            <InputGroup startElement={<Icon as={LuSearch} boxSize={4} color="gray.400" />}>
+              <Input
+                background="white"
+                type="text"
+                placeholder="名前で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                pl={10}
+              />
+            </InputGroup>
           </Box>
 
           {/* ステータスフィルター */}
