@@ -134,7 +134,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
 
         {/* スタッフ招待ボタン */}
         {canEdit && (
-          <Link to="/shops/invite">
+          <Link to="/shops/$shopId/invite" params={{ shopId: shop._id }}>
             <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2}>
               <Icon as={LuPlus} boxSize={4} />
               スタッフを招待
