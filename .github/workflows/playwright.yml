@@ -12,7 +12,7 @@ jobs:
     concurrency:
       group: "playwright-convex"
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Setup
       uses: ./.github/actions/setup
     - name: Setup Playwright
