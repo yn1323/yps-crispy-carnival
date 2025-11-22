@@ -1,5 +1,5 @@
 import { Container, Icon, Tabs, Text } from "@chakra-ui/react";
-import { useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { LuLink2, LuSend, LuUsers } from "react-icons/lu";
 import { Animation } from "@/src/components/templates/Animation";
 import { Title } from "@/src/components/ui/Title";
@@ -7,12 +7,26 @@ import { ManageTab } from "./TabContents/ManageTab";
 import { SendTab } from "./TabContents/SendTab";
 import { StaffHistoryTab } from "./TabContents/StaffHistoryTab";
 
+export const InviteShopMemberTabTypes = ["send", "manage", "staff"] as const;
+
 export const InviteShopMember = () => {
   const params = useParams({ strict: false });
   const shopId = params.shopId as string;
+  const navigate = useNavigate();
+  const search = useSearch({ from: "/_auth/shops/$shopId/invite/" });
+  const currentTab = search.tab || "send";
 
   // TODO: 実際のAPI呼び出しで店舗名を取得
   const shopName = "カフェ渋谷店";
+
+  const handleTabChange = (value: string) => {
+    navigate({
+      to: "/shops/$shopId/invite",
+      params: { shopId },
+      search: { tab: value as (typeof InviteShopMemberTabTypes)[number] },
+      replace: true,
+    });
+  };
 
   return (
     <Animation>
@@ -25,7 +39,7 @@ export const InviteShopMember = () => {
         </Title>
 
         {/* タブ */}
-        <Tabs.Root defaultValue="send" w="full" variant="enclosed">
+        <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
           <Tabs.List mb={{ base: 4, md: 6 }}>
             <Tabs.Trigger value="send" gap={2}>
               <Icon as={LuSend} boxSize={4} />
