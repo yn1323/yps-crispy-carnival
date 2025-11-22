@@ -1,5 +1,5 @@
 import { Badge, Box, Card, Flex, Icon, Separator, Text } from "@chakra-ui/react";
-import { LuCalendar, LuClock, LuCreditCard, LuMapPin } from "react-icons/lu";
+import { LuCalendar, LuClock, LuCreditCard } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Animation } from "@/src/components/templates/Animation";
 import { convertSubmitFrequency } from "@/src/helpers/domain/convertShopData";
@@ -13,14 +13,6 @@ export const InfoTab = ({ shop }: InfoTabProps) => {
     <Animation>
       <Card.Root borderWidth={0} shadow="sm">
         <Card.Body p={{ base: 4, md: 6 }}>
-          {/* 住所（固定値） */}
-          <Flex align="center" gap={2} mb={4} pb={4} borderBottom="1px" borderColor="gray.100">
-            <Icon as={LuMapPin} boxSize={5} color="gray.500" />
-            <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
-              東京都新宿区西新宿1-1-1
-            </Text>
-          </Flex>
-
           {/* 詳細情報グリッド */}
           <Box>
             {/* 営業時間 */}

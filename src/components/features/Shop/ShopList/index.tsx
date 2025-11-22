@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Container, Flex, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuChevronRight, LuClock, LuMapPin, LuPlus, LuStore, LuUsers } from "react-icons/lu";
+import { LuChevronRight, LuClock, LuPlus, LuStore, LuUsers } from "react-icons/lu";
 import { Title } from "@/src/components/ui/Title";
 
 type ShopListProps = {
@@ -71,12 +71,6 @@ export const ShopList = ({ shops }: ShopListProps) => {
                         <Badge colorPalette="teal" variant="solid" fontSize="xs" flexShrink="0">
                           マネージャー
                         </Badge>
-                      </Flex>
-
-                      {/* 住所 */}
-                      <Flex align="center" gap="2" fontSize="sm" color="gray.600">
-                        <Icon as={LuMapPin} boxSize={4} />
-                        <Text truncate>東京都新宿区西新宿1-1-1</Text>
                       </Flex>
 
                       {/* 詳細情報 */}
