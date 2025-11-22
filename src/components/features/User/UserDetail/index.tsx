@@ -104,10 +104,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
                   params: { shopId: currentShopId, userId: user._id },
                 });
               }}
-              variant="outline"
-              borderColor="teal.600"
-              color="teal.600"
-              _hover={{ bg: "teal.50" }}
+              colorPalette="teal"
               gap={2}
             >
               <Icon as={LuPencil} boxSize={4} />
