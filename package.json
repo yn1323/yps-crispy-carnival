@@ -28,7 +28,7 @@
     "convex:export-and-replace": "tsx convex-seeds/scripts/export-and-replace.ts"
   },
   "dependencies": {
-    "@chakra-ui/react": "3.29.0",
+    "@chakra-ui/react": "3.30.0",
     "@clerk/clerk-react": "5.55.0",
     "@emotion/react": "11.14.0",
     "@hookform/resolvers": "5.2.2",
