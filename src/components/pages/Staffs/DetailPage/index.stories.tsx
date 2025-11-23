@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StaffDetailPage } from ".";
 
 const meta = {
-  title: "pages/Members/DetailPage",
+  title: "Pages/Staffs/DetailPage",
   component: StaffDetailPage,
   args: {
     userId: "jh7bg3b58ebkepen0pada606xx7s9aff",

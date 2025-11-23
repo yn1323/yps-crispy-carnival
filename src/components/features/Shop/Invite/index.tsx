@@ -7,9 +7,9 @@ import { ManageTab } from "./TabContents/ManageTab";
 import { SendTab } from "./TabContents/SendTab";
 import { StaffHistoryTab } from "./TabContents/StaffHistoryTab";
 
-export const InviteShopMemberTabTypes = ["send", "manage", "staff"] as const;
+export const InviteShopStaffTabTypes = ["send", "manage", "staff"] as const;
 
-export const InviteShopMember = () => {
+export const InviteShopStaff = () => {
   const params = useParams({ strict: false });
   const shopId = params.shopId as string;
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ export const InviteShopMember = () => {
     navigate({
       to: "/shops/$shopId/invite",
       params: { shopId },
-      search: { tab: value as (typeof InviteShopMemberTabTypes)[number] },
+      search: { tab: value as (typeof InviteShopStaffTabTypes)[number] },
       replace: true,
     });
   };

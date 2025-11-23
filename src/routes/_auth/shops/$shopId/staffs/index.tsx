@@ -5,5 +5,5 @@ export const Route = createFileRoute("/_auth/shops/$shopId/staffs/")({
 });
 
 function RouteComponent() {
-  return <div>Hello "/_auth/shops/$id/members/"!</div>;
+  return <div>Hello "/_auth/shops/$id/staffs/"!</div>;
 }

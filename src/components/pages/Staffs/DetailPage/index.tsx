@@ -15,7 +15,7 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
   const [user] = useAtom(userAtom);
 
   // ユーザー情報取得
-  const memberData = useQuery(api.user.getUserById, { userId: userId as Id<"users"> });
+  const staffData = useQuery(api.user.getUserById, { userId: userId as Id<"users"> });
 
   // ユーザーの所属店舗一覧取得
   const shops = useQuery(api.user.getUserShops, { userId: userId as Id<"users"> });
@@ -27,7 +27,7 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
   );
 
   // ローディング
-  if (memberData === undefined || shops === undefined || currentUserRole === undefined) {
+  if (staffData === undefined || shops === undefined || currentUserRole === undefined) {
     return (
       <LazyShow>
         <UserDetailLoading />
@@ -35,11 +35,11 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
     );
   }
 
-  // メンバーが見つからない
-  if (memberData === null) {
+  // スタッフが見つからない
+  if (staffData === null) {
     return <UserDetailNotFound />;
   }
 
   // 通常表示
-  return <UserDetail user={memberData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />;
+  return <UserDetail user={staffData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />;
 };

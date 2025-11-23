@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StaffEditPage } from ".";
 
 const meta = {
-  title: "Pages/Members/EditPage",
+  title: "Pages/Staffs/EditPage",
   component: StaffEditPage,
   parameters: {
     layout: "fullscreen",
