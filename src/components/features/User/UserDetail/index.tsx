@@ -38,7 +38,7 @@ export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
 
 export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: UserDetailProps) => {
   const navigate = useNavigate();
-  const search = useSearch({ from: "/_auth/shops/$shopId/staffs/$userId/" });
+  const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
   const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
 

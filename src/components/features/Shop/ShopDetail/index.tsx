@@ -24,7 +24,7 @@ export const ShopDetailTabTypes = ["info", "staff"] as const;
 
 export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
   const navigate = useNavigate();
-  const search = useSearch({ from: "/_auth/shops/$shopId/" });
+  const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
   const canEdit = userRole === "owner" || userRole === "manager";
 

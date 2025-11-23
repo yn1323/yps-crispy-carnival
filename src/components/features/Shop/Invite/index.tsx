@@ -13,7 +13,7 @@ export const InviteShopStaff = () => {
   const params = useParams({ strict: false });
   const shopId = params.shopId as string;
   const navigate = useNavigate();
-  const search = useSearch({ from: "/_auth/shops/$shopId/invite/" });
+  const search = useSearch({ strict: false });
   const currentTab = search.tab || "send";
 
   // TODO: 実際のAPI呼び出しで店舗名を取得
