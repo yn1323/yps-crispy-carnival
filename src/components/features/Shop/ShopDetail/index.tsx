@@ -78,7 +78,7 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
           </Tabs.Trigger>
           <Tabs.Trigger value="staff" gap={2}>
             <Icon as={LuUsers} boxSize={4} />
-            スタッフ一覧
+            スタッフ
           </Tabs.Trigger>
         </Tabs.List>
 
