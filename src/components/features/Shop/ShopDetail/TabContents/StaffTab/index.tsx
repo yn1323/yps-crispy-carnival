@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Card, Flex, Icon, Input, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Flex, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
@@ -77,7 +77,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
       user.roles.some((role) => {
         if (roleFilter === "オーナー") return role === "owner";
         if (roleFilter === "マネージャー") return role === "manager";
-        if (roleFilter === "スタッフ") return role === "staff";
+        if (roleFilter === "スタッフ") return role === "general";
         return false;
       });
 
@@ -94,16 +94,16 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
         <Flex direction={{ base: "column", md: "row" }} gap={3} mb={3}>
           {/* 検索バー */}
           <Box position="relative" flex={1}>
-            <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" pointerEvents="none">
-              <Icon as={LuSearch} boxSize={4} color="gray.400" />
-            </Box>
-            <Input
-              type="text"
-              placeholder="名前で検索..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              pl={10}
-            />
+            <InputGroup startElement={<Icon as={LuSearch} boxSize={4} color="gray.400" />}>
+              <Input
+                background="white"
+                type="text"
+                placeholder="名前で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                pl={10}
+              />
+            </InputGroup>
           </Box>
 
           {/* ステータスフィルター */}
@@ -134,7 +134,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
 
         {/* スタッフ招待ボタン */}
         {canEdit && (
-          <Link to="/shops/invite">
+          <Link to="/shops/$shopId/invite" params={{ shopId: shop._id }}>
             <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2}>
               <Icon as={LuPlus} boxSize={4} />
               スタッフを招待
@@ -151,7 +151,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
           </Text>
           <Box>
             {filteredUsers.map((user) => (
-              <Link key={user._id} to="/shops/$shopId/members/$userId" params={{ shopId: shop._id, userId: user._id }}>
+              <Link key={user._id} to="/shops/$shopId/staffs/$userId" params={{ shopId: shop._id, userId: user._id }}>
                 <Card.Root
                   mb={{ base: 2, md: 3 }}
                   borderWidth={0}

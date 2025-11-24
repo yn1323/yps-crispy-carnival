@@ -67,7 +67,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
         description: "ユーザー情報を更新しました",
         type: "success",
       });
-      navigate({ to: callbackRoutingPath ?? `/shops/${shopId}/members/${user._id}` });
+      navigate({ to: callbackRoutingPath ?? `/shops/${shopId}/staffs/${user._id}` });
     } catch (error) {
       console.error("ユーザー更新エラー:", error);
       toaster.create({
@@ -80,7 +80,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   return (
     <Container maxW="6xl">
       {/* ヘッダー */}
-      <Title prev={{ url: `/shops/${shopId}/members/${user._id}`, label: "スタッフ詳細に戻る" }}>
+      <Title prev={{ url: `/shops/${shopId}/staffs/${user._id}`, label: "スタッフ詳細に戻る" }}>
         <Box>
           <Flex align="center" gap={3} mb={2}>
             <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">
@@ -191,7 +191,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
                 スタッフを退職処理すると、以下の影響があります：
               </Text>
               <List.Root fontSize="xs" color="red.700" gap={1}>
-                <List.Item>このスタッフは店舗メンバーから削除されます</List.Item>
+                <List.Item>このスタッフは店舗スタッフから削除されます</List.Item>
                 <List.Item>過去のシフト履歴・勤怠記録は保持されます</List.Item>
                 <List.Item>再度招待することで復帰が可能です</List.Item>
                 <List.Item>退職日は記録され、統計データに反映されます</List.Item>
@@ -220,7 +220,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
                 <DialogBody>
                   <Text mb={2}>本当に {user.name} を退職処理しますか？</Text>
                   <Text fontSize="sm" color="gray.600">
-                    この操作により、スタッフは店舗メンバーから削除されます。過去の記録は保持され、後で再招待することも可能です。
+                    この操作により、スタッフは店舗スタッフから削除されます。過去の記録は保持され、後で再招待することも可能です。
                   </Text>
                 </DialogBody>
                 <DialogFooter>

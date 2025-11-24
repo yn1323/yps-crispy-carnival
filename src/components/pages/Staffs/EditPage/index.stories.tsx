@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MembersEditPage } from ".";
+import { StaffEditPage } from ".";
 
 const meta = {
-  title: "Pages/Members/EditPage",
-  component: MembersEditPage,
+  title: "Pages/Staffs/EditPage",
+  component: StaffEditPage,
   parameters: {
     layout: "fullscreen",
   },
-} satisfies Meta<typeof MembersEditPage>;
+} satisfies Meta<typeof StaffEditPage>;
 
 export default meta;
 

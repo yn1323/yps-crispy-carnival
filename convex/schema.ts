@@ -32,7 +32,7 @@ const shops = defineTable({
 const shopUserBelongings = defineTable({
   shopId: v.id("shops"),
   userId: v.id("users"),
-  role: v.string(), // owner, manager, staff
+  role: v.string(), // owner, manager, general
   createdAt: v.number(),
   isDeleted: v.boolean(),
 })

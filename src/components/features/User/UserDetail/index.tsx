@@ -14,7 +14,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Title } from "@/src/components/ui/Title";
@@ -34,9 +34,22 @@ type UserDetailProps = {
   currentShopId: string;
 };
 
+export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
+
 export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: UserDetailProps) => {
   const navigate = useNavigate();
+  const search = useSearch({ strict: false });
+  const currentTab = search.tab || "info";
   const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
+
+  const handleTabChange = (value: string) => {
+    navigate({
+      to: "/shops/$shopId/staffs/$userId",
+      params: { shopId: currentShopId, userId: user._id },
+      search: { tab: value as (typeof UserDetailTabTypes)[number] },
+      replace: true,
+    });
+  };
 
   // 同じ店舗の複数ロールをまとめる
   const uniqueShops = shops.reduce(
@@ -100,14 +113,11 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
             <Button
               onClick={() => {
                 navigate({
-                  to: "/shops/$shopId/members/$userId/edit",
+                  to: "/shops/$shopId/staffs/$userId/edit",
                   params: { shopId: currentShopId, userId: user._id },
                 });
               }}
-              variant="outline"
-              borderColor="teal.600"
-              color="teal.600"
-              _hover={{ bg: "teal.50" }}
+              colorPalette="teal"
               gap={2}
             >
               <Icon as={LuPencil} boxSize={4} />
@@ -246,7 +256,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: User
       </Box>
 
       {/* タブコンテンツ */}
-      <Tabs.Root defaultValue="info" w="full" variant="enclosed">
+      <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
         <Tabs.List mb={{ base: 4, md: 6 }}>
           <Tabs.Trigger value="info" gap={2}>
             <Icon as={LuStore} boxSize={4} />

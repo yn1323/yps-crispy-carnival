@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { InviteShopMember } from "./index";
+import { InviteShopStaff } from "./index";
 
 const meta = {
-  title: "Features/Shop/Invite/InviteShopMember",
-  component: InviteShopMember,
+  title: "Features/Shop/Invite/InviteShopStaff",
+  component: InviteShopStaff,
   parameters: {
     layout: "fullscreen",
   },
-} satisfies Meta<typeof InviteShopMember>;
+} satisfies Meta<typeof InviteShopStaff>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
