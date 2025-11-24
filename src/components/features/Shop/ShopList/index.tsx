@@ -11,6 +11,7 @@ type ShopListProps = {
     closeTime: string;
     submitFrequency: string;
     useTimeCard: boolean;
+    staffCount: number;
   }[];
 };
 
@@ -83,7 +84,7 @@ export const ShopList = ({ shops }: ShopListProps) => {
                         </Flex>
                         <Flex align="center" gap="1.5" color="gray.600">
                           <Icon as={LuUsers} boxSize={4} color="gray.400" />
-                          <Text>15名</Text>
+                          <Text>{shop.staffCount}名</Text>
                         </Flex>
                       </Flex>
                     </VStack>

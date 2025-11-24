@@ -566,9 +566,22 @@ export const getShopsByAuthId = query({
         if (!shop || shop.isDeleted) {
           return null;
         }
+
+        // 店舗の所属人数を取得（ユニークなuserIdの数をカウント）
+        const belongingStaff = await ctx.db
+          .query("shopUserBelongings")
+          .withIndex("by_shop", (q) => q.eq("shopId", belonging.shopId))
+          .filter((q) => q.neq(q.field("isDeleted"), true))
+          .collect();
+
+        // ユニークなuserIdを抽出
+        const uniqueUserIds = new Set(belongingStaff.map((staff) => staff.userId));
+        const staffCount = uniqueUserIds.size;
+
         return {
           ...shop,
           role: belonging.role,
+          staffCount,
         };
       }),
     );

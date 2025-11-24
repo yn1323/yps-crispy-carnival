@@ -13,6 +13,7 @@ const meta = {
         closeTime: "20:00",
         submitFrequency: "1w",
         useTimeCard: true,
+        staffCount: 8,
       },
       {
         _id: "shop2",
@@ -21,6 +22,7 @@ const meta = {
         closeTime: "20:00",
         submitFrequency: "1w",
         useTimeCard: false,
+        staffCount: 12,
       },
     ],
   },
