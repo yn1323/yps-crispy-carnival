@@ -1,5 +1,5 @@
 import { Box, Button, Container, Flex, Heading, Icon, Spinner, Stack, Tabs, Text, VStack } from "@chakra-ui/react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Title } from "@/src/components/ui/Title";
@@ -20,9 +20,22 @@ type ShopDetailProps = {
   userRole: string | null;
 };
 
+export const ShopDetailTabTypes = ["info", "staff"] as const;
+
 export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
   const navigate = useNavigate();
+  const search = useSearch({ strict: false });
+  const currentTab = search.tab || "info";
   const canEdit = userRole === "owner" || userRole === "manager";
+
+  const handleTabChange = (value: string) => {
+    navigate({
+      to: "/shops/$shopId",
+      params: { shopId: shop._id },
+      search: { tab: value as (typeof ShopDetailTabTypes)[number] },
+      replace: true,
+    });
+  };
 
   return (
     <Container maxW="6xl">
@@ -57,7 +70,7 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
       </Title>
 
       {/* タブ */}
-      <Tabs.Root defaultValue="info" w="full" variant="enclosed">
+      <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
         <Tabs.List mb={{ base: 4, md: 6 }}>
           <Tabs.Trigger value="info" gap={2}>
             <Icon as={LuStore} boxSize={4} />

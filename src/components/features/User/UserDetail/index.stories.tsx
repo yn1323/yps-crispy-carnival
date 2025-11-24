@@ -59,7 +59,7 @@ const meta = {
         createdBy: "auth3",
         createdAt: Date.now(),
         isDeleted: false,
-        role: "staff",
+        role: "general",
       },
     ],
     currentShopRole: "owner",

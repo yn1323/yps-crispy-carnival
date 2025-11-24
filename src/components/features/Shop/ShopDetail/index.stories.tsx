@@ -40,7 +40,7 @@ const meta = {
         _id: "user3" as Id<"users">,
         name: "鈴木一郎",
         authId: "auth3",
-        role: "staff",
+        role: "general",
         createdAt: Date.now(),
       },
     ],

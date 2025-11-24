@@ -3,7 +3,12 @@ import {
   createListCollection,
   Portal,
   SelectContent,
+  SelectControl,
+  SelectHiddenSelect,
+  SelectIndicator,
+  SelectIndicatorGroup,
   SelectItem,
+  SelectLabel,
   SelectPositioner,
   SelectRoot,
   type SelectRootProps,
@@ -26,6 +31,8 @@ type SelectProps = {
   usePortal?: boolean;
   w?: SystemStyleObject["w"];
   maxW?: SystemStyleObject["maxW"];
+  label?: string;
+  note?: string;
 } & Omit<SelectRootProps, "collection" | "value" | "onValueChange" | "onChange">;
 
 export const Select = ({
@@ -38,6 +45,8 @@ export const Select = ({
   usePortal = true,
   w,
   maxW,
+  label,
+  note,
   ...restProps
 }: SelectProps) => {
   const collection = externalCollection || createListCollection({ items: items || [] });
@@ -60,6 +69,7 @@ export const Select = ({
 
   return (
     <SelectRoot
+      background="white"
       collection={collection}
       value={selectValue}
       onValueChange={handleValueChange}
@@ -68,9 +78,21 @@ export const Select = ({
       maxW={maxW}
       {...restProps}
     >
-      <SelectTrigger>
-        <SelectValueText placeholder={placeholder} />
-      </SelectTrigger>
+      <SelectHiddenSelect />
+      {label && <SelectLabel>{label}</SelectLabel>}
+      {note && (
+        <SelectLabel fontSize={"xs"} fontWeight="normal">
+          {note}
+        </SelectLabel>
+      )}
+      <SelectControl>
+        <SelectTrigger>
+          <SelectValueText placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectIndicatorGroup>
+          <SelectIndicator />
+        </SelectIndicatorGroup>
+      </SelectControl>
       {usePortal ? (
         <Portal>
           <SelectPositioner>{content}</SelectPositioner>

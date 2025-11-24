@@ -1,5 +1,5 @@
-import { InviteShopMember } from "@/src/components/features/Shop/Invite";
+import { InviteShopStaff } from "@/src/components/features/Shop/Invite";
 
 export const InvitePage = () => {
-  return <InviteShopMember />;
+  return <InviteShopStaff />;
 };

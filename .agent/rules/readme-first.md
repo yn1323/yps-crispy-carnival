@@ -16,7 +16,7 @@ trigger: always_on
 - YOU MUST: 作業時はSerenaMCPを利用してください。
 - YOU MUST: ユーザーの指示で不明瞭な箇所は必ず聞き返してください。これすごく重要！！ぜひ一緒に仕様をつくっていきましょう！
 - YOU MUST: 回答、implementation plan, task, walkthroughは日本語で書くこと
-- YOU MUST: 実装着手前にimplementaiton planを./docに`yyyy-mm-dd_<実装名>`で作成してください（./docsのどのディレクトリに配置するかは任せます！）
+- YOU MUST: 実装着手前にimplementaiton planを./docに`yyyy-mm-dd_<実装名>`で作成してください（./docのどのディレクトリに配置するかは任せます！）
 - YOU MUST: ロジック修正時は、必ず単体テスト、E2Eテストも更新する必要がないか確認してください。
 - YOU MUST: UI変更時はブラウザ連携機能を利用し、キャプチャをwalkthroughに含めてください。
 

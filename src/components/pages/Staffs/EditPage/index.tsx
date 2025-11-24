@@ -11,11 +11,11 @@ type Props = {
   shopId: string;
 };
 
-export const MembersEditPage = ({ userId, shopId }: Props) => {
+export const StaffEditPage = ({ userId, shopId }: Props) => {
   const [user] = useAtom(userAtom);
 
   // ユーザー情報取得
-  const memberData = useQuery(api.user.getUserById, { userId: userId as Id<"users"> });
+  const staffData = useQuery(api.user.getUserById, { userId: userId as Id<"users"> });
 
   // 現在のユーザー権限取得
   const currentUserRole = useQuery(
@@ -24,7 +24,7 @@ export const MembersEditPage = ({ userId, shopId }: Props) => {
   );
 
   // ローディング
-  if (memberData === undefined || currentUserRole === undefined) {
+  if (staffData === undefined || currentUserRole === undefined) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
         <VStack gap="4">
@@ -35,15 +35,15 @@ export const MembersEditPage = ({ userId, shopId }: Props) => {
     );
   }
 
-  // メンバーが見つからない
-  if (memberData === null) {
+  // スタッフが見つからない
+  if (staffData === null) {
     return (
       <Box textAlign="center" py="20">
         <Stack gap="6" alignItems="center">
           <Heading size="lg" color="fg.muted">
-            メンバーが見つかりません
+            スタッフが見つかりません
           </Heading>
-          <Text color="fg.muted">指定されたメンバーは存在しないか、削除された可能性があります</Text>
+          <Text color="fg.muted">指定されたスタッフは存在しないか、削除された可能性があります</Text>
         </Stack>
       </Box>
     );
@@ -57,12 +57,12 @@ export const MembersEditPage = ({ userId, shopId }: Props) => {
           <Heading size="lg" color="red.500">
             権限がありません
           </Heading>
-          <Text color="fg.muted">このメンバーを編集する権限がありません</Text>
+          <Text color="fg.muted">このスタッフを編集する権限がありません</Text>
         </Stack>
       </Box>
     );
   }
 
   // 通常表示
-  return <UserEdit user={memberData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/members/${userId}`} />;
+  return <UserEdit user={staffData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/staffs/${userId}`} />;
 };

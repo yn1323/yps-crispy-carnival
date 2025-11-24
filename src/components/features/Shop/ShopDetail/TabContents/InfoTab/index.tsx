@@ -2,7 +2,7 @@ import { Badge, Box, Card, Flex, Icon, Separator, Text } from "@chakra-ui/react"
 import { LuCalendar, LuClock, LuCreditCard } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Animation } from "@/src/components/templates/Animation";
-import { convertSubmitFrequency } from "@/src/helpers/domain/convertShopData";
+import { convertSubmitFrequency, convertTimeUnit } from "@/src/helpers/domain/convertShopData";
 
 type InfoTabProps = {
   shop: Doc<"shops">;
@@ -41,15 +41,15 @@ export const InfoTab = ({ shop }: InfoTabProps) => {
               </Box>
             </Flex>
 
-            {/* シフト閉鎖時間（固定値） */}
+            {/* シフト入力の時間単位 */}
             <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
               <Icon as={LuClock} boxSize={5} color="gray.500" />
               <Box flex={1}>
                 <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
-                  シフト閉鎖時間
+                  シフト入力の時間単位
                 </Text>
                 <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
-                  30分
+                  {convertTimeUnit.toLabel(shop.timeUnit)}
                 </Text>
               </Box>
             </Flex>
