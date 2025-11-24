@@ -31,6 +31,8 @@ jobs:
       env:
         E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
         E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
+        E2E_CLERK_USER_B: ${{ vars.E2E_CLERK_USER_B }}
+        E2E_CLERK_PASSWORD_B: ${{ vars.E2E_CLERK_PASSWORD_B }}  
         CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
