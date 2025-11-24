@@ -9,8 +9,10 @@ import { StaffTab } from "./TabContents/StaffTab";
 type UserWithRole = {
   _id: Doc<"users">["_id"];
   name: string;
-  authId: string;
+  displayName: string;
+  authId: string | undefined;
   role: string;
+  status: string;
   createdAt: number;
 };
 

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
@@ -31,6 +32,11 @@ import { Route as AuthShopsShopIdStaffsUserIdIndexRouteImport } from './routes/_
 import { Route as AuthShopsShopIdStaffUserIdIndexRouteImport } from './routes/_auth/shops/$shopId/staff/$userId/index'
 import { Route as AuthShopsShopIdStaffsUserIdEditIndexRouteImport } from './routes/_auth/shops/$shopId/staffs/$userId/edit/index'
 
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -148,6 +154,7 @@ const AuthShopsShopIdStaffsUserIdEditIndexRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/attendance': typeof AuthAttendanceRoute
   '/mypage': typeof AuthMypageRoute
   '/shifts': typeof AuthShiftsRoute
@@ -170,6 +177,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/attendance': typeof AuthAttendanceRoute
   '/mypage': typeof AuthMypageRoute
   '/shifts': typeof AuthShiftsRoute
@@ -194,6 +202,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
+  '/invite': typeof InviteRoute
   '/_auth/attendance': typeof AuthAttendanceRoute
   '/_auth/mypage': typeof AuthMypageRoute
   '/_auth/shifts': typeof AuthShiftsRoute
@@ -218,6 +227,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/invite'
     | '/attendance'
     | '/mypage'
     | '/shifts'
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/invite'
     | '/attendance'
     | '/mypage'
     | '/shifts'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_auth'
+    | '/invite'
     | '/_auth/attendance'
     | '/_auth/mypage'
     | '/_auth/shifts'
@@ -287,11 +299,19 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  InviteRoute: typeof InviteRoute
   UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_auth': {
       id: '/_auth'
       path: ''
@@ -490,6 +510,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  InviteRoute: InviteRoute,
   UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
 }
 export const routeTree = rootRouteImport

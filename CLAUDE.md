@@ -72,11 +72,12 @@
 - **認証**: Clerk (@clerk/clerk-react)
 - **バックエンド**: Convex 1.27.3（リアルタイムデータベース）
 - **パッケージマネージャ**: pnpm
+- **日付**: dayjs
 
 ### プロジェクト構造
 
 #### ソースコード（`src/`）
-- `routes/` - TanStack Routerのルート定義（ファイルベースルーティング）
+- `routes/` - TanStack Routerのルート定義（ファイルベースルーティング）、pagesの呼び出し。state管理はしない
 - `components/` - 目的別に整理されたReactコンポーネント
   - `features/` - 機能固有コンポーネント
   - `layout/` - レイアウトコンポーネント
@@ -144,3 +145,35 @@
 - Selectボックス：@yps-crispy-carnival/src/components/ui/Select/index.tsx  
 - Formのカード：@yps-crispy-carnival/src/components/ui/FormCard/index.tsx
 - ページタイトル：@yps-crispy-carnival/src/components/ui/Title/index.tsx
+- モーダルダイアログ：@yps-crispy-carnival/src/components/ui/Dialog/index.tsx
+   - ビジネスロジック側で利用する場合、○○Modal/でディレクトリを切り、index.tsx, index.stories.tsxを切り出すこと
+
+### Formバリデーション
+- react-hook-form x zodを利用。schemaはコロケーションでschema.tsとして切り出すこと
+
+### 全体バリデーション方針
+- @src/configs/zod/zop-setup.ts にメッセージは集約し、専用のメッセージなしでも通じるようにする
+- 個別のschemaでは可能な限り専用メッセージなしにしたい
+- バリデーションの定数は @src/constants/validations.ts に集約
+
+## DBについて
+- convexはバックエンドとしてアップロードするため、./convexにすべてのコードが入っている必要があります
+- 定数などは @convex/constants.ts に集約する
+
+
+## エラーハンドリング戦略
+- Formのエラー以外は、toastで成功・失敗をユーザーに通知するようにしてください
+
+## コンポーネントの責務（大事！）
+1. routes/
+   - page配下のコンポーネント呼び出しのみ
+   - それ以外は禁止！
+2. src/components/pages
+   - useQueryの呼び出し
+   - APIに応じたエラー、ローディング、正常ケースのコンポーネント呼び出し
+   - useMutationの定義は禁止
+   - 正常系ケースのコンポーネント呼び出し時はエラー、ローディングなどの判定は終わっているものとしたい！
+3. src/components/features
+   - 主にレイアウト、ドメインロジックを持つ
+   - useMutationの定義
+   - index.tsx内に正常系、エラー、ローディングのコンポーネントを持ち、これらは適宜src/components/pagesで呼び出される

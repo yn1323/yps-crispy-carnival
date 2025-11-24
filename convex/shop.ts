@@ -108,7 +108,9 @@ export const createShop = mutation({
       .insert("shopUserBelongings", {
         shopId,
         userId: user._id,
+        displayName: user.name,
         role: "owner",
+        status: "active",
         createdAt: Date.now(),
         isDeleted: false,
       })
@@ -124,7 +126,9 @@ export const createShop = mutation({
       .insert("shopUserBelongings", {
         shopId,
         userId: user._id,
+        displayName: user.name,
         role: "manager",
+        status: "active",
         createdAt: Date.now(),
         isDeleted: false,
       })
@@ -405,7 +409,9 @@ export const addUserToShop = mutation({
         .insert("shopUserBelongings", {
           shopId: shopId,
           userId: userId,
+          displayName: targetUser.name,
           role: args.role,
+          status: "active",
           createdAt: Date.now(),
           isDeleted: false,
         })
@@ -614,8 +620,10 @@ export const getUsersInShop = query({
           return {
             _id: user._id,
             name: user.name,
+            displayName: belonging.displayName,
             authId: user.authId,
             role: belonging.role,
+            status: belonging.status,
             createdAt: belonging.createdAt,
           };
         }),
