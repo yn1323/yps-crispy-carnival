@@ -17,6 +17,7 @@ export const ShopsListPage = () => {
   if (!uniqueShops || uniqueShops.length === 0) {
     return (
       <LazyShow>
+        <div>{user.authId}</div>
         <ShopListEmpty />
       </LazyShow>
     );

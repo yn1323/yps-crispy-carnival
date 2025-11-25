@@ -21,12 +21,18 @@ jobs:
       uses: ./.github/actions/setup
     - name: Setup Playwright
       uses: ./.github/actions/playwright
-    - name: Sync Schema, Reset Database and Run Playwright tests
+    - name: Sync Schema and Reset Database
       run: |
         npx convex dev &
         sleep 5
         pnpm convex:import
-        sleep 10
+        kill %1
+      env:
+        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+    - name: Run Playwright tests
+      run: |
+        npx convex dev &
+        sleep 15
         pnpm e2e
         kill %1
       env:
