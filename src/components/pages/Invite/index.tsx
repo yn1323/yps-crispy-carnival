@@ -2,7 +2,14 @@ import { useAuth } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { Accepted, AlreadyAccepted, ErrorView, Loading, LoggedIn, RequireLogin } from "@/src/components/features/User/Join";
+import {
+  Accepted,
+  AlreadyAccepted,
+  ErrorView,
+  Loading,
+  LoggedIn,
+  RequireLogin,
+} from "@/src/components/features/User/Join";
 
 type Props = {
   token: string;
