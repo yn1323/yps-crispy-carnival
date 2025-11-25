@@ -176,7 +176,7 @@ export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
             {/* メールアドレス入力 */}
             <Field.Root invalid={!!errors.email}>
               <Field.Label fontSize="sm" color="gray.700">
-                メールアドレス（任意）
+                メールアドレス
               </Field.Label>
               <Input {...register("email")} type="email" placeholder="例: tanaka@example.com" size="lg" />
               {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}

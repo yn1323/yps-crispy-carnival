@@ -36,7 +36,13 @@ test.describe("招待受け入れ", () => {
     // 「参加しました！」メッセージを確認
     await expect(page.getByText("参加しました！")).toBeVisible();
 
-    // 店舗ページへ移動ボタンが表示されることを確認
-    await expect(page.getByRole("link", { name: "店舗ページへ移動" })).toBeVisible();
+    // 店舗ページへ移動ボタンをクリック
+    await page.getByText("店舗ページへ移動").click();
+
+    // 店舗詳細ページに遷移したことを確認
+    await expect(page).toHaveURL(/\/shops\/[^/]+$/);
+
+    // 店舗情報タブが表示されていることを確認
+    await expect(page.getByRole("tab", { name: "店舗情報" })).toBeVisible();
   });
 });

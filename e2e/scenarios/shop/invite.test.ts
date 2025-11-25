@@ -9,20 +9,26 @@ test.describe("招待URL発行", () => {
     await page.goto("/shops");
 
     // 最初の店舗をクリック
-    await page.locator("a[href^='/shops/']").first().click();
+    await page.getByRole("group").first().click();
 
     // 店舗詳細ページに遷移したことを確認
     await expect(page).toHaveURL(/\/shops\/[^/]+$/);
 
-    // 招待タブ（またはリンク）をクリック
-    await page.getByRole("link", { name: /招待/i }).click();
+    // スタッフタブをクリック
+    await page.getByRole("tab", { name: "スタッフ" }).click();
+
+    // 「スタッフを招待」ボタンをクリック
+    await page.getByText("スタッフを招待").click();
 
     // 招待ページに遷移したことを確認
     await expect(page).toHaveURL(/\/shops\/[^/]+\/invite/);
 
     // 表示名を入力
     const displayName = "E2Eテストユーザー";
+    const mail = "e2e-test-user@example.com";
+
     await page.getByLabel("表示名").fill(displayName);
+    await page.getByLabel("メールアドレス").fill(mail);
 
     // 招待メールを送るボタンをクリック
     await page.getByRole("button", { name: /招待メールを送る/i }).click();

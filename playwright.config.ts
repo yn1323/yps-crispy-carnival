@@ -40,7 +40,7 @@ export default defineConfig({
     },
     {
       name: "認証済みテスト",
-      testMatch: /scenarios\/(?!invite\/).*\.test\.ts/,
+      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         // 保存した認証状態を使用
