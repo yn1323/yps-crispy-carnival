@@ -9,8 +9,10 @@ import { StaffTab } from "./TabContents/StaffTab";
 type UserWithRole = {
   _id: Doc<"users">["_id"];
   name: string;
-  authId: string;
+  displayName: string;
+  authId: string | undefined;
   role: string;
+  status: string;
   createdAt: number;
 };
 
@@ -78,7 +80,7 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
           </Tabs.Trigger>
           <Tabs.Trigger value="staff" gap={2}>
             <Icon as={LuUsers} boxSize={4} />
-            スタッフ ({users.length}名)
+            スタッフ
           </Tabs.Trigger>
         </Tabs.List>
 

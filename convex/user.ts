@@ -6,7 +6,8 @@ import { mutation, query } from "./_generated/server";
 export const createUser = mutation({
   args: {
     name: v.string(),
-    authId: v.string(),
+    authId: v.optional(v.string()),
+    status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // 入力値バリデーション
@@ -17,17 +18,14 @@ export const createUser = mutation({
       });
     }
 
-    if (!args.authId.trim()) {
-      throw new ConvexError({
-        message: "認証IDは必須です",
-        code: "EMPTY_AUTH_ID",
-      });
-    }
+    // authIdがある場合は本登録、なければ仮登録
+    const status = args.status ?? (args.authId ? "active" : "pending");
 
     const userId = await ctx.db
       .insert("users", {
         name: args.name.trim(),
         authId: args.authId,
+        status,
         createdAt: Date.now(),
         isDeleted: false,
       })
@@ -41,7 +39,7 @@ export const createUser = mutation({
 
     return {
       success: true,
-      data: { userId, authId: args.authId, name: args.name.trim() },
+      data: { userId, authId: args.authId, name: args.name.trim(), status },
     };
   },
 });

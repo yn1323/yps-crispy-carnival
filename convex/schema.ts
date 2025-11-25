@@ -3,7 +3,8 @@ import { v } from "convex/values";
 
 const users = defineTable({
   name: v.string(),
-  authId: v.string(),
+  authId: v.optional(v.string()),
+  status: v.string(), // "pending" | "active"
   createdAt: v.number(),
   isDeleted: v.optional(v.boolean()),
 }).index("by_auth_id", ["authId"]);
@@ -32,13 +33,19 @@ const shops = defineTable({
 const shopUserBelongings = defineTable({
   shopId: v.id("shops"),
   userId: v.id("users"),
-  role: v.string(), // owner, manager, general
+  displayName: v.string(),
+  role: v.string(), // owner, manager, staff
+  status: v.string(), // "pending" | "active"
+  inviteToken: v.optional(v.string()),
+  inviteExpiresAt: v.optional(v.number()),
+  invitedBy: v.optional(v.id("users")),
   createdAt: v.number(),
   isDeleted: v.boolean(),
 })
   .index("by_shop", ["shopId"])
   .index("by_user", ["userId"])
-  .index("by_shop_and_user", ["shopId", "userId"]);
+  .index("by_shop_and_user", ["shopId", "userId"])
+  .index("by_invite_token", ["inviteToken"]);
 
 const schema = defineSchema({
   users,

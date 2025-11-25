@@ -13,7 +13,6 @@ trigger: always_on
 
 ### YOU MUST（必須事項）
 - YOU MUST: 質問をする場合は、1つずつ質問してください。チャットなので。。。
-- YOU MUST: 作業時はSerenaMCPを利用してください。
 - YOU MUST: ユーザーの指示で不明瞭な箇所は必ず聞き返してください。これすごく重要！！ぜひ一緒に仕様をつくっていきましょう！
 - YOU MUST: 回答、implementation plan, task, walkthroughは日本語で書くこと
 - YOU MUST: 実装着手前にimplementaiton planを./docに`yyyy-mm-dd_<実装名>`で作成してください（./docのどのディレクトリに配置するかは任せます！）

@@ -9,3 +9,11 @@ export type ShopSubmitFrequencyType = (typeof SHOP_SUBMIT_FREQUENCY)[number];
 
 export const SHOP_MIN_LENGTH = 2;
 export const SHOP_MAX_LENGTH = 50;
+
+// 役割定義
+export const SHOP_USER_ROLE = ["owner", "manager", "general"] as const;
+export type ShopUserRoleType = (typeof SHOP_USER_ROLE)[number];
+
+// 招待関連
+export const INVITE_EXPIRY_DAYS = 14;
+export const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;

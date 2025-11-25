@@ -4,6 +4,10 @@ on:
     pull_request:
       branches: [develop]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     timeout-minutes: 60
@@ -17,20 +21,25 @@ jobs:
       uses: ./.github/actions/setup
     - name: Setup Playwright
       uses: ./.github/actions/playwright
-    - name: Reset Database
-      run: pnpm convex:import
+    - name: Sync Schema and Reset Database
+      run: |
+        npx convex dev &
+        sleep 5
+        pnpm convex:import
+        kill %1
       env:
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
       run: |
         npx convex dev &
-        # Convexの起動と環境変数のセットを待つ
         sleep 15
         pnpm e2e
         kill %1
       env:
         E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
         E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
+        E2E_CLERK_USER_B: ${{ vars.E2E_CLERK_USER_B }}
+        E2E_CLERK_PASSWORD_B: ${{ vars.E2E_CLERK_PASSWORD_B }}
         CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
@@ -40,3 +49,28 @@ jobs:
         name: playwright-report
         path: playwright-report/
         retention-days: 30
+    - name: Deploy Report to GitHub Pages
+      if: ${{ !cancelled() }}
+      run: |
+        git clone https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
+        rm -rf hosting-pages/playwright/${{ github.event.pull_request.number }}
+        mkdir -p hosting-pages/playwright/${{ github.event.pull_request.number }}
+        cp -r playwright-report/* hosting-pages/playwright/${{ github.event.pull_request.number }}/
+        cd hosting-pages
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add .
+        git commit -m "Playwright report for PR #${{ github.event.pull_request.number }}" || exit 0
+        git push
+    - name: Comment PR with Report Link
+      if: ${{ !cancelled() }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const reportUrl = `https://yn1323.github.io/hosting-pages/playwright/${{ github.event.pull_request.number }}/`;
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: `## 📊 Playwright Test Report\n\n[View Report](${reportUrl})`
+          });

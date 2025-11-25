@@ -119,7 +119,7 @@ const main = async () => {
       }
 
       // Convexインポートコマンドを実行
-      const command = `npx convex import --table "${tableName}" --replace-all "${filePath}" --yes`;
+      const command = `npx convex import --table "${tableName}" --replace "${filePath}" --yes`;
       console.log(`実行コマンド: ${command}`);
       console.log("");
 

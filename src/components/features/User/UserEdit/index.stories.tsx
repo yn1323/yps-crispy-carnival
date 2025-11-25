@@ -21,6 +21,7 @@ export const Basic: Story = {
       _creationTime: Date.now(),
       name: "山田太郎",
       authId: "auth123",
+      status: "active",
       createdAt: Date.now(),
       isDeleted: false,
     },

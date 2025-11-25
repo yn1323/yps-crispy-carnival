@@ -11,21 +11,25 @@ type ShopListProps = {
     closeTime: string;
     submitFrequency: string;
     useTimeCard: boolean;
+    staffCount: number;
   }[];
+  canCreateShop: boolean;
 };
 
-export const ShopList = ({ shops }: ShopListProps) => {
+export const ShopList = ({ shops, canCreateShop }: ShopListProps) => {
   return (
     <Container maxW="6xl">
       {/* ヘッダー */}
       <Title
         action={
-          <Link to="/shops/new">
-            <Button colorPalette="teal" gap="2" display={{ base: "none", md: "flex" }}>
-              <Icon as={LuPlus} boxSize={4} />
-              新規店舗
-            </Button>
-          </Link>
+          canCreateShop && (
+            <Link to="/shops/new">
+              <Button colorPalette="teal" gap="2" display={{ base: "none", md: "flex" }}>
+                <Icon as={LuPlus} boxSize={4} />
+                新規店舗
+              </Button>
+            </Link>
+          )
         }
       >
         店舗一覧
@@ -83,7 +87,7 @@ export const ShopList = ({ shops }: ShopListProps) => {
                         </Flex>
                         <Flex align="center" gap="1.5" color="gray.600">
                           <Icon as={LuUsers} boxSize={4} color="gray.400" />
-                          <Text>15名</Text>
+                          <Text>{shop.staffCount}名</Text>
                         </Flex>
                       </Flex>
                     </VStack>
@@ -101,14 +105,16 @@ export const ShopList = ({ shops }: ShopListProps) => {
       </VStack>
 
       {/* モバイル用新規店舗ボタン */}
-      <Box mt="6" display={{ base: "block", md: "none" }}>
-        <Link to="/shops/new">
-          <Button w="full" colorPalette="teal" gap="2">
-            <Icon as={LuPlus} boxSize={4} />
-            新規店舗を追加
-          </Button>
-        </Link>
-      </Box>
+      {canCreateShop && (
+        <Box mt="6" display={{ base: "block", md: "none" }}>
+          <Link to="/shops/new">
+            <Button w="full" colorPalette="teal" gap="2">
+              <Icon as={LuPlus} boxSize={4} />
+              新規店舗を追加
+            </Button>
+          </Link>
+        </Box>
+      )}
     </Container>
   );
 };
@@ -118,9 +124,12 @@ export const ShopListEmpty = () => {
     <Box textAlign="center" py="20">
       <Stack gap="6" alignItems="center">
         <Heading size="lg" color="fg.muted">
-          店舗がまだ登録されていません
+          所属する店舗がありません
         </Heading>
-        <Text color="fg.muted">まずは店舗を登録してシフト管理を始めましょう</Text>
+        <Stack gap="2" alignItems="center">
+          <Text color="fg.muted">招待メールを受け取っている場合は、リンクから参加できます</Text>
+          <Text color="fg.muted">または新しい店舗を登録してシフト管理を始めましょう</Text>
+        </Stack>
         <Link to="/shops/new">
           <Button colorPalette="teal" size="lg">
             <Icon as={LuPlus} boxSize={4} />
