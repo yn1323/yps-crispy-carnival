@@ -72,7 +72,7 @@ export const AcceptedStory: StoryObj<typeof Accepted> = {
 
 // ログインが必要
 export const RequireLoginStory: StoryObj<typeof RequireLogin> = {
-  render: () => <RequireLogin invitation={mockInvitation} />,
+  render: () => <RequireLogin />,
 };
 
 // ログイン済み - エラーあり

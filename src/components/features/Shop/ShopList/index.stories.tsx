@@ -5,6 +5,7 @@ const meta = {
   title: "features/Shop/ShopList",
   component: ShopList,
   args: {
+    canCreateShop: true,
     shops: [
       {
         _id: "shop1",
@@ -30,6 +31,12 @@ const meta = {
 export default meta;
 
 export const Basic: StoryObj<typeof meta> = {};
+
+export const CannotCreateShop: StoryObj<typeof meta> = {
+  args: {
+    canCreateShop: false,
+  },
+};
 
 export const Empty: StoryObj<typeof meta> = {
   render: () => <ShopListEmpty />,

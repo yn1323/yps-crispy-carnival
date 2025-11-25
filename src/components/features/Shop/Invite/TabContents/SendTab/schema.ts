@@ -5,6 +5,7 @@ import { betweenLength } from "@/src/helpers/validation";
 export const roleOptions = [
   { value: "general", label: "スタッフ" },
   { value: "manager", label: "マネージャー" },
+  { value: "owner", label: "オーナー" },
 ];
 
 export const schema = z.object({

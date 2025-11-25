@@ -2,14 +2,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import {
-  Accepted,
-  AlreadyAccepted,
-  ErrorView,
-  Loading,
-  LoggedIn,
-  RequireLogin,
-} from "@/src/components/features/User/Join";
+import { Accepted, AlreadyAccepted, ErrorView, Loading, LoggedIn, RequireLogin } from "@/src/components/features/User/Join";
 
 type Props = {
   token: string;
@@ -51,6 +44,11 @@ export const InvitePage = ({ token }: Props) => {
     }
   };
 
+  // 承認完了後の表示（最優先でチェック）
+  if (isAccepted && acceptedShopId && acceptedShopName) {
+    return <Accepted shopId={acceptedShopId} shopName={acceptedShopName} />;
+  }
+
   // トークンがない場合
   if (!token) {
     return <ErrorView title="無効なリンク" message="招待リンクが正しくありません。" />;
@@ -88,14 +86,9 @@ export const InvitePage = ({ token }: Props) => {
     return <AlreadyAccepted />;
   }
 
-  // 承認完了後の表示
-  if (isAccepted && acceptedShopId && acceptedShopName) {
-    return <Accepted shopId={acceptedShopId} shopName={acceptedShopName} />;
-  }
-
   // ログインが必要
   if (!isSignedIn) {
-    return <RequireLogin invitation={invitation} />;
+    return <RequireLogin />;
   }
 
   // ログイン済み - 正常系

@@ -14,7 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { SignInButton } from "@clerk/clerk-react";
 import { Link } from "@tanstack/react-router";
-import { LuCheck, LuCircleAlert, LuLogIn, LuStore, LuUser, LuUserPlus } from "react-icons/lu";
+import { LuCheck, LuCircleAlert, LuLogIn, LuStore, LuUserPlus } from "react-icons/lu";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 
 // 招待情報の型
@@ -111,16 +111,11 @@ export const Accepted = ({ shopId, shopName }: AcceptedProps) => (
 );
 
 // ログインが必要
-type RequireLoginProps = {
-  invitation: InvitationData;
-};
-
-export const RequireLogin = ({ invitation }: RequireLoginProps) => (
+export const RequireLogin = () => (
   <Container maxW="lg" py={10}>
     <Card.Root>
       <Card.Body p={{ base: 6, md: 8 }}>
-        <InvitationHeader />
-        <InvitationInfo invitation={invitation} />
+        <InvitationHeader showSubText={false} />
         <Stack gap={3}>
           <Text fontSize="sm" color="gray.600" textAlign="center">
             参加するにはログインが必要です
@@ -131,6 +126,11 @@ export const RequireLogin = ({ invitation }: RequireLoginProps) => (
               ログインして参加する
             </Button>
           </SignInButton>
+          <Text fontSize="xs" color="gray.500" textAlign="center">
+            <Link to="/" target="_blank">
+              はじめての方はこちら
+            </Link>
+          </Text>
         </Stack>
       </Card.Body>
     </Card.Root>
@@ -171,7 +171,11 @@ export const LoggedIn = ({ invitation, error, isAccepting, onAccept }: LoggedInP
 );
 
 // 招待ヘッダー（共通）
-const InvitationHeader = () => (
+type InvitationHeaderProps = {
+  showSubText?: boolean;
+};
+
+const InvitationHeader = ({ showSubText = true }: InvitationHeaderProps) => (
   <Flex align="center" gap={3} mb={6}>
     <Flex p={3} bg="teal.50" borderRadius="full">
       <Icon as={LuUserPlus} boxSize={6} color="teal.600" />
@@ -180,9 +184,11 @@ const InvitationHeader = () => (
       <Heading size="lg" color="gray.900">
         店舗への招待
       </Heading>
-      <Text fontSize="sm" color="gray.600">
-        以下の店舗に招待されています
-      </Text>
+      {showSubText && (
+        <Text fontSize="sm" color="gray.600">
+          以下の店舗に招待されています
+        </Text>
+      )}
     </Box>
   </Flex>
 );
@@ -209,24 +215,6 @@ const InvitationInfo = ({ invitation }: InvitationInfoProps) => (
       </Flex>
     </Box>
 
-    {/* 表示名 */}
-    <Box p={4} bg="gray.50" borderRadius="md">
-      <Flex align="center" gap={3}>
-        <Icon as={LuUser} boxSize={5} color="gray.600" />
-        <Box flex={1}>
-          <Text fontSize="xs" color="gray.500">
-            あなたの表示名
-          </Text>
-          <Text fontWeight="medium" color="gray.900">
-            {invitation.displayName}
-          </Text>
-          <Text fontSize="xs" color="gray.400" mt={1}>
-            ※ 参加後に変更できます
-          </Text>
-        </Box>
-      </Flex>
-    </Box>
-
     {/* 役割 */}
     <Box p={4} bg="gray.50" borderRadius="md">
       <Flex align="center" justify="space-between">
@@ -240,17 +228,5 @@ const InvitationInfo = ({ invitation }: InvitationInfoProps) => (
         </Box>
       </Flex>
     </Box>
-
-    {/* 招待者 */}
-    {invitation.invitedByName && (
-      <Box p={4} bg="gray.50" borderRadius="md">
-        <Text fontSize="xs" color="gray.500">
-          招待者
-        </Text>
-        <Text fontWeight="medium" color="gray.900">
-          {invitation.invitedByName}
-        </Text>
-      </Box>
-    )}
   </Stack>
 );
