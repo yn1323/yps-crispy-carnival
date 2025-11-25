@@ -23,12 +23,13 @@ setup("ログイン", async ({ page }) => {
     page,
     signInParams: {
       strategy: "password",
-      identifier: process.env.E2E_CLERK_USER ?? "",
-      password: process.env.E2E_CLERK_PASSWORD ?? "",
+      identifier: process.env.E2E_CLERK_USER_B ?? "",
+      password: process.env.E2E_CLERK_PASSWORD_B ?? "",
     },
   });
+
   // 認証状態を保存
-  await page.context().storageState({ path: E2EAuthJsonFileMainUser });
+  await page.context().storageState({ path: E2EAuthJsonFileSubUser });
 
   // メインユーザーからログアウト
   await clerk.signOut({ page });
@@ -37,11 +38,12 @@ setup("ログイン", async ({ page }) => {
     page,
     signInParams: {
       strategy: "password",
-      identifier: process.env.E2E_CLERK_USER_B ?? "",
-      password: process.env.E2E_CLERK_PASSWORD_B ?? "",
+      identifier: process.env.E2E_CLERK_USER ?? "",
+      password: process.env.E2E_CLERK_PASSWORD ?? "",
     },
   });
-
   // 認証状態を保存
-  await page.context().storageState({ path: E2EAuthJsonFileSubUser });
+  await page.context().storageState({ path: E2EAuthJsonFileMainUser });
+
+  // E2E_CLERK_USERでテストを継続します
 });
