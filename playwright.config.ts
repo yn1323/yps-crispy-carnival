@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
-import { E2EAuthJsonFile } from "@/e2e/constants";
+import { E2EAuthJsonFileMainUser, E2EAuthJsonFileSubUser } from "@/e2e/constants";
 
 dotenv.config();
 
@@ -40,13 +40,23 @@ export default defineConfig({
     },
     {
       name: "認証済みテスト",
-      testMatch: /scenarios\/.*\.test\.ts/,
+      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         // 保存した認証状態を使用
-        storageState: E2EAuthJsonFile,
+        storageState: E2EAuthJsonFileMainUser,
       },
       dependencies: ["setup"],
+    },
+    {
+      name: "認証済みテストB",
+      testMatch: /scenarios\/userB\/.*\.test\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        // サブユーザーの認証状態を使用
+        storageState: E2EAuthJsonFileSubUser,
+      },
+      dependencies: ["認証済みテスト"],
     },
   ],
 

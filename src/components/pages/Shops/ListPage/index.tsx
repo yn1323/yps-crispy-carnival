@@ -9,6 +9,7 @@ import { userAtom } from "@/src/stores/user";
 export const ShopsListPage = () => {
   const [user] = useAtom(userAtom);
   const shops = useQuery(api.shop.getShopsByAuthId, user.authId ? { authId: user.authId } : "skip");
+  const canCreateShop = useQuery(api.shop.canUserCreateShop, user.authId ? { authId: user.authId } : "skip");
 
   // 店舗IDで重複排除
   const uniqueShops = shops ? uniqueBy(shops, ["_id"]) : [];
@@ -21,5 +22,5 @@ export const ShopsListPage = () => {
     );
   }
 
-  return <ShopList shops={uniqueShops} />;
+  return <ShopList shops={uniqueShops} canCreateShop={canCreateShop ?? false} />;
 };

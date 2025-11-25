@@ -10,16 +10,20 @@ import { convertRole } from "@/src/helpers/domain/convertShopData";
 type UserWithRole = {
   _id: Doc<"users">["_id"];
   name: string;
-  authId: string;
+  displayName: string;
+  authId: string | undefined;
   role: string;
+  status: string;
   createdAt: number;
 };
 
 type UserWithRoles = {
   _id: Doc<"users">["_id"];
   name: string;
-  authId: string;
+  displayName: string;
+  authId: string | undefined;
   roles: string[];
+  status: string;
   createdAt: number;
 };
 
@@ -41,8 +45,10 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
       acc.push({
         _id: user._id,
         name: user.name,
+        displayName: user.displayName,
         authId: user.authId,
         roles: [user.role],
+        status: user.status,
         createdAt: user.createdAt,
       });
     } else {
@@ -68,8 +74,10 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
 
   // 検索とフィルタリング機能
   const filteredUsers = sortedUsers.filter((user) => {
-    // 名前検索
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase());
+    // 名前検索（nameとdisplayName両方で検索）
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch =
+      user.name.toLowerCase().includes(searchLower) || user.displayName.toLowerCase().includes(searchLower);
 
     // 役割フィルター
     const matchesRole =
@@ -81,8 +89,11 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
         return false;
       });
 
-    // ステータスフィルター（現状は全員activeなので、後で実装）
-    const matchesStatus = statusFilter === "all" || statusFilter === "active";
+    // ステータスフィルター（在籍中にはpendingも含める）
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && (user.status === "active" || user.status === "pending")) ||
+      (statusFilter === "retired" && user.status === "retired");
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -110,7 +121,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
           <Select
             items={[
               { value: "active", label: "在籍中" },
-              { value: "resigned", label: "退職済み" },
+              { value: "retired", label: "退職済み" },
               { value: "all", label: "全員" },
             ]}
             value={statusFilter}
@@ -181,10 +192,16 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
 
                         {/* スタッフ情報 */}
                         <Box flex={1} minW={0}>
-                          <Flex align="center" gap={2}>
+                          <Flex align="center" gap={2} flexWrap="wrap">
                             <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
-                              {user.name}
+                              {user.displayName}
                             </Text>
+                            {/* 仮登録バッジ */}
+                            {user.status === "pending" && (
+                              <Badge colorPalette="orange" size="sm" flexShrink={0}>
+                                仮登録
+                              </Badge>
+                            )}
                             {/* 役割バッジ */}
                             {user.roles.map((role) => (
                               <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm" flexShrink={0}>

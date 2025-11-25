@@ -81,6 +81,12 @@
         "reveal": "always",
         "panel": "new"
       }
+    },
+    {
+      "label": "difit",
+      "type": "shell",
+      "command": "npx difit .",
+      "isBackground": true
     }
   ]
 }

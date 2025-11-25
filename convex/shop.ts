@@ -108,29 +108,15 @@ export const createShop = mutation({
       .insert("shopUserBelongings", {
         shopId,
         userId: user._id,
+        displayName: user.name,
         role: "owner",
+        status: "active",
         createdAt: Date.now(),
         isDeleted: false,
       })
       .catch((e: unknown) => {
         throw new ConvexError({
           message: `オーナー紐付けに失敗しました: ${e}`,
-          code: "BELONGING_FAILED",
-        });
-      });
-
-    // 作成者をmanagerとしても紐付け
-    await ctx.db
-      .insert("shopUserBelongings", {
-        shopId,
-        userId: user._id,
-        role: "manager",
-        createdAt: Date.now(),
-        isDeleted: false,
-      })
-      .catch((e: unknown) => {
-        throw new ConvexError({
-          message: `マネージャー紐付けに失敗しました: ${e}`,
           code: "BELONGING_FAILED",
         });
       });
@@ -405,7 +391,9 @@ export const addUserToShop = mutation({
         .insert("shopUserBelongings", {
           shopId: shopId,
           userId: userId,
+          displayName: targetUser.name,
           role: args.role,
+          status: "active",
           createdAt: Date.now(),
           isDeleted: false,
         })
@@ -566,9 +554,22 @@ export const getShopsByAuthId = query({
         if (!shop || shop.isDeleted) {
           return null;
         }
+
+        // 店舗の所属人数を取得（ユニークなuserIdの数をカウント）
+        const belongingStaff = await ctx.db
+          .query("shopUserBelongings")
+          .withIndex("by_shop", (q) => q.eq("shopId", belonging.shopId))
+          .filter((q) => q.neq(q.field("isDeleted"), true))
+          .collect();
+
+        // ユニークなuserIdを抽出
+        const uniqueUserIds = new Set(belongingStaff.map((staff) => staff.userId));
+        const staffCount = uniqueUserIds.size;
+
         return {
           ...shop,
           role: belonging.role,
+          staffCount,
         };
       }),
     );
@@ -601,8 +602,10 @@ export const getUsersInShop = query({
           return {
             _id: user._id,
             name: user.name,
+            displayName: belonging.displayName,
             authId: user.authId,
             role: belonging.role,
+            status: belonging.status,
             createdAt: belonging.createdAt,
           };
         }),
@@ -647,5 +650,40 @@ export const getUserRoleInShop = query({
     } catch {
       return null;
     }
+  },
+});
+
+// ユーザーが新規店舗を作成できるかチェック
+// 条件: 店舗未所属 OR いずれかの店舗でownerである
+export const canUserCreateShop = query({
+  args: { authId: v.string() },
+  handler: async (ctx, args) => {
+    // authIdからuserIdを取得
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .first();
+
+    if (!user) {
+      // ユーザーが見つからない場合は作成可能（新規ユーザー想定）
+      return true;
+    }
+
+    // ユーザーが所属する店舗を取得
+    const belongings = await ctx.db
+      .query("shopUserBelongings")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect();
+
+    // 店舗未所属の場合は作成可能
+    if (belongings.length === 0) {
+      return true;
+    }
+
+    // いずれかの店舗でownerであれば作成可能
+    const isOwner = belongings.some((b) => b.role === "owner");
+    return isOwner;
   },
 });
