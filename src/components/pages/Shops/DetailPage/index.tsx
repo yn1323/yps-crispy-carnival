@@ -16,7 +16,10 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
   const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
 
   // スタッフ一覧取得
-  const users = useQuery(api.shop.getUsersInShop, { shopId: shopId as Id<"shops"> });
+  const users = useQuery(
+    api.shop.getUsersInShop,
+    user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
+  );
 
   // 現在のユーザー権限取得
   const userRole = useQuery(

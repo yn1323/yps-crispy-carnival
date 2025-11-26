@@ -2,7 +2,7 @@ import { Box, Heading, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { UserEdit } from "@/src/components/features/User/UserEdit";
 import { userAtom } from "@/src/stores/user";
 
@@ -15,7 +15,10 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
   const [user] = useAtom(userAtom);
 
   // ユーザー情報取得
-  const staffData = useQuery(api.user.getUserById, { userId: userId as Id<"users"> });
+  const staffData = useQuery(
+    api.user.getUserById,
+    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId } : "skip",
+  );
 
   // 現在のユーザー権限取得
   const currentUserRole = useQuery(
@@ -49,6 +52,20 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
     );
   }
 
+  // 制限ビューチェック（他人の情報を編集しようとしている場合）
+  if ("isLimitedView" in staffData && staffData.isLimitedView) {
+    return (
+      <Box textAlign="center" py="20">
+        <Stack gap="6" alignItems="center">
+          <Heading size="lg" color="red.500">
+            権限がありません
+          </Heading>
+          <Text color="fg.muted">このスタッフを編集する権限がありません</Text>
+        </Stack>
+      </Box>
+    );
+  }
+
   // 権限チェック
   if (currentUserRole !== "owner" && currentUserRole !== "manager") {
     return (
@@ -63,6 +80,13 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
     );
   }
 
-  // 通常表示
-  return <UserEdit user={staffData} shopId={shopId} callbackRoutingPath={`/shops/${shopId}/staffs/${userId}`} />;
+  // 通常表示（制限ビューでないことが確認済み）
+  // 制限ビューチェック後なので、staffDataはDoc<"users">型として扱える
+  return (
+    <UserEdit
+      user={staffData as Doc<"users">}
+      shopId={shopId}
+      callbackRoutingPath={`/shops/${shopId}/staffs/${userId}`}
+    />
+  );
 };

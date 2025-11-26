@@ -27,12 +27,28 @@ type ShopWithRole = Doc<"shops"> & {
   role: string;
 };
 
+// 制限ビュー用の型
+type LimitedUser = {
+  _id: Id<"users">;
+  name: string;
+  role: string | null;
+  isLimitedView: true;
+};
+
+// 全情報ユーザーの型
+type FullUser = Doc<"users">;
+
 type UserDetailProps = {
-  user: Doc<"users">;
+  user: FullUser | LimitedUser;
   shops: ShopWithRole[];
   currentShopRole: string | null;
   currentShopId: string;
   currentUserId: Id<"users"> | null;
+};
+
+// isLimitedViewフラグの判定ヘルパー
+const isLimitedView = (user: FullUser | LimitedUser): user is LimitedUser => {
+  return "isLimitedView" in user && user.isLimitedView === true;
 };
 
 export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
@@ -42,14 +58,18 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
 
-  // 対象ユーザーのこの店舗での役割を取得
-  const targetUserRole = shops.find((shop) => shop._id === currentShopId)?.role ?? null;
+  // 制限ビューかどうかを判定
+  const limitedView = isLimitedView(user);
 
-  // 編集権限の判定
+  // 対象ユーザーのこの店舗での役割を取得
+  const targetUserRole = limitedView ? user.role : (shops.find((shop) => shop._id === currentShopId)?.role ?? null);
+
+  // 編集権限の判定（制限ビューの場合は編集不可）
   // - オーナー: 全員編集可能
   // - マネージャー: 全員編集可能、ただしオーナーは編集不可
   // - 一般ユーザー: 自分のものだけ編集可能
   const canEdit = (() => {
+    if (limitedView) return false;
     if (currentShopRole === "owner") return true;
     if (currentShopRole === "manager") return targetUserRole !== "owner";
     if (currentShopRole === "general") return currentUserId === user._id;
@@ -99,7 +119,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
 
   // 現在の店舗でのロールを取得
   const currentShop = sortedShops.find((shop) => shop._id === currentShopId);
-  const rolesInCurrentShop = currentShop?.roles ?? [];
+  const rolesInCurrentShop = limitedView ? (user.role ? [user.role] : []) : (currentShop?.roles ?? []);
 
   // アバターのイニシャル生成
   const getInitials = (name: string) => {
@@ -163,10 +183,12 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
             <Heading as="h2" size="xl" color="gray.900" mb={2}>
               {user.name}
             </Heading>
-            <Flex align="center" gap={2} fontSize="sm" color="gray.600">
-              <Icon as={LuCalendar} boxSize={4} />
-              <Text>登録日: {new Date(user.createdAt).toLocaleDateString("ja-JP")}</Text>
-            </Flex>
+            {!limitedView && (
+              <Flex align="center" gap={2} fontSize="sm" color="gray.600">
+                <Icon as={LuCalendar} boxSize={4} />
+                <Text>登録日: {new Date(user.createdAt).toLocaleDateString("ja-JP")}</Text>
+              </Flex>
+            )}
           </Box>
         </Flex>
       </Title>
@@ -204,106 +226,115 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
         </Card.Root>
       </Box>
 
-      {/* 今月の概要 */}
-      <Box mb={{ base: 4, md: 6 }}>
-        <Heading as="h3" size="lg" color="gray.900" mb={3}>
-          今月の概要
-        </Heading>
-        <Grid gridTemplateColumns={{ base: "1fr", sm: "repeat(3, 1fr)" }} gap={3}>
-          {/* 勤務日数 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={4}>
-              <Flex align="center" gap={3}>
-                <Flex p={2} bg="teal.50" borderRadius="lg">
-                  <Icon as={LuCalendar} boxSize={5} color="teal.600" />
-                </Flex>
-                <Box>
-                  <Text fontSize="xs" color="gray.600" mb={1}>
-                    勤務日数
-                  </Text>
-                  <Text color="gray.900" fontWeight="medium">
-                    {stats.monthlyWorkDays}日
-                  </Text>
-                </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
+      {/* 制限ビューの場合は詳細情報を表示しない */}
+      {limitedView ? (
+        <Box py={8} textAlign="center">
+          <Text color="gray.500">詳細情報を表示する権限がありません</Text>
+        </Box>
+      ) : (
+        <>
+          {/* 今月の概要 */}
+          <Box mb={{ base: 4, md: 6 }}>
+            <Heading as="h3" size="lg" color="gray.900" mb={3}>
+              今月の概要
+            </Heading>
+            <Grid gridTemplateColumns={{ base: "1fr", sm: "repeat(3, 1fr)" }} gap={3}>
+              {/* 勤務日数 */}
+              <Card.Root borderWidth={0} shadow="sm">
+                <Card.Body p={4}>
+                  <Flex align="center" gap={3}>
+                    <Flex p={2} bg="teal.50" borderRadius="lg">
+                      <Icon as={LuCalendar} boxSize={5} color="teal.600" />
+                    </Flex>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600" mb={1}>
+                        勤務日数
+                      </Text>
+                      <Text color="gray.900" fontWeight="medium">
+                        {stats.monthlyWorkDays}日
+                      </Text>
+                    </Box>
+                  </Flex>
+                </Card.Body>
+              </Card.Root>
 
-          {/* シフト参加率 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={4}>
-              <Flex align="center" gap={3}>
-                <Flex p={2} bg="orange.50" borderRadius="lg">
-                  <Icon as={LuTrendingUp} boxSize={5} color="orange.600" />
-                </Flex>
-                <Box>
-                  <Text fontSize="xs" color="gray.600" mb={1}>
-                    シフト参加率
-                  </Text>
-                  <Text color="gray.900" fontWeight="medium">
-                    {stats.shiftParticipationRate}%
-                  </Text>
-                </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
+              {/* シフト参加率 */}
+              <Card.Root borderWidth={0} shadow="sm">
+                <Card.Body p={4}>
+                  <Flex align="center" gap={3}>
+                    <Flex p={2} bg="orange.50" borderRadius="lg">
+                      <Icon as={LuTrendingUp} boxSize={5} color="orange.600" />
+                    </Flex>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600" mb={1}>
+                        シフト参加率
+                      </Text>
+                      <Text color="gray.900" fontWeight="medium">
+                        {stats.shiftParticipationRate}%
+                      </Text>
+                    </Box>
+                  </Flex>
+                </Card.Body>
+              </Card.Root>
 
-          {/* 総勤務時間 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={4}>
-              <Flex align="center" gap={3}>
-                <Flex p={2} bg="blue.50" borderRadius="lg">
-                  <Icon as={LuClock} boxSize={5} color="blue.600" />
-                </Flex>
-                <Box>
-                  <Text fontSize="xs" color="gray.600" mb={1}>
-                    総勤務時間
-                  </Text>
-                  <Text color="gray.900" fontWeight="medium">
-                    {stats.totalWorkHours}h
-                  </Text>
-                </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
-        </Grid>
-      </Box>
+              {/* 総勤務時間 */}
+              <Card.Root borderWidth={0} shadow="sm">
+                <Card.Body p={4}>
+                  <Flex align="center" gap={3}>
+                    <Flex p={2} bg="blue.50" borderRadius="lg">
+                      <Icon as={LuClock} boxSize={5} color="blue.600" />
+                    </Flex>
+                    <Box>
+                      <Text fontSize="xs" color="gray.600" mb={1}>
+                        総勤務時間
+                      </Text>
+                      <Text color="gray.900" fontWeight="medium">
+                        {stats.totalWorkHours}h
+                      </Text>
+                    </Box>
+                  </Flex>
+                </Card.Body>
+              </Card.Root>
+            </Grid>
+          </Box>
 
-      {/* タブコンテンツ */}
-      <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
-        <Tabs.List mb={{ base: 4, md: 6 }}>
-          <Tabs.Trigger value="info" gap={2}>
-            <Icon as={LuStore} boxSize={4} />
-            <Text display={{ base: "none", sm: "inline" }}>基本情報</Text>
-            <Text display={{ base: "inline", sm: "none" }}>情報</Text>
-          </Tabs.Trigger>
-          <Tabs.Trigger value="shifts" gap={2}>
-            <Icon as={LuCalendar} boxSize={4} />
-            <Text display={{ base: "none", sm: "inline" }}>シフト履歴</Text>
-            <Text display={{ base: "inline", sm: "none" }}>シフト</Text>
-          </Tabs.Trigger>
-          <Tabs.Trigger value="attendance" gap={2}>
-            <Icon as={LuClock} boxSize={4} />
-            <Text display={{ base: "none", sm: "inline" }}>勤怠記録</Text>
-            <Text display={{ base: "inline", sm: "none" }}>勤怠</Text>
-          </Tabs.Trigger>
-        </Tabs.List>
+          {/* タブコンテンツ */}
+          <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
+            <Tabs.List mb={{ base: 4, md: 6 }}>
+              <Tabs.Trigger value="info" gap={2}>
+                <Icon as={LuStore} boxSize={4} />
+                <Text display={{ base: "none", sm: "inline" }}>基本情報</Text>
+                <Text display={{ base: "inline", sm: "none" }}>情報</Text>
+              </Tabs.Trigger>
+              <Tabs.Trigger value="shifts" gap={2}>
+                <Icon as={LuCalendar} boxSize={4} />
+                <Text display={{ base: "none", sm: "inline" }}>シフト履歴</Text>
+                <Text display={{ base: "inline", sm: "none" }}>シフト</Text>
+              </Tabs.Trigger>
+              <Tabs.Trigger value="attendance" gap={2}>
+                <Icon as={LuClock} boxSize={4} />
+                <Text display={{ base: "none", sm: "inline" }}>勤怠記録</Text>
+                <Text display={{ base: "inline", sm: "none" }}>勤怠</Text>
+              </Tabs.Trigger>
+            </Tabs.List>
 
-        {/* 基本情報タブ */}
-        <Tabs.Content value="info">
-          <InfoTab shops={sortedShops} />
-        </Tabs.Content>
+            {/* 基本情報タブ */}
+            <Tabs.Content value="info">
+              <InfoTab shops={sortedShops} />
+            </Tabs.Content>
 
-        {/* シフト履歴タブ（固定データ） */}
-        <Tabs.Content value="shifts">
-          <ShiftsTab />
-        </Tabs.Content>
+            {/* シフト履歴タブ（固定データ） */}
+            <Tabs.Content value="shifts">
+              <ShiftsTab />
+            </Tabs.Content>
 
-        {/* 勤怠記録タブ（固定データ） */}
-        <Tabs.Content value="attendance">
-          <AttendanceTab />
-        </Tabs.Content>
-      </Tabs.Root>
+            {/* 勤怠記録タブ（固定データ） */}
+            <Tabs.Content value="attendance">
+              <AttendanceTab />
+            </Tabs.Content>
+          </Tabs.Root>
+        </>
+      )}
     </Container>
   );
 };
