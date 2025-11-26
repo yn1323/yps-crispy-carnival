@@ -70,10 +70,7 @@ test.describe("スタッフアクセス制御（general）", () => {
       // スタッフ詳細ページに遷移
       await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+$/);
 
-      // 制限ビューのメッセージが表示される（他人の詳細は見れない）
-      await expect(page.getByText("詳細情報を表示する権限がありません")).toBeVisible();
-
-      // 「今月の概要」セクションは表示されない
+      // 「今月の概要」セクションは表示されない（他人の詳細は見れない）
       await expect(page.getByText("今月の概要")).not.toBeVisible();
     }
   });

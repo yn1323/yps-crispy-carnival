@@ -227,11 +227,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
       </Box>
 
       {/* 制限ビューの場合は詳細情報を表示しない */}
-      {limitedView ? (
-        <Box py={8} textAlign="center">
-          <Text color="gray.500">詳細情報を表示する権限がありません</Text>
-        </Box>
-      ) : (
+      {!limitedView && (
         <>
           {/* 今月の概要 */}
           <Box mb={{ base: 4, md: 6 }}>
