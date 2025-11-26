@@ -71,3 +71,19 @@ const meta = {
 export default meta;
 
 export const Basic: StoryObj<typeof meta> = {};
+
+// 制限ビュー（一般ユーザーが他人を閲覧した場合）
+export const LimitedView: StoryObj<typeof meta> = {
+  args: {
+    user: {
+      _id: "user2" as Id<"users">,
+      name: "佐藤花子",
+      role: "general",
+      isLimitedView: true as const,
+    },
+    shops: [],
+    currentShopRole: "general",
+    currentShopId: "shop1",
+    currentUserId: "currentUser1" as Id<"users">,
+  },
+};

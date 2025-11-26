@@ -15,10 +15,16 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
   const [user] = useAtom(userAtom);
 
   // ユーザー情報取得
-  const staffData = useQuery(api.user.getUserById, { userId: userId as Id<"users"> });
+  const staffData = useQuery(
+    api.user.getUserById,
+    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId } : "skip",
+  );
 
   // ユーザーの所属店舗一覧取得
-  const shops = useQuery(api.user.getUserShops, { userId: userId as Id<"users"> });
+  const shops = useQuery(
+    api.user.getUserShops,
+    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId } : "skip",
+  );
 
   // 現在のユーザー権限取得
   const currentUserRole = useQuery(

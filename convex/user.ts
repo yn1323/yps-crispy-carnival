@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import type { ShopUserRoleType } from "./constants";
 
 // ユーザー作成
 export const createUser = mutation({
@@ -128,33 +129,116 @@ export const getAllUsers = query({
   },
 });
 
-// ユーザーIDで取得
+// ユーザーIDで取得（権限ベースの情報制限付き）
 export const getUserById = query({
-  args: { userId: v.string() },
+  args: {
+    userId: v.string(),
+    authId: v.string(),
+    shopId: v.string(),
+  },
   handler: async (ctx, args) => {
     try {
       const userId = args.userId as Id<"users">;
+      const shopId = args.shopId as Id<"shops">;
+
       const user = await ctx.db.get(userId);
       if (!user || user.isDeleted) {
         return null;
       }
-      return user;
+
+      // 呼び出し元ユーザーの情報を取得
+      const currentUser = await ctx.db
+        .query("users")
+        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!currentUser) {
+        return null;
+      }
+
+      // 自分自身の場合は全情報を返す
+      if (currentUser._id === userId) {
+        return user;
+      }
+
+      // 呼び出し元の店舗内役割を取得
+      const currentBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", currentUser._id))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      const currentUserRole = (currentBelonging?.role as ShopUserRoleType) ?? null;
+
+      // owner/managerは全情報を見れる
+      if (currentUserRole === "owner" || currentUserRole === "manager") {
+        return user;
+      }
+
+      // 対象ユーザーの店舗内役割を取得（制限ビュー用）
+      const targetBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      // generalは他人の詳細を見れない（名前と役割のみ）
+      return {
+        _id: user._id,
+        name: user.name,
+        role: targetBelonging?.role ?? null,
+        isLimitedView: true as const,
+      };
     } catch {
       return null;
     }
   },
 });
 
-// 特定ユーザーが所属する店舗一覧取得(ロール情報付き)
+// 特定ユーザーが所属する店舗一覧取得(ロール情報付き、権限ベースの情報制限付き)
 export const getUserShops = query({
-  args: { userId: v.string() },
+  args: {
+    userId: v.string(),
+    authId: v.string(),
+    shopId: v.string(),
+  },
   handler: async (ctx, args) => {
     try {
       const userId = args.userId as Id<"users">;
+      const shopId = args.shopId as Id<"shops">;
 
       // ユーザー存在チェック
       const user = await ctx.db.get(userId);
       if (!user || user.isDeleted) {
+        return [];
+      }
+
+      // 呼び出し元ユーザーの情報を取得
+      const currentUser = await ctx.db
+        .query("users")
+        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!currentUser) {
+        return [];
+      }
+
+      // 自分自身の場合は全情報を返す
+      const isSelf = currentUser._id === userId;
+
+      // 呼び出し元の店舗内役割を取得
+      const currentBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", currentUser._id))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      const currentUserRole = (currentBelonging?.role as ShopUserRoleType) ?? null;
+
+      // generalは他人の所属店舗を見れない
+      if (!isSelf && currentUserRole !== "owner" && currentUserRole !== "manager") {
         return [];
       }
 
