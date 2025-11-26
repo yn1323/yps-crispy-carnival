@@ -59,18 +59,19 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
     return acc;
   }, [] as UserWithRoles[]);
 
-  // ロールを優先度順にソート（owner > manager > staff）
-  const sortedUsers = uniqueUsers.map((user) => ({
-    ...user,
-    roles: user.roles.sort((a, b) => {
-      const getPriority = (role: string) => {
-        if (role === "owner") return 3;
-        if (role === "manager") return 2;
-        return 1;
-      };
-      return getPriority(b) - getPriority(a);
-    }),
-  }));
+  const getRolePriority = (role: string) => {
+    if (role === "owner") return 3;
+    if (role === "manager") return 2;
+    return 1;
+  };
+
+  // ロールを優先度順にソート（owner > manager > general）し、ユーザー間も役割順でソート
+  const sortedUsers = uniqueUsers
+    .map((user) => ({
+      ...user,
+      roles: user.roles.sort((a, b) => getRolePriority(b) - getRolePriority(a)),
+    }))
+    .sort((a, b) => getRolePriority(b.roles[0]) - getRolePriority(a.roles[0]));
 
   // 検索とフィルタリング機能
   const filteredUsers = sortedUsers.filter((user) => {
