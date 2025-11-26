@@ -573,10 +573,30 @@ export const getShopsByAuthId = query({
 
 // 店舗所属ユーザー一覧取得
 export const getUsersInShop = query({
-  args: { shopId: v.string() },
+  args: {
+    shopId: v.string(),
+    authId: v.string(),
+  },
   handler: async (ctx, args) => {
     try {
       const shopId = args.shopId as Id<"shops">;
+
+      // 呼び出し元ユーザーの権限を取得
+      const currentUser = await ctx.db
+        .query("users")
+        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      let currentUserRole: ShopUserRoleType | null = null;
+      if (currentUser) {
+        const currentBelonging = await ctx.db
+          .query("shopUserBelongings")
+          .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", currentUser._id))
+          .filter((q) => q.neq(q.field("isDeleted"), true))
+          .first();
+        currentUserRole = (currentBelonging?.role as ShopUserRoleType) ?? null;
+      }
 
       // 店舗に所属するユーザーを取得
       const belongings = await ctx.db
@@ -592,6 +612,12 @@ export const getUsersInShop = query({
           if (!user || user.isDeleted) {
             return null;
           }
+
+          // general権限の場合、activeユーザーのみ表示
+          if (currentUserRole === "general" && belonging.status !== "active") {
+            return null;
+          }
+
           return {
             _id: user._id,
             name: user.name,
