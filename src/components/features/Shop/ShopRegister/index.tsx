@@ -65,8 +65,7 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
         });
         navigate({ to: callbackRoutingPath ?? "/shops" });
       }
-    } catch (error) {
-      console.error("店舗登録エラー:", error);
+    } catch {
       toaster.create({
         description: "店舗登録に失敗しました",
         type: "error",

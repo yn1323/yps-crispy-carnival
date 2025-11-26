@@ -29,23 +29,25 @@ export const UserRegister = ({ callbackRoutingPath }: Props) => {
   });
 
   const onSubmit: SubmitHandler<SchemaType> = async (data) => {
-    const result = await createUser({
-      authId: userId ?? "",
-      name: data.userName,
-    }).catch(() => {
+    try {
+      const result = await createUser({
+        authId: userId ?? "",
+        name: data.userName,
+      });
+
+      if (result?.success) {
+        setUser({ authId: userId ?? "", name: data.userName });
+        toaster.create({
+          description: "ユーザー名登録が完了しました",
+          type: "success",
+        });
+        callbackRoutingPath && navigate({ to: callbackRoutingPath });
+      }
+    } catch {
       toaster.create({
         description: "ユーザー名登録に失敗しました",
         type: "error",
       });
-    });
-
-    if (result?.success) {
-      setUser({ authId: userId ?? "", name: data.userName });
-      toaster.create({
-        description: "ユーザー名登録が完了しました",
-        type: "success",
-      });
-      callbackRoutingPath && navigate({ to: callbackRoutingPath });
     }
   };
 
