@@ -146,7 +146,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
 
         {/* スタッフ招待ボタン */}
         {canEdit && (
-          <Link to="/shops/$shopId/invite" params={{ shopId: shop._id }}>
+          <Link to="/shops/$shopId/invite" params={{ shopId: shop._id }} search={{ fromTab: "staff" }}>
             <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2}>
               <Icon as={LuPlus} boxSize={4} />
               スタッフを招待
@@ -163,7 +163,12 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
           </Text>
           <Box>
             {filteredUsers.map((user) => (
-              <Link key={user._id} to="/shops/$shopId/staffs/$userId" params={{ shopId: shop._id, userId: user._id }}>
+              <Link
+                key={user._id}
+                to="/shops/$shopId/staffs/$userId"
+                params={{ shopId: shop._id, userId: user._id }}
+                search={{ fromTab: "staff" }}
+              >
                 <Card.Root
                   mb={{ base: 2, md: 3 }}
                   borderWidth={0}

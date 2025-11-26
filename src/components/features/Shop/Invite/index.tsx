@@ -19,6 +19,7 @@ export const InviteShopStaff = ({ invitations }: InviteShopStaffProps) => {
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "send";
+  const fromTab = search.fromTab;
 
   const handleTabChange = (value: string) => {
     navigate({
@@ -33,7 +34,9 @@ export const InviteShopStaff = ({ invitations }: InviteShopStaffProps) => {
     <Animation>
       <Container maxW="6xl">
         {/* ヘッダー */}
-        <Title prev={{ url: `/shops/${shopId}`, label: "店舗詳細に戻る" }}>スタッフ招待</Title>
+        <Title prev={{ url: `/shops/${shopId}${fromTab ? `?tab=${fromTab}` : ""}`, label: "店舗詳細に戻る" }}>
+          スタッフ招待
+        </Title>
 
         {/* タブ */}
         <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">

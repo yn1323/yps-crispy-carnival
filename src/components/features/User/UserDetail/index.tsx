@@ -57,6 +57,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
+  const fromTab = search.fromTab;
 
   // 制限ビューかどうかを判定
   const limitedView = isLimitedView(user);
@@ -141,7 +142,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
     <Container maxW="6xl">
       {/* ヘッダー */}
       <Title
-        prev={{ url: `/shops/${currentShopId}`, label: "店舗詳細に戻る" }}
+        prev={{ url: `/shops/${currentShopId}${fromTab ? `?tab=${fromTab}` : ""}`, label: "店舗詳細に戻る" }}
         action={
           canEdit ? (
             <Button
