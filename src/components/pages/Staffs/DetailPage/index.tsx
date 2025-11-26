@@ -26,8 +26,16 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
+  // 現在のログインユーザー情報取得（編集権限判定用）
+  const currentUserData = useQuery(api.user.getUserByAuthId, user.authId ? { authId: user.authId } : "skip");
+
   // ローディング
-  if (staffData === undefined || shops === undefined || currentUserRole === undefined) {
+  if (
+    staffData === undefined ||
+    shops === undefined ||
+    currentUserRole === undefined ||
+    currentUserData === undefined
+  ) {
     return (
       <LazyShow>
         <UserDetailLoading />
@@ -41,5 +49,13 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
   }
 
   // 通常表示
-  return <UserDetail user={staffData} shops={shops} currentShopRole={currentUserRole} currentShopId={shopId} />;
+  return (
+    <UserDetail
+      user={staffData}
+      shops={shops}
+      currentShopRole={currentUserRole}
+      currentShopId={shopId}
+      currentUserId={currentUserData?._id ?? null}
+    />
+  );
 };
