@@ -64,6 +64,7 @@ const meta = {
     ],
     currentShopRole: "owner",
     currentShopId: "shop1" as Id<"shops">,
+    currentUserId: "currentUser1" as Id<"users">,
   },
 } satisfies Meta<typeof UserDetail>;
 

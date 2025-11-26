@@ -16,7 +16,7 @@ import {
 } from "@chakra-ui/react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser, LuUsers } from "react-icons/lu";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Title } from "@/src/components/ui/Title";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 import { AttendanceTab } from "./TabContents/AttendanceTab";
@@ -32,15 +32,29 @@ type UserDetailProps = {
   shops: ShopWithRole[];
   currentShopRole: string | null;
   currentShopId: string;
+  currentUserId: Id<"users"> | null;
 };
 
 export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
 
-export const UserDetail = ({ user, shops, currentShopRole, currentShopId }: UserDetailProps) => {
+export const UserDetail = ({ user, shops, currentShopRole, currentShopId, currentUserId }: UserDetailProps) => {
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
-  const canEdit = currentShopRole === "owner" || currentShopRole === "manager";
+
+  // 対象ユーザーのこの店舗での役割を取得
+  const targetUserRole = shops.find((shop) => shop._id === currentShopId)?.role ?? null;
+
+  // 編集権限の判定
+  // - オーナー: 全員編集可能
+  // - マネージャー: 全員編集可能、ただしオーナーは編集不可
+  // - 一般ユーザー: 自分のものだけ編集可能
+  const canEdit = (() => {
+    if (currentShopRole === "owner") return true;
+    if (currentShopRole === "manager") return targetUserRole !== "owner";
+    if (currentShopRole === "general") return currentUserId === user._id;
+    return false;
+  })();
 
   const handleTabChange = (value: string) => {
     navigate({
