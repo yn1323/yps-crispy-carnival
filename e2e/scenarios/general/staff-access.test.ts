@@ -16,7 +16,7 @@ test.describe("スタッフアクセス制御（general）", () => {
 
     // スタッフ一覧が表示されることを確認
     // generalはactiveユーザーのみ表示される（resigned/pendingは見えない）
-    await expect(page.locator('[data-scope="tabs"]').getByRole("list")).toBeVisible();
+    await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
   });
 
   test("自分の詳細情報が全て表示される", async ({ page }) => {
@@ -30,11 +30,11 @@ test.describe("スタッフアクセス制御（general）", () => {
     await page.getByRole("tab", { name: "スタッフ" }).click();
 
     // スタッフ一覧が表示されるまで待機
-    await page.waitForSelector('[data-scope="tabs"]');
+    await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
 
     // 自分自身のスタッフをクリック（最初のスタッフが自分と仮定）
-    const staffItems = page.locator('[data-scope="tabs"]').getByRole("listitem");
-    await staffItems.first().click();
+    const staffLinks = page.locator('[data-scope="tabs"]').locator('a[href*="/staffs/"]');
+    await staffLinks.first().click();
 
     // スタッフ詳細ページに遷移
     await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+$/);
@@ -58,14 +58,14 @@ test.describe("スタッフアクセス制御（general）", () => {
     await page.getByRole("tab", { name: "スタッフ" }).click();
 
     // スタッフ一覧が表示されるまで待機
-    await page.waitForSelector('[data-scope="tabs"]');
+    await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
 
     // 他スタッフをクリック（2番目のスタッフが他人と仮定）
-    const staffItems = page.locator('[data-scope="tabs"]').getByRole("listitem");
-    const staffCount = await staffItems.count();
+    const staffLinks = page.locator('[data-scope="tabs"]').locator('a[href*="/staffs/"]');
+    const staffCount = await staffLinks.count();
 
     if (staffCount > 1) {
-      await staffItems.nth(1).click();
+      await staffLinks.nth(1).click();
 
       // スタッフ詳細ページに遷移
       await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+$/);

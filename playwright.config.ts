@@ -45,7 +45,7 @@ export default defineConfig({
     },
     {
       name: "認証済みテスト",
-      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
+      testMatch: /scenarios\/(?!userB\/|manager\/|general\/).*\.test\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         // 保存した認証状態を使用
@@ -63,24 +63,34 @@ export default defineConfig({
       },
       dependencies: ["認証済みテスト"],
     },
-    {
-      name: "認証済みテスト（Manager）",
-      testMatch: /scenarios\/manager\/.*\.test\.ts/,
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: E2EAuthJsonFileManager,
-      },
-      dependencies: ["setup"],
-    },
-    {
-      name: "認証済みテスト（General）",
-      testMatch: /scenarios\/general\/.*\.test\.ts/,
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: E2EAuthJsonFileGeneral,
-      },
-      dependencies: ["setup"],
-    },
+    // Manager用テスト（環境変数がある場合のみ実行）
+    ...(process.env.E2E_CLERK_USER_MANAGER
+      ? [
+          {
+            name: "認証済みテスト（Manager）",
+            testMatch: /scenarios\/manager\/.*\.test\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+              storageState: E2EAuthJsonFileManager,
+            },
+            dependencies: ["setup"],
+          },
+        ]
+      : []),
+    // General用テスト（環境変数がある場合のみ実行）
+    ...(process.env.E2E_CLERK_USER_GENERAL
+      ? [
+          {
+            name: "認証済みテスト（General）",
+            testMatch: /scenarios\/general\/.*\.test\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+              storageState: E2EAuthJsonFileGeneral,
+            },
+            dependencies: ["setup"],
+          },
+        ]
+      : []),
   ],
 
   webServer: {

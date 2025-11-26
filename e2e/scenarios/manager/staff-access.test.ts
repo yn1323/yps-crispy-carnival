@@ -16,7 +16,7 @@ test.describe("スタッフアクセス制御（manager）", () => {
 
     // スタッフ一覧が表示されることを確認
     // managerは全スタッフ（pending, active, resigned）が見える
-    await expect(page.locator('[data-scope="tabs"]').getByRole("list")).toBeVisible();
+    await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
   });
 
   test("他スタッフの詳細情報が全て表示される", async ({ page }) => {
@@ -30,15 +30,15 @@ test.describe("スタッフアクセス制御（manager）", () => {
     await page.getByRole("tab", { name: "スタッフ" }).click();
 
     // スタッフ一覧が表示されるまで待機
-    await page.waitForSelector('[data-scope="tabs"]');
+    await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
 
     // 最初のスタッフをクリック（自分以外のスタッフ）
-    const staffItems = page.locator('[data-scope="tabs"]').getByRole("listitem");
-    const staffCount = await staffItems.count();
+    const staffLinks = page.locator('[data-scope="tabs"]').locator('a[href*="/staffs/"]');
+    const staffCount = await staffLinks.count();
 
     if (staffCount > 1) {
       // 2番目のスタッフをクリック（自分以外）
-      await staffItems.nth(1).click();
+      await staffLinks.nth(1).click();
 
       // スタッフ詳細ページに遷移
       await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+$/);
