@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT } from "./constants";
+import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT, SHOP_USER_ROLE, type ShopUserRoleType } from "./constants";
 
 // 店舗作成 + owner自動紐付け
 export const createShop = mutation({
@@ -312,17 +312,10 @@ export const addUserToShop = mutation({
       const shopId = args.shopId as Id<"shops">;
       const userId = args.userId as Id<"users">;
 
-      // roleバリデーション（ownerは指定不可）
-      if (args.role === "owner") {
+      // roleバリデーション
+      if (!SHOP_USER_ROLE.includes(args.role as ShopUserRoleType)) {
         throw new ConvexError({
-          message: "ownerロールは指定できません（ownerは店舗作成者のみ）",
-          code: "INVALID_ROLE",
-        });
-      }
-
-      if (args.role !== "manager" && args.role !== "staff") {
-        throw new ConvexError({
-          message: "ロールはmanagerまたはstaffのみ指定可能です",
+          message: `役割は${SHOP_USER_ROLE.join("、")}のいずれかを指定してください`,
           code: "INVALID_ROLE",
         });
       }
