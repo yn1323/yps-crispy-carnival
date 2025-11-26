@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
-import { E2EAuthJsonFileMainUser, E2EAuthJsonFileSubUser } from "@/e2e/constants";
+import {
+  E2EAuthJsonFileGeneral,
+  E2EAuthJsonFileMainUser,
+  E2EAuthJsonFileManager,
+  E2EAuthJsonFileSubUser,
+} from "@/e2e/constants";
 
 dotenv.config();
 
@@ -57,6 +62,24 @@ export default defineConfig({
         storageState: E2EAuthJsonFileSubUser,
       },
       dependencies: ["認証済みテスト"],
+    },
+    {
+      name: "認証済みテスト（Manager）",
+      testMatch: /scenarios\/manager\/.*\.test\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: E2EAuthJsonFileManager,
+      },
+      dependencies: ["setup"],
+    },
+    {
+      name: "認証済みテスト（General）",
+      testMatch: /scenarios\/general\/.*\.test\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: E2EAuthJsonFileGeneral,
+      },
+      dependencies: ["setup"],
     },
   ],
 

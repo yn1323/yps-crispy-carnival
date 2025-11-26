@@ -1,6 +1,11 @@
 import { clerk, clerkSetup } from "@clerk/testing/playwright";
 import { test as setup } from "@playwright/test";
-import { E2EAuthJsonFileMainUser, E2EAuthJsonFileSubUser } from "@/e2e/constants";
+import {
+  E2EAuthJsonFileGeneral,
+  E2EAuthJsonFileMainUser,
+  E2EAuthJsonFileManager,
+  E2EAuthJsonFileSubUser,
+} from "@/e2e/constants";
 
 // Setup must be run serially, this is necessary if Playwright is configured to run fully parallel: https://playwright.dev/docs/test-parallel
 setup.describe.configure({ mode: "serial" });
@@ -46,4 +51,48 @@ setup("ログイン", async ({ page }) => {
   await page.context().storageState({ path: E2EAuthJsonFileMainUser });
 
   // E2E_CLERK_USERでテストを継続します
+});
+
+// Manager用ログイン（環境変数がある場合のみ実行）
+setup("ログイン（Manager）", async ({ page }) => {
+  if (!process.env.E2E_CLERK_USER_MANAGER || !process.env.E2E_CLERK_PASSWORD_MANAGER) {
+    setup.skip();
+    return;
+  }
+
+  await page.goto("/");
+
+  await clerk.signIn({
+    page,
+    signInParams: {
+      strategy: "password",
+      identifier: process.env.E2E_CLERK_USER_MANAGER,
+      password: process.env.E2E_CLERK_PASSWORD_MANAGER,
+    },
+  });
+
+  await page.context().storageState({ path: E2EAuthJsonFileManager });
+  await clerk.signOut({ page });
+});
+
+// General用ログイン（環境変数がある場合のみ実行）
+setup("ログイン（General）", async ({ page }) => {
+  if (!process.env.E2E_CLERK_USER_GENERAL || !process.env.E2E_CLERK_PASSWORD_GENERAL) {
+    setup.skip();
+    return;
+  }
+
+  await page.goto("/");
+
+  await clerk.signIn({
+    page,
+    signInParams: {
+      strategy: "password",
+      identifier: process.env.E2E_CLERK_USER_GENERAL,
+      password: process.env.E2E_CLERK_PASSWORD_GENERAL,
+    },
+  });
+
+  await page.context().storageState({ path: E2EAuthJsonFileGeneral });
+  await clerk.signOut({ page });
 });
