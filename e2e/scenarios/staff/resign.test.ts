@@ -51,11 +51,10 @@ test.describe("スタッフ退職処理", () => {
     // スタッフ編集ページに遷移
     await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+\/edit$/);
 
-    // 退職処理セクションまでスクロール
-    await page.getByText("退職処理").scrollIntoViewIfNeeded();
-
-    // 「退職処理を実行」ボタンをクリック
-    await page.getByRole("button", { name: "退職処理を実行" }).click();
+    // 「退職処理を実行」ボタンまでスクロールしてクリック
+    const resignButton = page.getByRole("button", { name: "退職処理を実行" });
+    await resignButton.scrollIntoViewIfNeeded();
+    await resignButton.click();
 
     // 確認モーダルが表示されることを確認
     await expect(page.getByText("退職処理の確認")).toBeVisible();
