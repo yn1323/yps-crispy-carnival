@@ -1,22 +1,8 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  Container,
-  Flex,
-  Grid,
-  Heading,
-  Icon,
-  Spinner,
-  Stack,
-  Tabs,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Container, Flex, Grid, Heading, Icon, Stack, Tabs, Text } from "@chakra-ui/react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser, LuUsers } from "react-icons/lu";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 import { AttendanceTab } from "./TabContents/AttendanceTab";
@@ -337,14 +323,7 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
 };
 
 export const UserDetailLoading = () => {
-  return (
-    <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-      <VStack gap="4">
-        <Spinner size="xl" color="teal.500" />
-        <Text color="fg.muted">読み込み中...</Text>
-      </VStack>
-    </Box>
-  );
+  return <LoadingState />;
 };
 
 export const UserDetailNotFound = () => {

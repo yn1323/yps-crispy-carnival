@@ -1,7 +1,8 @@
-import { Box, Button, Container, Flex, Heading, Icon, Spinner, Stack, Tabs, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Heading, Icon, Stack, Tabs, Text } from "@chakra-ui/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { InfoTab } from "./TabContents/InfoTab";
 import { StaffTab } from "./TabContents/StaffTab";
@@ -99,14 +100,7 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
 };
 
 export const ShopDetailLoading = () => {
-  return (
-    <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-      <VStack gap="4">
-        <Spinner size="xl" color="teal.500" />
-        <Text color="fg.muted">読み込み中...</Text>
-      </VStack>
-    </Box>
-  );
+  return <LoadingState />;
 };
 
 export const ShopDetailNotFound = () => {

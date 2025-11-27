@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Container, Field, Flex, Grid, Icon, Input, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Field, Flex, Grid, Icon, Input, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronLeft, LuClock, LuPlus, LuSave, LuX } from "react-icons/lu";
@@ -95,13 +95,19 @@ export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onSave
                   (複数選択可)
                 </Text>
               </Text>
-              <Flex flexWrap="wrap" gap={2}>
+              <Flex flexWrap="wrap" gap={2} role="group" aria-label="曜日選択">
                 {allDays.map((day) => (
-                  <Badge
+                  <Button
                     key={day}
+                    type="button"
                     onClick={() => toggleDay(day)}
-                    cursor="pointer"
-                    fontSize="xs"
+                    size="xs"
+                    variant="solid"
+                    fontWeight="normal"
+                    minW="auto"
+                    h="auto"
+                    px={2}
+                    py={1}
                     transition="all 0.15s"
                     _active={{ transform: "scale(0.95)" }}
                     bg={formData.daysOfWeek.includes(day) ? "teal.600" : "gray.100"}
@@ -109,9 +115,10 @@ export const ShiftTemplateForm = ({ mode, storeName = "本店", template, onSave
                     _hover={{
                       bg: formData.daysOfWeek.includes(day) ? "teal.700" : "gray.200",
                     }}
+                    aria-pressed={formData.daysOfWeek.includes(day)}
                   >
                     {day}
-                  </Badge>
+                  </Button>
                 ))}
               </Flex>
               {formData.daysOfWeek.length === 0 && (

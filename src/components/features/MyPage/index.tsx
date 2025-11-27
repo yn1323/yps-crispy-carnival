@@ -151,19 +151,21 @@ export const MyPage = () => {
           </Flex>
           <VStack gap={{ base: "2", md: "3" }} align="stretch">
             {announcements.map((announcement) => (
-              <Box
+              <Button
                 key={announcement.id}
+                variant="ghost"
                 bg="white"
                 borderRadius="lg"
                 boxShadow="sm"
                 p={{ base: "3", md: "4" }}
-                cursor="pointer"
+                h="auto"
+                w="full"
+                justifyContent="flex-start"
                 _hover={{ boxShadow: "md" }}
                 _active={{ transform: "scale(0.98)", boxShadow: "sm" }}
                 transition="all 0.15s"
-                role="group"
               >
-                <Flex align="center" justify="space-between" gap="2">
+                <Flex align="center" justify="space-between" gap="2" w="full">
                   <HStack gap={{ base: "2", md: "3" }} minW="0">
                     <Icon as={HiExclamation} boxSize={{ base: "4", md: "5" }} color="orange.600" flexShrink="0" />
                     <VStack align="start" gap="0.5" minW="0">
@@ -173,25 +175,18 @@ export const MyPage = () => {
                             重要
                           </Badge>
                         )}
-                        <Text fontSize={{ base: "sm", md: "md" }} color="gray.900" truncate>
+                        <Text fontSize={{ base: "sm", md: "md" }} color="gray.900" truncate fontWeight="normal">
                           {announcement.title}
                         </Text>
                       </HStack>
-                      <Text fontSize="xs" color="gray.500">
+                      <Text fontSize="xs" color="gray.500" fontWeight="normal">
                         {announcement.date}
                       </Text>
                     </VStack>
                   </HStack>
-                  <Icon
-                    as={HiChevronRight}
-                    boxSize={{ base: "4", md: "5" }}
-                    color="gray.400"
-                    flexShrink="0"
-                    _groupHover={{ color: "teal.600", transform: "translateX(4px)" }}
-                    transition="all 0.15s"
-                  />
+                  <Icon as={HiChevronRight} boxSize={{ base: "4", md: "5" }} color="gray.400" flexShrink="0" />
                 </Flex>
-              </Box>
+              </Button>
             ))}
           </VStack>
         </Box>

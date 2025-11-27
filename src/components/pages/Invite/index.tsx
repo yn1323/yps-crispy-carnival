@@ -17,48 +17,20 @@ type Props = {
 
 export const InvitePage = ({ token }: Props) => {
   const { isSignedIn, userId } = useAuth();
-  const [isAccepting, setIsAccepting] = useState(false);
-  const [isAccepted, setIsAccepted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [acceptedShopId, setAcceptedShopId] = useState<string | null>(null);
-  const [acceptedShopName, setAcceptedShopName] = useState<string | null>(null);
-
   const invitation = useQuery(api.invite.getInvitationByToken, token ? { token } : "skip");
   const acceptInvitation = useMutation(api.invite.acceptInvitation);
 
-  // 承認処理
-  const handleAccept = async () => {
-    if (!userId) return;
-
-    setIsAccepting(true);
-    setError(null);
-
-    try {
-      const result = await acceptInvitation({
-        token,
-        authId: userId,
-      });
-
-      if (result.success) {
-        setIsAccepted(true);
-        setAcceptedShopId(result.data.shopId);
-        setAcceptedShopName(result.data.shopName);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "参加処理に失敗しました");
-    } finally {
-      setIsAccepting(false);
-    }
-  };
-
-  // 承認完了後の表示（最優先でチェック）
-  if (isAccepted && acceptedShopId && acceptedShopName) {
-    return <Accepted shopId={acceptedShopId} shopName={acceptedShopName} />;
-  }
+  // 承認完了状態を管理（Convexリアルタイム更新より先にUIを更新するため）
+  const [acceptedShop, setAcceptedShop] = useState<{ id: string; name: string } | null>(null);
 
   // トークンがない場合
   if (!token) {
     return <ErrorView title="無効なリンク" message="招待リンクが正しくありません。" />;
+  }
+
+  // 承認完了後の表示（リアルタイム更新より優先）
+  if (acceptedShop) {
+    return <Accepted shopId={acceptedShop.id} shopName={acceptedShop.name} />;
   }
 
   // ローディング中
@@ -99,5 +71,13 @@ export const InvitePage = ({ token }: Props) => {
   }
 
   // ログイン済み - 正常系
-  return <LoggedIn invitation={invitation} error={error} isAccepting={isAccepting} onAccept={handleAccept} />;
+  return (
+    <LoggedIn
+      invitation={invitation}
+      token={token}
+      userId={userId ?? ""}
+      acceptInvitation={acceptInvitation}
+      onAccepted={setAcceptedShop}
+    />
+  );
 };
