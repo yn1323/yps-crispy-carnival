@@ -96,11 +96,12 @@ test.describe("スタッフ退職処理", () => {
     // 「退職済み」オプションをクリック
     await page.getByRole("option", { name: "退職済み" }).click();
 
-    // 退職済みスタッフが表示されることを確認（または0名の場合は空の状態）
-    const staffCountText = await page.getByText(/\d+名のスタッフ/).textContent();
-    const noStaffMessage = await page.getByText("該当するスタッフが見つかりませんでした").isVisible();
+    // フィルター適用後の結果を待機
+    // 退職済みスタッフがいる場合は「〇名のスタッフ」、いない場合は「該当するスタッフが見つかりませんでした」
+    const staffCountLocator = page.getByText(/\d+名のスタッフ/);
+    const noStaffLocator = page.getByText("該当するスタッフが見つかりませんでした");
 
-    // 退職済みスタッフがいるか、いない場合は空メッセージが表示される
-    expect(staffCountText || noStaffMessage).toBeTruthy();
+    // どちらかが表示されるまで待機
+    await expect(staffCountLocator.or(noStaffLocator)).toBeVisible();
   });
 });
