@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { TimecardPage } from "@/src/components/pages/TimecardPage";
 import { Animation } from "@/src/components/templates/Animation";
 
 export const Route = createFileRoute("/_auth/timecard")({
@@ -6,5 +7,9 @@ export const Route = createFileRoute("/_auth/timecard")({
 });
 
 function RouteComponent() {
-  return <Animation>Hello "/(auth)/timecard/"!</Animation>;
+  return (
+    <Animation>
+      <TimecardPage />
+    </Animation>
+  );
 }
