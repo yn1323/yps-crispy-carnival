@@ -8,11 +8,21 @@ const mockInvitation = {
   invitedByName: "鈴木店長",
 };
 
+const mockAcceptInvitation = async () => ({
+  success: true,
+  data: { shopId: "shop_123", shopName: "カフェ本店" },
+});
+
 const meta = {
   title: "Features/User/Join",
   component: LoggedIn,
   parameters: {
     layout: "fullscreen",
+  },
+  args: {
+    userId: "user_123",
+    acceptInvitation: mockAcceptInvitation,
+    onAccepted: () => {},
   },
 } satisfies Meta<typeof LoggedIn>;
 

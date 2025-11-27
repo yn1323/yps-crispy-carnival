@@ -12,12 +12,10 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { SignInButton, useAuth } from "@clerk/clerk-react";
+import { SignInButton } from "@clerk/clerk-react";
 import { Link } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
 import { useState } from "react";
 import { LuCheck, LuCircleAlert, LuLogIn, LuStore, LuUserPlus } from "react-icons/lu";
-import { api } from "@/convex/_generated/api";
 import { toaster } from "@/src/components/ui/toaster";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 
@@ -145,13 +143,16 @@ export const RequireLogin = () => (
 type LoggedInProps = {
   invitation: InvitationData;
   token: string;
+  userId: string;
+  acceptInvitation: (args: { token: string; authId: string }) => Promise<{
+    success: boolean;
+    data: { shopId: string; shopName: string };
+  }>;
+  onAccepted: (shop: { id: string; name: string }) => void;
 };
 
-export const LoggedIn = ({ invitation, token }: LoggedInProps) => {
-  const { userId } = useAuth();
-  const acceptInvitation = useMutation(api.invite.acceptInvitation);
+export const LoggedIn = ({ invitation, token, userId, acceptInvitation, onAccepted }: LoggedInProps) => {
   const [isAccepting, setIsAccepting] = useState(false);
-  const [acceptedShop, setAcceptedShop] = useState<{ id: string; name: string } | null>(null);
 
   const handleAccept = async () => {
     if (!userId) return;
@@ -165,7 +166,7 @@ export const LoggedIn = ({ invitation, token }: LoggedInProps) => {
       });
 
       if (result.success) {
-        setAcceptedShop({ id: result.data.shopId, name: result.data.shopName });
+        onAccepted({ id: result.data.shopId, name: result.data.shopName });
         toaster.create({
           description: "店舗に参加しました",
           type: "success",
@@ -180,11 +181,6 @@ export const LoggedIn = ({ invitation, token }: LoggedInProps) => {
       setIsAccepting(false);
     }
   };
-
-  // 承認完了後の表示
-  if (acceptedShop) {
-    return <Accepted shopId={acceptedShop.id} shopName={acceptedShop.name} />;
-  }
 
   return (
     <Container maxW="lg" py={10}>

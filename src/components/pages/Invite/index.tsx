@@ -1,19 +1,29 @@
 import { useAuth } from "@clerk/clerk-react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { AlreadyAccepted, ErrorView, Loading, LoggedIn, RequireLogin } from "@/src/components/features/User/Join";
+import { Accepted, AlreadyAccepted, ErrorView, Loading, LoggedIn, RequireLogin } from "@/src/components/features/User/Join";
 
 type Props = {
   token: string;
 };
 
 export const InvitePage = ({ token }: Props) => {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
   const invitation = useQuery(api.invite.getInvitationByToken, token ? { token } : "skip");
+  const acceptInvitation = useMutation(api.invite.acceptInvitation);
+
+  // 承認完了状態を管理（Convexリアルタイム更新より先にUIを更新するため）
+  const [acceptedShop, setAcceptedShop] = useState<{ id: string; name: string } | null>(null);
 
   // トークンがない場合
   if (!token) {
     return <ErrorView title="無効なリンク" message="招待リンクが正しくありません。" />;
+  }
+
+  // 承認完了後の表示（リアルタイム更新より優先）
+  if (acceptedShop) {
+    return <Accepted shopId={acceptedShop.id} shopName={acceptedShop.name} />;
   }
 
   // ローディング中
@@ -53,6 +63,14 @@ export const InvitePage = ({ token }: Props) => {
     return <RequireLogin />;
   }
 
-  // ログイン済み - 正常系（useMutationはLoggedIn内で管理）
-  return <LoggedIn invitation={invitation} token={token} />;
+  // ログイン済み - 正常系
+  return (
+    <LoggedIn
+      invitation={invitation}
+      token={token}
+      userId={userId ?? ""}
+      acceptInvitation={acceptInvitation}
+      onAccepted={setAcceptedShop}
+    />
+  );
 };
