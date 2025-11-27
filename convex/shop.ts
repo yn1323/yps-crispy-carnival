@@ -829,3 +829,166 @@ export const canUserCreateShop = query({
     return isOwner;
   },
 });
+
+// 店舗内ユーザーの管理情報取得（owner/managerのみ）
+export const getShopUserInfo = query({
+  args: {
+    shopId: v.string(),
+    userId: v.string(),
+    authId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const shopId = args.shopId as Id<"shops">;
+      const userId = args.userId as Id<"users">;
+
+      // 実行者の権限チェック
+      const executor = await ctx.db
+        .query("users")
+        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!executor) {
+        return null;
+      }
+
+      const executorBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      // owner/manager以外は閲覧不可
+      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
+        return null;
+      }
+
+      // 対象ユーザーの情報を取得
+      const targetBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!targetBelonging) {
+        return null;
+      }
+
+      return {
+        memo: targetBelonging.memo ?? "",
+        workStyleNote: targetBelonging.workStyleNote ?? "",
+        maxWorkingHoursPerMonth: targetBelonging.maxWorkingHoursPerMonth ?? null,
+        hourlyWage: targetBelonging.hourlyWage ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+});
+
+// 店舗内ユーザーの管理情報更新（owner/managerのみ）
+export const updateShopUserInfo = mutation({
+  args: {
+    shopId: v.string(),
+    userId: v.string(),
+    authId: v.string(),
+    memo: v.optional(v.string()),
+    workStyleNote: v.optional(v.string()),
+    maxWorkingHoursPerMonth: v.optional(v.union(v.number(), v.null())),
+    hourlyWage: v.optional(v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const shopId = args.shopId as Id<"shops">;
+      const userId = args.userId as Id<"users">;
+
+      // 実行者の権限チェック
+      const executor = await ctx.db
+        .query("users")
+        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!executor) {
+        throw new ConvexError({
+          message: "実行者が見つかりません",
+          code: "USER_NOT_FOUND",
+        });
+      }
+
+      const executorBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      // owner/manager以外は編集不可
+      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
+        throw new ConvexError({
+          message: "この操作を行う権限がありません（owner/managerのみ編集可能）",
+          code: "PERMISSION_DENIED",
+        });
+      }
+
+      // 対象ユーザーの紐付けを取得
+      const targetBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!targetBelonging) {
+        throw new ConvexError({
+          message: "対象ユーザーが店舗に所属していません",
+          code: "BELONGING_NOT_FOUND",
+        });
+      }
+
+      // 更新フィールドを構築
+      const fieldsToUpdate: Partial<{
+        memo: string;
+        workStyleNote: string;
+        maxWorkingHoursPerMonth: number | undefined;
+        hourlyWage: number | undefined;
+      }> = {};
+
+      if (args.memo !== undefined) {
+        fieldsToUpdate.memo = args.memo;
+      }
+      if (args.workStyleNote !== undefined) {
+        fieldsToUpdate.workStyleNote = args.workStyleNote;
+      }
+      if (args.maxWorkingHoursPerMonth !== undefined) {
+        fieldsToUpdate.maxWorkingHoursPerMonth = args.maxWorkingHoursPerMonth ?? undefined;
+      }
+      if (args.hourlyWage !== undefined) {
+        fieldsToUpdate.hourlyWage = args.hourlyWage ?? undefined;
+      }
+
+      if (Object.keys(fieldsToUpdate).length === 0) {
+        throw new ConvexError({
+          message: "更新するフィールドがありません",
+          code: "NO_FIELDS_TO_UPDATE",
+        });
+      }
+
+      await ctx.db.patch(targetBelonging._id, fieldsToUpdate).catch((e: unknown) => {
+        throw new ConvexError({
+          message: `スタッフ情報の更新に失敗しました: ${e}`,
+          code: "UPDATE_FAILED",
+        });
+      });
+
+      return { success: true };
+    } catch (e) {
+      if (e instanceof ConvexError) {
+        throw e;
+      }
+      throw new ConvexError({
+        message: "不正なIDが指定されました",
+        code: "INVALID_ID",
+      });
+    }
+  },
+});
