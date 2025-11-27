@@ -82,12 +82,21 @@ export default defineConfig({
       ? [
           {
             name: "認証済みテスト（General）",
-            testMatch: /scenarios\/general\/.*\.test\.ts/,
+            testMatch: /scenarios\/general\/staff-access\.test\.ts/,
             use: {
               ...devices["Desktop Chrome"],
               storageState: E2EAuthJsonFileGeneral,
             },
             dependencies: ["setup"],
+          },
+          {
+            name: "認証済みテスト（General・退職後）",
+            testMatch: /scenarios\/general\/after-resign\.test\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+              storageState: E2EAuthJsonFileGeneral,
+            },
+            dependencies: ["認証済みテスト"],
           },
         ]
       : []),

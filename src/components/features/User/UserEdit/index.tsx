@@ -21,9 +21,11 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
+import { useAuth } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuClock, LuDollarSign, LuFileText, LuSave, LuShield, LuTriangle, LuUser, LuUserX } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -42,10 +44,45 @@ type Props = {
 
 export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
+  const { userId: authId } = useAuth();
   const updateUser = useMutation(api.user.updateUser);
+  const resignUser = useMutation(api.shop.resignUserFromShop);
+
+  const [resignationReason, setResignationReason] = useState("");
+  const [isResigning, setIsResigning] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // 店舗情報を取得
   const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
+
+  const handleResign = async () => {
+    if (!authId) return;
+
+    setIsResigning(true);
+    try {
+      await resignUser({
+        shopId,
+        userId: user._id,
+        authId,
+        resignationReason: resignationReason || undefined,
+      });
+
+      toaster.create({
+        description: `${user.name} を退職処理しました`,
+        type: "success",
+      });
+      setIsDialogOpen(false);
+      navigate({ to: `/shops/${shopId}`, search: { tab: "staff" } });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "退職処理に失敗しました";
+      toaster.create({
+        description: message,
+        type: "error",
+      });
+    } finally {
+      setIsResigning(false);
+    }
+  };
   const {
     handleSubmit,
     formState: { isSubmitting },
@@ -198,7 +235,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
             </Box>
 
             {/* 退職処理ダイアログ */}
-            <DialogRoot>
+            <DialogRoot open={isDialogOpen} onOpenChange={(e) => setIsDialogOpen(e.open)}>
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
@@ -217,16 +254,30 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
                   <DialogTitle>退職処理の確認</DialogTitle>
                 </DialogHeader>
                 <DialogBody>
-                  <Text mb={2}>本当に {user.name} を退職処理しますか？</Text>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text mb={4}>本当に {user.name} を退職処理しますか？</Text>
+                  <Text fontSize="sm" color="gray.600" mb={4}>
                     この操作により、スタッフは店舗スタッフから削除されます。過去の記録は保持され、後で再招待することも可能です。
                   </Text>
+                  <Field.Root>
+                    <Field.Label>退職理由（任意）</Field.Label>
+                    <Textarea
+                      placeholder="例：契約満了、自己都合、など"
+                      value={resignationReason}
+                      onChange={(e) => setResignationReason(e.target.value)}
+                      minH="100px"
+                      resize="none"
+                    />
+                  </Field.Root>
                 </DialogBody>
                 <DialogFooter>
                   <DialogActionTrigger asChild>
-                    <Button variant="outline">キャンセル</Button>
+                    <Button variant="outline" disabled={isResigning}>
+                      キャンセル
+                    </Button>
                   </DialogActionTrigger>
-                  <Button colorPalette="red">退職処理を実行</Button>
+                  <Button colorPalette="red" onClick={handleResign} loading={isResigning} disabled={isResigning}>
+                    退職処理を実行
+                  </Button>
                 </DialogFooter>
                 <DialogCloseTrigger />
               </DialogContent>

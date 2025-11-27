@@ -35,10 +35,12 @@ const shopUserBelongings = defineTable({
   userId: v.id("users"),
   displayName: v.string(),
   role: v.string(), // owner, manager, staff
-  status: v.string(), // "pending" | "active"
+  status: v.string(), // "pending" | "active" | "resigned"
   inviteToken: v.optional(v.string()),
   inviteExpiresAt: v.optional(v.number()),
   invitedBy: v.optional(v.id("users")),
+  resignedAt: v.optional(v.number()),
+  resignationReason: v.optional(v.string()),
   createdAt: v.number(),
   isDeleted: v.boolean(),
 })
