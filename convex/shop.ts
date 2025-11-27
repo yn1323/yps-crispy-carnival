@@ -672,6 +672,129 @@ export const getUserRoleInShop = query({
   },
 });
 
+// ユーザーを店舗から退職処理(owner/managerのみ実行可能、自分自身は不可)
+export const resignUserFromShop = mutation({
+  args: {
+    shopId: v.string(),
+    userId: v.string(),
+    authId: v.string(),
+    resignationReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const shopId = args.shopId as Id<"shops">;
+      const userId = args.userId as Id<"users">;
+
+      // 店舗存在チェック
+      const shop = await ctx.db.get(shopId);
+      if (!shop || shop.isDeleted) {
+        throw new ConvexError({
+          message: "店舗が見つかりません",
+          code: "SHOP_NOT_FOUND",
+        });
+      }
+
+      // 実行者のauthIdからuserIdを取得
+      const executor = await ctx.db
+        .query("users")
+        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!executor) {
+        throw new ConvexError({
+          message: "実行者が見つかりません",
+          code: "USER_NOT_FOUND",
+        });
+      }
+
+      // 自分自身の退職は不可
+      if (executor._id === userId) {
+        throw new ConvexError({
+          message: "自分自身を退職処理することはできません",
+          code: "CANNOT_RESIGN_SELF",
+        });
+      }
+
+      // 権限チェック: owner/manager
+      const executorBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
+        throw new ConvexError({
+          message: "この操作を行う権限がありません（owner/managerのみ実行可能）",
+          code: "PERMISSION_DENIED",
+        });
+      }
+
+      // 対象ユーザーの紐付けを取得
+      const targetBelonging = await ctx.db
+        .query("shopUserBelongings")
+        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .first();
+
+      if (!targetBelonging) {
+        throw new ConvexError({
+          message: "対象ユーザーが店舗に所属していません",
+          code: "BELONGING_NOT_FOUND",
+        });
+      }
+
+      // 既に退職済みの場合はエラー
+      if (targetBelonging.status === "resigned") {
+        throw new ConvexError({
+          message: "このユーザーは既に退職済みです",
+          code: "ALREADY_RESIGNED",
+        });
+      }
+
+      // ownerの退職は不可
+      if (targetBelonging.role === "owner") {
+        throw new ConvexError({
+          message: "オーナーを退職処理することはできません",
+          code: "CANNOT_RESIGN_OWNER",
+        });
+      }
+
+      // managerがmanagerを退職させることは不可
+      if (executorBelonging.role === "manager" && targetBelonging.role === "manager") {
+        throw new ConvexError({
+          message: "マネージャーは他のマネージャーを退職処理できません",
+          code: "CANNOT_RESIGN_MANAGER",
+        });
+      }
+
+      // 退職処理
+      await ctx.db
+        .patch(targetBelonging._id, {
+          status: "resigned",
+          resignedAt: Date.now(),
+          resignationReason: args.resignationReason,
+        })
+        .catch((e: unknown) => {
+          throw new ConvexError({
+            message: `退職処理に失敗しました: ${e}`,
+            code: "UPDATE_FAILED",
+          });
+        });
+
+      return { success: true };
+    } catch (e) {
+      if (e instanceof ConvexError) {
+        throw e;
+      }
+      throw new ConvexError({
+        message: "不正なIDが指定されました",
+        code: "INVALID_ID",
+      });
+    }
+  },
+});
+
 // ユーザーが新規店舗を作成できるかチェック
 // 条件: 店舗未所属 OR いずれかの店舗でownerである
 export const canUserCreateShop = query({
