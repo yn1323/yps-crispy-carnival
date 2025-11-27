@@ -24,8 +24,8 @@ import {
 import { useAuth } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { useMutation } from "convex/react";
+import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import {
   LuBriefcase,
@@ -39,20 +39,29 @@ import {
   LuUserX,
 } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import { FormCard } from "@/src/components/ui/FormCard";
 import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { type SchemaType, schema } from "./schema";
 
+type ShopUserInfoType = {
+  memo: string;
+  workStyleNote: string;
+  maxWorkingHoursPerMonth: number | null;
+  hourlyWage: number | null;
+};
+
 type Props = {
   user: Doc<"users">;
   shopId: string;
+  shopName: string;
+  shopUserInfo: ShopUserInfoType;
   callbackRoutingPath?: string;
 };
 
-export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
+export const UserEdit = ({ user, shopId, shopName, shopUserInfo, callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
   const { userId: authId } = useAuth();
   const updateUser = useMutation(api.user.updateUser);
@@ -62,12 +71,6 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   const [resignationReason, setResignationReason] = useState("");
   const [isResigning, setIsResigning] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // 店舗情報を取得
-  const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
-
-  // スタッフ管理情報を取得
-  const shopUserInfo = useQuery(api.shop.getShopUserInfo, authId ? { shopId, userId: user._id, authId } : "skip");
 
   const handleResign = async () => {
     if (!authId) return;
@@ -100,31 +103,17 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   const {
     handleSubmit,
     register,
-    reset,
     formState: { isSubmitting },
   } = useForm<SchemaType>({
     resolver: zodResolver(schema),
     defaultValues: {
       userName: user.name,
-      maxWorkingHoursPerMonth: undefined,
-      hourlyWage: undefined,
-      memo: "",
-      workStyleNote: "",
+      maxWorkingHoursPerMonth: shopUserInfo.maxWorkingHoursPerMonth ?? undefined,
+      hourlyWage: shopUserInfo.hourlyWage ?? undefined,
+      memo: shopUserInfo.memo,
+      workStyleNote: shopUserInfo.workStyleNote,
     },
   });
-
-  // shopUserInfoが取得できたらフォームをリセット
-  useEffect(() => {
-    if (shopUserInfo) {
-      reset({
-        userName: user.name,
-        maxWorkingHoursPerMonth: shopUserInfo.maxWorkingHoursPerMonth ?? undefined,
-        hourlyWage: shopUserInfo.hourlyWage ?? undefined,
-        memo: shopUserInfo.memo,
-        workStyleNote: shopUserInfo.workStyleNote,
-      });
-    }
-  }, [shopUserInfo, user.name, reset]);
 
   const onSubmit: SubmitHandler<SchemaType> = async (data) => {
     if (!authId) return;
@@ -176,7 +165,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
             </Heading>
           </Flex>
           <Text fontSize="sm" color="gray.600">
-            {user.name} - {shop?.shopName ?? "店舗情報読み込み中..."}
+            {user.name} - {shopName}
           </Text>
         </Box>
       </Title>
