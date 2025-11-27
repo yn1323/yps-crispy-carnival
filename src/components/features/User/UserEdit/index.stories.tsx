@@ -26,5 +26,12 @@ export const Basic: Story = {
       isDeleted: false,
     },
     shopId: "shop123",
+    shopName: "テスト店舗",
+    shopUserInfo: {
+      memo: "",
+      workStyleNote: "",
+      maxWorkingHoursPerMonth: null,
+      hourlyWage: null,
+    },
   },
 };
