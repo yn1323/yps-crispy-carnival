@@ -533,11 +533,11 @@ export const getShopsByAuthId = query({
       return [];
     }
 
-    // ユーザーが所属する店舗を取得
+    // ユーザーが所属する店舗を取得（退職済みは除外）
     const belongings = await ctx.db
       .query("shopUserBelongings")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .filter((q) => q.and(q.neq(q.field("isDeleted"), true), q.neq(q.field("status"), "resigned")))
       .collect();
 
     // 各店舗情報を取得
