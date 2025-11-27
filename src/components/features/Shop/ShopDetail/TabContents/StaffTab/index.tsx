@@ -94,7 +94,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "active" && (user.status === "active" || user.status === "pending")) ||
-      (statusFilter === "retired" && user.status === "retired");
+      (statusFilter === "resigned" && user.status === "resigned");
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -122,7 +122,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
           <Select
             items={[
               { value: "active", label: "在籍中" },
-              { value: "retired", label: "退職済み" },
+              { value: "resigned", label: "退職済み" },
               { value: "all", label: "全員" },
             ]}
             value={statusFilter}
