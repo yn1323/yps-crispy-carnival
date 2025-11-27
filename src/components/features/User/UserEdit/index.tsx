@@ -24,36 +24,53 @@ import {
 import { useAuth } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { LuClock, LuDollarSign, LuFileText, LuSave, LuShield, LuTriangle, LuUser, LuUserX } from "react-icons/lu";
+import {
+  LuBriefcase,
+  LuClock,
+  LuDollarSign,
+  LuFileText,
+  LuSave,
+  LuShield,
+  LuTriangle,
+  LuUser,
+  LuUserX,
+} from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Doc } from "@/convex/_generated/dataModel";
 import { FormCard } from "@/src/components/ui/FormCard";
 import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { type SchemaType, schema } from "./schema";
 
+type ShopUserInfoType = {
+  memo: string;
+  workStyleNote: string;
+  maxWorkingHoursPerMonth: number | null;
+  hourlyWage: number | null;
+};
+
 type Props = {
   user: Doc<"users">;
   shopId: string;
+  shopName: string;
+  shopUserInfo: ShopUserInfoType;
   callbackRoutingPath?: string;
 };
 
-export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
+export const UserEdit = ({ user, shopId, shopName, shopUserInfo, callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
   const { userId: authId } = useAuth();
   const updateUser = useMutation(api.user.updateUser);
+  const updateShopUserInfo = useMutation(api.shop.updateShopUserInfo);
   const resignUser = useMutation(api.shop.resignUserFromShop);
 
   const [resignationReason, setResignationReason] = useState("");
   const [isResigning, setIsResigning] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // 店舗情報を取得
-  const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
 
   const handleResign = async () => {
     if (!authId) return;
@@ -85,29 +102,50 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
   };
   const {
     handleSubmit,
+    register,
     formState: { isSubmitting },
   } = useForm<SchemaType>({
     resolver: zodResolver(schema),
     defaultValues: {
       userName: user.name,
+      maxWorkingHoursPerMonth: shopUserInfo.maxWorkingHoursPerMonth ?? undefined,
+      hourlyWage: shopUserInfo.hourlyWage ?? undefined,
+      memo: shopUserInfo.memo,
+      workStyleNote: shopUserInfo.workStyleNote,
     },
   });
 
   const onSubmit: SubmitHandler<SchemaType> = async (data) => {
+    if (!authId) return;
+
     try {
+      // ユーザー名の更新
       await updateUser({
         id: user._id,
         name: data.userName,
       });
 
+      // スタッフ管理情報の更新
+      await updateShopUserInfo({
+        shopId,
+        userId: user._id,
+        authId,
+        memo: data.memo ?? "",
+        workStyleNote: data.workStyleNote ?? "",
+        maxWorkingHoursPerMonth: Number.isNaN(data.maxWorkingHoursPerMonth)
+          ? null
+          : (data.maxWorkingHoursPerMonth ?? null),
+        hourlyWage: Number.isNaN(data.hourlyWage) ? null : (data.hourlyWage ?? null),
+      });
+
       toaster.create({
-        description: "ユーザー情報を更新しました",
+        description: "スタッフ情報を更新しました",
         type: "success",
       });
       navigate({ to: callbackRoutingPath ?? `/shops/${shopId}/staffs/${user._id}` });
     } catch {
       toaster.create({
-        description: "ユーザー情報の更新に失敗しました",
+        description: "スタッフ情報の更新に失敗しました",
         type: "error",
       });
     }
@@ -127,7 +165,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
             </Heading>
           </Flex>
           <Text fontSize="sm" color="gray.600">
-            {user.name} - {shop?.shopName ?? "店舗情報読み込み中..."}
+            {user.name} - {shopName}
           </Text>
         </Box>
       </Title>
@@ -165,7 +203,14 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
                 <Flex align="center" gap={2}>
                   <Flex align="center" gap={2} flex={1}>
                     <Icon as={LuClock} boxSize={4} color="gray.500" />
-                    <Input type="number" min="0" step="1" placeholder="160" />
+                    <Input
+                      type="number"
+                      min="1"
+                      max="744"
+                      step="1"
+                      placeholder="160"
+                      {...register("maxWorkingHoursPerMonth", { valueAsNumber: true })}
+                    />
                   </Flex>
                   <Text fontSize="sm" color="gray.600" minW="fit-content">
                     時間
@@ -180,7 +225,14 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
                 <Flex align="center" gap={2}>
                   <Flex align="center" gap={2} flex={1}>
                     <Icon as={LuDollarSign} boxSize={4} color="gray.500" />
-                    <Input type="number" min="0" step="1" placeholder="1200" />
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100000"
+                      step="1"
+                      placeholder="1200"
+                      {...register("hourlyWage", { valueAsNumber: true })}
+                    />
                   </Flex>
                   <Text fontSize="sm" color="gray.600" minW="fit-content">
                     円
@@ -196,8 +248,24 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
             <Stack gap={4}>
               <Field.Root>
                 <Field.Label>メモ（管理者のみ閲覧可能・任意）</Field.Label>
-                <Textarea placeholder="例：シフト希望、スキル、注意事項など" minH="150px" resize="none" />
+                <Textarea placeholder="例：スキル、注意事項など" minH="120px" resize="none" {...register("memo")} />
                 <Field.HelperText>このスタッフに関する管理メモを記録できます</Field.HelperText>
+              </Field.Root>
+            </Stack>
+          </FormCard>
+
+          {/* 働き方メモ */}
+          <FormCard icon={LuBriefcase} iconColor="gray.700" title="働き方メモ">
+            <Stack gap={4}>
+              <Field.Root>
+                <Field.Label>働き方メモ（管理者のみ閲覧可能・任意）</Field.Label>
+                <Textarea
+                  placeholder="例：月曜は大学があるので18時以降のみ、週3日希望、土日どちらかは出勤したい"
+                  minH="120px"
+                  resize="none"
+                  {...register("workStyleNote")}
+                />
+                <Field.HelperText>AIシフト作成時に考慮される情報です</Field.HelperText>
               </Field.Root>
             </Stack>
           </FormCard>

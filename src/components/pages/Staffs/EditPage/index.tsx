@@ -27,8 +27,17 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
+  // 店舗情報取得
+  const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
+
+  // スタッフ管理情報取得
+  const shopUserInfo = useQuery(
+    api.shop.getShopUserInfo,
+    user.authId ? { shopId, userId, authId: user.authId } : "skip",
+  );
+
   // ローディング
-  if (staffData === undefined || currentUserRole === undefined) {
+  if (staffData === undefined || currentUserRole === undefined || shop === undefined || shopUserInfo === undefined) {
     return <LoadingState />;
   }
 
@@ -74,12 +83,42 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
     );
   }
 
+  // 店舗が見つからない場合
+  if (shop === null) {
+    return (
+      <Box textAlign="center" py="20">
+        <Stack gap="6" alignItems="center">
+          <Heading size="lg" color="fg.muted">
+            店舗が見つかりません
+          </Heading>
+          <Text color="fg.muted">指定された店舗は存在しないか、削除された可能性があります</Text>
+        </Stack>
+      </Box>
+    );
+  }
+
+  // スタッフ管理情報が取得できない場合（権限不足）
+  if (shopUserInfo === null) {
+    return (
+      <Box textAlign="center" py="20">
+        <Stack gap="6" alignItems="center">
+          <Heading size="lg" color="red.500">
+            権限がありません
+          </Heading>
+          <Text color="fg.muted">このスタッフの情報を閲覧する権限がありません</Text>
+        </Stack>
+      </Box>
+    );
+  }
+
   // 通常表示（制限ビューでないことが確認済み）
   // 制限ビューチェック後なので、staffDataはDoc<"users">型として扱える
   return (
     <UserEdit
       user={staffData as Doc<"users">}
       shopId={shopId}
+      shopName={shop.shopName}
+      shopUserInfo={shopUserInfo}
       callbackRoutingPath={`/shops/${shopId}/staffs/${userId}`}
     />
   );

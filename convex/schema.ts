@@ -41,6 +41,11 @@ const shopUserBelongings = defineTable({
   invitedBy: v.optional(v.id("users")),
   resignedAt: v.optional(v.number()),
   resignationReason: v.optional(v.string()),
+  // スタッフ管理用フィールド（owner/managerのみ閲覧・編集可能）
+  memo: v.optional(v.string()), // スタッフメモ（管理者用）
+  workStyleNote: v.optional(v.string()), // 働き方メモ（AIシフト作成用）
+  maxWorkingHoursPerMonth: v.optional(v.number()), // 最大勤務時間/月
+  hourlyWage: v.optional(v.number()), // 時給
   createdAt: v.number(),
   isDeleted: v.boolean(),
 })
