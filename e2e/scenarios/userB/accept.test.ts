@@ -2,6 +2,12 @@ import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { E2EInviteUrlFile } from "@/e2e/constants";
 
+/**
+ * テスト間依存関係:
+ * - このテストは shop/invite.test.ts で生成された招待URLを使用
+ * - playwright.config.ts の dependencies で「認証済みテスト」プロジェクトに依存
+ * - User B（サブユーザー）の認証状態で実行される
+ */
 test.describe("招待受け入れ", () => {
   test("無効な招待URLでエラーが表示されること", async ({ page }) => {
     // 存在しないトークンでアクセス
