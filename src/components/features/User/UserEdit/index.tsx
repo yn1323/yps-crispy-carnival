@@ -39,7 +39,7 @@ import {
   LuUserX,
 } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { FormCard } from "@/src/components/ui/FormCard";
 import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
@@ -78,7 +78,7 @@ export const UserEdit = ({ user, shopId, shopName, shopUserInfo, callbackRouting
     setIsResigning(true);
     try {
       await resignUser({
-        shopId,
+        shopId: shopId as Id<"shops">,
         userId: user._id,
         authId,
         resignationReason: resignationReason || undefined,
@@ -127,7 +127,7 @@ export const UserEdit = ({ user, shopId, shopName, shopUserInfo, callbackRouting
 
       // スタッフ管理情報の更新
       await updateShopUserInfo({
-        shopId,
+        shopId: shopId as Id<"shops">,
         userId: user._id,
         authId,
         memo: data.memo ?? "",

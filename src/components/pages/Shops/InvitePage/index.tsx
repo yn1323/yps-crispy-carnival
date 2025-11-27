@@ -1,7 +1,7 @@
 import { Flex, Spinner } from "@chakra-ui/react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { InviteShopStaff } from "@/src/components/features/Shop/Invite";
@@ -10,7 +10,7 @@ import { userAtom } from "@/src/stores/user";
 export const InvitePage = () => {
   const params = useParams({ strict: false });
   const shopId = params.shopId as string;
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
 
   // 招待一覧を取得
   const invitations = useQuery(

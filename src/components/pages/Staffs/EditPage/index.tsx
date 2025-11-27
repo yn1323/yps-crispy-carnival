@@ -1,6 +1,6 @@
 import { Box, Heading, Stack, Text } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { UserEdit } from "@/src/components/features/User/UserEdit";
@@ -13,12 +13,12 @@ type Props = {
 };
 
 export const StaffEditPage = ({ userId, shopId }: Props) => {
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
 
   // ユーザー情報取得
   const staffData = useQuery(
     api.user.getUserById,
-    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId } : "skip",
+    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId: shopId as Id<"shops"> } : "skip",
   );
 
   // 現在のユーザー権限取得
@@ -33,7 +33,7 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
   // スタッフ管理情報取得
   const shopUserInfo = useQuery(
     api.shop.getShopUserInfo,
-    user.authId ? { shopId, userId, authId: user.authId } : "skip",
+    user.authId ? { shopId: shopId as Id<"shops">, userId: userId as Id<"users">, authId: user.authId } : "skip",
   );
 
   // ローディング

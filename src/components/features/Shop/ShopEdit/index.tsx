@@ -2,7 +2,7 @@ import { Box, Button, Container, Flex, Heading, Icon, Stack, Text } from "@chakr
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -12,7 +12,7 @@ import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
 import { ShopForm } from "../ShopForm";
-import { type SchemaType, schema, submitFrequencyOptions, timeUnitOptions } from "./schema";
+import { type SchemaType, schema } from "../ShopForm/schema";
 
 type Props = {
   shop: Doc<"shops"> | null | undefined;
@@ -27,7 +27,7 @@ type ShopEditFormProps = {
 
 const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
   const navigate = useNavigate();
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
   const updateShop = useMutation(api.shop.updateShop);
   const {
     register,
@@ -172,6 +172,3 @@ export const ShopEditUnauthorized = () => {
     </Box>
   );
 };
-
-// submitFrequencyOptions と timeUnitOptions のエクスポート（既存コードとの互換性のため）
-export { submitFrequencyOptions, timeUnitOptions };

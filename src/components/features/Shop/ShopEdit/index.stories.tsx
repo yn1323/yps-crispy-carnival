@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Id } from "@/convex/_generated/dataModel";
 import { ShopEdit } from ".";
 
 const meta = {
@@ -16,8 +17,7 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   args: {
     shop: {
-      // biome-ignore lint/suspicious/noExplicitAny: temp
-      _id: "shop123" as any,
+      _id: "shop123" as Id<"shops">,
       _creationTime: Date.now(),
       shopName: "カフェサンプル",
       openTime: "09:00",
@@ -38,8 +38,7 @@ export const Basic: Story = {
 export const NoAdmin: Story = {
   args: {
     shop: {
-      // biome-ignore lint/suspicious/noExplicitAny: temp
-      _id: "shop123" as any,
+      _id: "shop123" as Id<"shops">,
       _creationTime: Date.now(),
       shopName: "カフェサンプル",
       openTime: "09:00",

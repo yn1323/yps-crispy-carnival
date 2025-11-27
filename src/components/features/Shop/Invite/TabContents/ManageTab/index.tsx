@@ -1,7 +1,7 @@
 import { Badge, Box, Button, Card, Flex, Heading, Icon, Stack, Text } from "@chakra-ui/react";
 import { useMutation } from "convex/react";
 import dayjs from "dayjs";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { LuClock, LuCopy, LuInfo, LuLink2, LuTrash2, LuUserPlus } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -28,7 +28,7 @@ type ManageTabProps = {
 };
 
 export const ManageTab = ({ invitations }: ManageTabProps) => {
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedInvite, setSelectedInvite] = useState<{
     id: string;
