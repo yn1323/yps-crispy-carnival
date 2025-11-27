@@ -1,9 +1,10 @@
-import { Box, Heading, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Heading, Stack, Text } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { UserEdit } from "@/src/components/features/User/UserEdit";
+import { LoadingState } from "@/src/components/ui/LoadingState";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -28,14 +29,7 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
 
   // ローディング
   if (staffData === undefined || currentUserRole === undefined) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <VStack gap="4">
-          <Spinner size="xl" color="teal.500" />
-          <Text color="fg.muted">読み込み中...</Text>
-        </VStack>
-      </Box>
-    );
+    return <LoadingState />;
   }
 
   // スタッフが見つからない

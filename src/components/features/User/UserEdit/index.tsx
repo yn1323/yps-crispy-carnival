@@ -68,8 +68,7 @@ export const UserEdit = ({ user, shopId, callbackRoutingPath }: Props) => {
         type: "success",
       });
       navigate({ to: callbackRoutingPath ?? `/shops/${shopId}/staffs/${user._id}` });
-    } catch (error) {
-      console.error("ユーザー更新エラー:", error);
+    } catch {
       toaster.create({
         description: "ユーザー情報の更新に失敗しました",
         type: "error",

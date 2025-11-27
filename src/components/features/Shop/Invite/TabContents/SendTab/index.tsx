@@ -82,7 +82,6 @@ type InviteFormProps = {
 
 export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
   const [user] = useAtom(userAtom);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const createInvitation = useMutation(api.invite.createInvitation);
 
@@ -106,11 +105,12 @@ export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
 
   const onSubmit: SubmitHandler<SchemaType> = async (data) => {
     if (!user.authId) {
-      setSubmitError("ログイン情報が取得できません");
+      toaster.create({
+        description: "ログイン情報が取得できません",
+        type: "error",
+      });
       return;
     }
-
-    setSubmitError(null);
 
     try {
       const result = await createInvitation({
@@ -126,7 +126,10 @@ export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
         reset();
       }
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "招待URLの生成に失敗しました");
+      toaster.create({
+        description: e instanceof Error ? e.message : "招待URLの生成に失敗しました",
+        type: "error",
+      });
     }
   };
 
@@ -153,15 +156,6 @@ export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
             <List.Item>招待URLの有効期限は14日間です</List.Item>
             <List.Item>1つのURLは1回のみ使用可能です</List.Item>
           </List.Root>
-
-          {/* 送信エラー表示 */}
-          {submitError && (
-            <Box mb={4} p={3} bg="red.50" borderRadius="md" borderLeft="4px solid" borderColor="red.400">
-              <Text fontSize="sm" color="red.700">
-                {submitError}
-              </Text>
-            </Box>
-          )}
 
           <Stack gap={4}>
             {/* 表示名入力 */}

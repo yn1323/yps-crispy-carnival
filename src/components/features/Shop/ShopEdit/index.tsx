@@ -1,4 +1,4 @@
-import { Box, Button, Container, Flex, Heading, Icon, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Heading, Icon, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
@@ -7,6 +7,7 @@ import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
@@ -74,8 +75,7 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
         type: "success",
       });
       navigate({ to: callbackRoutingPath ?? `/shops/${shop._id}` });
-    } catch (error) {
-      console.error("店舗更新エラー:", error);
+    } catch {
       toaster.create({
         description: "店舗情報の更新に失敗しました",
         type: "error",
@@ -128,14 +128,7 @@ export const ShopEdit = ({ shop, userRole, callbackRoutingPath }: Props) => {
 };
 
 export const ShopEditLoading = () => {
-  return (
-    <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-      <VStack gap="4">
-        <Spinner size="xl" color="teal.500" />
-        <Text color="fg.muted">読み込み中...</Text>
-      </VStack>
-    </Box>
-  );
+  return <LoadingState />;
 };
 
 export const ShopEditNotFound = () => {

@@ -59,7 +59,7 @@ export const ShiftTemplateList = ({ storeId = "1" }: ShiftTemplateListProps) => 
   const [selectedStoreId, setSelectedStoreId] = useState(storeId);
   const [shiftTemplates, setShiftTemplates] = useState(mockShiftTemplates);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
+  const [templateIdToDelete, setTemplateIdToDelete] = useState<string | null>(null);
 
   const currentTemplates = shiftTemplates[selectedStoreId] || [];
   const canAddMore = currentTemplates.length < MAX_TEMPLATES;
@@ -80,20 +80,46 @@ export const ShiftTemplateList = ({ storeId = "1" }: ShiftTemplateListProps) => 
   };
 
   const handleOpenDeleteDialog = (templateId: string) => {
-    setDeletingTemplateId(templateId);
+    setTemplateIdToDelete(templateId);
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteTemplate = () => {
-    if (!deletingTemplateId) return;
+    if (!templateIdToDelete) return;
 
     setShiftTemplates((prev) => ({
       ...prev,
-      [selectedStoreId]: prev[selectedStoreId].filter((t) => t.id !== deletingTemplateId),
+      [selectedStoreId]: prev[selectedStoreId].filter((t) => t.id !== templateIdToDelete),
     }));
 
     setIsDeleteDialogOpen(false);
-    setDeletingTemplateId(null);
+    setTemplateIdToDelete(null);
+  };
+
+  // 曜日バッジを描画するヘルパー関数
+  const renderDayBadges = (days: string[]) => {
+    if (days.length === 0) {
+      return (
+        <Badge variant="outline" borderColor="gray.300" color="gray.600" fontSize="xs">
+          曜日指定なし
+        </Badge>
+      );
+    }
+
+    const displayText = getDaysDisplay(days);
+    if (displayText === "平日") {
+      return (
+        <Badge bg="teal.600" color="white" fontSize="xs">
+          平日
+        </Badge>
+      );
+    }
+
+    return days.map((day) => (
+      <Badge key={day} bg="teal.600" color="white" fontSize="xs">
+        {day}
+      </Badge>
+    ));
   };
 
   return (
@@ -203,23 +229,7 @@ export const ShiftTemplateList = ({ storeId = "1" }: ShiftTemplateListProps) => 
                         </Flex>
                         <Box flex={1} minW={0}>
                           <Flex align="center" gap={2} mb={2} flexWrap="wrap">
-                            {template.daysOfWeek.length > 0 ? (
-                              getDaysDisplay(template.daysOfWeek) === "平日" ? (
-                                <Badge bg="teal.600" color="white" fontSize="xs">
-                                  平日
-                                </Badge>
-                              ) : (
-                                template.daysOfWeek.map((day) => (
-                                  <Badge key={day} bg="teal.600" color="white" fontSize="xs">
-                                    {day}
-                                  </Badge>
-                                ))
-                              )
-                            ) : (
-                              <Badge variant="outline" borderColor="gray.300" color="gray.600" fontSize="xs">
-                                曜日指定なし
-                              </Badge>
-                            )}
+                            {renderDayBadges(template.daysOfWeek)}
                             <Text fontSize="sm" color="gray.900">
                               {template.name}
                             </Text>

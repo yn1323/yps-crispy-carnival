@@ -8,11 +8,21 @@ const mockInvitation = {
   invitedByName: "鈴木店長",
 };
 
+const mockAcceptInvitation = async () => ({
+  success: true,
+  data: { shopId: "shop_123", shopName: "カフェ本店" },
+});
+
 const meta = {
   title: "Features/User/Join",
   component: LoggedIn,
   parameters: {
     layout: "fullscreen",
+  },
+  args: {
+    userId: "user_123",
+    acceptInvitation: mockAcceptInvitation,
+    onAccepted: () => {},
   },
 } satisfies Meta<typeof LoggedIn>;
 
@@ -23,9 +33,7 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   args: {
     invitation: mockInvitation,
-    error: null,
-    isAccepting: false,
-    onAccept: () => {},
+    token: "mock-token-123",
   },
 };
 
@@ -75,34 +83,13 @@ export const RequireLoginStory: StoryObj<typeof RequireLogin> = {
   render: () => <RequireLogin />,
 };
 
-// ログイン済み - エラーあり
-export const LoggedInWithError: StoryObj<typeof LoggedIn> = {
-  render: () => (
-    <LoggedIn
-      invitation={mockInvitation}
-      error="参加処理に失敗しました。もう一度お試しください。"
-      isAccepting={false}
-      onAccept={() => {}}
-    />
-  ),
-};
-
-// ログイン済み - 処理中
-export const LoggedInAccepting: StoryObj<typeof LoggedIn> = {
-  render: () => <LoggedIn invitation={mockInvitation} error={null} isAccepting={true} onAccept={() => {}} />,
-};
-
 // マネージャー役割
-export const ManagerRole: StoryObj<typeof LoggedIn> = {
-  render: () => (
-    <LoggedIn
-      invitation={{
-        ...mockInvitation,
-        role: "manager",
-      }}
-      error={null}
-      isAccepting={false}
-      onAccept={() => {}}
-    />
-  ),
+export const ManagerRole: Story = {
+  args: {
+    invitation: {
+      ...mockInvitation,
+      role: "manager",
+    },
+    token: "mock-token-manager",
+  },
 };

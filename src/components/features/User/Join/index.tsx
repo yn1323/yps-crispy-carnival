@@ -14,7 +14,9 @@ import {
 } from "@chakra-ui/react";
 import { SignInButton } from "@clerk/clerk-react";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { LuCheck, LuCircleAlert, LuLogIn, LuStore, LuUserPlus } from "react-icons/lu";
+import { toaster } from "@/src/components/ui/toaster";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
 
 // 招待情報の型
@@ -140,35 +142,62 @@ export const RequireLogin = () => (
 // ログイン済み
 type LoggedInProps = {
   invitation: InvitationData;
-  error: string | null;
-  isAccepting: boolean;
-  onAccept: () => void;
+  token: string;
+  userId: string;
+  acceptInvitation: (args: { token: string; authId: string }) => Promise<{
+    success: boolean;
+    data: { shopId: string; shopName: string };
+  }>;
+  onAccepted: (shop: { id: string; name: string }) => void;
 };
 
-export const LoggedIn = ({ invitation, error, isAccepting, onAccept }: LoggedInProps) => (
-  <Container maxW="lg" py={10}>
-    <Card.Root>
-      <Card.Body p={{ base: 6, md: 8 }}>
-        <InvitationHeader />
-        <InvitationInfo invitation={invitation} />
+export const LoggedIn = ({ invitation, token, userId, acceptInvitation, onAccepted }: LoggedInProps) => {
+  const [isAccepting, setIsAccepting] = useState(false);
 
-        {/* エラー表示 */}
-        {error && (
-          <Box mb={4} p={3} bg="red.50" borderRadius="md" borderLeft="4px solid" borderColor="red.400">
-            <Text fontSize="sm" color="red.700">
-              {error}
-            </Text>
-          </Box>
-        )}
+  const handleAccept = async () => {
+    if (!userId) return;
 
-        <Button onClick={onAccept} colorPalette="teal" size="lg" w="full" gap={2} loading={isAccepting}>
-          <Icon as={LuCheck} boxSize={5} />
-          この店舗に参加する
-        </Button>
-      </Card.Body>
-    </Card.Root>
-  </Container>
-);
+    setIsAccepting(true);
+
+    try {
+      const result = await acceptInvitation({
+        token,
+        authId: userId,
+      });
+
+      if (result.success) {
+        onAccepted({ id: result.data.shopId, name: result.data.shopName });
+        toaster.create({
+          description: "店舗に参加しました",
+          type: "success",
+        });
+      }
+    } catch (e) {
+      toaster.create({
+        description: e instanceof Error ? e.message : "参加処理に失敗しました",
+        type: "error",
+      });
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  return (
+    <Container maxW="lg" py={10}>
+      <Card.Root>
+        <Card.Body p={{ base: 6, md: 8 }}>
+          <InvitationHeader />
+          <InvitationInfo invitation={invitation} />
+
+          <Button onClick={handleAccept} colorPalette="teal" size="lg" w="full" gap={2} loading={isAccepting}>
+            <Icon as={LuCheck} boxSize={5} />
+            この店舗に参加する
+          </Button>
+        </Card.Body>
+      </Card.Root>
+    </Container>
+  );
+};
 
 // 招待ヘッダー（共通）
 type InvitationHeaderProps = {
