@@ -1,17 +1,24 @@
+/**
+ * 招待ドメイン - ミューテーション（書き込み操作）
+ *
+ * 責務:
+ * - 招待のCRUD操作
+ * - 招待承認処理
+ */
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { INVITE_EXPIRY_MS, SHOP_USER_ROLE, type ShopUserRoleType } from "./constants";
+import { mutation } from "../_generated/server";
+import { INVITE_EXPIRY_MS, SHOP_USER_ROLE, type ShopUserRoleType } from "../constants";
 import {
   generateToken,
   getShopBelonging,
   getUserByAuthId,
   requireShop,
-  requireShopPermission,
   requireUserByAuthId,
-} from "./helpers";
+} from "../helpers";
+import { canManageInvitation } from "./policies";
 
 // 招待作成
-export const createInvitation = mutation({
+export const create = mutation({
   args: {
     shopId: v.id("shops"),
     displayName: v.string(),
@@ -19,7 +26,6 @@ export const createInvitation = mutation({
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 表示名バリデーション
     const displayName = args.displayName.trim();
     if (displayName.length < 2 || displayName.length > 20) {
       throw new ConvexError({
@@ -28,7 +34,6 @@ export const createInvitation = mutation({
       });
     }
 
-    // 役割バリデーション
     if (!SHOP_USER_ROLE.includes(args.role as ShopUserRoleType)) {
       throw new ConvexError({
         message: `役割は${SHOP_USER_ROLE.join("、")}のいずれかを指定してください`,
@@ -36,14 +41,15 @@ export const createInvitation = mutation({
       });
     }
 
-    // 実行者のユーザー取得
     const inviter = await requireUserByAuthId(ctx, args.authId);
-
-    // 店舗存在チェック
     await requireShop(ctx, args.shopId);
 
-    // 実行者の権限チェック
-    await requireShopPermission(ctx, args.shopId, inviter._id);
+    const inviterBelonging = await getShopBelonging(ctx, args.shopId, inviter._id);
+
+    // ポリシーで権限チェック
+    if (!canManageInvitation(inviterBelonging?.role as ShopUserRoleType)) {
+      throw new ConvexError({ message: "この操作を行う権限がありません", code: "PERMISSION_DENIED" });
+    }
 
     // 仮ユーザー作成
     const userId = await ctx.db.insert("users", {
@@ -54,11 +60,9 @@ export const createInvitation = mutation({
       isDeleted: false,
     });
 
-    // トークン生成
     const token = generateToken();
     const expiresAt = Date.now() + INVITE_EXPIRY_MS;
 
-    // shopUserBelongings作成
     await ctx.db.insert("shopUserBelongings", {
       shopId: args.shopId,
       userId,
@@ -83,13 +87,12 @@ export const createInvitation = mutation({
 });
 
 // 招待キャンセル
-export const cancelInvitation = mutation({
+export const cancel = mutation({
   args: {
     belongingId: v.id("shopUserBelongings"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 招待レコード取得
     const belonging = await ctx.db.get(args.belongingId);
     if (!belonging || belonging.isDeleted) {
       throw new ConvexError({
@@ -105,16 +108,15 @@ export const cancelInvitation = mutation({
       });
     }
 
-    // 実行者のユーザー取得
     const user = await requireUserByAuthId(ctx, args.authId);
+    const userBelonging = await getShopBelonging(ctx, belonging.shopId, user._id);
 
-    // 権限チェック
-    await requireShopPermission(ctx, belonging.shopId, user._id);
+    // ポリシーで権限チェック
+    if (!canManageInvitation(userBelonging?.role as ShopUserRoleType)) {
+      throw new ConvexError({ message: "この操作を行う権限がありません", code: "PERMISSION_DENIED" });
+    }
 
-    // shopUserBelongings論理削除
     await ctx.db.patch(args.belongingId, { isDeleted: true });
-
-    // 紐づくusers論理削除
     await ctx.db.patch(belonging.userId, { isDeleted: true });
 
     return { success: true };
@@ -122,13 +124,12 @@ export const cancelInvitation = mutation({
 });
 
 // 招待再送（トークン再生成 + 期限リセット）
-export const resendInvitation = mutation({
+export const resend = mutation({
   args: {
     belongingId: v.id("shopUserBelongings"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 招待レコード取得
     const belonging = await ctx.db.get(args.belongingId);
     if (!belonging || belonging.isDeleted) {
       throw new ConvexError({
@@ -144,17 +145,17 @@ export const resendInvitation = mutation({
       });
     }
 
-    // 実行者のユーザー取得
     const user = await requireUserByAuthId(ctx, args.authId);
+    const userBelonging = await getShopBelonging(ctx, belonging.shopId, user._id);
 
-    // 権限チェック
-    await requireShopPermission(ctx, belonging.shopId, user._id);
+    // ポリシーで権限チェック
+    if (!canManageInvitation(userBelonging?.role as ShopUserRoleType)) {
+      throw new ConvexError({ message: "この操作を行う権限がありません", code: "PERMISSION_DENIED" });
+    }
 
-    // 新しいトークン生成
     const token = generateToken();
     const expiresAt = Date.now() + INVITE_EXPIRY_MS;
 
-    // 更新
     await ctx.db.patch(args.belongingId, {
       inviteToken: token,
       inviteExpiresAt: expiresAt,
@@ -171,13 +172,12 @@ export const resendInvitation = mutation({
 });
 
 // 招待承認
-export const acceptInvitation = mutation({
+export const accept = mutation({
   args: {
     token: v.string(),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // トークンで招待検索
     const belonging = await ctx.db
       .query("shopUserBelongings")
       .withIndex("by_invite_token", (q) => q.eq("inviteToken", args.token))
@@ -191,7 +191,6 @@ export const acceptInvitation = mutation({
       });
     }
 
-    // ステータスチェック
     if (belonging.status !== "pending") {
       throw new ConvexError({
         message: "この招待は既に承認済みです",
@@ -199,7 +198,6 @@ export const acceptInvitation = mutation({
       });
     }
 
-    // 有効期限チェック
     if (belonging.inviteExpiresAt && belonging.inviteExpiresAt < Date.now()) {
       throw new ConvexError({
         message: "招待の有効期限が切れています",
@@ -207,7 +205,6 @@ export const acceptInvitation = mutation({
       });
     }
 
-    // authIdで既存ユーザー検索
     const existingUser = await getUserByAuthId(ctx, args.authId);
 
     if (existingUser) {
@@ -234,7 +231,6 @@ export const acceptInvitation = mutation({
       });
     }
 
-    // 店舗情報取得
     const shop = await ctx.db.get(belonging.shopId);
 
     return {
@@ -243,96 +239,6 @@ export const acceptInvitation = mutation({
         shopId: belonging.shopId,
         shopName: shop?.shopName ?? "",
       },
-    };
-  },
-});
-
-// 店舗の招待一覧取得
-export const getInvitationsByShopId = query({
-  args: {
-    shopId: v.id("shops"),
-    authId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // 実行者のユーザー取得
-    const user = await getUserByAuthId(ctx, args.authId);
-
-    if (!user) {
-      return [];
-    }
-
-    // 権限チェック
-    const userBelonging = await getShopBelonging(ctx, args.shopId, user._id);
-
-    if (!userBelonging || (userBelonging.role !== "owner" && userBelonging.role !== "manager")) {
-      return [];
-    }
-
-    // 招待一覧取得（pending状態のもの）
-    const invitations = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
-      .filter((q) => q.and(q.neq(q.field("isDeleted"), true), q.eq(q.field("status"), "pending")))
-      .collect();
-
-    // 招待者情報を付加
-    const result = await Promise.all(
-      invitations.map(async (invitation) => {
-        const invitedBy = invitation.invitedBy ? await ctx.db.get(invitation.invitedBy) : null;
-
-        return {
-          _id: invitation._id,
-          displayName: invitation.displayName,
-          role: invitation.role,
-          status: invitation.status,
-          inviteToken: invitation.inviteToken,
-          inviteExpiresAt: invitation.inviteExpiresAt,
-          invitedBy: invitedBy
-            ? {
-                _id: invitedBy._id,
-                name: invitedBy.name,
-              }
-            : null,
-          createdAt: invitation.createdAt,
-          isExpired: invitation.inviteExpiresAt ? invitation.inviteExpiresAt < Date.now() : false,
-        };
-      }),
-    );
-
-    return result;
-  },
-});
-
-// トークンで招待情報取得（公開API）
-export const getInvitationByToken = query({
-  args: {
-    token: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // トークンで招待検索
-    const belonging = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_invite_token", (q) => q.eq("inviteToken", args.token))
-      .first();
-
-    if (!belonging) {
-      return null;
-    }
-
-    // 店舗情報取得
-    const shop = await ctx.db.get(belonging.shopId);
-
-    // 招待者情報取得
-    const invitedBy = belonging.invitedBy ? await ctx.db.get(belonging.invitedBy) : null;
-
-    return {
-      shopName: shop?.shopName ?? "",
-      displayName: belonging.displayName,
-      role: belonging.role,
-      invitedByName: invitedBy?.name ?? "",
-      isExpired: belonging.inviteExpiresAt ? belonging.inviteExpiresAt < Date.now() : false,
-      isCancelled: belonging.isDeleted,
-      isAccepted: belonging.status === "active",
     };
   },
 });

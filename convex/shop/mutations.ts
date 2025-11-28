@@ -16,7 +16,7 @@ import {
   requireShopPermission,
   requireUserByAuthId,
 } from "../helpers";
-import { canResignUser, canUpdateUserRole } from "./policies";
+import { canResignUser, canUpdateShopUserInfo, canUpdateUserRole } from "./policies";
 
 // 店舗作成 + owner自動紐付け
 export const create = mutation({
@@ -266,6 +266,61 @@ export const resignUser = mutation({
       resignedAt: Date.now(),
       resignationReason: args.resignationReason,
     });
+
+    return { success: true };
+  },
+});
+
+// 店舗内ユーザーの管理情報更新（owner/managerのみ）
+export const updateUserInfo = mutation({
+  args: {
+    shopId: v.id("shops"),
+    userId: v.id("users"),
+    authId: v.string(),
+    memo: v.optional(v.string()),
+    workStyleNote: v.optional(v.string()),
+    maxWorkingHoursPerMonth: v.optional(v.union(v.number(), v.null())),
+    hourlyWage: v.optional(v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const executor = await requireUserByAuthId(ctx, args.authId);
+    const executorBelonging = await getShopBelonging(ctx, args.shopId, executor._id);
+
+    // ポリシーで権限チェック
+    if (!canUpdateShopUserInfo(executorBelonging?.role as ShopUserRoleType)) {
+      throw new ConvexError({ message: "この操作を行う権限がありません", code: "PERMISSION_DENIED" });
+    }
+
+    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+    if (!targetBelonging) {
+      throw new ConvexError({ message: "対象ユーザーが店舗に所属していません", code: "BELONGING_NOT_FOUND" });
+    }
+
+    const fieldsToUpdate: Partial<{
+      memo: string;
+      workStyleNote: string;
+      maxWorkingHoursPerMonth: number | undefined;
+      hourlyWage: number | undefined;
+    }> = {};
+
+    if (args.memo !== undefined) {
+      fieldsToUpdate.memo = args.memo;
+    }
+    if (args.workStyleNote !== undefined) {
+      fieldsToUpdate.workStyleNote = args.workStyleNote;
+    }
+    if (args.maxWorkingHoursPerMonth !== undefined) {
+      fieldsToUpdate.maxWorkingHoursPerMonth = args.maxWorkingHoursPerMonth ?? undefined;
+    }
+    if (args.hourlyWage !== undefined) {
+      fieldsToUpdate.hourlyWage = args.hourlyWage ?? undefined;
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      throw new ConvexError({ message: "更新するフィールドがありません", code: "NO_FIELDS_TO_UPDATE" });
+    }
+
+    await ctx.db.patch(targetBelonging._id, fieldsToUpdate);
 
     return { success: true };
   },

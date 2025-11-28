@@ -10,7 +10,7 @@ import { v } from "convex/values";
 import { query } from "../_generated/server";
 import type { ShopUserRoleType } from "../constants";
 import { getShopBelonging, getUserByAuthId } from "../helpers";
-import { canViewResignedUsers } from "./policies";
+import { canViewResignedUsers, canViewShopUserInfo } from "./policies";
 
 // 店舗IDで取得（単純なCRUD）
 export const getById = query({
@@ -161,5 +161,41 @@ export const canCreate = query({
 
     const isOwner = belongings.some((b) => b.role === "owner");
     return isOwner;
+  },
+});
+
+// 店舗内ユーザーの管理情報取得（owner/managerのみ）
+export const getUserInfo = query({
+  args: {
+    shopId: v.id("shops"),
+    userId: v.id("users"),
+    authId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const executor = await getUserByAuthId(ctx, args.authId);
+
+    if (!executor) {
+      return null;
+    }
+
+    const executorBelonging = await getShopBelonging(ctx, args.shopId, executor._id);
+
+    // ポリシーで権限チェック
+    if (!canViewShopUserInfo(executorBelonging?.role as ShopUserRoleType)) {
+      return null;
+    }
+
+    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+
+    if (!targetBelonging) {
+      return null;
+    }
+
+    return {
+      memo: targetBelonging.memo ?? "",
+      workStyleNote: targetBelonging.workStyleNote ?? "",
+      maxWorkingHoursPerMonth: targetBelonging.maxWorkingHoursPerMonth ?? null,
+      hourlyWage: targetBelonging.hourlyWage ?? null,
+    };
   },
 });
