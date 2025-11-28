@@ -17,22 +17,22 @@ export const StaffEditPage = ({ userId, shopId }: Props) => {
 
   // ユーザー情報取得
   const staffData = useQuery(
-    api.user.getUserById,
+    api.user.queries.getById,
     user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId: shopId as Id<"shops"> } : "skip",
   );
 
   // 現在のユーザー権限取得
   const currentUserRole = useQuery(
-    api.shop.getUserRoleInShop,
+    api.shop.queries.getUserRole,
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
   // 店舗情報取得
-  const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
+  const shop = useQuery(api.shop.queries.getById, { shopId: shopId as Id<"shops"> });
 
   // スタッフ管理情報取得
   const shopUserInfo = useQuery(
-    api.shop.getShopUserInfo,
+    api.shop.queries.getUserInfo,
     user.authId ? { shopId: shopId as Id<"shops">, userId: userId as Id<"users">, authId: user.authId } : "skip",
   );
 

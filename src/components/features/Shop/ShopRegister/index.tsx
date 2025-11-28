@@ -19,7 +19,7 @@ type Props = {
 export const ShopRegister = ({ callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
   const user = useAtomValue(userAtom);
-  const createShop = useMutation(api.shop.createShop);
+  const createShop = useMutation(api.shop.mutations.create);
   const {
     register,
     handleSubmit,

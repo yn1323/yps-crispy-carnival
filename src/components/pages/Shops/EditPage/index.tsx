@@ -14,11 +14,11 @@ export const ShopsEditPage = ({ shopId }: Props) => {
   const user = useAtomValue(userAtom);
 
   // 店舗情報取得
-  const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });
+  const shop = useQuery(api.shop.queries.getById, { shopId: shopId as Id<"shops"> });
 
   // 現在のユーザー権限取得
   const userRole = useQuery(
-    api.shop.getUserRoleInShop,
+    api.shop.queries.getUserRole,
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
