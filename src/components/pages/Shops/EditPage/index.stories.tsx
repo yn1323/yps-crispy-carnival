@@ -15,6 +15,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   args: {
-    shopId: "shop123",
+    shopId: "jd7esxeq46sxn5ya9h7q4naaex7s9bkd",
   },
 };
