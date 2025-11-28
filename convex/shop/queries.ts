@@ -10,6 +10,7 @@ import { v } from "convex/values";
 import { query } from "../_generated/server";
 import type { ShopUserRoleType } from "../constants";
 import { getShopBelonging, getUserByAuthId } from "../helpers";
+import { canViewResignedUsers } from "./policies";
 
 // 店舗IDで取得（単純なCRUD）
 export const getById = query({
@@ -98,8 +99,8 @@ export const listUsers = query({
           return null;
         }
 
-        // general権限の場合、activeユーザーのみ表示
-        if (currentUserRole === "general" && belonging.status !== "active") {
+        // 退職済みユーザーの表示権限チェック
+        if (!canViewResignedUsers(currentUserRole) && belonging.status !== "active") {
           return null;
         }
 

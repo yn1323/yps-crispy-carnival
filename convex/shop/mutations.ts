@@ -16,6 +16,7 @@ import {
   requireShopPermission,
   requireUserByAuthId,
 } from "../helpers";
+import { canResignUser, canUpdateUserRole } from "./policies";
 
 // 店舗作成 + owner自動紐付け
 export const create = mutation({
@@ -210,15 +211,16 @@ export const updateUserRole = mutation({
     }
 
     const executor = await requireUserByAuthId(ctx, args.authId);
-    await requireShopPermission(ctx, args.shopId, executor._id);
+    const executorBelonging = await getShopBelonging(ctx, args.shopId, executor._id);
 
     const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
     if (!targetBelonging) {
       throw new ConvexError({ message: "対象ユーザーが店舗に所属していません", code: "BELONGING_NOT_FOUND" });
     }
 
-    if (targetBelonging.role === "owner") {
-      throw new ConvexError({ message: "ownerの役割は変更できません", code: "CANNOT_CHANGE_OWNER_ROLE" });
+    // ポリシーで権限チェック
+    if (!canUpdateUserRole(executorBelonging?.role as ShopUserRoleType, targetBelonging.role as ShopUserRoleType)) {
+      throw new ConvexError({ message: "この操作を行う権限がありません", code: "PERMISSION_DENIED" });
     }
 
     await ctx.db.patch(targetBelonging._id, { role: args.newRole });
@@ -243,7 +245,7 @@ export const resignUser = mutation({
       throw new ConvexError({ message: "自分自身を退職処理することはできません", code: "CANNOT_RESIGN_SELF" });
     }
 
-    const executorBelonging = await requireShopPermission(ctx, args.shopId, executor._id);
+    const executorBelonging = await getShopBelonging(ctx, args.shopId, executor._id);
 
     const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
     if (!targetBelonging) {
@@ -254,15 +256,9 @@ export const resignUser = mutation({
       throw new ConvexError({ message: "このユーザーは既に退職済みです", code: "ALREADY_RESIGNED" });
     }
 
-    if (targetBelonging.role === "owner") {
-      throw new ConvexError({ message: "オーナーを退職処理することはできません", code: "CANNOT_RESIGN_OWNER" });
-    }
-
-    if (executorBelonging.role === "manager" && targetBelonging.role === "manager") {
-      throw new ConvexError({
-        message: "マネージャーは他のマネージャーを退職処理できません",
-        code: "CANNOT_RESIGN_MANAGER",
-      });
+    // ポリシーで権限チェック
+    if (!canResignUser(executorBelonging?.role as ShopUserRoleType, targetBelonging.role as ShopUserRoleType)) {
+      throw new ConvexError({ message: "この操作を行う権限がありません", code: "PERMISSION_DENIED" });
     }
 
     await ctx.db.patch(targetBelonging._id, {
