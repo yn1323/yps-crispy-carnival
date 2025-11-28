@@ -6,7 +6,6 @@ on:
 jobs:
   type-check:
     runs-on: ubuntu-latest
-    environment: Preview
     steps:
       - uses: actions/checkout@v6
         with:
