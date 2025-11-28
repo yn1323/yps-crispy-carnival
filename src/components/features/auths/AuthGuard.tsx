@@ -12,7 +12,7 @@ type Props = {
 export const AuthGuard = ({ children }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
   const [user, setUser] = useAtom(userAtom);
-  const userData = useQuery(api.user.getUserByAuthId, { authId: userId ?? "" });
+  const userData = useQuery(api.user.queries.getByAuthId, { authId: userId ?? "" });
   const isConvexLoading = userData === undefined;
 
   // ユーザーが状態管理にいれば即返却

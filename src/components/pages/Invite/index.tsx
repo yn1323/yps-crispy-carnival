@@ -17,8 +17,8 @@ type Props = {
 
 export const InvitePage = ({ token }: Props) => {
   const { isSignedIn, userId } = useAuth();
-  const invitation = useQuery(api.invite.getInvitationByToken, token ? { token } : "skip");
-  const acceptInvitation = useMutation(api.invite.acceptInvitation);
+  const invitation = useQuery(api.invite.queries.getByToken, token ? { token } : "skip");
+  const acceptInvitation = useMutation(api.invite.mutations.accept);
 
   // 承認完了状態を管理（Convexリアルタイム更新より先にUIを更新するため）
   const [acceptedShop, setAcceptedShop] = useState<{ id: string; name: string } | null>(null);

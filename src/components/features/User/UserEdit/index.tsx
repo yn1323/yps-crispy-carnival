@@ -64,9 +64,9 @@ type Props = {
 export const UserEdit = ({ user, shopId, shopName, shopUserInfo, callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
   const { userId: authId } = useAuth();
-  const updateUser = useMutation(api.user.updateUser);
-  const updateShopUserInfo = useMutation(api.shop.updateShopUserInfo);
-  const resignUser = useMutation(api.shop.resignUserFromShop);
+  const updateUser = useMutation(api.user.mutations.update);
+  const updateShopUserInfo = useMutation(api.shop.mutations.updateUserInfo);
+  const resignUser = useMutation(api.shop.mutations.resignUser);
 
   const [resignationReason, setResignationReason] = useState("");
   const [isResigning, setIsResigning] = useState(false);

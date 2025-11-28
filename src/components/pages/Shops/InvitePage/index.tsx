@@ -14,7 +14,7 @@ export const InvitePage = () => {
 
   // 招待一覧を取得
   const invitations = useQuery(
-    api.invite.getInvitationsByShopId,
+    api.invite.queries.listByShopId,
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
