@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isNumber, makeQueryParamsString } from "./index";
+import { isDigitString, makeQueryParamsString } from "./index";
 
 describe("makeQueryParamsString", () => {
   it("クエリパラメータを文字列に変換すること", () => {
@@ -35,23 +35,23 @@ describe("makeQueryParamsString", () => {
   });
 });
 
-describe("isNumber", () => {
+describe("isDigitString", () => {
   it("数字のみの文字列の場合、trueを返すこと", () => {
-    expect(isNumber("123")).toBe(true);
-    expect(isNumber("0")).toBe(true);
-    expect(isNumber("9876543210")).toBe(true);
+    expect(isDigitString("123")).toBe(true);
+    expect(isDigitString("0")).toBe(true);
+    expect(isDigitString("9876543210")).toBe(true);
   });
 
   it("数字以外の文字を含む場合、falseを返すこと", () => {
-    expect(isNumber("123a")).toBe(false);
-    expect(isNumber("abc")).toBe(false);
-    expect(isNumber("1.23")).toBe(false);
-    expect(isNumber("-123")).toBe(false);
-    expect(isNumber(" 123")).toBe(false);
-    expect(isNumber("123 ")).toBe(false);
+    expect(isDigitString("123a")).toBe(false);
+    expect(isDigitString("abc")).toBe(false);
+    expect(isDigitString("1.23")).toBe(false);
+    expect(isDigitString("-123")).toBe(false);
+    expect(isDigitString(" 123")).toBe(false);
+    expect(isDigitString("123 ")).toBe(false);
   });
 
   it("空文字列の場合、trueを返すこと", () => {
-    expect(isNumber("")).toBe(true);
+    expect(isDigitString("")).toBe(true);
   });
 });

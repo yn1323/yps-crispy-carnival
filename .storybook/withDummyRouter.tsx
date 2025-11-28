@@ -16,9 +16,11 @@ const RenderStory = () => {
   return storyFn();
 };
 
+const rootRoute = createRootRoute();
+
 // List the paths of your application
 const paths = ["/", "/about", "/paths"];
-const routes = paths.map((path) =>
+const staticRoutes = paths.map((path) =>
   createRoute({
     path,
     getParentRoute: () => rootRoute,
@@ -26,8 +28,14 @@ const routes = paths.map((path) =>
   }),
 );
 
-const rootRoute = createRootRoute();
-rootRoute.addChildren(routes);
+// Catch-all route for any other paths (e.g., /shops/$shopId)
+const catchAllRoute = createRoute({
+  path: "$",
+  getParentRoute: () => rootRoute,
+  component: RenderStory,
+});
+
+rootRoute.addChildren([...staticRoutes, catchAllRoute]);
 const storyRouter = createRouter({
   history: createMemoryHistory({ initialEntries: ["/"] }),
   routeTree: rootRoute,

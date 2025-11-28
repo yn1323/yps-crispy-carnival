@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import { ShopList, ShopListEmpty } from "@/src/components/features/Shop/ShopList";
 import { LazyShow } from "@/src/components/ui/LazyShow";
@@ -7,7 +7,7 @@ import { uniqueBy } from "@/src/helpers/utils/array";
 import { userAtom } from "@/src/stores/user";
 
 export const ShopsListPage = () => {
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
   const shops = useQuery(api.shop.getShopsByAuthId, user.authId ? { authId: user.authId } : "skip");
   const canCreateShop = useQuery(api.shop.canUserCreateShop, user.authId ? { authId: user.authId } : "skip");
 

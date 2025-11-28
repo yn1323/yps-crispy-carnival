@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserDetail, UserDetailLoading, UserDetailNotFound } from "@/src/components/features/User/UserDetail";
@@ -12,18 +12,18 @@ type Props = {
 };
 
 export const StaffDetailPage = ({ userId, shopId }: Props) => {
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
 
   // ユーザー情報取得
   const staffData = useQuery(
     api.user.getUserById,
-    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId } : "skip",
+    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId: shopId as Id<"shops"> } : "skip",
   );
 
   // ユーザーの所属店舗一覧取得
   const shops = useQuery(
     api.user.getUserShops,
-    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId } : "skip",
+    user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId: shopId as Id<"shops"> } : "skip",
   );
 
   // 現在のユーザー権限取得
