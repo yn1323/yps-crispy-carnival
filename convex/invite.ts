@@ -1,7 +1,14 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { INVITE_EXPIRY_MS, SHOP_USER_ROLE, type ShopUserRoleType } from "./constants";
-import { generateToken } from "./helpers";
+import {
+  generateToken,
+  getShopBelonging,
+  getUserByAuthId,
+  requireShop,
+  requireShopPermission,
+  requireUserByAuthId,
+} from "./helpers";
 
 // 招待作成
 export const createInvitation = mutation({
@@ -30,41 +37,13 @@ export const createInvitation = mutation({
     }
 
     // 実行者のユーザー取得
-    const inviter = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!inviter) {
-      throw new ConvexError({
-        message: "ユーザーが見つかりません",
-        code: "USER_NOT_FOUND",
-      });
-    }
+    const inviter = await requireUserByAuthId(ctx, args.authId);
 
     // 店舗存在チェック
-    const shop = await ctx.db.get(args.shopId);
-    if (!shop || shop.isDeleted) {
-      throw new ConvexError({
-        message: "店舗が見つかりません",
-        code: "SHOP_NOT_FOUND",
-      });
-    }
+    await requireShop(ctx, args.shopId);
 
     // 実行者の権限チェック
-    const inviterBelonging = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_shop_and_user", (q) => q.eq("shopId", args.shopId).eq("userId", inviter._id))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!inviterBelonging || (inviterBelonging.role !== "owner" && inviterBelonging.role !== "manager")) {
-      throw new ConvexError({
-        message: "招待を作成する権限がありません",
-        code: "PERMISSION_DENIED",
-      });
-    }
+    await requireShopPermission(ctx, args.shopId, inviter._id);
 
     // 仮ユーザー作成
     const userId = await ctx.db.insert("users", {
@@ -127,32 +106,10 @@ export const cancelInvitation = mutation({
     }
 
     // 実行者のユーザー取得
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!user) {
-      throw new ConvexError({
-        message: "ユーザーが見つかりません",
-        code: "USER_NOT_FOUND",
-      });
-    }
+    const user = await requireUserByAuthId(ctx, args.authId);
 
     // 権限チェック
-    const userBelonging = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_shop_and_user", (q) => q.eq("shopId", belonging.shopId).eq("userId", user._id))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!userBelonging || (userBelonging.role !== "owner" && userBelonging.role !== "manager")) {
-      throw new ConvexError({
-        message: "招待をキャンセルする権限がありません",
-        code: "PERMISSION_DENIED",
-      });
-    }
+    await requireShopPermission(ctx, belonging.shopId, user._id);
 
     // shopUserBelongings論理削除
     await ctx.db.patch(args.belongingId, { isDeleted: true });
@@ -188,32 +145,10 @@ export const resendInvitation = mutation({
     }
 
     // 実行者のユーザー取得
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!user) {
-      throw new ConvexError({
-        message: "ユーザーが見つかりません",
-        code: "USER_NOT_FOUND",
-      });
-    }
+    const user = await requireUserByAuthId(ctx, args.authId);
 
     // 権限チェック
-    const userBelonging = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_shop_and_user", (q) => q.eq("shopId", belonging.shopId).eq("userId", user._id))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!userBelonging || (userBelonging.role !== "owner" && userBelonging.role !== "manager")) {
-      throw new ConvexError({
-        message: "招待を再送する権限がありません",
-        code: "PERMISSION_DENIED",
-      });
-    }
+    await requireShopPermission(ctx, belonging.shopId, user._id);
 
     // 新しいトークン生成
     const token = generateToken();
@@ -273,11 +208,7 @@ export const acceptInvitation = mutation({
     }
 
     // authIdで既存ユーザー検索
-    const existingUser = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
+    const existingUser = await getUserByAuthId(ctx, args.authId);
 
     if (existingUser) {
       // 既存ユーザーの場合: 仮登録usersを論理削除、userIdを付け替え
@@ -324,22 +255,14 @@ export const getInvitationsByShopId = query({
   },
   handler: async (ctx, args) => {
     // 実行者のユーザー取得
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
+    const user = await getUserByAuthId(ctx, args.authId);
 
     if (!user) {
       return [];
     }
 
     // 権限チェック
-    const userBelonging = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_shop_and_user", (q) => q.eq("shopId", args.shopId).eq("userId", user._id))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
+    const userBelonging = await getShopBelonging(ctx, args.shopId, user._id);
 
     if (!userBelonging || (userBelonging.role !== "owner" && userBelonging.role !== "manager")) {
       return [];

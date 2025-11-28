@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShopEdit, ShopEditLoading } from "@/src/components/features/Shop/ShopEdit";
@@ -11,7 +11,7 @@ type Props = {
 };
 
 export const ShopsEditPage = ({ shopId }: Props) => {
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
 
   // 店舗情報取得
   const shop = useQuery(api.shop.getShopById, { shopId: shopId as Id<"shops"> });

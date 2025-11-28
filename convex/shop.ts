@@ -1,7 +1,14 @@
 import { ConvexError, v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT, SHOP_USER_ROLE, type ShopUserRoleType } from "./constants";
+import {
+  getShopBelonging,
+  getUserByAuthId,
+  isValidTimeFormat,
+  requireShop,
+  requireShopPermission,
+  requireUserByAuthId,
+} from "./helpers";
 
 // 店舗作成 + owner自動紐付け
 export const createShop = mutation({
@@ -36,15 +43,14 @@ export const createShop = mutation({
       });
     }
 
-    // バリデーション: 時間形式チェック（簡易版: HH:mm形式）
-    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-    if (!timeRegex.test(args.openTime)) {
+    // バリデーション: 時間形式チェック
+    if (!isValidTimeFormat(args.openTime)) {
       throw new ConvexError({
         message: "開店時間の形式が不正です（HH:mm形式で入力してください）",
         code: "INVALID_TIME_FORMAT",
       });
     }
-    if (!timeRegex.test(args.closeTime)) {
+    if (!isValidTimeFormat(args.closeTime)) {
       throw new ConvexError({
         message: "閉店時間の形式が不正です（HH:mm形式で入力してください）",
         code: "INVALID_TIME_FORMAT",
@@ -68,58 +74,33 @@ export const createShop = mutation({
     }
 
     // authIdからuserIdを取得
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", trimmedAuthId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!user) {
-      throw new ConvexError({
-        message: "ユーザーが見つかりません",
-        code: "USER_NOT_FOUND",
-      });
-    }
+    const user = await requireUserByAuthId(ctx, trimmedAuthId);
 
     // 店舗作成
-    const shopId = await ctx.db
-      .insert("shops", {
-        shopName: trimmedShopName,
-        openTime: args.openTime,
-        closeTime: args.closeTime,
-        timeUnit: args.timeUnit,
-        submitFrequency: args.submitFrequency,
-        avatar: "",
-        useTimeCard: args.useTimeCard,
-        description: args.description,
-        createdBy: trimmedAuthId,
-        createdAt: Date.now(),
-        isDeleted: false,
-      })
-      .catch((e: unknown) => {
-        throw new ConvexError({
-          message: `店舗の作成に失敗しました: ${e}`,
-          code: "CREATE_FAILED",
-        });
-      });
+    const shopId = await ctx.db.insert("shops", {
+      shopName: trimmedShopName,
+      openTime: args.openTime,
+      closeTime: args.closeTime,
+      timeUnit: args.timeUnit,
+      submitFrequency: args.submitFrequency,
+      avatar: "",
+      useTimeCard: args.useTimeCard,
+      description: args.description,
+      createdBy: trimmedAuthId,
+      createdAt: Date.now(),
+      isDeleted: false,
+    });
 
     // 作成者をownerとして自動紐付け
-    await ctx.db
-      .insert("shopUserBelongings", {
-        shopId,
-        userId: user._id,
-        displayName: user.name,
-        role: "owner",
-        status: "active",
-        createdAt: Date.now(),
-        isDeleted: false,
-      })
-      .catch((e: unknown) => {
-        throw new ConvexError({
-          message: `オーナー紐付けに失敗しました: ${e}`,
-          code: "BELONGING_FAILED",
-        });
-      });
+    await ctx.db.insert("shopUserBelongings", {
+      shopId,
+      userId: user._id,
+      displayName: user.name,
+      role: "owner",
+      status: "active",
+      createdAt: Date.now(),
+      isDeleted: false,
+    });
 
     return {
       success: true,
@@ -134,7 +115,7 @@ export const createShop = mutation({
 // 店舗情報更新（owner/managerのみ）
 export const updateShop = mutation({
   args: {
-    shopId: v.string(),
+    shopId: v.id("shops"),
     authId: v.string(),
     shopName: v.optional(v.string()),
     openTime: v.optional(v.string()),
@@ -145,376 +126,185 @@ export const updateShop = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
+    // 店舗存在チェック
+    await requireShop(ctx, args.shopId);
 
-      // 店舗存在チェック
-      const shop = await ctx.db.get(shopId);
-      if (!shop || shop.isDeleted) {
-        throw new ConvexError({
-          message: "店舗が見つかりません",
-          code: "SHOP_NOT_FOUND",
-        });
-      }
+    // authIdからuserIdを取得
+    const user = await requireUserByAuthId(ctx, args.authId);
 
-      // authIdからuserIdを取得
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
+    // 権限チェック: owner/manager
+    await requireShopPermission(ctx, args.shopId, user._id);
 
-      if (!user) {
-        throw new ConvexError({
-          message: "ユーザーが見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
+    // 更新フィールドを構築
+    const fieldsToUpdate: Partial<{
+      shopName: string;
+      openTime: string;
+      closeTime: string;
+      timeUnit: number;
+      submitFrequency: string;
+      useTimeCard: boolean;
+      description: string;
+    }> = {};
 
-      // 権限チェック: owner/manager
-      const belonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", user._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
+    if (args.shopName) fieldsToUpdate.shopName = args.shopName.trim();
+    if (args.openTime) fieldsToUpdate.openTime = args.openTime;
+    if (args.closeTime) fieldsToUpdate.closeTime = args.closeTime;
+    if (args.timeUnit) fieldsToUpdate.timeUnit = args.timeUnit;
+    if (args.submitFrequency) fieldsToUpdate.submitFrequency = args.submitFrequency;
+    if (args.useTimeCard !== undefined) fieldsToUpdate.useTimeCard = args.useTimeCard;
+    if (args.description !== undefined) fieldsToUpdate.description = args.description;
 
-      if (!belonging || (belonging.role !== "owner" && belonging.role !== "manager")) {
-        throw new ConvexError({
-          message: "この操作を行う権限がありません",
-          code: "PERMISSION_DENIED",
-        });
-      }
-
-      // 更新フィールドを構築
-      const fieldsToUpdate: Partial<{
-        shopName: string;
-        openTime: string;
-        closeTime: string;
-        timeUnit: number;
-        submitFrequency: string;
-        useTimeCard: boolean;
-        description: string;
-      }> = {};
-
-      if (args.shopName) fieldsToUpdate.shopName = args.shopName.trim();
-      if (args.openTime) fieldsToUpdate.openTime = args.openTime;
-      if (args.closeTime) fieldsToUpdate.closeTime = args.closeTime;
-      if (args.timeUnit) fieldsToUpdate.timeUnit = args.timeUnit;
-      if (args.submitFrequency) fieldsToUpdate.submitFrequency = args.submitFrequency;
-      if (args.useTimeCard !== undefined) fieldsToUpdate.useTimeCard = args.useTimeCard;
-      if (args.description !== undefined) fieldsToUpdate.description = args.description;
-
-      if (Object.keys(fieldsToUpdate).length === 0) {
-        throw new ConvexError({
-          message: "更新するフィールドがありません",
-          code: "NO_FIELDS_TO_UPDATE",
-        });
-      }
-
-      await ctx.db.patch(shopId, fieldsToUpdate).catch((e: unknown) => {
-        throw new ConvexError({
-          message: `店舗情報の更新に失敗しました: ${e}`,
-          code: "UPDATE_FAILED",
-        });
-      });
-
-      return shopId;
-    } catch (e) {
-      if (e instanceof ConvexError) {
-        throw e;
-      }
+    if (Object.keys(fieldsToUpdate).length === 0) {
       throw new ConvexError({
-        message: "不正なIDが指定されました",
-        code: "INVALID_ID",
+        message: "更新するフィールドがありません",
+        code: "NO_FIELDS_TO_UPDATE",
       });
     }
+
+    await ctx.db.patch(args.shopId, fieldsToUpdate);
+
+    return args.shopId;
   },
 });
 
 // 店舗削除(ownerのみ)
 export const deleteShop = mutation({
   args: {
-    shopId: v.string(),
+    shopId: v.id("shops"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
+    // 店舗存在チェック
+    await requireShop(ctx, args.shopId);
 
-      // 店舗存在チェック
-      const shop = await ctx.db.get(shopId);
-      if (!shop || shop.isDeleted) {
-        throw new ConvexError({
-          message: "店舗が見つかりません",
-          code: "SHOP_NOT_FOUND",
-        });
-      }
+    // authIdからuserIdを取得
+    const user = await requireUserByAuthId(ctx, args.authId);
 
-      // authIdからuserIdを取得
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
+    // 権限チェック: ownerのみ
+    await requireShopPermission(ctx, args.shopId, user._id, ["owner"]);
 
-      if (!user) {
-        throw new ConvexError({
-          message: "ユーザーが見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
+    // 論理削除
+    await ctx.db.patch(args.shopId, { isDeleted: true });
 
-      // 権限チェック: ownerのみ
-      const belonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", user._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!belonging || belonging.role !== "owner") {
-        throw new ConvexError({
-          message: "この操作を行う権限がありません（ownerのみ削除可能）",
-          code: "PERMISSION_DENIED",
-        });
-      }
-
-      // 論理削除
-      await ctx.db.patch(shopId, { isDeleted: true }).catch((e: unknown) => {
-        throw new ConvexError({
-          message: `店舗の削除に失敗しました: ${e}`,
-          code: "DELETE_FAILED",
-        });
-      });
-
-      return { success: true };
-    } catch (e) {
-      if (e instanceof ConvexError) {
-        throw e;
-      }
-      throw new ConvexError({
-        message: "不正なIDが指定されました",
-        code: "INVALID_ID",
-      });
-    }
+    return { success: true };
   },
 });
 
 // ユーザーを店舗に追加(owner/managerのみ)
 export const addUserToShop = mutation({
   args: {
-    shopId: v.string(),
-    userId: v.string(),
+    shopId: v.id("shops"),
+    userId: v.id("users"),
     role: v.string(),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
-      const userId = args.userId as Id<"users">;
-
-      // roleバリデーション
-      if (!SHOP_USER_ROLE.includes(args.role as ShopUserRoleType)) {
-        throw new ConvexError({
-          message: `役割は${SHOP_USER_ROLE.join("、")}のいずれかを指定してください`,
-          code: "INVALID_ROLE",
-        });
-      }
-
-      // 店舗・ユーザー存在チェック
-      const shop = await ctx.db.get(shopId);
-      if (!shop || shop.isDeleted) {
-        throw new ConvexError({
-          message: "店舗が見つかりません",
-          code: "SHOP_NOT_FOUND",
-        });
-      }
-
-      const targetUser = await ctx.db.get(userId);
-      if (!targetUser || targetUser.isDeleted) {
-        throw new ConvexError({
-          message: "追加するユーザーが見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
-
-      // 実行者のauthIdからuserIdを取得
-      const executor = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!executor) {
-        throw new ConvexError({
-          message: "実行者が見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
-
-      // 権限チェック: owner/manager
-      const belonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!belonging || (belonging.role !== "owner" && belonging.role !== "manager")) {
-        throw new ConvexError({
-          message: "この操作を行う権限がありません",
-          code: "PERMISSION_DENIED",
-        });
-      }
-
-      // 既に所属していないかチェック
-      const existingBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (existingBelonging) {
-        throw new ConvexError({
-          message: "このユーザーは既に店舗に所属しています",
-          code: "ALREADY_BELONGS",
-        });
-      }
-
-      // 紐付け追加
-      const belongingId = await ctx.db
-        .insert("shopUserBelongings", {
-          shopId: shopId,
-          userId: userId,
-          displayName: targetUser.name,
-          role: args.role,
-          status: "active",
-          createdAt: Date.now(),
-          isDeleted: false,
-        })
-        .catch((e: unknown) => {
-          throw new ConvexError({
-            message: `ユーザーの追加に失敗しました: ${e}`,
-            code: "INSERT_FAILED",
-          });
-        });
-
-      return belongingId;
-    } catch (e) {
-      if (e instanceof ConvexError) {
-        throw e;
-      }
+    // roleバリデーション
+    if (!SHOP_USER_ROLE.includes(args.role as ShopUserRoleType)) {
       throw new ConvexError({
-        message: "不正なIDが指定されました",
-        code: "INVALID_ID",
+        message: `役割は${SHOP_USER_ROLE.join("、")}のいずれかを指定してください`,
+        code: "INVALID_ROLE",
       });
     }
+
+    // 店舗存在チェック
+    await requireShop(ctx, args.shopId);
+
+    // 追加対象ユーザー存在チェック
+    const targetUser = await ctx.db.get(args.userId);
+    if (!targetUser || targetUser.isDeleted) {
+      throw new ConvexError({
+        message: "追加するユーザーが見つかりません",
+        code: "USER_NOT_FOUND",
+      });
+    }
+
+    // 実行者のauthIdからuserIdを取得
+    const executor = await requireUserByAuthId(ctx, args.authId);
+
+    // 権限チェック: owner/manager
+    await requireShopPermission(ctx, args.shopId, executor._id);
+
+    // 既に所属していないかチェック
+    const existingBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+    if (existingBelonging) {
+      throw new ConvexError({
+        message: "このユーザーは既に店舗に所属しています",
+        code: "ALREADY_BELONGS",
+      });
+    }
+
+    // 紐付け追加
+    const belongingId = await ctx.db.insert("shopUserBelongings", {
+      shopId: args.shopId,
+      userId: args.userId,
+      displayName: targetUser.name,
+      role: args.role,
+      status: "active",
+      createdAt: Date.now(),
+      isDeleted: false,
+    });
+
+    return belongingId;
   },
 });
 
 // ユーザーの役割変更(owner/managerが実行可能)
 export const updateUserRole = mutation({
   args: {
-    shopId: v.string(),
-    userId: v.string(),
+    shopId: v.id("shops"),
+    userId: v.id("users"),
     newRole: v.string(),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
-      const userId = args.userId as Id<"users">;
-
-      // newRoleバリデーション
-      if (args.newRole !== "manager" && args.newRole !== "staff") {
-        throw new ConvexError({
-          message: "ロールはmanagerまたはstaffのみ指定可能です",
-          code: "INVALID_ROLE",
-        });
-      }
-
-      // 実行者のauthIdからuserIdを取得
-      const executor = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!executor) {
-        throw new ConvexError({
-          message: "実行者が見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
-
-      // 権限チェック: owner/manager
-      const executorBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
-        throw new ConvexError({
-          message: "この操作を行う権限がありません（owner/managerのみ実行可能）",
-          code: "PERMISSION_DENIED",
-        });
-      }
-
-      // 対象ユーザーの紐付けを取得
-      const targetBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!targetBelonging) {
-        throw new ConvexError({
-          message: "対象ユーザーが店舗に所属していません",
-          code: "BELONGING_NOT_FOUND",
-        });
-      }
-
-      // ownerの役割変更は不可
-      if (targetBelonging.role === "owner") {
-        throw new ConvexError({
-          message: "ownerの役割は変更できません",
-          code: "CANNOT_CHANGE_OWNER_ROLE",
-        });
-      }
-
-      // 役割更新
-      await ctx.db.patch(targetBelonging._id, { role: args.newRole }).catch((e: unknown) => {
-        throw new ConvexError({
-          message: `役割の変更に失敗しました: ${e}`,
-          code: "UPDATE_FAILED",
-        });
-      });
-
-      return targetBelonging._id;
-    } catch (e) {
-      if (e instanceof ConvexError) {
-        throw e;
-      }
+    // newRoleバリデーション
+    if (args.newRole !== "manager" && args.newRole !== "staff") {
       throw new ConvexError({
-        message: "不正なIDが指定されました",
-        code: "INVALID_ID",
+        message: "ロールはmanagerまたはstaffのみ指定可能です",
+        code: "INVALID_ROLE",
       });
     }
+
+    // 実行者のauthIdからuserIdを取得
+    const executor = await requireUserByAuthId(ctx, args.authId);
+
+    // 権限チェック: owner/manager
+    await requireShopPermission(ctx, args.shopId, executor._id);
+
+    // 対象ユーザーの紐付けを取得
+    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+    if (!targetBelonging) {
+      throw new ConvexError({
+        message: "対象ユーザーが店舗に所属していません",
+        code: "BELONGING_NOT_FOUND",
+      });
+    }
+
+    // ownerの役割変更は不可
+    if (targetBelonging.role === "owner") {
+      throw new ConvexError({
+        message: "ownerの役割は変更できません",
+        code: "CANNOT_CHANGE_OWNER_ROLE",
+      });
+    }
+
+    // 役割更新
+    await ctx.db.patch(targetBelonging._id, { role: args.newRole });
+
+    return targetBelonging._id;
   },
 });
 
 // 店舗IDで取得
 export const getShopById = query({
-  args: { shopId: v.string() },
+  args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
-    try {
-      const shop = await ctx.db.get(args.shopId as Id<"shops">);
-      if (!shop || shop.isDeleted) {
-        return null;
-      }
-      return shop;
-    } catch {
+    const shop = await ctx.db.get(args.shopId);
+    if (!shop || shop.isDeleted) {
       return null;
     }
+    return shop;
   },
 });
 
@@ -523,11 +313,7 @@ export const getShopsByAuthId = query({
   args: { authId: v.string() },
   handler: async (ctx, args) => {
     // authIdからuserIdを取得
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
+    const user = await getUserByAuthId(ctx, args.authId);
 
     if (!user) {
       return [];
@@ -574,224 +360,143 @@ export const getShopsByAuthId = query({
 // 店舗所属ユーザー一覧取得
 export const getUsersInShop = query({
   args: {
-    shopId: v.string(),
+    shopId: v.id("shops"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
+    // 呼び出し元ユーザーの権限を取得
+    const currentUser = await getUserByAuthId(ctx, args.authId);
 
-      // 呼び出し元ユーザーの権限を取得
-      const currentUser = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      let currentUserRole: ShopUserRoleType | null = null;
-      if (currentUser) {
-        const currentBelonging = await ctx.db
-          .query("shopUserBelongings")
-          .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", currentUser._id))
-          .filter((q) => q.neq(q.field("isDeleted"), true))
-          .first();
-        currentUserRole = (currentBelonging?.role as ShopUserRoleType) ?? null;
-      }
-
-      // 店舗に所属するユーザーを取得
-      const belongings = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop", (q) => q.eq("shopId", shopId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .collect();
-
-      // 各ユーザー情報を取得
-      const users = await Promise.all(
-        belongings.map(async (belonging) => {
-          const user = await ctx.db.get(belonging.userId);
-          if (!user || user.isDeleted) {
-            return null;
-          }
-
-          // general権限の場合、activeユーザーのみ表示
-          if (currentUserRole === "general" && belonging.status !== "active") {
-            return null;
-          }
-
-          return {
-            _id: user._id,
-            name: user.name,
-            displayName: belonging.displayName,
-            authId: user.authId,
-            role: belonging.role,
-            status: belonging.status,
-            createdAt: belonging.createdAt,
-          };
-        }),
-      );
-
-      return users.filter((user) => user !== null);
-    } catch {
-      return [];
+    let currentUserRole: ShopUserRoleType | null = null;
+    if (currentUser) {
+      const currentBelonging = await getShopBelonging(ctx, args.shopId, currentUser._id);
+      currentUserRole = (currentBelonging?.role as ShopUserRoleType) ?? null;
     }
+
+    // 店舗に所属するユーザーを取得
+    const belongings = await ctx.db
+      .query("shopUserBelongings")
+      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect();
+
+    // 各ユーザー情報を取得
+    const users = await Promise.all(
+      belongings.map(async (belonging) => {
+        const user = await ctx.db.get(belonging.userId);
+        if (!user || user.isDeleted) {
+          return null;
+        }
+
+        // general権限の場合、activeユーザーのみ表示
+        if (currentUserRole === "general" && belonging.status !== "active") {
+          return null;
+        }
+
+        return {
+          _id: user._id,
+          name: user.name,
+          displayName: belonging.displayName,
+          authId: user.authId,
+          role: belonging.role,
+          status: belonging.status,
+          createdAt: belonging.createdAt,
+        };
+      }),
+    );
+
+    return users.filter((user) => user !== null);
   },
 });
 
 // ユーザーの店舗内役割取得
 export const getUserRoleInShop = query({
   args: {
-    shopId: v.string(),
+    shopId: v.id("shops"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
+    // authIdからuserIdを取得
+    const user = await getUserByAuthId(ctx, args.authId);
 
-      // authIdからuserIdを取得
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!user) {
-        return null;
-      }
-
-      // 紐付けを取得
-      const belonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", user._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      return belonging?.role ?? null;
-    } catch {
+    if (!user) {
       return null;
     }
+
+    // 紐付けを取得
+    const belonging = await getShopBelonging(ctx, args.shopId, user._id);
+
+    return belonging?.role ?? null;
   },
 });
 
 // ユーザーを店舗から退職処理(owner/managerのみ実行可能、自分自身は不可)
 export const resignUserFromShop = mutation({
   args: {
-    shopId: v.string(),
-    userId: v.string(),
+    shopId: v.id("shops"),
+    userId: v.id("users"),
     authId: v.string(),
     resignationReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
-      const userId = args.userId as Id<"users">;
+    // 店舗存在チェック
+    await requireShop(ctx, args.shopId);
 
-      // 店舗存在チェック
-      const shop = await ctx.db.get(shopId);
-      if (!shop || shop.isDeleted) {
-        throw new ConvexError({
-          message: "店舗が見つかりません",
-          code: "SHOP_NOT_FOUND",
-        });
-      }
+    // 実行者のauthIdからuserIdを取得
+    const executor = await requireUserByAuthId(ctx, args.authId);
 
-      // 実行者のauthIdからuserIdを取得
-      const executor = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!executor) {
-        throw new ConvexError({
-          message: "実行者が見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
-
-      // 自分自身の退職は不可
-      if (executor._id === userId) {
-        throw new ConvexError({
-          message: "自分自身を退職処理することはできません",
-          code: "CANNOT_RESIGN_SELF",
-        });
-      }
-
-      // 権限チェック: owner/manager
-      const executorBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
-        throw new ConvexError({
-          message: "この操作を行う権限がありません（owner/managerのみ実行可能）",
-          code: "PERMISSION_DENIED",
-        });
-      }
-
-      // 対象ユーザーの紐付けを取得
-      const targetBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!targetBelonging) {
-        throw new ConvexError({
-          message: "対象ユーザーが店舗に所属していません",
-          code: "BELONGING_NOT_FOUND",
-        });
-      }
-
-      // 既に退職済みの場合はエラー
-      if (targetBelonging.status === "resigned") {
-        throw new ConvexError({
-          message: "このユーザーは既に退職済みです",
-          code: "ALREADY_RESIGNED",
-        });
-      }
-
-      // ownerの退職は不可
-      if (targetBelonging.role === "owner") {
-        throw new ConvexError({
-          message: "オーナーを退職処理することはできません",
-          code: "CANNOT_RESIGN_OWNER",
-        });
-      }
-
-      // managerがmanagerを退職させることは不可
-      if (executorBelonging.role === "manager" && targetBelonging.role === "manager") {
-        throw new ConvexError({
-          message: "マネージャーは他のマネージャーを退職処理できません",
-          code: "CANNOT_RESIGN_MANAGER",
-        });
-      }
-
-      // 退職処理
-      await ctx.db
-        .patch(targetBelonging._id, {
-          status: "resigned",
-          resignedAt: Date.now(),
-          resignationReason: args.resignationReason,
-        })
-        .catch((e: unknown) => {
-          throw new ConvexError({
-            message: `退職処理に失敗しました: ${e}`,
-            code: "UPDATE_FAILED",
-          });
-        });
-
-      return { success: true };
-    } catch (e) {
-      if (e instanceof ConvexError) {
-        throw e;
-      }
+    // 自分自身の退職は不可
+    if (executor._id === args.userId) {
       throw new ConvexError({
-        message: "不正なIDが指定されました",
-        code: "INVALID_ID",
+        message: "自分自身を退職処理することはできません",
+        code: "CANNOT_RESIGN_SELF",
       });
     }
+
+    // 権限チェック: owner/manager
+    const executorBelonging = await requireShopPermission(ctx, args.shopId, executor._id);
+
+    // 対象ユーザーの紐付けを取得
+    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+    if (!targetBelonging) {
+      throw new ConvexError({
+        message: "対象ユーザーが店舗に所属していません",
+        code: "BELONGING_NOT_FOUND",
+      });
+    }
+
+    // 既に退職済みの場合はエラー
+    if (targetBelonging.status === "resigned") {
+      throw new ConvexError({
+        message: "このユーザーは既に退職済みです",
+        code: "ALREADY_RESIGNED",
+      });
+    }
+
+    // ownerの退職は不可
+    if (targetBelonging.role === "owner") {
+      throw new ConvexError({
+        message: "オーナーを退職処理することはできません",
+        code: "CANNOT_RESIGN_OWNER",
+      });
+    }
+
+    // managerがmanagerを退職させることは不可
+    if (executorBelonging.role === "manager" && targetBelonging.role === "manager") {
+      throw new ConvexError({
+        message: "マネージャーは他のマネージャーを退職処理できません",
+        code: "CANNOT_RESIGN_MANAGER",
+      });
+    }
+
+    // 退職処理
+    await ctx.db.patch(targetBelonging._id, {
+      status: "resigned",
+      resignedAt: Date.now(),
+      resignationReason: args.resignationReason,
+    });
+
+    return { success: true };
   },
 });
 
@@ -801,11 +506,7 @@ export const canUserCreateShop = query({
   args: { authId: v.string() },
   handler: async (ctx, args) => {
     // authIdからuserIdを取得
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
+    const user = await getUserByAuthId(ctx, args.authId);
 
     if (!user) {
       // ユーザーが見つからない場合は作成可能（新規ユーザー想定）
@@ -833,65 +534,46 @@ export const canUserCreateShop = query({
 // 店舗内ユーザーの管理情報取得（owner/managerのみ）
 export const getShopUserInfo = query({
   args: {
-    shopId: v.string(),
-    userId: v.string(),
+    shopId: v.id("shops"),
+    userId: v.id("users"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
-      const userId = args.userId as Id<"users">;
+    // 実行者の権限チェック
+    const executor = await getUserByAuthId(ctx, args.authId);
 
-      // 実行者の権限チェック
-      const executor = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!executor) {
-        return null;
-      }
-
-      const executorBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      // owner/manager以外は閲覧不可
-      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
-        return null;
-      }
-
-      // 対象ユーザーの情報を取得
-      const targetBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!targetBelonging) {
-        return null;
-      }
-
-      return {
-        memo: targetBelonging.memo ?? "",
-        workStyleNote: targetBelonging.workStyleNote ?? "",
-        maxWorkingHoursPerMonth: targetBelonging.maxWorkingHoursPerMonth ?? null,
-        hourlyWage: targetBelonging.hourlyWage ?? null,
-      };
-    } catch {
+    if (!executor) {
       return null;
     }
+
+    const executorBelonging = await getShopBelonging(ctx, args.shopId, executor._id);
+
+    // owner/manager以外は閲覧不可
+    if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
+      return null;
+    }
+
+    // 対象ユーザーの情報を取得
+    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+
+    if (!targetBelonging) {
+      return null;
+    }
+
+    return {
+      memo: targetBelonging.memo ?? "",
+      workStyleNote: targetBelonging.workStyleNote ?? "",
+      maxWorkingHoursPerMonth: targetBelonging.maxWorkingHoursPerMonth ?? null,
+      hourlyWage: targetBelonging.hourlyWage ?? null,
+    };
   },
 });
 
 // 店舗内ユーザーの管理情報更新（owner/managerのみ）
 export const updateShopUserInfo = mutation({
   args: {
-    shopId: v.string(),
-    userId: v.string(),
+    shopId: v.id("shops"),
+    userId: v.id("users"),
     authId: v.string(),
     memo: v.optional(v.string()),
     workStyleNote: v.optional(v.string()),
@@ -899,96 +581,51 @@ export const updateShopUserInfo = mutation({
     hourlyWage: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
-    try {
-      const shopId = args.shopId as Id<"shops">;
-      const userId = args.userId as Id<"users">;
+    // 実行者の権限チェック
+    const executor = await requireUserByAuthId(ctx, args.authId);
 
-      // 実行者の権限チェック
-      const executor = await ctx.db
-        .query("users")
-        .withIndex("by_auth_id", (q) => q.eq("authId", args.authId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
+    // 権限チェック: owner/manager
+    await requireShopPermission(ctx, args.shopId, executor._id);
 
-      if (!executor) {
-        throw new ConvexError({
-          message: "実行者が見つかりません",
-          code: "USER_NOT_FOUND",
-        });
-      }
-
-      const executorBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", executor._id))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      // owner/manager以外は編集不可
-      if (!executorBelonging || (executorBelonging.role !== "owner" && executorBelonging.role !== "manager")) {
-        throw new ConvexError({
-          message: "この操作を行う権限がありません（owner/managerのみ編集可能）",
-          code: "PERMISSION_DENIED",
-        });
-      }
-
-      // 対象ユーザーの紐付けを取得
-      const targetBelonging = await ctx.db
-        .query("shopUserBelongings")
-        .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
-        .filter((q) => q.neq(q.field("isDeleted"), true))
-        .first();
-
-      if (!targetBelonging) {
-        throw new ConvexError({
-          message: "対象ユーザーが店舗に所属していません",
-          code: "BELONGING_NOT_FOUND",
-        });
-      }
-
-      // 更新フィールドを構築
-      const fieldsToUpdate: Partial<{
-        memo: string;
-        workStyleNote: string;
-        maxWorkingHoursPerMonth: number | undefined;
-        hourlyWage: number | undefined;
-      }> = {};
-
-      if (args.memo !== undefined) {
-        fieldsToUpdate.memo = args.memo;
-      }
-      if (args.workStyleNote !== undefined) {
-        fieldsToUpdate.workStyleNote = args.workStyleNote;
-      }
-      if (args.maxWorkingHoursPerMonth !== undefined) {
-        fieldsToUpdate.maxWorkingHoursPerMonth = args.maxWorkingHoursPerMonth ?? undefined;
-      }
-      if (args.hourlyWage !== undefined) {
-        fieldsToUpdate.hourlyWage = args.hourlyWage ?? undefined;
-      }
-
-      if (Object.keys(fieldsToUpdate).length === 0) {
-        throw new ConvexError({
-          message: "更新するフィールドがありません",
-          code: "NO_FIELDS_TO_UPDATE",
-        });
-      }
-
-      await ctx.db.patch(targetBelonging._id, fieldsToUpdate).catch((e: unknown) => {
-        throw new ConvexError({
-          message: `スタッフ情報の更新に失敗しました: ${e}`,
-          code: "UPDATE_FAILED",
-        });
-      });
-
-      return { success: true };
-    } catch (e) {
-      if (e instanceof ConvexError) {
-        throw e;
-      }
+    // 対象ユーザーの紐付けを取得
+    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
+    if (!targetBelonging) {
       throw new ConvexError({
-        message: "不正なIDが指定されました",
-        code: "INVALID_ID",
+        message: "対象ユーザーが店舗に所属していません",
+        code: "BELONGING_NOT_FOUND",
       });
     }
+
+    // 更新フィールドを構築
+    const fieldsToUpdate: Partial<{
+      memo: string;
+      workStyleNote: string;
+      maxWorkingHoursPerMonth: number | undefined;
+      hourlyWage: number | undefined;
+    }> = {};
+
+    if (args.memo !== undefined) {
+      fieldsToUpdate.memo = args.memo;
+    }
+    if (args.workStyleNote !== undefined) {
+      fieldsToUpdate.workStyleNote = args.workStyleNote;
+    }
+    if (args.maxWorkingHoursPerMonth !== undefined) {
+      fieldsToUpdate.maxWorkingHoursPerMonth = args.maxWorkingHoursPerMonth ?? undefined;
+    }
+    if (args.hourlyWage !== undefined) {
+      fieldsToUpdate.hourlyWage = args.hourlyWage ?? undefined;
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      throw new ConvexError({
+        message: "更新するフィールドがありません",
+        code: "NO_FIELDS_TO_UPDATE",
+      });
+    }
+
+    await ctx.db.patch(targetBelonging._id, fieldsToUpdate);
+
+    return { success: true };
   },
 });

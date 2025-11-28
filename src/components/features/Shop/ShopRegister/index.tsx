@@ -2,7 +2,7 @@ import { Container, Flex, Heading, Icon } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -10,7 +10,7 @@ import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { userAtom } from "@/src/stores/user";
 import { ShopForm } from "../ShopForm";
-import { type SchemaType, schema } from "./schema";
+import { type SchemaType, schema } from "../ShopForm/schema";
 
 type Props = {
   callbackRoutingPath?: string;
@@ -18,7 +18,7 @@ type Props = {
 
 export const ShopRegister = ({ callbackRoutingPath }: Props) => {
   const navigate = useNavigate();
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
   const createShop = useMutation(api.shop.createShop);
   const {
     register,

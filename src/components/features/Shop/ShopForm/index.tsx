@@ -3,7 +3,7 @@ import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from
 import { LuCalendar, LuSettings, LuStore } from "react-icons/lu";
 import { FormCard } from "@/src/components/ui/FormCard";
 import { Select } from "@/src/components/ui/Select";
-import { type SchemaType, submitFrequencyOptions, timeUnitOptions } from "../ShopRegister/schema";
+import { type SchemaType, submitFrequencyOptions, timeUnitOptions } from "./schema";
 
 type ShopFormProps = {
   mode: "create" | "edit";

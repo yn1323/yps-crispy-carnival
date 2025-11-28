@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { schema, submitFrequencyOptions } from "./schema";
+import { schema, submitFrequencyOptions } from "../ShopForm/schema";
 
 const validData = {
   shopName: "有効な店舗名",

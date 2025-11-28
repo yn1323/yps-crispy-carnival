@@ -1,7 +1,7 @@
 import { Box, Button, Card, Field, Flex, Heading, Icon, Input, List, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuCheck, LuCopy, LuInfo, LuLink2, LuUserPlus } from "react-icons/lu";
@@ -81,7 +81,7 @@ type InviteFormProps = {
 };
 
 export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
-  const [user] = useAtom(userAtom);
+  const user = useAtomValue(userAtom);
 
   const createInvitation = useMutation(api.invite.createInvitation);
 

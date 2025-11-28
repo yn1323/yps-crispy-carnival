@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useForm } from "react-hook-form";
-import { type SchemaType, schema } from "../ShopRegister/schema";
 import { ShopForm } from "./index";
+import { type SchemaType, schema } from "./schema";
 
 const meta: Meta<typeof ShopForm> = {
   title: "features/Shop/ShopForm",
