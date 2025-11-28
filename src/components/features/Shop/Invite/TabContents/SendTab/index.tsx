@@ -83,7 +83,7 @@ type InviteFormProps = {
 export const InviteForm = ({ shopId, onSuccess }: InviteFormProps) => {
   const user = useAtomValue(userAtom);
 
-  const createInvitation = useMutation(api.invite.createInvitation);
+  const createInvitation = useMutation(api.invite.mutations.create);
 
   const {
     register,

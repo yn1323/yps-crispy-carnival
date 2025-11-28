@@ -28,7 +28,7 @@ type ShopEditFormProps = {
 const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
   const navigate = useNavigate();
   const user = useAtomValue(userAtom);
-  const updateShop = useMutation(api.shop.updateShop);
+  const updateShop = useMutation(api.shop.mutations.update);
   const {
     register,
     handleSubmit,

@@ -18,7 +18,7 @@ type Props = {
 export const UserRegister = ({ callbackRoutingPath }: Props) => {
   const setUser = useSetAtom(userAtom);
   const { userId } = useAuth();
-  const createUser = useMutation(api.user.createUser);
+  const createUser = useMutation(api.user.mutations.create);
   const navigate = useNavigate();
   const {
     register,

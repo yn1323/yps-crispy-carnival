@@ -38,7 +38,7 @@ export const ManageTab = ({ invitations }: ManageTabProps) => {
 
   const { isOpen, open, close, onOpenChange } = useDialog();
 
-  const cancelInvitation = useMutation(api.invite.cancelInvitation);
+  const cancelInvitation = useMutation(api.invite.mutations.cancel);
 
   const handleCopyUrl = async (token: string) => {
     const url = `${window.location.origin}/invite?token=${token}`;

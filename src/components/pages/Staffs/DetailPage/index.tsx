@@ -16,24 +16,24 @@ export const StaffDetailPage = ({ userId, shopId }: Props) => {
 
   // ユーザー情報取得
   const staffData = useQuery(
-    api.user.getUserById,
+    api.user.queries.getById,
     user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId: shopId as Id<"shops"> } : "skip",
   );
 
   // ユーザーの所属店舗一覧取得
   const shops = useQuery(
-    api.user.getUserShops,
+    api.user.queries.getShops,
     user.authId ? { userId: userId as Id<"users">, authId: user.authId, shopId: shopId as Id<"shops"> } : "skip",
   );
 
   // 現在のユーザー権限取得
   const currentUserRole = useQuery(
-    api.shop.getUserRoleInShop,
+    api.shop.queries.getUserRole,
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
   // 現在のログインユーザー情報取得（編集権限判定用）
-  const currentUserData = useQuery(api.user.getUserByAuthId, user.authId ? { authId: user.authId } : "skip");
+  const currentUserData = useQuery(api.user.queries.getByAuthId, user.authId ? { authId: user.authId } : "skip");
 
   // ローディング
   if (
