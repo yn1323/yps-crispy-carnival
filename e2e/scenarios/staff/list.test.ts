@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { goToStaffList, goToStaffTab, goToFirstShop } from "@/e2e/helpers/navigation";
+import { goToStaffList } from "@/e2e/helpers/navigation";
 
 test.describe("スタッフ一覧（StaffTab）", () => {
   test.beforeEach(async ({ page }) => {
@@ -18,7 +18,7 @@ test.describe("スタッフ一覧（StaffTab）", () => {
   test("名前で検索できること", async ({ page }) => {
     // 検索前のスタッフ数を取得
     const countText = await page.getByText(/\d+名のスタッフ/).textContent();
-    const initialCount = Number.parseInt(countText?.match(/\d+/)?.[0] ?? "0");
+    const initialCount = Number.parseInt(countText?.match(/\d+/)?.[0] ?? "0", 10);
 
     // 存在するスタッフ名で検索（seedデータの「桐山」）
     await page.getByPlaceholder("名前・メールで検索...").fill("桐山");
@@ -28,7 +28,7 @@ test.describe("スタッフ一覧（StaffTab）", () => {
 
     // 検索後のスタッフ数が初期より少ないか同じ
     const filteredCountText = await page.getByText(/\d+名のスタッフ/).textContent();
-    const filteredCount = Number.parseInt(filteredCountText?.match(/\d+/)?.[0] ?? "0");
+    const filteredCount = Number.parseInt(filteredCountText?.match(/\d+/)?.[0] ?? "0", 10);
     expect(filteredCount).toBeLessThanOrEqual(initialCount);
   });
 
