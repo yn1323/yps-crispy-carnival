@@ -23,6 +23,7 @@ const mockStaffs = [
     ],
     maxWeeklyHours: 40,
     createdAt: Date.now(),
+    isManager: true,
   },
   {
     _id: "staff2" as Id<"staffs">,
@@ -32,6 +33,7 @@ const mockStaffs = [
     skills: [{ position: "レジ", level: "研修中" }],
     maxWeeklyHours: 20,
     createdAt: Date.now(),
+    isManager: false,
   },
   {
     _id: "staff3" as Id<"staffs">,
@@ -41,6 +43,7 @@ const mockStaffs = [
     skills: [],
     maxWeeklyHours: undefined,
     createdAt: Date.now(),
+    isManager: false,
   },
   {
     _id: "staff4" as Id<"staffs">,
@@ -50,6 +53,7 @@ const mockStaffs = [
     skills: [{ position: "ホール", level: "未経験" }],
     maxWeeklyHours: 15,
     createdAt: Date.now(),
+    isManager: true,
   },
   {
     _id: "staff5" as Id<"staffs">,
@@ -59,6 +63,7 @@ const mockStaffs = [
     skills: [{ position: "キッチン", level: "ベテラン" }],
     maxWeeklyHours: 40,
     createdAt: Date.now(),
+    isManager: false,
   },
 ];
 

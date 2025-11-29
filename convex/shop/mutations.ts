@@ -54,7 +54,7 @@ export const create = mutation({
     }
 
     // ユーザー存在確認
-    await requireUserByAuthId(ctx, trimmedAuthId);
+    const user = await requireUserByAuthId(ctx, trimmedAuthId);
 
     // 店舗作成
     const shopId = await ctx.db.insert("shops", {
@@ -66,6 +66,17 @@ export const create = mutation({
       avatar: "",
       description: args.description,
       createdBy: trimmedAuthId,
+      createdAt: Date.now(),
+      isDeleted: false,
+    });
+
+    // オーナーをスタッフとして追加
+    await ctx.db.insert("staffs", {
+      shopId,
+      email: user.email,
+      displayName: user.name,
+      status: "active",
+      invitedBy: trimmedAuthId,
       createdAt: Date.now(),
       isDeleted: false,
     });
@@ -176,7 +187,7 @@ export const addStaff = mutation({
       shopId: args.shopId,
       email: trimmedEmail,
       displayName: trimmedDisplayName,
-      status: "pending",
+      status: "active",
       skills: args.skills,
       maxWeeklyHours: args.maxWeeklyHours,
       invitedBy: args.authId,
@@ -225,6 +236,7 @@ export const updateStaffInfo = mutation({
     shopId: v.id("shops"),
     staffId: v.id("staffs"),
     authId: v.string(),
+    email: v.optional(v.string()),
     displayName: v.optional(v.string()),
     skills: v.optional(
       v.array(
@@ -248,6 +260,7 @@ export const updateStaffInfo = mutation({
     }
 
     const fieldsToUpdate: Partial<{
+      email: string;
       displayName: string;
       skills: { position: string; level: string }[];
       maxWeeklyHours: number | undefined;
@@ -256,6 +269,9 @@ export const updateStaffInfo = mutation({
       hourlyWage: number | undefined;
     }> = {};
 
+    if (args.email !== undefined) {
+      fieldsToUpdate.email = args.email.trim().toLowerCase();
+    }
     if (args.displayName !== undefined) {
       fieldsToUpdate.displayName = args.displayName.trim();
     }
@@ -282,5 +298,48 @@ export const updateStaffInfo = mutation({
     await ctx.db.patch(args.staffId, fieldsToUpdate);
 
     return { success: true };
+  },
+});
+
+// テスト用データリセット（メールアドレス指定）
+export const resetUserByEmail = mutation({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    // ユーザー検索
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("email"), args.email))
+      .first();
+
+    if (!user) {
+      return { success: true, message: "User not found" };
+    }
+
+    // ユーザー削除
+    await ctx.db.delete(user._id);
+
+    if (user.authId) {
+      // 店舗削除
+      const shops = await ctx.db
+        .query("shops")
+        .withIndex("by_created_by", (q) => q.eq("createdBy", user.authId!))
+        .collect();
+
+      for (const shop of shops) {
+        await ctx.db.delete(shop._id);
+      }
+
+      // スタッフ削除（自分が招待したスタッフ）
+      const staffs = await ctx.db
+        .query("staffs")
+        .filter((q) => q.eq(q.field("invitedBy"), user.authId))
+        .collect();
+
+      for (const staff of staffs) {
+        await ctx.db.delete(staff._id);
+      }
+    }
+
+    return { success: true, deletedUser: user.email };
   },
 });

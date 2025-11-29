@@ -78,7 +78,8 @@ export const listStaffs = query({
       .filter((q) => q.neq(q.field("isDeleted"), true))
       .collect();
 
-    return staffs.map((staff) => ({
+    // userId の有無で isManager を判定
+    const staffsWithRole = staffs.map((staff) => ({
       _id: staff._id,
       email: staff.email,
       displayName: staff.displayName,
@@ -86,7 +87,10 @@ export const listStaffs = query({
       skills: staff.skills ?? [],
       maxWeeklyHours: staff.maxWeeklyHours,
       createdAt: staff.createdAt,
+      isManager: !!staff.userId,
     }));
+
+    return staffsWithRole;
   },
 });
 

@@ -3,18 +3,12 @@ import { v } from "convex/values";
 
 const users = defineTable({
   name: v.string(),
+  email: v.string(),
   authId: v.optional(v.string()),
   status: v.string(), // "pending" | "active"
   createdAt: v.number(),
   isDeleted: v.optional(v.boolean()),
 }).index("by_auth_id", ["authId"]);
-
-const posts = defineTable({
-  title: v.string(),
-  content: v.string(),
-  authorId: v.id("users"),
-  createdAt: v.number(),
-}).index("by_author", ["authorId"]);
 
 const shops = defineTable({
   shopName: v.string(),
@@ -38,6 +32,9 @@ const staffs = defineTable({
   email: v.string(),
   displayName: v.string(),
   status: v.string(), // "pending" | "active" | "resigned"
+
+  // ユーザー紐付け（マネージャー判定用）
+  userId: v.optional(v.id("users")),
 
   // スキル・労働条件
   skills: v.optional(
@@ -71,11 +68,11 @@ const staffs = defineTable({
   .index("by_shop", ["shopId"])
   .index("by_email", ["email"])
   .index("by_shop_and_email", ["shopId", "email"])
-  .index("by_magic_link_token", ["magicLinkToken"]);
+  .index("by_magic_link_token", ["magicLinkToken"])
+  .index("by_user", ["userId"]);
 
 const schema = defineSchema({
   users,
-  posts,
   shops,
   staffs,
 });
