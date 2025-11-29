@@ -5,7 +5,8 @@ import { expect, type Page } from "@playwright/test";
  */
 export const goToFirstShop = async (page: Page) => {
   await page.goto("/shops");
-  await page.getByRole("group").first().click();
+  // 店舗カードのリンクをクリック
+  await page.locator('a[href^="/shops/"]').first().click();
   await expect(page).toHaveURL(/\/shops\/[^/]+$/);
 };
 
@@ -24,26 +25,10 @@ export const waitForStaffList = async (page: Page) => {
 };
 
 /**
- * スタッフリンクのLocatorを取得
- */
-export const getStaffLinks = (page: Page) => {
-  return page.locator('[data-scope="tabs"]').locator('a[href*="/staffs/"]');
-};
-
-/**
  * 店舗一覧 → 店舗詳細 → スタッフタブ → スタッフ一覧表示まで一括で実行
  */
 export const goToStaffList = async (page: Page) => {
   await goToFirstShop(page);
   await goToStaffTab(page);
   await waitForStaffList(page);
-};
-
-/**
- * 指定したインデックスのスタッフ詳細ページへ移動
- */
-export const goToStaffDetail = async (page: Page, index: number) => {
-  const staffLinks = getStaffLinks(page);
-  await staffLinks.nth(index).click();
-  await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+$/);
 };
