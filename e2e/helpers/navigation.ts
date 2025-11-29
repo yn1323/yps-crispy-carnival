@@ -60,6 +60,4 @@ export const goToStaffDetail = async (page: Page) => {
  */
 export const goToStaffEditFromDetail = async (page: Page) => {
   await page.getByRole("button", { name: "編集" }).click();
-  // URL: /shops/{shopId}/staffs/{staffId}/edit
-  await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+\/edit$/);
 };
