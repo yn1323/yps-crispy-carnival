@@ -15,7 +15,6 @@ const meta = {
       timeUnit: 30,
       submitFrequency: "1w",
       avatar: "",
-      useTimeCard: true,
       description: "東京・渋谷にあるポップコーン専門店です。こだわりのフレーバーを多数取り揃えています。",
       createdBy: "auth1",
       createdAt: Date.now(),

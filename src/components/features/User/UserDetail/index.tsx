@@ -5,7 +5,6 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { convertRole } from "@/src/helpers/domain/convertShopData";
-import { AttendanceTab } from "./TabContents/AttendanceTab";
 import { InfoTab } from "./TabContents/InfoTab";
 import { ShiftsTab } from "./TabContents/ShiftsTab";
 
@@ -37,7 +36,7 @@ const isLimitedView = (user: FullUser | LimitedUser): user is LimitedUser => {
   return "isLimitedView" in user && user.isLimitedView === true;
 };
 
-export const UserDetailTabTypes = ["info", "shifts", "attendance"] as const;
+export const UserDetailTabTypes = ["info", "shifts"] as const;
 
 export const UserDetail = ({ user, shops, currentShopRole, currentShopId, currentUserId }: UserDetailProps) => {
   const navigate = useNavigate();
@@ -294,11 +293,6 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
                 <Text display={{ base: "none", sm: "inline" }}>シフト履歴</Text>
                 <Text display={{ base: "inline", sm: "none" }}>シフト</Text>
               </Tabs.Trigger>
-              <Tabs.Trigger value="attendance" gap={2}>
-                <Icon as={LuClock} boxSize={4} />
-                <Text display={{ base: "none", sm: "inline" }}>勤怠記録</Text>
-                <Text display={{ base: "inline", sm: "none" }}>勤怠</Text>
-              </Tabs.Trigger>
             </Tabs.List>
 
             {/* 基本情報タブ */}
@@ -309,11 +303,6 @@ export const UserDetail = ({ user, shops, currentShopRole, currentShopId, curren
             {/* シフト履歴タブ（固定データ） */}
             <Tabs.Content value="shifts">
               <ShiftsTab />
-            </Tabs.Content>
-
-            {/* 勤怠記録タブ（固定データ） */}
-            <Tabs.Content value="attendance">
-              <AttendanceTab />
             </Tabs.Content>
           </Tabs.Root>
         </>

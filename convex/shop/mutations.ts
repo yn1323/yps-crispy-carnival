@@ -26,7 +26,6 @@ export const create = mutation({
     closeTime: v.string(),
     timeUnit: v.number(),
     submitFrequency: v.string(),
-    useTimeCard: v.boolean(),
     description: v.optional(v.string()),
     authId: v.string(),
   },
@@ -64,7 +63,6 @@ export const create = mutation({
       timeUnit: args.timeUnit,
       submitFrequency: args.submitFrequency,
       avatar: "",
-      useTimeCard: args.useTimeCard,
       description: args.description,
       createdBy: trimmedAuthId,
       createdAt: Date.now(),
@@ -99,7 +97,6 @@ export const update = mutation({
     closeTime: v.optional(v.string()),
     timeUnit: v.optional(v.number()),
     submitFrequency: v.optional(v.string()),
-    useTimeCard: v.optional(v.boolean()),
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -113,7 +110,6 @@ export const update = mutation({
       closeTime: string;
       timeUnit: number;
       submitFrequency: string;
-      useTimeCard: boolean;
       description: string;
     }> = {};
 
@@ -122,7 +118,6 @@ export const update = mutation({
     if (args.closeTime) fieldsToUpdate.closeTime = args.closeTime;
     if (args.timeUnit) fieldsToUpdate.timeUnit = args.timeUnit;
     if (args.submitFrequency) fieldsToUpdate.submitFrequency = args.submitFrequency;
-    if (args.useTimeCard !== undefined) fieldsToUpdate.useTimeCard = args.useTimeCard;
     if (args.description !== undefined) fieldsToUpdate.description = args.description;
 
     if (Object.keys(fieldsToUpdate).length === 0) {

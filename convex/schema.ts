@@ -23,7 +23,6 @@ const shops = defineTable({
   timeUnit: v.number(),
   submitFrequency: v.string(),
   avatar: v.optional(v.string()),
-  useTimeCard: v.boolean(),
   description: v.optional(v.string()),
   createdBy: v.string(),
   createdAt: v.number(),

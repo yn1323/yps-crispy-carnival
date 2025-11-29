@@ -28,7 +28,6 @@ export const CreateMode: Story = {
         closeTime: "22:00",
         timeUnit: "30",
         submitFrequency: "2w",
-        useTimeCard: true,
       },
     });
 
@@ -67,7 +66,6 @@ export const EditMode: Story = {
         closeTime: "22:00",
         timeUnit: "15",
         submitFrequency: "1w",
-        useTimeCard: true,
         description: "レジ締め時は必ず2名で確認すること。緊急時の連絡先: 03-1234-5678",
       },
     });

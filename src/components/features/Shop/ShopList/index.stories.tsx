@@ -13,7 +13,6 @@ const meta = {
         openTime: "10:00",
         closeTime: "20:00",
         submitFrequency: "1w",
-        useTimeCard: true,
         staffCount: 8,
       },
       {
@@ -22,7 +21,6 @@ const meta = {
         openTime: "10:00",
         closeTime: "20:00",
         submitFrequency: "1w",
-        useTimeCard: false,
         staffCount: 12,
       },
     ],

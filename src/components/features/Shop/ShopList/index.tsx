@@ -10,7 +10,6 @@ type ShopListProps = {
     openTime: string;
     closeTime: string;
     submitFrequency: string;
-    useTimeCard: boolean;
     staffCount: number;
   }[];
   canCreateShop: boolean;

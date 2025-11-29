@@ -43,7 +43,6 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
       closeTime: shop.closeTime,
       timeUnit: String(shop.timeUnit),
       submitFrequency: shop.submitFrequency,
-      useTimeCard: shop.useTimeCard,
       description: shop.description ?? "",
     },
   });
@@ -66,7 +65,6 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
         closeTime: data.closeTime,
         timeUnit: data.timeUnit ? Number(data.timeUnit) : 15,
         submitFrequency: data.submitFrequency,
-        useTimeCard: data.useTimeCard,
         description: data.description,
       });
 

@@ -18,7 +18,6 @@ export const schema = z.object({
   closeTime: z.string().superRefine(time(15)),
   timeUnit: z.string().optional(),
   submitFrequency: z.string().superRefine(select({ options: submitFrequencyOptions, forceSelect: true })),
-  useTimeCard: z.boolean(),
   description: z.string().optional(),
 });
 
