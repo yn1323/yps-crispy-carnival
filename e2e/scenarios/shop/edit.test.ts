@@ -37,9 +37,9 @@ test.describe("店舗編集", () => {
     await expect(page.getByText("店舗情報を更新しました")).toBeVisible();
   });
 
-  test("店舗詳細に戻るリンクが機能すること", async ({ page }) => {
-    // 「店舗詳細に戻る」リンクをクリック
-    await page.getByRole("link", { name: "店舗詳細に戻る" }).click();
+  test("店舗詳細に戻るボタンが機能すること", async ({ page }) => {
+    // 「店舗詳細に戻る」ボタンをクリック
+    await page.getByRole("button", { name: "店舗詳細に戻る" }).click();
 
     // 店舗詳細ページに遷移
     await expect(page).toHaveURL(/\/shops\/[^/]+$/);
