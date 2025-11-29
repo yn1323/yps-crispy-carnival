@@ -6,25 +6,29 @@ test.describe("店舗一覧", () => {
   });
 
   test("店舗一覧が表示されること", async ({ page }) => {
-    // ページタイトルが表示される
+    // ページタイトルが表示される（headingなのでgetByRole）
     await expect(page.getByRole("heading", { name: "店舗一覧" })).toBeVisible();
 
-    // 店舗カードが表示される（seedデータに店舗が存在する前提）
-    const shopCards = page.locator('a[href^="/shops/"]');
+    // 店舗カードが表示される（groupロールを含むリンク）
+    const shopCards = page.getByRole("link").filter({ has: page.getByRole("group") });
     await expect(shopCards.first()).toBeVisible();
   });
 
   test("店舗カードに営業時間とスタッフ数が表示されること", async ({ page }) => {
-    // 店舗カードに営業時間が表示される（HH:MM - HH:MM形式）
-    await expect(page.getByText(/\d{2}:\d{2} - \d{2}:\d{2}/)).toBeVisible();
+    // 店舗カードに営業時間が表示される（HH:MM - HH:MM形式、複数あるので first()）
+    await expect(page.getByText(/\d{2}:\d{2} - \d{2}:\d{2}/).first()).toBeVisible();
 
-    // 店舗カードにスタッフ数が表示される（X名形式）
-    await expect(page.getByText(/\d+名/)).toBeVisible();
+    // 店舗カードにスタッフ数が表示される（X名形式、複数あるので first()）
+    await expect(page.getByText(/\d+名/).first()).toBeVisible();
   });
 
   test("店舗カードをクリックすると詳細ページに遷移すること", async ({ page }) => {
-    // 最初の店舗カードをクリック
-    await page.locator('a[href^="/shops/"]').first().click();
+    // 最初の店舗カードをクリック（groupロールを含むリンク）
+    await page
+      .getByRole("link")
+      .filter({ has: page.getByRole("group") })
+      .first()
+      .click();
 
     // 店舗詳細ページに遷移
     await expect(page).toHaveURL(/\/shops\/[^/]+$/);

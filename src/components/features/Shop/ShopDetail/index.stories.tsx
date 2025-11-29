@@ -32,6 +32,7 @@ const meta = {
         ],
         maxWeeklyHours: 40,
         createdAt: Date.now(),
+        isManager: true,
       },
       {
         _id: "staff2" as Id<"staffs">,
@@ -41,6 +42,7 @@ const meta = {
         skills: [{ position: "レジ", level: "研修中" }],
         maxWeeklyHours: 20,
         createdAt: Date.now(),
+        isManager: false,
       },
       {
         _id: "staff3" as Id<"staffs">,
@@ -50,6 +52,7 @@ const meta = {
         skills: [],
         maxWeeklyHours: undefined,
         createdAt: Date.now(),
+        isManager: false,
       },
     ],
     isOwner: true,

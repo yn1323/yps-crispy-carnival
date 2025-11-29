@@ -10,9 +10,9 @@ test.describe("スタッフ一覧（StaffTab）", () => {
     // スタッフ数が表示される
     await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
 
-    // スタッフカードが表示される
-    const staffCards = page.locator('[class*="Card"]').filter({ hasText: /.*/ });
-    await expect(staffCards.first()).toBeVisible();
+    // スタッフカードが表示される（スタッフ詳細へのリンク）
+    const staffLinks = page.locator('a[href*="/staffs/"]');
+    await expect(staffLinks.first()).toBeVisible();
   });
 
   test("名前で検索できること", async ({ page }) => {

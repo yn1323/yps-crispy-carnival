@@ -1,6 +1,22 @@
 import { expect, test } from "@playwright/test";
+import { execSync } from "child_process";
 
 test.describe("新規店長の初回ログイン", () => {
+  test.beforeEach(() => {
+    // テスト前にユーザーデータをリセット
+    // Note: E2E_CLERK_USER_B は .env から取得
+    const email = process.env.E2E_CLERK_USER_B;
+    if (email) {
+      try {
+        execSync(`npx convex run shop/mutations:resetUserByEmail '{ "email": "${email}" }'`, {
+          stdio: "inherit",
+        });
+      } catch (e) {
+        console.error("Failed to reset user data:", e);
+      }
+    }
+  });
+
   test("新規ユーザーが初回ログインすると店舗がない状態が表示されること", async ({ page }) => {
     // 店舗一覧ページにアクセス
     await page.goto("/shops");

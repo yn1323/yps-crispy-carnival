@@ -21,8 +21,8 @@ test.describe("店舗編集", () => {
     // 更新ボタンをクリック
     await page.getByRole("button", { name: "更新" }).click();
 
-    // トースト確認
-    await expect(page.getByText("店舗情報を更新しました")).toBeVisible();
+    // トースト確認（複数表示される可能性があるので first()）
+    await expect(page.getByText("店舗情報を更新しました").first()).toBeVisible();
 
     // 店舗詳細ページに遷移
     await expect(page).toHaveURL(/\/shops\/[^/]+$/);
@@ -34,7 +34,7 @@ test.describe("店舗編集", () => {
     await page.getByRole("button", { name: "編集" }).click();
     await page.getByLabel("店舗名").fill(originalName);
     await page.getByRole("button", { name: "更新" }).click();
-    await expect(page.getByText("店舗情報を更新しました")).toBeVisible();
+    await expect(page.getByText("店舗情報を更新しました").first()).toBeVisible();
   });
 
   test("店舗詳細に戻るボタンが機能すること", async ({ page }) => {

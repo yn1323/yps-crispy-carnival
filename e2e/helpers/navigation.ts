@@ -5,8 +5,8 @@ import { expect, type Page } from "@playwright/test";
  */
 export const goToFirstShop = async (page: Page) => {
   await page.goto("/shops");
-  // 店舗カードのリンクをクリック
-  await page.locator('a[href^="/shops/"]').first().click();
+  // 店舗カード（group）を含むリンクをクリック
+  await page.getByRole("link").filter({ has: page.getByRole("group") }).first().click();
   await expect(page).toHaveURL(/\/shops\/[^/]+$/);
 };
 
@@ -31,4 +31,29 @@ export const goToStaffList = async (page: Page) => {
   await goToFirstShop(page);
   await goToStaffTab(page);
   await waitForStaffList(page);
+};
+
+/**
+ * スタッフ追加モーダルを開く
+ */
+export const openStaffAddModal = async (page: Page) => {
+  await page.getByRole("button", { name: "スタッフを追加" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+};
+
+/**
+ * スタッフ詳細ページへ移動（スタッフ一覧から）
+ */
+export const goToStaffDetail = async (page: Page) => {
+  // スタッフカードのリンクをクリック（URL構造で判定）
+  await page.locator('a[href*="/staffs/"]').first().click();
+  await expect(page).toHaveURL(/\/staffs\/[^/]+$/);
+};
+
+/**
+ * スタッフ編集ページへ移動（スタッフ詳細から）
+ */
+export const goToStaffEditFromDetail = async (page: Page) => {
+  await page.getByRole("link", { name: "編集" }).click();
+  await expect(page).toHaveURL(/\/staffs\/[^/]+\/edit$/);
 };
