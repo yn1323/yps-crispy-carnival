@@ -32,7 +32,7 @@ test.describe("スタッフ編集", () => {
   test("キャンセルで編集画面を閉じられること", async ({ page }) => {
     await page.getByRole("link", { name: "キャンセル" }).click();
 
-    // 詳細ページに戻る
-    await expect(page).toHaveURL(/\/staffs\/[^/]+$/);
+    // 詳細ページに戻る（URL: /shops/{shopId}/staffs/{staffId}）
+    await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs\/[^/]+$/);
   });
 });

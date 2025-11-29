@@ -25,7 +25,7 @@ export const Title = ({ children, prev, action }: Props) => {
         <Flex align="center" justify="space-between" mb="2">
           <Box>
             {typeof children === "string" ? (
-              <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
+              <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" as="h2">
                 {children}
               </Text>
             ) : (
