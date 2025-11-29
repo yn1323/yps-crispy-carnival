@@ -83,9 +83,11 @@ export const Header = ({ isMenuOpen, onToggleMenu }: Props) => {
                   {item.name}
                 </Link>
               ))}
-              <Button variant="outline" w="full" display={{ base: "flex", sm: "none" }}>
-                ログイン
-              </Button>
+              <SignInButton forceRedirectUrl="/mypage">
+                <Button variant="outline" w="full" display={{ base: "flex", sm: "none" }}>
+                  ログイン
+                </Button>
+              </SignInButton>
             </VStack>
           </Box>
         )}

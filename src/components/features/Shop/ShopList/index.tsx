@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Container, Flex, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronRight, LuClock, LuPlus, LuStore, LuUsers } from "react-icons/lu";
 import { Title } from "@/src/components/ui/Title";
@@ -10,7 +10,6 @@ type ShopListProps = {
     openTime: string;
     closeTime: string;
     submitFrequency: string;
-    useTimeCard: boolean;
     staffCount: number;
   }[];
   canCreateShop: boolean;
@@ -68,14 +67,9 @@ export const ShopList = ({ shops, canCreateShop }: ShopListProps) => {
 
                     {/* 店舗情報 */}
                     <VStack flex="1" minW="0" align="start" gap="2">
-                      <Flex align="center" gap="2">
-                        <Text as="h3" color="gray.900" truncate>
-                          {shop.shopName}
-                        </Text>
-                        <Badge colorPalette="teal" variant="solid" fontSize="xs" flexShrink="0">
-                          マネージャー
-                        </Badge>
-                      </Flex>
+                      <Text as="h3" color="gray.900" truncate>
+                        {shop.shopName}
+                      </Text>
 
                       {/* 詳細情報 */}
                       <Flex align="center" gap="4" fontSize="sm">
@@ -126,10 +120,7 @@ export const ShopListEmpty = () => {
         <Heading size="lg" color="fg.muted">
           所属する店舗がありません
         </Heading>
-        <Stack gap="2" alignItems="center">
-          <Text color="fg.muted">招待メールを受け取っている場合は、リンクから参加できます</Text>
-          <Text color="fg.muted">または新しい店舗を登録してシフト管理を始めましょう</Text>
-        </Stack>
+        <Text color="fg.muted">新しい店舗を登録してシフト管理を始めましょう</Text>
         <Link to="/shops/new">
           <Button colorPalette="teal" size="lg">
             <Icon as={LuPlus} boxSize={4} />

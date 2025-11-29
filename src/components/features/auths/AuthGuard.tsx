@@ -1,8 +1,9 @@
 import { Box, Spinner } from "@chakra-ui/react";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { Navigate } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useAtom } from "jotai";
+import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { userAtom } from "@/src/stores/user";
 
@@ -11,17 +12,41 @@ type Props = {
 };
 export const AuthGuard = ({ children }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
+  const { user: clerkUser } = useUser();
   const [user, setUser] = useAtom(userAtom);
-  const userData = useQuery(api.user.queries.getByAuthId, { authId: userId ?? "" });
+  const [isCreating, setIsCreating] = useState(false);
+
+  const userData = useQuery(api.user.queries.getByAuthId, userId ? { authId: userId } : "skip");
+  const getOrCreateUser = useMutation(api.user.mutations.getOrCreate);
+
   const isConvexLoading = userData === undefined;
+
+  // 新規ユーザーの自動作成
+  useEffect(() => {
+    const createUserIfNeeded = async () => {
+      if (isSignedIn && userId && userData === null && !isCreating) {
+        setIsCreating(true);
+        const name = clerkUser?.fullName || clerkUser?.firstName || "新規ユーザー";
+        const newUser = await getOrCreateUser({ authId: userId, name });
+        if (newUser?.authId) {
+          setUser({
+            name: newUser.name,
+            authId: newUser.authId,
+          });
+        }
+        setIsCreating(false);
+      }
+    };
+    createUserIfNeeded();
+  }, [isSignedIn, userId, userData, isCreating, clerkUser, getOrCreateUser, setUser]);
 
   // ユーザーが状態管理にいれば即返却
   if (user.authId) {
     return children;
   }
 
-  // Clerk & Convexがローディング中
-  const isLoading = !isLoaded || isConvexLoading;
+  // Clerk & Convexがローディング中、または新規ユーザー作成中
+  const isLoading = !isLoaded || isConvexLoading || isCreating;
   if (isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
@@ -35,16 +60,12 @@ export const AuthGuard = ({ children }: Props) => {
     return <Navigate to="/" />;
   }
 
+  // 既存ユーザーの場合、状態に保存
   if (userData?.authId) {
     setUser({
       name: userData.name,
       authId: userData.authId,
     });
-  }
-
-  // 初回登録がまだの場合
-  if (isSignedIn && (!user.name || !userData)) {
-    return <Navigate to="/welcome" replace />;
   }
 
   return children;

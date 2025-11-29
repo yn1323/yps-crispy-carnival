@@ -10,14 +10,14 @@ export type ShopSubmitFrequencyType = (typeof SHOP_SUBMIT_FREQUENCY)[number];
 export const SHOP_MIN_LENGTH = 2;
 export const SHOP_MAX_LENGTH = 50;
 
-// 役割定義
-export const SHOP_USER_ROLE = ["owner", "manager", "general"] as const;
-export type ShopUserRoleType = (typeof SHOP_USER_ROLE)[number];
+// スタッフステータス定義
+export const STAFF_STATUS = ["pending", "active", "resigned"] as const;
+export type StaffStatusType = (typeof STAFF_STATUS)[number];
 
-// ステータス定義
-export const SHOP_USER_STATUS = ["pending", "active", "resigned"] as const;
-export type ShopUserStatusType = (typeof SHOP_USER_STATUS)[number];
+// スキルレベル
+export const SKILL_LEVELS = ["未経験", "研修中", "一人前", "ベテラン"] as const;
+export type SkillLevelType = (typeof SKILL_LEVELS)[number];
 
-// 招待関連
-export const INVITE_EXPIRY_DAYS = 14;
-export const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+// ポジション（デフォルト値、店舗ごとにカスタム可能）
+export const DEFAULT_POSITIONS = ["ホール", "キッチン", "レジ", "その他"] as const;
+export type PositionType = (typeof DEFAULT_POSITIONS)[number];

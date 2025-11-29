@@ -11,90 +11,74 @@ export default meta;
 
 type Story = StoryObj<typeof StaffTab>;
 
-const mockUsers = [
+const mockStaffs = [
   {
-    _id: "user1" as Id<"users">,
-    name: "山田太郎",
+    _id: "staff1" as Id<"staffs">,
+    email: "yamada@example.com",
     displayName: "山田太郎",
-    authId: "auth1",
-    role: "owner",
     status: "active",
+    skills: [
+      { position: "ホール", level: "ベテラン" },
+      { position: "キッチン", level: "一人前" },
+    ],
+    maxWeeklyHours: 40,
     createdAt: Date.now(),
   },
   {
-    _id: "user2" as Id<"users">,
-    name: "佐藤花子",
+    _id: "staff2" as Id<"staffs">,
+    email: "sato@example.com",
     displayName: "佐藤花子",
-    authId: "auth2",
-    role: "manager",
     status: "active",
+    skills: [{ position: "レジ", level: "研修中" }],
+    maxWeeklyHours: 20,
     createdAt: Date.now(),
   },
   {
-    _id: "user3" as Id<"users">,
-    name: "鈴木一郎",
+    _id: "staff3" as Id<"staffs">,
+    email: "suzuki@example.com",
     displayName: "鈴木一郎",
-    authId: "auth3",
-    role: "general",
-    status: "active",
+    status: "pending",
+    skills: [],
+    maxWeeklyHours: undefined,
     createdAt: Date.now(),
   },
   {
-    _id: "user4" as Id<"users">,
-    name: "田中美咲",
+    _id: "staff4" as Id<"staffs">,
+    email: "tanaka@example.com",
     displayName: "田中美咲",
-    authId: "auth4",
-    role: "general",
     status: "active",
+    skills: [{ position: "ホール", level: "未経験" }],
+    maxWeeklyHours: 15,
     createdAt: Date.now(),
   },
   {
-    _id: "user5" as Id<"users">,
-    name: "高橋健太",
+    _id: "staff5" as Id<"staffs">,
+    email: "takahashi@example.com",
     displayName: "高橋健太",
-    authId: "auth5",
-    role: "general",
-    status: "active",
+    status: "resigned",
+    skills: [{ position: "キッチン", level: "ベテラン" }],
+    maxWeeklyHours: 40,
     createdAt: Date.now(),
   },
 ];
 
 export const Basic: Story = {
   args: {
-    shop: {
-      _id: "shop123" as Id<"shops">,
-      _creationTime: Date.now(),
-      shopName: "サンプル店舗",
-      openTime: "09:00",
-      closeTime: "22:00",
-      timeUnit: 30,
-      submitFrequency: "2w",
-      useTimeCard: true,
-      createdAt: Date.now(),
-      isDeleted: false,
-      createdBy: "user123",
-    },
-    users: mockUsers,
+    staffs: mockStaffs,
     canEdit: true,
   },
 };
 
 export const Empty: Story = {
   args: {
-    shop: {
-      _id: "shop789" as Id<"shops">,
-      _creationTime: Date.now(),
-      shopName: "スタッフなし店舗",
-      openTime: "08:00",
-      closeTime: "23:00",
-      timeUnit: 30,
-      submitFrequency: "1m",
-      useTimeCard: true,
-      createdAt: Date.now(),
-      isDeleted: false,
-      createdBy: "user789",
-    },
-    users: [],
+    staffs: [],
     canEdit: true,
+  },
+};
+
+export const ReadOnly: Story = {
+  args: {
+    staffs: mockStaffs,
+    canEdit: false,
   },
 };

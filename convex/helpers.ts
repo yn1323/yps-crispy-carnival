@@ -2,7 +2,6 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import type { ShopUserRoleType } from "./constants";
 
 // セキュアなトークン生成（crypto APIを使用）
 export const generateToken = () => {
@@ -11,7 +10,7 @@ export const generateToken = () => {
   return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
-// authIdからユーザーを取得
+// authIdからユーザー（管理者）を取得
 export const getUserByAuthId = async (ctx: QueryCtx | MutationCtx, authId: string) => {
   const user = await ctx.db
     .query("users")
@@ -36,34 +35,54 @@ export const requireUserByAuthId = async (ctx: QueryCtx | MutationCtx, authId: s
   return user;
 };
 
-// 店舗への所属情報を取得
-export const getShopBelonging = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">, userId: Id<"users">) => {
-  const belonging = await ctx.db
-    .query("shopUserBelongings")
-    .withIndex("by_shop_and_user", (q) => q.eq("shopId", shopId).eq("userId", userId))
-    .filter((q) => q.neq(q.field("isDeleted"), true))
-    .first();
-
-  return belonging;
+// 店舗のオーナー（作成者）かどうかチェック
+export const isShopOwner = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">, authId: string) => {
+  const shop = await ctx.db.get(shopId);
+  if (!shop || shop.isDeleted) return false;
+  return shop.createdBy === authId;
 };
 
-// 店舗の権限チェック（owner/managerのみ許可）
-export const requireShopPermission = async (
-  ctx: QueryCtx | MutationCtx,
-  shopId: Id<"shops">,
-  userId: Id<"users">,
-  allowedRoles: ShopUserRoleType[] = ["owner", "manager"],
-) => {
-  const belonging = await getShopBelonging(ctx, shopId, userId);
+// 店舗のオーナーであることを要求
+export const requireShopOwner = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">, authId: string) => {
+  const isOwner = await isShopOwner(ctx, shopId, authId);
 
-  if (!belonging || !allowedRoles.includes(belonging.role as ShopUserRoleType)) {
+  if (!isOwner) {
     throw new ConvexError({
       message: "この操作を行う権限がありません",
       code: "PERMISSION_DENIED",
     });
   }
 
-  return belonging;
+  return true;
+};
+
+// スタッフを取得（店舗ID + スタッフID）
+export const getStaff = async (ctx: QueryCtx | MutationCtx, staffId: Id<"staffs">) => {
+  const staff = await ctx.db.get(staffId);
+  if (!staff || staff.isDeleted) return null;
+  return staff;
+};
+
+// スタッフを取得（店舗ID + メールアドレス）
+export const getStaffByEmail = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">, email: string) => {
+  const staff = await ctx.db
+    .query("staffs")
+    .withIndex("by_shop_and_email", (q) => q.eq("shopId", shopId).eq("email", email))
+    .filter((q) => q.neq(q.field("isDeleted"), true))
+    .first();
+
+  return staff;
+};
+
+// マジックリンクトークンでスタッフを取得
+export const getStaffByMagicLinkToken = async (ctx: QueryCtx | MutationCtx, token: string) => {
+  const staff = await ctx.db
+    .query("staffs")
+    .withIndex("by_magic_link_token", (q) => q.eq("magicLinkToken", token))
+    .filter((q) => q.neq(q.field("isDeleted"), true))
+    .first();
+
+  return staff;
 };
 
 // 店舗存在チェック（存在しない場合はエラー）
