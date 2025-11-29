@@ -1,11 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
-import {
-  E2EAuthJsonFileGeneral,
-  E2EAuthJsonFileMainUser,
-  E2EAuthJsonFileManager,
-  E2EAuthJsonFileSubUser,
-} from "@/e2e/constants";
+import { E2EAuthJsonFileMainUser, E2EAuthJsonFileSubUser } from "@/e2e/constants";
 
 dotenv.config();
 
@@ -16,24 +11,16 @@ dotenv.config();
  *    ├── 全ユーザーのログイン認証を実行
  *    └── 認証状態をファイルに保存
  *
- * 2. 認証済みテスト (User A / Owner)
- *    ├── auth.test.ts - 認証確認
+ * 2. 認証済みテスト (User A / 管理者)
+ *    ├── auth/login.test.ts - 認証確認
  *    ├── shop/register.test.ts - 店舗登録
- *    ├── shop/invite.test.ts - 招待URL生成 → ファイル保存
- *    ├── staff/access-control.test.ts - スタッフ閲覧
- *    └── staff/resign.test.ts - 退職処理
+ *    ├── shop/list.test.ts - 店舗一覧
+ *    ├── shop/detail.test.ts - 店舗詳細
+ *    ├── shop/edit.test.ts - 店舗編集
+ *    └── staff/list.test.ts - スタッフ一覧（StaffTab操作）
  *
- * 3. 認証済みテストB (User B) [依存: 認証済みテスト]
- *    └── userB/accept.test.ts - 招待受諾 ← invite.test.tsの結果を使用
- *
- * 4. 認証済みテスト（Manager） [依存: setup]
- *    └── manager/staff-access.test.ts - Manager権限でのスタッフ閲覧
- *
- * 5. 認証済みテスト（General） [依存: setup]
- *    └── general/staff-access.test.ts - General権限でのスタッフ閲覧
- *
- * 6. 認証済みテスト（General・退職後） [依存: 認証済みテスト]
- *    └── general/after-resign.test.ts - 退職後のアクセス制限確認
+ * 3. 認証済みテストB (User B / 新規店長)
+ *    └── userB/new-owner.test.ts - 新規店長の初回ログイン〜店舗登録
  *
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -70,11 +57,10 @@ export default defineConfig({
       testMatch: /fixtures\/setup\/.*\.setup\.ts/,
     },
 
-    // Step 2: メインユーザー（Owner）のテスト
-    // 招待URL生成・退職処理など、他テストの前提となる処理を含む
+    // Step 2: メインユーザー（管理者）のテスト
     {
       name: "認証済みテスト",
-      testMatch: /scenarios\/(?!userB\/|manager\/|general\/).*\.test\.ts/,
+      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: E2EAuthJsonFileMainUser,
@@ -82,8 +68,8 @@ export default defineConfig({
       dependencies: ["setup"],
     },
 
-    // Step 3: サブユーザー（User B）のテスト
-    // 「認証済みテスト」で生成された招待URLを使用するため、依存関係を設定
+    // Step 3: サブユーザー（新規店長）のテスト
+    // DB未登録状態での初回ログインをテスト
     {
       name: "認証済みテストB",
       testMatch: /scenarios\/userB\/.*\.test\.ts/,
@@ -91,50 +77,8 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         storageState: E2EAuthJsonFileSubUser,
       },
-      dependencies: ["認証済みテスト"],
+      dependencies: ["setup"],
     },
-
-    // Step 4: Manager権限テスト（setupのみに依存、並列実行可能）
-    ...(process.env.E2E_CLERK_USER_MANAGER
-      ? [
-          {
-            name: "認証済みテスト（Manager）",
-            testMatch: /scenarios\/manager\/.*\.test\.ts/,
-            use: {
-              ...devices["Desktop Chrome"],
-              storageState: E2EAuthJsonFileManager,
-            },
-            dependencies: ["setup"],
-          },
-        ]
-      : []),
-
-    // Step 5: General権限テスト（setupのみに依存）
-    ...(process.env.E2E_CLERK_USER_GENERAL
-      ? [
-          {
-            name: "認証済みテスト（General）",
-            testMatch: /scenarios\/general\/staff-access\.test\.ts/,
-            use: {
-              ...devices["Desktop Chrome"],
-              storageState: E2EAuthJsonFileGeneral,
-            },
-            dependencies: ["setup"],
-          },
-
-          // Step 6: General退職後テスト
-          // 「認証済みテスト」のresign.test.tsで退職処理が実行された後に実行
-          {
-            name: "認証済みテスト（General・退職後）",
-            testMatch: /scenarios\/general\/after-resign\.test\.ts/,
-            use: {
-              ...devices["Desktop Chrome"],
-              storageState: E2EAuthJsonFileGeneral,
-            },
-            dependencies: ["認証済みテスト"],
-          },
-        ]
-      : []),
   ],
 
   webServer: {

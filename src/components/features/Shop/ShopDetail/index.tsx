@@ -15,6 +15,7 @@ type StaffType = {
   skills: { position: string; level: string }[];
   maxWeeklyHours: number | undefined;
   createdAt: number;
+  isManager: boolean;
 };
 
 type ShopDetailProps = {
@@ -92,7 +93,7 @@ export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
 
         {/* スタッフタブ */}
         <Tabs.Content value="staff">
-          <StaffTab staffs={staffs} canEdit={canEdit} />
+          <StaffTab staffs={staffs} canEdit={canEdit} shopId={shop._id} />
         </Tabs.Content>
       </Tabs.Root>
     </Container>

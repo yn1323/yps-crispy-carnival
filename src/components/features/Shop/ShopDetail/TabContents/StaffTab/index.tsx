@@ -1,9 +1,14 @@
 import { Badge, Box, Button, Card, Flex, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
+import { Link } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
+import { StaffAddModal } from "@/src/components/features/Shop/StaffAddModal";
 import { Animation } from "@/src/components/templates/Animation";
+import { useDialog } from "@/src/components/ui/Dialog";
 import { Select } from "@/src/components/ui/Select";
+import { userAtom } from "@/src/stores/user";
 
 type StaffType = {
   _id: Id<"staffs">;
@@ -13,14 +18,18 @@ type StaffType = {
   skills: { position: string; level: string }[];
   maxWeeklyHours: number | undefined;
   createdAt: number;
+  isManager: boolean;
 };
 
 type StaffTabProps = {
   staffs: StaffType[];
   canEdit: boolean;
+  shopId: Id<"shops">;
 };
 
-export const StaffTab = ({ staffs, canEdit }: StaffTabProps) => {
+export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
+  const user = useAtomValue(userAtom);
+  const addDialog = useDialog();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
 
@@ -40,8 +49,15 @@ export const StaffTab = ({ staffs, canEdit }: StaffTabProps) => {
     return matchesSearch && matchesStatus;
   });
 
-  // 作成日順でソート（新しい順）
-  const sortedStaffs = filteredStaffs.toSorted((a, b) => b.createdAt - a.createdAt);
+  // ソート: マネージャー優先、次に作成日順（新しい順）
+  const sortedStaffs = filteredStaffs.toSorted((a, b) => {
+    // マネージャーを先に
+    if (a.isManager !== b.isManager) {
+      return a.isManager ? -1 : 1;
+    }
+    // 同じロールなら作成日順（新しい順）
+    return b.createdAt - a.createdAt;
+  });
 
   return (
     <Animation>
@@ -75,14 +91,26 @@ export const StaffTab = ({ staffs, canEdit }: StaffTabProps) => {
           />
         </Flex>
 
-        {/* スタッフ追加ボタン（将来実装予定） */}
+        {/* スタッフ追加ボタン */}
         {canEdit && (
-          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} disabled>
+          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} onClick={addDialog.open}>
             <Icon as={LuPlus} boxSize={4} />
-            スタッフを追加（準備中）
+            スタッフを追加
           </Button>
         )}
       </Box>
+
+      {/* スタッフ追加モーダル */}
+      {user.authId && (
+        <StaffAddModal
+          shopId={shopId}
+          authId={user.authId}
+          isOpen={addDialog.isOpen}
+          onOpenChange={addDialog.onOpenChange}
+          onClose={addDialog.close}
+          onSuccess={() => {}}
+        />
+      )}
 
       {/* フィルター結果表示 */}
       {sortedStaffs.length > 0 ? (
@@ -92,69 +120,81 @@ export const StaffTab = ({ staffs, canEdit }: StaffTabProps) => {
           </Text>
           <Box>
             {sortedStaffs.map((staff) => (
-              <Card.Root
+              <Link
                 key={staff._id}
-                mb={{ base: 2, md: 3 }}
-                borderWidth={0}
-                shadow="sm"
-                _hover={{ shadow: "md" }}
-                transition="all 0.15s"
+                to="/shops/$shopId/staffs/$staffId"
+                params={{ shopId, staffId: staff._id }}
+                style={{ textDecoration: "none" }}
               >
-                <Card.Body p={{ base: 3, md: 4 }}>
-                  <Flex align="center" justify="space-between" gap={4}>
-                    <Flex align="center" gap={3} flex={1} minW={0}>
-                      {/* アバター */}
-                      <Flex
-                        w={{ base: 10, md: 12 }}
-                        h={{ base: 10, md: 12 }}
-                        borderRadius="full"
-                        bgGradient="to-br"
-                        gradientFrom="teal.400"
-                        gradientTo="teal.600"
-                        align="center"
-                        justify="center"
-                        color="white"
-                        flexShrink={0}
-                      >
-                        <Icon as={LuUser} boxSize={6} />
+                <Card.Root
+                  mb={{ base: 2, md: 3 }}
+                  borderWidth={0}
+                  shadow="sm"
+                  _hover={{ shadow: "md", cursor: "pointer" }}
+                  transition="all 0.15s"
+                >
+                  <Card.Body p={{ base: 3, md: 4 }}>
+                    <Flex align="center" justify="space-between" gap={4}>
+                      <Flex align="center" gap={3} flex={1} minW={0}>
+                        {/* アバター */}
+                        <Flex
+                          w={{ base: 10, md: 12 }}
+                          h={{ base: 10, md: 12 }}
+                          borderRadius="full"
+                          bgGradient="to-br"
+                          gradientFrom="teal.400"
+                          gradientTo="teal.600"
+                          align="center"
+                          justify="center"
+                          color="white"
+                          flexShrink={0}
+                        >
+                          <Icon as={LuUser} boxSize={6} />
+                        </Flex>
+
+                        {/* スタッフ情報 */}
+                        <Box flex={1} minW={0}>
+                          <Flex align="center" gap={2} flexWrap="wrap">
+                            <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
+                              {staff.displayName}
+                            </Text>
+                            {/* ロールバッジ（マネージャーのみ表示） */}
+                            {staff.isManager && (
+                              <Badge colorPalette="purple" size="sm" flexShrink={0}>
+                                マネージャー
+                              </Badge>
+                            )}
+                            {/* ステータスバッジ */}
+                            {staff.status === "pending" && (
+                              <Badge colorPalette="orange" size="sm" flexShrink={0}>
+                                招待中
+                              </Badge>
+                            )}
+                            {staff.status === "resigned" && (
+                              <Badge colorPalette="gray" size="sm" flexShrink={0}>
+                                退職済み
+                              </Badge>
+                            )}
+                          </Flex>
+                          {/* スキル表示 */}
+                          {staff.skills.length > 0 && (
+                            <Flex gap={1} mt={1} flexWrap="wrap">
+                              {staff.skills.map((skill, idx) => (
+                                <Badge key={idx} colorPalette="teal" variant="subtle" size="sm">
+                                  {skill.position}
+                                </Badge>
+                              ))}
+                            </Flex>
+                          )}
+                        </Box>
                       </Flex>
 
-                      {/* スタッフ情報 */}
-                      <Box flex={1} minW={0}>
-                        <Flex align="center" gap={2} flexWrap="wrap">
-                          <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
-                            {staff.displayName}
-                          </Text>
-                          {/* ステータスバッジ */}
-                          {staff.status === "pending" && (
-                            <Badge colorPalette="orange" size="sm" flexShrink={0}>
-                              招待中
-                            </Badge>
-                          )}
-                          {staff.status === "resigned" && (
-                            <Badge colorPalette="gray" size="sm" flexShrink={0}>
-                              退職済み
-                            </Badge>
-                          )}
-                        </Flex>
-                        {/* スキル表示 */}
-                        {staff.skills.length > 0 && (
-                          <Flex gap={1} mt={1} flexWrap="wrap">
-                            {staff.skills.map((skill, idx) => (
-                              <Badge key={idx} colorPalette="teal" variant="subtle" size="sm">
-                                {skill.position}
-                              </Badge>
-                            ))}
-                          </Flex>
-                        )}
-                      </Box>
+                      {/* 矢印アイコン */}
+                      <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
                     </Flex>
-
-                    {/* 矢印アイコン */}
-                    <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
-                  </Flex>
-                </Card.Body>
-              </Card.Root>
+                  </Card.Body>
+                </Card.Root>
+              </Link>
             ))}
           </Box>
         </>
