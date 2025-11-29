@@ -1,35 +1,35 @@
 import { Box, Button, Container, Flex, Heading, Icon, Stack, Tabs, Text } from "@chakra-ui/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUsers } from "react-icons/lu";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { InfoTab } from "./TabContents/InfoTab";
 import { StaffTab } from "./TabContents/StaffTab";
 
-type UserWithRole = {
-  _id: Doc<"users">["_id"];
-  name: string;
+type StaffType = {
+  _id: Id<"staffs">;
+  email: string;
   displayName: string;
-  authId: string | undefined;
-  role: string;
   status: string;
+  skills: { position: string; level: string }[];
+  maxWeeklyHours: number | undefined;
   createdAt: number;
 };
 
 type ShopDetailProps = {
   shop: Doc<"shops">;
-  users: UserWithRole[];
-  userRole: string | null;
+  staffs: StaffType[];
+  isOwner: boolean;
 };
 
 export const ShopDetailTabTypes = ["info", "staff"] as const;
 
-export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
+export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
-  const canEdit = userRole === "owner" || userRole === "manager";
+  const canEdit = isOwner;
 
   const handleTabChange = (value: string) => {
     navigate({
@@ -92,7 +92,7 @@ export const ShopDetail = ({ shop, users, userRole }: ShopDetailProps) => {
 
         {/* スタッフタブ */}
         <Tabs.Content value="staff">
-          <StaffTab shop={shop} users={users} canEdit={canEdit} />
+          <StaffTab staffs={staffs} canEdit={canEdit} />
         </Tabs.Content>
       </Tabs.Root>
     </Container>

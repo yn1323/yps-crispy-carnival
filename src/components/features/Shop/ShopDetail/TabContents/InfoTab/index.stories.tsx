@@ -21,7 +21,6 @@ export const Basic: Story = {
       closeTime: "22:00",
       timeUnit: 30,
       submitFrequency: "2w",
-      useTimeCard: true,
       description: "店舗の詳細説明がここに入ります。営業に関する注意事項やルールなどを記載できます。",
       createdAt: Date.now(),
       isDeleted: false,

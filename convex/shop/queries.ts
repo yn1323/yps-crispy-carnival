@@ -4,13 +4,11 @@
  * 責務:
  * - 店舗情報の取得
  * - 店舗一覧の取得
- * - 権限ベースの情報フィルタリング
+ * - スタッフ一覧の取得
  */
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import type { ShopUserRoleType } from "../constants";
-import { getShopBelonging, getUserByAuthId } from "../helpers";
-import { canViewResignedUsers, canViewShopUserInfo } from "./policies";
+import { getUserByAuthId, isShopOwner } from "../helpers";
 
 // 店舗IDで取得（単純なCRUD）
 export const getById = query({
@@ -24,7 +22,7 @@ export const getById = query({
   },
 });
 
-// authIdで所属店舗一覧取得（ロール情報・人数付き）
+// authIdで所有店舗一覧取得（スタッフ人数付き）
 export const listByAuthId = query({
   args: { authId: v.string() },
   handler: async (ctx, args) => {
@@ -34,168 +32,96 @@ export const listByAuthId = query({
       return [];
     }
 
-    // ユーザーが所属する店舗を取得（退職済みは除外）
-    const belongings = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => q.and(q.neq(q.field("isDeleted"), true), q.neq(q.field("status"), "resigned")))
+    // ユーザーが作成した店舗を取得
+    const shops = await ctx.db
+      .query("shops")
+      .withIndex("by_created_by", (q) => q.eq("createdBy", args.authId))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
       .collect();
 
-    // 各店舗情報を取得
-    const shops = await Promise.all(
-      belongings.map(async (belonging) => {
-        const shop = await ctx.db.get(belonging.shopId);
-        if (!shop || shop.isDeleted) {
-          return null;
-        }
-
-        // 店舗の所属人数を取得
-        const belongingStaff = await ctx.db
-          .query("shopUserBelongings")
-          .withIndex("by_shop", (q) => q.eq("shopId", belonging.shopId))
-          .filter((q) => q.neq(q.field("isDeleted"), true))
+    // 各店舗のスタッフ数を取得
+    const shopsWithStaffCount = await Promise.all(
+      shops.map(async (shop) => {
+        const staffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_shop", (q) => q.eq("shopId", shop._id))
+          .filter((q) => q.and(q.neq(q.field("isDeleted"), true), q.neq(q.field("status"), "resigned")))
           .collect();
-
-        const uniqueUserIds = new Set(belongingStaff.map((staff) => staff.userId));
-        const staffCount = uniqueUserIds.size;
 
         return {
           ...shop,
-          role: belonging.role,
-          staffCount,
+          staffCount: staffs.length,
         };
       }),
     );
 
-    return shops.filter((shop) => shop !== null);
+    return shopsWithStaffCount;
   },
 });
 
-// 店舗所属ユーザー一覧取得
-export const listUsers = query({
+// 店舗スタッフ一覧取得
+export const listStaffs = query({
   args: {
     shopId: v.id("shops"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    const currentUser = await getUserByAuthId(ctx, args.authId);
-
-    let currentUserRole: ShopUserRoleType | null = null;
-    if (currentUser) {
-      const currentBelonging = await getShopBelonging(ctx, args.shopId, currentUser._id);
-      currentUserRole = (currentBelonging?.role as ShopUserRoleType) ?? null;
+    // オーナーのみスタッフ一覧を閲覧可能
+    const ownerCheck = await isShopOwner(ctx, args.shopId, args.authId);
+    if (!ownerCheck) {
+      return [];
     }
 
-    const belongings = await ctx.db
-      .query("shopUserBelongings")
+    const staffs = await ctx.db
+      .query("staffs")
       .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
       .filter((q) => q.neq(q.field("isDeleted"), true))
       .collect();
 
-    const users = await Promise.all(
-      belongings.map(async (belonging) => {
-        const user = await ctx.db.get(belonging.userId);
-        if (!user || user.isDeleted) {
-          return null;
-        }
-
-        // 退職済みユーザーの表示権限チェック
-        if (!canViewResignedUsers(currentUserRole) && belonging.status !== "active") {
-          return null;
-        }
-
-        return {
-          _id: user._id,
-          name: user.name,
-          displayName: belonging.displayName,
-          authId: user.authId,
-          role: belonging.role,
-          status: belonging.status,
-          createdAt: belonging.createdAt,
-        };
-      }),
-    );
-
-    return users.filter((user) => user !== null);
+    return staffs.map((staff) => ({
+      _id: staff._id,
+      email: staff.email,
+      displayName: staff.displayName,
+      status: staff.status,
+      skills: staff.skills ?? [],
+      maxWeeklyHours: staff.maxWeeklyHours,
+      createdAt: staff.createdAt,
+    }));
   },
 });
 
-// ユーザーの店舗内役割取得
-export const getUserRole = query({
+// スタッフ詳細情報取得（オーナーのみ）
+export const getStaffInfo = query({
   args: {
     shopId: v.id("shops"),
+    staffId: v.id("staffs"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getUserByAuthId(ctx, args.authId);
-
-    if (!user) {
+    // オーナーのみ閲覧可能
+    const ownerCheck = await isShopOwner(ctx, args.shopId, args.authId);
+    if (!ownerCheck) {
       return null;
     }
 
-    const belonging = await getShopBelonging(ctx, args.shopId, user._id);
-
-    return belonging?.role ?? null;
-  },
-});
-
-// ユーザーが新規店舗を作成できるかチェック
-export const canCreate = query({
-  args: { authId: v.string() },
-  handler: async (ctx, args) => {
-    const user = await getUserByAuthId(ctx, args.authId);
-
-    if (!user) {
-      return true;
-    }
-
-    const belongings = await ctx.db
-      .query("shopUserBelongings")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .collect();
-
-    if (belongings.length === 0) {
-      return true;
-    }
-
-    const isOwner = belongings.some((b) => b.role === "owner");
-    return isOwner;
-  },
-});
-
-// 店舗内ユーザーの管理情報取得（owner/managerのみ）
-export const getUserInfo = query({
-  args: {
-    shopId: v.id("shops"),
-    userId: v.id("users"),
-    authId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const executor = await getUserByAuthId(ctx, args.authId);
-
-    if (!executor) {
-      return null;
-    }
-
-    const executorBelonging = await getShopBelonging(ctx, args.shopId, executor._id);
-
-    // ポリシーで権限チェック
-    if (!canViewShopUserInfo(executorBelonging?.role as ShopUserRoleType)) {
-      return null;
-    }
-
-    const targetBelonging = await getShopBelonging(ctx, args.shopId, args.userId);
-
-    if (!targetBelonging) {
+    const staff = await ctx.db.get(args.staffId);
+    if (!staff || staff.isDeleted || staff.shopId !== args.shopId) {
       return null;
     }
 
     return {
-      memo: targetBelonging.memo ?? "",
-      workStyleNote: targetBelonging.workStyleNote ?? "",
-      maxWorkingHoursPerMonth: targetBelonging.maxWorkingHoursPerMonth ?? null,
-      hourlyWage: targetBelonging.hourlyWage ?? null,
+      _id: staff._id,
+      email: staff.email,
+      displayName: staff.displayName,
+      status: staff.status,
+      skills: staff.skills ?? [],
+      maxWeeklyHours: staff.maxWeeklyHours,
+      memo: staff.memo ?? "",
+      workStyleNote: staff.workStyleNote ?? "",
+      hourlyWage: staff.hourlyWage ?? null,
+      resignedAt: staff.resignedAt,
+      resignationReason: staff.resignationReason,
+      createdAt: staff.createdAt,
     };
   },
 });

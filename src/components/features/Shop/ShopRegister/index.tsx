@@ -33,7 +33,6 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
       closeTime: "22:00",
       timeUnit: "30",
       submitFrequency: "2w",
-      useTimeCard: true,
     },
   });
 
@@ -53,7 +52,6 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
         closeTime: data.closeTime,
         timeUnit: data.timeUnit ? Number(data.timeUnit) : 15,
         submitFrequency: data.submitFrequency,
-        useTimeCard: data.useTimeCard,
         description: data.description,
         authId: user.authId,
       });

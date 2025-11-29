@@ -6,6 +6,33 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
+import { getUserByAuthId } from "../helpers";
+
+// ユーザー取得または作成（初回ログイン時に自動作成）
+export const getOrCreate = mutation({
+  args: {
+    authId: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // 既存ユーザーを検索
+    const existingUser = await getUserByAuthId(ctx, args.authId);
+    if (existingUser) {
+      return existingUser;
+    }
+
+    // 新規ユーザー作成
+    const userId = await ctx.db.insert("users", {
+      name: args.name.trim() || "新規ユーザー",
+      authId: args.authId,
+      status: "active",
+      createdAt: Date.now(),
+      isDeleted: false,
+    });
+
+    return await ctx.db.get(userId);
+  },
+});
 
 // ユーザー作成
 export const create = mutation({

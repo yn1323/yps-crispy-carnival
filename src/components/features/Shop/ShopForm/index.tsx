@@ -1,4 +1,4 @@
-import { Box, Button, Field, Flex, Grid, GridItem, Input, Switch, Text, Textarea, VStack } from "@chakra-ui/react";
+import { Box, Button, Field, Flex, Grid, GridItem, Input, Textarea, VStack } from "@chakra-ui/react";
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { LuCalendar, LuSettings, LuStore } from "react-icons/lu";
 import { FormCard } from "@/src/components/ui/FormCard";
@@ -91,29 +91,6 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
         {/* オプション機能 */}
         <FormCard icon={LuSettings} iconColor="gray.700" title="オプション機能">
           <VStack gap="4" align="stretch">
-            {/* タイムカード機能 */}
-            <Flex align="center" justify="space-between" p="4" bg="gray.50" borderRadius="lg">
-              <Box flex="1">
-                <Text fontSize="sm" color="gray.900" cursor="pointer">
-                  タイムカード機能
-                </Text>
-                <Text fontSize="xs" color="gray.600" mt="1">
-                  出退勤の打刻機能を有効にする
-                </Text>
-              </Box>
-              <Switch.Root
-                colorPalette="teal"
-                checked={watch("useTimeCard")}
-                onCheckedChange={(details) => setValue("useTimeCard", details.checked)}
-                ml="4"
-              >
-                <Switch.HiddenInput />
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch.Root>
-            </Flex>
-
             {/* 店舗メモ */}
             <Field.Root>
               <Field.Label>店舗メモ（マネージャー向け）</Field.Label>

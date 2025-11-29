@@ -1,103 +1,47 @@
 import { Badge, Box, Button, Card, Flex, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
-import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Animation } from "@/src/components/templates/Animation";
 import { Select } from "@/src/components/ui/Select";
-import { convertRole } from "@/src/helpers/domain/convertShopData";
 
-type UserWithRole = {
-  _id: Doc<"users">["_id"];
-  name: string;
+type StaffType = {
+  _id: Id<"staffs">;
+  email: string;
   displayName: string;
-  authId: string | undefined;
-  role: string;
   status: string;
-  createdAt: number;
-};
-
-type UserWithRoles = {
-  _id: Doc<"users">["_id"];
-  name: string;
-  displayName: string;
-  authId: string | undefined;
-  roles: string[];
-  status: string;
+  skills: { position: string; level: string }[];
+  maxWeeklyHours: number | undefined;
   createdAt: number;
 };
 
 type StaffTabProps = {
-  shop: Doc<"shops">;
-  users: UserWithRole[];
+  staffs: StaffType[];
   canEdit: boolean;
 };
 
-export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
+export const StaffTab = ({ staffs, canEdit }: StaffTabProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
-  const [roleFilter, setRoleFilter] = useState("all");
-
-  // ユーザーごとに全てのロールをまとめる
-  const uniqueUsers = users.reduce((acc, user) => {
-    const existing = acc.find((u) => u._id === user._id);
-    if (!existing) {
-      acc.push({
-        _id: user._id,
-        name: user.name,
-        displayName: user.displayName,
-        authId: user.authId,
-        roles: [user.role],
-        status: user.status,
-        createdAt: user.createdAt,
-      });
-    } else {
-      if (!existing.roles.includes(user.role)) {
-        existing.roles.push(user.role);
-      }
-    }
-    return acc;
-  }, [] as UserWithRoles[]);
-
-  const getRolePriority = (role: string) => {
-    if (role === "owner") return 3;
-    if (role === "manager") return 2;
-    return 1;
-  };
-
-  // ロールを優先度順にソート（owner > manager > general）し、ユーザー間も役割順でソート
-  const sortedUsers = uniqueUsers
-    .map((user) => ({
-      ...user,
-      roles: user.roles.toSorted((a, b) => getRolePriority(b) - getRolePriority(a)),
-    }))
-    .toSorted((a, b) => getRolePriority(b.roles[0]) - getRolePriority(a.roles[0]));
 
   // 検索とフィルタリング機能
-  const filteredUsers = sortedUsers.filter((user) => {
-    // 名前検索（nameとdisplayName両方で検索）
+  const filteredStaffs = staffs.filter((staff) => {
+    // 名前・メール検索
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
-      user.name.toLowerCase().includes(searchLower) || user.displayName.toLowerCase().includes(searchLower);
-
-    // 役割フィルター
-    const matchesRole =
-      roleFilter === "all" ||
-      user.roles.some((role) => {
-        if (roleFilter === "オーナー") return role === "owner";
-        if (roleFilter === "マネージャー") return role === "manager";
-        if (roleFilter === "スタッフ") return role === "general";
-        return false;
-      });
+      staff.displayName.toLowerCase().includes(searchLower) || staff.email.toLowerCase().includes(searchLower);
 
     // ステータスフィルター（在籍中にはpendingも含める）
     const matchesStatus =
       statusFilter === "all" ||
-      (statusFilter === "active" && (user.status === "active" || user.status === "pending")) ||
-      (statusFilter === "resigned" && user.status === "resigned");
+      (statusFilter === "active" && (staff.status === "active" || staff.status === "pending")) ||
+      (statusFilter === "resigned" && staff.status === "resigned");
 
-    return matchesSearch && matchesRole && matchesStatus;
+    return matchesSearch && matchesStatus;
   });
+
+  // 作成日順でソート（新しい順）
+  const sortedStaffs = filteredStaffs.toSorted((a, b) => b.createdAt - a.createdAt);
 
   return (
     <Animation>
@@ -110,7 +54,7 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
               <Input
                 background="white"
                 type="text"
-                placeholder="名前で検索..."
+                placeholder="名前・メールで検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 pl={10}
@@ -129,101 +73,88 @@ export const StaffTab = ({ shop, users, canEdit }: StaffTabProps) => {
             onChange={(value) => setStatusFilter(value)}
             w={{ base: "full", md: "180px" }}
           />
-
-          {/* 役割フィルター */}
-          <Select
-            items={[
-              { value: "all", label: "全員" },
-              { value: "オーナー", label: "オーナー" },
-              { value: "マネージャー", label: "マネージャー" },
-              { value: "スタッフ", label: "スタッフ" },
-            ]}
-            value={roleFilter}
-            onChange={(value) => setRoleFilter(value)}
-            w={{ base: "full", md: "180px" }}
-          />
         </Flex>
 
-        {/* スタッフ招待ボタン */}
+        {/* スタッフ追加ボタン（将来実装予定） */}
         {canEdit && (
-          <Link to="/shops/$shopId/invite" params={{ shopId: shop._id }} search={{ fromTab: "staff" }}>
-            <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2}>
-              <Icon as={LuPlus} boxSize={4} />
-              スタッフを招待
-            </Button>
-          </Link>
+          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} disabled>
+            <Icon as={LuPlus} boxSize={4} />
+            スタッフを追加（準備中）
+          </Button>
         )}
       </Box>
 
       {/* フィルター結果表示 */}
-      {filteredUsers.length > 0 ? (
+      {sortedStaffs.length > 0 ? (
         <>
           <Text fontSize="sm" color="gray.600" mb={3}>
-            {filteredUsers.length}名のスタッフ
+            {sortedStaffs.length}名のスタッフ
           </Text>
           <Box>
-            {filteredUsers.map((user) => (
-              <Link
-                key={user._id}
-                to="/shops/$shopId/staffs/$userId"
-                params={{ shopId: shop._id, userId: user._id }}
-                search={{ fromTab: "staff" }}
+            {sortedStaffs.map((staff) => (
+              <Card.Root
+                key={staff._id}
+                mb={{ base: 2, md: 3 }}
+                borderWidth={0}
+                shadow="sm"
+                _hover={{ shadow: "md" }}
+                transition="all 0.15s"
               >
-                <Card.Root
-                  mb={{ base: 2, md: 3 }}
-                  borderWidth={0}
-                  shadow="sm"
-                  _hover={{ shadow: "md" }}
-                  transition="all 0.15s"
-                  cursor="pointer"
-                >
-                  <Card.Body p={{ base: 3, md: 4 }}>
-                    <Flex align="center" justify="space-between" gap={4}>
-                      <Flex align="center" gap={3} flex={1} minW={0}>
-                        {/* アバター */}
-                        <Flex
-                          w={{ base: 10, md: 12 }}
-                          h={{ base: 10, md: 12 }}
-                          borderRadius="full"
-                          bgGradient="to-br"
-                          gradientFrom="teal.400"
-                          gradientTo="teal.600"
-                          align="center"
-                          justify="center"
-                          color="white"
-                          flexShrink={0}
-                        >
-                          <Icon as={LuUser} boxSize={6} />
-                        </Flex>
+                <Card.Body p={{ base: 3, md: 4 }}>
+                  <Flex align="center" justify="space-between" gap={4}>
+                    <Flex align="center" gap={3} flex={1} minW={0}>
+                      {/* アバター */}
+                      <Flex
+                        w={{ base: 10, md: 12 }}
+                        h={{ base: 10, md: 12 }}
+                        borderRadius="full"
+                        bgGradient="to-br"
+                        gradientFrom="teal.400"
+                        gradientTo="teal.600"
+                        align="center"
+                        justify="center"
+                        color="white"
+                        flexShrink={0}
+                      >
+                        <Icon as={LuUser} boxSize={6} />
+                      </Flex>
 
-                        {/* スタッフ情報 */}
-                        <Box flex={1} minW={0}>
-                          <Flex align="center" gap={2} flexWrap="wrap">
-                            <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
-                              {user.displayName}
-                            </Text>
-                            {/* 仮登録バッジ */}
-                            {user.status === "pending" && (
-                              <Badge colorPalette="orange" size="sm" flexShrink={0}>
-                                仮登録
-                              </Badge>
-                            )}
-                            {/* 役割バッジ */}
-                            {user.roles.map((role) => (
-                              <Badge key={role} colorPalette={convertRole.toBadgeColor(role)} size="sm" flexShrink={0}>
-                                {convertRole.toLabel(role)}
+                      {/* スタッフ情報 */}
+                      <Box flex={1} minW={0}>
+                        <Flex align="center" gap={2} flexWrap="wrap">
+                          <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
+                            {staff.displayName}
+                          </Text>
+                          {/* ステータスバッジ */}
+                          {staff.status === "pending" && (
+                            <Badge colorPalette="orange" size="sm" flexShrink={0}>
+                              招待中
+                            </Badge>
+                          )}
+                          {staff.status === "resigned" && (
+                            <Badge colorPalette="gray" size="sm" flexShrink={0}>
+                              退職済み
+                            </Badge>
+                          )}
+                        </Flex>
+                        {/* スキル表示 */}
+                        {staff.skills.length > 0 && (
+                          <Flex gap={1} mt={1} flexWrap="wrap">
+                            {staff.skills.map((skill, idx) => (
+                              <Badge key={idx} colorPalette="teal" variant="subtle" size="sm">
+                                {skill.position}
                               </Badge>
                             ))}
                           </Flex>
-                        </Box>
-                      </Flex>
-
-                      {/* 矢印アイコン */}
-                      <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
+                        )}
+                      </Box>
                     </Flex>
-                  </Card.Body>
-                </Card.Root>
-              </Link>
+
+                    {/* 矢印アイコン */}
+                    <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
+                  </Flex>
+                </Card.Body>
+              </Card.Root>
             ))}
           </Box>
         </>

@@ -25,17 +25,16 @@ export const Basic: Story = {
       timeUnit: 30,
       submitFrequency: "2w",
       avatar: "",
-      useTimeCard: true,
       description: "レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など",
       createdBy: "user123",
       createdAt: Date.now(),
       isDeleted: false,
     },
-    userRole: "owner",
+    isOwner: true,
   },
 };
 
-export const NoAdmin: Story = {
+export const NotOwner: Story = {
   args: {
     shop: {
       _id: "shop123" as Id<"shops">,
@@ -46,12 +45,11 @@ export const NoAdmin: Story = {
       timeUnit: 30,
       submitFrequency: "2w",
       avatar: "",
-      useTimeCard: true,
       description: "レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など",
       createdBy: "user123",
       createdAt: Date.now(),
       isDeleted: false,
     },
-    userRole: "other",
+    isOwner: false,
   },
 };

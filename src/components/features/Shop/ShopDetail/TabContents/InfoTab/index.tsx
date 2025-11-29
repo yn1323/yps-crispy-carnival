@@ -1,5 +1,5 @@
-import { Badge, Box, Card, Flex, Icon, Separator, Text } from "@chakra-ui/react";
-import { LuCalendar, LuClock, LuCreditCard } from "react-icons/lu";
+import { Box, Card, Flex, Icon, Separator, Text } from "@chakra-ui/react";
+import { LuCalendar, LuClock } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Animation } from "@/src/components/templates/Animation";
 import { convertSubmitFrequency, convertTimeUnit } from "@/src/helpers/domain/convertShopData";
@@ -42,7 +42,7 @@ export const InfoTab = ({ shop }: InfoTabProps) => {
             </Flex>
 
             {/* シフト入力の時間単位 */}
-            <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
+            <Flex align="flex-start" gap={3}>
               <Icon as={LuClock} boxSize={5} color="gray.500" />
               <Box flex={1}>
                 <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
@@ -51,25 +51,6 @@ export const InfoTab = ({ shop }: InfoTabProps) => {
                 <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
                   {convertTimeUnit.toLabel(shop.timeUnit)}
                 </Text>
-              </Box>
-            </Flex>
-
-            {/* タイムカード */}
-            <Flex align="flex-start" gap={3}>
-              <Icon as={LuCreditCard} boxSize={5} color="gray.500" />
-              <Box flex={1}>
-                <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={1}>
-                  タイムカード
-                </Text>
-                <Badge
-                  variant="outline"
-                  fontSize="xs"
-                  borderColor={shop.useTimeCard ? "teal.300" : "gray.300"}
-                  color={shop.useTimeCard ? "teal.700" : "gray.600"}
-                  bg={shop.useTimeCard ? "teal.50" : "transparent"}
-                >
-                  {shop.useTimeCard ? "利用中" : "未利用"}
-                </Badge>
               </Box>
             </Flex>
           </Box>
