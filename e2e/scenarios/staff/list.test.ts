@@ -21,7 +21,7 @@ test.describe("スタッフ一覧（StaffTab）", () => {
     const initialCount = Number.parseInt(countText?.match(/\d+/)?.[0] ?? "0", 10);
 
     // 存在するスタッフ名で検索（seedデータの「桐山」）
-    await page.getByPlaceholder("名前・メールで検索...").fill("桐山");
+    await page.getByPlaceholder("名前・メールで検索...").fill("シフト");
 
     // 検索結果が表示される（1名以上）
     await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
