@@ -42,9 +42,9 @@ export const AuthGuard = ({ children }: Props) => {
     });
   }
 
-  // 初回登録がまだの場合
-  if (isSignedIn && (!user.name || !userData)) {
-    return <Navigate to="/welcome" replace />;
+  // 初回登録がまだの場合は店舗一覧へ（ユーザー登録は自動で行われる）
+  if (isSignedIn && !userData) {
+    return <Navigate to="/shops" replace />;
   }
 
   return children;

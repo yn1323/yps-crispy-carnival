@@ -30,11 +30,11 @@ export const Basic: Story = {
       createdAt: Date.now(),
       isDeleted: false,
     },
-    userRole: "owner",
+    isOwner: true,
   },
 };
 
-export const NoAdmin: Story = {
+export const NotOwner: Story = {
   args: {
     shop: {
       _id: "shop123" as Id<"shops">,
@@ -50,6 +50,6 @@ export const NoAdmin: Story = {
       createdAt: Date.now(),
       isDeleted: false,
     },
-    userRole: "other",
+    isOwner: false,
   },
 };

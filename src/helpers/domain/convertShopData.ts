@@ -31,23 +31,3 @@ export const convertTimeUnit = {
   },
 };
 
-// ロール（役割）の変換
-export const convertRole = {
-  toLabel: (role: string): string => {
-    if (role === "owner") return "オーナー";
-    if (role === "manager") return "マネージャー";
-    if (role === "general") return "一般";
-    return role;
-  },
-  toValue: (label: string): string => {
-    if (label === "オーナー") return "owner";
-    if (label === "マネージャー") return "manager";
-    if (label === "一般") return "general";
-    return label;
-  },
-  toBadgeColor: (role: string): string => {
-    if (role === "owner") return "purple";
-    if (role === "manager") return "teal";
-    return "gray";
-  },
-};

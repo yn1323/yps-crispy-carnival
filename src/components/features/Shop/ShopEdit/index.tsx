@@ -16,7 +16,7 @@ import { type SchemaType, schema } from "../ShopForm/schema";
 
 type Props = {
   shop: Doc<"shops"> | null | undefined;
-  userRole: string | null | undefined;
+  isOwner: boolean;
   callbackRoutingPath?: string;
 };
 
@@ -106,9 +106,9 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
   );
 };
 
-export const ShopEdit = ({ shop, userRole, callbackRoutingPath }: Props) => {
+export const ShopEdit = ({ shop, isOwner, callbackRoutingPath }: Props) => {
   // ローディング処理
-  if (shop === undefined || userRole === undefined) {
+  if (shop === undefined) {
     return <ShopEditLoading />;
   }
 
@@ -117,8 +117,8 @@ export const ShopEdit = ({ shop, userRole, callbackRoutingPath }: Props) => {
     return <ShopEditNotFound />;
   }
 
-  // 権限チェック
-  if (userRole !== "owner" && userRole !== "manager") {
+  // 権限チェック（オーナーのみ編集可能）
+  if (!isOwner) {
     return <ShopEditUnauthorized />;
   }
 
@@ -159,7 +159,7 @@ export const ShopEditUnauthorized = () => {
         </Heading>
         <Text color="fg.muted">この店舗を編集する権限がありません</Text>
         <Text color="fg.muted" fontSize="sm">
-          オーナーまたはマネージャーのみが店舗情報を編集できます
+          店舗オーナーのみが店舗情報を編集できます
         </Text>
         <Link to="/shops">
           <Button colorPalette="teal" size="lg">

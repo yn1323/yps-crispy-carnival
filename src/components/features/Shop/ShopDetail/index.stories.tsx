@@ -20,36 +20,39 @@ const meta = {
       createdAt: Date.now(),
       isDeleted: false,
     } as Doc<"shops">,
-    users: [
+    staffs: [
       {
-        _id: "user1" as Id<"users">,
-        name: "山田太郎",
+        _id: "staff1" as Id<"staffs">,
+        email: "yamada@example.com",
         displayName: "山田太郎",
-        authId: "auth1",
-        role: "owner",
         status: "active",
+        skills: [
+          { position: "ホール", level: "ベテラン" },
+          { position: "キッチン", level: "一人前" },
+        ],
+        maxWeeklyHours: 40,
         createdAt: Date.now(),
       },
       {
-        _id: "user2" as Id<"users">,
-        name: "佐藤花子",
+        _id: "staff2" as Id<"staffs">,
+        email: "sato@example.com",
         displayName: "佐藤花子",
-        authId: "auth2",
-        role: "manager",
         status: "active",
+        skills: [{ position: "レジ", level: "研修中" }],
+        maxWeeklyHours: 20,
         createdAt: Date.now(),
       },
       {
-        _id: "user3" as Id<"users">,
-        name: "鈴木一郎",
+        _id: "staff3" as Id<"staffs">,
+        email: "suzuki@example.com",
         displayName: "鈴木一郎",
-        authId: "auth3",
-        role: "general",
-        status: "active",
+        status: "pending",
+        skills: [],
+        maxWeeklyHours: undefined,
         createdAt: Date.now(),
       },
     ],
-    userRole: "owner",
+    isOwner: true,
   },
 } satisfies Meta<typeof ShopDetail>;
 
@@ -57,14 +60,32 @@ export default meta;
 
 export const Basic: StoryObj<typeof meta> = {};
 
+export const AsNonOwner: StoryObj<typeof meta> = {
+  args: {
+    isOwner: false,
+  },
+};
+
 export const Loading: StoryObj<typeof meta> = {
+  args: {
+    staffs: [],
+    isOwner: false,
+  },
   render: () => <ShopDetailLoading />,
 };
 
 export const NotFound: StoryObj<typeof meta> = {
+  args: {
+    staffs: [],
+    isOwner: false,
+  },
   render: () => <ShopDetailNotFound />,
 };
 
 export const ErrorPattern: StoryObj<typeof meta> = {
+  args: {
+    staffs: [],
+    isOwner: false,
+  },
   render: () => <ShopDetailError />,
 };
