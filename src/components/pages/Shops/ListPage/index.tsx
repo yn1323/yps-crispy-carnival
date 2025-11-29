@@ -9,7 +9,6 @@ import { userAtom } from "@/src/stores/user";
 export const ShopsListPage = () => {
   const user = useAtomValue(userAtom);
   const shops = useQuery(api.shop.queries.listByAuthId, user.authId ? { authId: user.authId } : "skip");
-  const canCreateShop = useQuery(api.shop.queries.canCreate, user.authId ? { authId: user.authId } : "skip");
 
   // 店舗IDで重複排除
   const uniqueShops = shops ? uniqueBy(shops, ["_id"]) : [];
@@ -22,5 +21,6 @@ export const ShopsListPage = () => {
     );
   }
 
-  return <ShopList shops={uniqueShops} canCreateShop={canCreateShop ?? false} />;
+  // 認証済みユーザーは常に新規店舗作成可能
+  return <ShopList shops={uniqueShops} canCreateShop={true} />;
 };

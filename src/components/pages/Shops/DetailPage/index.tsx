@@ -16,19 +16,13 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
   const shop = useQuery(api.shop.queries.getById, { shopId: shopId as Id<"shops"> });
 
   // スタッフ一覧取得
-  const users = useQuery(
-    api.shop.queries.listUsers,
-    user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
-  );
-
-  // 現在のユーザー権限取得
-  const userRole = useQuery(
-    api.shop.queries.getUserRole,
+  const staffs = useQuery(
+    api.shop.queries.listStaffs,
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
   // ローディング
-  if (shop === undefined || users === undefined || userRole === undefined) {
+  if (shop === undefined || staffs === undefined) {
     return (
       <LazyShow>
         <ShopDetailLoading />
@@ -41,7 +35,8 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
     return <ShopDetailNotFound />;
   }
 
-  // 通常表示
+  // オーナー判定
+  const isOwner = shop.createdBy === user.authId;
 
-  return <ShopDetail shop={shop} users={users} userRole={userRole} />;
+  return <ShopDetail shop={shop} staffs={staffs} isOwner={isOwner} />;
 };
