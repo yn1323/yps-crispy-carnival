@@ -30,4 +30,3 @@ export const convertTimeUnit = {
     return match ? Number.parseInt(match[1], 10) : 0;
   },
 };
-
