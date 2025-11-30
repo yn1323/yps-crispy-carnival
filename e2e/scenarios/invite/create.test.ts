@@ -49,8 +49,9 @@ test.describe("マネージャー招待作成", () => {
     await expect(page.getByText("招待リンクを作成しました")).toBeVisible();
 
     // 招待URLを取得してtmpファイルに保存
-    const inviteUrlBox = page.locator('[font-family="mono"]');
-    const inviteUrl = await inviteUrlBox.textContent();
+    const inviteUrlElement = page.getByText(/\/invite\?token=/);
+    await expect(inviteUrlElement).toBeVisible();
+    const inviteUrl = await inviteUrlElement.textContent();
 
     if (inviteUrl) {
       // tmpディレクトリが存在しない場合は作成
