@@ -8,7 +8,7 @@
  */
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import { getUserByAuthId, isShopOwner } from "../helpers";
+import { getUserByAuthId } from "../helpers";
 
 // 店舗IDで取得（単純なCRUD）
 export const getById = query({
@@ -32,16 +32,21 @@ export const listByAuthId = query({
       return [];
     }
 
-    // ユーザーが作成した店舗を取得
-    const shops = await ctx.db
-      .query("shops")
-      .withIndex("by_created_by", (q) => q.eq("createdBy", args.authId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
+    // ユーザーが所属する店舗を取得（staffsテーブル経由）
+    const staffRecords = await ctx.db
+      .query("staffs")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.and(q.neq(q.field("isDeleted"), true), q.eq(q.field("status"), "active")))
       .collect();
 
-    // 各店舗のスタッフ数を取得
+    // 各店舗情報とスタッフ数を取得
     const shopsWithStaffCount = await Promise.all(
-      shops.map(async (shop) => {
+      staffRecords.map(async (staffRecord) => {
+        const shop = await ctx.db.get(staffRecord.shopId);
+        if (!shop || shop.isDeleted) {
+          return null;
+        }
+
         const staffs = await ctx.db
           .query("staffs")
           .withIndex("by_shop", (q) => q.eq("shopId", shop._id))
@@ -55,7 +60,7 @@ export const listByAuthId = query({
       }),
     );
 
-    return shopsWithStaffCount;
+    return shopsWithStaffCount.filter((shop) => shop !== null);
   },
 });
 
@@ -66,19 +71,13 @@ export const listStaffs = query({
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // オーナーのみスタッフ一覧を閲覧可能
-    const ownerCheck = await isShopOwner(ctx, args.shopId, args.authId);
-    if (!ownerCheck) {
-      return [];
-    }
-
     const staffs = await ctx.db
       .query("staffs")
       .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
       .filter((q) => q.neq(q.field("isDeleted"), true))
       .collect();
 
-    // userId の有無で isManager を判定
+    // role で isManager を判定（pending状態でも正しくマネージャー判定される）
     const staffsWithRole = staffs.map((staff) => ({
       _id: staff._id,
       email: staff.email,
@@ -87,14 +86,14 @@ export const listStaffs = query({
       skills: staff.skills ?? [],
       maxWeeklyHours: staff.maxWeeklyHours,
       createdAt: staff.createdAt,
-      isManager: !!staff.userId,
+      isManager: staff.role === "manager" || staff.role === "owner",
     }));
 
     return staffsWithRole;
   },
 });
 
-// スタッフ詳細情報取得（オーナーのみ）
+// スタッフ詳細情報取得
 export const getStaffInfo = query({
   args: {
     shopId: v.id("shops"),
@@ -102,12 +101,6 @@ export const getStaffInfo = query({
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    // オーナーのみ閲覧可能
-    const ownerCheck = await isShopOwner(ctx, args.shopId, args.authId);
-    if (!ownerCheck) {
-      return null;
-    }
-
     const staff = await ctx.db.get(args.staffId);
     if (!staff || staff.isDeleted || staff.shopId !== args.shopId) {
       return null;
@@ -126,6 +119,7 @@ export const getStaffInfo = query({
       resignedAt: staff.resignedAt,
       resignationReason: staff.resignationReason,
       createdAt: staff.createdAt,
+      isManager: staff.role === "manager" || staff.role === "owner",
     };
   },
 });

@@ -1,6 +1,7 @@
-import { Box, Button, Container, Flex, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronRight, LuClock, LuPlus, LuStore, LuUsers } from "react-icons/lu";
+import { Empty } from "@/src/components/ui/Empty";
 import { Title } from "@/src/components/ui/Title";
 
 type ShopListProps = {
@@ -113,21 +114,18 @@ export const ShopList = ({ shops, canCreateShop }: ShopListProps) => {
   );
 };
 
-export const ShopListEmpty = () => {
-  return (
-    <Box textAlign="center" py="20">
-      <Stack gap="6" alignItems="center">
-        <Heading size="lg" color="fg.muted">
-          所属する店舗がありません
-        </Heading>
-        <Text color="fg.muted">新しい店舗を登録してシフト管理を始めましょう</Text>
-        <Link to="/shops/new">
-          <Button colorPalette="teal" size="lg">
-            <Icon as={LuPlus} boxSize={4} />
-            店舗を登録する
-          </Button>
-        </Link>
-      </Stack>
-    </Box>
-  );
-};
+export const ShopListEmpty = () => (
+  <Empty
+    icon={LuStore}
+    title="所属する店舗がありません"
+    description="新しい店舗を登録してシフト管理を始めましょう"
+    action={
+      <Link to="/shops/new">
+        <Button colorPalette="teal" size="lg">
+          <Icon as={LuPlus} boxSize={4} />
+          店舗を登録する
+        </Button>
+      </Link>
+    }
+  />
+);

@@ -30,26 +30,5 @@ export const Basic: Story = {
       createdAt: Date.now(),
       isDeleted: false,
     },
-    isOwner: true,
-  },
-};
-
-export const NotOwner: Story = {
-  args: {
-    shop: {
-      _id: "shop123" as Id<"shops">,
-      _creationTime: Date.now(),
-      shopName: "カフェサンプル",
-      openTime: "09:00",
-      closeTime: "22:00",
-      timeUnit: 30,
-      submitFrequency: "2w",
-      avatar: "",
-      description: "レジ締め時の注意点、特別な清掃ルール、緊急時の連絡先など",
-      createdBy: "user123",
-      createdAt: Date.now(),
-      isDeleted: false,
-    },
-    isOwner: false,
   },
 };

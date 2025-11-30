@@ -52,17 +52,6 @@
       }
     },
     {
-      "label": "DBをエクスポート&置き換え",
-      "type": "shell",
-      "command": "pnpm convex:export-and-replace",
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
       "label": "DBリセット（Seed）",
       "type": "shell",
       "command": "pnpm convex:import",

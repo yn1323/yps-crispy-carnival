@@ -7,6 +7,7 @@ import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { Empty } from "@/src/components/ui/Empty";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
@@ -16,7 +17,6 @@ import { type SchemaType, schema } from "../ShopForm/schema";
 
 type Props = {
   shop: Doc<"shops"> | null | undefined;
-  isOwner: boolean;
   callbackRoutingPath?: string;
 };
 
@@ -106,7 +106,7 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
   );
 };
 
-export const ShopEdit = ({ shop, isOwner, callbackRoutingPath }: Props) => {
+export const ShopEdit = ({ shop, callbackRoutingPath }: Props) => {
   // ローディング処理
   if (shop === undefined) {
     return <ShopEditLoading />;
@@ -117,11 +117,6 @@ export const ShopEdit = ({ shop, isOwner, callbackRoutingPath }: Props) => {
     return <ShopEditNotFound />;
   }
 
-  // 権限チェック（オーナーのみ編集可能）
-  if (!isOwner) {
-    return <ShopEditUnauthorized />;
-  }
-
   return <ShopEditForm shop={shop} callbackRoutingPath={callbackRoutingPath} />;
 };
 
@@ -129,26 +124,20 @@ export const ShopEditLoading = () => {
   return <LoadingState />;
 };
 
-export const ShopEditNotFound = () => {
-  return (
-    <Box textAlign="center" py="20">
-      <Stack gap="6" alignItems="center">
-        <Box fontSize="6xl" color="fg.muted">
-          <Icon as={LuStore} boxSize={12} />
-        </Box>
-        <Heading size="lg" color="fg.muted">
-          店舗が見つかりません
-        </Heading>
-        <Text color="fg.muted">指定された店舗は存在しないか、削除された可能性があります</Text>
-        <Link to="/shops">
-          <Button colorPalette="teal" size="lg">
-            店舗一覧に戻る
-          </Button>
-        </Link>
-      </Stack>
-    </Box>
-  );
-};
+export const ShopEditNotFound = () => (
+  <Empty
+    icon={LuStore}
+    title="店舗が見つかりません"
+    description="指定された店舗は存在しないか、削除された可能性があります"
+    action={
+      <Link to="/shops">
+        <Button colorPalette="teal" size="lg">
+          店舗一覧に戻る
+        </Button>
+      </Link>
+    }
+  />
+);
 
 export const ShopEditUnauthorized = () => {
   return (

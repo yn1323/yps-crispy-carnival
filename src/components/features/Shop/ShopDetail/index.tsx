@@ -2,6 +2,7 @@ import { Box, Button, Container, Flex, Heading, Icon, Stack, Tabs, Text } from "
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LuPencil, LuStore, LuUsers } from "react-icons/lu";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import { Empty } from "@/src/components/ui/Empty";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
 import { InfoTab } from "./TabContents/InfoTab";
@@ -21,16 +22,14 @@ type StaffType = {
 type ShopDetailProps = {
   shop: Doc<"shops">;
   staffs: StaffType[];
-  isOwner: boolean;
 };
 
 export const ShopDetailTabTypes = ["info", "staff"] as const;
 
-export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
+export const ShopDetail = ({ shop, staffs }: ShopDetailProps) => {
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
-  const canEdit = isOwner;
 
   const handleTabChange = (value: string) => {
     navigate({
@@ -47,18 +46,16 @@ export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
       <Title
         prev={{ url: "/shops", label: "店舗一覧に戻る" }}
         action={
-          canEdit ? (
-            <Button
-              onClick={() => {
-                navigate({ to: "/shops/$shopId/edit", params: { shopId: shop._id } });
-              }}
-              colorPalette="teal"
-              gap={2}
-            >
-              <Icon as={LuPencil} boxSize={4} />
-              <Text display={{ base: "none", md: "inline" }}>編集</Text>
-            </Button>
-          ) : null
+          <Button
+            onClick={() => {
+              navigate({ to: "/shops/$shopId/edit", params: { shopId: shop._id } });
+            }}
+            colorPalette="teal"
+            gap={2}
+          >
+            <Icon as={LuPencil} boxSize={4} />
+            <Text display={{ base: "none", md: "inline" }}>編集</Text>
+          </Button>
         }
       >
         <Flex align="center" justify="space-between">
@@ -93,7 +90,7 @@ export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
 
         {/* スタッフタブ */}
         <Tabs.Content value="staff">
-          <StaffTab staffs={staffs} canEdit={canEdit} shopId={shop._id} />
+          <StaffTab staffs={staffs} shopId={shop._id} />
         </Tabs.Content>
       </Tabs.Root>
     </Container>
@@ -104,26 +101,20 @@ export const ShopDetailLoading = () => {
   return <LoadingState />;
 };
 
-export const ShopDetailNotFound = () => {
-  return (
-    <Box textAlign="center" py="20">
-      <Stack gap="6" alignItems="center">
-        <Box fontSize="6xl" color="fg.muted">
-          <LuStore />
-        </Box>
-        <Heading size="lg" color="fg.muted">
-          店舗が見つかりません
-        </Heading>
-        <Text color="fg.muted">指定された店舗は存在しないか、削除された可能性があります</Text>
-        <Link to="/shops">
-          <Button colorPalette="teal" size="lg">
-            店舗一覧に戻る
-          </Button>
-        </Link>
-      </Stack>
-    </Box>
-  );
-};
+export const ShopDetailNotFound = () => (
+  <Empty
+    icon={LuStore}
+    title="店舗が見つかりません"
+    description="指定された店舗は存在しないか、削除された可能性があります"
+    action={
+      <Link to="/shops">
+        <Button colorPalette="teal" size="lg">
+          店舗一覧に戻る
+        </Button>
+      </Link>
+    }
+  />
+);
 
 export const ShopDetailError = () => {
   return (

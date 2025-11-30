@@ -1,12 +1,13 @@
-import { Badge, Box, Button, Card, Flex, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Flex, HStack, Icon, Input, InputGroup, Spacer, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
+import { LuChevronRight, LuSearch, LuUser, LuUserPlus, LuUsers } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffAddModal } from "@/src/components/features/Shop/StaffAddModal";
+import { MemberAddModal } from "@/src/components/features/Shop/MemberAddModal";
 import { Animation } from "@/src/components/templates/Animation";
 import { useDialog } from "@/src/components/ui/Dialog";
+import { Empty } from "@/src/components/ui/Empty";
 import { Select } from "@/src/components/ui/Select";
 import { userAtom } from "@/src/stores/user";
 
@@ -23,13 +24,12 @@ type StaffType = {
 
 type StaffTabProps = {
   staffs: StaffType[];
-  canEdit: boolean;
   shopId: Id<"shops">;
 };
 
-export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
+export const StaffTab = ({ staffs, shopId }: StaffTabProps) => {
   const user = useAtomValue(userAtom);
-  const addDialog = useDialog();
+  const memberDialog = useDialog();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
 
@@ -49,14 +49,20 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
     return matchesSearch && matchesStatus;
   });
 
-  // ソート: マネージャー優先、次に作成日順（新しい順）
+  // ソート: 退職ステータス → マネージャー優先 → 作成日順（古い順）
   const sortedStaffs = filteredStaffs.toSorted((a, b) => {
+    // 退職済みを後ろに
+    const aResigned = a.status === "resigned";
+    const bResigned = b.status === "resigned";
+    if (aResigned !== bResigned) {
+      return aResigned ? 1 : -1;
+    }
     // マネージャーを先に
     if (a.isManager !== b.isManager) {
       return a.isManager ? -1 : 1;
     }
-    // 同じロールなら作成日順（新しい順）
-    return b.createdAt - a.createdAt;
+    // 同じロールなら作成日順（古い順）
+    return a.createdAt - b.createdAt;
   });
 
   return (
@@ -91,23 +97,23 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
           />
         </Flex>
 
-        {/* スタッフ追加ボタン */}
-        {canEdit && (
-          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} onClick={addDialog.open}>
-            <Icon as={LuPlus} boxSize={4} />
-            スタッフを追加
+        {/* メンバー追加ボタン */}
+        {
+          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} onClick={memberDialog.open}>
+            <Icon as={LuUserPlus} boxSize={4} />
+            メンバーを追加
           </Button>
-        )}
+        }
       </Box>
 
-      {/* スタッフ追加モーダル */}
+      {/* メンバー追加モーダル */}
       {user.authId && (
-        <StaffAddModal
+        <MemberAddModal
           shopId={shopId}
           authId={user.authId}
-          isOpen={addDialog.isOpen}
-          onOpenChange={addDialog.onOpenChange}
-          onClose={addDialog.close}
+          isOpen={memberDialog.isOpen}
+          onOpenChange={memberDialog.onOpenChange}
+          onClose={memberDialog.close}
           onSuccess={() => {}}
         />
       )}
@@ -154,10 +160,11 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
 
                         {/* スタッフ情報 */}
                         <Box flex={1} minW={0}>
-                          <Flex align="center" gap={2} flexWrap="wrap">
+                          <HStack gap={2} flexWrap="wrap">
                             <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
                               {staff.displayName}
                             </Text>
+                            <Spacer />
                             {/* ロールバッジ（マネージャーのみ表示） */}
                             {staff.isManager && (
                               <Badge colorPalette="purple" size="sm" flexShrink={0}>
@@ -175,7 +182,7 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
                                 退職済み
                               </Badge>
                             )}
-                          </Flex>
+                          </HStack>
                           {/* スキル表示 */}
                           {staff.skills.length > 0 && (
                             <Flex gap={1} mt={1} flexWrap="wrap">
@@ -200,14 +207,13 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
         </>
       ) : (
         <Card.Root borderWidth={0} shadow="sm">
-          <Card.Body p={8} textAlign="center">
-            <Box display="flex" justifyContent="center" mb={3}>
-              <Icon as={LuUsers} boxSize={12} color="gray.300" />
-            </Box>
-            <Text color="gray.500">該当するスタッフが見つかりませんでした</Text>
-            <Text fontSize="sm" color="gray.400" mt={1}>
-              検索条件を変更してください
-            </Text>
+          <Card.Body p={8}>
+            <Empty
+              icon={LuUsers}
+              title="該当するスタッフが見つかりませんでした"
+              description="検索条件を変更してください"
+              minH="auto"
+            />
           </Card.Body>
         </Card.Root>
       )}

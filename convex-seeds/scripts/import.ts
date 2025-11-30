@@ -2,13 +2,25 @@
 
 import { execSync } from "node:child_process";
 import { promises as fs } from "node:fs";
-import path from "node:path";
 
 const main = async () => {
   try {
     console.log("==========================================");
     console.log("Convexデータベースにシードデータをインポートします...");
     console.log("==========================================");
+
+    // 全テーブルをクリア
+    console.log("\n全テーブルのデータをクリア中...");
+    console.log("----------------------------------------");
+    try {
+      execSync("npx convex run testing:clearAllTables", {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      console.log("✅ 全テーブルのクリアが完了しました\n");
+    } catch {
+      console.log("⚠️ テーブルクリアをスキップしました（Convexが起動していない可能性があります）\n");
+    }
 
     console.log(`作業ディレクトリ: ${process.cwd()}`);
 
@@ -41,117 +53,41 @@ const main = async () => {
       process.exit(1);
     }
 
-    // seedsディレクトリの確認
-    const seedsDir = "./convex-seeds/seeds";
-    console.log("\nseedsディレクトリの確認...");
+    // db.zipの存在確認
+    const zipFile = "convex-seeds/seeds/db.zip";
+    console.log("\ndb.zipの確認...");
     console.log("----------------------------------------");
 
     try {
-      await fs.access(seedsDir);
-      console.log("✅ seedsディレクトリが見つかりました");
-
-      const files = await fs.readdir(seedsDir);
-      console.log("seedsディレクトリの内容:");
-      for (const file of files) {
-        const filePath = path.join(seedsDir, file);
-        const stat = await fs.stat(filePath);
-        const type = stat.isDirectory() ? "ディレクトリ" : "ファイル";
-        console.log(`  - ${file} (${type})`);
-      }
+      const stat = await fs.stat(zipFile);
+      console.log(`✅ db.zipが見つかりました (${stat.size} バイト)`);
     } catch {
-      console.log(`❌ seedsディレクトリが見つかりません: ${seedsDir}`);
-      try {
-        const currentFiles = await fs.readdir(".");
-        console.log("現在のディレクトリの内容:");
-        currentFiles.forEach((file) => {
-          console.log(`  - ${file}`);
-        });
-      } catch {
-        console.log("現在のディレクトリの内容を取得できません");
-      }
+      console.log(`❌ db.zipが見つかりません: ${zipFile}`);
       process.exit(1);
     }
 
-    // .jsonlファイルの確認
-    console.log("\n処理対象ファイルの確認...");
-    console.log("----------------------------------------");
-
-    const files = await fs.readdir(seedsDir);
-    const jsonlFiles = files.filter((file) => file.endsWith(".jsonl") && file !== "empty.jsonl");
-
-    if (jsonlFiles.length === 0) {
-      console.log("❌ インポートするJSONLファイルが見つかりません");
-      process.exit(1);
-    }
-
-    for (const file of jsonlFiles) {
-      const tableName = file.replace(".jsonl", "");
-      console.log(`  - ${file} -> ${tableName} テーブル`);
-    }
-
+    // Convexインポートコマンドを実行
     console.log("\nインポートを開始します...");
     console.log("==========================================");
 
-    // ファイルを処理
-    for (const file of jsonlFiles) {
-      const filePath = path.join(seedsDir, file);
-      const tableName = file.replace(".jsonl", "");
+    const command = `npx convex import --replace-all ${zipFile} --yes`;
+    console.log(`実行コマンド: ${command}\n`);
 
-      console.log("\n==================================================");
-      console.log(`インポート中: ${file} -> テーブル: ${tableName}`);
-      console.log(`ファイルパス: ${filePath}`);
-      console.log("==================================================");
-
-      // ファイルサイズとプレビューを表示
-      try {
-        const stat = await fs.stat(filePath);
-        console.log(`ファイルサイズ: ${stat.size} バイト`);
-
-        const content = await fs.readFile(filePath, "utf8");
-        const lines = content.split("\n").slice(0, 3);
-        console.log("ファイルの最初の3行:");
-        lines.forEach((line, index) => {
-          if (line.trim()) console.log(`  ${index + 1}: ${line}`);
-        });
-        console.log("----------------------------------------");
-      } catch {
-        console.log("ファイルの読み取りに失敗");
+    try {
+      execSync(command, {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      console.log("\n✅ インポートが完了しました");
+    } catch (error) {
+      console.log("\n❌ インポートでエラーが発生しました");
+      if (error instanceof Error) {
+        console.log(`  - エラー: ${error.message}`);
       }
-
-      // Convexインポートコマンドを実行
-      const command = `npx convex import --table "${tableName}" --replace "${filePath}" --yes`;
-      console.log(`実行コマンド: ${command}`);
-      console.log("");
-
-      try {
-        execSync(command, {
-          stdio: "inherit",
-          cwd: process.cwd(),
-        });
-        console.log(`\n✅ ${tableName} テーブルのインポートが完了しました`);
-        // biome-ignore lint/suspicious/noExplicitAny: temp
-      } catch (error: any) {
-        console.log(`\n❌ ${tableName} テーブルのインポートでエラーが発生しました`);
-        console.log("\n🔍 デバッグ情報:");
-        console.log(`  - PWD: ${process.cwd()}`);
-        console.log(`  - ファイル存在確認: ${filePath}`);
-        try {
-          await fs.access(filePath);
-          console.log("  - ファイルは存在します");
-        } catch {
-          console.log("  - ファイルが見つかりません");
-        }
-
-        // エラー詳細
-        if (error.message) {
-          console.log(`  - エラー: ${error.message}`);
-        }
-      }
-
-      console.log("");
+      process.exit(1);
     }
 
-    console.log("==========================================");
+    console.log("\n==========================================");
     console.log("全ての処理が完了しました！");
     console.log("==========================================");
   } catch (error) {

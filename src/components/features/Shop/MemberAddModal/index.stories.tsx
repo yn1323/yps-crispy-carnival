@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffAddModal } from ".";
+import { MemberAddModal } from ".";
 
 const meta = {
-  title: "Features/Shop/StaffAddModal",
-  component: StaffAddModal,
+  title: "Features/Shop/MemberAddModal",
+  component: MemberAddModal,
   parameters: {
     layout: "centered",
   },
-} satisfies Meta<typeof StaffAddModal>;
+} satisfies Meta<typeof MemberAddModal>;
 
 export default meta;
 

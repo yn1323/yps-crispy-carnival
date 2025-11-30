@@ -43,13 +43,5 @@ export const StaffEditPage = ({ shopId, staffId }: Props) => {
     return <StaffEditNotFound shopId={shopId} />;
   }
 
-  // オーナー判定
-  const isOwner = shop.createdBy === user.authId;
-
-  // オーナーでない場合は編集不可
-  if (!isOwner) {
-    return <StaffEditNotFound shopId={shopId} />;
-  }
-
   return <StaffEdit staff={staff} shop={shop} />;
 };

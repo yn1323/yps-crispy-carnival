@@ -70,20 +70,11 @@ const mockStaffs = [
 export const Basic: Story = {
   args: {
     staffs: mockStaffs,
-    canEdit: true,
   },
 };
 
 export const Empty: Story = {
   args: {
     staffs: [],
-    canEdit: true,
-  },
-};
-
-export const ReadOnly: Story = {
-  args: {
-    staffs: mockStaffs,
-    canEdit: false,
   },
 };
