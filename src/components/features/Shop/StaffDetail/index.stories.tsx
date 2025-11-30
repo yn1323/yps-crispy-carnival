@@ -32,7 +32,6 @@ const meta = {
   args: {
     shop: mockShop,
     staff: mockStaff,
-    isOwner: true,
   },
 } satisfies Meta<typeof StaffDetail>;
 
@@ -40,12 +39,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {};
-
-export const AsNonOwner: Story = {
-  args: {
-    isOwner: false,
-  },
-};
 
 export const AsManager: Story = {
   args: {

@@ -18,7 +18,6 @@ const meta = {
   component: InfoTab,
   args: {
     staff: mockStaff,
-    isOwner: true,
   },
 } satisfies Meta<typeof InfoTab>;
 
@@ -26,9 +25,3 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {};
-
-export const AsNonOwner: Story = {
-  args: {
-    isOwner: false,
-  },
-};

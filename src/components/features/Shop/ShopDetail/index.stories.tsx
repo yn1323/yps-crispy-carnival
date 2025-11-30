@@ -55,7 +55,6 @@ const meta = {
         isManager: false,
       },
     ],
-    isOwner: true,
   },
 } satisfies Meta<typeof ShopDetail>;
 
@@ -63,16 +62,9 @@ export default meta;
 
 export const Basic: StoryObj<typeof meta> = {};
 
-export const AsNonOwner: StoryObj<typeof meta> = {
-  args: {
-    isOwner: false,
-  },
-};
-
 export const Loading: StoryObj<typeof meta> = {
   args: {
     staffs: [],
-    isOwner: false,
   },
   render: () => <ShopDetailLoading />,
 };
@@ -80,7 +72,6 @@ export const Loading: StoryObj<typeof meta> = {
 export const NotFound: StoryObj<typeof meta> = {
   args: {
     staffs: [],
-    isOwner: false,
   },
   render: () => <ShopDetailNotFound />,
 };
@@ -88,7 +79,6 @@ export const NotFound: StoryObj<typeof meta> = {
 export const ErrorPattern: StoryObj<typeof meta> = {
   args: {
     staffs: [],
-    isOwner: false,
   },
   render: () => <ShopDetailError />,
 };

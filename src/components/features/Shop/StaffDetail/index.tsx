@@ -17,6 +17,7 @@ import {
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LuCalendar, LuClock, LuMail, LuPencil, LuStore, LuTrendingUp, LuUser } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Empty } from "@/src/components/ui/Empty";
 import { Title } from "@/src/components/ui/Title";
 import { InfoTab } from "./TabContents/InfoTab";
 import { ShiftsTab } from "./TabContents/ShiftsTab";
@@ -323,18 +324,16 @@ type StaffDetailNotFoundProps = {
   shopId: string;
 };
 
-export const StaffDetailNotFound = ({ shopId }: StaffDetailNotFoundProps) => {
-  return (
-    <Container maxW="6xl" py={6}>
-      <VStack align="center" gap={4} py={12}>
-        <Icon as={LuUser} boxSize={16} color="gray.300" />
-        <Text fontSize="lg" color="gray.500">
-          スタッフが見つかりませんでした
-        </Text>
+export const StaffDetailNotFound = ({ shopId }: StaffDetailNotFoundProps) => (
+  <Container maxW="6xl" py={6}>
+    <Empty
+      icon={LuUser}
+      title="スタッフが見つかりませんでした"
+      action={
         <Link to="/shops/$shopId" params={{ shopId }} search={{ tab: "staff" }}>
           <Button colorPalette="teal">スタッフ一覧に戻る</Button>
         </Link>
-      </VStack>
-    </Container>
-  );
-};
+      }
+    />
+  </Container>
+);

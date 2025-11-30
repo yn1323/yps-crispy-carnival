@@ -7,6 +7,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { MemberAddModal } from "@/src/components/features/Shop/MemberAddModal";
 import { Animation } from "@/src/components/templates/Animation";
 import { useDialog } from "@/src/components/ui/Dialog";
+import { Empty } from "@/src/components/ui/Empty";
 import { Select } from "@/src/components/ui/Select";
 import { userAtom } from "@/src/stores/user";
 
@@ -206,14 +207,13 @@ export const StaffTab = ({ staffs, shopId }: StaffTabProps) => {
         </>
       ) : (
         <Card.Root borderWidth={0} shadow="sm">
-          <Card.Body p={8} textAlign="center">
-            <Box display="flex" justifyContent="center" mb={3}>
-              <Icon as={LuUsers} boxSize={12} color="gray.300" />
-            </Box>
-            <Text color="gray.500">該当するスタッフが見つかりませんでした</Text>
-            <Text fontSize="sm" color="gray.400" mt={1}>
-              検索条件を変更してください
-            </Text>
+          <Card.Body p={8}>
+            <Empty
+              icon={LuUsers}
+              title="該当するスタッフが見つかりませんでした"
+              description="検索条件を変更してください"
+              minH="auto"
+            />
           </Card.Body>
         </Card.Root>
       )}
