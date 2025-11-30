@@ -43,8 +43,5 @@ export const StaffDetailPage = ({ shopId, staffId }: Props) => {
     return <StaffDetailNotFound shopId={shopId} />;
   }
 
-  // オーナー判定
-  const isOwner = shop.createdBy === user.authId;
-
-  return <StaffDetail staff={staff} shop={shop} isOwner={isOwner} />;
+  return <StaffDetail staff={staff} shop={shop} />;
 };

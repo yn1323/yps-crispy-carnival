@@ -20,9 +20,10 @@ test.describe("マネージャー招待作成", () => {
   test("招待リンクを作成できること", async ({ page }) => {
     await openManagerInviteModal(page);
 
-    // 名前を入力
+    // 名前とメールアドレスを入力
     const managerName = `招待テスト_${Date.now()}`;
     await page.getByLabel("名前").fill(managerName);
+    await page.getByLabel("メールアドレス").fill(`create-test-${Date.now()}@example.com`);
 
     // 招待リンクを作成
     await page.getByRole("button", { name: "招待リンクを作成" }).click();
@@ -38,9 +39,10 @@ test.describe("マネージャー招待作成", () => {
   test("招待リンクを作成してtmpに保存（サブユーザーテスト用）", async ({ page }) => {
     await openManagerInviteModal(page);
 
-    // 名前を入力
+    // 名前とメールアドレスを入力
     const managerName = `E2E招待テスト_${Date.now()}`;
     await page.getByLabel("名前").fill(managerName);
+    await page.getByLabel("メールアドレス").fill(`e2e-invite-${Date.now()}@example.com`);
 
     // 招待リンクを作成
     await page.getByRole("button", { name: "招待リンクを作成" }).click();

@@ -30,7 +30,6 @@ export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
-  const canEdit = isOwner;
 
   const handleTabChange = (value: string) => {
     navigate({
@@ -47,18 +46,16 @@ export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
       <Title
         prev={{ url: "/shops", label: "店舗一覧に戻る" }}
         action={
-          canEdit ? (
-            <Button
-              onClick={() => {
-                navigate({ to: "/shops/$shopId/edit", params: { shopId: shop._id } });
-              }}
-              colorPalette="teal"
-              gap={2}
-            >
-              <Icon as={LuPencil} boxSize={4} />
-              <Text display={{ base: "none", md: "inline" }}>編集</Text>
-            </Button>
-          ) : null
+          <Button
+            onClick={() => {
+              navigate({ to: "/shops/$shopId/edit", params: { shopId: shop._id } });
+            }}
+            colorPalette="teal"
+            gap={2}
+          >
+            <Icon as={LuPencil} boxSize={4} />
+            <Text display={{ base: "none", md: "inline" }}>編集</Text>
+          </Button>
         }
       >
         <Flex align="center" justify="space-between">
@@ -93,7 +90,7 @@ export const ShopDetail = ({ shop, staffs, isOwner }: ShopDetailProps) => {
 
         {/* スタッフタブ */}
         <Tabs.Content value="staff">
-          <StaffTab staffs={staffs} canEdit={canEdit} shopId={shop._id} />
+          <StaffTab staffs={staffs} shopId={shop._id} />
         </Tabs.Content>
       </Tabs.Root>
     </Container>

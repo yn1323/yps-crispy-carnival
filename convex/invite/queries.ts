@@ -7,7 +7,7 @@
  */
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import { getStaffByInviteToken, requireShopOwnerOrManager } from "../helpers";
+import { getStaffByInviteToken } from "../helpers";
 
 // トークンで招待情報を取得（公開API - 最小限の情報のみ返却）
 export const getByToken = query({
@@ -51,15 +51,13 @@ export const getByToken = query({
   },
 });
 
-// 店舗の招待一覧を取得（オーナー/マネージャーのみ）
+// 店舗の招待一覧を取得
 export const listByShopId = query({
   args: {
     shopId: v.id("shops"),
     authId: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireShopOwnerOrManager(ctx, args.shopId, args.authId);
-
     // pending状態の招待を取得
     const invitations = await ctx.db
       .query("staffs")
@@ -86,6 +84,7 @@ export const listByShopId = query({
         return {
           staffId: inv._id,
           displayName: inv.displayName,
+          email: inv.email,
           role: inv.role,
           inviteToken: inv.inviteToken,
           expiresAt: inv.inviteExpiresAt,

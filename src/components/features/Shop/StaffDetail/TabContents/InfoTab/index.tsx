@@ -13,10 +13,9 @@ type StaffType = {
 
 type InfoTabProps = {
   staff: StaffType;
-  isOwner: boolean;
 };
 
-export const InfoTab = ({ staff, isOwner }: InfoTabProps) => {
+export const InfoTab = ({ staff }: InfoTabProps) => {
   return (
     <Animation>
       {/* 基本情報カード */}
@@ -59,7 +58,7 @@ export const InfoTab = ({ staff, isOwner }: InfoTabProps) => {
             )}
 
             {/* 時給（オーナーのみ表示） */}
-            {isOwner && staff.hourlyWage && (
+            {staff.hourlyWage && (
               <Flex align="center" gap={3}>
                 <Icon as={LuWallet} boxSize={5} color="gray.500" />
                 <Text fontWeight="medium">時給</Text>
@@ -73,7 +72,7 @@ export const InfoTab = ({ staff, isOwner }: InfoTabProps) => {
       </Card.Root>
 
       {/* メモカード（オーナーのみ表示） */}
-      {isOwner && (staff.memo || staff.workStyleNote) && (
+      {(staff.memo || staff.workStyleNote) && (
         <Card.Root borderWidth={0} shadow="sm">
           <Card.Header>
             <HStack>

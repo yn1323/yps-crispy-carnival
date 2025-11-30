@@ -9,14 +9,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
 import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT } from "../constants";
-import {
-  getStaff,
-  getStaffByEmail,
-  isValidTimeFormat,
-  requireShop,
-  requireShopOwner,
-  requireUserByAuthId,
-} from "../helpers";
+import { getStaff, getStaffByEmail, isValidTimeFormat, requireShop, requireUserByAuthId } from "../helpers";
 
 // 店舗作成
 export const create = mutation({
@@ -102,7 +95,6 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     await requireShop(ctx, args.shopId);
-    await requireShopOwner(ctx, args.shopId, args.authId);
 
     const fieldsToUpdate: Partial<{
       shopName: string;
@@ -138,7 +130,6 @@ export const remove = mutation({
   },
   handler: async (ctx, args) => {
     await requireShop(ctx, args.shopId);
-    await requireShopOwner(ctx, args.shopId, args.authId);
 
     await ctx.db.patch(args.shopId, { isDeleted: true });
 
@@ -165,7 +156,6 @@ export const addStaff = mutation({
   },
   handler: async (ctx, args) => {
     await requireShop(ctx, args.shopId);
-    await requireShopOwner(ctx, args.shopId, args.authId);
 
     const trimmedEmail = args.email.trim().toLowerCase();
     const trimmedDisplayName = args.displayName.trim();
@@ -209,7 +199,6 @@ export const resignStaff = mutation({
   },
   handler: async (ctx, args) => {
     await requireShop(ctx, args.shopId);
-    await requireShopOwner(ctx, args.shopId, args.authId);
 
     const staff = await getStaff(ctx, args.staffId);
     if (!staff || staff.shopId !== args.shopId) {
@@ -252,8 +241,6 @@ export const updateStaffInfo = mutation({
     hourlyWage: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
-    await requireShopOwner(ctx, args.shopId, args.authId);
-
     const staff = await getStaff(ctx, args.staffId);
     if (!staff || staff.shopId !== args.shopId) {
       throw new ConvexError({ message: "スタッフが見つかりません", code: "STAFF_NOT_FOUND" });

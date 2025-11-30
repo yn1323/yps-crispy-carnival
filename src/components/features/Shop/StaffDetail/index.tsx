@@ -15,7 +15,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { LuCalendar, LuClock, LuPencil, LuStore, LuTrendingUp, LuUser } from "react-icons/lu";
+import { LuCalendar, LuClock, LuMail, LuPencil, LuStore, LuTrendingUp, LuUser } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Title } from "@/src/components/ui/Title";
 import { InfoTab } from "./TabContents/InfoTab";
@@ -34,6 +34,7 @@ type StaffType = {
   resignedAt: number | undefined;
   resignationReason: string | undefined;
   createdAt: number;
+  isManager: boolean;
 };
 
 type ShopType = {
@@ -44,12 +45,11 @@ type ShopType = {
 type StaffDetailProps = {
   staff: StaffType;
   shop: ShopType;
-  isOwner: boolean;
 };
 
 export const StaffDetailTabTypes = ["info", "shifts"] as const;
 
-export const StaffDetail = ({ staff, shop, isOwner }: StaffDetailProps) => {
+export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
   const navigate = useNavigate();
   const search = useSearch({ strict: false });
   const currentTab = search.tab || "info";
@@ -67,11 +67,7 @@ export const StaffDetail = ({ staff, shop, isOwner }: StaffDetailProps) => {
   const statusBadge = () => {
     switch (staff.status) {
       case "active":
-        return (
-          <Badge colorPalette="green" size="lg">
-            在籍中
-          </Badge>
-        );
+        return null;
       case "pending":
         return (
           <Badge colorPalette="orange" size="lg">
@@ -111,7 +107,7 @@ export const StaffDetail = ({ staff, shop, isOwner }: StaffDetailProps) => {
       <Title
         prev={{ url: `/shops/${shop._id}?tab=staff`, label: "スタッフ一覧に戻る" }}
         action={
-          isOwner ? (
+          <Flex gap={2}>
             <Button
               onClick={() => {
                 navigate({
@@ -125,7 +121,13 @@ export const StaffDetail = ({ staff, shop, isOwner }: StaffDetailProps) => {
               <Icon as={LuPencil} boxSize={4} />
               <Text display={{ base: "none", md: "inline" }}>編集</Text>
             </Button>
-          ) : undefined
+            {staff.status === "pending" && (
+              <Button colorPalette="orange" gap={2}>
+                <Icon as={LuMail} boxSize={4} />
+                <Text display={{ base: "none", md: "inline" }}>招待メールを再送</Text>
+              </Button>
+            )}
+          </Flex>
         }
       >
         <Flex align="center" gap={4}>
@@ -153,6 +155,11 @@ export const StaffDetail = ({ staff, shop, isOwner }: StaffDetailProps) => {
                 {staff.displayName}
               </Heading>
               {statusBadge()}
+              {staff.isManager && (
+                <Badge colorPalette="purple" size="lg">
+                  マネージャー
+                </Badge>
+              )}
             </Flex>
             <Flex align="center" gap={2} fontSize="sm" color="gray.600">
               <Icon as={LuCalendar} boxSize={4} />
@@ -267,7 +274,7 @@ export const StaffDetail = ({ staff, shop, isOwner }: StaffDetailProps) => {
 
         {/* 基本情報タブ */}
         <Tabs.Content value="info">
-          <InfoTab staff={staff} isOwner={isOwner} />
+          <InfoTab staff={staff} />
         </Tabs.Content>
 
         {/* シフト履歴タブ（固定データ） */}

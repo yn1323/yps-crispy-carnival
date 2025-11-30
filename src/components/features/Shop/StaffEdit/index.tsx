@@ -394,7 +394,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
       </form>
 
       {/* 退職処理（在籍中の場合のみ表示） */}
-      {staff.status === "active" && (
+      {
         <Card.Root mt={6} borderColor="red.200">
           <Card.Header>
             <Flex align="center" gap={2}>
@@ -473,7 +473,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
             </Dialog>
           </Card.Body>
         </Card.Root>
-      )}
+      }
     </Container>
   );
 };

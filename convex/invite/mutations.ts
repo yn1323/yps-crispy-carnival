@@ -8,31 +8,29 @@
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
 import { INVITE_EXPIRY_MS, STAFF_ROLES } from "../constants";
-import {
-  generateToken,
-  getStaff,
-  getStaffByInviteToken,
-  getUserByAuthId,
-  requireShop,
-  requireShopOwnerOrManager,
-} from "../helpers";
+import { generateToken, getStaff, getStaffByInviteToken, getUserByAuthId, requireShop } from "../helpers";
 
 // 招待作成
 export const create = mutation({
   args: {
     shopId: v.id("shops"),
     displayName: v.string(),
+    email: v.string(),
     role: v.string(), // "owner" | "manager" | "general"
     authId: v.string(),
   },
   handler: async (ctx, args) => {
     const shop = await requireShop(ctx, args.shopId);
-    await requireShopOwnerOrManager(ctx, args.shopId, args.authId);
 
     const trimmedDisplayName = args.displayName.trim();
+    const trimmedEmail = args.email.trim().toLowerCase();
 
     if (!trimmedDisplayName) {
       throw new ConvexError({ message: "表示名は必須です", code: "EMPTY_DISPLAY_NAME" });
+    }
+
+    if (!trimmedEmail) {
+      throw new ConvexError({ message: "メールアドレスは必須です", code: "EMPTY_EMAIL" });
     }
 
     if (!STAFF_ROLES.includes(args.role as (typeof STAFF_ROLES)[number])) {
@@ -46,7 +44,7 @@ export const create = mutation({
     // スタッフレコード作成（招待状態）
     const staffId = await ctx.db.insert("staffs", {
       shopId: args.shopId,
-      email: "", // 招待受け入れ時に設定
+      email: trimmedEmail,
       displayName: trimmedDisplayName,
       status: "pending",
       role: args.role,
@@ -104,11 +102,23 @@ export const accept = mutation({
       throw new ConvexError({ message: "この招待はキャンセルされました", code: "INVITATION_CANCELLED" });
     }
 
-    // ユーザー情報を取得
-    const user = await getUserByAuthId(ctx, args.authId);
+    // ユーザー情報を取得（存在しない場合は招待情報で自動作成）
+    let user = await getUserByAuthId(ctx, args.authId);
 
     if (!user) {
-      throw new ConvexError({ message: "ユーザーが見つかりません", code: "USER_NOT_FOUND" });
+      const userId = await ctx.db.insert("users", {
+        name: staff.displayName,
+        email: staff.email,
+        authId: args.authId,
+        status: "active",
+        createdAt: Date.now(),
+        isDeleted: false,
+      });
+      const newUser = await ctx.db.get(userId);
+      if (!newUser) {
+        throw new ConvexError({ message: "ユーザーの作成に失敗しました", code: "USER_CREATION_FAILED" });
+      }
+      user = newUser;
     }
 
     // 店舗情報を取得
@@ -150,8 +160,6 @@ export const cancel = mutation({
       throw new ConvexError({ message: "招待が見つかりません", code: "INVITATION_NOT_FOUND" });
     }
 
-    await requireShopOwnerOrManager(ctx, staff.shopId, args.authId);
-
     // pending状態のみキャンセル可能
     if (staff.status !== "pending") {
       throw new ConvexError({ message: "この招待はキャンセルできません", code: "CANNOT_CANCEL" });
@@ -182,7 +190,6 @@ export const resend = mutation({
     }
 
     const shop = await requireShop(ctx, staff.shopId);
-    await requireShopOwnerOrManager(ctx, staff.shopId, args.authId);
 
     // pending状態のみ再送可能
     if (staff.status !== "pending") {
