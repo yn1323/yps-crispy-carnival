@@ -1,65 +1,60 @@
 ---
 name: e2e-execution
-description: Claude Code Web/DesktopでE2Eテストを実行する手順。GitHub Actionsと同じフローでローカル環境からPlaywrightテストを実行する方法。環境変数読み込み、DBリセット、テスト実行の手順を含む。
+description: Claude Code Web/DesktopでE2Eテストを実行する手順。リモートConvexに接続してPlaywrightテストを実行する方法。
 ---
 
-# Claude Code Web(Claude Code Desktop)のE2E実行
+# 重要
+- 色々書いてますが現状プロキシでconvexがブロックされているので実行不可！！
 
-GitHub Actionsと同じフローでローカル環境からE2Eテストを実行する手順です。
+<!-- # Claude Code Web(Claude Code Desktop)のE2E実行
 
-## 前提条件
-- `.env.ci`ファイルがシンボリックリンクで設定済み
-- 必要な環境変数が`.env.ci`に含まれている:
-  - `VITE_CLERK_PUBLISHABLE_KEY`
-  - `CLERK_SECRET_KEY`
-  - `E2E_CLERK_USER` / `E2E_CLERK_PASSWORD`
-  - `E2E_CLERK_USER_B` / `E2E_CLERK_PASSWORD_B`（User Bテスト用）
-  - `CONVEX_DEPLOY_KEY`
+リモートConvexに接続してE2Eテストを実行する手順です。
 
 ## 実行手順
 
-### 1. 環境変数の読み込み
+### 1. pnpm install
 ```bash
-# .env.ciの環境変数を現在のシェルに読み込む
-export $(grep -v '^#' .env.ci | xargs)
+pnpm install --frozen-lockfile
 ```
 
-### 2. DBのリセット（テストデータ投入）
+### 2. 環境変数を.envに書き込む
+以下の環境変数を`.env`ファイルに追加（未設定の場合）：
 ```bash
-# Convex開発サーバーを起動してデータをリセット
+# Convex
+echo "CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY" >> .env
+
+# Clerk
+echo "VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY" >> .env
+echo "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" >> .env
+
+# E2Eテスト用ユーザー
+echo "E2E_CLERK_USER=$E2E_CLERK_USER" >> .env
+echo "E2E_CLERK_PASSWORD=$E2E_CLERK_PASSWORD" >> .env
+echo "E2E_CLERK_USER_B=$E2E_CLERK_USER_B" >> .env
+echo "E2E_CLERK_PASSWORD_B=$E2E_CLERK_PASSWORD_B" >> .env
+```
+
+### 3. Convex開発サーバーの起動
+```bash
 npx convex dev &
-sleep 5
+```
+
+### 4. DBのリセット（テストデータ投入）
+```bash
 pnpm convex:import
-kill %1
 ```
 
-### 3. E2Eテストの実行
+### 5. アプリケーションの起動
 ```bash
-# Convex開発サーバーを起動してテスト実行
-npx convex dev &
-sleep 10
+pnpm dev &
+```
+
+### 6. E2Eテストの実行
+```bash
 pnpm e2e
-kill %1
-```
-
-### 簡易コマンド（一括実行）
-```bash
-# 環境変数読み込み → DBリセット → E2Eテスト実行
-export $(grep -v '^#' .env.ci | xargs) && \
-npx convex dev & sleep 5 && pnpm convex:import && kill %1 && \
-npx convex dev & sleep 10 && pnpm e2e && kill %1
-```
-
-## UIモードでの実行（デバッグ用）
-```bash
-export $(grep -v '^#' .env.ci | xargs)
-npx convex dev &
-sleep 15
-pnpm e2e:ui
-# 終了後: kill %1
 ```
 
 ## 注意事項
-- E2EテストはリモートのPreview環境DBに接続します
 - テスト実行前に`pnpm convex:import`でDBをリセットすることを推奨
-- `playwright.config.ts`で`reuseExistingServer`が設定されているため、別ターミナルで`pnpm dev`を起動しておくと効率的です
+- AIが制御する場合、sleepやkillは不要（起動完了を確認してから次のステップへ進む）
+- 手順2は初回のみ実行（`.env`に既に設定されていればスキップ可能） -->
