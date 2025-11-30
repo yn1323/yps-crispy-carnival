@@ -175,3 +175,6 @@
    - 主にレイアウト、ドメインロジックを持つ
    - useMutationの定義
    - index.tsx内に正常系、エラー、ローディングのコンポーネントを持ち、これらは適宜src/components/pagesで呼び出される
+
+## Claude Code Web(Claude Code Desktop)のE2E実行
+- スキル `e2e-execution` を参照（`.claude/skills/e2e-execution/SKILL.md`）
