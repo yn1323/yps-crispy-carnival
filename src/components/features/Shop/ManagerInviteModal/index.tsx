@@ -2,12 +2,11 @@ import { Box, Field, HStack, IconButton, Input, Text, VStack } from "@chakra-ui/
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { LuCheck, LuCopy } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { Select } from "@/src/components/ui/Select";
 import { toaster } from "@/src/components/ui/toaster";
 import { type ManagerInviteFormValues, managerInviteSchema } from "./schema";
 
@@ -19,11 +18,6 @@ type ManagerInviteModalProps = {
   onClose: () => void;
   onSuccess: () => void;
 };
-
-const roleOptions = [
-  { value: "manager", label: "マネージャー" },
-  { value: "general", label: "スタッフ" },
-];
 
 export const ManagerInviteModal = ({
   shopId,
@@ -40,14 +34,12 @@ export const ManagerInviteModal = ({
   const {
     register,
     handleSubmit,
-    control,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ManagerInviteFormValues>({
     resolver: zodResolver(managerInviteSchema),
     defaultValues: {
       displayName: "",
-      role: "manager",
     },
   });
 
@@ -57,7 +49,7 @@ export const ManagerInviteModal = ({
         shopId,
         authId,
         displayName: data.displayName,
-        role: data.role,
+        role: "manager",
       });
 
       if (result.success) {
@@ -144,23 +136,6 @@ export const ManagerInviteModal = ({
           <Field.Label>名前</Field.Label>
           <Input {...register("displayName")} placeholder="山田 太郎" />
           <Field.ErrorText>{errors.displayName?.message}</Field.ErrorText>
-        </Field.Root>
-
-        <Field.Root invalid={!!errors.role}>
-          <Controller
-            name="role"
-            control={control}
-            render={({ field }) => (
-              <Select
-                label="ロール"
-                items={roleOptions}
-                value={field.value}
-                onChange={field.onChange}
-                invalid={!!errors.role}
-              />
-            )}
-          />
-          <Field.ErrorText>{errors.role?.message}</Field.ErrorText>
         </Field.Root>
       </VStack>
     </Dialog>
