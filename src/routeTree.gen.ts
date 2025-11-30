@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
 import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
@@ -37,6 +38,11 @@ const AuthRoute = AuthRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnregisteredWelcomeRoute = UnregisteredWelcomeRouteImport.update({
@@ -113,6 +119,7 @@ const AuthShopsShopIdStaffsStaffIdEditRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/mypage': typeof AuthMypageRoute
   '/shifts': typeof AuthShiftsRoute
   '/welcome': typeof UnregisteredWelcomeRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/mypage': typeof AuthMypageRoute
   '/shifts': typeof AuthShiftsRoute
   '/welcome': typeof UnregisteredWelcomeRoute
@@ -146,6 +154,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
   '/_auth/mypage': typeof AuthMypageRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/invite'
     | '/mypage'
     | '/shifts'
     | '/welcome'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/invite'
     | '/mypage'
     | '/shifts'
     | '/welcome'
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/invite'
     | '/_auth'
     | '/_unregistered'
     | '/_auth/mypage'
@@ -217,6 +229,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  InviteRoute: typeof InviteRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
 }
@@ -242,6 +255,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_unregistered/welcome': {
@@ -385,6 +405,7 @@ const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  InviteRoute: InviteRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
 }

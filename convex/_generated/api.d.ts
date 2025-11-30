@@ -10,6 +10,8 @@
 
 import type * as constants from "../constants.js";
 import type * as helpers from "../helpers.js";
+import type * as invite_mutations from "../invite/mutations.js";
+import type * as invite_queries from "../invite/queries.js";
 import type * as shop_mutations from "../shop/mutations.js";
 import type * as shop_queries from "../shop/queries.js";
 import type * as user_mutations from "../user/mutations.js";
@@ -24,6 +26,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   constants: typeof constants;
   helpers: typeof helpers;
+  "invite/mutations": typeof invite_mutations;
+  "invite/queries": typeof invite_queries;
   "shop/mutations": typeof shop_mutations;
   "shop/queries": typeof shop_queries;
   "user/mutations": typeof user_mutations;
