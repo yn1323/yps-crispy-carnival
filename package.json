@@ -48,7 +48,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.8",
     "@clerk/testing": "1.13.19",
-    "@playwright/test": "1.56.1",
+    "@playwright/test": "1.57.0",
     "@storybook/addon-docs": "9.1.16",
     "@storybook/addon-vitest": "9.1.16",
     "@storybook/react-vite": "9.1.16",
@@ -66,7 +66,7 @@
     "chromatic": "13.3.4",
     "dotenv": "17.2.3",
     "jsdom": "27.2.0",
-    "playwright": "1.56.1",
+    "playwright": "1.57.0",
     "scaffdog": "4.1.0",
     "storybook": "9.1.16",
     "tsx": "4.20.6",
