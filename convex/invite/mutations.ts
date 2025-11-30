@@ -8,7 +8,14 @@
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
 import { INVITE_EXPIRY_MS, STAFF_ROLES } from "../constants";
-import { generateToken, getStaff, getStaffByInviteToken, getUserByAuthId, requireShop } from "../helpers";
+import {
+  generateToken,
+  getStaff,
+  getStaffByEmail,
+  getStaffByInviteToken,
+  getUserByAuthId,
+  requireShop,
+} from "../helpers";
 
 // 招待作成
 export const create = mutation({
@@ -35,6 +42,21 @@ export const create = mutation({
 
     if (!STAFF_ROLES.includes(args.role as (typeof STAFF_ROLES)[number])) {
       throw new ConvexError({ message: "無効なロールです", code: "INVALID_ROLE" });
+    }
+
+    // 重複メールチェック
+    const existingStaff = await getStaffByEmail(ctx, args.shopId, trimmedEmail);
+    if (existingStaff && existingStaff.status === "active") {
+      throw new ConvexError({
+        message: "このメールアドレスは既に登録されています",
+        code: "EMAIL_ALREADY_EXISTS",
+      });
+    }
+    if (existingStaff && existingStaff.status === "pending") {
+      throw new ConvexError({
+        message: "このメールアドレスは既に招待中です",
+        code: "EMAIL_ALREADY_INVITED",
+      });
     }
 
     // トークン生成

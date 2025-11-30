@@ -78,7 +78,11 @@ export const goToStaffEditFromDetail = async (page: Page) => {
 export const openManagerInviteModal = async (page: Page) => {
   await openMemberAddModal(page);
   // マネージャーのラジオカードを選択
-  await page.getByRole("radio", { name: /マネージャー/ }).click();
+  await page
+    .locator("div")
+    .filter({ hasText: /^マネージャーログインして店舗運営に参加シフト作成・スタッフ管理ができます$/ })
+    .first()
+    .click();
 };
 
 /**

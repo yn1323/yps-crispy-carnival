@@ -1,6 +1,7 @@
 import { Field, Input, RadioCard, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { Controller, useForm } from "react-hook-form";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -86,9 +87,13 @@ export const MemberAddModal = ({ shopId, authId, isOpen, onOpenChange, onClose, 
       onSuccess();
       handleClose();
     } catch (error) {
+      if (error instanceof ConvexError) {
+        const convexError = error.data as { message: string; code: string };
+        toaster.error({ title: convexError.message });
+        return;
+      }
       toaster.error({
         title: data.role === "staff" ? "スタッフの追加に失敗しました" : "招待の作成に失敗しました",
-        description: error instanceof Error ? error.message : "エラーが発生しました",
       });
     }
   };

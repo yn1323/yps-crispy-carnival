@@ -72,6 +72,8 @@ export const create = mutation({
       invitedBy: trimmedAuthId,
       createdAt: Date.now(),
       isDeleted: false,
+      role: "manager",
+      userId: user._id,
     });
 
     return {
