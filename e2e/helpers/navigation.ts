@@ -61,3 +61,11 @@ export const goToStaffDetail = async (page: Page) => {
 export const goToStaffEditFromDetail = async (page: Page) => {
   await page.getByRole("button", { name: "編集" }).click();
 };
+
+/**
+ * マネージャー招待モーダルを開く
+ */
+export const openManagerInviteModal = async (page: Page) => {
+  await page.getByRole("button", { name: "マネージャーを招待" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+};
