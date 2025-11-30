@@ -8,8 +8,7 @@ description: Claude Code Web/DesktopでE2Eテストを実行する手順。GitHu
 GitHub Actionsと同じフローでローカル環境からE2Eテストを実行する手順です。
 
 ## 前提条件
-- `.env.ci`ファイルがシンボリックリンクで設定済み
-- 必要な環境変数が`.env.ci`に含まれている:
+- 必要な環境変数がある:
   - `VITE_CLERK_PUBLISHABLE_KEY`
   - `CLERK_SECRET_KEY`
   - `E2E_CLERK_USER` / `E2E_CLERK_PASSWORD`
@@ -18,10 +17,9 @@ GitHub Actionsと同じフローでローカル環境からE2Eテストを実行
 
 ## 実行手順
 
-### 1. 環境変数の読み込み
+### 1. pnpm install
 ```bash
-# .env.ciの環境変数を現在のシェルに読み込む
-export $(grep -v '^#' .env.ci | xargs)
+pnpm install --frozen-lockfile
 ```
 
 ### 2. DBのリセット（テストデータ投入）
