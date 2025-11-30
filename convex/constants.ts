@@ -21,3 +21,11 @@ export type SkillLevelType = (typeof SKILL_LEVELS)[number];
 // ポジション（デフォルト値、店舗ごとにカスタム可能）
 export const DEFAULT_POSITIONS = ["ホール", "キッチン", "レジ", "その他"] as const;
 export type PositionType = (typeof DEFAULT_POSITIONS)[number];
+
+// ロール定義
+export const STAFF_ROLES = ["owner", "manager", "general"] as const;
+export type StaffRoleType = (typeof STAFF_ROLES)[number];
+
+// 招待関連
+export const INVITE_EXPIRY_DAYS = 14;
+export const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;

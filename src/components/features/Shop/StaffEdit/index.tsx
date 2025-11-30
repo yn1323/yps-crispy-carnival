@@ -25,6 +25,7 @@ import { LuPlus, LuSave, LuTrash2, LuTriangleAlert, LuUser, LuUserX } from "reac
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { Empty } from "@/src/components/ui/Empty";
 import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
@@ -394,7 +395,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
       </form>
 
       {/* 退職処理（在籍中の場合のみ表示） */}
-      {staff.status === "active" && (
+      {
         <Card.Root mt={6} borderColor="red.200">
           <Card.Header>
             <Flex align="center" gap={2}>
@@ -473,7 +474,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
             </Dialog>
           </Card.Body>
         </Card.Root>
-      )}
+      }
     </Container>
   );
 };
@@ -509,18 +510,16 @@ type StaffEditNotFoundProps = {
   shopId: string;
 };
 
-export const StaffEditNotFound = ({ shopId }: StaffEditNotFoundProps) => {
-  return (
-    <Container maxW="6xl" py={6}>
-      <VStack align="center" gap={4} py={12}>
-        <Icon as={LuUser} boxSize={16} color="gray.300" />
-        <Text fontSize="lg" color="gray.500">
-          スタッフが見つからないか、編集権限がありません
-        </Text>
+export const StaffEditNotFound = ({ shopId }: StaffEditNotFoundProps) => (
+  <Container maxW="6xl" py={6}>
+    <Empty
+      icon={LuUser}
+      title="スタッフが見つからないか、編集権限がありません"
+      action={
         <Link to="/shops/$shopId" params={{ shopId }} search={{ tab: "staff" }}>
           <Button colorPalette="teal">スタッフ一覧に戻る</Button>
         </Link>
-      </VStack>
-    </Container>
-  );
-};
+      }
+    />
+  </Container>
+);

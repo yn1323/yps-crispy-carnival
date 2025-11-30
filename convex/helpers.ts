@@ -85,6 +85,53 @@ export const getStaffByMagicLinkToken = async (ctx: QueryCtx | MutationCtx, toke
   return staff;
 };
 
+// 招待トークンでスタッフを取得
+export const getStaffByInviteToken = async (ctx: QueryCtx | MutationCtx, token: string) => {
+  const staff = await ctx.db
+    .query("staffs")
+    .withIndex("by_invite_token", (q) => q.eq("inviteToken", token))
+    .filter((q) => q.neq(q.field("isDeleted"), true))
+    .first();
+
+  return staff;
+};
+
+// 店舗のオーナーまたはマネージャーかどうかチェック
+export const isShopOwnerOrManager = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">, authId: string) => {
+  // まずオーナーかどうかチェック
+  const isOwner = await isShopOwner(ctx, shopId, authId);
+  if (isOwner) return true;
+
+  // ユーザーを取得
+  const user = await getUserByAuthId(ctx, authId);
+  if (!user) return false;
+
+  // スタッフとしてマネージャーかどうかチェック
+  const staff = await ctx.db
+    .query("staffs")
+    .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+    .filter((q) =>
+      q.and(q.eq(q.field("userId"), user._id), q.neq(q.field("isDeleted"), true), q.eq(q.field("role"), "manager")),
+    )
+    .first();
+
+  return !!staff;
+};
+
+// 店舗のオーナーまたはマネージャーであることを要求
+export const requireShopOwnerOrManager = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">, authId: string) => {
+  const isOwnerOrManager = await isShopOwnerOrManager(ctx, shopId, authId);
+
+  if (!isOwnerOrManager) {
+    throw new ConvexError({
+      message: "この操作を行う権限がありません",
+      code: "PERMISSION_DENIED",
+    });
+  }
+
+  return true;
+};
+
 // 店舗存在チェック（存在しない場合はエラー）
 export const requireShop = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops">) => {
   const shop = await ctx.db.get(shopId);

@@ -30,6 +30,7 @@ jobs:
       env:
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
     - name: Run Playwright tests
+      id: playwright
       run: |
         npx convex dev &
         sleep 15
@@ -68,9 +69,12 @@ jobs:
       with:
         script: |
           const reportUrl = `https://yn1323.github.io/hosting-pages/playwright/${{ github.event.pull_request.number }}/`;
+          const testResult = '${{ steps.playwright.outcome }}';
+          const statusEmoji = testResult === 'success' ? '✅' : '❌';
+          const statusText = testResult === 'success' ? '成功' : '失敗';
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: context.issue.number,
-            body: `## 📊 Playwright Test Report\n\n[View Report](${reportUrl})`
+            body: `## 📊 Playwright Test Report\n\n${statusEmoji} **テスト結果: ${statusText}**\n\n[View Report](${reportUrl})`
           });
