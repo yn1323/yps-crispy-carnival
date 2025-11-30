@@ -24,40 +24,26 @@ pnpm install --frozen-lockfile
 
 ### 2. DBのリセット（テストデータ投入）
 ```bash
-# Convex開発サーバーを起動してデータをリセット
+# Convex開発サーバーをバックグラウンドで起動
 npx convex dev &
-sleep 5
+# 起動完了を確認後、データをリセット
 pnpm convex:import
-kill %1
 ```
 
-### 3. E2Eテストの実行
+### 3. アプリケーションの起動
 ```bash
-# Convex開発サーバーを起動してテスト実行
-npx convex dev &
-sleep 10
+# Vite開発サーバーをバックグラウンドで起動
+pnpm dev &
+# 起動完了を確認（http://localhost:3000 が応答するまで待つ）
+```
+
+### 4. E2Eテストの実行
+```bash
+# Convex開発サーバーとアプリが起動している状態で実行
 pnpm e2e
-kill %1
-```
-
-### 簡易コマンド（一括実行）
-```bash
-# 環境変数読み込み → DBリセット → E2Eテスト実行
-export $(grep -v '^#' .env.ci | xargs) && \
-npx convex dev & sleep 5 && pnpm convex:import && kill %1 && \
-npx convex dev & sleep 10 && pnpm e2e && kill %1
-```
-
-## UIモードでの実行（デバッグ用）
-```bash
-export $(grep -v '^#' .env.ci | xargs)
-npx convex dev &
-sleep 15
-pnpm e2e:ui
-# 終了後: kill %1
 ```
 
 ## 注意事項
 - E2EテストはリモートのPreview環境DBに接続します
 - テスト実行前に`pnpm convex:import`でDBをリセットすることを推奨
-- `playwright.config.ts`で`reuseExistingServer`が設定されているため、別ターミナルで`pnpm dev`を起動しておくと効率的です
+- AIが制御する場合、sleepやkillは不要（起動完了を確認してから次のステップへ進む）
