@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
 import { E2EAuthJsonFileMainUser, E2EAuthJsonFileSubUser } from "@/e2e/constants";
 
-dotenv.config();
+dotenv.config({ debug: false });
 
 /**
  * E2Eテスト実行順序と依存関係:
