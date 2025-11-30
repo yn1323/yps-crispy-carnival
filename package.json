@@ -23,6 +23,7 @@
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build  --stats-json",
     "convex:dev": "npx convex dev",
+    "convex:clear": "npx convex run testing:clearAllTables",
     "convex:import": "tsx convex-seeds/scripts/import.ts",
     "convex:export": "tsx convex-seeds/scripts/export.ts",
     "convex:export-and-replace": "tsx convex-seeds/scripts/export-and-replace.ts"

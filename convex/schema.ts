@@ -83,4 +83,7 @@ const schema = defineSchema({
   staffs,
 });
 
+// テーブル名を型安全にエクスポート（testing.tsで使用）
+export const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
+
 export default schema;

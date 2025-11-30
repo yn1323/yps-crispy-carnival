@@ -10,6 +10,19 @@ const main = async () => {
     console.log("Convexデータベースにシードデータをインポートします...");
     console.log("==========================================");
 
+    // 全テーブルをクリア
+    console.log("\n全テーブルのデータをクリア中...");
+    console.log("----------------------------------------");
+    try {
+      execSync("npx convex run testing:clearAllTables", {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      console.log("✅ 全テーブルのクリアが完了しました\n");
+    } catch {
+      console.log("⚠️ テーブルクリアをスキップしました（Convexが起動していない可能性があります）\n");
+    }
+
     console.log(`作業ディレクトリ: ${process.cwd()}`);
 
     // package.jsonの存在確認
