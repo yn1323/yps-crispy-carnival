@@ -32,6 +32,7 @@ const staffs = defineTable({
   email: v.string(),
   displayName: v.string(),
   status: v.string(), // "pending" | "active" | "resigned"
+  role: v.optional(v.string()), // "owner" | "manager" | "general" (undefinedはgeneral扱い)
 
   // ユーザー紐付け（マネージャー判定用）
   userId: v.optional(v.id("users")),
@@ -51,6 +52,10 @@ const staffs = defineTable({
   magicLinkToken: v.optional(v.string()),
   magicLinkExpiresAt: v.optional(v.number()),
 
+  // 招待トークン（マネージャー招待用）
+  inviteToken: v.optional(v.string()),
+  inviteExpiresAt: v.optional(v.number()),
+
   // 管理情報
   invitedBy: v.optional(v.string()), // 招待した管理者のauthId
   resignedAt: v.optional(v.number()),
@@ -69,6 +74,7 @@ const staffs = defineTable({
   .index("by_email", ["email"])
   .index("by_shop_and_email", ["shopId", "email"])
   .index("by_magic_link_token", ["magicLinkToken"])
+  .index("by_invite_token", ["inviteToken"])
   .index("by_user", ["userId"]);
 
 const schema = defineSchema({

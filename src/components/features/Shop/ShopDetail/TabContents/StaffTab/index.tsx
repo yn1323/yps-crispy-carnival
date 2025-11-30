@@ -1,9 +1,10 @@
-import { Badge, Box, Button, Card, Flex, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Flex, HStack, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUsers } from "react-icons/lu";
+import { LuChevronRight, LuPlus, LuSearch, LuUser, LuUserPlus, LuUsers } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
+import { ManagerInviteModal } from "@/src/components/features/Shop/ManagerInviteModal";
 import { StaffAddModal } from "@/src/components/features/Shop/StaffAddModal";
 import { Animation } from "@/src/components/templates/Animation";
 import { useDialog } from "@/src/components/ui/Dialog";
@@ -30,6 +31,7 @@ type StaffTabProps = {
 export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
   const user = useAtomValue(userAtom);
   const addDialog = useDialog();
+  const inviteDialog = useDialog();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
 
@@ -93,10 +95,22 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
 
         {/* スタッフ追加ボタン */}
         {canEdit && (
-          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} onClick={addDialog.open}>
-            <Icon as={LuPlus} boxSize={4} />
-            スタッフを追加
-          </Button>
+          <HStack gap={2} flexWrap="wrap">
+            <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} onClick={addDialog.open}>
+              <Icon as={LuPlus} boxSize={4} />
+              スタッフを追加
+            </Button>
+            <Button
+              w={{ base: "full", md: "auto" }}
+              variant="outline"
+              colorPalette="teal"
+              gap={2}
+              onClick={inviteDialog.open}
+            >
+              <Icon as={LuUserPlus} boxSize={4} />
+              マネージャーを招待
+            </Button>
+          </HStack>
         )}
       </Box>
 
@@ -108,6 +122,18 @@ export const StaffTab = ({ staffs, canEdit, shopId }: StaffTabProps) => {
           isOpen={addDialog.isOpen}
           onOpenChange={addDialog.onOpenChange}
           onClose={addDialog.close}
+          onSuccess={() => {}}
+        />
+      )}
+
+      {/* マネージャー招待モーダル */}
+      {user.authId && (
+        <ManagerInviteModal
+          shopId={shopId}
+          authId={user.authId}
+          isOpen={inviteDialog.isOpen}
+          onOpenChange={inviteDialog.onOpenChange}
+          onClose={inviteDialog.close}
           onSuccess={() => {}}
         />
       )}
