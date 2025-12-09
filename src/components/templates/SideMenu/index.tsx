@@ -53,7 +53,7 @@ export const SideMenu = ({ onlyLogout = false }: Props) => {
             })}
         </VStack>
 
-        <Box px={4} w="full">
+        <Box px={4} py={6} w="full">
           <SignOutButton>
             <Button width="full" variant="ghost" justifyContent="flex-start" colorPalette="gray">
               <Icon as={LuLogOut} boxSize={5} mr={2} />
