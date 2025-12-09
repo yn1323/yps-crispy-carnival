@@ -1,5 +1,7 @@
 import { Box, Flex, Grid, GridItem, HStack, Icon, Text, VStack } from "@chakra-ui/react";
+import { SignOutButton } from "@clerk/clerk-react";
 import { IoCalendarOutline, IoPeopleOutline, IoSparkles } from "react-icons/io5";
+import { LuArrowRight } from "react-icons/lu";
 import { UserRegister } from "@/src/components/features/User/UserRegister";
 
 export const WelcomePage = () => {
@@ -20,7 +22,25 @@ export const WelcomePage = () => {
       alignItems="center"
       justifyContent="center"
       p="4"
+      position="relative"
     >
+      {/* ログアウトリンク */}
+      <Box position="absolute" top="4" right="4">
+        <SignOutButton>
+          <HStack
+            as="button"
+            gap="1"
+            color="teal.600"
+            fontSize="sm"
+            cursor="pointer"
+            _hover={{ color: "teal.700", textDecoration: "underline" }}
+            transition="all 0.15s ease"
+          >
+            <Text>別のアカウントで始める</Text>
+            <Icon as={LuArrowRight} boxSize="4" />
+          </HStack>
+        </SignOutButton>
+      </Box>
       <Box w="full" maxW="6xl">
         <Grid templateColumns={{ base: "1fr", lg: "repeat(2, 1fr)" }} gap="8" alignItems="center">
           {/* Left side - Welcome message */}
