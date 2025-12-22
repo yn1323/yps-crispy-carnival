@@ -81,6 +81,7 @@ export const ShopDetail = ({ shop, staffs }: ShopDetailProps) => {
             <Icon as={LuUsers} boxSize={4} />
             スタッフ
           </Tabs.Trigger>
+          <Tabs.Indicator />
         </Tabs.List>
 
         {/* 店舗情報タブ */}
