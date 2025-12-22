@@ -14,6 +14,12 @@
 ### YOU MUST（必須事項）
 - YOU MUST: 質問をする場合は、1つずつ質問してください。チャットなので。。。
 - YOU MUST: ユーザーの指示で不明瞭な箇所は必ず聞き返してください。これすごく重要！！ぜひ一緒に仕様をつくっていきましょう！
+- YOU MUST: コードの確認は下記のコマンドを利用してください。
+   - `pnpm format` - Biomeフォーマット（作業完了前に必ず実行）
+   - `pnpm lint` - Biomeリンティング（作業完了前に必ず実行）
+   - `pnpm type-check` - TypeScript型チェック（作業完了前に必ず実行）
+   - `pnpm test` - Vitestテスト（ロジック、UI修正時のみ）
+   - `pnpm e2e` - Playwright E2Eテスト（E2E作成・修正時のみ）
 
 ### IMPORTANT（重要事項）
 - IMPORTANT: Chakra UI v3 Modern API準拠

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SideMenu } from "./index";
+import { ShopSelector } from "./index";
 
 const mockShops = [
   { _id: "shop1", shopName: "本店" },
@@ -8,28 +8,34 @@ const mockShops = [
 ];
 
 const meta = {
-  title: "templates/SideMenu",
-  component: SideMenu,
+  title: "features/Shop/ShopSelector",
+  component: ShopSelector,
   args: {
     shops: mockShops,
     selectedShopId: "shop1",
     onShopChange: (shop) => console.log("Selected:", shop),
   },
-} satisfies Meta<typeof SideMenu>;
+} satisfies Meta<typeof ShopSelector>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {};
 
-export const NoShopSelected: Story = {
+export const NoSelection: Story = {
   args: {
     selectedShopId: null,
   },
 };
 
-export const OnlyLogout: Story = {
+export const Loading: Story = {
   args: {
-    onlyLogout: true,
+    isLoading: true,
+  },
+};
+
+export const SingleShop: Story = {
+  args: {
+    shops: [{ _id: "shop1", shopName: "本店" }],
   },
 };

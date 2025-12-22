@@ -52,7 +52,7 @@ export const StaffDetailTabTypes = ["info", "shifts"] as const;
 
 export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false });
+  const search = useSearch({ strict: false }) as { tab?: string };
   const currentTab = search.tab || "info";
 
   // アバターのイニシャル生成
@@ -106,7 +106,7 @@ export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
     <Container maxW="6xl">
       {/* ヘッダー */}
       <Title
-        prev={{ url: `/shops/${shop._id}?tab=staff`, label: "スタッフ一覧に戻る" }}
+        prev={{ url: `/shops/${shop._id}/staffs`, label: "スタッフ一覧に戻る" }}
         action={
           <Flex gap={2}>
             <Button
@@ -330,7 +330,7 @@ export const StaffDetailNotFound = ({ shopId }: StaffDetailNotFoundProps) => (
       icon={LuUser}
       title="スタッフが見つかりませんでした"
       action={
-        <Link to="/shops/$shopId" params={{ shopId }} search={{ tab: "staff" }}>
+        <Link to="/shops/$shopId/staffs" params={{ shopId }}>
           <Button colorPalette="teal">スタッフ一覧に戻る</Button>
         </Link>
       }

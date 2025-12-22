@@ -20,41 +20,6 @@ const meta = {
       createdAt: Date.now(),
       isDeleted: false,
     } as Doc<"shops">,
-    staffs: [
-      {
-        _id: "staff1" as Id<"staffs">,
-        email: "yamada@example.com",
-        displayName: "山田太郎",
-        status: "active",
-        skills: [
-          { position: "ホール", level: "ベテラン" },
-          { position: "キッチン", level: "一人前" },
-        ],
-        maxWeeklyHours: 40,
-        createdAt: Date.now(),
-        isManager: true,
-      },
-      {
-        _id: "staff2" as Id<"staffs">,
-        email: "sato@example.com",
-        displayName: "佐藤花子",
-        status: "active",
-        skills: [{ position: "レジ", level: "研修中" }],
-        maxWeeklyHours: 20,
-        createdAt: Date.now(),
-        isManager: false,
-      },
-      {
-        _id: "staff3" as Id<"staffs">,
-        email: "suzuki@example.com",
-        displayName: "鈴木一郎",
-        status: "pending",
-        skills: [],
-        maxWeeklyHours: undefined,
-        createdAt: Date.now(),
-        isManager: false,
-      },
-    ],
   },
 } satisfies Meta<typeof ShopDetail>;
 
@@ -63,22 +28,13 @@ export default meta;
 export const Basic: StoryObj<typeof meta> = {};
 
 export const Loading: StoryObj<typeof meta> = {
-  args: {
-    staffs: [],
-  },
   render: () => <ShopDetailLoading />,
 };
 
 export const NotFound: StoryObj<typeof meta> = {
-  args: {
-    staffs: [],
-  },
   render: () => <ShopDetailNotFound />,
 };
 
 export const ErrorPattern: StoryObj<typeof meta> = {
-  args: {
-    staffs: [],
-  },
   render: () => <ShopDetailError />,
 };
