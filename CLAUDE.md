@@ -30,6 +30,7 @@
 - IMPORTANT: TypeScriptの型は推論を利用すること
 - IMPORTANT: 定数化は2箇所以上で利用しているときのみとする
 - IMPORTANT: 開発者の指摘が誤っているときは、根拠を示して反論すること
+- IMPORTANT: UIX/UX方向性を決めるときは、skill frontend-design, skill ux-designerを利用して検討すること
 
 ## 開発コマンド
 
