@@ -1,7 +1,7 @@
 import { Box, Dialog as ChakraDialog, Flex, Icon, Portal, Text, VStack } from "@chakra-ui/react";
 import { useClerk } from "@clerk/clerk-react";
 import { Link } from "@tanstack/react-router";
-import { LuChevronRight, LuLogOut, LuSettings, LuStore, LuX } from "react-icons/lu";
+import { LuChevronRight, LuLogOut, LuSettings, LuX } from "react-icons/lu";
 import { ShopSelector } from "@/src/components/features/Shop/ShopSelector";
 
 type Shop = {
@@ -115,30 +115,38 @@ export const MenuBottomSheet = ({
             {/* Content */}
             <Box flex={1} overflowY="auto" bg="gray.50">
               <VStack align="stretch" gap={4} py={4}>
-                {/* 店舗選択セクション */}
-                <Box bg="white">
+                {/* 店舗セクション */}
+                <Box bg="gray.100">
                   <Box px={5} py={3}>
-                    <Flex align="center" mb={3}>
-                      <Icon as={LuStore} boxSize={5} color="teal.600" />
-                      <Text ml={3} fontWeight="medium" color="gray.700">
-                        店舗選択
-                      </Text>
-                    </Flex>
+                    <Text fontSize="xs" fontWeight="medium" color="gray.500" mb={3}>
+                      店舗
+                    </Text>
                     <ShopSelector
                       shops={shops}
                       selectedShopId={selectedShopId}
                       onShopChange={handleShopChange}
                       usePortal={false}
                     />
+                    <Link to="/shops" onClick={onClose}>
+                      <Text
+                        fontSize="xs"
+                        color="teal.600"
+                        mt={3}
+                        _hover={{ textDecoration: "underline" }}
+                        cursor="pointer"
+                        transition="all 0.15s"
+                      >
+                        店舗一覧を見る
+                      </Text>
+                    </Link>
                   </Box>
                 </Box>
 
-                {/* メニュー項目 */}
+                {/* アカウントセクション */}
                 <Box bg="white">
-                  <Link to="/shops" onClick={onClose} style={{ display: "block" }}>
-                    <MenuItem icon={LuStore} label="店舗一覧" />
-                  </Link>
-                  <Box h="1px" bg="gray.100" mx={5} />
+                  <Text fontSize="xs" fontWeight="medium" color="gray.500" px={5} py={3}>
+                    アカウント
+                  </Text>
                   <Link to="/settings" onClick={onClose} style={{ display: "block" }}>
                     <MenuItem icon={LuSettings} label="設定" />
                   </Link>
