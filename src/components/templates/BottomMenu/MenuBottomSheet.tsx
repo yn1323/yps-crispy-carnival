@@ -1,9 +1,8 @@
-import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Box, Dialog as ChakraDialog, Flex, Icon, Portal, Text, VStack } from "@chakra-ui/react";
 import { useClerk } from "@clerk/clerk-react";
 import { Link } from "@tanstack/react-router";
-import { LuLogOut, LuSettings, LuStore } from "react-icons/lu";
+import { LuChevronRight, LuLogOut, LuSettings, LuStore, LuX } from "react-icons/lu";
 import { ShopSelector } from "@/src/components/features/Shop/ShopSelector";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
 
 type Shop = {
   _id: string;
@@ -18,6 +17,40 @@ type MenuBottomSheetProps = {
   selectedShopId: string | null;
   onShopChange: (shop: { shopId: string; shopName: string }) => void;
 };
+
+const MenuItem = ({
+  icon,
+  label,
+  onClick,
+  color = "gray.800",
+  showArrow = true,
+}: {
+  icon: React.ElementType;
+  label: string;
+  onClick?: () => void;
+  color?: string;
+  showArrow?: boolean;
+}) => (
+  <Flex
+    as="button"
+    align="center"
+    w="100%"
+    h="56px"
+    px={5}
+    bg="white"
+    color={color}
+    _hover={{ bg: "gray.50" }}
+    _active={{ bg: "gray.100" }}
+    transition="background 0.15s"
+    onClick={onClick}
+  >
+    <Icon as={icon} boxSize={5} color={color === "gray.800" ? "teal.600" : color} />
+    <Text ml={4} flex={1} textAlign="left" fontWeight="medium">
+      {label}
+    </Text>
+    {showArrow && <Icon as={LuChevronRight} boxSize={5} color="gray.400" />}
+  </Flex>
+);
 
 export const MenuBottomSheet = ({
   isOpen,
@@ -39,40 +72,93 @@ export const MenuBottomSheet = ({
   };
 
   return (
-    <BottomSheet isOpen={isOpen} onOpenChange={onOpenChange}>
-      <VStack align="stretch" gap={0}>
-        {/* 店舗選択 */}
-        <Box p={4} borderBottomWidth="1px" borderColor="gray.200">
-          <ShopSelector
-            shops={shops}
-            selectedShopId={selectedShopId}
-            onShopChange={handleShopChange}
-            usePortal={false}
-          />
-        </Box>
+    <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} placement="bottom" size="full" modal={false}>
+      <Portal>
+        <ChakraDialog.Backdrop />
+        <ChakraDialog.Positioner>
+          <ChakraDialog.Content
+            borderRadius={0}
+            h="100dvh"
+            maxH="100dvh"
+            display="flex"
+            flexDirection="column"
+            data-state="open"
+            _open={{
+              animation: "slide-from-bottom 0.25s ease-out",
+            }}
+            _closed={{
+              animation: "slide-to-bottom 0.2s ease-in",
+            }}
+          >
+            {/* Header */}
+            <Flex align="center" h="56px" px={2} borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
+              <ChakraDialog.CloseTrigger asChild>
+                <Box
+                  as="button"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w="44px"
+                  h="44px"
+                  borderRadius="full"
+                  _hover={{ bg: "gray.100" }}
+                  _active={{ bg: "gray.200" }}
+                >
+                  <Icon as={LuX} boxSize={6} color="gray.700" />
+                </Box>
+              </ChakraDialog.CloseTrigger>
+              <Text fontSize="lg" fontWeight="bold" color="gray.800">
+                メニュー
+              </Text>
+            </Flex>
 
-        {/* メニュー項目 */}
-        <Link to="/shops" onClick={onClose}>
-          <Flex align="center" p={4} _hover={{ bg: "gray.50" }}>
-            <Icon as={LuStore} mr={3} />
-            <Text>店舗一覧</Text>
-          </Flex>
-        </Link>
+            {/* Content */}
+            <Box flex={1} overflowY="auto" bg="gray.50">
+              <VStack align="stretch" gap={4} py={4}>
+                {/* 店舗選択セクション */}
+                <Box bg="white">
+                  <Box px={5} py={3}>
+                    <Flex align="center" mb={3}>
+                      <Icon as={LuStore} boxSize={5} color="teal.600" />
+                      <Text ml={3} fontWeight="medium" color="gray.700">
+                        店舗選択
+                      </Text>
+                    </Flex>
+                    <ShopSelector
+                      shops={shops}
+                      selectedShopId={selectedShopId}
+                      onShopChange={handleShopChange}
+                      usePortal={false}
+                    />
+                  </Box>
+                </Box>
 
-        <Link to="/settings" onClick={onClose}>
-          <Flex align="center" p={4} _hover={{ bg: "gray.50" }}>
-            <Icon as={LuSettings} mr={3} />
-            <Text>設定</Text>
-          </Flex>
-        </Link>
+                {/* メニュー項目 */}
+                <Box bg="white">
+                  <Link to="/shops" onClick={onClose} style={{ display: "block" }}>
+                    <MenuItem icon={LuStore} label="店舗一覧" />
+                  </Link>
+                  <Box h="1px" bg="gray.100" mx={5} />
+                  <Link to="/settings" onClick={onClose} style={{ display: "block" }}>
+                    <MenuItem icon={LuSettings} label="設定" />
+                  </Link>
+                </Box>
 
-        <Box as="button" onClick={handleSignOut} w="100%" textAlign="left">
-          <Flex align="center" p={4} _hover={{ bg: "gray.50" }} color="red.500">
-            <Icon as={LuLogOut} mr={3} />
-            <Text>ログアウト</Text>
-          </Flex>
-        </Box>
-      </VStack>
-    </BottomSheet>
+                {/* ログアウト */}
+                <Box bg="white">
+                  <MenuItem
+                    icon={LuLogOut}
+                    label="ログアウト"
+                    color="red.500"
+                    showArrow={false}
+                    onClick={handleSignOut}
+                  />
+                </Box>
+              </VStack>
+            </Box>
+          </ChakraDialog.Content>
+        </ChakraDialog.Positioner>
+      </Portal>
+    </ChakraDialog.Root>
   );
 };

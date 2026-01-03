@@ -114,7 +114,7 @@ export const SideMenu = ({ shops = [], selectedShopId, onShopChange, onlyLogout 
               )}
             </VStack>
 
-            <Separator my={4} borderColor="gray.200" />
+            <Separator my={4} w="full" borderColor="gray.200" />
 
             {/* グローバルメニュー */}
             <VStack gap={2} flex={1} alignItems="stretch" px={4} w="full">
@@ -142,7 +142,7 @@ export const SideMenu = ({ shops = [], selectedShopId, onShopChange, onlyLogout 
           </>
         )}
 
-        <Separator borderColor="gray.200" />
+        <Separator w="full" borderColor="gray.200" />
 
         {/* ログアウト */}
         <Box px={4} py={6} w="full">
