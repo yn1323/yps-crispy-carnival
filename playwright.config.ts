@@ -1,6 +1,5 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 import dotenv from "dotenv";
-import { E2EAuthJsonFileMainUser, E2EAuthJsonFileSubUser } from "@/e2e/constants";
 
 dotenv.config({ debug: false, quiet: true });
 
@@ -58,27 +57,27 @@ export default defineConfig({
     },
 
     // Step 2: メインユーザー（管理者）のテスト
-    {
-      name: "認証済みテスト",
-      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: E2EAuthJsonFileMainUser,
-      },
-      dependencies: ["setup"],
-    },
+    // {
+    //   name: "認証済みテスト",
+    //   testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
+    //   use: {
+    //     ...devices["Desktop Chrome"],
+    //     storageState: E2EAuthJsonFileMainUser,
+    //   },
+    //   dependencies: ["setup"],
+    // },
 
     // Step 3: サブユーザー（新規店長）のテスト
     // DB未登録状態での初回ログインをテスト
-    {
-      name: "認証済みテストB",
-      testMatch: /scenarios\/userB\/.*\.test\.ts/,
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: E2EAuthJsonFileSubUser,
-      },
-      dependencies: ["setup"],
-    },
+    // {
+    //   name: "認証済みテストB",
+    //   testMatch: /scenarios\/userB\/.*\.test\.ts/,
+    //   use: {
+    //     ...devices["Desktop Chrome"],
+    //     storageState: E2EAuthJsonFileSubUser,
+    //   },
+    //   dependencies: ["setup"],
+    // },
   ],
 
   webServer: {

@@ -14,6 +14,13 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+const mockPositions = [
+  { _id: "pos1" as Id<"shopPositions">, name: "ホール", order: 0 },
+  { _id: "pos2" as Id<"shopPositions">, name: "キッチン", order: 1 },
+  { _id: "pos3" as Id<"shopPositions">, name: "レジ", order: 2 },
+  { _id: "pos4" as Id<"shopPositions">, name: "その他", order: 3 },
+];
+
 export const Basic: Story = {
   args: {
     shop: {
@@ -30,5 +37,6 @@ export const Basic: Story = {
       createdAt: Date.now(),
       isDeleted: false,
     },
+    positions: mockPositions,
   },
 };

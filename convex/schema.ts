@@ -77,10 +77,33 @@ const staffs = defineTable({
   .index("by_invite_token", ["inviteToken"])
   .index("by_user", ["userId"]);
 
+// 店舗のポジション定義（店舗ごとにカスタマイズ可能）
+const shopPositions = defineTable({
+  shopId: v.id("shops"),
+  name: v.string(), // "ホール", "キッチン" など
+  order: v.number(), // 表示順
+  isDeleted: v.boolean(),
+  createdAt: v.number(),
+})
+  .index("by_shop", ["shopId"])
+  .index("by_shop_and_name", ["shopId", "name"]);
+
+// スタッフのスキル（スタッフ × ポジション × レベル）
+const staffSkills = defineTable({
+  staffId: v.id("staffs"),
+  positionId: v.id("shopPositions"),
+  level: v.string(), // "未経験" | "研修中" | "一人前" | "ベテラン"
+  updatedAt: v.number(),
+})
+  .index("by_staff", ["staffId"])
+  .index("by_position", ["positionId"]);
+
 const schema = defineSchema({
   users,
   shops,
   staffs,
+  shopPositions,
+  staffSkills,
 });
 
 // テーブル名を型安全にエクスポート（testing.tsで使用）

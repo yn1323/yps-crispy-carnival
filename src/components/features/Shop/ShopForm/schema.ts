@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { SHOP_MAX_LENGTH, SHOP_MIN_LENGTH, SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT } from "@/src/constants/validations";
+import {
+  POSITION_NAME_MAX_LENGTH,
+  SHOP_MAX_LENGTH,
+  SHOP_MIN_LENGTH,
+  SHOP_SUBMIT_FREQUENCY,
+  SHOP_TIME_UNIT,
+} from "@/src/constants/validations";
 import { betweenLength, select, time } from "@/src/helpers/validation";
 
 export const timeUnitOptions = SHOP_TIME_UNIT.map((v) => ({
@@ -12,6 +18,12 @@ export const submitFrequencyOptions = SHOP_SUBMIT_FREQUENCY.map((v) => ({
   value: v,
 }));
 
+const positionSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(POSITION_NAME_MAX_LENGTH),
+  order: z.number(),
+});
+
 export const schema = z.object({
   shopName: z.string().min(1).superRefine(betweenLength(SHOP_MIN_LENGTH, SHOP_MAX_LENGTH)),
   openTime: z.string().superRefine(time(15)),
@@ -19,6 +31,7 @@ export const schema = z.object({
   timeUnit: z.string().optional(),
   submitFrequency: z.string().superRefine(select({ options: submitFrequencyOptions, forceSelect: true })),
   description: z.string().optional(),
+  positions: z.array(positionSchema).optional(),
 });
 
 export type SchemaType = z.infer<typeof schema>;

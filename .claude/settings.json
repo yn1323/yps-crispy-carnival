@@ -26,7 +26,6 @@
  "permissions": {
     "allow": [
       "Bash(pnpm *)",
-      "mcp__serena__*",
       "WebSearch"
     ],
     "deny": [],

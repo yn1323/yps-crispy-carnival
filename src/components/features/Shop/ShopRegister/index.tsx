@@ -8,6 +8,7 @@ import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
+import { DEFAULT_POSITIONS } from "@/src/constants/validations";
 import { userAtom } from "@/src/stores/user";
 import { ShopForm } from "../ShopForm";
 import { type SchemaType, schema } from "../ShopForm/schema";
@@ -33,6 +34,11 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
       closeTime: "22:00",
       timeUnit: "30",
       submitFrequency: "2w",
+      positions: DEFAULT_POSITIONS.map((name, index) => ({
+        id: crypto.randomUUID(),
+        name,
+        order: index,
+      })),
     },
   });
 
@@ -54,6 +60,10 @@ export const ShopRegister = ({ callbackRoutingPath }: Props) => {
         submitFrequency: data.submitFrequency,
         description: data.description,
         authId: user.authId,
+        positions: data.positions?.map((p) => ({
+          name: p.name,
+          order: p.order,
+        })),
       });
 
       if (result.success) {

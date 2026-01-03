@@ -1,29 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { goToFirstShop, goToStaffTab } from "@/e2e/helpers/navigation";
+import { goToFirstShopDetail } from "@/e2e/helpers/navigation";
 
 test.describe("店舗詳細", () => {
   test.beforeEach(async ({ page }) => {
-    await goToFirstShop(page);
+    await goToFirstShopDetail(page);
   });
 
-  test("店舗情報タブがデフォルトで表示されること", async ({ page }) => {
-    // 店舗情報タブがアクティブ
-    await expect(page.getByRole("tab", { name: "店舗情報" })).toHaveAttribute("aria-selected", "true");
-
-    // 店舗情報の内容が表示される
+  test("店舗詳細ページが表示されること", async ({ page }) => {
+    // 店舗詳細の内容が表示される
     await expect(page.getByText("営業時間")).toBeVisible();
     await expect(page.getByText("シフト提出期限")).toBeVisible();
-  });
-
-  test("スタッフタブに切り替えられること", async ({ page }) => {
-    // スタッフタブをクリック
-    await goToStaffTab(page);
-
-    // スタッフタブがアクティブ
-    await expect(page.getByRole("tab", { name: "スタッフ" })).toHaveAttribute("aria-selected", "true");
-
-    // スタッフ検索ボックスが表示される
-    await expect(page.getByPlaceholder("名前・メールで検索...")).toBeVisible();
+    await expect(page.getByText("シフト入力の時間単位")).toBeVisible();
   });
 
   test("編集ボタンをクリックすると編集ページに遷移すること", async ({ page }) => {

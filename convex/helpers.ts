@@ -2,6 +2,7 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { DEFAULT_POSITIONS, SKILL_LEVELS } from "./constants";
 
 // セキュアなトークン生成（crypto APIを使用）
 export const generateToken = () => {
@@ -150,4 +151,46 @@ export const requireShop = async (ctx: QueryCtx | MutationCtx, shopId: Id<"shops
 export const isValidTimeFormat = (time: string) => {
   const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
   return timeRegex.test(time);
+};
+
+// 全ポジションを「未経験」で初期化したスキル配列を生成
+export const createDefaultSkills = () => {
+  return DEFAULT_POSITIONS.map((position) => ({
+    position,
+    level: SKILL_LEVELS[0], // "未経験"
+  }));
+};
+
+// 店舗のデフォルトポジションを初期化
+export const initializeDefaultPositions = async (ctx: MutationCtx, shopId: Id<"shops">) => {
+  const positionIds: Id<"shopPositions">[] = [];
+  for (let i = 0; i < DEFAULT_POSITIONS.length; i++) {
+    const positionId = await ctx.db.insert("shopPositions", {
+      shopId,
+      name: DEFAULT_POSITIONS[i],
+      order: i,
+      isDeleted: false,
+      createdAt: Date.now(),
+    });
+    positionIds.push(positionId);
+  }
+  return positionIds;
+};
+
+// スタッフのスキルを全ポジション「未経験」で初期化
+export const initializeStaffSkills = async (ctx: MutationCtx, shopId: Id<"shops">, staffId: Id<"staffs">) => {
+  const positions = await ctx.db
+    .query("shopPositions")
+    .withIndex("by_shop", (q) => q.eq("shopId", shopId))
+    .filter((q) => q.neq(q.field("isDeleted"), true))
+    .collect();
+
+  for (const position of positions) {
+    await ctx.db.insert("staffSkills", {
+      staffId,
+      positionId: position._id,
+      level: SKILL_LEVELS[0], // "未経験"
+      updatedAt: Date.now(),
+    });
+  }
 };

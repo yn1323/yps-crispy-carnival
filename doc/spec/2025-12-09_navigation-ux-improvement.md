@@ -345,45 +345,199 @@ page.locator('a[href*="/staffs/"]')
 
 ---
 
-## 9. 実装ステップ
+## 9. 実装フェーズ
 
-### Step 1: 状態管理（P0）
-- [ ] `src/stores/shop/index.ts` 作成
-- [ ] `selectedShopAtom` 実装
-- [ ] `hasSelectedShopAtom` 実装
+### Phase 1: 基盤整備（状態管理 + 初期店舗選択ロジック）
 
-### Step 2: 店舗選択コンポーネント（P1）
-- [ ] `ShopSelector/index.tsx` 作成
-- [ ] `ShopSelector/index.stories.tsx` 作成
-- [ ] Convex連携（店舗一覧取得）
+**目的:** selectedShopAtom作成と初期選択ロジックの実装
 
-### Step 3: BottomSheet（P1）
-- [ ] `BottomSheet/index.tsx` 作成
-- [ ] `BottomSheet/index.stories.tsx` 作成
-- [ ] Chakra UI Drawer統合
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 新規 | `src/stores/shop/index.ts` | selectedShopAtom定義（atomWithStorageでlocalStorage永続化） |
+| 新規 | `src/hooks/useInitializeShop.ts` | 初期店舗選択ロジック |
+| 修正 | `src/routes/_auth.tsx` | レイアウトレベルで店舗一覧取得・useInitializeShop呼び出し |
 
-### Step 4: BottomMenu改修（P1）
-- [ ] メニュー項目変更
-- [ ] BottomSheet連携
-- [ ] 店舗未選択時の処理
+**タスク:**
+- [ ] `selectedShopAtom` 定義（型: `{ shopId: string; shopName: string } | null`）
+- [ ] 初期店舗選択ロジック実装
+  - 店舗0件: null
+  - 店舗1件: 自動選択
+  - 店舗2件以上: localStorage確認 → なければ最初の店舗
+- [ ] `_auth.tsx` でレイアウトレベルでの店舗データ取得
 
-### Step 5: SideMenu改修（P1）
-- [ ] ShopSelector統合
-- [ ] メニュー項目再構成
-- [ ] 区切り線追加
+**依存:** なし
 
-### Step 6: 新規ルート作成（P1）
-- [ ] `/shops/$shopId/staffs` ルート作成
-- [ ] `StaffListPage` 作成（StaffTab流用）
+---
 
-### Step 7: 初期店舗選択ロジック（P2）
-- [ ] `_auth.tsx` 修正
-- [ ] 店舗数に応じた自動選択
-- [ ] localStorage復元ロジック
+### Phase 2: ShopSelector コンポーネント作成
 
-### Step 8: E2Eテスト確認（P2）
-- [ ] 影響テストの実行
-- [ ] 必要に応じてセレクタ修正
+**目的:** 店舗切り替え用ドロップダウンの実装
+
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 新規 | `src/components/features/Shop/ShopSelector/index.tsx` | 店舗セレクター |
+| 新規 | `src/components/features/Shop/ShopSelector/index.stories.tsx` | Storybook |
+
+**タスク:**
+- [ ] Props定義: `shops`, `selectedShopId`, `onShopChange`
+- [ ] 既存Selectコンポーネント活用
+- [ ] 店舗選択時に `selectedShopAtom` 更新
+- [ ] Storybook作成（Basic パターン）
+
+**依存:** Phase 1（selectedShopAtom）
+
+---
+
+### Phase 3: PC SideMenu 改修
+
+**目的:** SideMenuに店舗セレクターを追加し、メニューをグループ化
+
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 修正 | `src/components/templates/SideMenu/index.tsx` | ShopSelector追加・グループ化 |
+
+**タスク:**
+- [ ] 上部にShopSelector追加
+- [ ] メニュー3グループ化:
+  - 店舗コンテキスト: スタッフ一覧、シフト管理
+  - グローバル: マイページ、店舗一覧、設定
+  - アクション: ログアウト
+- [ ] 店舗未選択時は店舗コンテキストメニュー非活性化
+- [ ] Props追加: `shops`, `selectedShopId`, `onShopChange`
+
+**依存:** Phase 2（ShopSelector）
+
+---
+
+### Phase 4: スタッフ一覧ルート新規作成
+
+**目的:** `/shops/$shopId/staffs` ルートを作成
+
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 新規 | `src/routes/_auth/shops/$shopId/staffs/index.tsx` | スタッフ一覧ルート |
+| 新規 | `src/components/pages/Shops/StaffsPage/index.tsx` | スタッフページ |
+| 新規 | `src/components/features/Shop/StaffListStandalone/index.tsx` | スタンドアロンスタッフ一覧 |
+| 新規 | `src/components/features/Shop/StaffListStandalone/index.stories.tsx` | Storybook |
+
+**タスク:**
+- [ ] TanStack Routerルート定義
+- [ ] useQueryでスタッフ一覧取得
+- [ ] ローディング/エラー/正常ケースハンドリング
+- [ ] 既存StaffTabのロジック再利用
+- [ ] ページ用タイトル追加
+
+**依存:** Phase 1（selectedShopAtomでshopId取得可能）
+
+---
+
+### Phase 5: BottomSheet コンポーネント作成
+
+**目的:** モバイル用メニューシートの実装
+
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 新規 | `src/components/ui/BottomSheet/index.tsx` | BottomSheet |
+| 新規 | `src/components/ui/BottomSheet/index.stories.tsx` | Storybook |
+
+**タスク:**
+- [ ] Chakra UI v3 Drawer使用（placement="bottom"）
+- [ ] `useBottomSheet` フック作成（useDialogパターン参考）
+- [ ] Storybook作成
+
+**依存:** なし（並行開発可能）
+
+---
+
+### Phase 6: モバイル BottomMenu 改修
+
+**目的:** BottomMenuを4項目に変更し、メニューからBottomSheetを開く
+
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 修正 | `src/components/templates/BottomMenu/index.tsx` | 4項目化・メニューボタン追加 |
+| 新規 | `src/components/templates/BottomMenu/MenuBottomSheet.tsx` | メニューシート |
+
+**タスク:**
+- [ ] 4項目に変更:
+  - マイページ (`/mypage`)
+  - シフト (`/shifts`)
+  - スタッフ (`/shops/$selectedShopId/staffs`)
+  - メニュー (BottomSheet開く)
+- [ ] メニュータップでBottomSheet表示
+- [ ] MenuBottomSheet作成（ShopSelector、店舗一覧、設定、ログアウト）
+- [ ] Props追加: `shops`, `selectedShopId`, `onShopChange`
+
+**依存:** Phase 2, Phase 5
+
+---
+
+### Phase 7: E2Eテスト修正
+
+**目的:** ナビゲーションヘルパーの更新
+
+| 操作 | ファイル | 概要 |
+|------|----------|------|
+| 修正 | `e2e/helpers/navigation.ts` | ナビゲーションヘルパー更新 |
+| 確認 | `e2e/scenarios/staff/list.test.ts` | スタッフ一覧テスト |
+| 確認 | `e2e/scenarios/staff/add.test.ts` | スタッフ追加テスト |
+| 確認 | `e2e/scenarios/staff/edit.test.ts` | スタッフ編集テスト |
+| 確認 | `e2e/scenarios/staff/resign.test.ts` | スタッフ退職テスト |
+
+**タスク:**
+- [ ] `goToStaffList` を1クリックパターンに更新
+- [ ] PC: SideMenuからスタッフ選択
+- [ ] SP: BottomMenuからスタッフタップ
+- [ ] 既存テストとの後方互換性維持
+- [ ] 関連E2Eテストの確認・修正
+
+**依存:** Phase 3, Phase 4, Phase 6（全UI完成後）
+
+---
+
+### 依存関係図
+
+```
+Phase 1 (状態管理)
+    ├── Phase 2 (ShopSelector)
+    │       └── Phase 3 (SideMenu改修)
+    │               └── Phase 7 (E2E)
+    └── Phase 4 (スタッフルート)
+            └── Phase 7 (E2E)
+
+Phase 5 (BottomSheet) ──────┐
+                            ├── Phase 6 (BottomMenu改修)
+Phase 2 (ShopSelector) ─────┘           └── Phase 7 (E2E)
+```
+
+---
+
+### 全ファイル一覧
+
+#### 新規作成（11ファイル）
+
+| ファイルパス | Phase |
+|-------------|-------|
+| `src/stores/shop/index.ts` | 1 |
+| `src/hooks/useInitializeShop.ts` | 1 |
+| `src/components/features/Shop/ShopSelector/index.tsx` | 2 |
+| `src/components/features/Shop/ShopSelector/index.stories.tsx` | 2 |
+| `src/routes/_auth/shops/$shopId/staffs/index.tsx` | 4 |
+| `src/components/pages/Shops/StaffsPage/index.tsx` | 4 |
+| `src/components/features/Shop/StaffListStandalone/index.tsx` | 4 |
+| `src/components/features/Shop/StaffListStandalone/index.stories.tsx` | 4 |
+| `src/components/ui/BottomSheet/index.tsx` | 5 |
+| `src/components/ui/BottomSheet/index.stories.tsx` | 5 |
+| `src/components/templates/BottomMenu/MenuBottomSheet.tsx` | 6 |
+
+#### 修正（4ファイル）
+
+| ファイルパス | Phase |
+|-------------|-------|
+| `src/routes/_auth.tsx` | 1 |
+| `src/components/templates/SideMenu/index.tsx` | 3 |
+| `src/components/templates/BottomMenu/index.tsx` | 6 |
+| `e2e/helpers/navigation.ts` | 7 |
 
 ---
 

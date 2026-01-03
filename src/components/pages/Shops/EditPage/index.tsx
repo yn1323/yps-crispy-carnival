@@ -11,9 +11,11 @@ type Props = {
 export const ShopsEditPage = ({ shopId }: Props) => {
   // 店舗情報取得
   const shop = useQuery(api.shop.queries.getById, { shopId: shopId as Id<"shops"> });
+  // ポジション一覧取得
+  const positions = useQuery(api.position.queries.listByShop, { shopId: shopId as Id<"shops"> });
 
   // ローディング
-  if (shop === undefined) {
+  if (shop === undefined || positions === undefined) {
     return (
       <LazyShow>
         <ShopEditLoading />
@@ -22,5 +24,5 @@ export const ShopsEditPage = ({ shopId }: Props) => {
   }
 
   // 通常表示
-  return <ShopEdit shop={shop} callbackRoutingPath={`/shops/${shopId}`} />;
+  return <ShopEdit shop={shop} positions={positions} callbackRoutingPath={`/shops/${shopId}`} />;
 };

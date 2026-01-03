@@ -98,7 +98,7 @@ export const Select = ({
           <SelectPositioner>{content}</SelectPositioner>
         </Portal>
       ) : (
-        content
+        <SelectPositioner>{content}</SelectPositioner>
       )}
     </SelectRoot>
   );

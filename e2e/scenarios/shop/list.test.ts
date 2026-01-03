@@ -22,7 +22,7 @@ test.describe("店舗一覧", () => {
     await expect(page.getByText(/\d+名/).first()).toBeVisible();
   });
 
-  test("店舗カードをクリックすると詳細ページに遷移すること", async ({ page }) => {
+  test("店舗カードをクリックするとスタッフ一覧ページに遷移すること", async ({ page }) => {
     // 最初の店舗カードをクリック（groupロールを含むリンク）
     await page
       .getByRole("link")
@@ -30,11 +30,11 @@ test.describe("店舗一覧", () => {
       .first()
       .click();
 
-    // 店舗詳細ページに遷移
-    await expect(page).toHaveURL(/\/shops\/[^/]+$/);
+    // スタッフ一覧ページに遷移（店舗カードは /shops/{shopId}/staffs に遷移する）
+    await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs$/);
 
-    // 店舗情報タブが表示される
-    await expect(page.getByRole("tab", { name: "店舗情報" })).toBeVisible();
+    // スタッフ一覧が表示される
+    await expect(page.getByText(/\d+名のスタッフ/)).toBeVisible();
   });
 
   test("新規店舗ボタンをクリックすると登録ページに遷移すること", async ({ page }) => {
