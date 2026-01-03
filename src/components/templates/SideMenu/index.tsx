@@ -3,7 +3,7 @@
 import { Box, Button, Icon, Separator, Text, VStack } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { LuCalendar, LuLayoutDashboard, LuLogOut, LuSettings, LuUsers } from "react-icons/lu";
+import { LuCalendar, LuLayoutDashboard, LuLogOut, LuSettings, LuStore, LuUsers } from "react-icons/lu";
 import { ShopSelector } from "@/src/components/features/Shop/ShopSelector";
 
 // アカウントメニュー（店舗選択に関係なく使える）
@@ -70,6 +70,36 @@ export const SideMenu = ({ shops = [], selectedShopId, onShopChange, onlyLogout 
               </Box>
 
               <VStack gap={1} alignItems="stretch" px={4}>
+                {/* 店舗詳細 */}
+                {hasSelectedShop ? (
+                  <Link to="/shops/$shopId" params={{ shopId: selectedShopId }}>
+                    <Button
+                      width="full"
+                      variant="ghost"
+                      justifyContent="flex-start"
+                      bg={href === `/shops/${selectedShopId}` ? "teal.50" : "transparent"}
+                      color={href === `/shops/${selectedShopId}` ? "teal.600" : "gray.700"}
+                      _hover={{ bg: href === `/shops/${selectedShopId}` ? "teal.50" : "gray.50" }}
+                      transition="all 0.15s"
+                    >
+                      <LuStore size={20} />
+                      店舗詳細
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    width="full"
+                    variant="ghost"
+                    justifyContent="flex-start"
+                    color="gray.400"
+                    disabled
+                    cursor="not-allowed"
+                  >
+                    <LuStore size={20} />
+                    店舗詳細
+                  </Button>
+                )}
+
                 {/* スタッフ一覧 */}
                 {hasSelectedShop ? (
                   <Link to="/shops/$shopId/staffs" params={{ shopId: selectedShopId }}>
