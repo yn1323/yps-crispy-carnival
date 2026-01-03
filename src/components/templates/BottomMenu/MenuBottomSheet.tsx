@@ -119,7 +119,7 @@ export const MenuBottomSheet = ({
                 <Box bg="gray.100">
                   <Box px={5} py={3}>
                     <Text fontSize="xs" fontWeight="medium" color="gray.500" mb={3}>
-                      店舗
+                      現在の店舗
                     </Text>
                     <ShopSelector
                       shops={shops}

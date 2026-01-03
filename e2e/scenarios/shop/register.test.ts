@@ -23,7 +23,7 @@ test.describe("店舗登録", () => {
     // /shops に遷移したことを確認
     await expect(page).toHaveURL("/shops");
 
-    // 登録した店舗が一覧に表示されることを確認
-    await expect(page.getByText(shopName)).toBeVisible();
+    // 登録した店舗が一覧に表示されることを確認（店舗カード内のh3要素で特定）
+    await expect(page.getByRole("heading", { name: shopName, level: 3 })).toBeVisible();
   });
 });

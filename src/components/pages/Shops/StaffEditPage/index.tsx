@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffEdit, StaffEditLoading, StaffEditNotFound } from "@/src/components/features/Shop/StaffEdit";
+import { StaffEdit, StaffEditLoading, StaffEditNotFound } from "@/src/components/features/Staff/StaffEdit";
 import { LazyShow } from "@/src/components/ui/LazyShow";
 import { userAtom } from "@/src/stores/user";
 

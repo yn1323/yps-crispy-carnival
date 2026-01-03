@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { goToFirstShop, goToStaffTab, openManagerInviteModal } from "@/e2e/helpers/navigation";
+import { goToStaffList, openManagerInviteModal } from "@/e2e/helpers/navigation";
 
 test.describe("マネージャー招待作成", () => {
   test.beforeEach(async ({ page }) => {
-    await goToFirstShop(page);
-    await goToStaffTab(page);
+    // 店舗カードクリックで直接スタッフ一覧に遷移
+    await goToStaffList(page);
   });
 
   test("モーダルが開閉できること", async ({ page }) => {

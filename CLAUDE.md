@@ -31,6 +31,8 @@
 - IMPORTANT: 定数化は2箇所以上で利用しているときのみとする
 - IMPORTANT: 開発者の指摘が誤っているときは、根拠を示して反論すること
 - IMPORTANT: UIX/UX方向性を決めるときは、skill frontend-design, skill ux-designerを利用して検討すること
+- IMPORTANT: E2Eテスト実装時はskill playwright-skillを利用すること（E2Eテストは現段階では不要）
+   - ブラウザ起動後のログインはこちらで行うので、playwright mcp利用時は一声かけてください
 
 ## 開発コマンド
 

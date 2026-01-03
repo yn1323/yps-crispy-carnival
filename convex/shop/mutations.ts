@@ -8,8 +8,16 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT } from "../constants";
+import { DEFAULT_POSITIONS, SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT, SKILL_LEVELS } from "../constants";
 import { getStaff, getStaffByEmail, isValidTimeFormat, requireShop, requireUserByAuthId } from "../helpers";
+
+// 全ポジションを「未経験」で初期化したスキル配列を生成
+const createDefaultSkills = () => {
+  return DEFAULT_POSITIONS.map((position) => ({
+    position,
+    level: SKILL_LEVELS[0], // "未経験"
+  }));
+};
 
 // 店舗作成
 export const create = mutation({
@@ -175,12 +183,15 @@ export const addStaff = mutation({
       throw new ConvexError({ message: "このメールアドレスは既に登録されています", code: "EMAIL_ALREADY_EXISTS" });
     }
 
+    // skillsが渡されなかった場合、全ポジション「未経験」で初期化
+    const skills = args.skills ?? createDefaultSkills();
+
     const staffId = await ctx.db.insert("staffs", {
       shopId: args.shopId,
       email: trimmedEmail,
       displayName: trimmedDisplayName,
       status: "active",
-      skills: args.skills,
+      skills,
       maxWeeklyHours: args.maxWeeklyHours,
       invitedBy: args.authId,
       createdAt: Date.now(),

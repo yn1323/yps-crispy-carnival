@@ -1,6 +1,7 @@
-import { Badge, Box, Card, Flex, HStack, Icon, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Card, Flex, HStack, Icon, Progress, Text, VStack } from "@chakra-ui/react";
 import { LuBriefcase, LuClock, LuMail, LuStickyNote, LuWallet } from "react-icons/lu";
 import { Animation } from "@/src/components/templates/Animation";
+import { DEFAULT_POSITIONS } from "@/src/constants/validations";
 
 type StaffType = {
   email: string;
@@ -13,6 +14,82 @@ type StaffType = {
 
 type InfoTabProps = {
   staff: StaffType;
+};
+
+// スキルレベルに応じた進捗値を取得
+const getProgressValue = (level: string): number => {
+  switch (level) {
+    case "未経験":
+      return 0;
+    case "研修中":
+      return 33;
+    case "一人前":
+      return 66;
+    case "ベテラン":
+      return 100;
+    default:
+      return 0;
+  }
+};
+
+// スキルレベルに応じたバー色を取得
+const getBarColor = (level: string): string => {
+  switch (level) {
+    case "未経験":
+      return "gray.300";
+    case "研修中":
+      return "teal.300";
+    case "一人前":
+      return "teal.500";
+    case "ベテラン":
+      return "teal.600";
+    default:
+      return "gray.300";
+  }
+};
+
+// スキルレベルに応じたBadge色を取得
+const getBadgeColor = (level: string): string => {
+  return level === "未経験" ? "gray" : "teal";
+};
+
+// スキル配列を全ポジション分に正規化（未登録ポジションは「未経験」で補完）
+const normalizeSkills = (skills: { position: string; level: string }[]) => {
+  return DEFAULT_POSITIONS.map((position) => {
+    const existingSkill = skills.find((s) => s.position === position);
+    return existingSkill || { position, level: "未経験" };
+  });
+};
+
+// スキルプログレスバーコンポーネント
+type SkillProgressBarProps = {
+  skills: { position: string; level: string }[];
+};
+
+const SkillProgressBar = ({ skills }: SkillProgressBarProps) => {
+  const normalizedSkills = normalizeSkills(skills);
+
+  return (
+    <VStack align="stretch" gap={3}>
+      {normalizedSkills.map((skill) => (
+        <Box key={skill.position}>
+          <Flex justify="space-between" align="center" mb={1}>
+            <Text fontSize="sm" fontWeight="medium" color="gray.700">
+              {skill.position}
+            </Text>
+            <Badge colorPalette={getBadgeColor(skill.level)} size="sm">
+              {skill.level}
+            </Badge>
+          </Flex>
+          <Progress.Root value={getProgressValue(skill.level)} size="sm">
+            <Progress.Track bg="gray.100">
+              <Progress.Range bg={getBarColor(skill.level)} transition="width 0.5s ease-out" />
+            </Progress.Track>
+          </Progress.Root>
+        </Box>
+      ))}
+    </VStack>
+  );
 };
 
 export const InfoTab = ({ staff }: InfoTabProps) => {
@@ -30,21 +107,6 @@ export const InfoTab = ({ staff }: InfoTabProps) => {
                 {staff.email}
               </Text>
             </Flex>
-
-            {/* スキル */}
-            {staff.skills.length > 0 && (
-              <Flex align="flex-start" gap={3}>
-                <Icon as={LuBriefcase} boxSize={5} color="gray.500" mt={1} />
-                <Text fontWeight="medium">スキル</Text>
-                <Flex ml="auto" gap={2} flexWrap="wrap" justify="flex-end">
-                  {staff.skills.map((skill, idx) => (
-                    <Badge key={idx} colorPalette="teal" variant="subtle">
-                      {skill.position}（{skill.level}）
-                    </Badge>
-                  ))}
-                </Flex>
-              </Flex>
-            )}
 
             {/* 週最大勤務時間 */}
             {staff.maxWeeklyHours && (
@@ -68,6 +130,19 @@ export const InfoTab = ({ staff }: InfoTabProps) => {
               </Flex>
             )}
           </VStack>
+        </Card.Body>
+      </Card.Root>
+
+      {/* スキルカード */}
+      <Card.Root borderWidth={0} shadow="sm" mb={{ base: 4, md: 6 }}>
+        <Card.Header>
+          <HStack>
+            <Icon as={LuBriefcase} boxSize={5} color="gray.500" />
+            <Text fontWeight="medium">スキル</Text>
+          </HStack>
+        </Card.Header>
+        <Card.Body pt={0}>
+          <SkillProgressBar skills={staff.skills} />
         </Card.Body>
       </Card.Root>
 

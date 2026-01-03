@@ -43,7 +43,7 @@ export const SideMenu = ({ shops = [], selectedShopId, onShopChange, onlyLogout 
             {/* 店舗セクション */}
             <Box w="full" py={3}>
               <Text fontSize="xs" fontWeight="medium" color="gray.500" px={4} mb={2}>
-                店舗
+                現在の店舗
               </Text>
 
               <Box px={4} mb={2}>

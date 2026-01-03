@@ -30,6 +30,8 @@ export const Basic: Story = {
       skills: [
         { position: "ホール", level: "ベテラン" },
         { position: "キッチン", level: "一人前" },
+        { position: "レジ", level: "研修中" },
+        { position: "その他", level: "未経験" },
       ],
       maxWeeklyHours: 40,
       memo: "真面目で信頼できるスタッフ",
@@ -42,7 +44,7 @@ export const Basic: Story = {
   },
 };
 
-export const NoSkills: Story = {
+export const AllBeginner: Story = {
   args: {
     shop: mockShop,
     staff: {
@@ -50,7 +52,12 @@ export const NoSkills: Story = {
       email: "suzuki@example.com",
       displayName: "鈴木一郎",
       status: "active",
-      skills: [],
+      skills: [
+        { position: "ホール", level: "未経験" },
+        { position: "キッチン", level: "未経験" },
+        { position: "レジ", level: "未経験" },
+        { position: "その他", level: "未経験" },
+      ],
       maxWeeklyHours: undefined,
       memo: "",
       workStyleNote: "",
