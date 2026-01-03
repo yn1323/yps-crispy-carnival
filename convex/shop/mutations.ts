@@ -8,8 +8,17 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT } from "../constants";
-import { getStaff, getStaffByEmail, isValidTimeFormat, requireShop, requireUserByAuthId } from "../helpers";
+import { SHOP_SUBMIT_FREQUENCY, SHOP_TIME_UNIT, SKILL_LEVELS } from "../constants";
+import {
+  createDefaultSkills,
+  getStaff,
+  getStaffByEmail,
+  initializeDefaultPositions,
+  initializeStaffSkills,
+  isValidTimeFormat,
+  requireShop,
+  requireUserByAuthId,
+} from "../helpers";
 
 // 店舗作成
 export const create = mutation({
@@ -21,6 +30,14 @@ export const create = mutation({
     submitFrequency: v.string(),
     description: v.optional(v.string()),
     authId: v.string(),
+    positions: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          order: v.number(),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const trimmedShopName = args.shopName.trim();
@@ -63,8 +80,25 @@ export const create = mutation({
       isDeleted: false,
     });
 
+    // ポジションを初期化
+    if (args.positions && args.positions.length > 0) {
+      // カスタムポジションを作成
+      for (const pos of args.positions) {
+        await ctx.db.insert("shopPositions", {
+          shopId,
+          name: pos.name,
+          order: pos.order,
+          isDeleted: false,
+          createdAt: Date.now(),
+        });
+      }
+    } else {
+      // デフォルトポジションを初期化
+      await initializeDefaultPositions(ctx, shopId);
+    }
+
     // オーナーをスタッフとして追加
-    await ctx.db.insert("staffs", {
+    const ownerStaffId = await ctx.db.insert("staffs", {
       shopId,
       email: user.email,
       displayName: user.name,
@@ -75,6 +109,9 @@ export const create = mutation({
       role: "manager",
       userId: user._id,
     });
+
+    // オーナーのスキルを初期化
+    await initializeStaffSkills(ctx, shopId, ownerStaffId);
 
     return {
       success: true,
@@ -175,17 +212,23 @@ export const addStaff = mutation({
       throw new ConvexError({ message: "このメールアドレスは既に登録されています", code: "EMAIL_ALREADY_EXISTS" });
     }
 
+    // skillsが渡されなかった場合、全ポジション「未経験」で初期化
+    const skills = args.skills ?? createDefaultSkills();
+
     const staffId = await ctx.db.insert("staffs", {
       shopId: args.shopId,
       email: trimmedEmail,
       displayName: trimmedDisplayName,
       status: "active",
-      skills: args.skills,
+      skills, // 後方互換のため残す
       maxWeeklyHours: args.maxWeeklyHours,
       invitedBy: args.authId,
       createdAt: Date.now(),
       isDeleted: false,
     });
+
+    // 新テーブルにもスキルを初期化
+    await initializeStaffSkills(ctx, args.shopId, staffId);
 
     return { success: true, staffId };
   },
@@ -232,7 +275,7 @@ export const updateStaffInfo = mutation({
     skills: v.optional(
       v.array(
         v.object({
-          position: v.string(),
+          positionId: v.id("shopPositions"),
           level: v.string(),
         }),
       ),
@@ -251,7 +294,6 @@ export const updateStaffInfo = mutation({
     const fieldsToUpdate: Partial<{
       email: string;
       displayName: string;
-      skills: { position: string; level: string }[];
       maxWeeklyHours: number | undefined;
       memo: string;
       workStyleNote: string;
@@ -263,9 +305,6 @@ export const updateStaffInfo = mutation({
     }
     if (args.displayName !== undefined) {
       fieldsToUpdate.displayName = args.displayName.trim();
-    }
-    if (args.skills !== undefined) {
-      fieldsToUpdate.skills = args.skills;
     }
     if (args.maxWeeklyHours !== undefined) {
       fieldsToUpdate.maxWeeklyHours = args.maxWeeklyHours ?? undefined;
@@ -280,11 +319,44 @@ export const updateStaffInfo = mutation({
       fieldsToUpdate.hourlyWage = args.hourlyWage ?? undefined;
     }
 
-    if (Object.keys(fieldsToUpdate).length === 0) {
-      throw new ConvexError({ message: "更新するフィールドがありません", code: "NO_FIELDS_TO_UPDATE" });
+    // スキルの更新（staffSkillsテーブル）
+    if (args.skills !== undefined) {
+      // 既存のスキルを取得
+      const existingSkills = await ctx.db
+        .query("staffSkills")
+        .withIndex("by_staff", (q) => q.eq("staffId", args.staffId))
+        .collect();
+
+      const existingSkillMap = new Map(existingSkills.map((s) => [s.positionId, s]));
+
+      for (const skillInput of args.skills) {
+        if (!SKILL_LEVELS.includes(skillInput.level as (typeof SKILL_LEVELS)[number])) {
+          throw new ConvexError({ message: "無効なスキルレベルです", code: "INVALID_LEVEL" });
+        }
+
+        const existing = existingSkillMap.get(skillInput.positionId);
+
+        if (existing) {
+          // 既存のスキルを更新
+          await ctx.db.patch(existing._id, {
+            level: skillInput.level,
+            updatedAt: Date.now(),
+          });
+        } else {
+          // 新規スキルを作成
+          await ctx.db.insert("staffSkills", {
+            staffId: args.staffId,
+            positionId: skillInput.positionId,
+            level: skillInput.level,
+            updatedAt: Date.now(),
+          });
+        }
+      }
     }
 
-    await ctx.db.patch(args.staffId, fieldsToUpdate);
+    if (Object.keys(fieldsToUpdate).length > 0) {
+      await ctx.db.patch(args.staffId, fieldsToUpdate);
+    }
 
     return { success: true };
   },

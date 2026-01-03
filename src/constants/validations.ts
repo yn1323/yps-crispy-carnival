@@ -1,6 +1,8 @@
 // DB関連の定数はconvex/constants.tsから参照（Single Source of Truth）
 export {
   DEFAULT_POSITIONS,
+  POSITION_MAX_COUNT,
+  POSITION_NAME_MAX_LENGTH,
   type PositionType,
   SHOP_MAX_LENGTH,
   SHOP_MIN_LENGTH,

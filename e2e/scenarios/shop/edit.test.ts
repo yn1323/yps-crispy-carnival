@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { goToFirstShop } from "@/e2e/helpers/navigation";
+import { goToFirstShopDetail } from "@/e2e/helpers/navigation";
 
 test.describe("店舗編集", () => {
   test.beforeEach(async ({ page }) => {
-    await goToFirstShop(page);
+    await goToFirstShopDetail(page);
     // 編集ページへ遷移
     await page.getByRole("button", { name: "編集" }).click();
     await expect(page).toHaveURL(/\/shops\/[^/]+\/edit$/);

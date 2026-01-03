@@ -1,9 +1,19 @@
-import { Box, Button, Field, Flex, Grid, GridItem, Input, Textarea, VStack } from "@chakra-ui/react";
+import { Box, Button, Field, Flex, Grid, GridItem, Input, Text, Textarea, VStack } from "@chakra-ui/react";
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from "react-hook-form";
-import { LuCalendar, LuSettings, LuStore } from "react-icons/lu";
+import { LuCalendar, LuSettings, LuStore, LuTag } from "react-icons/lu";
+import type { Id } from "@/convex/_generated/dataModel";
 import { FormCard } from "@/src/components/ui/FormCard";
 import { Select } from "@/src/components/ui/Select";
+import { POSITION_MAX_COUNT } from "@/src/constants/validations";
+import { type LocalPosition, PositionEditor } from "../PositionEditor";
+import { PositionManager } from "../PositionManager";
 import { type SchemaType, submitFrequencyOptions, timeUnitOptions } from "./schema";
+
+type PositionType = {
+  _id: Id<"shopPositions">;
+  name: string;
+  order: number;
+};
 
 type ShopFormProps = {
   mode: "create" | "edit";
@@ -13,9 +23,27 @@ type ShopFormProps = {
   setValue: UseFormSetValue<SchemaType>;
   isSubmitting: boolean;
   onSubmit: (e: React.FormEvent) => void;
+  shopId?: Id<"shops">;
+  positions?: PositionType[];
 };
 
-export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting, onSubmit }: ShopFormProps) => {
+export const ShopForm = ({
+  mode,
+  register,
+  errors,
+  watch,
+  setValue,
+  isSubmitting,
+  onSubmit,
+  shopId,
+  positions,
+}: ShopFormProps) => {
+  const localPositions = watch("positions") ?? [];
+
+  const handlePositionsChange = (newPositions: LocalPosition[]) => {
+    setValue("positions", newPositions);
+  };
+
   return (
     <Box as="form" onSubmit={onSubmit}>
       <VStack gap="6">
@@ -56,8 +84,8 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
               {/* シフト提出頻度 */}
               <GridItem>
                 <Field.Root invalid={!!errors.submitFrequency}>
-                  <Field.Label>シフト提出期限</Field.Label>
-                  <Field.HelperText>スタッフがシフトを提出する期限のサイクル</Field.HelperText>
+                  <Field.Label>シフト提出期間</Field.Label>
+                  <Field.HelperText>スタッフがシフトを提出する期間のサイクル</Field.HelperText>
                   <Select
                     items={submitFrequencyOptions}
                     value={watch("submitFrequency")}
@@ -87,6 +115,23 @@ export const ShopForm = ({ mode, register, errors, watch, setValue, isSubmitting
             </Grid>
           </VStack>
         </FormCard>
+
+        {/* 必要スキル（ポジション） */}
+        {mode === "create" ? (
+          <FormCard
+            icon={LuTag}
+            title="ポジション"
+            rightElement={
+              <Text fontSize="sm" color="gray.500">
+                {localPositions.length} / {POSITION_MAX_COUNT} 件
+              </Text>
+            }
+          >
+            <PositionEditor positions={localPositions} onChange={handlePositionsChange} disabled={isSubmitting} />
+          </FormCard>
+        ) : (
+          shopId && positions && <PositionManager shopId={shopId} positions={positions} />
+        )}
 
         {/* オプション機能 */}
         <FormCard icon={LuSettings} iconColor="gray.700" title="オプション機能">

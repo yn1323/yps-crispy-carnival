@@ -12,10 +12,6 @@ const mockStaff = {
   email: "tanaka@example.com",
   displayName: "田中太郎",
   status: "active" as const,
-  skills: [
-    { position: "ホール", level: "ベテラン" },
-    { position: "キッチン", level: "研修中" },
-  ],
   maxWeeklyHours: 40,
   memo: "シフト調整に柔軟に対応してくれます。\n土日出勤可能。",
   workStyleNote: "午前中の勤務を希望。",
@@ -26,12 +22,52 @@ const mockStaff = {
   isManager: false,
 };
 
+const mockPositions = [
+  { _id: "pos1" as Id<"shopPositions">, name: "ホール", order: 0 },
+  { _id: "pos2" as Id<"shopPositions">, name: "キッチン", order: 1 },
+  { _id: "pos3" as Id<"shopPositions">, name: "レジ", order: 2 },
+  { _id: "pos4" as Id<"shopPositions">, name: "その他", order: 3 },
+];
+
+const mockStaffSkills = [
+  {
+    _id: "skill1" as Id<"staffSkills">,
+    positionId: "pos1" as Id<"shopPositions">,
+    positionName: "ホール",
+    positionOrder: 0,
+    level: "ベテラン",
+  },
+  {
+    _id: "skill2" as Id<"staffSkills">,
+    positionId: "pos2" as Id<"shopPositions">,
+    positionName: "キッチン",
+    positionOrder: 1,
+    level: "研修中",
+  },
+  {
+    _id: "skill3" as Id<"staffSkills">,
+    positionId: "pos3" as Id<"shopPositions">,
+    positionName: "レジ",
+    positionOrder: 2,
+    level: "未経験",
+  },
+  {
+    _id: "skill4" as Id<"staffSkills">,
+    positionId: "pos4" as Id<"shopPositions">,
+    positionName: "その他",
+    positionOrder: 3,
+    level: "一人前",
+  },
+];
+
 const meta = {
-  title: "Features/Shop/StaffDetail",
+  title: "Features/Staff/StaffDetail",
   component: StaffDetail,
   args: {
     shop: mockShop,
     staff: mockStaff,
+    positions: mockPositions,
+    staffSkills: mockStaffSkills,
   },
 } satisfies Meta<typeof StaffDetail>;
 
@@ -54,9 +90,9 @@ export const PendingStatus: Story = {
     staff: {
       ...mockStaff,
       status: "pending" as const,
-      skills: [],
       maxWeeklyHours: undefined,
     },
+    staffSkills: [], // 招待中はスキル未設定
   },
 };
 

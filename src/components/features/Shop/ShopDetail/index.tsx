@@ -1,44 +1,19 @@
-import { Box, Button, Container, Flex, Heading, Icon, Stack, Tabs, Text } from "@chakra-ui/react";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { LuPencil, LuStore, LuUsers } from "react-icons/lu";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import { Box, Button, Card, Container, Flex, Heading, Icon, Separator, Stack, Text } from "@chakra-ui/react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { LuCalendar, LuClock, LuPencil, LuStore } from "react-icons/lu";
+import type { Doc } from "@/convex/_generated/dataModel";
+import { Animation } from "@/src/components/templates/Animation";
 import { Empty } from "@/src/components/ui/Empty";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
-import { InfoTab } from "./TabContents/InfoTab";
-import { StaffTab } from "./TabContents/StaffTab";
-
-type StaffType = {
-  _id: Id<"staffs">;
-  email: string;
-  displayName: string;
-  status: string;
-  skills: { position: string; level: string }[];
-  maxWeeklyHours: number | undefined;
-  createdAt: number;
-  isManager: boolean;
-};
+import { convertSubmitFrequency, convertTimeUnit } from "@/src/helpers/domain/convertShopData";
 
 type ShopDetailProps = {
   shop: Doc<"shops">;
-  staffs: StaffType[];
 };
 
-export const ShopDetailTabTypes = ["info", "staff"] as const;
-
-export const ShopDetail = ({ shop, staffs }: ShopDetailProps) => {
+export const ShopDetail = ({ shop }: ShopDetailProps) => {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false });
-  const currentTab = search.tab || "info";
-
-  const handleTabChange = (value: string) => {
-    navigate({
-      to: "/shops/$shopId",
-      params: { shopId: shop._id },
-      search: { tab: value as (typeof ShopDetailTabTypes)[number] },
-      replace: true,
-    });
-  };
 
   return (
     <Container maxW="6xl">
@@ -70,29 +45,69 @@ export const ShopDetail = ({ shop, staffs }: ShopDetailProps) => {
         </Flex>
       </Title>
 
-      {/* タブ */}
-      <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
-        <Tabs.List mb={{ base: 4, md: 6 }}>
-          <Tabs.Trigger value="info" gap={2}>
-            <Icon as={LuStore} boxSize={4} />
-            店舗情報
-          </Tabs.Trigger>
-          <Tabs.Trigger value="staff" gap={2}>
-            <Icon as={LuUsers} boxSize={4} />
-            スタッフ
-          </Tabs.Trigger>
-        </Tabs.List>
+      {/* 店舗情報 */}
+      <Animation>
+        <Card.Root borderWidth={0} shadow="sm">
+          <Card.Body p={{ base: 4, md: 6 }}>
+            {/* 詳細情報グリッド */}
+            <Box>
+              {/* 営業時間 */}
+              <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
+                <Icon as={LuClock} boxSize={5} color="gray.500" />
+                <Box flex={1}>
+                  <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
+                    営業時間
+                  </Text>
+                  <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                    {shop.openTime} - {shop.closeTime}
+                  </Text>
+                </Box>
+              </Flex>
 
-        {/* 店舗情報タブ */}
-        <Tabs.Content value="info">
-          <InfoTab shop={shop} />
-        </Tabs.Content>
+              {/* シフト提出期限 */}
+              <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
+                <Icon as={LuCalendar} boxSize={5} color="gray.500" />
+                <Box flex={1}>
+                  <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
+                    シフト提出期限
+                  </Text>
+                  <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                    {convertSubmitFrequency.toLabel(shop.submitFrequency)}
+                  </Text>
+                </Box>
+              </Flex>
 
-        {/* スタッフタブ */}
-        <Tabs.Content value="staff">
-          <StaffTab staffs={staffs} shopId={shop._id} />
-        </Tabs.Content>
-      </Tabs.Root>
+              {/* シフト入力の時間単位 */}
+              <Flex align="flex-start" gap={3}>
+                <Icon as={LuClock} boxSize={5} color="gray.500" />
+                <Box flex={1}>
+                  <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
+                    シフト入力の時間単位
+                  </Text>
+                  <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
+                    {convertTimeUnit.toLabel(shop.timeUnit)}
+                  </Text>
+                </Box>
+              </Flex>
+            </Box>
+
+            {/* 説明 */}
+            {shop.description && (
+              <>
+                <Separator my={4} />
+                <Box>
+                  <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={2}>
+                    説明
+                  </Text>
+                  <Text fontSize={{ base: "sm", md: "base" }} color="gray.700" lineHeight="relaxed">
+                    {shop.description}
+                  </Text>
+                </Box>
+              </>
+            )}
+          </Card.Body>
+        </Card.Root>
+      </Animation>
     </Container>
   );
 };

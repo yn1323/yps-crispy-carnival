@@ -1,24 +1,20 @@
 import { expect, type Page } from "@playwright/test";
 
 /**
- * 店舗一覧から最初の店舗詳細ページへ移動
+ * 店舗一覧から最初の店舗詳細ページへ移動（直接URLで遷移）
+ * 注意: 店舗カードをクリックすると /staffs に遷移するため、詳細ページにはURL直接遷移が必要
  */
-export const goToFirstShop = async (page: Page) => {
+export const goToFirstShopDetail = async (page: Page) => {
   await page.goto("/shops");
-  // 店舗カード（group）を含むリンクをクリック
-  await page
+  const shopLink = page
     .getByRole("link")
     .filter({ has: page.getByRole("group") })
-    .first()
-    .click();
+    .first();
+  const href = await shopLink.getAttribute("href");
+  // href は /shops/{shopId}/staffs の形式
+  const shopId = href?.match(/\/shops\/([^/]+)/)?.[1];
+  await page.goto(`/shops/${shopId}`);
   await expect(page).toHaveURL(/\/shops\/[^/]+$/);
-};
-
-/**
- * スタッフタブをクリックしてスタッフ一覧を表示
- */
-export const goToStaffTab = async (page: Page) => {
-  await page.getByRole("tab", { name: "スタッフ" }).click();
 };
 
 /**
@@ -29,11 +25,18 @@ export const waitForStaffList = async (page: Page) => {
 };
 
 /**
- * 店舗一覧 → 店舗詳細 → スタッフタブ → スタッフ一覧表示まで一括で実行
+ * 店舗一覧 → スタッフ一覧表示まで一括で実行
+ * 店舗カードをクリックすると直接 /shops/{shopId}/staffs に遷移する
  */
 export const goToStaffList = async (page: Page) => {
-  await goToFirstShop(page);
-  await goToStaffTab(page);
+  await page.goto("/shops");
+  await page
+    .getByRole("link")
+    .filter({ has: page.getByRole("group") })
+    .first()
+    .click();
+  // 店舗カードは /shops/{shopId}/staffs に遷移する
+  await expect(page).toHaveURL(/\/shops\/[^/]+\/staffs$/);
   await waitForStaffList(page);
 };
 
@@ -83,27 +86,4 @@ export const openManagerInviteModal = async (page: Page) => {
     .filter({ hasText: /^マネージャーログインして店舗運営に参加シフト作成・スタッフ管理ができます$/ })
     .first()
     .click();
-};
-
-/**
- * 招待中タブをクリックして招待一覧を表示
- */
-export const goToInviteTab = async (page: Page) => {
-  await page.getByRole("tab", { name: "招待中" }).click();
-};
-
-/**
- * 招待一覧が表示されるまで待機
- */
-export const waitForInviteList = async (page: Page) => {
-  await expect(page.getByText(/\d+件の招待/)).toBeVisible();
-};
-
-/**
- * 店舗一覧 → 店舗詳細 → 招待中タブ → 招待一覧表示まで一括で実行
- */
-export const goToInviteList = async (page: Page) => {
-  await goToFirstShop(page);
-  await goToInviteTab(page);
-  await waitForInviteList(page);
 };

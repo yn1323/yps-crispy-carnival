@@ -22,6 +22,10 @@ export type SkillLevelType = (typeof SKILL_LEVELS)[number];
 export const DEFAULT_POSITIONS = ["ホール", "キッチン", "レジ", "その他"] as const;
 export type PositionType = (typeof DEFAULT_POSITIONS)[number];
 
+// ポジション制約
+export const POSITION_MAX_COUNT = 10;
+export const POSITION_NAME_MAX_LENGTH = 20;
+
 // ロール定義
 export const STAFF_ROLES = ["owner", "manager", "general"] as const;
 export type StaffRoleType = (typeof STAFF_ROLES)[number];

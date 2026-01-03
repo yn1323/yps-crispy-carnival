@@ -7,9 +7,9 @@ import {
   Flex,
   Heading,
   Icon,
-  IconButton,
   Input,
   List,
+  SimpleGrid,
   Skeleton,
   Text,
   Textarea,
@@ -20,25 +20,23 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
-import { LuPlus, LuSave, LuTrash2, LuTriangleAlert, LuUser, LuUserX } from "react-icons/lu";
+import { Controller, useForm } from "react-hook-form";
+import { LuCheck, LuSave, LuTriangleAlert, LuUser, LuUserX } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { Empty } from "@/src/components/ui/Empty";
-import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
-import { DEFAULT_POSITIONS, SKILL_LEVELS, type SkillLevelType } from "@/src/constants/validations";
+import { SKILL_LEVELS, type SkillLevelType } from "@/src/constants/validations";
 import { userAtom } from "@/src/stores/user";
-import { type StaffEditFormValues, staffEditSchema } from "./schema";
+import { type SkillsFormValues, type StaffEditFormValues, staffEditSchema } from "./schema";
 
 type StaffType = {
   _id: Id<"staffs">;
   email: string;
   displayName: string;
   status: string;
-  skills: { position: string; level: string }[];
   maxWeeklyHours: number | undefined;
   memo: string;
   workStyleNote: string;
@@ -48,16 +46,37 @@ type StaffType = {
   createdAt: number;
 };
 
-// スキルのlevelを型安全に変換
-const convertSkillsToFormValues = (
-  skills: { position: string; level: string }[],
-): { position: string; level: SkillLevelType }[] => {
-  return skills
-    .filter((skill) => SKILL_LEVELS.includes(skill.level as SkillLevelType))
-    .map((skill) => ({
-      position: skill.position,
-      level: skill.level as SkillLevelType,
-    }));
+type PositionType = {
+  _id: Id<"shopPositions">;
+  name: string;
+  order: number;
+};
+
+type StaffSkillType = {
+  _id: Id<"staffSkills">;
+  positionId: Id<"shopPositions">;
+  positionName: string;
+  positionOrder: number;
+  level: string;
+};
+
+// 配列形式のスキルをオブジェクト形式に変換（フォーム用）
+const convertSkillsArrayToObject = (positions: PositionType[], staffSkills: StaffSkillType[]): SkillsFormValues => {
+  const result: SkillsFormValues = {};
+
+  // まず全ポジションを「未経験」で初期化
+  for (const position of positions) {
+    result[position._id] = SKILL_LEVELS[0]; // "未経験"
+  }
+
+  // 既存のスキルデータで上書き
+  for (const skill of staffSkills) {
+    if (SKILL_LEVELS.includes(skill.level as SkillLevelType)) {
+      result[skill.positionId] = skill.level as SkillLevelType;
+    }
+  }
+
+  return result;
 };
 
 type ShopType = {
@@ -68,9 +87,84 @@ type ShopType = {
 type StaffEditProps = {
   staff: StaffType;
   shop: ShopType;
+  positions: PositionType[];
+  staffSkills: StaffSkillType[];
 };
 
-export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
+// スキルレベル選択ボタン
+type SkillLevelButtonProps = {
+  level: SkillLevelType;
+  isSelected: boolean;
+  onClick: () => void;
+};
+
+const SkillLevelButton = ({ level, isSelected, onClick }: SkillLevelButtonProps) => {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={isSelected ? "solid" : "outline"}
+      colorPalette={isSelected ? "teal" : "gray"}
+      bg={isSelected ? "teal.50" : "gray.100"}
+      color={isSelected ? "teal.700" : "gray.600"}
+      borderWidth={isSelected ? "2px" : "1px"}
+      borderColor={isSelected ? "teal.500" : "transparent"}
+      _hover={{
+        bg: isSelected ? "teal.100" : "gray.200",
+        transform: "scale(1.02)",
+      }}
+      transition="all 0.15s ease"
+      onClick={onClick}
+      h={{ base: "44px", md: "40px" }}
+      minW={0}
+      px={2}
+      gap={1}
+    >
+      {isSelected && <Icon as={LuCheck} boxSize={3} />}
+      <Text fontSize={{ base: "xs", md: "sm" }}>{level}</Text>
+    </Button>
+  );
+};
+
+// スキルマトリックス（ポジションごとのレベル選択）
+type SkillMatrixProps = {
+  positions: PositionType[];
+  value: SkillsFormValues;
+  onChange: (value: SkillsFormValues) => void;
+};
+
+const SkillMatrix = ({ positions, value, onChange }: SkillMatrixProps) => {
+  const handleLevelChange = (positionId: string, level: SkillLevelType) => {
+    onChange({
+      ...value,
+      [positionId]: level,
+    });
+  };
+
+  return (
+    <VStack align="stretch" gap={4}>
+      {positions.map((position) => (
+        <Box key={position._id}>
+          <Text fontWeight="medium" color="gray.700" mb={2} fontSize="sm">
+            {position.name}
+          </Text>
+          <SimpleGrid columns={{ base: 2, md: 4 }} gap={2}>
+            {SKILL_LEVELS.map((level) => (
+              <SkillLevelButton
+                key={level}
+                level={level}
+                isSelected={value[position._id] === level}
+                onClick={() => handleLevelChange(position._id, level)}
+              />
+            ))}
+          </SimpleGrid>
+        </Box>
+      ))}
+    </VStack>
+  );
+};
+
+export const StaffEdit = ({ staff, shop, positions, staffSkills }: StaffEditProps) => {
   const navigate = useNavigate();
   const user = useAtomValue(userAtom);
   const updateStaffInfo = useMutation(api.shop.mutations.updateStaffInfo);
@@ -124,7 +218,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
     defaultValues: {
       email: staff.email,
       displayName: staff.displayName,
-      skills: convertSkillsToFormValues(staff.skills),
+      skills: convertSkillsArrayToObject(positions, staffSkills),
       maxWeeklyHours: staff.maxWeeklyHours ?? "",
       memo: staff.memo ?? "",
       workStyleNote: staff.workStyleNote ?? "",
@@ -132,25 +226,23 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "skills",
-  });
-
   const onSubmit = async (data: StaffEditFormValues) => {
     if (!user.authId) return;
 
     try {
+      // スキルをpositionId + level形式に変換
+      const skillsToSubmit = positions.map((position) => ({
+        positionId: position._id,
+        level: data.skills[position._id] || SKILL_LEVELS[0],
+      }));
+
       await updateStaffInfo({
         shopId: shop._id,
         staffId: staff._id,
         authId: user.authId,
         email: data.email,
         displayName: data.displayName,
-        skills: data.skills.map((skill) => ({
-          position: skill.position,
-          level: skill.level,
-        })),
+        skills: skillsToSubmit,
         maxWeeklyHours: typeof data.maxWeeklyHours === "number" ? data.maxWeeklyHours : null,
         memo: data.memo ?? "",
         workStyleNote: data.workStyleNote ?? "",
@@ -276,76 +368,18 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
           {/* スキルカード */}
           <Card.Root>
             <Card.Header>
-              <Flex justify="space-between" align="center">
-                <Heading as="h3" size="md">
-                  スキル
-                </Heading>
-                <Button
-                  size="sm"
-                  colorPalette="teal"
-                  onClick={() => append({ position: DEFAULT_POSITIONS[0], level: SKILL_LEVELS[0] })}
-                >
-                  <Icon as={LuPlus} boxSize={4} mr={1} />
-                  スキルを追加
-                </Button>
-              </Flex>
+              <Heading as="h3" size="md">
+                スキル
+              </Heading>
             </Card.Header>
             <Card.Body pt={0}>
-              <VStack align="stretch" gap={3}>
-                {fields.length === 0 ? (
-                  <Text color="gray.500" fontSize="sm">
-                    スキルが登録されていません
-                  </Text>
-                ) : (
-                  fields.map((field, index) => (
-                    <Flex key={field.id} gap={3} align="flex-end">
-                      <Box flex={1}>
-                        <Field.Root invalid={!!errors.skills?.[index]?.position}>
-                          {index === 0 && <Field.Label>ポジション</Field.Label>}
-                          <Controller
-                            control={control}
-                            name={`skills.${index}.position`}
-                            render={({ field }) => (
-                              <Select
-                                items={DEFAULT_POSITIONS.map((p) => ({ value: p, label: p }))}
-                                value={field.value}
-                                onChange={field.onChange}
-                              />
-                            )}
-                          />
-                          <Field.ErrorText>{errors.skills?.[index]?.position?.message}</Field.ErrorText>
-                        </Field.Root>
-                      </Box>
-                      <Box flex={1}>
-                        <Field.Root invalid={!!errors.skills?.[index]?.level}>
-                          {index === 0 && <Field.Label>レベル</Field.Label>}
-                          <Controller
-                            control={control}
-                            name={`skills.${index}.level`}
-                            render={({ field }) => (
-                              <Select
-                                items={SKILL_LEVELS.map((l) => ({ value: l, label: l }))}
-                                value={field.value}
-                                onChange={field.onChange}
-                              />
-                            )}
-                          />
-                          <Field.ErrorText>{errors.skills?.[index]?.level?.message}</Field.ErrorText>
-                        </Field.Root>
-                      </Box>
-                      <IconButton
-                        aria-label="スキルを削除"
-                        colorPalette="red"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                      >
-                        <Icon as={LuTrash2} boxSize={4} />
-                      </IconButton>
-                    </Flex>
-                  ))
+              <Controller
+                control={control}
+                name="skills"
+                render={({ field }) => (
+                  <SkillMatrix positions={positions} value={field.value} onChange={field.onChange} />
                 )}
-              </VStack>
+              />
             </Card.Body>
           </Card.Root>
 
@@ -409,7 +443,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
             {/* 警告ボックス */}
             <Box bg="red.50" p={4} borderRadius="md" mb={4}>
               <Text fontSize="sm" color="red.800" fontWeight="medium" mb={2}>
-                ⚠️ この操作は慎重に行ってください
+                この操作は慎重に行ってください
               </Text>
               <Text fontSize="xs" color="red.700" mb={3}>
                 スタッフを退職処理すると、以下の影響があります：

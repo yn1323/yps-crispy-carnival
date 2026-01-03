@@ -128,7 +128,7 @@ export const MemberAddModal = ({ shopId, authId, isOpen, onOpenChange, onClose, 
             >
               <VStack align="stretch" gap={3}>
                 {roleOptions.map((option) => (
-                  <RadioCard.Item key={option.value} value={option.value}>
+                  <RadioCard.Item key={option.value} value={option.value} _hover={{ cursor: "pointer" }}>
                     <RadioCard.ItemHiddenInput />
                     <RadioCard.ItemControl>
                       <RadioCard.ItemContent>

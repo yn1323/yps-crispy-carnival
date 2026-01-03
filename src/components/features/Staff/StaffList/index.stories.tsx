@@ -1,15 +1,30 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffTab } from ".";
+import { StaffList } from ".";
 
-const meta: Meta<typeof StaffTab> = {
-  component: StaffTab,
-  title: "Features/Shop/ShopDetail/TabContents/StaffTab",
+const meta: Meta<typeof StaffList> = {
+  component: StaffList,
+  title: "Features/Shop/StaffList",
 };
 
 export default meta;
 
-type Story = StoryObj<typeof StaffTab>;
+type Story = StoryObj<typeof StaffList>;
+
+const mockShop = {
+  _id: "shop1" as Id<"shops">,
+  shopName: "本店",
+  openTime: "09:00",
+  closeTime: "21:00",
+  timeUnit: 30 as const,
+  submitFrequency: "2w" as const,
+  description: "駅前の本店です",
+  positions: ["ホール", "キッチン", "レジ"],
+  _creationTime: Date.now(),
+  createdAt: Date.now(),
+  createdBy: "auth1",
+  isDeleted: false,
+};
 
 const mockStaffs = [
   {
@@ -69,12 +84,14 @@ const mockStaffs = [
 
 export const Basic: Story = {
   args: {
+    shop: mockShop,
     staffs: mockStaffs,
   },
 };
 
 export const Empty: Story = {
   args: {
+    shop: mockShop,
     staffs: [],
   },
 };

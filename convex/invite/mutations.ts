@@ -9,11 +9,13 @@ import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
 import { INVITE_EXPIRY_MS, STAFF_ROLES } from "../constants";
 import {
+  createDefaultSkills,
   generateToken,
   getStaff,
   getStaffByEmail,
   getStaffByInviteToken,
   getUserByAuthId,
+  initializeStaffSkills,
   requireShop,
 } from "../helpers";
 
@@ -70,12 +72,16 @@ export const create = mutation({
       displayName: trimmedDisplayName,
       status: "pending",
       role: args.role,
+      skills: createDefaultSkills(), // 後方互換のため残す
       inviteToken: token,
       inviteExpiresAt: expiresAt,
       invitedBy: args.authId,
       createdAt: Date.now(),
       isDeleted: false,
     });
+
+    // 新テーブルにもスキルを初期化
+    await initializeStaffSkills(ctx, args.shopId, staffId);
 
     return {
       success: true,
