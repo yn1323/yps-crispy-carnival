@@ -6,7 +6,7 @@ import { useAtomValue } from "jotai";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Empty } from "@/src/components/ui/Empty";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Title } from "@/src/components/ui/Title";
@@ -15,17 +15,25 @@ import { userAtom } from "@/src/stores/user";
 import { ShopForm } from "../ShopForm";
 import { type SchemaType, schema } from "../ShopForm/schema";
 
+type PositionType = {
+  _id: Id<"shopPositions">;
+  name: string;
+  order: number;
+};
+
 type Props = {
   shop: Doc<"shops"> | null | undefined;
+  positions?: PositionType[];
   callbackRoutingPath?: string;
 };
 
 type ShopEditFormProps = {
   shop: Doc<"shops">;
+  positions: PositionType[];
   callbackRoutingPath?: string;
 };
 
-const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
+const ShopEditForm = ({ shop, positions, callbackRoutingPath }: ShopEditFormProps) => {
   const navigate = useNavigate();
   const user = useAtomValue(userAtom);
   const updateShop = useMutation(api.shop.mutations.update);
@@ -101,12 +109,14 @@ const ShopEditForm = ({ shop, callbackRoutingPath }: ShopEditFormProps) => {
         setValue={setValue}
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit(onSubmit)}
+        shopId={shop._id}
+        positions={positions}
       />
     </Container>
   );
 };
 
-export const ShopEdit = ({ shop, callbackRoutingPath }: Props) => {
+export const ShopEdit = ({ shop, positions, callbackRoutingPath }: Props) => {
   // ローディング処理
   if (shop === undefined) {
     return <ShopEditLoading />;
@@ -117,7 +127,7 @@ export const ShopEdit = ({ shop, callbackRoutingPath }: Props) => {
     return <ShopEditNotFound />;
   }
 
-  return <ShopEditForm shop={shop} callbackRoutingPath={callbackRoutingPath} />;
+  return <ShopEditForm shop={shop} positions={positions ?? []} callbackRoutingPath={callbackRoutingPath} />;
 };
 
 export const ShopEditLoading = () => {

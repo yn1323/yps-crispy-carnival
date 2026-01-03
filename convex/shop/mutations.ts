@@ -30,6 +30,14 @@ export const create = mutation({
     submitFrequency: v.string(),
     description: v.optional(v.string()),
     authId: v.string(),
+    positions: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          order: v.number(),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const trimmedShopName = args.shopName.trim();
@@ -72,8 +80,22 @@ export const create = mutation({
       isDeleted: false,
     });
 
-    // デフォルトポジションを初期化
-    await initializeDefaultPositions(ctx, shopId);
+    // ポジションを初期化
+    if (args.positions && args.positions.length > 0) {
+      // カスタムポジションを作成
+      for (const pos of args.positions) {
+        await ctx.db.insert("shopPositions", {
+          shopId,
+          name: pos.name,
+          order: pos.order,
+          isDeleted: false,
+          createdAt: Date.now(),
+        });
+      }
+    } else {
+      // デフォルトポジションを初期化
+      await initializeDefaultPositions(ctx, shopId);
+    }
 
     // オーナーをスタッフとして追加
     const ownerStaffId = await ctx.db.insert("staffs", {
