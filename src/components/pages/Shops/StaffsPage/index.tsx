@@ -22,8 +22,11 @@ export const StaffsPage = ({ shopId }: Props) => {
     user.authId ? { shopId: shopId as Id<"shops">, authId: user.authId } : "skip",
   );
 
+  // 店舗の全スタッフスキル一覧取得
+  const staffSkillsMap = useQuery(api.staffSkill.queries.listByShop, { shopId: shopId as Id<"shops"> });
+
   // ローディング
-  if (shop === undefined || staffs === undefined) {
+  if (shop === undefined || staffs === undefined || staffSkillsMap === undefined) {
     return (
       <LazyShow>
         <StaffListLoading />
@@ -36,5 +39,5 @@ export const StaffsPage = ({ shopId }: Props) => {
     return <StaffListNotFound />;
   }
 
-  return <StaffList shop={shop} staffs={staffs} />;
+  return <StaffList shop={shop} staffs={staffs} staffSkillsMap={staffSkillsMap} />;
 };

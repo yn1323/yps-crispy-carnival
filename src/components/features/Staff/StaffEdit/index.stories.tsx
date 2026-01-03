@@ -19,20 +19,54 @@ const mockShop = {
   shopName: "カフェサンプル",
 };
 
+const mockPositions = [
+  { _id: "pos1" as Id<"shopPositions">, name: "ホール", order: 0 },
+  { _id: "pos2" as Id<"shopPositions">, name: "キッチン", order: 1 },
+  { _id: "pos3" as Id<"shopPositions">, name: "レジ", order: 2 },
+  { _id: "pos4" as Id<"shopPositions">, name: "その他", order: 3 },
+];
+
+const mockStaffSkills = [
+  {
+    _id: "skill1" as Id<"staffSkills">,
+    positionId: "pos1" as Id<"shopPositions">,
+    positionName: "ホール",
+    positionOrder: 0,
+    level: "ベテラン",
+  },
+  {
+    _id: "skill2" as Id<"staffSkills">,
+    positionId: "pos2" as Id<"shopPositions">,
+    positionName: "キッチン",
+    positionOrder: 1,
+    level: "一人前",
+  },
+  {
+    _id: "skill3" as Id<"staffSkills">,
+    positionId: "pos3" as Id<"shopPositions">,
+    positionName: "レジ",
+    positionOrder: 2,
+    level: "研修中",
+  },
+  {
+    _id: "skill4" as Id<"staffSkills">,
+    positionId: "pos4" as Id<"shopPositions">,
+    positionName: "その他",
+    positionOrder: 3,
+    level: "未経験",
+  },
+];
+
 export const Basic: Story = {
   args: {
     shop: mockShop,
+    positions: mockPositions,
+    staffSkills: mockStaffSkills,
     staff: {
       _id: "staff123" as Id<"staffs">,
       email: "yamada@example.com",
       displayName: "山田太郎",
       status: "active",
-      skills: [
-        { position: "ホール", level: "ベテラン" },
-        { position: "キッチン", level: "一人前" },
-        { position: "レジ", level: "研修中" },
-        { position: "その他", level: "未経験" },
-      ],
       maxWeeklyHours: 40,
       memo: "真面目で信頼できるスタッフ",
       workStyleNote: "土日勤務可能",
@@ -47,17 +81,13 @@ export const Basic: Story = {
 export const AllBeginner: Story = {
   args: {
     shop: mockShop,
+    positions: mockPositions,
+    staffSkills: [], // 全て未経験の場合は空配列（デフォルトで未経験になる）
     staff: {
       _id: "staff456" as Id<"staffs">,
       email: "suzuki@example.com",
       displayName: "鈴木一郎",
       status: "active",
-      skills: [
-        { position: "ホール", level: "未経験" },
-        { position: "キッチン", level: "未経験" },
-        { position: "レジ", level: "未経験" },
-        { position: "その他", level: "未経験" },
-      ],
       maxWeeklyHours: undefined,
       memo: "",
       workStyleNote: "",
@@ -69,23 +99,26 @@ export const AllBeginner: Story = {
   },
 };
 
+const mockEmptyStaff = {
+  _id: "staff123" as Id<"staffs">,
+  email: "",
+  displayName: "",
+  status: "active",
+  maxWeeklyHours: undefined,
+  memo: "",
+  workStyleNote: "",
+  hourlyWage: null,
+  resignedAt: undefined,
+  resignationReason: undefined,
+  createdAt: Date.now(),
+};
+
 export const Loading: Story = {
   args: {
     shop: mockShop,
-    staff: {
-      _id: "staff123" as Id<"staffs">,
-      email: "",
-      displayName: "",
-      status: "active",
-      skills: [],
-      maxWeeklyHours: undefined,
-      memo: "",
-      workStyleNote: "",
-      hourlyWage: null,
-      resignedAt: undefined,
-      resignationReason: undefined,
-      createdAt: Date.now(),
-    },
+    positions: mockPositions,
+    staffSkills: [],
+    staff: mockEmptyStaff,
   },
   render: () => <StaffEditLoading />,
 };
@@ -93,20 +126,9 @@ export const Loading: Story = {
 export const NotFound: Story = {
   args: {
     shop: mockShop,
-    staff: {
-      _id: "staff123" as Id<"staffs">,
-      email: "",
-      displayName: "",
-      status: "active",
-      skills: [],
-      maxWeeklyHours: undefined,
-      memo: "",
-      workStyleNote: "",
-      hourlyWage: null,
-      resignedAt: undefined,
-      resignationReason: undefined,
-      createdAt: Date.now(),
-    },
+    positions: mockPositions,
+    staffSkills: [],
+    staff: mockEmptyStaff,
   },
   render: () => <StaffEditNotFound shopId="shop123" />,
 };

@@ -28,7 +28,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { Empty } from "@/src/components/ui/Empty";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
-import { DEFAULT_POSITIONS, type PositionType, SKILL_LEVELS, type SkillLevelType } from "@/src/constants/validations";
+import { SKILL_LEVELS, type SkillLevelType } from "@/src/constants/validations";
 import { userAtom } from "@/src/stores/user";
 import { type SkillsFormValues, type StaffEditFormValues, staffEditSchema } from "./schema";
 
@@ -37,7 +37,6 @@ type StaffType = {
   email: string;
   displayName: string;
   status: string;
-  skills: { position: string; level: string }[];
   maxWeeklyHours: number | undefined;
   memo: string;
   workStyleNote: string;
@@ -47,34 +46,37 @@ type StaffType = {
   createdAt: number;
 };
 
+type PositionType = {
+  _id: Id<"shopPositions">;
+  name: string;
+  order: number;
+};
+
+type StaffSkillType = {
+  _id: Id<"staffSkills">;
+  positionId: Id<"shopPositions">;
+  positionName: string;
+  positionOrder: number;
+  level: string;
+};
+
 // 配列形式のスキルをオブジェクト形式に変換（フォーム用）
-const convertSkillsArrayToObject = (skills: { position: string; level: string }[]): SkillsFormValues => {
-  const result = {} as SkillsFormValues;
+const convertSkillsArrayToObject = (positions: PositionType[], staffSkills: StaffSkillType[]): SkillsFormValues => {
+  const result: SkillsFormValues = {};
 
   // まず全ポジションを「未経験」で初期化
-  for (const position of DEFAULT_POSITIONS) {
-    result[position] = SKILL_LEVELS[0]; // "未経験"
+  for (const position of positions) {
+    result[position._id] = SKILL_LEVELS[0]; // "未経験"
   }
 
   // 既存のスキルデータで上書き
-  for (const skill of skills) {
-    if (
-      DEFAULT_POSITIONS.includes(skill.position as PositionType) &&
-      SKILL_LEVELS.includes(skill.level as SkillLevelType)
-    ) {
-      result[skill.position as PositionType] = skill.level as SkillLevelType;
+  for (const skill of staffSkills) {
+    if (SKILL_LEVELS.includes(skill.level as SkillLevelType)) {
+      result[skill.positionId] = skill.level as SkillLevelType;
     }
   }
 
   return result;
-};
-
-// オブジェクト形式のスキルを配列形式に変換（API送信用）
-const convertSkillsObjectToArray = (skills: SkillsFormValues): { position: string; level: string }[] => {
-  return DEFAULT_POSITIONS.map((position) => ({
-    position,
-    level: skills[position],
-  }));
 };
 
 type ShopType = {
@@ -85,6 +87,8 @@ type ShopType = {
 type StaffEditProps = {
   staff: StaffType;
   shop: ShopType;
+  positions: PositionType[];
+  staffSkills: StaffSkillType[];
 };
 
 // スキルレベル選択ボタン
@@ -124,32 +128,33 @@ const SkillLevelButton = ({ level, isSelected, onClick }: SkillLevelButtonProps)
 
 // スキルマトリックス（ポジションごとのレベル選択）
 type SkillMatrixProps = {
+  positions: PositionType[];
   value: SkillsFormValues;
   onChange: (value: SkillsFormValues) => void;
 };
 
-const SkillMatrix = ({ value, onChange }: SkillMatrixProps) => {
-  const handleLevelChange = (position: PositionType, level: SkillLevelType) => {
+const SkillMatrix = ({ positions, value, onChange }: SkillMatrixProps) => {
+  const handleLevelChange = (positionId: string, level: SkillLevelType) => {
     onChange({
       ...value,
-      [position]: level,
+      [positionId]: level,
     });
   };
 
   return (
     <VStack align="stretch" gap={4}>
-      {DEFAULT_POSITIONS.map((position) => (
-        <Box key={position}>
+      {positions.map((position) => (
+        <Box key={position._id}>
           <Text fontWeight="medium" color="gray.700" mb={2} fontSize="sm">
-            {position}
+            {position.name}
           </Text>
           <SimpleGrid columns={{ base: 2, md: 4 }} gap={2}>
             {SKILL_LEVELS.map((level) => (
               <SkillLevelButton
                 key={level}
                 level={level}
-                isSelected={value[position] === level}
-                onClick={() => handleLevelChange(position, level)}
+                isSelected={value[position._id] === level}
+                onClick={() => handleLevelChange(position._id, level)}
               />
             ))}
           </SimpleGrid>
@@ -159,7 +164,7 @@ const SkillMatrix = ({ value, onChange }: SkillMatrixProps) => {
   );
 };
 
-export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
+export const StaffEdit = ({ staff, shop, positions, staffSkills }: StaffEditProps) => {
   const navigate = useNavigate();
   const user = useAtomValue(userAtom);
   const updateStaffInfo = useMutation(api.shop.mutations.updateStaffInfo);
@@ -213,7 +218,7 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
     defaultValues: {
       email: staff.email,
       displayName: staff.displayName,
-      skills: convertSkillsArrayToObject(staff.skills),
+      skills: convertSkillsArrayToObject(positions, staffSkills),
       maxWeeklyHours: staff.maxWeeklyHours ?? "",
       memo: staff.memo ?? "",
       workStyleNote: staff.workStyleNote ?? "",
@@ -225,13 +230,19 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
     if (!user.authId) return;
 
     try {
+      // スキルをpositionId + level形式に変換
+      const skillsToSubmit = positions.map((position) => ({
+        positionId: position._id,
+        level: data.skills[position._id] || SKILL_LEVELS[0],
+      }));
+
       await updateStaffInfo({
         shopId: shop._id,
         staffId: staff._id,
         authId: user.authId,
         email: data.email,
         displayName: data.displayName,
-        skills: convertSkillsObjectToArray(data.skills),
+        skills: skillsToSubmit,
         maxWeeklyHours: typeof data.maxWeeklyHours === "number" ? data.maxWeeklyHours : null,
         memo: data.memo ?? "",
         workStyleNote: data.workStyleNote ?? "",
@@ -365,7 +376,9 @@ export const StaffEdit = ({ staff, shop }: StaffEditProps) => {
               <Controller
                 control={control}
                 name="skills"
-                render={({ field }) => <SkillMatrix value={field.value} onChange={field.onChange} />}
+                render={({ field }) => (
+                  <SkillMatrix positions={positions} value={field.value} onChange={field.onChange} />
+                )}
               />
             </Card.Body>
           </Card.Root>

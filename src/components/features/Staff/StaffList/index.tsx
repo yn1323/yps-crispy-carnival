@@ -16,7 +16,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { LuChevronRight, LuSearch, LuStore, LuUser, LuUserPlus, LuUsers } from "react-icons/lu";
+import { LuChevronRight, LuInfo, LuSearch, LuStore, LuUser, LuUserPlus, LuUsers } from "react-icons/lu";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { MemberAddModal } from "@/src/components/features/Shop/MemberAddModal";
 import { Animation } from "@/src/components/templates/Animation";
@@ -25,6 +25,7 @@ import { Empty } from "@/src/components/ui/Empty";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
+import { Tooltip } from "@/src/components/ui/tooltip";
 import { userAtom } from "@/src/stores/user";
 
 type StaffType = {
@@ -32,18 +33,29 @@ type StaffType = {
   email: string;
   displayName: string;
   status: string;
-  skills: { position: string; level: string }[];
   maxWeeklyHours: number | undefined;
   createdAt: number;
   isManager: boolean;
 };
 
+// 新テーブルからのスキル情報
+type StaffSkillInfo = {
+  positionId: string;
+  positionName: string;
+  level: string;
+  order: number;
+};
+
+// staffId -> skills[] のマップ
+type StaffSkillsMap = Record<string, StaffSkillInfo[]>;
+
 type StaffListProps = {
   shop: Doc<"shops">;
   staffs: StaffType[];
+  staffSkillsMap: StaffSkillsMap;
 };
 
-export const StaffList = ({ shop, staffs }: StaffListProps) => {
+export const StaffList = ({ shop, staffs, staffSkillsMap }: StaffListProps) => {
   const user = useAtomValue(userAtom);
   const memberDialog = useDialog();
   const [searchQuery, setSearchQuery] = useState("");
@@ -229,16 +241,26 @@ export const StaffList = ({ shop, staffs }: StaffListProps) => {
                                 </Badge>
                               )}
                             </HStack>
-                            {/* スキル表示 */}
-                            {staff.skills.length > 0 && (
-                              <Flex gap={1} mt={1} flexWrap="wrap">
-                                {staff.skills.map((skill, idx) => (
-                                  <Badge key={idx} colorPalette="teal" variant="subtle" size="sm">
-                                    {skill.position}
-                                  </Badge>
-                                ))}
-                              </Flex>
-                            )}
+                            {/* スキル表示（一人前以上のみ） */}
+                            {(() => {
+                              const staffSkills = staffSkillsMap[staff._id] || [];
+                              const proficientSkills = staffSkills.filter(
+                                (skill) => skill.level === "一人前" || skill.level === "ベテラン",
+                              );
+                              if (proficientSkills.length === 0) return null;
+                              return (
+                                <Flex gap={1} mt={1} flexWrap="wrap" align="center">
+                                  {proficientSkills.map((skill) => (
+                                    <Badge key={skill.positionId} colorPalette="teal" variant="subtle" size="sm">
+                                      {skill.positionName}
+                                    </Badge>
+                                  ))}
+                                  <Tooltip content="一人前以上のスキルを表示" showArrow>
+                                    <Icon as={LuInfo} boxSize={3.5} color="gray.400" cursor="help" />
+                                  </Tooltip>
+                                </Flex>
+                              );
+                            })()}
                           </Box>
                         </Flex>
 

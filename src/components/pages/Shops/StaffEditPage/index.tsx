@@ -29,8 +29,14 @@ export const StaffEditPage = ({ shopId, staffId }: Props) => {
       : "skip",
   );
 
+  // 店舗のポジション一覧取得
+  const positions = useQuery(api.position.queries.listByShop, { shopId: shopId as Id<"shops"> });
+
+  // スタッフのスキル一覧取得
+  const staffSkills = useQuery(api.staffSkill.queries.listByStaff, { staffId: staffId as Id<"staffs"> });
+
   // ローディング
-  if (shop === undefined || staff === undefined) {
+  if (shop === undefined || staff === undefined || positions === undefined || staffSkills === undefined) {
     return (
       <LazyShow>
         <StaffEditLoading />
@@ -43,5 +49,5 @@ export const StaffEditPage = ({ shopId, staffId }: Props) => {
     return <StaffEditNotFound shopId={shopId} />;
   }
 
-  return <StaffEdit staff={staff} shop={shop} />;
+  return <StaffEdit staff={staff} shop={shop} positions={positions} staffSkills={staffSkills} />;
 };

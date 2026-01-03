@@ -7,27 +7,26 @@ import {
   Flex,
   Grid,
   Heading,
+  HStack,
   Icon,
+  Progress,
   Skeleton,
   SkeletonText,
-  Tabs,
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { LuCalendar, LuClock, LuMail, LuPencil, LuStore, LuTrendingUp, LuUser } from "react-icons/lu";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { LuBriefcase, LuCalendar, LuClock, LuMail, LuPencil, LuStickyNote, LuUser, LuWallet } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Animation } from "@/src/components/templates/Animation";
 import { Empty } from "@/src/components/ui/Empty";
 import { Title } from "@/src/components/ui/Title";
-import { InfoTab } from "./TabContents/InfoTab";
-import { ShiftsTab } from "./TabContents/ShiftsTab";
 
 type StaffType = {
   _id: Id<"staffs">;
   email: string;
   displayName: string;
   status: string;
-  skills: { position: string; level: string }[];
   maxWeeklyHours: number | undefined;
   memo: string;
   workStyleNote: string;
@@ -43,17 +42,105 @@ type ShopType = {
   shopName: string;
 };
 
+type PositionType = {
+  _id: Id<"shopPositions">;
+  name: string;
+  order: number;
+};
+
+type StaffSkillType = {
+  _id: Id<"staffSkills">;
+  positionId: Id<"shopPositions">;
+  positionName: string;
+  positionOrder: number;
+  level: string;
+};
+
 type StaffDetailProps = {
   staff: StaffType;
   shop: ShopType;
+  positions: PositionType[];
+  staffSkills: StaffSkillType[];
 };
 
-export const StaffDetailTabTypes = ["info", "shifts"] as const;
+// スキルレベルに応じた進捗値を取得
+const getProgressValue = (level: string): number => {
+  switch (level) {
+    case "未経験":
+      return 0;
+    case "研修中":
+      return 33;
+    case "一人前":
+      return 66;
+    case "ベテラン":
+      return 100;
+    default:
+      return 0;
+  }
+};
 
-export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
+// スキルレベルに応じたバー色を取得
+const getBarColor = (level: string): string => {
+  switch (level) {
+    case "未経験":
+      return "gray.300";
+    case "研修中":
+      return "teal.300";
+    case "一人前":
+      return "teal.500";
+    case "ベテラン":
+      return "teal.600";
+    default:
+      return "gray.300";
+  }
+};
+
+// スキルレベルに応じたBadge色を取得
+const getBadgeColor = (level: string): string => {
+  return level === "未経験" ? "gray" : "teal";
+};
+
+// スキルプログレスバーコンポーネント
+type SkillProgressBarProps = {
+  positions: PositionType[];
+  staffSkills: StaffSkillType[];
+};
+
+const SkillProgressBar = ({ positions, staffSkills }: SkillProgressBarProps) => {
+  // ポジションごとにスキルをマッピング
+  const skillsToDisplay = positions.map((position) => {
+    const skill = staffSkills.find((s) => s.positionId === position._id);
+    return {
+      positionName: position.name,
+      level: skill?.level ?? "未経験",
+    };
+  });
+
+  return (
+    <VStack align="stretch" gap={3}>
+      {skillsToDisplay.map((skill) => (
+        <Box key={skill.positionName}>
+          <Flex justify="space-between" align="center" mb={1}>
+            <Text fontSize="sm" fontWeight="medium" color="gray.700">
+              {skill.positionName}
+            </Text>
+            <Badge colorPalette={getBadgeColor(skill.level)} size="sm">
+              {skill.level}
+            </Badge>
+          </Flex>
+          <Progress.Root value={getProgressValue(skill.level)} size="sm">
+            <Progress.Track bg="gray.100">
+              <Progress.Range bg={getBarColor(skill.level)} transition="width 0.5s ease-out" />
+            </Progress.Track>
+          </Progress.Root>
+        </Box>
+      ))}
+    </VStack>
+  );
+};
+
+export const StaffDetail = ({ staff, shop, positions, staffSkills }: StaffDetailProps) => {
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { tab?: string };
-  const currentTab = search.tab || "info";
 
   // アバターのイニシャル生成
   const getInitials = (name: string) => {
@@ -84,22 +171,6 @@ export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
       default:
         return null;
     }
-  };
-
-  // 固定値の統計データ（将来的にはAPIから取得）
-  const stats = {
-    monthlyWorkDays: 18,
-    shiftParticipationRate: 95,
-    totalWorkHours: 144,
-  };
-
-  const handleTabChange = (value: string) => {
-    navigate({
-      to: "/shops/$shopId/staffs/$staffId",
-      params: { shopId: shop._id, staffId: staff._id },
-      search: { tab: value as (typeof StaffDetailTabTypes)[number] },
-      replace: true,
-    });
   };
 
   return (
@@ -170,71 +241,6 @@ export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
         </Flex>
       </Title>
 
-      {/* 今月の概要 */}
-      <Box mb={{ base: 4, md: 6 }}>
-        <Heading as="h3" size="lg" color="gray.900" mb={3}>
-          今月の概要
-        </Heading>
-        <Grid gridTemplateColumns={{ base: "1fr", sm: "repeat(3, 1fr)" }} gap={3}>
-          {/* 勤務日数 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={4}>
-              <Flex align="center" gap={3}>
-                <Flex p={2} bg="teal.50" borderRadius="lg">
-                  <Icon as={LuCalendar} boxSize={5} color="teal.600" />
-                </Flex>
-                <Box>
-                  <Text fontSize="xs" color="gray.600" mb={1}>
-                    勤務日数
-                  </Text>
-                  <Text color="gray.900" fontWeight="medium">
-                    {stats.monthlyWorkDays}日
-                  </Text>
-                </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
-
-          {/* シフト参加率 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={4}>
-              <Flex align="center" gap={3}>
-                <Flex p={2} bg="orange.50" borderRadius="lg">
-                  <Icon as={LuTrendingUp} boxSize={5} color="orange.600" />
-                </Flex>
-                <Box>
-                  <Text fontSize="xs" color="gray.600" mb={1}>
-                    シフト参加率
-                  </Text>
-                  <Text color="gray.900" fontWeight="medium">
-                    {stats.shiftParticipationRate}%
-                  </Text>
-                </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
-
-          {/* 総勤務時間 */}
-          <Card.Root borderWidth={0} shadow="sm">
-            <Card.Body p={4}>
-              <Flex align="center" gap={3}>
-                <Flex p={2} bg="blue.50" borderRadius="lg">
-                  <Icon as={LuClock} boxSize={5} color="blue.600" />
-                </Flex>
-                <Box>
-                  <Text fontSize="xs" color="gray.600" mb={1}>
-                    総勤務時間
-                  </Text>
-                  <Text color="gray.900" fontWeight="medium">
-                    {stats.totalWorkHours}h
-                  </Text>
-                </Box>
-              </Flex>
-            </Card.Body>
-          </Card.Root>
-        </Grid>
-      </Box>
-
       {/* 退職情報（退職済みの場合のみ表示） */}
       {staff.status === "resigned" && staff.resignedAt && (
         <Card.Root borderColor="gray.300" mb={{ base: 4, md: 6 }}>
@@ -258,31 +264,91 @@ export const StaffDetail = ({ staff, shop }: StaffDetailProps) => {
         </Card.Root>
       )}
 
-      {/* タブコンテンツ */}
-      <Tabs.Root value={currentTab} onValueChange={(e) => handleTabChange(e.value)} w="full" variant="enclosed">
-        <Tabs.List mb={{ base: 4, md: 6 }}>
-          <Tabs.Trigger value="info" gap={2}>
-            <Icon as={LuStore} boxSize={4} />
-            <Text display={{ base: "none", sm: "inline" }}>基本情報</Text>
-            <Text display={{ base: "inline", sm: "none" }}>情報</Text>
-          </Tabs.Trigger>
-          <Tabs.Trigger value="shifts" gap={2}>
-            <Icon as={LuCalendar} boxSize={4} />
-            <Text display={{ base: "none", sm: "inline" }}>シフト履歴</Text>
-            <Text display={{ base: "inline", sm: "none" }}>シフト</Text>
-          </Tabs.Trigger>
-        </Tabs.List>
+      {/* 基本情報 */}
+      <Animation>
+        {/* 基本情報カード */}
+        <Card.Root borderWidth={0} shadow="sm" mb={{ base: 4, md: 6 }}>
+          <Card.Body>
+            <VStack align="stretch" gap={4}>
+              {/* メールアドレス */}
+              <Flex align="center" gap={3}>
+                <Icon as={LuMail} boxSize={5} color="gray.500" />
+                <Text fontWeight="medium">メールアドレス</Text>
+                <Text ml="auto" color="gray.600">
+                  {staff.email}
+                </Text>
+              </Flex>
 
-        {/* 基本情報タブ */}
-        <Tabs.Content value="info">
-          <InfoTab staff={staff} />
-        </Tabs.Content>
+              {/* 週最大勤務時間 */}
+              {staff.maxWeeklyHours && (
+                <Flex align="center" gap={3}>
+                  <Icon as={LuClock} boxSize={5} color="gray.500" />
+                  <Text fontWeight="medium">週最大勤務時間</Text>
+                  <Text ml="auto" color="gray.600">
+                    {staff.maxWeeklyHours}時間
+                  </Text>
+                </Flex>
+              )}
 
-        {/* シフト履歴タブ（固定データ） */}
-        <Tabs.Content value="shifts">
-          <ShiftsTab />
-        </Tabs.Content>
-      </Tabs.Root>
+              {/* 時給（オーナーのみ表示） */}
+              {staff.hourlyWage && (
+                <Flex align="center" gap={3}>
+                  <Icon as={LuWallet} boxSize={5} color="gray.500" />
+                  <Text fontWeight="medium">時給</Text>
+                  <Text ml="auto" color="gray.600">
+                    ¥{staff.hourlyWage.toLocaleString()}
+                  </Text>
+                </Flex>
+              )}
+            </VStack>
+          </Card.Body>
+        </Card.Root>
+
+        {/* スキルカード */}
+        <Card.Root borderWidth={0} shadow="sm" mb={{ base: 4, md: 6 }}>
+          <Card.Header>
+            <HStack>
+              <Icon as={LuBriefcase} boxSize={5} color="gray.500" />
+              <Text fontWeight="medium">スキル</Text>
+            </HStack>
+          </Card.Header>
+          <Card.Body pt={0} mt={4}>
+            <SkillProgressBar positions={positions} staffSkills={staffSkills} />
+          </Card.Body>
+        </Card.Root>
+
+        {/* メモカード（オーナーのみ表示） */}
+        {(staff.memo || staff.workStyleNote) && (
+          <Card.Root borderWidth={0} shadow="sm">
+            <Card.Header>
+              <HStack>
+                <Icon as={LuStickyNote} boxSize={5} color="gray.500" />
+                <Text fontWeight="medium">メモ</Text>
+              </HStack>
+            </Card.Header>
+            <Card.Body pt={0}>
+              <VStack align="stretch" gap={4}>
+                {staff.memo && (
+                  <Box>
+                    <Text fontSize="sm" color="gray.500" mb={1}>
+                      スタッフメモ
+                    </Text>
+                    <Text whiteSpace="pre-wrap">{staff.memo}</Text>
+                  </Box>
+                )}
+                {staff.workStyleNote && (
+                  <Box>
+                    <Text fontSize="sm" color="gray.500" mb={1}>
+                      勤務スタイルメモ
+                    </Text>
+                    <Text whiteSpace="pre-wrap">{staff.workStyleNote}</Text>
+                  </Box>
+                )}
+              </VStack>
+            </Card.Body>
+          </Card.Root>
+        )}
+      </Animation>
     </Container>
   );
 };
