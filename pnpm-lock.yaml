@@ -58,8 +58,8 @@ importers:
         specifier: 2.3.10
         version: 2.3.10
       '@clerk/testing':
-        specifier: 1.13.23
-        version: 1.13.23(@playwright/test@1.57.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: 1.13.26
+        version: 1.13.26(@playwright/test@1.57.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@playwright/test':
         specifier: 1.57.0
         version: 1.57.0
@@ -414,8 +414,8 @@ packages:
       react-dom:
         optional: true
 
-  '@clerk/testing@1.13.23':
-    resolution: {integrity: sha512-Z/uSgc9aJ++dmi2cX5hcZ/pzAVvXBtKIhNwCMdFI2unsAGE3b4ZJu6cJVAYMIpIFdUiLGe0SKbOuPY50Oau0cw==}
+  '@clerk/testing@1.13.26':
+    resolution: {integrity: sha512-+sxwG4UM0LcUcKaMsGB4CT5vjYyCNTNG7psW7Z7NR8/8TZWD+whNVtoBQm0yjr0m5fFoCemVY62YaWa+jCXCKA==}
     engines: {node: '>=18.17.0'}
     peerDependencies:
       '@playwright/test': ^1
@@ -4050,7 +4050,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  '@clerk/testing@1.13.23(@playwright/test@1.57.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@clerk/testing@1.13.26(@playwright/test@1.57.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@clerk/backend': 2.29.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@clerk/shared': 3.41.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
