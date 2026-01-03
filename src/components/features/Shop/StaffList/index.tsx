@@ -84,7 +84,15 @@ export const StaffList = ({ shop, staffs }: StaffListProps) => {
   return (
     <Container maxW="6xl">
       {/* ヘッダー */}
-      <Title prev={{ url: "/mypage", label: "マイページに戻る" }}>
+      <Title
+        prev={{ url: "/mypage", label: "マイページに戻る" }}
+        action={
+          <Button colorPalette="teal" gap={2} display={{ base: "none", md: "flex" }} onClick={memberDialog.open}>
+            <Icon as={LuUserPlus} boxSize={4} />
+            メンバーを追加
+          </Button>
+        }
+      >
         <Flex align="center" gap={3}>
           <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">
             <Icon as={LuUsers} boxSize={6} color="teal.600" />
@@ -131,8 +139,14 @@ export const StaffList = ({ shop, staffs }: StaffListProps) => {
             />
           </Flex>
 
-          {/* メンバー追加ボタン */}
-          <Button w={{ base: "full", md: "auto" }} colorPalette="teal" gap={2} onClick={memberDialog.open}>
+          {/* モバイル用メンバー追加ボタン */}
+          <Button
+            w="full"
+            colorPalette="teal"
+            gap={2}
+            display={{ base: "flex", md: "none" }}
+            onClick={memberDialog.open}
+          >
             <Icon as={LuUserPlus} boxSize={4} />
             メンバーを追加
           </Button>
