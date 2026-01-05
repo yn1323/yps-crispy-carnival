@@ -2,7 +2,7 @@
 
 import { Box, Flex, Text, VStack } from "@chakra-ui/react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { LuCalendar, LuLayoutDashboard, LuMenu, LuUsers } from "react-icons/lu";
+import { LuCalendar, LuMenu, LuStore, LuUser, LuUsers } from "react-icons/lu";
 import { useBottomSheet } from "@/src/components/ui/BottomSheet";
 import { MenuBottomSheet } from "./MenuBottomSheet";
 
@@ -22,6 +22,7 @@ export const BottomMenu = ({ shops, selectedShopId, onShopChange }: BottomMenuPr
   const { isOpen, open, close, onOpenChange } = useBottomSheet();
 
   const staffHref = selectedShopId ? `/shops/${selectedShopId}/staffs` : null;
+  const shopHref = selectedShopId ? `/shops/${selectedShopId}` : null;
 
   return (
     <>
@@ -48,8 +49,8 @@ export const BottomMenu = ({ shops, selectedShopId, onShopChange }: BottomMenuPr
               color={href.startsWith("/mypage") ? "teal.600" : "gray.600"}
               transition="all 0.15s"
             >
-              <LuLayoutDashboard size={20} />
-              <Text fontSize="xs">マイページ</Text>
+              <LuUser size={18} />
+              <Text fontSize="2xs">マイページ</Text>
             </VStack>
           </Link>
 
@@ -62,10 +63,33 @@ export const BottomMenu = ({ shops, selectedShopId, onShopChange }: BottomMenuPr
               color={href.startsWith("/shifts") ? "teal.600" : "gray.600"}
               transition="all 0.15s"
             >
-              <LuCalendar size={20} />
-              <Text fontSize="xs">シフト</Text>
+              <LuCalendar size={18} />
+              <Text fontSize="2xs">シフト</Text>
             </VStack>
           </Link>
+
+          {/* 店舗（動的URL） */}
+          {shopHref ? (
+            <Link to={shopHref} style={{ flex: 1, textDecoration: "none" }}>
+              <VStack
+                gap={1}
+                py={2}
+                cursor="pointer"
+                color={href.match(/^\/shops\/[^/]+$/) ? "teal.600" : "gray.600"}
+                transition="all 0.15s"
+              >
+                <LuStore size={18} />
+                <Text fontSize="2xs">店舗</Text>
+              </VStack>
+            </Link>
+          ) : (
+            <Box flex={1} onClick={open} cursor="pointer">
+              <VStack gap={1} py={2} color="gray.600" transition="all 0.15s">
+                <LuStore size={18} />
+                <Text fontSize="2xs">店舗</Text>
+              </VStack>
+            </Box>
+          )}
 
           {/* スタッフ（動的URL） */}
           {staffHref ? (
@@ -77,15 +101,15 @@ export const BottomMenu = ({ shops, selectedShopId, onShopChange }: BottomMenuPr
                 color={href.includes("/staffs") ? "teal.600" : "gray.600"}
                 transition="all 0.15s"
               >
-                <LuUsers size={20} />
-                <Text fontSize="xs">スタッフ</Text>
+                <LuUsers size={18} />
+                <Text fontSize="2xs">スタッフ</Text>
               </VStack>
             </Link>
           ) : (
             <Box flex={1} onClick={open} cursor="pointer">
               <VStack gap={1} py={2} color="gray.600" transition="all 0.15s">
-                <LuUsers size={20} />
-                <Text fontSize="xs">スタッフ</Text>
+                <LuUsers size={18} />
+                <Text fontSize="2xs">スタッフ</Text>
               </VStack>
             </Box>
           )}
@@ -93,8 +117,8 @@ export const BottomMenu = ({ shops, selectedShopId, onShopChange }: BottomMenuPr
           {/* メニュー */}
           <Box flex={1} onClick={open} cursor="pointer">
             <VStack gap={1} py={2} color={isOpen ? "teal.600" : "gray.600"} transition="all 0.15s">
-              <LuMenu size={20} />
-              <Text fontSize="xs">メニュー</Text>
+              <LuMenu size={18} />
+              <Text fontSize="2xs">メニュー</Text>
             </VStack>
           </Box>
         </Flex>

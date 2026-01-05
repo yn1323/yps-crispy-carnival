@@ -11,9 +11,11 @@ type Props = {
 export const ShopsDetailPage = ({ shopId }: Props) => {
   // 店舗情報取得
   const shop = useQuery(api.shop.queries.getById, { shopId: shopId as Id<"shops"> });
+  // ポジション情報取得
+  const positions = useQuery(api.position.queries.listByShop, { shopId: shopId as Id<"shops"> });
 
   // ローディング
-  if (shop === undefined) {
+  if (shop === undefined || positions === undefined) {
     return (
       <LazyShow>
         <ShopDetailLoading />
@@ -26,5 +28,5 @@ export const ShopsDetailPage = ({ shopId }: Props) => {
     return <ShopDetailNotFound />;
   }
 
-  return <ShopDetail shop={shop} />;
+  return <ShopDetail shop={shop} positions={positions} />;
 };

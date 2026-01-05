@@ -101,6 +101,7 @@ export const MenuBottomSheet = ({
                   w="44px"
                   h="44px"
                   borderRadius="full"
+                  cursor="pointer"
                   _hover={{ bg: "gray.100" }}
                   _active={{ bg: "gray.200" }}
                 >
