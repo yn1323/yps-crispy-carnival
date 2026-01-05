@@ -33,6 +33,7 @@
 - IMPORTANT: UIX/UX方向性を決めるときは、skill frontend-design, skill ux-designerを利用して検討すること
 - IMPORTANT: E2Eテスト実装時はskill playwright-skillを利用すること（E2Eテストは現段階では不要）
    - ブラウザ起動後のログインはこちらで行うので、playwright mcp利用時は一声かけてください
+- IMPORTANT: リリース前につきソースコードの修正時のマイグレーション考慮は不要。でも警告くらいは出してね
 
 ## 開発コマンド
 
