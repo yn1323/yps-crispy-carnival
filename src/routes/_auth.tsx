@@ -37,7 +37,7 @@ const AuthenticatedLayout = () => {
 
   return (
     <>
-      <Box display="flex" w="100vw" overflow="hidden">
+      <Box display="flex" w="100%" overflow="hidden">
         {/* PC: SideMenu */}
         <Box hideBelow="lg">
           <SideMenu shops={shops} selectedShopId={selectedShop?.shopId ?? null} onShopChange={handleShopChange} />

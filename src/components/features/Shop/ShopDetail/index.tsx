@@ -1,6 +1,19 @@
-import { Box, Button, Card, Container, Flex, Heading, Icon, Separator, Stack, Text } from "@chakra-ui/react";
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Container,
+  Flex,
+  Heading,
+  Icon,
+  Separator,
+  Stack,
+  Text,
+  Wrap,
+} from "@chakra-ui/react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LuCalendar, LuClock, LuPencil, LuStore } from "react-icons/lu";
+import { LuCalendar, LuClock, LuPencil, LuStore, LuUsers } from "react-icons/lu";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { Animation } from "@/src/components/templates/Animation";
 import { Empty } from "@/src/components/ui/Empty";
@@ -10,9 +23,10 @@ import { convertSubmitFrequency, convertTimeUnit } from "@/src/helpers/domain/co
 
 type ShopDetailProps = {
   shop: Doc<"shops">;
+  positions: Doc<"shopPositions">[];
 };
 
-export const ShopDetail = ({ shop }: ShopDetailProps) => {
+export const ShopDetail = ({ shop, positions }: ShopDetailProps) => {
   const navigate = useNavigate();
 
   return (
@@ -78,7 +92,7 @@ export const ShopDetail = ({ shop }: ShopDetailProps) => {
               </Flex>
 
               {/* シフト入力の時間単位 */}
-              <Flex align="flex-start" gap={3}>
+              <Flex align="flex-start" gap={3} mb={{ base: 3, md: 4 }}>
                 <Icon as={LuClock} boxSize={5} color="gray.500" />
                 <Box flex={1}>
                   <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={0.5}>
@@ -87,6 +101,29 @@ export const ShopDetail = ({ shop }: ShopDetailProps) => {
                   <Text fontSize={{ base: "sm", md: "base" }} color="gray.900">
                     {convertTimeUnit.toLabel(shop.timeUnit)}
                   </Text>
+                </Box>
+              </Flex>
+
+              {/* ポジション */}
+              <Flex align="flex-start" gap={3}>
+                <Icon as={LuUsers} boxSize={5} color="gray.500" />
+                <Box flex={1}>
+                  <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500" mb={1.5}>
+                    ポジション
+                  </Text>
+                  {positions.length > 0 ? (
+                    <Wrap gap={2}>
+                      {positions.map((position) => (
+                        <Badge key={position._id} colorPalette="teal" variant="subtle" size={{ base: "sm", md: "md" }}>
+                          {position.name}
+                        </Badge>
+                      ))}
+                    </Wrap>
+                  ) : (
+                    <Text fontSize={{ base: "sm", md: "base" }} color="gray.400">
+                      未設定
+                    </Text>
+                  )}
                 </Box>
               </Flex>
             </Box>
