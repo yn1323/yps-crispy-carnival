@@ -1,5 +1,5 @@
 import { Box, Container } from "@chakra-ui/react";
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
@@ -24,6 +24,8 @@ function RouteComponent() {
 // 認証済みレイアウト: AuthGuard通過後にuserAtomが利用可能
 const AuthenticatedLayout = () => {
   const user = useAtomValue(userAtom);
+  const { href } = useLocation();
+  const navigate = useNavigate();
 
   // 店舗一覧取得
   const shops = useQuery(api.shop.queries.listByAuthId, user.authId ? { authId: user.authId } : "skip");
@@ -33,6 +35,22 @@ const AuthenticatedLayout = () => {
 
   const handleShopChange = (shop: { shopId: string; shopName: string }) => {
     setSelectedShop(shop);
+
+    // /shops/$shopId/... 形式かチェック
+    const shopPathMatch = href.match(/^\/shops\/([^/]+)(\/.*)?$/);
+    if (shopPathMatch) {
+      const restPath = shopPathMatch[2] ?? "";
+
+      // staffIdを含むパス → スタッフ一覧にフォールバック
+      if (restPath.match(/^\/staffs\/[^/]+/)) {
+        navigate({ to: `/shops/${shop.shopId}/staffs` });
+        return;
+      }
+
+      // その他 → 同じ構造で遷移
+      navigate({ to: `/shops/${shop.shopId}${restPath}` });
+    }
+    // それ以外は状態更新のみ（遷移なし）
   };
 
   return (
