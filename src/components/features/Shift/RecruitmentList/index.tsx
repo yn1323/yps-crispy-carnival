@@ -83,10 +83,12 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
               <Icon as={LuSettings} boxSize={4} />
               必要人員設定
             </Button>
-            <Button colorPalette="teal" gap={2} onClick={() => handleNotImplemented("新規募集作成")}>
-              <Icon as={LuCalendarPlus} boxSize={4} />
-              新規募集作成
-            </Button>
+            <Link to="/shops/$shopId/shifts/recruitments/new" params={{ shopId: shop._id }}>
+              <Button colorPalette="teal" gap={2}>
+                <Icon as={LuCalendarPlus} boxSize={4} />
+                新規募集作成
+              </Button>
+            </Link>
           </HStack>
         }
       >
@@ -135,10 +137,12 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
               <Icon as={LuSettings} boxSize={4} />
               必要人員設定
             </Button>
-            <Button w="full" colorPalette="teal" gap={2} onClick={() => handleNotImplemented("新規募集作成")}>
-              <Icon as={LuCalendarPlus} boxSize={4} />
-              新規募集作成
-            </Button>
+            <Link to="/shops/$shopId/shifts/recruitments/new" params={{ shopId: shop._id }}>
+              <Button w="full" colorPalette="teal" gap={2}>
+                <Icon as={LuCalendarPlus} boxSize={4} />
+                新規募集作成
+              </Button>
+            </Link>
           </Flex>
         </Box>
 
@@ -221,10 +225,12 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
                 description="新規募集を作成して、スタッフにシフト希望を募集しましょう"
                 minH="auto"
                 action={
-                  <Button colorPalette="teal" gap={2} onClick={() => handleNotImplemented("新規募集作成")}>
-                    <Icon as={LuCalendarPlus} boxSize={4} />
-                    新規募集作成
-                  </Button>
+                  <Link to="/shops/$shopId/shifts/recruitments/new" params={{ shopId: shop._id }}>
+                    <Button colorPalette="teal" gap={2}>
+                      <Icon as={LuCalendarPlus} boxSize={4} />
+                      新規募集作成
+                    </Button>
+                  </Link>
                 }
               />
             </Card.Body>
