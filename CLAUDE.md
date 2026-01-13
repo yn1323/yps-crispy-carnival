@@ -5,6 +5,8 @@
 ## 参照ドキュメント
 - @doc/claude/basic.md
 - @doc/claude/self.md
+- @doc/ARCHITECTURE.md
+- @doc/INDEX.md
 
 ## 🚨 核心制約
 
@@ -20,6 +22,7 @@
    - `pnpm type-check` - TypeScript型チェック（作業完了前に必ず実行）
    - `pnpm test` - Vitestテスト（ロジック、UI修正時のみ）
    - `pnpm e2e` - Playwright E2Eテスト（E2E作成・修正時のみ）
+- YOU MUST: 機能実装後（新機能追加、API追加、画面追加、スキーマ変更等）はドキュメント更新を確認してください。スキル `/doc-update` を使用。
 
 ### IMPORTANT（重要事項）
 - IMPORTANT: Chakra UI v3 Modern API準拠
@@ -34,6 +37,14 @@
 - IMPORTANT: E2Eテスト実装時はskill playwright-skillを利用すること（E2Eテストは現段階では不要）
    - ブラウザ起動後のログインはこちらで行うので、playwright mcp利用時は一声かけてください
 - IMPORTANT: リリース前につきソースコードの修正時のマイグレーション考慮は不要。でも警告くらいは出してね
+- IMPORTANT: 3ステップ以上の実装計画を立てたら、`doc/plans/yyyy-mm-dd_<機能名>.md` に保存すること
+   - コンテキスト圧縮後も参照できるようにするため
+   - skill save-plan を使用、または直接 Write で保存
+   - コンテキスト圧縮から復帰後はドキュメントを見て、実装計画を再度考えること
+- IMPORTANT: コンテキスト圧縮からの復帰時・セッション再開時は、まず `doc/plans/` を確認すること
+   - 作業中の計画ファイルがあれば、必ず読み込んでから作業を再開
+   - 「8. 現在の進捗」セクションを確認し、次にやるべきことを把握
+   - 計画ファイルがなければ、ユーザーに状況を確認
 
 ## 開発コマンド
 
