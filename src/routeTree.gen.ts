@@ -24,6 +24,7 @@ import { Route as AuthSettingsShiftTemplateIndexRouteImport } from './routes/_au
 import { Route as AuthSettingsShiftTemplateEditRouteImport } from './routes/_auth/settings/shift-template/edit'
 import { Route as AuthSettingsShiftTemplateAddRouteImport } from './routes/_auth/settings/shift-template/add'
 import { Route as AuthShopsShopIdStaffsIndexRouteImport } from './routes/_auth/shops/$shopId/staffs/index'
+import { Route as AuthShopsShopIdShiftsIndexRouteImport } from './routes/_auth/shops/$shopId/shifts/index'
 import { Route as AuthShopsShopIdEditIndexRouteImport } from './routes/_auth/shops/$shopId/edit/index'
 import { Route as AuthShopsShopIdStaffsStaffIdIndexRouteImport } from './routes/_auth/shops/$shopId/staffs/$staffId/index'
 import { Route as AuthShopsShopIdStaffsStaffIdEditRouteImport } from './routes/_auth/shops/$shopId/staffs/$staffId/edit'
@@ -105,6 +106,12 @@ const AuthShopsShopIdStaffsIndexRoute =
     path: '/shops/$shopId/staffs/',
     getParentRoute: () => AuthRoute,
   } as any)
+const AuthShopsShopIdShiftsIndexRoute =
+  AuthShopsShopIdShiftsIndexRouteImport.update({
+    id: '/shops/$shopId/shifts/',
+    path: '/shops/$shopId/shifts/',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const AuthShopsShopIdEditIndexRoute =
   AuthShopsShopIdEditIndexRouteImport.update({
     id: '/shops/$shopId/edit/',
@@ -138,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
   '/shops/new': typeof AuthShopsNewIndexRoute
   '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
+  '/shops/$shopId/shifts': typeof AuthShopsShopIdShiftsIndexRoute
   '/shops/$shopId/staffs': typeof AuthShopsShopIdStaffsIndexRoute
   '/shops/$shopId/staffs/$staffId/edit': typeof AuthShopsShopIdStaffsStaffIdEditRoute
   '/shops/$shopId/staffs/$staffId': typeof AuthShopsShopIdStaffsStaffIdIndexRoute
@@ -156,6 +164,7 @@ export interface FileRoutesByTo {
   '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
   '/shops/new': typeof AuthShopsNewIndexRoute
   '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
+  '/shops/$shopId/shifts': typeof AuthShopsShopIdShiftsIndexRoute
   '/shops/$shopId/staffs': typeof AuthShopsShopIdStaffsIndexRoute
   '/shops/$shopId/staffs/$staffId/edit': typeof AuthShopsShopIdStaffsStaffIdEditRoute
   '/shops/$shopId/staffs/$staffId': typeof AuthShopsShopIdStaffsStaffIdIndexRoute
@@ -177,6 +186,7 @@ export interface FileRoutesById {
   '/_auth/shops/$shopId/': typeof AuthShopsShopIdIndexRoute
   '/_auth/shops/new/': typeof AuthShopsNewIndexRoute
   '/_auth/shops/$shopId/edit/': typeof AuthShopsShopIdEditIndexRoute
+  '/_auth/shops/$shopId/shifts/': typeof AuthShopsShopIdShiftsIndexRoute
   '/_auth/shops/$shopId/staffs/': typeof AuthShopsShopIdStaffsIndexRoute
   '/_auth/shops/$shopId/staffs/$staffId/edit': typeof AuthShopsShopIdStaffsStaffIdEditRoute
   '/_auth/shops/$shopId/staffs/$staffId/': typeof AuthShopsShopIdStaffsStaffIdIndexRoute
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/shops/$shopId'
     | '/shops/new'
     | '/shops/$shopId/edit'
+    | '/shops/$shopId/shifts'
     | '/shops/$shopId/staffs'
     | '/shops/$shopId/staffs/$staffId/edit'
     | '/shops/$shopId/staffs/$staffId'
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/shops/$shopId'
     | '/shops/new'
     | '/shops/$shopId/edit'
+    | '/shops/$shopId/shifts'
     | '/shops/$shopId/staffs'
     | '/shops/$shopId/staffs/$staffId/edit'
     | '/shops/$shopId/staffs/$staffId'
@@ -235,6 +247,7 @@ export interface FileRouteTypes {
     | '/_auth/shops/$shopId/'
     | '/_auth/shops/new/'
     | '/_auth/shops/$shopId/edit/'
+    | '/_auth/shops/$shopId/shifts/'
     | '/_auth/shops/$shopId/staffs/'
     | '/_auth/shops/$shopId/staffs/$staffId/edit'
     | '/_auth/shops/$shopId/staffs/$staffId/'
@@ -354,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShopsShopIdStaffsIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/shops/$shopId/shifts/': {
+      id: '/_auth/shops/$shopId/shifts/'
+      path: '/shops/$shopId/shifts'
+      fullPath: '/shops/$shopId/shifts'
+      preLoaderRoute: typeof AuthShopsShopIdShiftsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/shops/$shopId/edit/': {
       id: '/_auth/shops/$shopId/edit/'
       path: '/shops/$shopId/edit'
@@ -389,6 +409,7 @@ interface AuthRouteChildren {
   AuthShopsShopIdIndexRoute: typeof AuthShopsShopIdIndexRoute
   AuthShopsNewIndexRoute: typeof AuthShopsNewIndexRoute
   AuthShopsShopIdEditIndexRoute: typeof AuthShopsShopIdEditIndexRoute
+  AuthShopsShopIdShiftsIndexRoute: typeof AuthShopsShopIdShiftsIndexRoute
   AuthShopsShopIdStaffsIndexRoute: typeof AuthShopsShopIdStaffsIndexRoute
   AuthShopsShopIdStaffsStaffIdEditRoute: typeof AuthShopsShopIdStaffsStaffIdEditRoute
   AuthShopsShopIdStaffsStaffIdIndexRoute: typeof AuthShopsShopIdStaffsStaffIdIndexRoute
@@ -405,6 +426,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthShopsShopIdIndexRoute: AuthShopsShopIdIndexRoute,
   AuthShopsNewIndexRoute: AuthShopsNewIndexRoute,
   AuthShopsShopIdEditIndexRoute: AuthShopsShopIdEditIndexRoute,
+  AuthShopsShopIdShiftsIndexRoute: AuthShopsShopIdShiftsIndexRoute,
   AuthShopsShopIdStaffsIndexRoute: AuthShopsShopIdStaffsIndexRoute,
   AuthShopsShopIdStaffsStaffIdEditRoute: AuthShopsShopIdStaffsStaffIdEditRoute,
   AuthShopsShopIdStaffsStaffIdIndexRoute:
