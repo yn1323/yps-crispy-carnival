@@ -1,5 +1,5 @@
 import { Badge, Box, Button, Card, Container, Flex, Heading, HStack, Icon, Text } from "@chakra-ui/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import dayjs from "dayjs";
 import "dayjs/locale/ja";
 import { useState } from "react";
@@ -9,7 +9,6 @@ import { Empty } from "@/src/components/ui/Empty";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { Select } from "@/src/components/ui/Select";
 import { Title } from "@/src/components/ui/Title";
-import { toaster } from "@/src/components/ui/toaster";
 
 dayjs.locale("ja");
 
@@ -50,15 +49,8 @@ const formatDate = (date: string) => {
   return dayjs(date).format("M/D(ddd)");
 };
 
-// モック用: 未実装ページへのナビゲーション
-const handleNotImplemented = (pageName: string) => {
-  toaster.create({
-    description: `${pageName}は未実装です`,
-    type: "info",
-  });
-};
-
 export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) => {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState("all");
 
   // ステータスフィルター
@@ -79,10 +71,12 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
         prev={{ url: "/mypage", label: "マイページに戻る" }}
         action={
           <HStack gap={2} display={{ base: "none", md: "flex" }}>
-            <Button variant="outline" colorPalette="gray" gap={2} onClick={() => handleNotImplemented("必要人員設定")}>
-              <Icon as={LuSettings} boxSize={4} />
-              必要人員設定
-            </Button>
+            <Link to="/shops/$shopId/shifts/settings" params={{ shopId: shop._id }}>
+              <Button variant="outline" colorPalette="gray" gap={2}>
+                <Icon as={LuSettings} boxSize={4} />
+                必要人員設定
+              </Button>
+            </Link>
             <Link to="/shops/$shopId/shifts/recruitments/new" params={{ shopId: shop._id }}>
               <Button colorPalette="teal" gap={2}>
                 <Icon as={LuCalendarPlus} boxSize={4} />
@@ -127,16 +121,12 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
 
           {/* モバイル用ボタン */}
           <Flex direction="column" gap={2} display={{ base: "flex", md: "none" }}>
-            <Button
-              w="full"
-              variant="outline"
-              colorPalette="gray"
-              gap={2}
-              onClick={() => handleNotImplemented("必要人員設定")}
-            >
-              <Icon as={LuSettings} boxSize={4} />
-              必要人員設定
-            </Button>
+            <Link to="/shops/$shopId/shifts/settings" params={{ shopId: shop._id }}>
+              <Button w="full" variant="outline" colorPalette="gray" gap={2}>
+                <Icon as={LuSettings} boxSize={4} />
+                必要人員設定
+              </Button>
+            </Link>
             <Link to="/shops/$shopId/shifts/recruitments/new" params={{ shopId: shop._id }}>
               <Button w="full" colorPalette="teal" gap={2}>
                 <Icon as={LuCalendarPlus} boxSize={4} />
@@ -163,7 +153,12 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
                     shadow="sm"
                     _hover={{ shadow: "md", cursor: "pointer" }}
                     transition="all 0.15s"
-                    onClick={() => handleNotImplemented("募集詳細")}
+                    onClick={() =>
+                      navigate({
+                        to: "/shops/$shopId/shifts/recruitments/$recruitmentId",
+                        params: { shopId: shop._id, recruitmentId: recruitment._id },
+                      })
+                    }
                   >
                     <Card.Body p={{ base: 3, md: 4 }}>
                       <Flex align="center" justify="space-between" gap={4}>
