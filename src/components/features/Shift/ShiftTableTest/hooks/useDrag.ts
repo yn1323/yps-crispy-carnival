@@ -3,11 +3,13 @@ import { MIN_SHIFT_DURATION_MINUTES, RESIZE_EDGE_THRESHOLD } from "../constants"
 import type { DragMode, PositionType, ShiftData, StaffType, TimeRange } from "../types";
 import {
   createShift,
+  detectPositionResizeEdge,
   detectResizeEdge,
   findShiftAtPosition,
   mergeOverlappingShifts,
   paintPosition,
   pixelToMinutes,
+  resizePosition,
   resizeShift,
 } from "../utils/shiftOperations";
 
@@ -17,6 +19,8 @@ type DragState = {
   startMinutes: number;
   currentMinutes: number;
   targetShiftId: string | null;
+  targetPositionId: string | null;
+  positionColor: string | null;
   resizeEdge: "start" | "end" | null;
 };
 
@@ -44,6 +48,8 @@ const initialDragState: DragState = {
   startMinutes: 0,
   currentMinutes: 0,
   targetShiftId: null,
+  targetPositionId: null,
+  positionColor: null,
   resizeEdge: null,
 };
 
@@ -92,13 +98,40 @@ export const useDrag = ({
             startMinutes: minutes,
             currentMinutes: minutes,
             targetShiftId: targetShift.id,
+            targetPositionId: null,
+            positionColor: selectedPosition.color,
             resizeEdge: null,
           });
           return;
         }
       }
 
-      // 2. バー端 → リサイズモード
+      // 2. ポジションバー端 → ポジションリサイズモード
+      const positionResizeInfo = detectPositionResizeEdge({
+        shifts,
+        staffId,
+        date: selectedDate,
+        x,
+        containerWidth,
+        timeRange,
+        threshold: RESIZE_EDGE_THRESHOLD,
+      });
+
+      if (positionResizeInfo) {
+        setDragState({
+          mode: positionResizeInfo.edge === "start" ? "position-resize-start" : "position-resize-end",
+          staffId,
+          startMinutes: minutes,
+          currentMinutes: minutes,
+          targetShiftId: positionResizeInfo.shiftId,
+          targetPositionId: positionResizeInfo.positionId,
+          positionColor: positionResizeInfo.positionColor,
+          resizeEdge: positionResizeInfo.edge,
+        });
+        return;
+      }
+
+      // 3. 労働時間バー端 → リサイズモード
       const resizeInfo = detectResizeEdge({
         shifts,
         staffId,
@@ -116,12 +149,14 @@ export const useDrag = ({
           startMinutes: minutes,
           currentMinutes: minutes,
           targetShiftId: resizeInfo.shiftId,
+          targetPositionId: null,
+          positionColor: null,
           resizeEdge: resizeInfo.edge,
         });
         return;
       }
 
-      // 3. 空白エリア → 作成モード
+      // 4. 空白エリア → 作成モード
       const existingShift = findShiftAtPosition({
         shifts,
         staffId,
@@ -136,6 +171,8 @@ export const useDrag = ({
           startMinutes: minutes,
           currentMinutes: minutes,
           targetShiftId: null,
+          targetPositionId: null,
+          positionColor: null,
           resizeEdge: null,
         });
       }
@@ -167,7 +204,7 @@ export const useDrag = ({
       return;
     }
 
-    const { mode, staffId, startMinutes, currentMinutes, targetShiftId, resizeEdge } = dragState;
+    const { mode, staffId, startMinutes, currentMinutes, targetShiftId, targetPositionId, resizeEdge } = dragState;
 
     // 1. 作成モード
     if (mode === "create") {
@@ -192,7 +229,7 @@ export const useDrag = ({
       }
     }
 
-    // 2. リサイズモード
+    // 2. 労働時間リサイズモード
     if ((mode === "resize-start" || mode === "resize-end") && targetShiftId && resizeEdge) {
       const targetShift = shifts.find((s) => s.id === targetShiftId);
       if (targetShift) {
@@ -213,7 +250,34 @@ export const useDrag = ({
       }
     }
 
-    // 3. 塗りモード
+    // 3. ポジションリサイズモード
+    if (
+      (mode === "position-resize-start" || mode === "position-resize-end") &&
+      targetShiftId &&
+      targetPositionId &&
+      resizeEdge
+    ) {
+      const targetShift = shifts.find((s) => s.id === targetShiftId);
+      if (targetShift) {
+        const resizedShift = resizePosition({
+          shift: targetShift,
+          positionId: targetPositionId,
+          edge: resizeEdge,
+          newMinutes: currentMinutes,
+          minDuration: MIN_SHIFT_DURATION_MINUTES,
+        });
+
+        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
+        const mergedShifts = mergeOverlappingShifts({
+          shifts: updatedShifts,
+          staffId,
+          date: selectedDate,
+        });
+        setShifts(mergedShifts);
+      }
+    }
+
+    // 4. 塗りモード
     if (mode === "paint" && targetShiftId && selectedPosition) {
       const targetShift = shifts.find((s) => s.id === targetShiftId);
       if (targetShift && Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
@@ -243,13 +307,33 @@ export const useDrag = ({
       if (!staff?.isSubmitted) return "default";
 
       if (isDragging) {
-        if (dragState.mode === "resize-start" || dragState.mode === "resize-end") {
+        if (
+          dragState.mode === "resize-start" ||
+          dragState.mode === "resize-end" ||
+          dragState.mode === "position-resize-start" ||
+          dragState.mode === "position-resize-end"
+        ) {
           return "ew-resize";
         }
         return "crosshair";
       }
 
-      // リサイズ可能位置
+      // ポジションバー端（労働時間バー端より優先）
+      const positionResizeInfo = detectPositionResizeEdge({
+        shifts,
+        staffId,
+        date: selectedDate,
+        x,
+        containerWidth,
+        timeRange,
+        threshold: RESIZE_EDGE_THRESHOLD,
+      });
+
+      if (positionResizeInfo) {
+        return "ew-resize";
+      }
+
+      // 労働時間バー端
       const resizeInfo = detectResizeEdge({
         shifts,
         staffId,

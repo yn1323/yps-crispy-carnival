@@ -7,7 +7,7 @@ type ShiftBarProps = {
   shift: ShiftData;
   timeRange: TimeRange;
   onHover: (shiftId: string | null) => void;
-  onClick: (shiftId: string) => void;
+  onClick: (shiftId: string, e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent, shiftId: string) => void;
   onDelete: (shiftId: string) => void;
   isDragging?: boolean;
@@ -69,7 +69,7 @@ export const ShiftBar = ({
         transform="translateY(-50%)"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onClick={() => onClick(shift.id)}
+        onClick={(e) => onClick(shift.id, e)}
         onContextMenu={(e) => onContextMenu(e, shift.id)}
         cursor="pointer"
         transition="all 0.15s"
@@ -98,9 +98,9 @@ export const ShiftBar = ({
             transform="translateY(-50%)"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            onClick={() => onClick(shift.id)}
+            onClick={(e) => onClick(shift.id, e)}
             onContextMenu={(e) => onContextMenu(e, shift.id)}
-            cursor="pointer"
+            cursor="inherit"
             transition="all 0.15s"
             opacity={0.9}
             _hover={{ opacity: 1 }}

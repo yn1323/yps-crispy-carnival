@@ -1,12 +1,18 @@
 import { Box, Button, Flex, Icon, Table, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LuRedo2, LuUndo2 } from "react-icons/lu";
+import { ContextMenu } from "./ContextMenu";
 import { DateTabs } from "./DateTabs";
+import { DragPreview } from "./DragPreview";
+import { useClipboard } from "./hooks/useClipboard";
 import { useDrag } from "./hooks/useDrag";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useUndoRedo } from "./hooks/useUndoRedo";
 import { PositionToolbar } from "./PositionToolbar";
 import { ShiftBar } from "./ShiftBar";
-import type { PositionType, ShiftTableTestProps } from "./types";
+import { ShiftPopover } from "./ShiftPopover";
+import { SummaryRow } from "./SummaryRow";
+import type { PositionType, ShiftData, ShiftTableTestProps } from "./types";
 
 // 時間スロットを生成
 const generateTimeSlots = (start: number, end: number) => {
@@ -25,6 +31,20 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const [selectedPosition, setSelectedPosition] = useState<PositionType | null>(null);
   const [hoveredShiftId, setHoveredShiftId] = useState<string | null>(null);
+
+  // === ポップオーバー状態 ===
+  const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
+
+  // === コンテキストメニュー状態 ===
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenuShiftId, setContextMenuShiftId] = useState<string | null>(null);
+
+  // === ペースト先特定用 ===
+  const [hoveredStaffId, setHoveredStaffId] = useState<string | null>(null);
+
+  // === クリップボード ===
+  const { copy, paste, hasClipboard } = useClipboard();
 
   // 行コンテナのref（カーソル位置計算用）
   const rowContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -48,23 +68,109 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   };
 
   // シフト削除（履歴に追加）
-  const handleDeleteShift = (shiftId: string) => {
-    const newShifts = shifts.filter((s) => s.id !== shiftId);
-    setShifts(newShifts);
-  };
+  const handleDeleteShift = useCallback(
+    (shiftId: string) => {
+      const newShifts = shifts.filter((s) => s.id !== shiftId);
+      setShifts(newShifts);
+      // ポップオーバー・コンテキストメニューを閉じる
+      setPopoverShift(null);
+      setPopoverAnchor(null);
+      setContextMenuPosition(null);
+      setContextMenuShiftId(null);
+    },
+    [shifts, setShifts],
+  );
 
-  // シフトクリック（ポップオーバー表示用 - Phase 0.4で実装）
-  const handleShiftClick = (shiftId: string) => {
-    console.log("Shift clicked:", shiftId);
-    // TODO: Phase 0.4でポップオーバー実装
-  };
+  // シフトクリック（ポップオーバー表示）
+  const handleShiftClick = useCallback(
+    (shiftId: string, e: React.MouseEvent) => {
+      const shift = shifts.find((s) => s.id === shiftId);
+      if (shift) {
+        setPopoverShift(shift);
+        setPopoverAnchor(e.currentTarget as HTMLElement);
+      }
+    },
+    [shifts],
+  );
 
-  // 右クリック（コンテキストメニュー - Phase 0.4で実装）
-  const handleContextMenu = (e: React.MouseEvent, shiftId: string) => {
+  // ポップオーバーを閉じる
+  const handlePopoverClose = useCallback(() => {
+    setPopoverShift(null);
+    setPopoverAnchor(null);
+  }, []);
+
+  // ポジション個別削除
+  const handleDeletePosition = useCallback(
+    (positionId: string) => {
+      if (!popoverShift) return;
+      const updatedShift = {
+        ...popoverShift,
+        positions: popoverShift.positions.filter((p) => p.id !== positionId),
+      };
+      const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
+      setShifts(newShifts);
+      // ポップオーバーの状態も更新
+      setPopoverShift(updatedShift);
+    },
+    [popoverShift, shifts, setShifts],
+  );
+
+  // ポップオーバーからシフト削除
+  const handleDeleteShiftFromPopover = useCallback(() => {
+    if (!popoverShift) return;
+    handleDeleteShift(popoverShift.id);
+  }, [popoverShift, handleDeleteShift]);
+
+  // 右クリック（コンテキストメニュー表示）
+  const handleContextMenu = useCallback((e: React.MouseEvent, shiftId: string) => {
     e.preventDefault();
-    console.log("Context menu:", shiftId);
-    // TODO: Phase 0.4でコンテキストメニュー実装
-  };
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setContextMenuShiftId(shiftId);
+  }, []);
+
+  // コンテキストメニューを閉じる
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenuPosition(null);
+    setContextMenuShiftId(null);
+  }, []);
+
+  // コピー
+  const handleCopy = useCallback(() => {
+    const targetShiftId = contextMenuShiftId ?? hoveredShiftId;
+    if (targetShiftId) {
+      const shift = shifts.find((s) => s.id === targetShiftId);
+      if (shift) {
+        copy(shift);
+      }
+    }
+    handleContextMenuClose();
+  }, [contextMenuShiftId, hoveredShiftId, shifts, copy, handleContextMenuClose]);
+
+  // ペースト
+  const handlePaste = useCallback(() => {
+    if (hoveredStaffId && hasClipboard) {
+      const pastedShift = paste(hoveredStaffId, selectedDate);
+      if (pastedShift) {
+        setShifts([...shifts, pastedShift]);
+      }
+    }
+    handleContextMenuClose();
+  }, [hoveredStaffId, hasClipboard, paste, selectedDate, shifts, setShifts, handleContextMenuClose]);
+
+  // コンテキストメニューから削除
+  const handleDeleteFromContextMenu = useCallback(() => {
+    if (contextMenuShiftId) {
+      handleDeleteShift(contextMenuShiftId);
+    }
+  }, [contextMenuShiftId, handleDeleteShift]);
+
+  // キーボードショートカット
+  useKeyboardShortcuts({
+    onUndo: undo,
+    onRedo: redo,
+    onCopy: handleCopy,
+    onPaste: handlePaste,
+  });
 
   // 行コンテナのマウスイベントハンドラー
   const handleRowMouseDown = useCallback(
@@ -171,23 +277,39 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                       onMouseDown={(e) => handleRowMouseDown(e, staff.id)}
                       onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
                       onMouseUp={handleMouseUp}
-                      onMouseLeave={handleMouseUp}
+                      onMouseLeave={() => {
+                        handleMouseUp();
+                        setHoveredStaffId(null);
+                      }}
+                      onMouseEnter={() => setHoveredStaffId(staff.id)}
                       cursor={cursorStyle[staff.id] ?? "default"}
                       userSelect="none"
                     >
                       {staff.isSubmitted ? (
-                        staffShifts.map((shift) => (
-                          <ShiftBar
-                            key={shift.id}
-                            shift={shift}
-                            timeRange={timeRange}
-                            onHover={setHoveredShiftId}
-                            onClick={handleShiftClick}
-                            onContextMenu={handleContextMenu}
-                            onDelete={handleDeleteShift}
-                            isDragging={isDragging}
-                          />
-                        ))
+                        <>
+                          {staffShifts.map((shift) => (
+                            <ShiftBar
+                              key={shift.id}
+                              shift={shift}
+                              timeRange={timeRange}
+                              onHover={setHoveredShiftId}
+                              onClick={handleShiftClick}
+                              onContextMenu={handleContextMenu}
+                              onDelete={handleDeleteShift}
+                              isDragging={isDragging}
+                            />
+                          ))}
+                          {/* ドラッグプレビュー（ドラッグ中のスタッフ行のみ表示） */}
+                          {isDragging && dragState.staffId === staff.id && (
+                            <DragPreview
+                              mode={dragState.mode}
+                              startMinutes={dragState.startMinutes}
+                              currentMinutes={dragState.currentMinutes}
+                              timeRange={timeRange}
+                              positionColor={dragState.positionColor}
+                            />
+                          )}
+                        </>
                       ) : (
                         <Flex height="100%" align="center" justify="center">
                           <Text color="gray.400" fontSize="sm">
@@ -204,12 +326,29 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         </Table.Root>
       </Box>
 
-      {/* サマリー行 (Phase 0.4で実装) */}
-      <Box mt={4} p={3} bg="gray.50" borderRadius="lg">
-        <Text fontWeight="bold" color="gray.600" fontSize="sm">
-          ▶ 合計（Phase 0.4で折りたたみサマリー実装予定）
-        </Text>
-      </Box>
+      {/* サマリー行 */}
+      <SummaryRow shifts={shifts} positions={positions} timeRange={timeRange} date={selectedDate} />
+
+      {/* ポップオーバー */}
+      <ShiftPopover
+        shift={popoverShift}
+        anchorEl={popoverAnchor}
+        isOpen={popoverShift !== null}
+        onClose={handlePopoverClose}
+        onDeletePosition={handleDeletePosition}
+        onDeleteShift={handleDeleteShiftFromPopover}
+      />
+
+      {/* コンテキストメニュー */}
+      <ContextMenu
+        position={contextMenuPosition}
+        isOpen={contextMenuPosition !== null}
+        onClose={handleContextMenuClose}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+        onDelete={handleDeleteFromContextMenu}
+        canPaste={hasClipboard}
+      />
 
       {/* デバッグ情報 */}
       <VStack align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">

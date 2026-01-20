@@ -85,6 +85,41 @@ export const detectResizeEdge = (params: {
   return null;
 };
 
+// ポジションバー端（リサイズ対象）の検出
+export const detectPositionResizeEdge = (params: {
+  shifts: ShiftData[];
+  staffId: string;
+  date: string;
+  x: number;
+  containerWidth: number;
+  timeRange: TimeRange;
+  threshold: number;
+}): { shiftId: string; positionId: string; positionColor: string; edge: "start" | "end" } | null => {
+  const { shifts, staffId, date, x, containerWidth, timeRange, threshold } = params;
+
+  for (const shift of shifts) {
+    if (shift.staffId !== staffId || shift.date !== date || !shift.workingTime) {
+      continue;
+    }
+
+    for (const pos of shift.positions) {
+      const startPercent = minutesToPercent(timeToMinutes(pos.start), timeRange);
+      const endPercent = minutesToPercent(timeToMinutes(pos.end), timeRange);
+      const startX = (startPercent / 100) * containerWidth;
+      const endX = (endPercent / 100) * containerWidth;
+
+      if (Math.abs(x - startX) <= threshold) {
+        return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "start" };
+      }
+      if (Math.abs(x - endX) <= threshold) {
+        return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "end" };
+      }
+    }
+  }
+
+  return null;
+};
+
 // === シフト操作（エッジケース対応） ===
 
 // 新規シフト作成
@@ -109,6 +144,97 @@ export const createShift = (params: {
       end: minutesToTime(actualEnd),
     },
     positions: [],
+  };
+};
+
+// ポジションリサイズ（労働時間自動延長含む）
+export const resizePosition = (params: {
+  shift: ShiftData;
+  positionId: string;
+  edge: "start" | "end";
+  newMinutes: number;
+  minDuration: number;
+}): ShiftData => {
+  const { shift, positionId, edge, newMinutes, minDuration } = params;
+  if (!shift.workingTime) return shift;
+
+  const targetPosition = shift.positions.find((pos) => pos.id === positionId);
+  if (!targetPosition) return shift;
+
+  const currentPosStart = timeToMinutes(targetPosition.start);
+  const currentPosEnd = timeToMinutes(targetPosition.end);
+  const workStart = timeToMinutes(shift.workingTime.start);
+  const workEnd = timeToMinutes(shift.workingTime.end);
+
+  let newPosStart = currentPosStart;
+  let newPosEnd = currentPosEnd;
+
+  if (edge === "start") {
+    newPosStart = Math.min(newMinutes, currentPosEnd - minDuration);
+  } else {
+    newPosEnd = Math.max(newMinutes, currentPosStart + minDuration);
+  }
+
+  // 労働時間の自動延長
+  const newWorkStart = Math.min(workStart, newPosStart);
+  const newWorkEnd = Math.max(workEnd, newPosEnd);
+
+  // 他のポジションとの重複処理（上書き）
+  const adjustedPositions = shift.positions
+    .flatMap((pos) => {
+      if (pos.id === positionId) {
+        return {
+          ...pos,
+          start: minutesToTime(newPosStart),
+          end: minutesToTime(newPosEnd),
+        };
+      }
+
+      const posStart = timeToMinutes(pos.start);
+      const posEnd = timeToMinutes(pos.end);
+
+      // 完全に上書き → 削除
+      if (posStart >= newPosStart && posEnd <= newPosEnd) {
+        return null;
+      }
+
+      // 重複なし → そのまま
+      if (posEnd <= newPosStart || posStart >= newPosEnd) {
+        return pos;
+      }
+
+      // 部分重複 → 分割 or カット
+      const segments: PositionSegment[] = [];
+
+      // 前半残り
+      if (posStart < newPosStart) {
+        segments.push({
+          ...pos,
+          id: `${pos.id}-before`,
+          end: minutesToTime(newPosStart),
+        });
+      }
+
+      // 後半残り
+      if (posEnd > newPosEnd) {
+        segments.push({
+          ...pos,
+          id: `${pos.id}-after`,
+          start: minutesToTime(newPosEnd),
+        });
+      }
+
+      return segments.length === 1 ? segments[0] : segments;
+    })
+    .filter((pos): pos is PositionSegment => pos !== null);
+
+  return {
+    ...shift,
+    workingTime: {
+      start: minutesToTime(newWorkStart),
+      end: minutesToTime(newWorkEnd),
+    },
+    positions: adjustedPositions,
   };
 };
 
