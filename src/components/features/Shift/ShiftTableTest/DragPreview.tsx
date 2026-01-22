@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { DragMode, TimeRange } from "./types";
-import { minutesToPercent } from "./utils/shiftOperations";
+import { minutesToPercent, percentToCalcLeft, percentToCalcWidth } from "./utils/shiftOperations";
 
 type DragPreviewProps = {
   mode: DragMode;
@@ -24,37 +24,16 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
   // ドラッグ範囲が小さすぎる場合は表示しない
   if (width < 0.5) return null;
 
-  // モードに応じた色とスタイル
+  // モードに応じた色とスタイル（希望シフトバーは編集不可のため、ポジション関連のみ）
   const getPreviewStyle = () => {
     switch (mode) {
-      case "create":
-        // 新規作成: 半透明グレー
-        return {
-          bg: "gray.400",
-          opacity: 0.5,
-          height: "16px",
-          borderRadius: "md",
-        };
-
-      case "resize-start":
-      case "resize-end":
-        // 労働時間リサイズ: 半透明グレー + ボーダー
-        return {
-          bg: "gray.400",
-          opacity: 0.6,
-          height: "16px",
-          borderRadius: "md",
-          border: "2px dashed",
-          borderColor: "gray.600",
-        };
-
       case "position-resize-start":
       case "position-resize-end":
         // ポジションリサイズ: ポジション色
         return {
           bg: positionColor ?? "blue.400",
           opacity: 0.6,
-          height: "28px",
+          height: "20px",
           borderRadius: "md",
           border: "2px dashed",
           borderColor: "gray.600",
@@ -65,7 +44,7 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
         return {
           bg: positionColor ?? "blue.400",
           opacity: 0.5,
-          height: "28px",
+          height: "20px",
           borderRadius: "md",
         };
 
@@ -79,8 +58,8 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
   return (
     <Box
       position="absolute"
-      left={`${left}%`}
-      width={`${width}%`}
+      left={percentToCalcLeft(left)}
+      width={percentToCalcWidth(width)}
       top="50%"
       transform="translateY(-50%)"
       pointerEvents="none"

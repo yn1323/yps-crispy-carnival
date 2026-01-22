@@ -1,5 +1,6 @@
 import { Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
-import { LuTrash2, LuX } from "react-icons/lu";
+import { useEffect } from "react";
+import { LuMinus, LuTrash2, LuX } from "react-icons/lu";
 import type { ShiftData } from "./types";
 
 type ShiftPopoverProps = {
@@ -19,7 +20,23 @@ export const ShiftPopover = ({
   onDeletePosition,
   onDeleteShift,
 }: ShiftPopoverProps) => {
-  if (!shift || !shift.workingTime) return null;
+  // スクロール時に自動で閉じる
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleScroll = () => {
+      onClose();
+    };
+
+    // capture: true でバブリング前にキャッチ
+    window.addEventListener("scroll", handleScroll, true);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [isOpen, onClose]);
+
+  if (!shift || !shift.requestedTime) return null;
 
   return (
     <Popover.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()}>
@@ -31,7 +48,7 @@ export const ShiftPopover = ({
           style={
             anchorEl
               ? {
-                  position: "absolute",
+                  position: "fixed",
                   left: `${anchorEl.getBoundingClientRect().left + anchorEl.getBoundingClientRect().width / 2}px`,
                   top: `${anchorEl.getBoundingClientRect().top - 8}px`,
                   transform: "translate(-50%, -100%)",
@@ -40,14 +57,11 @@ export const ShiftPopover = ({
           }
         >
           <Popover.Content width="280px" boxShadow="lg" borderRadius="lg">
-            <Popover.Arrow>
-              <Popover.ArrowTip />
-            </Popover.Arrow>
             <Popover.Body p={0}>
               {/* 労働時間 */}
               <Box p={3} borderBottom="1px solid" borderColor="gray.100">
                 <Text fontWeight="bold" fontSize="md" color="gray.700">
-                  {shift.workingTime.start} - {shift.workingTime.end}
+                  希望：{shift.requestedTime.start} - {shift.requestedTime.end}
                 </Text>
               </Box>
 
@@ -71,15 +85,16 @@ export const ShiftPopover = ({
                         colorPalette="gray"
                         aria-label={`${pos.positionName}を削除`}
                         onClick={() => onDeletePosition(pos.id)}
+                        _hover={{ color: "red.500" }}
                       >
-                        <LuX />
+                        <LuMinus />
                       </IconButton>
                     </Flex>
                   ))}
                 </Box>
               )}
 
-              {/* シフトを削除ボタン */}
+              {/* 全ポジションを削除ボタン */}
               <Box p={3}>
                 <Button
                   size="sm"
@@ -88,15 +103,16 @@ export const ShiftPopover = ({
                   width="100%"
                   onClick={onDeleteShift}
                   justifyContent="flex-start"
+                  disabled={shift.positions.length === 0}
                 >
                   <LuTrash2 />
-                  <Text ml={2}>シフトを削除</Text>
+                  <Text ml={2}>全ポジションを削除</Text>
                 </Button>
               </Box>
             </Popover.Body>
 
             <Popover.CloseTrigger position="absolute" top="2" right="2">
-              <IconButton size="xs" variant="ghost" aria-label="閉じる">
+              <IconButton size="xs" variant="ghost" colorPalette="gray" opacity={0.6} aria-label="閉じる">
                 <LuX />
               </IconButton>
             </Popover.CloseTrigger>

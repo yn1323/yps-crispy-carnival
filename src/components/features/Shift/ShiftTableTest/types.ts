@@ -1,10 +1,14 @@
+// 時間軸の左右パディング（px）
+export const TIME_AXIS_PADDING_PX = 20;
+
 // シフトデータ
 export type ShiftData = {
   id: string;
   staffId: string;
   staffName: string;
   date: string;
-  workingTime: {
+  // 希望シフト時間（スタッフ提出、読み取り専用）
+  requestedTime: {
     start: string; // "10:00"
     end: string; // "18:00"
   } | null; // null = 未提出
@@ -42,15 +46,21 @@ export type TimeRange = {
   unit: number; // 分単位 (30)
 };
 
-// ドラッグモード
-export type DragMode =
-  | "create"
-  | "resize-start"
-  | "resize-end"
-  | "position-resize-start"
-  | "position-resize-end"
-  | "paint"
-  | null;
+// ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
+export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | "erase" | null;
+
+// ツール選択（ポジション塗り or 消しゴム）
+export type ToolSelection = PositionType | "eraser" | null;
+
+// 連結リサイズ対象（隣接バーの境界ドラッグ用）
+export type LinkedResizeTarget = {
+  // 前のポジション（end側をリサイズ）
+  prevPosition: { positionId: string; positionColor: string } | null;
+  // 後のポジション（start側をリサイズ）
+  nextPosition: { positionId: string; positionColor: string } | null;
+  // 境界の分（例: 840 = 14:00）
+  boundaryMinutes: number;
+};
 
 // メインコンポーネントのProps
 export type ShiftTableTestProps = {

@@ -1,4 +1,10 @@
-import type { PositionSegment, ShiftData, TimeRange } from "../types";
+import {
+  type LinkedResizeTarget,
+  type PositionSegment,
+  type ShiftData,
+  TIME_AXIS_PADDING_PX,
+  type TimeRange,
+} from "../types";
 
 // === 時間変換ユーティリティ ===
 
@@ -15,11 +21,15 @@ export const minutesToTime = (totalMinutes: number): string => {
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 };
 
-// X座標（ピクセル） → 分 + unitスナップ
+// X座標（ピクセル） → 分 + unitスナップ（パディング考慮）
 export const pixelToMinutes = (params: { x: number; containerWidth: number; timeRange: TimeRange }): number => {
   const { x, containerWidth, timeRange } = params;
   const totalMinutes = (timeRange.end - timeRange.start) * 60;
-  const rawMinutes = (x / containerWidth) * totalMinutes + timeRange.start * 60;
+  // パディングを考慮した実際の時間軸エリア幅
+  const effectiveWidth = containerWidth - TIME_AXIS_PADDING_PX * 2;
+  // パディング分を引いたx座標
+  const effectiveX = x - TIME_AXIS_PADDING_PX;
+  const rawMinutes = (effectiveX / effectiveWidth) * totalMinutes + timeRange.start * 60;
   // unitにスナップ
   return Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
 };
@@ -30,62 +40,32 @@ export const minutesToPercent = (minutes: number, timeRange: TimeRange): number 
   return ((minutes - timeRange.start * 60) / totalMinutes) * 100;
 };
 
+// パーセント値をcalc()式に変換（パディング考慮）
+// percent=0 → left: 20px, percent=100 → left: calc(100% - 20px)
+export const percentToCalcLeft = (percent: number, padding: number = TIME_AXIS_PADDING_PX): string => {
+  return `calc(${padding}px + (100% - ${padding * 2}px) * ${percent / 100})`;
+};
+
+// 幅のパーセント値をcalc()式に変換（パディング考慮）
+export const percentToCalcWidth = (widthPercent: number, padding: number = TIME_AXIS_PADDING_PX): string => {
+  return `calc((100% - ${padding * 2}px) * ${widthPercent / 100})`;
+};
+
 // === シフト検索ユーティリティ ===
 
-// 指定位置のシフトを検索
+// 指定位置のシフトを検索（希望シフト時間内かどうかに関わらず、スタッフのシフトを返す）
 export const findShiftAtPosition = (params: {
   shifts: ShiftData[];
   staffId: string;
   date: string;
   minutes: number;
 }): ShiftData | null => {
-  const { shifts, staffId, date, minutes } = params;
-  return (
-    shifts.find((shift) => {
-      if (shift.staffId !== staffId || shift.date !== date || !shift.workingTime) {
-        return false;
-      }
-      const start = timeToMinutes(shift.workingTime.start);
-      const end = timeToMinutes(shift.workingTime.end);
-      return minutes >= start && minutes <= end;
-    }) ?? null
-  );
+  const { shifts, staffId, date } = params;
+  // スタッフの当日シフトを返す（希望時間外にもポジションを塗れるため、位置は問わない）
+  return shifts.find((shift) => shift.staffId === staffId && shift.date === date) ?? null;
 };
 
-// バー端（リサイズ対象）の検出
-export const detectResizeEdge = (params: {
-  shifts: ShiftData[];
-  staffId: string;
-  date: string;
-  x: number;
-  containerWidth: number;
-  timeRange: TimeRange;
-  threshold: number;
-}): { shiftId: string; edge: "start" | "end" } | null => {
-  const { shifts, staffId, date, x, containerWidth, timeRange, threshold } = params;
-
-  for (const shift of shifts) {
-    if (shift.staffId !== staffId || shift.date !== date || !shift.workingTime) {
-      continue;
-    }
-
-    const startPercent = minutesToPercent(timeToMinutes(shift.workingTime.start), timeRange);
-    const endPercent = minutesToPercent(timeToMinutes(shift.workingTime.end), timeRange);
-    const startX = (startPercent / 100) * containerWidth;
-    const endX = (endPercent / 100) * containerWidth;
-
-    if (Math.abs(x - startX) <= threshold) {
-      return { shiftId: shift.id, edge: "start" };
-    }
-    if (Math.abs(x - endX) <= threshold) {
-      return { shiftId: shift.id, edge: "end" };
-    }
-  }
-
-  return null;
-};
-
-// ポジションバー端（リサイズ対象）の検出
+// ポジションバー端（リサイズ対象）の検出（パディング考慮）
 export const detectPositionResizeEdge = (params: {
   shifts: ShiftData[];
   staffId: string;
@@ -97,16 +77,20 @@ export const detectPositionResizeEdge = (params: {
 }): { shiftId: string; positionId: string; positionColor: string; edge: "start" | "end" } | null => {
   const { shifts, staffId, date, x, containerWidth, timeRange, threshold } = params;
 
+  // パディングを考慮した実際の時間軸エリア幅
+  const effectiveWidth = containerWidth - TIME_AXIS_PADDING_PX * 2;
+
   for (const shift of shifts) {
-    if (shift.staffId !== staffId || shift.date !== date || !shift.workingTime) {
+    if (shift.staffId !== staffId || shift.date !== date) {
       continue;
     }
 
     for (const pos of shift.positions) {
       const startPercent = minutesToPercent(timeToMinutes(pos.start), timeRange);
       const endPercent = minutesToPercent(timeToMinutes(pos.end), timeRange);
-      const startX = (startPercent / 100) * containerWidth;
-      const endX = (endPercent / 100) * containerWidth;
+      // パディング分を加算してピクセル位置を計算
+      const startX = TIME_AXIS_PADDING_PX + (startPercent / 100) * effectiveWidth;
+      const endX = TIME_AXIS_PADDING_PX + (endPercent / 100) * effectiveWidth;
 
       if (Math.abs(x - startX) <= threshold) {
         return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "start" };
@@ -120,34 +104,152 @@ export const detectPositionResizeEdge = (params: {
   return null;
 };
 
-// === シフト操作（エッジケース対応） ===
-
-// 新規シフト作成
-export const createShift = (params: {
-  id: string;
+// 連結リサイズ対象の検出（隣接バーの境界を検出、パディング考慮）
+export const detectLinkedResizeEdge = (params: {
+  shifts: ShiftData[];
   staffId: string;
-  staffName: string;
   date: string;
-  startMinutes: number;
-  endMinutes: number;
-}): ShiftData => {
-  const { id, staffId, staffName, date, startMinutes, endMinutes } = params;
-  const [actualStart, actualEnd] = startMinutes < endMinutes ? [startMinutes, endMinutes] : [endMinutes, startMinutes];
+  x: number;
+  containerWidth: number;
+  timeRange: TimeRange;
+  threshold: number;
+}): { shiftId: string; linkedTarget: LinkedResizeTarget } | null => {
+  const { shifts, staffId, date, x, containerWidth, timeRange, threshold } = params;
+
+  const targetShift = shifts.find((shift) => shift.staffId === staffId && shift.date === date);
+  if (!targetShift) return null;
+
+  // パディングを考慮した実際の時間軸エリア幅
+  const effectiveWidth = containerWidth - TIME_AXIS_PADDING_PX * 2;
+
+  // ポジションを時間順にソート
+  const sortedPositions = [...targetShift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+  // 各ポジションの端を走査
+  for (let i = 0; i < sortedPositions.length; i++) {
+    const pos = sortedPositions[i];
+    const prevPos = i > 0 ? sortedPositions[i - 1] : null;
+    const nextPos = i < sortedPositions.length - 1 ? sortedPositions[i + 1] : null;
+
+    const startPercent = minutesToPercent(timeToMinutes(pos.start), timeRange);
+    const endPercent = minutesToPercent(timeToMinutes(pos.end), timeRange);
+    // パディング分を加算してピクセル位置を計算
+    const startX = TIME_AXIS_PADDING_PX + (startPercent / 100) * effectiveWidth;
+    const endX = TIME_AXIS_PADDING_PX + (endPercent / 100) * effectiveWidth;
+
+    // start側の判定（連結 or 単独）
+    if (Math.abs(x - startX) <= threshold) {
+      const isLinkedToPrev = prevPos && prevPos.end === pos.start;
+      return {
+        shiftId: targetShift.id,
+        linkedTarget: {
+          prevPosition: isLinkedToPrev ? { positionId: prevPos.id, positionColor: prevPos.color } : null,
+          nextPosition: { positionId: pos.id, positionColor: pos.color },
+          boundaryMinutes: timeToMinutes(pos.start),
+        },
+      };
+    }
+
+    // end側の判定（連結 or 単独）
+    if (Math.abs(x - endX) <= threshold) {
+      const isLinkedToNext = nextPos && pos.end === nextPos.start;
+      return {
+        shiftId: targetShift.id,
+        linkedTarget: {
+          prevPosition: { positionId: pos.id, positionColor: pos.color },
+          nextPosition: isLinkedToNext ? { positionId: nextPos.id, positionColor: nextPos.color } : null,
+          boundaryMinutes: timeToMinutes(pos.end),
+        },
+      };
+    }
+  }
+
+  return null;
+};
+
+// 指定位置のポジションセグメントを検索
+export const findPositionAtPosition = (params: {
+  shifts: ShiftData[];
+  staffId: string;
+  date: string;
+  minutes: number;
+}): { shiftId: string; positionId: string } | null => {
+  const { shifts, staffId, date, minutes } = params;
+
+  for (const shift of shifts) {
+    if (shift.staffId !== staffId || shift.date !== date) {
+      continue;
+    }
+
+    for (const pos of shift.positions) {
+      const posStart = timeToMinutes(pos.start);
+      const posEnd = timeToMinutes(pos.end);
+
+      if (minutes >= posStart && minutes < posEnd) {
+        return { shiftId: shift.id, positionId: pos.id };
+      }
+    }
+  }
+
+  return null;
+};
+
+// === ポジション操作（希望シフトバーは編集不可） ===
+
+// ポジション消去（指定範囲のポジションセグメントを削除）
+export const erasePosition = (params: { shift: ShiftData; startMinutes: number; endMinutes: number }): ShiftData => {
+  const { shift, startMinutes, endMinutes } = params;
+
+  const [eraseStart, eraseEnd] = startMinutes < endMinutes ? [startMinutes, endMinutes] : [endMinutes, startMinutes];
+
+  // 既存ポジションとの重複処理（削除/分割）
+  const adjustedPositions = shift.positions
+    .flatMap((pos) => {
+      const posStart = timeToMinutes(pos.start);
+      const posEnd = timeToMinutes(pos.end);
+
+      // 完全に消去範囲内 → 削除
+      if (posStart >= eraseStart && posEnd <= eraseEnd) {
+        return null;
+      }
+
+      // 重複なし → そのまま
+      if (posEnd <= eraseStart || posStart >= eraseEnd) {
+        return pos;
+      }
+
+      // 部分重複 → 分割 or カット
+      const segments: PositionSegment[] = [];
+
+      // 前半残り
+      if (posStart < eraseStart) {
+        segments.push({
+          ...pos,
+          id: `${pos.id}-before`,
+          end: minutesToTime(eraseStart),
+        });
+      }
+
+      // 後半残り
+      if (posEnd > eraseEnd) {
+        segments.push({
+          ...pos,
+          id: `${pos.id}-after`,
+          start: minutesToTime(eraseEnd),
+        });
+      }
+
+      return segments.length === 1 ? segments[0] : segments;
+    })
+    .filter((pos): pos is PositionSegment => pos !== null);
 
   return {
-    id,
-    staffId,
-    staffName,
-    date,
-    workingTime: {
-      start: minutesToTime(actualStart),
-      end: minutesToTime(actualEnd),
-    },
-    positions: [],
+    ...shift,
+    positions: adjustedPositions,
   };
 };
 
-// ポジションリサイズ（労働時間自動延長含む）
+// ポジションリサイズ（希望シフト時間は変更しない）
 export const resizePosition = (params: {
   shift: ShiftData;
   positionId: string;
@@ -156,15 +258,12 @@ export const resizePosition = (params: {
   minDuration: number;
 }): ShiftData => {
   const { shift, positionId, edge, newMinutes, minDuration } = params;
-  if (!shift.workingTime) return shift;
 
   const targetPosition = shift.positions.find((pos) => pos.id === positionId);
   if (!targetPosition) return shift;
 
   const currentPosStart = timeToMinutes(targetPosition.start);
   const currentPosEnd = timeToMinutes(targetPosition.end);
-  const workStart = timeToMinutes(shift.workingTime.start);
-  const workEnd = timeToMinutes(shift.workingTime.end);
 
   let newPosStart = currentPosStart;
   let newPosEnd = currentPosEnd;
@@ -174,10 +273,6 @@ export const resizePosition = (params: {
   } else {
     newPosEnd = Math.max(newMinutes, currentPosStart + minDuration);
   }
-
-  // 労働時間の自動延長
-  const newWorkStart = Math.min(workStart, newPosStart);
-  const newWorkEnd = Math.max(workEnd, newPosEnd);
 
   // 他のポジションとの重複処理（上書き）
   const adjustedPositions = shift.positions
@@ -228,69 +323,59 @@ export const resizePosition = (params: {
     })
     .filter((pos): pos is PositionSegment => pos !== null);
 
+  // 希望シフト時間（requestedTime）は変更しない
   return {
     ...shift,
-    workingTime: {
-      start: minutesToTime(newWorkStart),
-      end: minutesToTime(newWorkEnd),
-    },
     positions: adjustedPositions,
   };
 };
 
-// シフトリサイズ（ポジション自動カット含む）
-export const resizeShift = (params: {
+// 連結リサイズ（隣接する2つのポジションの境界を同時に移動）
+export const resizeLinkedPositions = (params: {
   shift: ShiftData;
-  edge: "start" | "end";
+  linkedTarget: LinkedResizeTarget;
   newMinutes: number;
   minDuration: number;
 }): ShiftData => {
-  const { shift, edge, newMinutes, minDuration } = params;
-  if (!shift.workingTime) return shift;
+  const { shift, linkedTarget, newMinutes, minDuration } = params;
+  const { prevPosition, nextPosition } = linkedTarget;
 
-  const currentStart = timeToMinutes(shift.workingTime.start);
-  const currentEnd = timeToMinutes(shift.workingTime.end);
+  // 有効範囲の計算
+  let minBoundary = 0;
+  let maxBoundary = 24 * 60;
 
-  let newStart = currentStart;
-  let newEnd = currentEnd;
-
-  if (edge === "start") {
-    newStart = Math.min(newMinutes, currentEnd - minDuration);
-  } else {
-    newEnd = Math.max(newMinutes, currentStart + minDuration);
+  if (prevPosition) {
+    const prev = shift.positions.find((p) => p.id === prevPosition.positionId);
+    if (prev) {
+      minBoundary = timeToMinutes(prev.start) + minDuration;
+    }
   }
 
-  // ポジション色の自動カット
-  const adjustedPositions = shift.positions
-    .map((pos) => {
-      const posStart = timeToMinutes(pos.start);
-      const posEnd = timeToMinutes(pos.end);
+  if (nextPosition) {
+    const next = shift.positions.find((p) => p.id === nextPosition.positionId);
+    if (next) {
+      maxBoundary = timeToMinutes(next.end) - minDuration;
+    }
+  }
 
-      // 完全にはみ出し → 削除
-      if (posEnd <= newStart || posStart >= newEnd) {
-        return null;
-      }
+  // 有効範囲内に制限
+  const clampedMinutes = Math.max(minBoundary, Math.min(maxBoundary, newMinutes));
 
-      // 部分的にはみ出し → カット
-      return {
-        ...pos,
-        start: minutesToTime(Math.max(posStart, newStart)),
-        end: minutesToTime(Math.min(posEnd, newEnd)),
-      };
-    })
-    .filter((pos): pos is PositionSegment => pos !== null);
+  // ポジションを更新
+  const updatedPositions = shift.positions.map((pos) => {
+    if (prevPosition && pos.id === prevPosition.positionId) {
+      return { ...pos, end: minutesToTime(clampedMinutes) };
+    }
+    if (nextPosition && pos.id === nextPosition.positionId) {
+      return { ...pos, start: minutesToTime(clampedMinutes) };
+    }
+    return pos;
+  });
 
-  return {
-    ...shift,
-    workingTime: {
-      start: minutesToTime(newStart),
-      end: minutesToTime(newEnd),
-    },
-    positions: adjustedPositions,
-  };
+  return { ...shift, positions: updatedPositions };
 };
 
-// ポジション塗り（労働時間自動延長 + 重複上書き含む）
+// ポジション塗り（希望シフト時間は変更しない + 重複上書き含む）
 export const paintPosition = (params: {
   shift: ShiftData;
   positionId: string;
@@ -301,16 +386,8 @@ export const paintPosition = (params: {
   segmentId: string;
 }): ShiftData => {
   const { shift, positionId, positionName, positionColor, startMinutes, endMinutes, segmentId } = params;
-  if (!shift.workingTime) return shift;
 
   const [paintStart, paintEnd] = startMinutes < endMinutes ? [startMinutes, endMinutes] : [endMinutes, startMinutes];
-
-  const workStart = timeToMinutes(shift.workingTime.start);
-  const workEnd = timeToMinutes(shift.workingTime.end);
-
-  // 労働時間の自動延長
-  const newWorkStart = Math.min(workStart, paintStart);
-  const newWorkEnd = Math.max(workEnd, paintEnd);
 
   // 既存ポジションとの重複処理（上書き）
   const adjustedPositions = shift.positions
@@ -363,63 +440,9 @@ export const paintPosition = (params: {
     end: minutesToTime(paintEnd),
   };
 
+  // 希望シフト時間（requestedTime）は変更しない
   return {
     ...shift,
-    workingTime: {
-      start: minutesToTime(newWorkStart),
-      end: minutesToTime(newWorkEnd),
-    },
     positions: [...adjustedPositions, newPosition],
   };
-};
-
-// workingTimeが存在するシフトの型
-type ShiftWithWorkingTime = ShiftData & { workingTime: NonNullable<ShiftData["workingTime"]> };
-
-// 型ガード関数
-const hasWorkingTime = (shift: ShiftData): shift is ShiftWithWorkingTime => {
-  return shift.workingTime !== null;
-};
-
-// シフト結合（重複バー同士）
-export const mergeOverlappingShifts = (params: { shifts: ShiftData[]; staffId: string; date: string }): ShiftData[] => {
-  const { shifts, staffId, date } = params;
-
-  const staffShifts = shifts.filter((s) => s.staffId === staffId && s.date === date).filter(hasWorkingTime);
-  const otherShifts = shifts.filter((s) => s.staffId !== staffId || s.date !== date);
-
-  if (staffShifts.length <= 1) return shifts;
-
-  // 開始時間でソート
-  const sorted = [...staffShifts].sort(
-    (a, b) => timeToMinutes(a.workingTime.start) - timeToMinutes(b.workingTime.start),
-  );
-
-  const merged: ShiftWithWorkingTime[] = [];
-  let current = sorted[0];
-
-  for (let i = 1; i < sorted.length; i++) {
-    const next = sorted[i];
-    const currentEnd = timeToMinutes(current.workingTime.end);
-    const nextStart = timeToMinutes(next.workingTime.start);
-
-    if (nextStart <= currentEnd) {
-      // 重複 → 結合
-      const newEnd = Math.max(currentEnd, timeToMinutes(next.workingTime.end));
-      current = {
-        ...current,
-        workingTime: {
-          start: current.workingTime.start,
-          end: minutesToTime(newEnd),
-        },
-        positions: [...current.positions, ...next.positions],
-      };
-    } else {
-      merged.push(current);
-      current = next;
-    }
-  }
-  merged.push(current);
-
-  return [...otherShifts, ...merged];
 };

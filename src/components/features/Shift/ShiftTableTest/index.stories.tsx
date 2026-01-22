@@ -37,7 +37,7 @@ const mockShifts = [
     staffId: "staff1",
     staffName: "Aさん",
     date: "2026-01-21",
-    workingTime: { start: "10:00", end: "18:00" },
+    requestedTime: { start: "10:00", end: "18:00" },
     positions: [
       { id: "seg1", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "14:00" },
       { id: "seg2", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "14:00", end: "18:00" },
@@ -49,7 +49,7 @@ const mockShifts = [
     staffId: "staff2",
     staffName: "Bさん",
     date: "2026-01-21",
-    workingTime: { start: "12:00", end: "20:00" },
+    requestedTime: { start: "12:00", end: "20:00" },
     positions: [
       { id: "seg3", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "12:00", end: "16:00" },
       { id: "seg4", positionId: "pos3", positionName: "レジ", color: "#10b981", start: "16:00", end: "20:00" },
@@ -61,7 +61,7 @@ const mockShifts = [
     staffId: "staff4",
     staffName: "Dさん",
     date: "2026-01-21",
-    workingTime: { start: "15:00", end: "21:00" },
+    requestedTime: { start: "15:00", end: "21:00" },
     positions: [
       { id: "seg5", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "15:00", end: "21:00" },
     ],
@@ -72,7 +72,7 @@ const mockShifts = [
     staffId: "staff1",
     staffName: "Aさん",
     date: "2026-01-22",
-    workingTime: { start: "09:00", end: "17:00" },
+    requestedTime: { start: "09:00", end: "17:00" },
     positions: [
       { id: "seg6", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "09:00", end: "12:00" },
       { id: "seg7", positionId: "pos4", positionName: "休憩", color: "#6b7280", start: "12:00", end: "13:00" },
@@ -85,7 +85,7 @@ const mockShifts = [
     staffId: "staff2",
     staffName: "Bさん",
     date: "2026-01-22",
-    workingTime: { start: "10:00", end: "18:00" },
+    requestedTime: { start: "10:00", end: "18:00" },
     positions: [
       { id: "seg9", positionId: "pos3", positionName: "レジ", color: "#10b981", start: "10:00", end: "18:00" },
     ],
@@ -136,7 +136,7 @@ export const ManyStaffs: Story = {
         staffId: "staff6",
         staffName: "Fさん",
         date: "2026-01-21",
-        workingTime: { start: "11:00", end: "19:00" },
+        requestedTime: { start: "11:00", end: "19:00" },
         positions: [
           { id: "seg10", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "11:00", end: "19:00" },
         ],
@@ -146,7 +146,7 @@ export const ManyStaffs: Story = {
         staffId: "staff7",
         staffName: "Gさん",
         date: "2026-01-21",
-        workingTime: { start: "09:00", end: "15:00" },
+        requestedTime: { start: "09:00", end: "15:00" },
         positions: [
           { id: "seg11", positionId: "pos3", positionName: "レジ", color: "#10b981", start: "09:00", end: "15:00" },
         ],
@@ -156,7 +156,7 @@ export const ManyStaffs: Story = {
         staffId: "staff8",
         staffName: "Hさん",
         date: "2026-01-21",
-        workingTime: { start: "16:00", end: "22:00" },
+        requestedTime: { start: "16:00", end: "22:00" },
         positions: [
           { id: "seg12", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "16:00", end: "22:00" },
         ],
@@ -166,7 +166,7 @@ export const ManyStaffs: Story = {
         staffId: "staff10",
         staffName: "Jさん",
         date: "2026-01-21",
-        workingTime: { start: "13:00", end: "21:00" },
+        requestedTime: { start: "13:00", end: "21:00" },
         positions: [
           { id: "seg13", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "13:00", end: "17:00" },
           { id: "seg14", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "17:00", end: "21:00" },
