@@ -33,6 +33,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const [selectedTool, setSelectedTool] = useState<ToolSelection>(null);
   const [hoveredShiftId, setHoveredShiftId] = useState<string | null>(null);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
   // selectedToolからポジションを抽出（useDrag用）
   const selectedPosition = selectedTool !== "eraser" ? selectedTool : null;
@@ -355,12 +356,19 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 </Table.Row>
               );
             })}
+            {/* サマリー行（サブトータル） */}
+            <SummaryRow
+              shifts={shifts}
+              positions={positions}
+              timeRange={timeRange}
+              date={selectedDate}
+              isExpanded={isSummaryExpanded}
+              onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
+              timeSlotsCount={timeSlots.length}
+            />
           </Table.Body>
         </Table.Root>
       </Box>
-
-      {/* サマリー行 */}
-      <SummaryRow shifts={shifts} positions={positions} timeRange={timeRange} date={selectedDate} />
 
       {/* ポップオーバー */}
       <ShiftPopover

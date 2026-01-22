@@ -1,15 +1,18 @@
-import { Box, Flex, Icon, Text } from "@chakra-ui/react";
-import { useMemo, useState } from "react";
+import { Box, Flex, Icon, Table, Text } from "@chakra-ui/react";
+import { useMemo } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
+import { GridLines } from "./GridLines";
 import { type PositionType, type ShiftData, TIME_AXIS_PADDING_PX, type TimeRange } from "./types";
-import { percentToCalcLeft } from "./utils/shiftOperations";
 
 type SummaryRowProps = {
   shifts: ShiftData[];
   positions: PositionType[];
   timeRange: TimeRange;
   date: string;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
   requiredCountPerHour?: number; // 時間帯ごとの必要人数（デフォルト: 5）
+  timeSlotsCount: number; // colSpan用
 };
 
 // 特定時刻にポジションで稼働している人数をカウント（未提出者も含む）
@@ -41,9 +44,16 @@ const generateTimeSlots = (timeRange: TimeRange): string[] => {
   return slots;
 };
 
-export const SummaryRow = ({ shifts, positions, timeRange, date, requiredCountPerHour = 5 }: SummaryRowProps) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
+export const SummaryRow = ({
+  shifts,
+  positions,
+  timeRange,
+  date,
+  isExpanded,
+  onToggleExpand,
+  requiredCountPerHour = 5,
+  timeSlotsCount,
+}: SummaryRowProps) => {
   // 選択日のシフトのみフィルタ
   const dateShifts = useMemo(() => shifts.filter((s) => s.date === date), [shifts, date]);
 
@@ -63,120 +73,86 @@ export const SummaryRow = ({ shifts, positions, timeRange, date, requiredCountPe
     }));
   }, [dateShifts, positions, timeSlots]);
 
-  // 時間ラベル（正時のみ、パーセント位置計算）- TimeHeaderと同じアプローチ
-  const timeLabels = useMemo(() => {
-    const totalRangeMinutes = (timeRange.end - timeRange.start) * 60;
-    const labels: { hour: number; percent: number }[] = [];
-    for (let hour = timeRange.start; hour <= timeRange.end; hour++) {
-      const minutes = (hour - timeRange.start) * 60;
-      const percent = (minutes / totalRangeMinutes) * 100;
-      labels.push({ hour, percent });
-    }
-    return labels;
-  }, [timeRange]);
-
   return (
-    <Box mt={4} border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
-      {/* 時間ヘッダー行（正時のみラベル表示、縦線と同じ位置） */}
-      <Flex align="center" bg="gray.100" borderBottom="1px solid" borderColor="gray.200">
-        <Box w="120px" borderRight="1px solid" borderColor="gray.200" />
-        <Box flex={1} position="relative" height="24px" px={`${TIME_AXIS_PADDING_PX}px`}>
-          {timeLabels.map(({ hour, percent }) => (
-            <Text
-              key={hour}
-              position="absolute"
-              left={percentToCalcLeft(percent)}
-              top="50%"
-              transform="translate(-50%, -50%)"
-              fontSize="xs"
-              color="gray.500"
-              whiteSpace="nowrap"
-            >
-              {hour}時
-            </Text>
-          ))}
-        </Box>
-      </Flex>
-
+    <>
       {/* 合計行（クリックで展開/折りたたみ） */}
-      <Flex
-        align="center"
-        bg="gray.50"
+      <Table.Row
+        bg="gray.100"
         cursor="pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
-        _hover={{ bg: "gray.100" }}
+        onClick={onToggleExpand}
+        _hover={{ bg: "gray.200" }}
         transition="background 0.15s"
       >
-        <Flex align="center" px={3} py={2} w="120px" borderRight="1px solid" borderColor="gray.200">
-          <Icon as={isExpanded ? LuChevronDown : LuChevronRight} mr={1} color="gray.600" />
-          <Text fontWeight="bold" color="gray.700" fontSize="sm">
-            合計
-          </Text>
-        </Flex>
-        <Box flex={1} position="relative" px={`${TIME_AXIS_PADDING_PX}px`}>
-          {/* グリッドライン */}
-          {timeLabels.map(({ hour, percent }) => (
-            <Box
-              key={`grid-${hour}`}
-              position="absolute"
-              left={percentToCalcLeft(percent)}
-              top={0}
-              bottom={0}
-              borderLeft="1px dashed"
-              borderColor="gray.300"
-              pointerEvents="none"
-              zIndex={0}
-            />
-          ))}
-          <Flex position="relative" zIndex={1}>
-            {timeSlots.map((time, idx) => {
-              const count = totalCounts[idx];
-              const isShort = count < requiredCountPerHour;
-              return (
-                <Box key={time} flex={1} textAlign="center" py={2} px={1}>
-                  <Text fontSize="xs" fontWeight="medium" color={isShort ? "red.500" : "green.600"}>
-                    {count}/{requiredCountPerHour}
-                  </Text>
-                </Box>
-              );
-            })}
+        <Table.Cell
+          fontWeight="bold"
+          position="sticky"
+          left={0}
+          bg="gray.100"
+          zIndex={1}
+          borderRight="1px solid"
+          borderTop="2px solid"
+          borderColor="gray.200"
+          _hover={{ bg: "gray.200" }}
+        >
+          <Flex align="center">
+            <Icon as={isExpanded ? LuChevronDown : LuChevronRight} mr={1} color="gray.600" />
+            <Text fontWeight="bold" color="gray.700" fontSize="sm">
+              合計
+            </Text>
           </Flex>
-        </Box>
-      </Flex>
+        </Table.Cell>
+        <Table.Cell colSpan={timeSlotsCount} p={0} borderTop="2px solid" borderColor="gray.200">
+          <Box position="relative" height="40px" px={`${TIME_AXIS_PADDING_PX}px`}>
+            {/* グリッドライン */}
+            <GridLines timeRange={timeRange} />
+            <Flex position="relative" zIndex={1} height="100%" align="center">
+              {timeSlots.map((time, idx) => {
+                const count = totalCounts[idx];
+                const isShort = count < requiredCountPerHour;
+                return (
+                  <Box key={time} flex={1} textAlign="center">
+                    <Text fontSize="xs" fontWeight="medium" color={isShort ? "red.500" : "green.600"}>
+                      {count}/{requiredCountPerHour}
+                    </Text>
+                  </Box>
+                );
+              })}
+            </Flex>
+          </Box>
+        </Table.Cell>
+      </Table.Row>
 
       {/* ポジション別の内訳（展開時のみ表示） */}
-      {isExpanded && (
-        <Box>
-          {positionCounts.map(({ position, counts }) => (
-            <Flex key={position.id} align="center" borderTop="1px solid" borderColor="gray.100" bg="white">
-              <Flex align="center" px={3} py={2} w="120px" borderRight="1px solid" borderColor="gray.100" gap={2}>
+      {isExpanded &&
+        positionCounts.map(({ position, counts }) => (
+          <Table.Row key={position.id} bg="gray.50">
+            <Table.Cell
+              position="sticky"
+              left={0}
+              bg="gray.50"
+              zIndex={1}
+              borderRight="1px solid"
+              borderColor="gray.100"
+              pl={6}
+            >
+              <Flex align="center" gap={2}>
                 <Box w="10px" h="10px" borderRadius="sm" bg={position.color} />
                 <Text fontSize="xs" color="gray.600">
                   {position.name}
                 </Text>
               </Flex>
-              <Box flex={1} position="relative" px={`${TIME_AXIS_PADDING_PX}px`}>
+            </Table.Cell>
+            <Table.Cell colSpan={timeSlotsCount} p={0}>
+              <Box position="relative" height="32px" px={`${TIME_AXIS_PADDING_PX}px`}>
                 {/* グリッドライン */}
-                {timeLabels.map(({ hour, percent }) => (
-                  <Box
-                    key={`grid-${hour}`}
-                    position="absolute"
-                    left={percentToCalcLeft(percent)}
-                    top={0}
-                    bottom={0}
-                    borderLeft="1px dashed"
-                    borderColor="gray.300"
-                    pointerEvents="none"
-                    zIndex={0}
-                  />
-                ))}
-                <Flex position="relative" zIndex={1}>
+                <GridLines timeRange={timeRange} />
+                <Flex position="relative" zIndex={1} height="100%" align="center">
                   {timeSlots.map((time, idx) => {
                     const count = counts[idx];
                     const required = Math.ceil(requiredCountPerHour / positions.length); // ポジション別の必要人数（仮）
                     return (
-                      <Box key={time} flex={1} textAlign="center" py={2} px={1}>
-                        <Text fontSize="xs" color="gray.500">
+                      <Box key={time} flex={1} textAlign="center">
+                        <Text fontSize="xs" fontWeight="medium" color={count < required ? "red.500" : "green.600"}>
                           {count}/{required}
                         </Text>
                       </Box>
@@ -184,10 +160,9 @@ export const SummaryRow = ({ shifts, positions, timeRange, date, requiredCountPe
                   })}
                 </Flex>
               </Box>
-            </Flex>
-          ))}
-        </Box>
-      )}
-    </Box>
+            </Table.Cell>
+          </Table.Row>
+        ))}
+    </>
   );
 };
