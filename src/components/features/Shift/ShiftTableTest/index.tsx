@@ -284,11 +284,11 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         <DateTabs dates={dates} selectedDate={selectedDate} onSelect={handleDateChange} />
 
         {/* シフト表 */}
-        <Box ref={tableContainerRef} overflowX="auto">
+        <Box ref={tableContainerRef} overflowX="auto" overflowY="auto" maxHeight="70vh">
           <Table.Root size="sm">
             <Table.Header>
-              <Table.Row bg="gray.50">
-                <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={1}>
+              <Table.Row bg="gray.50" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.08)">
+                <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={11}>
                   <SortMenu sortMode={sortMode} onSortChange={handleSortChange} />
                 </Table.ColumnHeader>
                 <Table.ColumnHeader colSpan={timeSlots.length} p={0}>
@@ -425,7 +425,8 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                   </Table.Row>
                 );
               })}
-              {/* サマリー行（サブトータル） */}
+            </Table.Body>
+            <Table.Footer position="sticky" bottom={0} zIndex={10} bg="white" boxShadow="0 -2px 4px rgba(0,0,0,0.08)">
               <SummaryRow
                 shifts={shifts}
                 positions={positions}
@@ -436,7 +437,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 timeSlotsCount={timeSlots.length}
                 displayMode={summaryDisplayMode}
               />
-            </Table.Body>
+            </Table.Footer>
           </Table.Root>
         </Box>
       </Box>

@@ -119,13 +119,14 @@ export const SummaryRow = ({
         onClick={onToggleExpand}
         _hover={{ bg: "gray.200" }}
         transition="background 0.15s"
+        borderBottom="5px solid gray.200"
       >
         <Table.Cell
           fontWeight="bold"
           position="sticky"
           left={0}
           bg="gray.100"
-          zIndex={1}
+          zIndex={11}
           borderRight="1px solid"
           borderTop="2px solid"
           borderColor="gray.200"
@@ -164,7 +165,6 @@ export const SummaryRow = ({
           </Box>
         </Table.Cell>
       </Table.Row>
-
       {/* ポジション別の内訳（展開時のみ表示） */}
       {isExpanded &&
         positionCounts.map(({ position, counts }) => {
@@ -177,7 +177,7 @@ export const SummaryRow = ({
                 position="sticky"
                 left={0}
                 bg="gray.50"
-                zIndex={1}
+                zIndex={11}
                 borderRight="1px solid"
                 borderColor="gray.100"
                 pl={6}

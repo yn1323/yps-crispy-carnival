@@ -17,14 +17,14 @@ export const DateTabs = ({ dates, selectedDate, onSelect }: DateTabsProps) => {
     <Tabs.Root
       value={selectedDate}
       onValueChange={(e) => onSelect(e.value)}
-      variant="plain"
+      variant="line"
       colorPalette="teal"
       size="sm"
     >
       <Tabs.List
         width="100%"
         overflowX="auto"
-        bg="gray.200"
+        bg="white"
         borderBottom="1px solid"
         borderColor="gray.200"
         css={{
@@ -37,7 +37,6 @@ export const DateTabs = ({ dates, selectedDate, onSelect }: DateTabsProps) => {
             {formatDate(date)}
           </Tabs.Trigger>
         ))}
-        <Tabs.Indicator borderRadius="md" />
       </Tabs.List>
     </Tabs.Root>
   );
