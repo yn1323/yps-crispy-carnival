@@ -7,19 +7,19 @@ type GridLinesProps = {
 };
 
 export const GridLines = ({ timeRange }: GridLinesProps) => {
-  const totalRangeMinutes = (timeRange.end - timeRange.start) * 60;
+  const totalMinutes = (timeRange.end - timeRange.start) * 60;
 
-  // 各時間の境界線を生成（1時間ごと、開始時刻も含む）
-  const lines: number[] = [];
-  for (let hour = timeRange.start; hour <= timeRange.end; hour++) {
-    const minutes = (hour - timeRange.start) * 60;
-    const percent = (minutes / totalRangeMinutes) * 100;
-    lines.push(percent);
+  // timeRange.unit刻みで境界線を生成
+  const lines: { percent: number; isHourBoundary: boolean }[] = [];
+  for (let minute = 0; minute <= totalMinutes; minute += timeRange.unit) {
+    const percent = (minute / totalMinutes) * 100;
+    const isHourBoundary = minute % 60 === 0;
+    lines.push({ percent, isHourBoundary });
   }
 
   return (
     <Box position="absolute" inset={0} pointerEvents="none" zIndex={0}>
-      {lines.map((percent, index) => (
+      {lines.map(({ percent, isHourBoundary }, index) => (
         <Box
           key={index}
           position="absolute"
@@ -27,7 +27,7 @@ export const GridLines = ({ timeRange }: GridLinesProps) => {
           top={0}
           bottom={0}
           borderLeft="1px dashed"
-          borderColor="gray.300"
+          borderColor={isHourBoundary ? "gray.300" : "gray.200"}
         />
       ))}
     </Box>

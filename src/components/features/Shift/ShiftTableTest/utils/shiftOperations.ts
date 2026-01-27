@@ -331,6 +331,7 @@ export const resizePosition = (params: {
 };
 
 // 連結リサイズ（隣接する2つのポジションの境界を同時に移動）
+// 隣接バーがUNIT未満になる場合はそのバーを削除（上書き）する
 export const resizeLinkedPositions = (params: {
   shift: ShiftData;
   linkedTarget: LinkedResizeTarget;
@@ -340,37 +341,33 @@ export const resizeLinkedPositions = (params: {
   const { shift, linkedTarget, newMinutes, minDuration } = params;
   const { prevPosition, nextPosition } = linkedTarget;
 
-  // 有効範囲の計算
-  let minBoundary = 0;
-  let maxBoundary = 24 * 60;
+  // prev/nextの実体を取得
+  const prev = prevPosition ? shift.positions.find((p) => p.id === prevPosition.positionId) : null;
+  const next = nextPosition ? shift.positions.find((p) => p.id === nextPosition.positionId) : null;
 
-  if (prevPosition) {
-    const prev = shift.positions.find((p) => p.id === prevPosition.positionId);
-    if (prev) {
-      minBoundary = timeToMinutes(prev.start) + minDuration;
-    }
-  }
+  const prevStart = prev ? timeToMinutes(prev.start) : 0;
+  const nextEnd = next ? timeToMinutes(next.end) : 24 * 60;
 
-  if (nextPosition) {
-    const next = shift.positions.find((p) => p.id === nextPosition.positionId);
-    if (next) {
-      maxBoundary = timeToMinutes(next.end) - minDuration;
-    }
-  }
+  // UNIT未満になるバーを判定
+  const shouldDeletePrev = prev && newMinutes - prevStart < minDuration;
+  const shouldDeleteNext = next && nextEnd - newMinutes < minDuration;
 
-  // 有効範囲内に制限
-  const clampedMinutes = Math.max(minBoundary, Math.min(maxBoundary, newMinutes));
-
-  // ポジションを更新
-  const updatedPositions = shift.positions.map((pos) => {
-    if (prevPosition && pos.id === prevPosition.positionId) {
-      return { ...pos, end: minutesToTime(clampedMinutes) };
-    }
-    if (nextPosition && pos.id === nextPosition.positionId) {
-      return { ...pos, start: minutesToTime(clampedMinutes) };
-    }
-    return pos;
-  });
+  // ポジションを更新（UNIT未満のバーは削除）
+  const updatedPositions = shift.positions
+    .filter((pos) => {
+      if (shouldDeletePrev && prevPosition && pos.id === prevPosition.positionId) return false;
+      if (shouldDeleteNext && nextPosition && pos.id === nextPosition.positionId) return false;
+      return true;
+    })
+    .map((pos) => {
+      if (!shouldDeletePrev && prevPosition && pos.id === prevPosition.positionId) {
+        return { ...pos, end: minutesToTime(newMinutes) };
+      }
+      if (!shouldDeleteNext && nextPosition && pos.id === nextPosition.positionId) {
+        return { ...pos, start: minutesToTime(newMinutes) };
+      }
+      return pos;
+    });
 
   return { ...shift, positions: updatedPositions };
 };
@@ -444,5 +441,137 @@ export const paintPosition = (params: {
   return {
     ...shift,
     positions: [...adjustedPositions, newPosition],
+  };
+};
+
+// === 正規化ユーティリティ ===
+
+// 同一positionIdの隣接/重複バーをマージ
+export const mergeAdjacentPositions = (positions: PositionSegment[]): PositionSegment[] => {
+  if (positions.length <= 1) return positions;
+
+  const sorted = [...positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+  const merged: PositionSegment[] = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+
+    const lastEnd = timeToMinutes(last.end);
+    const currentStart = timeToMinutes(current.start);
+
+    // 同じpositionIdかつ隣接(end === start)または重複(end > start)
+    if (current.positionId === last.positionId && lastEnd >= currentStart) {
+      const newEnd = Math.max(lastEnd, timeToMinutes(current.end));
+      merged[merged.length - 1] = {
+        ...last,
+        end: minutesToTime(newEnd),
+      };
+    } else {
+      merged.push(current);
+    }
+  }
+
+  return merged;
+};
+
+// バー間の空白を休憩で埋める（端は埋めない）
+export const fillGapsWithBreak = (params: {
+  positions: PositionSegment[];
+  breakPosition: { id: string; name: string; color: string };
+}): PositionSegment[] => {
+  const { positions, breakPosition } = params;
+
+  if (positions.length <= 1) return positions;
+
+  const sorted = [...positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+  const result: PositionSegment[] = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = result[result.length - 1];
+    const current = sorted[i];
+
+    const prevEnd = timeToMinutes(prev.end);
+    const currentStart = timeToMinutes(current.start);
+
+    if (currentStart > prevEnd) {
+      result.push({
+        id: `break-${prevEnd}-${currentStart}`,
+        positionId: breakPosition.id,
+        positionName: breakPosition.name,
+        color: breakPosition.color,
+        start: minutesToTime(prevEnd),
+        end: minutesToTime(currentStart),
+      });
+    }
+
+    result.push(current);
+  }
+
+  return result;
+};
+
+// 正規化パイプライン: 休憩除去 → マージ → ギャップ埋め
+export const normalizePositions = (params: {
+  positions: PositionSegment[];
+  breakPosition: { id: string; name: string; color: string };
+}): PositionSegment[] => {
+  const { positions, breakPosition } = params;
+
+  if (positions.length === 0) return positions;
+
+  // 既存の休憩バーを除去（再計算するため）
+  const nonBreakPositions = positions.filter((p) => p.positionId !== breakPosition.id);
+
+  if (nonBreakPositions.length === 0) return [];
+
+  // 同一positionIdの隣接/重複バーをマージ
+  const merged = mergeAdjacentPositions(nonBreakPositions);
+
+  // ギャップに休憩を挿入
+  return fillGapsWithBreak({ positions: merged, breakPosition });
+};
+
+// ポジション削除（休憩削除時は前のバーを延長）
+export const deletePositionFromShift = (params: {
+  shift: ShiftData;
+  positionSegmentId: string;
+  breakPositionId: string;
+}): ShiftData => {
+  const { shift, positionSegmentId, breakPositionId } = params;
+
+  const target = shift.positions.find((p) => p.id === positionSegmentId);
+  if (!target) return shift;
+
+  const isBreak = target.positionId === breakPositionId;
+
+  if (!isBreak) {
+    // 非休憩: 単純削除（正規化で休憩が自動挿入される）
+    return {
+      ...shift,
+      positions: shift.positions.filter((p) => p.id !== positionSegmentId),
+    };
+  }
+
+  // 休憩削除: 前のバーを延長して隙間を埋める
+  const sorted = [...shift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+  const sortedIndex = sorted.findIndex((p) => p.id === positionSegmentId);
+  const prevBar = sortedIndex > 0 ? sorted[sortedIndex - 1] : null;
+
+  if (prevBar && prevBar.positionId !== breakPositionId) {
+    return {
+      ...shift,
+      positions: shift.positions
+        .filter((p) => p.id !== positionSegmentId)
+        .map((p) => (p.id === prevBar.id ? { ...p, end: target.end } : p)),
+    };
+  }
+
+  // 前のバーがない or 前も休憩: 単純削除
+  return {
+    ...shift,
+    positions: shift.positions.filter((p) => p.id !== positionSegmentId),
   };
 };

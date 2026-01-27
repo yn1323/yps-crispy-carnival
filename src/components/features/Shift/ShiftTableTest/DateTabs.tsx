@@ -1,4 +1,4 @@
-import { Button, Flex } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import dayjs from "dayjs";
 
 type DateTabsProps = {
@@ -14,23 +14,30 @@ const formatDate = (dateStr: string) => {
 
 export const DateTabs = ({ dates, selectedDate, onSelect }: DateTabsProps) => {
   return (
-    <Flex gap={1} overflowX="auto" pb={1}>
-      {dates.map((date) => {
-        const isSelected = selectedDate === date;
-        return (
-          <Button
-            key={date}
-            size="sm"
-            variant={isSelected ? "solid" : "outline"}
-            colorPalette={isSelected ? "teal" : "gray"}
-            onClick={() => onSelect(date)}
-            flexShrink={0}
-            transition="all 0.15s"
-          >
+    <Tabs.Root
+      value={selectedDate}
+      onValueChange={(e) => onSelect(e.value)}
+      variant="line"
+      colorPalette="teal"
+      size="sm"
+    >
+      <Tabs.List
+        width="100%"
+        overflowX="auto"
+        bg="white"
+        borderBottom="1px solid"
+        borderColor="gray.200"
+        css={{
+          "&::-webkit-scrollbar": { display: "none" },
+          scrollbarWidth: "none",
+        }}
+      >
+        {dates.map((date) => (
+          <Tabs.Trigger key={date} value={date} flexShrink={0}>
             {formatDate(date)}
-          </Button>
-        );
-      })}
-    </Flex>
+          </Tabs.Trigger>
+        ))}
+      </Tabs.List>
+    </Tabs.Root>
   );
 };

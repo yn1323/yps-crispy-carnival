@@ -3,8 +3,6 @@ import { useEffect } from "react";
 type KeyboardShortcutHandlers = {
   onUndo: () => void;
   onRedo: () => void;
-  onCopy: () => void;
-  onPaste: () => void;
 };
 
 export const useKeyboardShortcuts = (handlers: KeyboardShortcutHandlers): void => {
@@ -29,12 +27,6 @@ export const useKeyboardShortcuts = (handlers: KeyboardShortcutHandlers): void =
         // Cmd+Shift+Z（Mac）もRedo
         e.preventDefault();
         handlers.onRedo();
-      } else if (isCtrlOrCmd && e.key === "c") {
-        e.preventDefault();
-        handlers.onCopy();
-      } else if (isCtrlOrCmd && e.key === "v") {
-        e.preventDefault();
-        handlers.onPaste();
       }
     };
 
