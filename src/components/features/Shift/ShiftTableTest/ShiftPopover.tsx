@@ -5,7 +5,7 @@ import type { ShiftData } from "./types";
 
 type ShiftPopoverProps = {
   shift: ShiftData | null;
-  anchorEl: HTMLElement | null;
+  anchorRect: DOMRect | null;
   isOpen: boolean;
   onClose: () => void;
   onDeletePosition: (positionId: string) => void;
@@ -14,7 +14,7 @@ type ShiftPopoverProps = {
 
 export const ShiftPopover = ({
   shift,
-  anchorEl,
+  anchorRect,
   isOpen,
   onClose,
   onDeletePosition,
@@ -40,21 +40,22 @@ export const ShiftPopover = ({
 
   return (
     <Popover.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()}>
-      {/* アンカー要素を参照 */}
-      <Popover.Anchor asChild>{anchorEl ? <span /> : <span />}</Popover.Anchor>
+      {/* アンカー要素（カスタムポジショニングのため形式的） */}
+      <Popover.Anchor asChild>
+        <span />
+      </Popover.Anchor>
 
       <Portal>
         <Popover.Positioner
           style={
-            anchorEl
+            anchorRect
               ? (() => {
-                  const rect = anchorEl.getBoundingClientRect();
-                  const centerX = rect.left + rect.width / 2;
-                  const showBelow = rect.top < 300;
+                  const centerX = anchorRect.left + anchorRect.width / 2;
+                  const showBelow = anchorRect.top < 300;
                   return {
                     position: "fixed" as const,
                     left: `${centerX}px`,
-                    top: showBelow ? `${rect.bottom + 8}px` : `${rect.top - 8}px`,
+                    top: showBelow ? `${anchorRect.bottom + 8}px` : `${anchorRect.top - 8}px`,
                     transform: showBelow ? "translateX(-50%)" : "translate(-50%, -100%)",
                   };
                 })()

@@ -59,12 +59,12 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
   // === ポップオーバー状態 ===
   const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
-  const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null);
 
   // 行コンテナのref（カーソル位置計算用）
   const rowContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  // paint モードクリック時のアンカー要素
-  const paintClickAnchorRef = useRef<HTMLElement | null>(null);
+  // paint モードクリック時のアンカー座標
+  const paintClickAnchorRef = useRef<DOMRect | null>(null);
 
   // === 横スクロール用 ===
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
@@ -107,7 +107,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       const shift = shifts.find((s) => s.id === shiftId);
       if (shift) {
         setPopoverShift(shift);
-        setPopoverAnchor(e.currentTarget as HTMLElement);
+        setPopoverAnchor(e.currentTarget.getBoundingClientRect());
       }
     },
     [shifts],
@@ -301,7 +301,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                         px={5}
                         bg="transparent"
                         onMouseDown={(e) => {
-                          paintClickAnchorRef.current = e.target as HTMLElement;
+                          paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
                           handleRowMouseDown(e, staff.id);
                         }}
                         onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
@@ -324,6 +324,18 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                                 setPopoverShift(targetShift);
                                 setPopoverAnchor(paintClickAnchorRef.current);
                               }
+                            }
+                          }
+                          // Erase モードで移動なし（クリック）→ ポジション上ならポップオーバー表示
+                          if (
+                            dragState.mode === "erase" &&
+                            dragState.targetShiftId &&
+                            Math.abs(dragState.currentMinutes - dragState.startMinutes) < timeRange.unit
+                          ) {
+                            const targetShift = shifts.find((s) => s.id === dragState.targetShiftId);
+                            if (targetShift && paintClickAnchorRef.current) {
+                              setPopoverShift(targetShift);
+                              setPopoverAnchor(paintClickAnchorRef.current);
                             }
                           }
                           handleMouseUp();
@@ -399,7 +411,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       {/* ポップオーバー */}
       <ShiftPopover
         shift={popoverShift}
-        anchorEl={popoverAnchor}
+        anchorRect={popoverAnchor}
         isOpen={popoverShift !== null}
         onClose={handlePopoverClose}
         onDeletePosition={handleDeletePosition}
