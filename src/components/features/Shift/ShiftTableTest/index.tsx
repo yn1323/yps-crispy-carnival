@@ -1,10 +1,8 @@
 import { Box, Table, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ContextMenu } from "./ContextMenu";
 import { DateTabs } from "./DateTabs";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
-import { useClipboard } from "./hooks/useClipboard";
 import { useDrag } from "./hooks/useDrag";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useUndoRedo } from "./hooks/useUndoRedo";
@@ -63,16 +61,6 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
 
-  // === コンテキストメニュー状態 ===
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [contextMenuShiftId, setContextMenuShiftId] = useState<string | null>(null);
-
-  // === ペースト先特定用 ===
-  const [hoveredStaffId, setHoveredStaffId] = useState<string | null>(null);
-
-  // === クリップボード ===
-  const { copy, paste, hasClipboard } = useClipboard();
-
   // 行コンテナのref（カーソル位置計算用）
   const rowContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -102,20 +90,6 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const getShiftsForStaff = (staffId: string) => {
     return shifts.filter((s) => s.staffId === staffId && s.date === selectedDate);
   };
-
-  // シフト削除（履歴に追加）
-  const handleDeleteShift = useCallback(
-    (shiftId: string) => {
-      const newShifts = shifts.filter((s) => s.id !== shiftId);
-      setShiftsNormalized(newShifts);
-      // ポップオーバー・コンテキストメニューを閉じる
-      setPopoverShift(null);
-      setPopoverAnchor(null);
-      setContextMenuPosition(null);
-      setContextMenuShiftId(null);
-    },
-    [shifts, setShiftsNormalized],
-  );
 
   // シフトクリック（ツールモードに応じた処理）
   const handleShiftClick = useCallback(
@@ -193,55 +167,10 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     setPopoverShift(updatedShift);
   }, [popoverShift, shifts, setShiftsNormalized]);
 
-  // 右クリック（コンテキストメニュー表示）
-  const handleContextMenu = useCallback((e: React.MouseEvent, shiftId: string) => {
-    e.preventDefault();
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
-    setContextMenuShiftId(shiftId);
-  }, []);
-
-  // コンテキストメニューを閉じる
-  const handleContextMenuClose = useCallback(() => {
-    setContextMenuPosition(null);
-    setContextMenuShiftId(null);
-  }, []);
-
-  // コピー
-  const handleCopy = useCallback(() => {
-    const targetShiftId = contextMenuShiftId ?? hoveredShiftId;
-    if (targetShiftId) {
-      const shift = shifts.find((s) => s.id === targetShiftId);
-      if (shift) {
-        copy(shift);
-      }
-    }
-    handleContextMenuClose();
-  }, [contextMenuShiftId, hoveredShiftId, shifts, copy, handleContextMenuClose]);
-
-  // ペースト
-  const handlePaste = useCallback(() => {
-    if (hoveredStaffId && hasClipboard) {
-      const pastedShift = paste(hoveredStaffId, selectedDate);
-      if (pastedShift) {
-        setShiftsNormalized([...shifts, pastedShift]);
-      }
-    }
-    handleContextMenuClose();
-  }, [hoveredStaffId, hasClipboard, paste, selectedDate, shifts, setShiftsNormalized, handleContextMenuClose]);
-
-  // コンテキストメニューから削除
-  const handleDeleteFromContextMenu = useCallback(() => {
-    if (contextMenuShiftId) {
-      handleDeleteShift(contextMenuShiftId);
-    }
-  }, [contextMenuShiftId, handleDeleteShift]);
-
   // キーボードショートカット
   useKeyboardShortcuts({
     onUndo: undo,
     onRedo: redo,
-    onCopy: handleCopy,
-    onPaste: handlePaste,
   });
 
   // スクロール終了処理
@@ -381,9 +310,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                         onMouseLeave={() => {
                           handleMouseUp();
                           stopScrollDrag();
-                          setHoveredStaffId(null);
                         }}
-                        onMouseEnter={() => setHoveredStaffId(staff.id)}
                         cursor={isScrollDragging ? "grabbing" : (cursorStyle[staff.id] ?? "default")}
                         userSelect="none"
                       >
@@ -398,7 +325,6 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                             timeRange={timeRange}
                             onHover={setHoveredShiftId}
                             onClick={handleShiftClick}
-                            onContextMenu={handleContextMenu}
                             isDragging={isDragging}
                             currentMinutes={dragState.currentMinutes}
                             linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
@@ -447,17 +373,6 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         onClose={handlePopoverClose}
         onDeletePosition={handleDeletePosition}
         onDeleteShift={handleClearAllPositions}
-      />
-
-      {/* コンテキストメニュー */}
-      <ContextMenu
-        position={contextMenuPosition}
-        isOpen={contextMenuPosition !== null}
-        onClose={handleContextMenuClose}
-        onCopy={handleCopy}
-        onPaste={handlePaste}
-        onDelete={handleDeleteFromContextMenu}
-        canPaste={hasClipboard}
       />
 
       {/* デバッグ情報 */}

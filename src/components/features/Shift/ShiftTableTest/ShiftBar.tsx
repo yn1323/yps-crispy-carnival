@@ -7,7 +7,6 @@ type ShiftBarProps = {
   timeRange: TimeRange;
   onHover: (shiftId: string | null) => void;
   onClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
-  onContextMenu: (e: React.MouseEvent, shiftId: string) => void;
   isDragging?: boolean;
   // リサイズ中のリアルタイム更新用
   currentMinutes?: number;
@@ -41,7 +40,6 @@ export const ShiftBar = ({
   timeRange,
   onHover,
   onClick,
-  onContextMenu,
   isDragging = false,
   currentMinutes,
   linkedTarget,
@@ -93,7 +91,6 @@ export const ShiftBar = ({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={(e) => onClick(shift.id, null, e)}
-          onContextMenu={(e) => onContextMenu(e, shift.id)}
           cursor="inherit"
           transition="all 0.15s"
           _hover={{ borderColor: "gray.500" }}
@@ -179,7 +176,6 @@ export const ShiftBar = ({
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               onClick={(e) => onClick(shift.id, pos.id, e)}
-              onContextMenu={(e) => onContextMenu(e, shift.id)}
               cursor="inherit"
               transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
               opacity={0.9}

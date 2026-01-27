@@ -47,12 +47,17 @@ export const ShiftPopover = ({
         <Popover.Positioner
           style={
             anchorEl
-              ? {
-                  position: "fixed",
-                  left: `${anchorEl.getBoundingClientRect().left + anchorEl.getBoundingClientRect().width / 2}px`,
-                  top: `${anchorEl.getBoundingClientRect().top - 8}px`,
-                  transform: "translate(-50%, -100%)",
-                }
+              ? (() => {
+                  const rect = anchorEl.getBoundingClientRect();
+                  const centerX = rect.left + rect.width / 2;
+                  const showBelow = rect.top < 300;
+                  return {
+                    position: "fixed" as const,
+                    left: `${centerX}px`,
+                    top: showBelow ? `${rect.bottom + 8}px` : `${rect.top - 8}px`,
+                    transform: showBelow ? "translateX(-50%)" : "translate(-50%, -100%)",
+                  };
+                })()
               : undefined
           }
         >
@@ -67,7 +72,7 @@ export const ShiftPopover = ({
 
               {/* ポジション一覧 */}
               {shift.positions.length > 0 && (
-                <Box p={3} borderBottom="1px solid" borderColor="gray.100">
+                <Box p={3} borderBottom="1px solid" borderColor="gray.100" maxH="200px" overflowY="auto">
                   {shift.positions.map((pos) => (
                     <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
                       <Flex align="center" gap={2}>
