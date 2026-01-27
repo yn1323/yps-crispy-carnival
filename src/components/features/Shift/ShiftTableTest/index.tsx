@@ -279,7 +279,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       </Box>
 
       {/* 日付タブ + シフト表（一体化） */}
-      <Box border="1px solid" borderColor="gray.200" borderRadius="lg">
+      <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
         {/* 日付タブ */}
         <DateTabs dates={dates} selectedDate={selectedDate} onSelect={handleDateChange} />
 
@@ -287,7 +287,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         <Box ref={tableContainerRef} overflowX="auto" overflowY="auto" maxHeight="70vh">
           <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
             <Table.Header>
-              <Table.Row bg="gray.50" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.08)">
+              <Table.Row bg="gray.50" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
                 <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={11}>
                   <SortMenu sortMode={sortMode} onSortChange={handleSortChange} />
                 </Table.ColumnHeader>
@@ -426,7 +426,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 );
               })}
             </Table.Body>
-            <Table.Footer position="sticky" bottom={0} zIndex={10} bg="white" boxShadow="0 -2px 4px rgba(0,0,0,0.08)">
+            <Table.Footer position="sticky" bottom={0} zIndex={10} bg="white" boxShadow="0 -2px 4px rgba(0,0,0,0.04)">
               <SummaryRow
                 shifts={shifts}
                 positions={positions}
