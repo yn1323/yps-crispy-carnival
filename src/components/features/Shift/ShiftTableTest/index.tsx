@@ -9,10 +9,12 @@ import { useUndoRedo } from "./hooks/useUndoRedo";
 import { PositionToolbar } from "./PositionToolbar";
 import { ShiftBar } from "./ShiftBar";
 import { ShiftPopover } from "./ShiftPopover";
+import { SortMenu } from "./SortMenu";
 import { SummaryRow } from "./SummaryRow";
 import { TimeHeader } from "./TimeHeader";
-import type { ShiftData, ShiftTableTestProps, StaffType, SummaryDisplayMode, ToolMode } from "./types";
+import type { ShiftData, ShiftTableTestProps, SortMode, StaffType, SummaryDisplayMode, ToolMode } from "./types";
 import { deletePositionFromShift, normalizePositions } from "./utils/shiftOperations";
+import { sortStaffs } from "./utils/sortStaffs";
 
 // 時間スロットを生成
 const generateTimeSlots = (start: number, end: number) => {
@@ -53,6 +55,37 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const [hoveredShiftId, setHoveredShiftId] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [summaryDisplayMode, setSummaryDisplayMode] = useState<SummaryDisplayMode>("color");
+
+  // === ソート状態（スナップショット方式） ===
+  const [sortMode, setSortMode] = useState<SortMode>("name");
+  const [sortedStaffIds, setSortedStaffIds] = useState<string[]>(() =>
+    sortStaffs({ staffs, shifts: initialShifts, selectedDate: dates[0] ?? "", sortMode: "name" }).map((s) => s.id),
+  );
+
+  const handleSortChange = useCallback(
+    (mode: SortMode) => {
+      setSortMode(mode);
+      const sorted = sortStaffs({ staffs, shifts, selectedDate, sortMode: mode });
+      setSortedStaffIds(sorted.map((s) => s.id));
+    },
+    [staffs, shifts, selectedDate],
+  );
+
+  // 日付タブ切替時に再ソート
+  const handleDateChange = useCallback(
+    (date: string) => {
+      setSelectedDate(date);
+      const sorted = sortStaffs({ staffs, shifts, selectedDate: date, sortMode });
+      setSortedStaffIds(sorted.map((s) => s.id));
+    },
+    [staffs, shifts, sortMode],
+  );
+
+  // ソート順でスタッフを並べ替え
+  const sortedStaffs = useMemo(() => {
+    const staffMap = new Map(staffs.map((s) => [s.id, s]));
+    return sortedStaffIds.map((id) => staffMap.get(id)).filter((s): s is StaffType => s !== undefined);
+  }, [staffs, sortedStaffIds]);
 
   // selectedPositionIdからポジションオブジェクトを取得（useDrag用）
   const selectedPosition = selectedPositionId ? (positions.find((p) => p.id === selectedPositionId) ?? null) : null;
@@ -248,7 +281,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       {/* 日付タブ + シフト表（一体化） */}
       <Box border="1px solid" borderColor="gray.200" borderRadius="lg">
         {/* 日付タブ */}
-        <DateTabs dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} />
+        <DateTabs dates={dates} selectedDate={selectedDate} onSelect={handleDateChange} />
 
         {/* シフト表 */}
         <Box ref={tableContainerRef} overflowX="auto">
@@ -256,7 +289,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
             <Table.Header>
               <Table.Row bg="gray.50">
                 <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={1}>
-                  スタッフ
+                  <SortMenu sortMode={sortMode} onSortChange={handleSortChange} />
                 </Table.ColumnHeader>
                 <Table.ColumnHeader colSpan={timeSlots.length} p={0}>
                   <TimeHeader timeRange={timeRange} />
@@ -264,7 +297,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {staffs.map((staff) => {
+              {sortedStaffs.map((staff) => {
                 const staffShifts = getShiftsForStaff(staff.id);
                 const status = getSubmissionStatus(staff, staffShifts);
                 return (

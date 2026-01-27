@@ -253,3 +253,161 @@ export const SubmissionStatus: Story = {
     timeRange: { start: 9, end: 22, unit: 30 },
   },
 };
+
+// === 40名スタッフの大規模ストーリー ===
+
+const largeTeamNames = [
+  "田中太郎",
+  "山田花子",
+  "佐藤健太",
+  "鈴木美咲",
+  "高橋一郎",
+  "伊藤裕子",
+  "渡辺大輝",
+  "中村さくら",
+  "小林翔太",
+  "加藤莉子",
+  "吉田拓海",
+  "山口あかり",
+  "松本蓮",
+  "井上七海",
+  "木村陸",
+  "林美月",
+  "清水悠斗",
+  "山崎結衣",
+  "森本颯太",
+  "池田凛",
+  "橋本大和",
+  "阿部千尋",
+  "石川海斗",
+  "前田彩花",
+  "藤田樹",
+  "小川穂乃香",
+  "岡田蒼",
+  "後藤琴音",
+  "長谷川陽",
+  "村上桃花",
+  "近藤大翔",
+  "坂本優花",
+  "遠藤空",
+  "青木真央",
+  "西村太一",
+  "福田ひなた",
+  "三浦奏",
+  "岩崎心春",
+  "原田悠馬",
+  "中島紗良",
+];
+
+const largeTeamStaffs = largeTeamNames.map((name, i) => ({
+  id: `lt-staff${i + 1}`,
+  name,
+  isSubmitted: i % 5 !== 2, // 約80%が提出済み（3,8,13,18,23,28番目が未提出）
+}));
+
+// シフトパターン（時間帯のバリエーション）
+const shiftPatterns = [
+  { start: "09:00", end: "17:00" }, // 朝シフト
+  { start: "10:00", end: "18:00" }, // 日勤
+  { start: "11:00", end: "19:00" }, // 遅番
+  { start: "12:00", end: "20:00" }, // 午後シフト
+  { start: "14:00", end: "22:00" }, // 夕方シフト
+  { start: "09:00", end: "14:00" }, // 短時間朝
+  { start: "17:00", end: "22:00" }, // 短時間夜
+  { start: "10:00", end: "15:00" }, // 短時間昼
+];
+
+// ポジション割当パターン
+const positionPatterns = [
+  // ホールのみ
+  (start: string, end: string) => [{ positionId: "pos1", positionName: "ホール", color: "#3b82f6", start, end }],
+  // キッチンのみ
+  (start: string, end: string) => [{ positionId: "pos2", positionName: "キッチン", color: "#f97316", start, end }],
+  // レジのみ
+  (start: string, end: string) => [{ positionId: "pos3", positionName: "レジ", color: "#10b981", start, end }],
+  // ホール→キッチン（前半/後半）
+  (start: string, end: string) => {
+    const startH = Number.parseInt(start.split(":")[0], 10);
+    const endH = Number.parseInt(end.split(":")[0], 10);
+    const mid = Math.floor((startH + endH) / 2);
+    const midStr = `${mid}:00`;
+    return [
+      { positionId: "pos1", positionName: "ホール", color: "#3b82f6", start, end: midStr },
+      { positionId: "pos2", positionName: "キッチン", color: "#f97316", start: midStr, end },
+    ];
+  },
+  // キッチン→レジ
+  (start: string, end: string) => {
+    const startH = Number.parseInt(start.split(":")[0], 10);
+    const endH = Number.parseInt(end.split(":")[0], 10);
+    const mid = Math.floor((startH + endH) / 2);
+    const midStr = `${mid}:00`;
+    return [
+      { positionId: "pos2", positionName: "キッチン", color: "#f97316", start, end: midStr },
+      { positionId: "pos3", positionName: "レジ", color: "#10b981", start: midStr, end },
+    ];
+  },
+];
+
+// 40名分のシフトデータを生成
+const generateLargeTeamShifts = () => {
+  const shifts: Array<{
+    id: string;
+    staffId: string;
+    staffName: string;
+    date: string;
+    requestedTime: { start: string; end: string } | null;
+    positions: Array<{
+      id: string;
+      positionId: string;
+      positionName: string;
+      color: string;
+      start: string;
+      end: string;
+    }>;
+  }> = [];
+  let shiftIdx = 0;
+  let segIdx = 0;
+
+  for (let staffI = 0; staffI < largeTeamStaffs.length; staffI++) {
+    const staff = largeTeamStaffs[staffI];
+    const isSubmitted = staff.isSubmitted;
+
+    // 各スタッフに2〜4日のシフトを割り当て（staffIndexで決定的に変化）
+    const daysCount = 2 + (staffI % 3); // 2, 3, 4, 2, 3, 4...
+    for (let d = 0; d < daysCount; d++) {
+      const dateIdx = (staffI + d * 3) % mockDates.length;
+      const date = mockDates[dateIdx];
+      const pattern = shiftPatterns[(staffI + d) % shiftPatterns.length];
+      const posPattern = positionPatterns[(staffI + d) % positionPatterns.length];
+      const posSegments = posPattern(pattern.start, pattern.end);
+
+      shiftIdx++;
+      shifts.push({
+        id: `lt-shift${shiftIdx}`,
+        staffId: staff.id,
+        staffName: staff.name,
+        date,
+        requestedTime: isSubmitted ? { start: pattern.start, end: pattern.end } : null,
+        positions: posSegments.map((seg) => {
+          segIdx++;
+          return { id: `lt-seg${segIdx}`, ...seg };
+        }),
+      });
+    }
+  }
+  return shifts;
+};
+
+const largeTeamShifts = generateLargeTeamShifts();
+
+// 40名スタッフ（大規模チーム・ソート確認用）
+export const LargeTeam: Story = {
+  args: {
+    staffs: largeTeamStaffs,
+    positions: mockPositions,
+    initialShifts: largeTeamShifts,
+    dates: mockDates,
+    timeRange: { start: 9, end: 22, unit: 30 },
+  },
+};
