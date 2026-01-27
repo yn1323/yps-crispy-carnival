@@ -178,6 +178,17 @@ export const ManyStaffs: Story = {
   },
 };
 
+// 15分単位
+export const Unit15Minutes: Story = {
+  args: {
+    staffs: mockStaffs,
+    positions: mockPositions,
+    initialShifts: mockShifts,
+    dates: mockDates,
+    timeRange: { start: 9, end: 22, unit: 15 },
+  },
+};
+
 // 1日だけ
 export const SingleDay: Story = {
   args: {

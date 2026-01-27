@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { MIN_SHIFT_DURATION_MINUTES, RESIZE_EDGE_THRESHOLD } from "../constants";
+import { RESIZE_EDGE_THRESHOLD } from "../constants";
 import type { DragMode, LinkedResizeTarget, PositionType, ShiftData, TimeRange } from "../types";
 import {
   detectLinkedResizeEdge,
@@ -198,7 +198,7 @@ export const useDrag = ({
           shift: targetShift,
           linkedTarget,
           newMinutes: currentMinutes,
-          minDuration: MIN_SHIFT_DURATION_MINUTES,
+          minDuration: timeRange.unit,
         });
 
         const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
@@ -210,7 +210,7 @@ export const useDrag = ({
           positionId: targetPositionId,
           edge: resizeEdge,
           newMinutes: currentMinutes,
-          minDuration: MIN_SHIFT_DURATION_MINUTES,
+          minDuration: timeRange.unit,
         });
 
         const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
