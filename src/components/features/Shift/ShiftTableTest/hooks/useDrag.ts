@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from "react";
-import { MIN_SHIFT_DURATION_MINUTES, RESIZE_EDGE_THRESHOLD } from "../constants";
-import type { DragMode, LinkedResizeTarget, PositionType, ShiftData, TimeRange } from "../types";
+import { RESIZE_EDGE_THRESHOLD } from "../constants";
+import type { DragMode, LinkedResizeTarget, PositionType, ShiftData, TimeRange, ToolMode } from "../types";
 import {
   detectLinkedResizeEdge,
+  erasePosition,
   findPositionAtPosition,
   findShiftAtPosition,
   paintPosition,
@@ -27,7 +28,7 @@ type UseDragParams = {
   shifts: ShiftData[];
   setShifts: (shifts: ShiftData[]) => void;
   selectedPosition: PositionType | null;
-  isEraserMode: boolean;
+  toolMode: ToolMode;
   selectedDate: string;
   timeRange: TimeRange;
   getStaffName: (staffId: string) => string;
@@ -36,7 +37,7 @@ type UseDragParams = {
 type UseDragReturn = {
   dragState: DragState;
   isDragging: boolean;
-  handleMouseDown: (e: React.MouseEvent, staffId: string, containerRect: DOMRect) => void;
+  handleMouseDown: (e: React.MouseEvent, staffId: string, containerRect: DOMRect) => boolean;
   handleMouseMove: (e: React.MouseEvent, containerRect: DOMRect) => void;
   handleMouseUp: () => void;
   getCursor: (staffId: string, x: number, containerWidth: number) => string;
@@ -58,7 +59,7 @@ export const useDrag = ({
   shifts,
   setShifts,
   selectedPosition,
-  isEraserMode,
+  toolMode,
   selectedDate,
   timeRange,
   getStaffName,
@@ -73,55 +74,90 @@ export const useDrag = ({
 
   const isDragging = dragState.mode !== null;
 
-  // === ドラッグ開始 ===
+  // === ドラッグ開始（戻り値: ドラッグ開始したか） ===
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent, staffId: string, containerRect: DOMRect) => {
+    (e: React.MouseEvent, staffId: string, containerRect: DOMRect): boolean => {
       const x = e.clientX - containerRect.left;
       const containerWidth = containerRect.width;
       const minutes = pixelToMinutes({ x, containerWidth, timeRange });
 
-      // 消しゴムモード時はドラッグ操作なし（クリック削除はindex.tsxで処理）
-      if (isEraserMode) {
-        return;
-      }
-
-      // 1. ポジションバー端 → ポジションリサイズモード（連結リサイズ対応）
-      const linkedResizeInfo = detectLinkedResizeEdge({
-        shifts,
-        staffId,
-        date: selectedDate,
-        x,
-        containerWidth,
-        timeRange,
-        threshold: RESIZE_EDGE_THRESHOLD,
-      });
-
-      if (linkedResizeInfo) {
-        const { linkedTarget } = linkedResizeInfo;
-        // 連結リサイズか単独リサイズかを判定
-        const isLinked = linkedTarget.prevPosition && linkedTarget.nextPosition;
-        // 単独リサイズの場合、どちらの端かを判定
-        const edge = linkedTarget.nextPosition && !linkedTarget.prevPosition ? "start" : "end";
-        const targetPositionId = linkedTarget.prevPosition?.positionId ?? linkedTarget.nextPosition?.positionId ?? null;
-        const positionColor =
-          linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
-
-        setDragState({
-          mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
+      // === 選択モード: リサイズのみ ===
+      if (toolMode === "select") {
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
           staffId,
-          startMinutes: minutes,
-          currentMinutes: minutes,
-          targetShiftId: linkedResizeInfo.shiftId,
-          targetPositionId,
-          positionColor,
-          resizeEdge: edge,
-          linkedTarget,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
         });
-        return;
+
+        if (linkedResizeInfo) {
+          const { linkedTarget } = linkedResizeInfo;
+          const isLinked = linkedTarget.prevPosition && linkedTarget.nextPosition;
+          const edge = linkedTarget.nextPosition && !linkedTarget.prevPosition ? "start" : "end";
+          const targetPositionId =
+            linkedTarget.prevPosition?.positionId ?? linkedTarget.nextPosition?.positionId ?? null;
+          const positionColor =
+            linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
+
+          setDragState({
+            mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
+            staffId,
+            startMinutes: minutes,
+            currentMinutes: minutes,
+            targetShiftId: linkedResizeInfo.shiftId,
+            targetPositionId,
+            positionColor,
+            resizeEdge: edge,
+            linkedTarget,
+          });
+          return true;
+        }
+        // リサイズ端でなければドラッグなし（スクロールはindex.tsx側で処理）
+        return false;
       }
 
-      // 3. ポジション選択中 → 塗りモード
-      if (selectedPosition) {
+      // === 割当モード: リサイズ or 塗り ===
+      if (toolMode === "assign") {
+        // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+
+        if (linkedResizeInfo) {
+          const { linkedTarget } = linkedResizeInfo;
+          const isLinked = linkedTarget.prevPosition && linkedTarget.nextPosition;
+          const edge = linkedTarget.nextPosition && !linkedTarget.prevPosition ? "start" : "end";
+          const targetPositionId =
+            linkedTarget.prevPosition?.positionId ?? linkedTarget.nextPosition?.positionId ?? null;
+          const positionColor =
+            linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
+
+          setDragState({
+            mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
+            staffId,
+            startMinutes: minutes,
+            currentMinutes: minutes,
+            targetShiftId: linkedResizeInfo.shiftId,
+            targetPositionId,
+            positionColor,
+            resizeEdge: edge,
+            linkedTarget,
+          });
+          return true;
+        }
+
+        // リサイズエッジでなければ塗りモード
+        if (!selectedPosition) return false;
+
         let targetShift = findShiftAtPosition({
           shifts,
           staffId,
@@ -137,7 +173,7 @@ export const useDrag = ({
             staffId,
             staffName: getStaffName(staffId),
             date: selectedDate,
-            requestedTime: null, // 未提出者なのでnull
+            requestedTime: null,
             positions: [],
           };
           setShifts([...shifts, newShift]);
@@ -155,12 +191,73 @@ export const useDrag = ({
           resizeEdge: null,
           linkedTarget: null,
         });
-        return;
+        return true;
       }
 
-      // 希望シフトバーは編集不可のため、それ以外の操作（create, resize）は削除
+      // === 消すモード: リサイズ or ドラッグ消去 ===
+      if (toolMode === "erase") {
+        // まずリサイズエッジを判定（select/assignと同様）
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+
+        if (linkedResizeInfo) {
+          const { linkedTarget } = linkedResizeInfo;
+          const isLinked = linkedTarget.prevPosition && linkedTarget.nextPosition;
+          const edge = linkedTarget.nextPosition && !linkedTarget.prevPosition ? "start" : "end";
+          const targetPositionId =
+            linkedTarget.prevPosition?.positionId ?? linkedTarget.nextPosition?.positionId ?? null;
+          const positionColor =
+            linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
+
+          setDragState({
+            mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
+            staffId,
+            startMinutes: minutes,
+            currentMinutes: minutes,
+            targetShiftId: linkedResizeInfo.shiftId,
+            targetPositionId,
+            positionColor,
+            resizeEdge: edge,
+            linkedTarget,
+          });
+          return true;
+        }
+
+        // リサイズエッジでなければドラッグ消去
+        const positionInfo = findPositionAtPosition({
+          shifts,
+          staffId,
+          date: selectedDate,
+          minutes,
+        });
+
+        if (positionInfo) {
+          setDragState({
+            mode: "erase",
+            staffId,
+            startMinutes: minutes,
+            currentMinutes: minutes,
+            targetShiftId: positionInfo.shiftId,
+            targetPositionId: positionInfo.positionId,
+            positionColor: null,
+            resizeEdge: null,
+            linkedTarget: null,
+          });
+          return true;
+        }
+        return false;
+      }
+
+      return false;
     },
-    [shifts, setShifts, selectedPosition, isEraserMode, selectedDate, timeRange, generateId, getStaffName],
+    [shifts, setShifts, selectedPosition, toolMode, selectedDate, timeRange, generateId, getStaffName],
   );
 
   // === ドラッグ中 ===
@@ -193,24 +290,22 @@ export const useDrag = ({
     if ((mode === "position-resize-start" || mode === "position-resize-end") && targetShiftId) {
       const targetShift = shifts.find((s) => s.id === targetShiftId);
       if (targetShift && linkedTarget) {
-        // 連結リサイズを使用
         const resizedShift = resizeLinkedPositions({
           shift: targetShift,
           linkedTarget,
           newMinutes: currentMinutes,
-          minDuration: MIN_SHIFT_DURATION_MINUTES,
+          minDuration: timeRange.unit,
         });
 
         const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
         setShifts(updatedShifts);
       } else if (targetShift && targetPositionId && resizeEdge) {
-        // 従来の単独リサイズ（フォールバック）
         const resizedShift = resizePosition({
           shift: targetShift,
           positionId: targetPositionId,
           edge: resizeEdge,
           newMinutes: currentMinutes,
-          minDuration: MIN_SHIFT_DURATION_MINUTES,
+          minDuration: timeRange.unit,
         });
 
         const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
@@ -237,26 +332,90 @@ export const useDrag = ({
       }
     }
 
-    // 消しゴムモードはクリック削除に変更（index.tsxで処理）
+    // 3. 消去モード（ドラッグ範囲消去 — クリック時は消去しない）
+    if (mode === "erase" && dragState.staffId && Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
+      const staffShifts = shifts.filter((s) => s.staffId === dragState.staffId && s.date === selectedDate);
+      let updatedShifts = [...shifts];
+
+      for (const staffShift of staffShifts) {
+        const erasedShift = erasePosition({
+          shift: staffShift,
+          startMinutes,
+          endMinutes: currentMinutes,
+        });
+        updatedShifts = updatedShifts.map((s) => (s.id === staffShift.id ? erasedShift : s));
+      }
+      setShifts(updatedShifts);
+    }
 
     setDragState(initialDragState);
-  }, [dragState, shifts, setShifts, selectedPosition, timeRange, generateId]);
+  }, [dragState, shifts, setShifts, selectedPosition, selectedDate, timeRange, generateId]);
 
   // === カーソル判定 ===
   const getCursor = useCallback(
     (staffId: string, x: number, containerWidth: number): string => {
+      // ドラッグ中
       if (isDragging) {
         if (dragState.mode === "position-resize-start" || dragState.mode === "position-resize-end") {
           return "ew-resize";
         }
-        if (dragState.mode === "erase") {
+        if (dragState.mode === "erase" || dragState.mode === "paint") {
           return "crosshair";
         }
-        return "crosshair";
+        return "default";
       }
 
-      // 消しゴムモード → crosshair（ポジションバー上）
-      if (isEraserMode) {
+      // 選択モード
+      if (toolMode === "select") {
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+        if (linkedResizeInfo) {
+          return "ew-resize";
+        }
+        return "grab";
+      }
+
+      // 割当モード
+      if (toolMode === "assign") {
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+        if (linkedResizeInfo) {
+          return "ew-resize";
+        }
+        if (selectedPosition) {
+          return "crosshair";
+        }
+        return "default";
+      }
+
+      // 消すモード
+      if (toolMode === "erase") {
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+        if (linkedResizeInfo) {
+          return "ew-resize";
+        }
         const minutes = pixelToMinutes({ x, containerWidth, timeRange });
         const positionInfo = findPositionAtPosition({
           shifts,
@@ -270,29 +429,9 @@ export const useDrag = ({
         return "default";
       }
 
-      // ポジションバー端
-      const linkedResizeInfo = detectLinkedResizeEdge({
-        shifts,
-        staffId,
-        date: selectedDate,
-        x,
-        containerWidth,
-        timeRange,
-        threshold: RESIZE_EDGE_THRESHOLD,
-      });
-
-      if (linkedResizeInfo) {
-        return "ew-resize";
-      }
-
-      // ポジション選択中 → crosshair
-      if (selectedPosition) {
-        return "crosshair";
-      }
-
       return "default";
     },
-    [isDragging, dragState.mode, shifts, selectedDate, timeRange, selectedPosition, isEraserMode],
+    [isDragging, dragState.mode, shifts, selectedDate, timeRange, selectedPosition, toolMode],
   );
 
   return {

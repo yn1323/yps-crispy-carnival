@@ -5,8 +5,9 @@ import type { ShiftData } from "./types";
 
 type ShiftPopoverProps = {
   shift: ShiftData | null;
-  anchorEl: HTMLElement | null;
+  anchorRect: DOMRect | null;
   isOpen: boolean;
+  isStaffSubmitted: boolean;
   onClose: () => void;
   onDeletePosition: (positionId: string) => void;
   onDeleteShift: () => void;
@@ -14,8 +15,9 @@ type ShiftPopoverProps = {
 
 export const ShiftPopover = ({
   shift,
-  anchorEl,
+  anchorRect,
   isOpen,
+  isStaffSubmitted,
   onClose,
   onDeletePosition,
   onDeleteShift,
@@ -36,23 +38,29 @@ export const ShiftPopover = ({
     };
   }, [isOpen, onClose]);
 
-  if (!shift || !shift.requestedTime) return null;
+  if (!shift) return null;
 
   return (
     <Popover.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()}>
-      {/* アンカー要素を参照 */}
-      <Popover.Anchor asChild>{anchorEl ? <span /> : <span />}</Popover.Anchor>
+      {/* アンカー要素（カスタムポジショニングのため形式的） */}
+      <Popover.Anchor asChild>
+        <span />
+      </Popover.Anchor>
 
       <Portal>
         <Popover.Positioner
           style={
-            anchorEl
-              ? {
-                  position: "fixed",
-                  left: `${anchorEl.getBoundingClientRect().left + anchorEl.getBoundingClientRect().width / 2}px`,
-                  top: `${anchorEl.getBoundingClientRect().top - 8}px`,
-                  transform: "translate(-50%, -100%)",
-                }
+            anchorRect
+              ? (() => {
+                  const centerX = anchorRect.left + anchorRect.width / 2;
+                  const showBelow = anchorRect.top < 300;
+                  return {
+                    position: "fixed" as const,
+                    left: `${centerX}px`,
+                    top: showBelow ? `${anchorRect.bottom + 8}px` : `${anchorRect.top - 8}px`,
+                    transform: showBelow ? "translateX(-50%)" : "translate(-50%, -100%)",
+                  };
+                })()
               : undefined
           }
         >
@@ -60,14 +68,16 @@ export const ShiftPopover = ({
             <Popover.Body p={0}>
               {/* 労働時間 */}
               <Box p={3} borderBottom="1px solid" borderColor="gray.100">
-                <Text fontWeight="bold" fontSize="md" color="gray.700">
-                  希望：{shift.requestedTime.start} - {shift.requestedTime.end}
+                <Text fontWeight="bold" fontSize="md" color={!isStaffSubmitted ? "orange.500" : "gray.700"}>
+                  {!isStaffSubmitted
+                    ? "未提出"
+                    : `希望：${shift.requestedTime ? `${shift.requestedTime.start} - ${shift.requestedTime.end}` : "なし"}`}
                 </Text>
               </Box>
 
               {/* ポジション一覧 */}
               {shift.positions.length > 0 && (
-                <Box p={3} borderBottom="1px solid" borderColor="gray.100">
+                <Box p={3} borderBottom="1px solid" borderColor="gray.100" maxH="200px" overflowY="auto">
                   {shift.positions.map((pos) => (
                     <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
                       <Flex align="center" gap={2}>

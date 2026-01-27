@@ -48,6 +48,17 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
           borderRadius: "md",
         };
 
+      case "erase":
+        // 消去: 赤い半透明
+        return {
+          bg: "red.400",
+          opacity: 0.3,
+          height: "20px",
+          borderRadius: "md",
+          border: "2px dashed",
+          borderColor: "red.600",
+        };
+
       default:
         return {};
     }
