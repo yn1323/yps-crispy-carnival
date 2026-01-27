@@ -57,9 +57,9 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const [summaryDisplayMode, setSummaryDisplayMode] = useState<SummaryDisplayMode>("color");
 
   // === ソート状態（スナップショット方式） ===
-  const [sortMode, setSortMode] = useState<SortMode>("name");
+  const [sortMode, setSortMode] = useState<SortMode>("default");
   const [sortedStaffIds, setSortedStaffIds] = useState<string[]>(() =>
-    sortStaffs({ staffs, shifts: initialShifts, selectedDate: dates[0] ?? "", sortMode: "name" }).map((s) => s.id),
+    sortStaffs({ staffs, shifts: initialShifts, selectedDate: dates[0] ?? "", sortMode: "default" }).map((s) => s.id),
   );
 
   const handleSortChange = useCallback(

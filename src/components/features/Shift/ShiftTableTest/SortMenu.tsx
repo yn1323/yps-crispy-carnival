@@ -3,8 +3,8 @@ import { LuArrowUpDown, LuCheck } from "react-icons/lu";
 import type { SortMode } from "./types";
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: "name", label: "名前順" },
-  { value: "action", label: "アクション優先" },
+  { value: "default", label: "デフォルト" },
+  { value: "request", label: "シフト希望順" },
   { value: "startTime", label: "出勤順" },
 ];
 
@@ -20,7 +20,7 @@ export const SortMenu = ({ sortMode, onSortChange }: SortMenuProps) => (
         as="button"
         display="flex"
         alignItems="center"
-        gap={1}
+        justifyContent="space-between"
         cursor="pointer"
         w="full"
         _hover={{ bg: "gray.100" }}

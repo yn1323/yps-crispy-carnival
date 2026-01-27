@@ -56,7 +56,7 @@ export type ToolMode = "select" | "assign" | "erase";
 export type SummaryDisplayMode = "color" | "number";
 
 // スタッフソートモード
-export type SortMode = "name" | "action" | "startTime";
+export type SortMode = "default" | "request" | "startTime";
 
 // 充足率 → 段階的6色（赤→オレンジ→黄→黄緑→緑→青）
 export const FILL_RATE_COLORS = [

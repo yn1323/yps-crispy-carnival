@@ -9,15 +9,22 @@ type SortStaffsParams = {
 
 const compareByName = (a: StaffType, b: StaffType) => a.name.localeCompare(b.name, "ja");
 
-// アクション優先順の優先度を取得
-const getActionPriority = (staff: StaffType, staffShifts: ShiftData[]) => {
-  const hasRequest = staffShifts.some((s) => s.requestedTime !== null);
-  const hasPositions = staffShifts.some((s) => s.positions.length > 0);
+// 末尾グループの並び: 未提出 → 希望なし（希望なし=提出済みだが出勤不可）
+const compareByTailGroup = (a: StaffType, b: StaffType) => {
+  if (a.isSubmitted !== b.isSubmitted) return a.isSubmitted ? 1 : -1;
+  return compareByName(a, b);
+};
 
-  if (staff.isSubmitted && hasRequest && !hasPositions) return 1; // 希望あり・未割当
-  if (staff.isSubmitted && hasRequest && hasPositions) return 2; // 希望あり・割当済
-  if (!staff.isSubmitted) return 3; // 未提出
-  return 4; // 希望なし
+const timeToMinutes = (time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// シフト希望の開始・終了時刻（分）を取得
+const getRequestedMinutes = (staffShifts: ShiftData[]) => {
+  const requested = staffShifts.find((s) => s.requestedTime !== null)?.requestedTime;
+  if (!requested) return null;
+  return { start: timeToMinutes(requested.start), end: timeToMinutes(requested.end) };
 };
 
 // 最も早い割当ポジションの開始時刻（分）を取得
@@ -25,27 +32,48 @@ const getEarliestStartMinutes = (staffShifts: ShiftData[]) => {
   let earliest = Number.POSITIVE_INFINITY;
   for (const shift of staffShifts) {
     for (const pos of shift.positions) {
-      const [h, m] = pos.start.split(":").map(Number);
-      const minutes = h * 60 + m;
+      const minutes = timeToMinutes(pos.start);
       if (minutes < earliest) earliest = minutes;
     }
   }
   return earliest;
 };
 
+// 最も早い割当ポジションの終了時刻（分）を取得（同一開始時間の比較用）
+const getEarliestEndMinutes = (staffShifts: ShiftData[], targetStartMinutes: number) => {
+  let earliest = Number.POSITIVE_INFINITY;
+  for (const shift of staffShifts) {
+    for (const pos of shift.positions) {
+      if (timeToMinutes(pos.start) === targetStartMinutes) {
+        const minutes = timeToMinutes(pos.end);
+        if (minutes < earliest) earliest = minutes;
+      }
+    }
+  }
+  return earliest;
+};
+
 export const sortStaffs = ({ staffs, shifts, selectedDate, sortMode }: SortStaffsParams) => {
+  if (sortMode === "default") return [...staffs];
+
   const getShiftsForStaff = (staffId: string) => shifts.filter((s) => s.staffId === staffId && s.date === selectedDate);
 
   return [...staffs].sort((a, b) => {
-    if (sortMode === "name") {
-      return compareByName(a, b);
-    }
-
-    if (sortMode === "action") {
+    if (sortMode === "request") {
       const aShifts = getShiftsForStaff(a.id);
       const bShifts = getShiftsForStaff(b.id);
-      const priorityDiff = getActionPriority(a, aShifts) - getActionPriority(b, bShifts);
-      if (priorityDiff !== 0) return priorityDiff;
+      const aReq = getRequestedMinutes(aShifts);
+      const bReq = getRequestedMinutes(bShifts);
+
+      // 希望なし/未提出は末尾（未提出 → 希望なし）
+      if (!aReq && !bReq) return compareByTailGroup(a, b);
+      if (!aReq) return 1;
+      if (!bReq) return -1;
+
+      // 開始時間昇順
+      if (aReq.start !== bReq.start) return aReq.start - bReq.start;
+      // 同一開始時間 → 終了時間昇順
+      if (aReq.end !== bReq.end) return aReq.end - bReq.end;
       return compareByName(a, b);
     }
 
@@ -55,12 +83,18 @@ export const sortStaffs = ({ staffs, shifts, selectedDate, sortMode }: SortStaff
     const aStart = getEarliestStartMinutes(aShifts);
     const bStart = getEarliestStartMinutes(bShifts);
 
-    // 未割当（Infinity）は末尾
-    if (aStart === Number.POSITIVE_INFINITY && bStart === Number.POSITIVE_INFINITY) return compareByName(a, b);
+    // 未割当（Infinity）は末尾（未提出 → 希望なし）
+    if (aStart === Number.POSITIVE_INFINITY && bStart === Number.POSITIVE_INFINITY) return compareByTailGroup(a, b);
     if (aStart === Number.POSITIVE_INFINITY) return 1;
     if (bStart === Number.POSITIVE_INFINITY) return -1;
 
     if (aStart !== bStart) return aStart - bStart;
+
+    // 同一開始時間 → 終了時間が早い方が上
+    const aEnd = getEarliestEndMinutes(aShifts, aStart);
+    const bEnd = getEarliestEndMinutes(bShifts, bStart);
+    if (aEnd !== bEnd) return aEnd - bEnd;
+
     return compareByName(a, b);
   });
 };
