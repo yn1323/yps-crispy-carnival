@@ -259,10 +259,13 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     [getRowCursor, handleRowMouseMove],
   );
 
+  // maxHeight: _auth.tsx Container の余白分を差し引く
+  // base: py=8px×2 + mb=80px(BottomMenu) = 96px
+  // lg:   py=32px×2 = 64px
   return (
-    <Box p={4}>
+    <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }} p={4}>
       {/* ポジションツールバー（Undo/Redo統合済み） */}
-      <Box mb={4}>
+      <Box mb={4} flexShrink={0}>
         <PositionToolbar
           toolMode={toolMode}
           onToolModeChange={setToolMode}
@@ -279,12 +282,20 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       </Box>
 
       {/* 日付タブ + シフト表（一体化） */}
-      <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+      <Flex
+        direction="column"
+        flex={1}
+        minHeight={0}
+        border="1px solid"
+        borderColor="gray.200"
+        borderRadius="lg"
+        overflow="hidden"
+      >
         {/* 日付タブ */}
         <DateTabs dates={dates} selectedDate={selectedDate} onSelect={handleDateChange} />
 
         {/* シフト表 */}
-        <Box ref={tableContainerRef} overflowX="auto" overflowY="auto" maxHeight="70vh">
+        <Box ref={tableContainerRef} flex={1} minHeight={0} overflowX="auto" overflowY="auto">
           <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
             <Table.Header>
               <Table.Row bg="gray.50" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
@@ -296,7 +307,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
-            <Table.Body>
+            <Table.Body css={{ "& tr:last-child td": { borderBottom: "none" } }}>
               {sortedStaffs.map((staff) => {
                 const staffShifts = getShiftsForStaff(staff.id);
                 const status = getSubmissionStatus(staff, staffShifts);
@@ -447,7 +458,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
             </Table.Footer>
           </Table.Root>
         </Box>
-      </Box>
+      </Flex>
 
       {/* ポップオーバー */}
       <ShiftPopover
@@ -463,7 +474,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       />
 
       {/* デバッグ情報 */}
-      <VStack align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">
+      <VStack flexShrink={0} align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">
         <Text fontWeight="bold">デバッグ情報:</Text>
         <Text>選択日: {selectedDate}</Text>
         <Text>ツールモード: {toolMode}</Text>
@@ -475,6 +486,6 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         </Text>
         <Text>ドラッグモード: {dragState.mode ?? "(なし)"}</Text>
       </VStack>
-    </Box>
+    </Flex>
   );
 };
