@@ -324,118 +324,119 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         />
       </Box>
 
-      {/* 日付タブ */}
-      <Box mb={4}>
+      {/* 日付タブ + シフト表（一体化） */}
+      <Box border="1px solid" borderColor="gray.200" borderRadius="lg">
+        {/* 日付タブ */}
         <DateTabs dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} />
-      </Box>
 
-      {/* シフト表 */}
-      <Box ref={tableContainerRef} overflowX="auto" border="1px solid" borderColor="gray.200" borderRadius="lg">
-        <Table.Root size="sm">
-          <Table.Header>
-            <Table.Row bg="gray.50">
-              <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={1}>
-                スタッフ
-              </Table.ColumnHeader>
-              <Table.ColumnHeader colSpan={timeSlots.length} p={0}>
-                <TimeHeader timeRange={timeRange} />
-              </Table.ColumnHeader>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {staffs.map((staff) => {
-              const staffShifts = getShiftsForStaff(staff.id);
-              return (
-                <Table.Row key={staff.id} _hover={{ bg: "gray.50" }}>
-                  <Table.Cell
-                    fontWeight="medium"
-                    position="sticky"
-                    left={0}
-                    bg="white"
-                    zIndex={1}
-                    borderRight="1px solid"
-                    borderColor="gray.100"
-                  >
-                    {staff.name}
-                    {!staff.isSubmitted && (
-                      <Text as="span" color="gray.400" fontSize="xs" ml={1}>
-                        (未)
-                      </Text>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell colSpan={timeSlots.length} p={0}>
-                    <Box
-                      ref={(el: HTMLDivElement | null) => {
-                        rowContainerRefs.current[staff.id] = el;
-                      }}
-                      position="relative"
-                      height="50px"
-                      px={5}
-                      bg={staff.isSubmitted ? "transparent" : "gray.50"}
-                      onMouseDown={(e) => handleRowMouseDown(e, staff.id)}
-                      onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
-                      onMouseUp={() => {
-                        handleMouseUp();
-                        stopScrollDrag();
-                      }}
-                      onMouseLeave={() => {
-                        handleMouseUp();
-                        stopScrollDrag();
-                        setHoveredStaffId(null);
-                      }}
-                      onMouseEnter={() => setHoveredStaffId(staff.id)}
-                      cursor={isScrollDragging ? "grabbing" : (cursorStyle[staff.id] ?? "default")}
-                      userSelect="none"
+        {/* シフト表 */}
+        <Box ref={tableContainerRef} overflowX="auto">
+          <Table.Root size="sm">
+            <Table.Header>
+              <Table.Row bg="gray.50">
+                <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={1}>
+                  スタッフ
+                </Table.ColumnHeader>
+                <Table.ColumnHeader colSpan={timeSlots.length} p={0}>
+                  <TimeHeader timeRange={timeRange} />
+                </Table.ColumnHeader>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {staffs.map((staff) => {
+                const staffShifts = getShiftsForStaff(staff.id);
+                return (
+                  <Table.Row key={staff.id} _hover={{ bg: "gray.50" }}>
+                    <Table.Cell
+                      fontWeight="medium"
+                      position="sticky"
+                      left={0}
+                      bg="white"
+                      zIndex={1}
+                      borderRight="1px solid"
+                      borderColor="gray.100"
                     >
-                      {/* グリッドライン（最背面） */}
-                      <GridLines timeRange={timeRange} />
+                      {staff.name}
+                      {!staff.isSubmitted && (
+                        <Text as="span" color="gray.400" fontSize="xs" ml={1}>
+                          (未)
+                        </Text>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell colSpan={timeSlots.length} p={0}>
+                      <Box
+                        ref={(el: HTMLDivElement | null) => {
+                          rowContainerRefs.current[staff.id] = el;
+                        }}
+                        position="relative"
+                        height="50px"
+                        px={5}
+                        bg={staff.isSubmitted ? "transparent" : "gray.50"}
+                        onMouseDown={(e) => handleRowMouseDown(e, staff.id)}
+                        onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
+                        onMouseUp={() => {
+                          handleMouseUp();
+                          stopScrollDrag();
+                        }}
+                        onMouseLeave={() => {
+                          handleMouseUp();
+                          stopScrollDrag();
+                          setHoveredStaffId(null);
+                        }}
+                        onMouseEnter={() => setHoveredStaffId(staff.id)}
+                        cursor={isScrollDragging ? "grabbing" : (cursorStyle[staff.id] ?? "default")}
+                        userSelect="none"
+                      >
+                        {/* グリッドライン（最背面） */}
+                        <GridLines timeRange={timeRange} />
 
-                      {/* シフトバー（提出済み・未提出両方表示） */}
-                      {staffShifts.map((shift) => (
-                        <ShiftBar
-                          key={shift.id}
-                          shift={shift}
-                          timeRange={timeRange}
-                          onHover={setHoveredShiftId}
-                          onClick={handleShiftClick}
-                          onContextMenu={handleContextMenu}
-                          isDragging={isDragging}
-                          currentMinutes={dragState.currentMinutes}
-                          linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
-                        />
-                      ))}
-
-                      {/* ドラッグプレビュー（リサイズ以外のドラッグ中のみ表示） */}
-                      {isDragging &&
-                        dragState.staffId === staff.id &&
-                        dragState.mode !== "position-resize-start" &&
-                        dragState.mode !== "position-resize-end" && (
-                          <DragPreview
-                            mode={dragState.mode}
-                            startMinutes={dragState.startMinutes}
-                            currentMinutes={dragState.currentMinutes}
+                        {/* シフトバー（提出済み・未提出両方表示） */}
+                        {staffShifts.map((shift) => (
+                          <ShiftBar
+                            key={shift.id}
+                            shift={shift}
                             timeRange={timeRange}
-                            positionColor={dragState.positionColor}
+                            onHover={setHoveredShiftId}
+                            onClick={handleShiftClick}
+                            onContextMenu={handleContextMenu}
+                            isDragging={isDragging}
+                            currentMinutes={dragState.currentMinutes}
+                            linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
                           />
-                        )}
-                    </Box>
-                  </Table.Cell>
-                </Table.Row>
-              );
-            })}
-            {/* サマリー行（サブトータル） */}
-            <SummaryRow
-              shifts={shifts}
-              positions={positions}
-              timeRange={timeRange}
-              date={selectedDate}
-              isExpanded={isSummaryExpanded}
-              onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
-              timeSlotsCount={timeSlots.length}
-              displayMode={summaryDisplayMode}
-            />
-          </Table.Body>
-        </Table.Root>
+                        ))}
+
+                        {/* ドラッグプレビュー（リサイズ以外のドラッグ中のみ表示） */}
+                        {isDragging &&
+                          dragState.staffId === staff.id &&
+                          dragState.mode !== "position-resize-start" &&
+                          dragState.mode !== "position-resize-end" && (
+                            <DragPreview
+                              mode={dragState.mode}
+                              startMinutes={dragState.startMinutes}
+                              currentMinutes={dragState.currentMinutes}
+                              timeRange={timeRange}
+                              positionColor={dragState.positionColor}
+                            />
+                          )}
+                      </Box>
+                    </Table.Cell>
+                  </Table.Row>
+                );
+              })}
+              {/* サマリー行（サブトータル） */}
+              <SummaryRow
+                shifts={shifts}
+                positions={positions}
+                timeRange={timeRange}
+                date={selectedDate}
+                isExpanded={isSummaryExpanded}
+                onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                timeSlotsCount={timeSlots.length}
+                displayMode={summaryDisplayMode}
+              />
+            </Table.Body>
+          </Table.Root>
+        </Box>
       </Box>
 
       {/* ポップオーバー */}
