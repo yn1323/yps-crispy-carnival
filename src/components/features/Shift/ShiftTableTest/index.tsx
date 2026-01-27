@@ -1,6 +1,5 @@
-import { Box, Button, Flex, Icon, Table, Text, VStack } from "@chakra-ui/react";
+import { Box, Table, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { LuRedo2, LuUndo2 } from "react-icons/lu";
 import { ContextMenu } from "./ContextMenu";
 import { DateTabs } from "./DateTabs";
 import { DragPreview } from "./DragPreview";
@@ -14,7 +13,7 @@ import { ShiftBar } from "./ShiftBar";
 import { ShiftPopover } from "./ShiftPopover";
 import { SummaryRow } from "./SummaryRow";
 import { TimeHeader } from "./TimeHeader";
-import type { ShiftData, ShiftTableTestProps, ToolSelection } from "./types";
+import type { ShiftData, ShiftTableTestProps, ToolMode } from "./types";
 
 // 時間スロットを生成
 const generateTimeSlots = (start: number, end: number) => {
@@ -29,14 +28,15 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   // === Undo/Redo管理 ===
   const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
 
-  // === その他の状態 ===
+  // === ツール・ポジション状態 ===
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
-  const [selectedTool, setSelectedTool] = useState<ToolSelection>(null);
+  const [toolMode, setToolMode] = useState<ToolMode>("select");
+  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [hoveredShiftId, setHoveredShiftId] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
-  // selectedToolからポジションを抽出（useDrag用）
-  const selectedPosition = selectedTool !== "eraser" ? selectedTool : null;
+  // selectedPositionIdからポジションオブジェクトを取得（useDrag用）
+  const selectedPosition = selectedPositionId ? (positions.find((p) => p.id === selectedPositionId) ?? null) : null;
 
   // === ポップオーバー状態 ===
   const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
@@ -55,16 +55,20 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   // 行コンテナのref（カーソル位置計算用）
   const rowContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  // === 横スクロール用 ===
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollDragRef = useRef({ isScrolling: false, startX: 0, startScrollLeft: 0 });
+  const [isScrollDragging, setIsScrollDragging] = useState(false);
+
   // スタッフ名取得関数（useDrag用）
   const getStaffName = useCallback((staffId: string) => staffs.find((s) => s.id === staffId)?.name ?? "", [staffs]);
 
   // === ドラッグ管理 ===
-  const isEraserMode = selectedTool === "eraser";
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag({
     shifts,
     setShifts,
     selectedPosition,
-    isEraserMode,
+    toolMode,
     selectedDate,
     timeRange,
     getStaffName,
@@ -92,11 +96,11 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     [shifts, setShifts],
   );
 
-  // シフトクリック（消しゴムモード時は削除、通常時はポップオーバー表示）
+  // シフトクリック（ツールモードに応じた処理）
   const handleShiftClick = useCallback(
     (shiftId: string, positionId: string | null, e: React.MouseEvent) => {
-      // 消しゴムモード時は対象ポジションを削除
-      if (isEraserMode && positionId) {
+      // 消すモード: 対象ポジションを削除
+      if (toolMode === "erase" && positionId) {
         const targetShift = shifts.find((s) => s.id === shiftId);
         if (targetShift) {
           const updatedPositions = targetShift.positions.filter((p) => p.id !== positionId);
@@ -107,14 +111,17 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         return;
       }
 
-      // 通常時はポップオーバー表示
-      const shift = shifts.find((s) => s.id === shiftId);
-      if (shift) {
-        setPopoverShift(shift);
-        setPopoverAnchor(e.currentTarget as HTMLElement);
+      // 選択モード: ポップオーバー表示
+      if (toolMode === "select") {
+        const shift = shifts.find((s) => s.id === shiftId);
+        if (shift) {
+          setPopoverShift(shift);
+          setPopoverAnchor(e.currentTarget as HTMLElement);
+        }
       }
+      // 割当モード: クリックでは何もしない（ドラッグのみ）
     },
-    [shifts, isEraserMode, setShifts],
+    [shifts, toolMode, setShifts],
   );
 
   // ポップオーバーを閉じる
@@ -203,13 +210,29 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     onPaste: handlePaste,
   });
 
+  // スクロール終了処理
+  const stopScrollDrag = useCallback(() => {
+    scrollDragRef.current.isScrolling = false;
+    setIsScrollDragging(false);
+  }, []);
+
   // 行コンテナのマウスイベントハンドラー
   const handleRowMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, staffId: string) => {
       const rect = e.currentTarget.getBoundingClientRect();
-      handleMouseDown(e, staffId, rect);
+      const dragStarted = handleMouseDown(e, staffId, rect);
+
+      // 選択モードでドラッグ未開始（リサイズ端でない）→ 横スクロール開始
+      if (toolMode === "select" && !dragStarted && tableContainerRef.current) {
+        scrollDragRef.current = {
+          isScrolling: true,
+          startX: e.clientX,
+          startScrollLeft: tableContainerRef.current.scrollLeft,
+        };
+        setIsScrollDragging(true);
+      }
     },
-    [handleMouseDown],
+    [handleMouseDown, toolMode],
   );
 
   const handleRowMouseMove = useCallback(
@@ -235,6 +258,12 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
   const handleRowMouseMoveForCursor = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, staffId: string) => {
+      // 横スクロール中
+      if (scrollDragRef.current.isScrolling && tableContainerRef.current) {
+        const dx = e.clientX - scrollDragRef.current.startX;
+        tableContainerRef.current.scrollLeft = scrollDragRef.current.startScrollLeft - dx;
+      }
+
       const cursor = getRowCursor(staffId, e);
       setCursorStyle((prev) => ({ ...prev, [staffId]: cursor }));
       handleRowMouseMove(e);
@@ -244,21 +273,19 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
   return (
     <Box p={4}>
-      {/* Undo/Redoボタン */}
-      <Flex gap={2} mb={4}>
-        <Button size="sm" variant="outline" onClick={undo} disabled={!canUndo}>
-          <Icon as={LuUndo2} mr={1} />
-          Undo
-        </Button>
-        <Button size="sm" variant="outline" onClick={redo} disabled={!canRedo}>
-          <Icon as={LuRedo2} mr={1} />
-          Redo
-        </Button>
-      </Flex>
-
-      {/* ポジションツールバー */}
+      {/* ポジションツールバー（Undo/Redo統合済み） */}
       <Box mb={4}>
-        <PositionToolbar positions={positions} selectedTool={selectedTool} onSelect={setSelectedTool} />
+        <PositionToolbar
+          toolMode={toolMode}
+          onToolModeChange={setToolMode}
+          positions={positions}
+          selectedPositionId={selectedPositionId}
+          onPositionSelect={setSelectedPositionId}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
       </Box>
 
       {/* 日付タブ */}
@@ -267,7 +294,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       </Box>
 
       {/* シフト表 */}
-      <Box overflowX="auto" border="1px solid" borderColor="gray.200" borderRadius="lg">
+      <Box ref={tableContainerRef} overflowX="auto" border="1px solid" borderColor="gray.200" borderRadius="lg">
         <Table.Root size="sm">
           <Table.Header>
             <Table.Row bg="gray.50">
@@ -311,13 +338,17 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                       bg={staff.isSubmitted ? "transparent" : "gray.50"}
                       onMouseDown={(e) => handleRowMouseDown(e, staff.id)}
                       onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
-                      onMouseUp={handleMouseUp}
+                      onMouseUp={() => {
+                        handleMouseUp();
+                        stopScrollDrag();
+                      }}
                       onMouseLeave={() => {
                         handleMouseUp();
+                        stopScrollDrag();
                         setHoveredStaffId(null);
                       }}
                       onMouseEnter={() => setHoveredStaffId(staff.id)}
-                      cursor={cursorStyle[staff.id] ?? "default"}
+                      cursor={isScrollDragging ? "grabbing" : (cursorStyle[staff.id] ?? "default")}
                       userSelect="none"
                     >
                       {/* グリッドライン（最背面） */}
@@ -395,11 +426,12 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       <VStack align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">
         <Text fontWeight="bold">デバッグ情報:</Text>
         <Text>選択日: {selectedDate}</Text>
+        <Text>ツールモード: {toolMode}</Text>
         <Text>選択ポジション: {selectedPosition?.name ?? "(なし)"}</Text>
         <Text>ホバー中シフト: {hoveredShiftId ?? "(なし)"}</Text>
         <Text>シフト数: {shifts.length}</Text>
         <Text>
-          履歴: Undo可能={canUndo ? "✅" : "❌"} / Redo可能={canRedo ? "✅" : "❌"}
+          履歴: Undo可能={canUndo ? "Y" : "N"} / Redo可能={canRedo ? "Y" : "N"}
         </Text>
         <Text>ドラッグモード: {dragState.mode ?? "(なし)"}</Text>
       </VStack>

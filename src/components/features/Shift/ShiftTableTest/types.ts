@@ -47,10 +47,10 @@ export type TimeRange = {
 };
 
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
-export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | "erase" | null;
+export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | "erase" | "scroll" | null;
 
-// ツール選択（ポジション塗り or 消しゴム）
-export type ToolSelection = PositionType | "eraser" | null;
+// ツールモード（常にどれか1つが選択される）
+export type ToolMode = "select" | "assign" | "erase";
 
 // 連結リサイズ対象（隣接バーの境界ドラッグ用）
 export type LinkedResizeTarget = {

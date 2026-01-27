@@ -199,3 +199,22 @@ export const SingleDay: Story = {
     timeRange: { start: 9, end: 22, unit: 30 },
   },
 };
+
+// ポジション10個（2行折り返しレイアウト確認用）
+export const ManyPositions: Story = {
+  args: {
+    staffs: mockStaffs,
+    positions: [
+      ...mockPositions,
+      { id: "pos5", name: "洗い場", color: "#8b5cf6" },
+      { id: "pos6", name: "デリバリー", color: "#ec4899" },
+      { id: "pos7", name: "仕込み", color: "#14b8a6" },
+      { id: "pos8", name: "接客", color: "#f59e0b" },
+      { id: "pos9", name: "清掃", color: "#6366f1" },
+      { id: "pos10", name: "事務", color: "#84cc16" },
+    ],
+    initialShifts: mockShifts,
+    dates: mockDates,
+    timeRange: { start: 9, end: 22, unit: 30 },
+  },
+};
