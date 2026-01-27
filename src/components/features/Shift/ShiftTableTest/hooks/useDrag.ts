@@ -309,7 +309,7 @@ export const useDrag = ({
         if (linkedResizeInfo) {
           return "ew-resize";
         }
-        return "default";
+        return "grab";
       }
 
       // 割当モード

@@ -46,7 +46,7 @@ export const PositionToolbar = ({
   canUndo,
   canRedo,
 }: PositionToolbarProps) => {
-  const isEraseMode = toolMode === "erase";
+  const isPositionDisabled = toolMode !== "assign";
 
   const tipsText = (() => {
     if (toolMode === "select") {
@@ -69,7 +69,10 @@ export const PositionToolbar = ({
       <Flex gap={4} align="flex-start" flexWrap="wrap">
         {/* グループ1: 履歴 */}
         <Box>
-          <Flex gap={1} mb={1}>
+          <Text fontSize="xs" color="gray.500" textAlign="center" mb={1}>
+            履歴
+          </Text>
+          <Flex gap={1}>
             <IconButton size="sm" variant="outline" onClick={onUndo} disabled={!canUndo} aria-label="元に戻す">
               <Icon as={LuUndo2} />
             </IconButton>
@@ -77,9 +80,6 @@ export const PositionToolbar = ({
               <Icon as={LuRedo2} />
             </IconButton>
           </Flex>
-          <Text fontSize="xs" color="gray.500" textAlign="center">
-            履歴
-          </Text>
         </Box>
 
         {/* セパレータ */}
@@ -87,7 +87,10 @@ export const PositionToolbar = ({
 
         {/* グループ2: ツール */}
         <Box>
-          <Flex gap={1} mb={1}>
+          <Text fontSize="xs" color="gray.500" textAlign="center" mb={1}>
+            ツール
+          </Text>
+          <Flex gap={1}>
             <ToolButton
               icon={LuMousePointer2}
               label="選択"
@@ -108,17 +111,17 @@ export const PositionToolbar = ({
               activeColorPalette="red"
             />
           </Flex>
-          <Text fontSize="xs" color="gray.500" textAlign="center">
-            ツール
-          </Text>
         </Box>
 
         {/* セパレータ */}
         <Box borderLeft="1px solid" borderColor="gray.200" alignSelf="stretch" />
 
         {/* グループ3: ポジション */}
-        <Box opacity={isEraseMode ? 0.4 : 1} pointerEvents={isEraseMode ? "none" : "auto"} flex={1}>
-          <Flex gap={1} mb={1} flexWrap="wrap">
+        <Box opacity={isPositionDisabled ? 0.4 : 1} pointerEvents={isPositionDisabled ? "none" : "auto"} flex={1}>
+          <Text fontSize="xs" color="gray.500" mb={1}>
+            ポジション
+          </Text>
+          <Flex gap={1} flexWrap="wrap">
             {positions.map((position) => {
               const isSelected = selectedPositionId === position.id;
               return (
@@ -141,9 +144,6 @@ export const PositionToolbar = ({
               );
             })}
           </Flex>
-          <Text fontSize="xs" color="gray.500">
-            ポジション
-          </Text>
         </Box>
       </Flex>
 
