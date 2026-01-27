@@ -36,7 +36,7 @@ export const ShiftPopover = ({
     };
   }, [isOpen, onClose]);
 
-  if (!shift || !shift.requestedTime) return null;
+  if (!shift) return null;
 
   return (
     <Popover.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()}>
@@ -66,7 +66,7 @@ export const ShiftPopover = ({
               {/* 労働時間 */}
               <Box p={3} borderBottom="1px solid" borderColor="gray.100">
                 <Text fontWeight="bold" fontSize="md" color="gray.700">
-                  希望：{shift.requestedTime.start} - {shift.requestedTime.end}
+                  希望：{shift.requestedTime ? `${shift.requestedTime.start} - ${shift.requestedTime.end}` : "なし"}
                 </Text>
               </Box>
 

@@ -57,7 +57,7 @@ export const PositionToolbar = ({
       return "バーをクリックして詳細を確認。バーの端をドラッグでリサイズできます";
     }
     if (toolMode === "erase") {
-      return "クリックで1つ消去。ドラッグで範囲消去";
+      return "クリックで詳細確認。ドラッグで範囲消去。バーの端でリサイズ";
     }
     // assign
     if (!selectedPositionId) {

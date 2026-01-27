@@ -90,6 +90,28 @@ const mockShifts = [
       { id: "seg9", positionId: "pos3", positionName: "レジ", color: "#10b981", start: "10:00", end: "18:00" },
     ],
   },
+  // Dさん: 1/23 希望なし（提出済みだがこの日は休み）→ マネージャーがポジション割当
+  {
+    id: "shift10",
+    staffId: "staff4",
+    staffName: "Dさん",
+    date: "2026-01-23",
+    requestedTime: null,
+    positions: [
+      { id: "seg15", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "11:00", end: "15:00" },
+    ],
+  },
+  // Cさん: 1/21 未提出 → マネージャーがポジション割当
+  {
+    id: "shift11",
+    staffId: "staff3",
+    staffName: "Cさん",
+    date: "2026-01-21",
+    requestedTime: null,
+    positions: [
+      { id: "seg16", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "10:00", end: "14:00" },
+    ],
+  },
 ];
 
 // モックデータ: 日付（1週間分）
@@ -215,6 +237,19 @@ export const ManyPositions: Story = {
     ],
     initialShifts: mockShifts,
     dates: mockDates,
+    timeRange: { start: 9, end: 22, unit: 30 },
+  },
+};
+
+// 提出状況の3状態を確認するストーリー（初期表示: 1/23 = 希望なしパターン）
+// 1/23: Aさん(希望なし), Bさん(希望なし), Cさん(未提出), Dさん(希望なし+割当済), Eさん(未提出)
+// 1/21: Aさん(希望あり), Bさん(希望あり), Cさん(未提出+割当済), Dさん(希望あり), Eさん(未提出)
+export const SubmissionStatus: Story = {
+  args: {
+    staffs: mockStaffs,
+    positions: mockPositions,
+    initialShifts: mockShifts,
+    dates: ["2026-01-23", ...mockDates.filter((d) => d !== "2026-01-23")],
     timeRange: { start: 9, end: 22, unit: 30 },
   },
 };

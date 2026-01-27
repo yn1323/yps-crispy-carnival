@@ -194,8 +194,43 @@ export const useDrag = ({
         return true;
       }
 
-      // === 消すモード: ドラッグ消去 ===
+      // === 消すモード: リサイズ or ドラッグ消去 ===
       if (toolMode === "erase") {
+        // まずリサイズエッジを判定（select/assignと同様）
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+
+        if (linkedResizeInfo) {
+          const { linkedTarget } = linkedResizeInfo;
+          const isLinked = linkedTarget.prevPosition && linkedTarget.nextPosition;
+          const edge = linkedTarget.nextPosition && !linkedTarget.prevPosition ? "start" : "end";
+          const targetPositionId =
+            linkedTarget.prevPosition?.positionId ?? linkedTarget.nextPosition?.positionId ?? null;
+          const positionColor =
+            linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
+
+          setDragState({
+            mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
+            staffId,
+            startMinutes: minutes,
+            currentMinutes: minutes,
+            targetShiftId: linkedResizeInfo.shiftId,
+            targetPositionId,
+            positionColor,
+            resizeEdge: edge,
+            linkedTarget,
+          });
+          return true;
+        }
+
+        // リサイズエッジでなければドラッグ消去
         const positionInfo = findPositionAtPosition({
           shifts,
           staffId,
@@ -297,8 +332,8 @@ export const useDrag = ({
       }
     }
 
-    // 3. 消去モード（ドラッグ範囲消去）
-    if (mode === "erase" && dragState.staffId) {
+    // 3. 消去モード（ドラッグ範囲消去 — クリック時は消去しない）
+    if (mode === "erase" && dragState.staffId && Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
       const staffShifts = shifts.filter((s) => s.staffId === dragState.staffId && s.date === selectedDate);
       let updatedShifts = [...shifts];
 
@@ -369,6 +404,18 @@ export const useDrag = ({
 
       // 消すモード
       if (toolMode === "erase") {
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+        if (linkedResizeInfo) {
+          return "ew-resize";
+        }
         const minutes = pixelToMinutes({ x, containerWidth, timeRange });
         const positionInfo = findPositionAtPosition({
           shifts,

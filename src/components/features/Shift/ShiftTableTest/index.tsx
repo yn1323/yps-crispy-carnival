@@ -1,4 +1,4 @@
-import { Box, Table, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, Table, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { DateTabs } from "./DateTabs";
 import { DragPreview } from "./DragPreview";
@@ -11,7 +11,7 @@ import { ShiftBar } from "./ShiftBar";
 import { ShiftPopover } from "./ShiftPopover";
 import { SummaryRow } from "./SummaryRow";
 import { TimeHeader } from "./TimeHeader";
-import type { ShiftData, ShiftTableTestProps, SummaryDisplayMode, ToolMode } from "./types";
+import type { ShiftData, ShiftTableTestProps, StaffType, SummaryDisplayMode, ToolMode } from "./types";
 import { deletePositionFromShift, normalizePositions } from "./utils/shiftOperations";
 
 // 時間スロットを生成
@@ -63,6 +63,8 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
   // 行コンテナのref（カーソル位置計算用）
   const rowContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // paint モードクリック時のアンカー要素
+  const paintClickAnchorRef = useRef<HTMLElement | null>(null);
 
   // === 横スクロール用 ===
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
@@ -91,39 +93,24 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     return shifts.filter((s) => s.staffId === staffId && s.date === selectedDate);
   };
 
-  // シフトクリック（ツールモードに応じた処理）
-  const handleShiftClick = useCallback(
-    (shiftId: string, positionId: string | null, e: React.MouseEvent) => {
-      // 消すモード: 対象ポジションを削除
-      if (toolMode === "erase" && positionId) {
-        const targetShift = shifts.find((s) => s.id === shiftId);
-        if (targetShift && breakPosition) {
-          const updatedShift = deletePositionFromShift({
-            shift: targetShift,
-            positionSegmentId: positionId,
-            breakPositionId: breakPosition.id,
-          });
-          const updatedShifts = shifts.map((s) => (s.id === shiftId ? updatedShift : s));
-          setShiftsNormalized(updatedShifts);
-        } else if (targetShift) {
-          const updatedPositions = targetShift.positions.filter((p) => p.id !== positionId);
-          const updatedShift = { ...targetShift, positions: updatedPositions };
-          setShifts(shifts.map((s) => (s.id === shiftId ? updatedShift : s)));
-        }
-        return;
-      }
+  // スタッフの提出状態を判定（日付ごと）
+  const getSubmissionStatus = (staff: StaffType, staffShifts: ShiftData[]) => {
+    if (!staff.isSubmitted) return "not_submitted" as const;
+    const hasRequest = staffShifts.some((s) => s.requestedTime !== null);
+    if (hasRequest) return "has_request" as const;
+    return "no_request" as const;
+  };
 
-      // 選択モード: ポップオーバー表示
-      if (toolMode === "select") {
-        const shift = shifts.find((s) => s.id === shiftId);
-        if (shift) {
-          setPopoverShift(shift);
-          setPopoverAnchor(e.currentTarget as HTMLElement);
-        }
+  // シフトクリック（全モード共通: ポップオーバー表示）
+  const handleShiftClick = useCallback(
+    (shiftId: string, _positionId: string | null, e: React.MouseEvent) => {
+      const shift = shifts.find((s) => s.id === shiftId);
+      if (shift) {
+        setPopoverShift(shift);
+        setPopoverAnchor(e.currentTarget as HTMLElement);
       }
-      // 割当モード: クリックでは何もしない（ドラッグのみ）
     },
-    [shifts, toolMode, setShifts, setShiftsNormalized, breakPosition],
+    [shifts],
   );
 
   // ポップオーバーを閉じる
@@ -145,13 +132,18 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         : { ...popoverShift, positions: popoverShift.positions.filter((p) => p.id !== positionId) };
       const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
       setShiftsNormalized(newShifts);
-      // ポップオーバーにも正規化済み状態を反映
       const normalizedPositions = breakPosition
         ? normalizePositions({ positions: updatedShift.positions, breakPosition })
         : updatedShift.positions;
+      // ポジションが0件になったらポップオーバーを閉じる
+      if (normalizedPositions.length === 0) {
+        handlePopoverClose();
+        return;
+      }
+      // ポップオーバーにも正規化済み状態を反映
       setPopoverShift({ ...updatedShift, positions: normalizedPositions });
     },
-    [popoverShift, shifts, setShiftsNormalized, breakPosition],
+    [popoverShift, shifts, setShiftsNormalized, breakPosition, handlePopoverClose],
   );
 
   // ポップオーバーから全ポジション削除（希望シフト時間は残す）
@@ -163,9 +155,9 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     };
     const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
     setShiftsNormalized(newShifts);
-    // ポップオーバーの状態も更新
-    setPopoverShift(updatedShift);
-  }, [popoverShift, shifts, setShiftsNormalized]);
+    // 全削除後はポップオーバーを閉じる
+    handlePopoverClose();
+  }, [popoverShift, shifts, setShiftsNormalized, handlePopoverClose]);
 
   // キーボードショートカット
   useKeyboardShortcuts({
@@ -274,10 +266,10 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
             <Table.Body>
               {staffs.map((staff) => {
                 const staffShifts = getShiftsForStaff(staff.id);
+                const status = getSubmissionStatus(staff, staffShifts);
                 return (
                   <Table.Row key={staff.id} _hover={{ bg: "gray.50" }}>
                     <Table.Cell
-                      fontWeight="medium"
                       position="sticky"
                       left={0}
                       bg="white"
@@ -285,12 +277,19 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                       borderRight="1px solid"
                       borderColor="gray.100"
                     >
-                      {staff.name}
-                      {!staff.isSubmitted && (
-                        <Text as="span" color="gray.400" fontSize="xs" ml={1}>
-                          (未)
-                        </Text>
-                      )}
+                      <Box>
+                        <Text fontWeight="medium">{staff.name}</Text>
+                        {status === "no_request" && (
+                          <Text color="gray.400" fontSize="xs">
+                            希望なし
+                          </Text>
+                        )}
+                        {status === "not_submitted" && (
+                          <Text color="orange.400" fontSize="xs">
+                            未提出
+                          </Text>
+                        )}
+                      </Box>
                     </Table.Cell>
                     <Table.Cell colSpan={timeSlots.length} p={0}>
                       <Box
@@ -300,10 +299,33 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                         position="relative"
                         height="50px"
                         px={5}
-                        bg={staff.isSubmitted ? "transparent" : "gray.50"}
-                        onMouseDown={(e) => handleRowMouseDown(e, staff.id)}
+                        bg="transparent"
+                        onMouseDown={(e) => {
+                          paintClickAnchorRef.current = e.target as HTMLElement;
+                          handleRowMouseDown(e, staff.id);
+                        }}
                         onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
                         onMouseUp={() => {
+                          // Paint モードで移動なし（クリック）→ 既存ポジション上ならポップオーバー表示
+                          if (
+                            dragState.mode === "paint" &&
+                            dragState.targetShiftId &&
+                            Math.abs(dragState.currentMinutes - dragState.startMinutes) < timeRange.unit
+                          ) {
+                            const targetShift = shifts.find((s) => s.id === dragState.targetShiftId);
+                            if (targetShift) {
+                              const minutes = dragState.startMinutes;
+                              const hasExistingPosition = targetShift.positions.some((pos) => {
+                                const [sh, sm] = pos.start.split(":").map(Number);
+                                const [eh, em] = pos.end.split(":").map(Number);
+                                return minutes >= sh * 60 + sm && minutes < eh * 60 + em;
+                              });
+                              if (hasExistingPosition && paintClickAnchorRef.current) {
+                                setPopoverShift(targetShift);
+                                setPopoverAnchor(paintClickAnchorRef.current);
+                              }
+                            }
+                          }
                           handleMouseUp();
                           stopScrollDrag();
                         }}
@@ -330,6 +352,15 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                             linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
                           />
                         ))}
+
+                        {/* 空状態テキスト（希望なし / 未提出） */}
+                        {status !== "has_request" && staffShifts.every((s) => s.positions.length === 0) && (
+                          <Flex position="absolute" inset={0} align="center" justify="center" pointerEvents="none">
+                            <Text color={status === "no_request" ? "gray.400" : "orange.400"} fontSize="sm">
+                              {status === "no_request" ? "希望なし" : "未提出"}
+                            </Text>
+                          </Flex>
+                        )}
 
                         {/* ドラッグプレビュー（リサイズ以外のドラッグ中のみ表示） */}
                         {isDragging &&
