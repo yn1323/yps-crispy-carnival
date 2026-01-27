@@ -1,6 +1,6 @@
 import { Box, Button, Flex, Icon, IconButton, Text } from "@chakra-ui/react";
 import { LuEraser, LuHash, LuMousePointer2, LuPaintbrush, LuPalette, LuRedo2, LuUndo2 } from "react-icons/lu";
-import type { PositionType, SummaryDisplayMode, ToolMode } from "./types";
+import { FILL_RATE_COLORS, type PositionType, type SummaryDisplayMode, type ToolMode } from "./types";
 
 type ToolButtonProps = {
   icon: React.ElementType;
@@ -73,7 +73,7 @@ export const PositionToolbar = ({
       <Flex gap={4} align="flex-start" flexWrap="wrap">
         {/* グループ1: 履歴 */}
         <Box>
-          <Text fontSize="xs" color="gray.500" textAlign="center" mb={1}>
+          <Text fontSize="xs" color="gray.500" mb={1}>
             履歴
           </Text>
           <Flex gap={1}>
@@ -91,7 +91,7 @@ export const PositionToolbar = ({
 
         {/* グループ2: ツール */}
         <Box>
-          <Text fontSize="xs" color="gray.500" textAlign="center" mb={1}>
+          <Text fontSize="xs" color="gray.500" mb={1}>
             ツール
           </Text>
           <Flex gap={1}>
@@ -155,7 +155,7 @@ export const PositionToolbar = ({
 
         {/* グループ4: サマリー表示切替 */}
         <Box>
-          <Text fontSize="xs" color="gray.500" textAlign="center" mb={1}>
+          <Text fontSize="xs" color="gray.500" mb={1}>
             サマリー
           </Text>
           <Flex gap={1}>
@@ -180,11 +180,50 @@ export const PositionToolbar = ({
         <Text fontSize="sm" color="gray.500">
           {tipsText}
         </Text>
-        <Flex align="center" gap={2} flexShrink={0}>
-          <Box w="32px" h="12px" border="2px dashed" borderColor="gray.400" borderRadius="sm" />
-          <Text fontSize="sm" color="gray.600">
-            スタッフ希望時間
-          </Text>
+        <Flex align="center" gap={8} flexShrink={0}>
+          {/* 充足度カラースケール */}
+          <Flex align="center" gap={1.5}>
+            <Text fontSize="xs" color="gray.500">
+              充足度
+            </Text>
+            <Box>
+              <Flex>
+                {FILL_RATE_COLORS.map((color, i) => (
+                  <Box
+                    key={color.bg}
+                    w="20px"
+                    h="10px"
+                    bg={color.bg}
+                    borderLeftRadius={i === 0 ? "sm" : undefined}
+                    borderRightRadius={i === FILL_RATE_COLORS.length - 1 ? "sm" : undefined}
+                  />
+                ))}
+              </Flex>
+              <Flex mt="1px">
+                <Flex w="100px" justify="space-between">
+                  <Text fontSize="9px" color="gray.400" lineHeight="1">
+                    0%
+                  </Text>
+                  <Text fontSize="9px" color="gray.400" lineHeight="1">
+                    100%
+                  </Text>
+                </Flex>
+                <Box w="20px" textAlign="center">
+                  <Text fontSize="9px" color="gray.400" lineHeight="1">
+                    超
+                  </Text>
+                </Box>
+              </Flex>
+            </Box>
+          </Flex>
+
+          {/* スタッフ希望時間 */}
+          <Flex align="center" gap={2}>
+            <Box w="32px" h="12px" border="2px dashed" borderColor="gray.400" borderRadius="sm" />
+            <Text fontSize="sm" color="gray.600">
+              スタッフ希望時間
+            </Text>
+          </Flex>
         </Flex>
       </Flex>
     </Box>
