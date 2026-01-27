@@ -1,6 +1,6 @@
 import { Box, Button, Flex, Icon, IconButton, Text } from "@chakra-ui/react";
-import { LuEraser, LuMousePointer2, LuPaintbrush, LuRedo2, LuUndo2 } from "react-icons/lu";
-import type { PositionType, ToolMode } from "./types";
+import { LuEraser, LuHash, LuMousePointer2, LuPaintbrush, LuPalette, LuRedo2, LuUndo2 } from "react-icons/lu";
+import type { PositionType, SummaryDisplayMode, ToolMode } from "./types";
 
 type ToolButtonProps = {
   icon: React.ElementType;
@@ -33,6 +33,8 @@ type PositionToolbarProps = {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  summaryDisplayMode: SummaryDisplayMode;
+  onSummaryDisplayModeChange: (mode: SummaryDisplayMode) => void;
 };
 
 export const PositionToolbar = ({
@@ -45,6 +47,8 @@ export const PositionToolbar = ({
   onRedo,
   canUndo,
   canRedo,
+  summaryDisplayMode,
+  onSummaryDisplayModeChange,
 }: PositionToolbarProps) => {
   const isPositionDisabled = toolMode !== "assign";
 
@@ -65,7 +69,7 @@ export const PositionToolbar = ({
 
   return (
     <Box border="1px solid" borderColor="gray.200" borderRadius="lg" p={3}>
-      {/* 上段: 3グループ */}
+      {/* 上段: 4グループ */}
       <Flex gap={4} align="flex-start" flexWrap="wrap">
         {/* グループ1: 履歴 */}
         <Box>
@@ -143,6 +147,30 @@ export const PositionToolbar = ({
                 </Button>
               );
             })}
+          </Flex>
+        </Box>
+
+        {/* セパレータ */}
+        <Box borderLeft="1px solid" borderColor="gray.200" alignSelf="stretch" />
+
+        {/* グループ4: サマリー表示切替 */}
+        <Box>
+          <Text fontSize="xs" color="gray.500" textAlign="center" mb={1}>
+            サマリー
+          </Text>
+          <Flex gap={1}>
+            <ToolButton
+              icon={LuPalette}
+              label="色"
+              isActive={summaryDisplayMode === "color"}
+              onClick={() => onSummaryDisplayModeChange("color")}
+            />
+            <ToolButton
+              icon={LuHash}
+              label="数値"
+              isActive={summaryDisplayMode === "number"}
+              onClick={() => onSummaryDisplayModeChange("number")}
+            />
           </Flex>
         </Box>
       </Flex>

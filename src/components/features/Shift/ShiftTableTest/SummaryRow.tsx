@@ -2,7 +2,13 @@ import { Box, Flex, Icon, Table, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { GridLines } from "./GridLines";
-import { type PositionType, type ShiftData, TIME_AXIS_PADDING_PX, type TimeRange } from "./types";
+import {
+  type PositionType,
+  type ShiftData,
+  type SummaryDisplayMode,
+  TIME_AXIS_PADDING_PX,
+  type TimeRange,
+} from "./types";
 
 type SummaryRowProps = {
   shifts: ShiftData[];
@@ -13,12 +19,12 @@ type SummaryRowProps = {
   onToggleExpand: () => void;
   requiredCountPerHour?: number; // 時間帯ごとの必要人数（デフォルト: 5）
   timeSlotsCount: number; // colSpan用
+  displayMode: SummaryDisplayMode;
 };
 
 // 特定時刻にポジションで稼働している人数をカウント（未提出者も含む）
 const countShiftsAtTime = (shifts: ShiftData[], targetTime: string): number => {
   return shifts.filter((shift) => {
-    // ポジションがこの時間帯にあるかチェック
     return shift.positions.some((pos) => pos.start <= targetTime && targetTime < pos.end);
   }).length;
 };
@@ -26,7 +32,6 @@ const countShiftsAtTime = (shifts: ShiftData[], targetTime: string): number => {
 // 特定時刻に特定ポジションで稼働している人数をカウント（未提出者も含む）
 const countPositionAtTime = (shifts: ShiftData[], positionId: string, targetTime: string): number => {
   return shifts.filter((shift) => {
-    // 該当ポジションがこの時間帯にあるかチェック
     return shift.positions.some(
       (pos) => pos.positionId === positionId && pos.start <= targetTime && targetTime < pos.end,
     );
@@ -44,6 +49,29 @@ const generateTimeSlots = (timeRange: TimeRange): string[] => {
   return slots;
 };
 
+// 充足率 → HSLカラー（赤0° → 緑120°）
+const getFillRateColor = (count: number, required: number) => {
+  const ratio = required === 0 ? 1 : Math.min(count / required, 1);
+  const hue = Math.round(ratio * 120);
+  return {
+    bg: `hsl(${hue}, 75%, 92%)`,
+    text: `hsl(${hue}, 65%, 35%)`,
+  };
+};
+
+// カウント配列からCSS linear-gradientを生成
+const buildGradientStyle = (counts: number[], required: number): string => {
+  if (counts.length === 0) return "transparent";
+  if (counts.length === 1) return getFillRateColor(counts[0], required).bg;
+
+  const stops = counts.map((count, i) => {
+    const percent = (i / (counts.length - 1)) * 100;
+    const { bg } = getFillRateColor(count, required);
+    return `${bg} ${percent}%`;
+  });
+  return `linear-gradient(to right, ${stops.join(", ")})`;
+};
+
 export const SummaryRow = ({
   shifts,
   positions,
@@ -53,6 +81,7 @@ export const SummaryRow = ({
   onToggleExpand,
   requiredCountPerHour = 5,
   timeSlotsCount,
+  displayMode,
 }: SummaryRowProps) => {
   // 選択日のシフトのみフィルタ
   const dateShifts = useMemo(() => shifts.filter((s) => s.date === date), [shifts, date]);
@@ -72,6 +101,12 @@ export const SummaryRow = ({
       counts: timeSlots.map((time) => countPositionAtTime(dateShifts, position.id, time)),
     }));
   }, [dateShifts, positions, timeSlots]);
+
+  // 合計行のグラデーションスタイル
+  const totalGradient = useMemo(
+    () => buildGradientStyle(totalCounts, requiredCountPerHour),
+    [totalCounts, requiredCountPerHour],
+  );
 
   return (
     <>
@@ -105,64 +140,81 @@ export const SummaryRow = ({
           <Box position="relative" height="40px" px={`${TIME_AXIS_PADDING_PX}px`}>
             {/* グリッドライン */}
             <GridLines timeRange={timeRange} />
-            <Flex position="relative" zIndex={1} height="100%" align="center">
-              {timeSlots.map((time, idx) => {
-                const count = totalCounts[idx];
-                const isShort = count < requiredCountPerHour;
-                return (
-                  <Box key={time} flex={1} textAlign="center">
-                    <Text fontSize="xs" fontWeight="medium" color={isShort ? "red.500" : "green.600"}>
-                      {count}/{requiredCountPerHour}
-                    </Text>
-                  </Box>
-                );
-              })}
-            </Flex>
+            {displayMode === "color" ? (
+              <Box position="relative" zIndex={1} height="100%" display="flex" alignItems="center" px={1}>
+                <Box width="100%" height="20px" borderRadius="sm" background={totalGradient} />
+              </Box>
+            ) : (
+              <Flex position="relative" zIndex={1} height="100%" align="center">
+                {timeSlots.map((time, idx) => {
+                  const count = totalCounts[idx];
+                  const { text } = getFillRateColor(count, requiredCountPerHour);
+                  return (
+                    <Box key={time} flex={1} textAlign="center">
+                      <Text fontSize="xs" fontWeight="medium" color={text}>
+                        {count}/{requiredCountPerHour}
+                      </Text>
+                    </Box>
+                  );
+                })}
+              </Flex>
+            )}
           </Box>
         </Table.Cell>
       </Table.Row>
 
       {/* ポジション別の内訳（展開時のみ表示） */}
       {isExpanded &&
-        positionCounts.map(({ position, counts }) => (
-          <Table.Row key={position.id} bg="gray.50">
-            <Table.Cell
-              position="sticky"
-              left={0}
-              bg="gray.50"
-              zIndex={1}
-              borderRight="1px solid"
-              borderColor="gray.100"
-              pl={6}
-            >
-              <Flex align="center" gap={2}>
-                <Box w="10px" h="10px" borderRadius="sm" bg={position.color} />
-                <Text fontSize="xs" color="gray.600">
-                  {position.name}
-                </Text>
-              </Flex>
-            </Table.Cell>
-            <Table.Cell colSpan={timeSlotsCount} p={0}>
-              <Box position="relative" height="32px" px={`${TIME_AXIS_PADDING_PX}px`}>
-                {/* グリッドライン */}
-                <GridLines timeRange={timeRange} />
-                <Flex position="relative" zIndex={1} height="100%" align="center">
-                  {timeSlots.map((time, idx) => {
-                    const count = counts[idx];
-                    const required = Math.ceil(requiredCountPerHour / positions.length); // ポジション別の必要人数（仮）
-                    return (
-                      <Box key={time} flex={1} textAlign="center">
-                        <Text fontSize="xs" fontWeight="medium" color={count < required ? "red.500" : "green.600"}>
-                          {count}/{required}
-                        </Text>
-                      </Box>
-                    );
-                  })}
+        positionCounts.map(({ position, counts }) => {
+          const required = Math.ceil(requiredCountPerHour / positions.length);
+          const positionGradient = buildGradientStyle(counts, required);
+
+          return (
+            <Table.Row key={position.id} bg="gray.50">
+              <Table.Cell
+                position="sticky"
+                left={0}
+                bg="gray.50"
+                zIndex={1}
+                borderRight="1px solid"
+                borderColor="gray.100"
+                pl={6}
+              >
+                <Flex align="center" gap={2}>
+                  <Box w="10px" h="10px" borderRadius="sm" bg={position.color} />
+                  <Text fontSize="xs" color="gray.600">
+                    {position.name}
+                  </Text>
                 </Flex>
-              </Box>
-            </Table.Cell>
-          </Table.Row>
-        ))}
+              </Table.Cell>
+              <Table.Cell colSpan={timeSlotsCount} p={0}>
+                <Box position="relative" height="32px" px={`${TIME_AXIS_PADDING_PX}px`}>
+                  {/* グリッドライン */}
+                  <GridLines timeRange={timeRange} />
+                  {displayMode === "color" ? (
+                    <Box position="relative" zIndex={1} height="100%" display="flex" alignItems="center" px={1}>
+                      <Box width="100%" height="16px" borderRadius="sm" background={positionGradient} />
+                    </Box>
+                  ) : (
+                    <Flex position="relative" zIndex={1} height="100%" align="center">
+                      {timeSlots.map((time, idx) => {
+                        const count = counts[idx];
+                        const { text } = getFillRateColor(count, required);
+                        return (
+                          <Box key={time} flex={1} textAlign="center">
+                            <Text fontSize="xs" fontWeight="medium" color={text}>
+                              {count}/{required}
+                            </Text>
+                          </Box>
+                        );
+                      })}
+                    </Flex>
+                  )}
+                </Box>
+              </Table.Cell>
+            </Table.Row>
+          );
+        })}
     </>
   );
 };

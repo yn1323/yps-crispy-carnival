@@ -52,6 +52,9 @@ export type DragMode = "position-resize-start" | "position-resize-end" | "paint"
 // ツールモード（常にどれか1つが選択される）
 export type ToolMode = "select" | "assign" | "erase";
 
+// サマリー行の表示モード
+export type SummaryDisplayMode = "color" | "number";
+
 // 連結リサイズ対象（隣接バーの境界ドラッグ用）
 export type LinkedResizeTarget = {
   // 前のポジション（end側をリサイズ）

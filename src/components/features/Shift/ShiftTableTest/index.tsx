@@ -13,7 +13,8 @@ import { ShiftBar } from "./ShiftBar";
 import { ShiftPopover } from "./ShiftPopover";
 import { SummaryRow } from "./SummaryRow";
 import { TimeHeader } from "./TimeHeader";
-import type { ShiftData, ShiftTableTestProps, ToolMode } from "./types";
+import type { ShiftData, ShiftTableTestProps, SummaryDisplayMode, ToolMode } from "./types";
+import { deletePositionFromShift, normalizePositions } from "./utils/shiftOperations";
 
 // 時間スロットを生成
 const generateTimeSlots = (start: number, end: number) => {
@@ -28,12 +29,32 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   // === Undo/Redo管理 ===
   const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
 
+  // === 正規化ラッパー ===
+  const breakPosition = useMemo(() => positions.find((p) => p.name === "休憩") ?? null, [positions]);
+
+  const setShiftsNormalized = useCallback(
+    (newShifts: ShiftData[]) => {
+      if (!breakPosition) {
+        setShifts(newShifts);
+        return;
+      }
+      setShifts(
+        newShifts.map((shift) => ({
+          ...shift,
+          positions: normalizePositions({ positions: shift.positions, breakPosition }),
+        })),
+      );
+    },
+    [setShifts, breakPosition],
+  );
+
   // === ツール・ポジション状態 ===
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [hoveredShiftId, setHoveredShiftId] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [summaryDisplayMode, setSummaryDisplayMode] = useState<SummaryDisplayMode>("color");
 
   // selectedPositionIdからポジションオブジェクトを取得（useDrag用）
   const selectedPosition = selectedPositionId ? (positions.find((p) => p.id === selectedPositionId) ?? null) : null;
@@ -66,7 +87,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   // === ドラッグ管理 ===
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag({
     shifts,
-    setShifts,
+    setShifts: setShiftsNormalized,
     selectedPosition,
     toolMode,
     selectedDate,
@@ -86,14 +107,14 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const handleDeleteShift = useCallback(
     (shiftId: string) => {
       const newShifts = shifts.filter((s) => s.id !== shiftId);
-      setShifts(newShifts);
+      setShiftsNormalized(newShifts);
       // ポップオーバー・コンテキストメニューを閉じる
       setPopoverShift(null);
       setPopoverAnchor(null);
       setContextMenuPosition(null);
       setContextMenuShiftId(null);
     },
-    [shifts, setShifts],
+    [shifts, setShiftsNormalized],
   );
 
   // シフトクリック（ツールモードに応じた処理）
@@ -102,11 +123,18 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       // 消すモード: 対象ポジションを削除
       if (toolMode === "erase" && positionId) {
         const targetShift = shifts.find((s) => s.id === shiftId);
-        if (targetShift) {
+        if (targetShift && breakPosition) {
+          const updatedShift = deletePositionFromShift({
+            shift: targetShift,
+            positionSegmentId: positionId,
+            breakPositionId: breakPosition.id,
+          });
+          const updatedShifts = shifts.map((s) => (s.id === shiftId ? updatedShift : s));
+          setShiftsNormalized(updatedShifts);
+        } else if (targetShift) {
           const updatedPositions = targetShift.positions.filter((p) => p.id !== positionId);
           const updatedShift = { ...targetShift, positions: updatedPositions };
-          const updatedShifts = shifts.map((s) => (s.id === shiftId ? updatedShift : s));
-          setShifts(updatedShifts);
+          setShifts(shifts.map((s) => (s.id === shiftId ? updatedShift : s)));
         }
         return;
       }
@@ -121,7 +149,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       }
       // 割当モード: クリックでは何もしない（ドラッグのみ）
     },
-    [shifts, toolMode, setShifts],
+    [shifts, toolMode, setShifts, setShiftsNormalized, breakPosition],
   );
 
   // ポップオーバーを閉じる
@@ -134,16 +162,22 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const handleDeletePosition = useCallback(
     (positionId: string) => {
       if (!popoverShift) return;
-      const updatedShift = {
-        ...popoverShift,
-        positions: popoverShift.positions.filter((p) => p.id !== positionId),
-      };
+      const updatedShift = breakPosition
+        ? deletePositionFromShift({
+            shift: popoverShift,
+            positionSegmentId: positionId,
+            breakPositionId: breakPosition.id,
+          })
+        : { ...popoverShift, positions: popoverShift.positions.filter((p) => p.id !== positionId) };
       const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
-      setShifts(newShifts);
-      // ポップオーバーの状態も更新
-      setPopoverShift(updatedShift);
+      setShiftsNormalized(newShifts);
+      // ポップオーバーにも正規化済み状態を反映
+      const normalizedPositions = breakPosition
+        ? normalizePositions({ positions: updatedShift.positions, breakPosition })
+        : updatedShift.positions;
+      setPopoverShift({ ...updatedShift, positions: normalizedPositions });
     },
-    [popoverShift, shifts, setShifts],
+    [popoverShift, shifts, setShiftsNormalized, breakPosition],
   );
 
   // ポップオーバーから全ポジション削除（希望シフト時間は残す）
@@ -154,10 +188,10 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       positions: [],
     };
     const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
-    setShifts(newShifts);
+    setShiftsNormalized(newShifts);
     // ポップオーバーの状態も更新
     setPopoverShift(updatedShift);
-  }, [popoverShift, shifts, setShifts]);
+  }, [popoverShift, shifts, setShiftsNormalized]);
 
   // 右クリック（コンテキストメニュー表示）
   const handleContextMenu = useCallback((e: React.MouseEvent, shiftId: string) => {
@@ -189,11 +223,11 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     if (hoveredStaffId && hasClipboard) {
       const pastedShift = paste(hoveredStaffId, selectedDate);
       if (pastedShift) {
-        setShifts([...shifts, pastedShift]);
+        setShiftsNormalized([...shifts, pastedShift]);
       }
     }
     handleContextMenuClose();
-  }, [hoveredStaffId, hasClipboard, paste, selectedDate, shifts, setShifts, handleContextMenuClose]);
+  }, [hoveredStaffId, hasClipboard, paste, selectedDate, shifts, setShiftsNormalized, handleContextMenuClose]);
 
   // コンテキストメニューから削除
   const handleDeleteFromContextMenu = useCallback(() => {
@@ -285,6 +319,8 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
           onRedo={redo}
           canUndo={canUndo}
           canRedo={canRedo}
+          summaryDisplayMode={summaryDisplayMode}
+          onSummaryDisplayModeChange={setSummaryDisplayMode}
         />
       </Box>
 
@@ -396,6 +432,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
               isExpanded={isSummaryExpanded}
               onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
               timeSlotsCount={timeSlots.length}
+              displayMode={summaryDisplayMode}
             />
           </Table.Body>
         </Table.Root>
