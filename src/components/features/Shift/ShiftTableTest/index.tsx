@@ -413,6 +413,9 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         shift={popoverShift}
         anchorRect={popoverAnchor}
         isOpen={popoverShift !== null}
+        isStaffSubmitted={
+          popoverShift ? (staffs.find((s) => s.id === popoverShift.staffId)?.isSubmitted ?? false) : false
+        }
         onClose={handlePopoverClose}
         onDeletePosition={handleDeletePosition}
         onDeleteShift={handleClearAllPositions}

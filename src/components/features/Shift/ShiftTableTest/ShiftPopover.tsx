@@ -7,6 +7,7 @@ type ShiftPopoverProps = {
   shift: ShiftData | null;
   anchorRect: DOMRect | null;
   isOpen: boolean;
+  isStaffSubmitted: boolean;
   onClose: () => void;
   onDeletePosition: (positionId: string) => void;
   onDeleteShift: () => void;
@@ -16,6 +17,7 @@ export const ShiftPopover = ({
   shift,
   anchorRect,
   isOpen,
+  isStaffSubmitted,
   onClose,
   onDeletePosition,
   onDeleteShift,
@@ -66,8 +68,10 @@ export const ShiftPopover = ({
             <Popover.Body p={0}>
               {/* 労働時間 */}
               <Box p={3} borderBottom="1px solid" borderColor="gray.100">
-                <Text fontWeight="bold" fontSize="md" color="gray.700">
-                  希望：{shift.requestedTime ? `${shift.requestedTime.start} - ${shift.requestedTime.end}` : "なし"}
+                <Text fontWeight="bold" fontSize="md" color={!isStaffSubmitted ? "orange.500" : "gray.700"}>
+                  {!isStaffSubmitted
+                    ? "未提出"
+                    : `希望：${shift.requestedTime ? `${shift.requestedTime.start} - ${shift.requestedTime.end}` : "なし"}`}
                 </Text>
               </Box>
 
