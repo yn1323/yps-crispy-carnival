@@ -54,8 +54,8 @@ const getFillRateColor = (count: number, required: number) => {
   const ratio = required === 0 ? 1 : Math.min(count / required, 1);
   const hue = Math.round(ratio * 120);
   return {
-    bg: `hsl(${hue}, 75%, 92%)`,
-    text: `hsl(${hue}, 65%, 35%)`,
+    bg: `hsl(${hue}, 80%, 75%)`,
+    text: `hsl(${hue}, 85%, 25%)`,
   };
 };
 

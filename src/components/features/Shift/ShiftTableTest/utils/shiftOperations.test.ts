@@ -261,3 +261,81 @@ describe("deletePositionFromShift", () => {
     expect(result.positions).toHaveLength(3);
   });
 });
+
+describe("resizeLinkedPositions", () => {
+  const linkedShift: ShiftData = {
+    id: "shift1",
+    staffId: "staff1",
+    staffName: "田中",
+    date: "2026-01-27",
+    requestedTime: null,
+    positions: [
+      seg({ id: "a", start: "10:00", end: "12:00" }),
+      seg({ id: "b", start: "12:00", end: "14:00", positionId: "pos2", positionName: "キッチン", color: "#f97316" }),
+    ],
+  };
+
+  const linkedTarget: LinkedResizeTarget = {
+    prevPosition: { positionId: "a", positionColor: "#3b82f6" },
+    nextPosition: { positionId: "b", positionColor: "#f97316" },
+    boundaryMinutes: 720, // 12:00
+  };
+
+  test("UNIT以上の場合は通常通りリサイズされる", () => {
+    const result = resizeLinkedPositions({
+      shift: linkedShift,
+      linkedTarget,
+      newMinutes: 690, // 11:30
+      minDuration: 30,
+    });
+    expect(result.positions).toHaveLength(2);
+    const barA = result.positions.find((p) => p.id === "a");
+    const barB = result.positions.find((p) => p.id === "b");
+    expect(barA?.end).toBe("11:30");
+    expect(barB?.start).toBe("11:30");
+  });
+
+  test("左方向ドラッグでprevバーがUNIT未満になると削除される", () => {
+    // 10:00-12:00のprevバーを10:10まで縮める → 10分 < 30分(UNIT) → 削除
+    const result = resizeLinkedPositions({
+      shift: linkedShift,
+      linkedTarget,
+      newMinutes: 610, // 10:10
+      minDuration: 30,
+    });
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions.find((p) => p.id === "a")).toBeUndefined();
+    const barB = result.positions.find((p) => p.id === "b");
+    expect(barB?.start).toBe("10:10");
+  });
+
+  test("右方向ドラッグでnextバーがUNIT未満になると削除される", () => {
+    // 12:00-14:00のnextバーを13:50まで縮める → 10分 < 30分(UNIT) → 削除
+    const result = resizeLinkedPositions({
+      shift: linkedShift,
+      linkedTarget,
+      newMinutes: 830, // 13:50
+      minDuration: 30,
+    });
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions.find((p) => p.id === "b")).toBeUndefined();
+    const barA = result.positions.find((p) => p.id === "a");
+    expect(barA?.end).toBe("13:50");
+  });
+
+  test("片側のみ（prevなし）でnextバーがUNIT未満になると削除される", () => {
+    const singleTarget: LinkedResizeTarget = {
+      prevPosition: null,
+      nextPosition: { positionId: "b", positionColor: "#f97316" },
+      boundaryMinutes: 720,
+    };
+    const result = resizeLinkedPositions({
+      shift: linkedShift,
+      linkedTarget: singleTarget,
+      newMinutes: 830, // 13:50 → nextは10分 < 30分
+      minDuration: 30,
+    });
+    expect(result.positions).toHaveLength(1);
+    expect(result.positions.find((p) => p.id === "b")).toBeUndefined();
+  });
+});

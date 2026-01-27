@@ -117,11 +117,16 @@ export const ShiftBar = ({
 
           // prevPosition（前のバー）のendを更新
           if (isResizingPrev && currentMinutes !== undefined) {
-            posEndMinutes = Math.max(currentMinutes, posStartMinutes + timeRange.unit);
+            posEndMinutes = currentMinutes;
           }
           // nextPosition（後のバー）のstartを更新
           if (isResizingNext && currentMinutes !== undefined) {
-            posStartMinutes = Math.min(currentMinutes, posEndMinutes - timeRange.unit);
+            posStartMinutes = currentMinutes;
+          }
+
+          // UNIT未満になったバーは非表示（上書きプレビュー）
+          if (isResizing && posEndMinutes - posStartMinutes < timeRange.unit) {
+            return null;
           }
 
           const posLeft = getMinutesPercent(posStartMinutes, timeRange);
