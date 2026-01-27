@@ -17,13 +17,16 @@ export const DateTabs = ({ dates, selectedDate, onSelect }: DateTabsProps) => {
     <Tabs.Root
       value={selectedDate}
       onValueChange={(e) => onSelect(e.value)}
-      variant="enclosed"
+      variant="plain"
       colorPalette="teal"
       size="sm"
     >
       <Tabs.List
         width="100%"
         overflowX="auto"
+        bg="gray.200"
+        borderBottom="1px solid"
+        borderColor="gray.200"
         css={{
           "&::-webkit-scrollbar": { display: "none" },
           scrollbarWidth: "none",
@@ -34,6 +37,7 @@ export const DateTabs = ({ dates, selectedDate, onSelect }: DateTabsProps) => {
             {formatDate(date)}
           </Tabs.Trigger>
         ))}
+        <Tabs.Indicator borderRadius="md" />
       </Tabs.List>
     </Tabs.Root>
   );

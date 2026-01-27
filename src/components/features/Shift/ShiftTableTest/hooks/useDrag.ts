@@ -119,8 +119,43 @@ export const useDrag = ({
         return false;
       }
 
-      // === 割当モード: 塗りのみ ===
+      // === 割当モード: リサイズ or 塗り ===
       if (toolMode === "assign") {
+        // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+
+        if (linkedResizeInfo) {
+          const { linkedTarget } = linkedResizeInfo;
+          const isLinked = linkedTarget.prevPosition && linkedTarget.nextPosition;
+          const edge = linkedTarget.nextPosition && !linkedTarget.prevPosition ? "start" : "end";
+          const targetPositionId =
+            linkedTarget.prevPosition?.positionId ?? linkedTarget.nextPosition?.positionId ?? null;
+          const positionColor =
+            linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
+
+          setDragState({
+            mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
+            staffId,
+            startMinutes: minutes,
+            currentMinutes: minutes,
+            targetShiftId: linkedResizeInfo.shiftId,
+            targetPositionId,
+            positionColor,
+            resizeEdge: edge,
+            linkedTarget,
+          });
+          return true;
+        }
+
+        // リサイズエッジでなければ塗りモード
         if (!selectedPosition) return false;
 
         let targetShift = findShiftAtPosition({
@@ -314,6 +349,18 @@ export const useDrag = ({
 
       // 割当モード
       if (toolMode === "assign") {
+        const linkedResizeInfo = detectLinkedResizeEdge({
+          shifts,
+          staffId,
+          date: selectedDate,
+          x,
+          containerWidth,
+          timeRange,
+          threshold: RESIZE_EDGE_THRESHOLD,
+        });
+        if (linkedResizeInfo) {
+          return "ew-resize";
+        }
         if (selectedPosition) {
           return "crosshair";
         }
