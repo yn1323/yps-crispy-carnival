@@ -285,7 +285,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
         {/* シフト表 */}
         <Box ref={tableContainerRef} overflowX="auto" overflowY="auto" maxHeight="70vh">
-          <Table.Root size="sm">
+          <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
             <Table.Header>
               <Table.Row bg="gray.50" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.08)">
                 <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={11}>
