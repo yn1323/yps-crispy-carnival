@@ -426,7 +426,14 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 );
               })}
             </Table.Body>
-            <Table.Footer position="sticky" bottom={0} zIndex={10} bg="white" boxShadow="0 -2px 4px rgba(0,0,0,0.04)">
+            <Table.Footer
+              position="sticky"
+              bottom={0}
+              zIndex={10}
+              bg="white"
+              boxShadow="0 -2px 4px rgba(0,0,0,0.04)"
+              css={{ "& tr:last-child td": { borderBottom: "none" } }}
+            >
               <SummaryRow
                 shifts={shifts}
                 positions={positions}

@@ -119,7 +119,6 @@ export const SummaryRow = ({
         onClick={onToggleExpand}
         _hover={{ bg: "gray.200" }}
         transition="background 0.15s"
-        borderBottom="5px solid gray.200"
       >
         <Table.Cell
           fontWeight="bold"
@@ -128,7 +127,7 @@ export const SummaryRow = ({
           bg="gray.100"
           zIndex={11}
           borderRight="1px solid"
-          borderTop="2px solid"
+          borderTop="1px solid"
           borderColor="gray.200"
           _hover={{ bg: "gray.200" }}
         >
@@ -139,7 +138,7 @@ export const SummaryRow = ({
             </Text>
           </Flex>
         </Table.Cell>
-        <Table.Cell colSpan={timeSlotsCount} p={0} borderTop="2px solid" borderColor="gray.200">
+        <Table.Cell colSpan={timeSlotsCount} p={0} borderTop="1px solid" borderColor="gray.200">
           <Box position="relative" height="40px" px={`${TIME_AXIS_PADDING_PX}px`}>
             {/* グリッドライン */}
             <GridLines timeRange={timeRange} />
