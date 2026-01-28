@@ -290,8 +290,6 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
           onRedo={redo}
           canUndo={canUndo}
           canRedo={canRedo}
-          summaryDisplayMode={summaryDisplayMode}
-          onSummaryDisplayModeChange={setSummaryDisplayMode}
         />
       </Box>
 
@@ -472,6 +470,7 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
                 onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
                 timeSlotsCount={timeSlots.length}
                 displayMode={summaryDisplayMode}
+                onDisplayModeChange={setSummaryDisplayMode}
               />
             </Table.Footer>
           </Table.Root>
