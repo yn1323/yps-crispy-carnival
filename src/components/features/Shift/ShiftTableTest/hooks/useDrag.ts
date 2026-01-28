@@ -40,7 +40,7 @@ type UseDragReturn = {
   handleMouseDown: (e: React.MouseEvent, staffId: string, containerRect: DOMRect) => boolean;
   handleMouseMove: (e: React.MouseEvent, containerRect: DOMRect) => void;
   handleMouseUp: () => void;
-  getCursor: (staffId: string, x: number, containerWidth: number) => string;
+  getCursor: (staffId: string, x: number) => string;
 };
 
 const initialDragState: DragState = {
@@ -78,8 +78,7 @@ export const useDrag = ({
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, staffId: string, containerRect: DOMRect): boolean => {
       const x = e.clientX - containerRect.left;
-      const containerWidth = containerRect.width;
-      const minutes = pixelToMinutes({ x, containerWidth, timeRange });
+      const minutes = pixelToMinutes({ x, timeRange });
 
       // === 選択モード: リサイズのみ ===
       if (toolMode === "select") {
@@ -88,7 +87,6 @@ export const useDrag = ({
           staffId,
           date: selectedDate,
           x,
-          containerWidth,
           timeRange,
           threshold: RESIZE_EDGE_THRESHOLD,
         });
@@ -127,7 +125,6 @@ export const useDrag = ({
           staffId,
           date: selectedDate,
           x,
-          containerWidth,
           timeRange,
           threshold: RESIZE_EDGE_THRESHOLD,
         });
@@ -202,7 +199,6 @@ export const useDrag = ({
           staffId,
           date: selectedDate,
           x,
-          containerWidth,
           timeRange,
           threshold: RESIZE_EDGE_THRESHOLD,
         });
@@ -266,8 +262,7 @@ export const useDrag = ({
       if (!dragState.mode) return;
 
       const x = e.clientX - containerRect.left;
-      const containerWidth = containerRect.width;
-      const minutes = pixelToMinutes({ x, containerWidth, timeRange });
+      const minutes = pixelToMinutes({ x, timeRange });
 
       setDragState((prev) => ({
         ...prev,
@@ -353,7 +348,7 @@ export const useDrag = ({
 
   // === カーソル判定 ===
   const getCursor = useCallback(
-    (staffId: string, x: number, containerWidth: number): string => {
+    (staffId: string, x: number): string => {
       // ドラッグ中
       if (isDragging) {
         if (dragState.mode === "position-resize-start" || dragState.mode === "position-resize-end") {
@@ -372,7 +367,6 @@ export const useDrag = ({
           staffId,
           date: selectedDate,
           x,
-          containerWidth,
           timeRange,
           threshold: RESIZE_EDGE_THRESHOLD,
         });
@@ -389,7 +383,6 @@ export const useDrag = ({
           staffId,
           date: selectedDate,
           x,
-          containerWidth,
           timeRange,
           threshold: RESIZE_EDGE_THRESHOLD,
         });
@@ -409,14 +402,13 @@ export const useDrag = ({
           staffId,
           date: selectedDate,
           x,
-          containerWidth,
           timeRange,
           threshold: RESIZE_EDGE_THRESHOLD,
         });
         if (linkedResizeInfo) {
           return "ew-resize";
         }
-        const minutes = pixelToMinutes({ x, containerWidth, timeRange });
+        const minutes = pixelToMinutes({ x, timeRange });
         const positionInfo = findPositionAtPosition({
           shifts,
           staffId,

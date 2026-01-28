@@ -36,6 +36,9 @@ type DialogProps = {
   isLoading?: boolean;
   role?: "dialog" | "alertdialog";
   submitColorPalette?: string;
+  hideFooter?: boolean;
+  maxW?: string;
+  maxH?: string;
 };
 
 export const Dialog = ({
@@ -50,27 +53,34 @@ export const Dialog = ({
   isLoading = false,
   role = "dialog",
   submitColorPalette = "teal",
+  hideFooter = false,
+  maxW,
+  maxH,
 }: DialogProps) => {
   return (
     <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center">
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
-          <ChakraDialog.Content>
-            <ChakraDialog.Header>
+          <ChakraDialog.Content maxW={maxW} maxH={maxH} display={maxH ? "flex" : undefined} flexDirection="column">
+            <ChakraDialog.Header flexShrink={0}>
               <ChakraDialog.Title>{title}</ChakraDialog.Title>
             </ChakraDialog.Header>
-            <ChakraDialog.Body>{children}</ChakraDialog.Body>
-            <ChakraDialog.Footer>
-              <Button variant="outline" onClick={onClose}>
-                {closeLabel}
-              </Button>
-              {onSubmit && (
-                <Button colorPalette={submitColorPalette} onClick={onSubmit} loading={isLoading}>
-                  {submitLabel}
+            <ChakraDialog.Body flex={maxH ? 1 : undefined} overflowY={maxH ? "auto" : undefined}>
+              {children}
+            </ChakraDialog.Body>
+            {!hideFooter && (
+              <ChakraDialog.Footer flexShrink={0}>
+                <Button variant="outline" onClick={onClose}>
+                  {closeLabel}
                 </Button>
-              )}
-            </ChakraDialog.Footer>
+                {onSubmit && (
+                  <Button colorPalette={submitColorPalette} onClick={onSubmit} loading={isLoading}>
+                    {submitLabel}
+                  </Button>
+                )}
+              </ChakraDialog.Footer>
+            )}
             <ChakraDialog.CloseTrigger position="absolute" top="2" insetEnd="2">
               <CloseButton size="sm" />
             </ChakraDialog.CloseTrigger>

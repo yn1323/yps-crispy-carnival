@@ -380,10 +380,11 @@ export const resetUserByEmail = mutation({
     await ctx.db.delete(user._id);
 
     if (user.authId) {
+      const authId = user.authId;
       // 店舗削除
       const shops = await ctx.db
         .query("shops")
-        .withIndex("by_created_by", (q) => q.eq("createdBy", user.authId!))
+        .withIndex("by_created_by", (q) => q.eq("createdBy", authId))
         .collect();
 
       for (const shop of shops) {

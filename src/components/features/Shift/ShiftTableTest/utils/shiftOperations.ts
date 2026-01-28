@@ -1,4 +1,5 @@
 import {
+  HOUR_WIDTH_PX,
   type LinkedResizeTarget,
   type PositionSegment,
   type ShiftData,
@@ -21,34 +22,31 @@ export const minutesToTime = (totalMinutes: number): string => {
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 };
 
-// X座標（ピクセル） → 分 + unitスナップ（パディング考慮）
-export const pixelToMinutes = (params: { x: number; containerWidth: number; timeRange: TimeRange }): number => {
-  const { x, containerWidth, timeRange } = params;
-  const totalMinutes = (timeRange.end - timeRange.start) * 60;
-  // パディングを考慮した実際の時間軸エリア幅
-  const effectiveWidth = containerWidth - TIME_AXIS_PADDING_PX * 2;
+// X座標（ピクセル） → 分 + unitスナップ + timeRangeクランプ（固定幅ベース、パディング考慮）
+export const pixelToMinutes = (params: { x: number; timeRange: TimeRange }): number => {
+  const { x, timeRange } = params;
   // パディング分を引いたx座標
   const effectiveX = x - TIME_AXIS_PADDING_PX;
-  const rawMinutes = (effectiveX / effectiveWidth) * totalMinutes + timeRange.start * 60;
+  // 固定幅ベースで分に変換（1時間 = HOUR_WIDTH_PX）
+  const rawMinutes = (effectiveX / HOUR_WIDTH_PX) * 60 + timeRange.start * 60;
   // unitにスナップ
-  return Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
+  const snappedMinutes = Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
+  // timeRangeの範囲内にクランプ
+  const minMinutes = timeRange.start * 60;
+  const maxMinutes = timeRange.end * 60;
+  return Math.max(minMinutes, Math.min(maxMinutes, snappedMinutes));
 };
 
-// 分 → X座標（パーセント）
-export const minutesToPercent = (minutes: number, timeRange: TimeRange): number => {
-  const totalMinutes = (timeRange.end - timeRange.start) * 60;
-  return ((minutes - timeRange.start * 60) / totalMinutes) * 100;
+// 分 → X座標（ピクセル）（固定幅ベース、パディング考慮）
+export const minutesToPixel = (minutes: number, timeRange: TimeRange): number => {
+  const minutesFromStart = minutes - timeRange.start * 60;
+  return TIME_AXIS_PADDING_PX + (minutesFromStart / 60) * HOUR_WIDTH_PX;
 };
 
-// パーセント値をcalc()式に変換（パディング考慮）
-// percent=0 → left: 20px, percent=100 → left: calc(100% - 20px)
-export const percentToCalcLeft = (percent: number, padding: number = TIME_AXIS_PADDING_PX): string => {
-  return `calc(${padding}px + (100% - ${padding * 2}px) * ${percent / 100})`;
-};
-
-// 幅のパーセント値をcalc()式に変換（パディング考慮）
-export const percentToCalcWidth = (widthPercent: number, padding: number = TIME_AXIS_PADDING_PX): string => {
-  return `calc((100% - ${padding * 2}px) * ${widthPercent / 100})`;
+// 時間軸の総幅を計算（固定幅ベース）
+export const getTimeAxisWidth = (timeRange: TimeRange): number => {
+  const totalHours = timeRange.end - timeRange.start;
+  return TIME_AXIS_PADDING_PX * 2 + totalHours * HOUR_WIDTH_PX;
 };
 
 // === シフト検索ユーティリティ ===
@@ -65,20 +63,16 @@ export const findShiftAtPosition = (params: {
   return shifts.find((shift) => shift.staffId === staffId && shift.date === date) ?? null;
 };
 
-// ポジションバー端（リサイズ対象）の検出（パディング考慮）
+// ポジションバー端（リサイズ対象）の検出（固定幅ベース）
 export const detectPositionResizeEdge = (params: {
   shifts: ShiftData[];
   staffId: string;
   date: string;
   x: number;
-  containerWidth: number;
   timeRange: TimeRange;
   threshold: number;
 }): { shiftId: string; positionId: string; positionColor: string; edge: "start" | "end" } | null => {
-  const { shifts, staffId, date, x, containerWidth, timeRange, threshold } = params;
-
-  // パディングを考慮した実際の時間軸エリア幅
-  const effectiveWidth = containerWidth - TIME_AXIS_PADDING_PX * 2;
+  const { shifts, staffId, date, x, timeRange, threshold } = params;
 
   for (const shift of shifts) {
     if (shift.staffId !== staffId || shift.date !== date) {
@@ -86,11 +80,9 @@ export const detectPositionResizeEdge = (params: {
     }
 
     for (const pos of shift.positions) {
-      const startPercent = minutesToPercent(timeToMinutes(pos.start), timeRange);
-      const endPercent = minutesToPercent(timeToMinutes(pos.end), timeRange);
-      // パディング分を加算してピクセル位置を計算
-      const startX = TIME_AXIS_PADDING_PX + (startPercent / 100) * effectiveWidth;
-      const endX = TIME_AXIS_PADDING_PX + (endPercent / 100) * effectiveWidth;
+      // 固定幅ベースでピクセル位置を計算
+      const startX = minutesToPixel(timeToMinutes(pos.start), timeRange);
+      const endX = minutesToPixel(timeToMinutes(pos.end), timeRange);
 
       if (Math.abs(x - startX) <= threshold) {
         return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "start" };
@@ -104,23 +96,19 @@ export const detectPositionResizeEdge = (params: {
   return null;
 };
 
-// 連結リサイズ対象の検出（隣接バーの境界を検出、パディング考慮）
+// 連結リサイズ対象の検出（隣接バーの境界を検出、固定幅ベース）
 export const detectLinkedResizeEdge = (params: {
   shifts: ShiftData[];
   staffId: string;
   date: string;
   x: number;
-  containerWidth: number;
   timeRange: TimeRange;
   threshold: number;
 }): { shiftId: string; linkedTarget: LinkedResizeTarget } | null => {
-  const { shifts, staffId, date, x, containerWidth, timeRange, threshold } = params;
+  const { shifts, staffId, date, x, timeRange, threshold } = params;
 
   const targetShift = shifts.find((shift) => shift.staffId === staffId && shift.date === date);
   if (!targetShift) return null;
-
-  // パディングを考慮した実際の時間軸エリア幅
-  const effectiveWidth = containerWidth - TIME_AXIS_PADDING_PX * 2;
 
   // ポジションを時間順にソート
   const sortedPositions = [...targetShift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
@@ -131,11 +119,9 @@ export const detectLinkedResizeEdge = (params: {
     const prevPos = i > 0 ? sortedPositions[i - 1] : null;
     const nextPos = i < sortedPositions.length - 1 ? sortedPositions[i + 1] : null;
 
-    const startPercent = minutesToPercent(timeToMinutes(pos.start), timeRange);
-    const endPercent = minutesToPercent(timeToMinutes(pos.end), timeRange);
-    // パディング分を加算してピクセル位置を計算
-    const startX = TIME_AXIS_PADDING_PX + (startPercent / 100) * effectiveWidth;
-    const endX = TIME_AXIS_PADDING_PX + (endPercent / 100) * effectiveWidth;
+    // 固定幅ベースでピクセル位置を計算
+    const startX = minutesToPixel(timeToMinutes(pos.start), timeRange);
+    const endX = minutesToPixel(timeToMinutes(pos.end), timeRange);
 
     // start側の判定（連結 or 単独）
     if (Math.abs(x - startX) <= threshold) {

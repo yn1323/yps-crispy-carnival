@@ -52,13 +52,33 @@ export const ShiftPopover = ({
           style={
             anchorRect
               ? (() => {
+                  const POPOVER_WIDTH = 280;
+                  const POPOVER_HALF_WIDTH = POPOVER_WIDTH / 2;
+                  const EDGE_MARGIN = 16;
+
                   const centerX = anchorRect.left + anchorRect.width / 2;
                   const showBelow = anchorRect.top < 300;
+
+                  // 画面端を考慮した水平位置調整
+                  let adjustedX = centerX;
+                  let transformX = "translateX(-50%)";
+
+                  // 右端チェック: ポップオーバー右端がビューポートを超える
+                  if (centerX + POPOVER_HALF_WIDTH > window.innerWidth - EDGE_MARGIN) {
+                    adjustedX = window.innerWidth - EDGE_MARGIN;
+                    transformX = "translateX(-100%)";
+                  }
+                  // 左端チェック: ポップオーバー左端がビューポートを超える
+                  else if (centerX - POPOVER_HALF_WIDTH < EDGE_MARGIN) {
+                    adjustedX = EDGE_MARGIN;
+                    transformX = "translateX(0)";
+                  }
+
                   return {
                     position: "fixed" as const,
-                    left: `${centerX}px`,
+                    left: `${adjustedX}px`,
                     top: showBelow ? `${anchorRect.bottom + 8}px` : `${anchorRect.top - 8}px`,
-                    transform: showBelow ? "translateX(-50%)" : "translate(-50%, -100%)",
+                    transform: showBelow ? transformX : `${transformX} translateY(-100%)`,
                   };
                 })()
               : undefined

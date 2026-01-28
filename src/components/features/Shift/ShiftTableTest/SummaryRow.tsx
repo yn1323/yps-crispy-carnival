@@ -1,15 +1,9 @@
-import { Box, Flex, Icon, Table, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, IconButton, Table, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
-import { LuChevronDown, LuChevronRight } from "react-icons/lu";
+import { LuChevronDown, LuChevronRight, LuHash, LuInfo, LuPalette } from "react-icons/lu";
+import { Tooltip } from "@/src/components/ui/tooltip";
 import { GridLines } from "./GridLines";
-import {
-  FILL_RATE_COLORS,
-  type PositionType,
-  type ShiftData,
-  type SummaryDisplayMode,
-  TIME_AXIS_PADDING_PX,
-  type TimeRange,
-} from "./types";
+import { FILL_RATE_COLORS, type PositionType, type ShiftData, type SummaryDisplayMode, type TimeRange } from "./types";
 
 type SummaryRowProps = {
   shifts: ShiftData[];
@@ -20,7 +14,9 @@ type SummaryRowProps = {
   onToggleExpand: () => void;
   requiredCountPerHour?: number; // 時間帯ごとの必要人数（デフォルト: 5）
   timeSlotsCount: number; // colSpan用
+  timeAxisWidth: number; // 時間軸の固定幅（px）
   displayMode: SummaryDisplayMode;
+  onDisplayModeChange: (mode: SummaryDisplayMode) => void;
 };
 
 // 特定時刻にポジションで稼働している人数をカウント（未提出者も含む）
@@ -83,7 +79,9 @@ export const SummaryRow = ({
   onToggleExpand,
   requiredCountPerHour = 5,
   timeSlotsCount,
+  timeAxisWidth,
   displayMode,
+  onDisplayModeChange,
 }: SummaryRowProps) => {
   // 選択日のシフトのみフィルタ
   const dateShifts = useMemo(() => shifts.filter((s) => s.date === date), [shifts, date]);
@@ -131,15 +129,68 @@ export const SummaryRow = ({
           borderColor="gray.200"
           _hover={{ bg: "gray.200" }}
         >
-          <Flex align="center">
-            <Icon as={isExpanded ? LuChevronDown : LuChevronRight} mr={1} color="gray.600" />
-            <Text fontWeight="bold" color="gray.700" fontSize="sm">
+          <Flex align="center" gap={2}>
+            <Icon as={isExpanded ? LuChevronDown : LuChevronRight} color="gray.600" />
+            <Text fontWeight="bold" color="gray.700" fontSize="sm" whiteSpace="nowrap">
               充足度
             </Text>
+            <IconButton
+              aria-label={displayMode === "color" ? "数値表示に切り替え" : "色表示に切り替え"}
+              size="2xs"
+              variant="solid"
+              colorPalette="teal"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDisplayModeChange(displayMode === "color" ? "number" : "color");
+              }}
+            >
+              {displayMode === "color" ? <LuPalette /> : <LuHash />}
+            </IconButton>
+            <Tooltip
+              showArrow
+              content={
+                <Box p={1}>
+                  <Text fontSize="xs" mb={1}>
+                    充足度カラースケール
+                  </Text>
+                  <Flex>
+                    {FILL_RATE_COLORS.map((color, i) => (
+                      <Box
+                        key={color.bg}
+                        w="full"
+                        h="8px"
+                        bg={color.bg}
+                        borderLeftRadius={i === 0 ? "sm" : undefined}
+                        borderRightRadius={i === FILL_RATE_COLORS.length - 1 ? "sm" : undefined}
+                      />
+                    ))}
+                  </Flex>
+                  <Box position="relative" width="96px" mt={0.5} height="12px">
+                    <Text fontSize="9px" position="absolute" left="0">
+                      0%
+                    </Text>
+                    <Text fontSize="9px" position="absolute" left="90px" transform="translateX(-50%)">
+                      100%
+                    </Text>
+                    <Text fontSize="9px" position="absolute" left="100px" transform="translateX(50%)">
+                      超
+                    </Text>
+                  </Box>
+                </Box>
+              }
+            >
+              <Icon as={LuInfo} boxSize={3.5} color="gray.400" cursor="help" onClick={(e) => e.stopPropagation()} />
+            </Tooltip>
           </Flex>
         </Table.Cell>
-        <Table.Cell colSpan={timeSlotsCount} p={0} borderTop="1px solid" borderColor="gray.200">
-          <Box position="relative" height="40px" px={`${TIME_AXIS_PADDING_PX}px`}>
+        <Table.Cell
+          colSpan={timeSlotsCount}
+          p={0}
+          borderTop="1px solid"
+          borderColor="gray.200"
+          w={`${timeAxisWidth}px`}
+        >
+          <Box position="relative" height="40px" width={`${timeAxisWidth}px`}>
             {/* グリッドライン */}
             <GridLines timeRange={timeRange} />
             {displayMode === "color" ? (
@@ -188,8 +239,8 @@ export const SummaryRow = ({
                   </Text>
                 </Flex>
               </Table.Cell>
-              <Table.Cell colSpan={timeSlotsCount} p={0}>
-                <Box position="relative" height="32px" px={`${TIME_AXIS_PADDING_PX}px`}>
+              <Table.Cell colSpan={timeSlotsCount} p={0} w={`${timeAxisWidth}px`}>
+                <Box position="relative" height="32px" width={`${timeAxisWidth}px`}>
                   {/* グリッドライン */}
                   <GridLines timeRange={timeRange} />
                   {displayMode === "color" ? (

@@ -1,5 +1,13 @@
 // 時間軸の左右パディング（px）
-export const TIME_AXIS_PADDING_PX = 20;
+export const TIME_AXIS_PADDING_PX = 30;
+
+// 1時間あたりの幅（px）- 固定幅計算用
+export const HOUR_WIDTH_PX = 120;
+
+// 自動スクロール設定
+export const AUTO_SCROLL_EDGE_PX = 50; // 端からの距離（px）
+export const AUTO_SCROLL_MIN_SPEED = 2; // 最小速度（px/frame）
+export const AUTO_SCROLL_MAX_SPEED = 10; // 最大速度（px/frame）
 
 // シフトデータ
 export type ShiftData = {
@@ -80,6 +88,7 @@ export type LinkedResizeTarget = {
 
 // メインコンポーネントのProps
 export type ShiftTableTestProps = {
+  shopId: string;
   staffs: StaffType[];
   positions: PositionType[];
   initialShifts: ShiftData[];
