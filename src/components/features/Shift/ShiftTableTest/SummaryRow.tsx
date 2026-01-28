@@ -3,14 +3,7 @@ import { useMemo } from "react";
 import { LuChevronDown, LuChevronRight, LuHash, LuInfo, LuPalette } from "react-icons/lu";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import { GridLines } from "./GridLines";
-import {
-  FILL_RATE_COLORS,
-  type PositionType,
-  type ShiftData,
-  type SummaryDisplayMode,
-  TIME_AXIS_PADDING_PX,
-  type TimeRange,
-} from "./types";
+import { FILL_RATE_COLORS, type PositionType, type ShiftData, type SummaryDisplayMode, type TimeRange } from "./types";
 
 type SummaryRowProps = {
   shifts: ShiftData[];
@@ -21,6 +14,7 @@ type SummaryRowProps = {
   onToggleExpand: () => void;
   requiredCountPerHour?: number; // 時間帯ごとの必要人数（デフォルト: 5）
   timeSlotsCount: number; // colSpan用
+  timeAxisWidth: number; // 時間軸の固定幅（px）
   displayMode: SummaryDisplayMode;
   onDisplayModeChange: (mode: SummaryDisplayMode) => void;
 };
@@ -85,6 +79,7 @@ export const SummaryRow = ({
   onToggleExpand,
   requiredCountPerHour = 5,
   timeSlotsCount,
+  timeAxisWidth,
   displayMode,
   onDisplayModeChange,
 }: SummaryRowProps) => {
@@ -188,8 +183,14 @@ export const SummaryRow = ({
             </Tooltip>
           </Flex>
         </Table.Cell>
-        <Table.Cell colSpan={timeSlotsCount} p={0} borderTop="1px solid" borderColor="gray.200">
-          <Box position="relative" height="40px" px={`${TIME_AXIS_PADDING_PX}px`}>
+        <Table.Cell
+          colSpan={timeSlotsCount}
+          p={0}
+          borderTop="1px solid"
+          borderColor="gray.200"
+          w={`${timeAxisWidth}px`}
+        >
+          <Box position="relative" height="40px" width={`${timeAxisWidth}px`}>
             {/* グリッドライン */}
             <GridLines timeRange={timeRange} />
             {displayMode === "color" ? (
@@ -238,8 +239,8 @@ export const SummaryRow = ({
                   </Text>
                 </Flex>
               </Table.Cell>
-              <Table.Cell colSpan={timeSlotsCount} p={0}>
-                <Box position="relative" height="32px" px={`${TIME_AXIS_PADDING_PX}px`}>
+              <Table.Cell colSpan={timeSlotsCount} p={0} w={`${timeAxisWidth}px`}>
+                <Box position="relative" height="32px" width={`${timeAxisWidth}px`}>
                   {/* グリッドライン */}
                   <GridLines timeRange={timeRange} />
                   {displayMode === "color" ? (

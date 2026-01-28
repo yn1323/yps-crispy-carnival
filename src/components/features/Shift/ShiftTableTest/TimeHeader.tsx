@@ -1,29 +1,28 @@
 import { Box, Text } from "@chakra-ui/react";
-import type { TimeRange } from "./types";
-import { percentToCalcLeft } from "./utils/shiftOperations";
+import { HOUR_WIDTH_PX, TIME_AXIS_PADDING_PX, type TimeRange } from "./types";
+import { getTimeAxisWidth } from "./utils/shiftOperations";
 
 type TimeHeaderProps = {
   timeRange: TimeRange;
 };
 
 export const TimeHeader = ({ timeRange }: TimeHeaderProps) => {
-  const totalRangeMinutes = (timeRange.end - timeRange.start) * 60;
-
-  // 各時間ラベルの位置を計算（縦線と同じ位置）
-  const timeLabels: { hour: number; percent: number }[] = [];
+  // 各時間ラベルの位置を計算（固定幅ベース）
+  const timeLabels: { hour: number; x: number }[] = [];
   for (let hour = timeRange.start; hour <= timeRange.end; hour++) {
-    const minutes = (hour - timeRange.start) * 60;
-    const percent = (minutes / totalRangeMinutes) * 100;
-    timeLabels.push({ hour, percent });
+    const x = TIME_AXIS_PADDING_PX + (hour - timeRange.start) * HOUR_WIDTH_PX;
+    timeLabels.push({ hour, x });
   }
 
+  const totalWidth = getTimeAxisWidth(timeRange);
+
   return (
-    <Box position="relative" height="24px" bg="gray.50" px={5}>
-      {timeLabels.map(({ hour, percent }) => (
+    <Box position="relative" height="24px" bg="gray.50" width={`${totalWidth}px`} minWidth="100%">
+      {timeLabels.map(({ hour, x }) => (
         <Text
           key={hour}
           position="absolute"
-          left={percentToCalcLeft(percent)}
+          left={`${x}px`}
           top="50%"
           transform="translate(-50%, -50%)"
           fontSize="xs"

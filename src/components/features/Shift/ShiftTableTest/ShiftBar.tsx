@@ -1,6 +1,6 @@
 import { Box, Text } from "@chakra-ui/react";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "./types";
-import { percentToCalcLeft, percentToCalcWidth } from "./utils/shiftOperations";
+import { minutesToPixel, timeToMinutes } from "./utils/shiftOperations";
 
 type ShiftBarProps = {
   shift: ShiftData;
@@ -12,27 +12,6 @@ type ShiftBarProps = {
   currentMinutes?: number;
   // 連結リサイズ対応
   linkedTarget?: LinkedResizeTarget | null;
-};
-
-// 時刻をパーセント位置に変換
-const getPositionPercent = (time: string, timeRange: TimeRange) => {
-  const [hours, minutes] = time.split(":").map(Number);
-  const totalMinutes = (hours - timeRange.start) * 60 + minutes;
-  const totalRangeMinutes = (timeRange.end - timeRange.start) * 60;
-  return (totalMinutes / totalRangeMinutes) * 100;
-};
-
-// 分 → パーセント位置に変換
-const getMinutesPercent = (minutes: number, timeRange: TimeRange) => {
-  const totalMinutes = minutes - timeRange.start * 60;
-  const totalRangeMinutes = (timeRange.end - timeRange.start) * 60;
-  return (totalMinutes / totalRangeMinutes) * 100;
-};
-
-// 時刻文字列 → 分
-const timeToMinutes = (time: string): number => {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
 };
 
 export const ShiftBar = ({
@@ -49,12 +28,21 @@ export const ShiftBar = ({
   // ポジションがなくて希望時間もない場合は何も表示しない
   if (!hasRequestedTime && shift.positions.length === 0) return null;
 
-  // 希望時間がある場合のバー位置計算
+  // 希望時間がある場合のバー位置計算（固定幅ベース）
   let barLeft = 0;
-  let barWidth = 100;
+  let barWidth = 0;
   if (shift.requestedTime) {
-    barLeft = getPositionPercent(shift.requestedTime.start, timeRange);
-    const barRight = getPositionPercent(shift.requestedTime.end, timeRange);
+    const startMinutes = timeToMinutes(shift.requestedTime.start);
+    const endMinutes = timeToMinutes(shift.requestedTime.end);
+    barLeft = minutesToPixel(startMinutes, timeRange);
+    const barRight = minutesToPixel(endMinutes, timeRange);
+    barWidth = barRight - barLeft;
+  } else {
+    // 希望時間がない場合は時間軸全体
+    const startMinutes = timeRange.start * 60;
+    const endMinutes = timeRange.end * 60;
+    barLeft = minutesToPixel(startMinutes, timeRange);
+    const barRight = minutesToPixel(endMinutes, timeRange);
     barWidth = barRight - barLeft;
   }
 
@@ -69,8 +57,8 @@ export const ShiftBar = ({
   return (
     <Box
       position="absolute"
-      left={percentToCalcLeft(barLeft)}
-      width={percentToCalcWidth(barWidth)}
+      left={`${barLeft}px`}
+      width={`${barWidth}px`}
       height="100%"
       top={0}
       pointerEvents={isDragging ? "none" : "auto"}
@@ -126,11 +114,12 @@ export const ShiftBar = ({
             return null;
           }
 
-          const posLeft = getMinutesPercent(posStartMinutes, timeRange);
-          const posRight = getMinutesPercent(posEndMinutes, timeRange);
+          // 固定幅ベースでピクセル位置を計算
+          const posLeftPx = minutesToPixel(posStartMinutes, timeRange);
+          const posRightPx = minutesToPixel(posEndMinutes, timeRange);
           // バー全体に対する相対位置を計算
-          const relativeLeft = ((posLeft - barLeft) / barWidth) * 100;
-          const relativeWidth = ((posRight - posLeft) / barWidth) * 100;
+          const relativeLeft = posLeftPx - barLeft;
+          const relativeWidth = posRightPx - posLeftPx;
 
           // 隣接判定: 前後のバーと連続しているか
           const isAdjacentToPrev = index > 0 && sortedPositions[index - 1].end === pos.start;
@@ -166,8 +155,8 @@ export const ShiftBar = ({
             <Box
               key={pos.id}
               position="absolute"
-              left={`${relativeLeft}%`}
-              width={`${relativeWidth}%`}
+              left={`${relativeLeft}px`}
+              width={`${relativeWidth}px`}
               height="20px"
               bg={pos.color}
               {...getBorderRadiusProps()}
@@ -200,17 +189,17 @@ export const ShiftBar = ({
             positionTimes[0].start,
           );
           const latestEnd = positionTimes.reduce((max, t) => (t.end > max ? t.end : max), positionTimes[0].end);
-          // ポジション全体の位置を計算
-          const posStartPercent = getPositionPercent(earliestStart, timeRange);
-          const posEndPercent = getPositionPercent(latestEnd, timeRange);
-          const relativeStartLeft = ((posStartPercent - barLeft) / barWidth) * 100;
-          const relativeEndLeft = ((posEndPercent - barLeft) / barWidth) * 100;
+          // ポジション全体の位置を計算（固定幅ベース）
+          const posStartPx = minutesToPixel(timeToMinutes(earliestStart), timeRange);
+          const posEndPx = minutesToPixel(timeToMinutes(latestEnd), timeRange);
+          const relativeStartLeft = posStartPx - barLeft;
+          const relativeEndLeft = posEndPx - barLeft;
 
           return (
             <>
               <Text
                 position="absolute"
-                left={`calc(${relativeStartLeft}% + 4px)`}
+                left={`${relativeStartLeft + 4}px`}
                 top="50%"
                 transform="translateY(-50%)"
                 fontSize="xs"
@@ -224,7 +213,7 @@ export const ShiftBar = ({
               </Text>
               <Text
                 position="absolute"
-                left={`calc(${relativeEndLeft}% - 4px)`}
+                left={`${relativeEndLeft - 4}px`}
                 top="50%"
                 transform="translate(-100%, -50%)"
                 fontSize="xs"
