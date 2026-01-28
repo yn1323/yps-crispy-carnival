@@ -22,7 +22,7 @@ export const minutesToTime = (totalMinutes: number): string => {
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 };
 
-// X座標（ピクセル） → 分 + unitスナップ（固定幅ベース、パディング考慮）
+// X座標（ピクセル） → 分 + unitスナップ + timeRangeクランプ（固定幅ベース、パディング考慮）
 export const pixelToMinutes = (params: { x: number; timeRange: TimeRange }): number => {
   const { x, timeRange } = params;
   // パディング分を引いたx座標
@@ -30,7 +30,11 @@ export const pixelToMinutes = (params: { x: number; timeRange: TimeRange }): num
   // 固定幅ベースで分に変換（1時間 = HOUR_WIDTH_PX）
   const rawMinutes = (effectiveX / HOUR_WIDTH_PX) * 60 + timeRange.start * 60;
   // unitにスナップ
-  return Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
+  const snappedMinutes = Math.round(rawMinutes / timeRange.unit) * timeRange.unit;
+  // timeRangeの範囲内にクランプ
+  const minMinutes = timeRange.start * 60;
+  const maxMinutes = timeRange.end * 60;
+  return Math.max(minMinutes, Math.min(maxMinutes, snappedMinutes));
 };
 
 // 分 → X座標（ピクセル）（固定幅ベース、パディング考慮）

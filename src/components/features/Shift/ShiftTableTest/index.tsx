@@ -333,6 +333,8 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
   }, [isDragging, isScrollDragging, handleMouseMove, handleMouseUp, stopScrollDrag]);
 
   // === 自動スクロール（ドラッグ中に端に近づいたら発動） ===
+  const STAFF_COLUMN_WIDTH = 120; // スタッフ名列の幅
+
   useEffect(() => {
     if (!isDragging || !tableContainerRef.current) {
       // ドラッグ終了時にRAFをキャンセル
@@ -350,29 +352,40 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
       const containerRect = container.getBoundingClientRect();
       const mouseX = mouseClientXRef.current;
 
-      // コンテナ内のマウス位置を計算
-      const relativeX = mouseX - containerRect.left;
-      const containerWidth = containerRect.width;
+      // 時間軸エリアの左端を基準に計算（スタッフ名列の幅を考慮）
+      const timeAxisLeft = containerRect.left + STAFF_COLUMN_WIDTH;
+      const timeAxisRight = containerRect.right;
 
       let scrollDelta = 0;
 
-      // 左端に近い場合（左にスクロール）
-      if (relativeX < AUTO_SCROLL_EDGE_PX && relativeX >= 0) {
-        const distance = AUTO_SCROLL_EDGE_PX - relativeX;
-        const ratio = distance / AUTO_SCROLL_EDGE_PX;
+      // 左端に近い場合（時間軸エリア基準で判定）
+      const distanceFromLeft = mouseX - timeAxisLeft;
+      if (distanceFromLeft < AUTO_SCROLL_EDGE_PX && distanceFromLeft >= -STAFF_COLUMN_WIDTH) {
+        // マウスがスタッフ名列内にある場合も含めて左スクロール発動
+        const effectiveDistance = Math.max(0, distanceFromLeft);
+        const ratio = (AUTO_SCROLL_EDGE_PX - effectiveDistance) / AUTO_SCROLL_EDGE_PX;
         scrollDelta = -(AUTO_SCROLL_MIN_SPEED + (AUTO_SCROLL_MAX_SPEED - AUTO_SCROLL_MIN_SPEED) * ratio);
       }
-      // 右端に近い場合（右にスクロール）
-      else if (relativeX > containerWidth - AUTO_SCROLL_EDGE_PX && relativeX <= containerWidth) {
-        const distance = relativeX - (containerWidth - AUTO_SCROLL_EDGE_PX);
-        const ratio = distance / AUTO_SCROLL_EDGE_PX;
-        scrollDelta = AUTO_SCROLL_MIN_SPEED + (AUTO_SCROLL_MAX_SPEED - AUTO_SCROLL_MIN_SPEED) * ratio;
+      // 右端に近い場合
+      else {
+        const distanceFromRight = timeAxisRight - mouseX;
+        if (distanceFromRight < AUTO_SCROLL_EDGE_PX && distanceFromRight >= 0) {
+          const ratio = (AUTO_SCROLL_EDGE_PX - distanceFromRight) / AUTO_SCROLL_EDGE_PX;
+          scrollDelta = AUTO_SCROLL_MIN_SPEED + (AUTO_SCROLL_MAX_SPEED - AUTO_SCROLL_MIN_SPEED) * ratio;
+        }
       }
 
       if (scrollDelta !== 0) {
         container.scrollLeft += scrollDelta;
 
-        // スクロール後、ドラッグ座標を再計算するためにmousemoveを再発火
+        // スクロール後、rectを再取得してドラッグ座標を再計算
+        if (dragState.staffId) {
+          const currentRow = rowContainerRefs.current[dragState.staffId];
+          if (currentRow) {
+            dragRowRectRef.current = currentRow.getBoundingClientRect();
+          }
+        }
+
         if (dragRowRectRef.current) {
           const syntheticEvent = {
             clientX: mouseClientXRef.current,
@@ -395,7 +408,7 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
         autoScrollRAFRef.current = null;
       }
     };
-  }, [isDragging, handleMouseMove]);
+  }, [isDragging, handleMouseMove, dragState.staffId]);
 
   // maxHeight: _auth.tsx Container の余白分を差し引く
   // base: py=8px×2 + mb=80px(BottomMenu) = 96px
@@ -453,7 +466,7 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
                       position="sticky"
                       left={0}
                       bg="white"
-                      zIndex={1}
+                      zIndex={5}
                       borderRight="1px solid"
                       borderColor="gray.100"
                     >
