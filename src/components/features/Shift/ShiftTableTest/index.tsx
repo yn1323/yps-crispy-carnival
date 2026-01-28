@@ -1,5 +1,7 @@
 import { Box, Flex, Table, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
+import { useDialog } from "@/src/components/ui/Dialog";
 import { DateTabs } from "./DateTabs";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
@@ -25,9 +27,21 @@ const generateTimeSlots = (start: number, end: number) => {
   return slots;
 };
 
-export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRange }: ShiftTableTestProps) => {
+export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates, timeRange }: ShiftTableTestProps) => {
   // === Undo/Redo管理 ===
   const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
+
+  // === スタッフ編集モーダル ===
+  const staffEditModal = useDialog();
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+
+  const handleStaffNameClick = useCallback(
+    (staffId: string) => {
+      setSelectedStaffId(staffId);
+      staffEditModal.open();
+    },
+    [staffEditModal],
+  );
 
   // === 正規化ラッパー ===
   const breakPosition = useMemo(() => positions.find((p) => p.name === "休憩") ?? null, [positions]);
@@ -321,7 +335,11 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                       borderRight="1px solid"
                       borderColor="gray.100"
                     >
-                      <Box>
+                      <Box
+                        cursor="pointer"
+                        _hover={{ color: "teal.600" }}
+                        onClick={() => handleStaffNameClick(staff.id)}
+                      >
                         <Text fontWeight="medium">{staff.name}</Text>
                         {status === "no_request" && (
                           <Text color="gray.400" fontSize="xs">
@@ -472,6 +490,17 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         onDeletePosition={handleDeletePosition}
         onDeleteShift={handleClearAllPositions}
       />
+
+      {/* スタッフ編集モーダル */}
+      {selectedStaffId && (
+        <StaffEditModal
+          staffId={selectedStaffId}
+          shopId={shopId}
+          isOpen={staffEditModal.isOpen}
+          onOpenChange={staffEditModal.onOpenChange}
+          onClose={staffEditModal.close}
+        />
+      )}
 
       {/* デバッグ情報 */}
       <VStack flexShrink={0} align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">

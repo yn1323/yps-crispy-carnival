@@ -80,6 +80,7 @@ export type LinkedResizeTarget = {
 
 // メインコンポーネントのProps
 export type ShiftTableTestProps = {
+  shopId: string;
   staffs: StaffType[];
   positions: PositionType[];
   initialShifts: ShiftData[];
