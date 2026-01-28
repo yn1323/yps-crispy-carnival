@@ -1,15 +1,18 @@
-import { Box, Flex, Skeleton, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Flex, Skeleton, Text, VStack } from "@chakra-ui/react";
 import { useMutation, useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { StaffDetailContent } from "@/src/components/features/Staff/StaffDetailContent";
 import { StaffEditForm } from "@/src/components/features/Staff/StaffEditForm";
 import type { StaffEditFormValues } from "@/src/components/features/Staff/StaffEditForm/schema";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { SKILL_LEVELS } from "@/src/constants/validations";
 import { userAtom } from "@/src/stores/user";
+
+type ModalMode = "view" | "edit";
 
 type StaffEditModalProps = {
   staffId: string;
@@ -22,6 +25,7 @@ type StaffEditModalProps = {
 
 export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose, onSave }: StaffEditModalProps) => {
   const user = useAtomValue(userAtom);
+  const [mode, setMode] = useState<ModalMode>("view");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // APIからデータを取得
@@ -70,7 +74,7 @@ export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose,
       });
 
       onSave?.();
-      onClose();
+      setMode("view");
     } catch (error) {
       toaster.error({
         title: "スタッフ情報の更新に失敗しました",
@@ -81,12 +85,34 @@ export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose,
     }
   };
 
+  const handleEditClick = () => {
+    setMode("edit");
+  };
+
+  const handleCancelEdit = () => {
+    setMode("view");
+  };
+
+  const handleClose = () => {
+    setMode("view");
+    onClose();
+  };
+
+  const handleOpenChange = (details: { open: boolean }) => {
+    if (!details.open) {
+      setMode("view");
+    }
+    onOpenChange(details);
+  };
+
+  const title = staff ? (mode === "view" ? `${staff.displayName} の詳細` : `${staff.displayName} の編集`) : "スタッフ";
+
   return (
     <Dialog
-      title={staff ? `${staff.displayName} の編集` : "スタッフ編集"}
+      title={title}
       isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      onClose={onClose}
+      onOpenChange={handleOpenChange}
+      onClose={handleClose}
       maxW="4xl"
       maxH="90vh"
       hideFooter
@@ -99,18 +125,35 @@ export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose,
         </Box>
       )}
 
-      {!isLoading && !hasError && staff && positions && staffSkills && (
-        <StaffEditForm
-          staff={staff}
-          positions={positions}
-          staffSkills={staffSkills}
-          onSubmit={handleSubmit}
-          onCancel={onClose}
-          isSubmitting={isSubmitting}
-          submitLabel="保存"
-          cancelLabel="閉じる"
-        />
-      )}
+      {!isLoading &&
+        !hasError &&
+        staff &&
+        positions &&
+        staffSkills &&
+        (mode === "view" ? (
+          <VStack align="stretch" gap={4}>
+            <StaffDetailContent staff={staff} positions={positions} staffSkills={staffSkills} />
+            <Flex justify="flex-end" gap={3} pt={4}>
+              <Button variant="outline" onClick={handleClose}>
+                閉じる
+              </Button>
+              <Button colorPalette="teal" onClick={handleEditClick}>
+                編集
+              </Button>
+            </Flex>
+          </VStack>
+        ) : (
+          <StaffEditForm
+            staff={staff}
+            positions={positions}
+            staffSkills={staffSkills}
+            onSubmit={handleSubmit}
+            onCancel={handleCancelEdit}
+            isSubmitting={isSubmitting}
+            submitLabel="保存"
+            cancelLabel="キャンセル"
+          />
+        ))}
     </Dialog>
   );
 };
@@ -118,11 +161,18 @@ export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose,
 const StaffEditModalLoading = () => {
   return (
     <VStack align="stretch" gap={6}>
+      {/* ヘッダー */}
+      <Flex align="center" gap={4}>
+        <Skeleton height="64px" width="64px" borderRadius="full" />
+        <Box>
+          <Skeleton height="28px" width="150px" mb={2} />
+          <Skeleton height="16px" width="100px" />
+        </Box>
+      </Flex>
+
       {/* 基本情報カード */}
       <Box>
-        <Skeleton height="24px" width="80px" mb={4} />
         <VStack align="stretch" gap={4}>
-          <Skeleton height="40px" />
           <Skeleton height="40px" />
           <Skeleton height="40px" />
           <Skeleton height="40px" />
@@ -133,9 +183,9 @@ const StaffEditModalLoading = () => {
       <Box>
         <Skeleton height="24px" width="60px" mb={4} />
         <VStack align="stretch" gap={4}>
-          <Skeleton height="60px" />
-          <Skeleton height="60px" />
-          <Skeleton height="60px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
         </VStack>
       </Box>
 
@@ -144,14 +194,13 @@ const StaffEditModalLoading = () => {
         <Skeleton height="24px" width="50px" mb={4} />
         <VStack align="stretch" gap={4}>
           <Skeleton height="80px" />
-          <Skeleton height="80px" />
         </VStack>
       </Box>
 
       {/* ボタン */}
       <Flex justify="flex-end" gap={3}>
-        <Skeleton height="40px" width="100px" />
-        <Skeleton height="40px" width="100px" />
+        <Skeleton height="40px" width="80px" />
+        <Skeleton height="40px" width="80px" />
       </Flex>
     </VStack>
   );
