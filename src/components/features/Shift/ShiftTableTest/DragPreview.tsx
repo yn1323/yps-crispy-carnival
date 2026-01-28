@@ -1,6 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { DragMode, TimeRange } from "./types";
-import { minutesToPercent, percentToCalcLeft, percentToCalcWidth } from "./utils/shiftOperations";
+import { minutesToPixel } from "./utils/shiftOperations";
 
 type DragPreviewProps = {
   mode: DragMode;
@@ -17,12 +17,13 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
   const [minMinutes, maxMinutes] =
     startMinutes < currentMinutes ? [startMinutes, currentMinutes] : [currentMinutes, startMinutes];
 
-  const left = minutesToPercent(minMinutes, timeRange);
-  const right = minutesToPercent(maxMinutes, timeRange);
-  const width = right - left;
+  // 固定幅ベースでピクセル位置を計算
+  const leftPx = minutesToPixel(minMinutes, timeRange);
+  const rightPx = minutesToPixel(maxMinutes, timeRange);
+  const widthPx = rightPx - leftPx;
 
-  // ドラッグ範囲が小さすぎる場合は表示しない
-  if (width < 0.5) return null;
+  // ドラッグ範囲が小さすぎる場合は表示しない（5px未満）
+  if (widthPx < 5) return null;
 
   // モードに応じた色とスタイル（希望シフトバーは編集不可のため、ポジション関連のみ）
   const getPreviewStyle = () => {
@@ -69,8 +70,8 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
   return (
     <Box
       position="absolute"
-      left={percentToCalcLeft(left)}
-      width={percentToCalcWidth(width)}
+      left={`${leftPx}px`}
+      width={`${widthPx}px`}
       top="50%"
       transform="translateY(-50%)"
       pointerEvents="none"

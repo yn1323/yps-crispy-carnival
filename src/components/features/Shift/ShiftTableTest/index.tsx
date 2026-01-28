@@ -1,5 +1,7 @@
 import { Box, Flex, Table, Text, VStack } from "@chakra-ui/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
+import { useDialog } from "@/src/components/ui/Dialog";
 import { DateTabs } from "./DateTabs";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
@@ -12,8 +14,18 @@ import { ShiftPopover } from "./ShiftPopover";
 import { SortMenu } from "./SortMenu";
 import { SummaryRow } from "./SummaryRow";
 import { TimeHeader } from "./TimeHeader";
-import type { ShiftData, ShiftTableTestProps, SortMode, StaffType, SummaryDisplayMode, ToolMode } from "./types";
-import { deletePositionFromShift, normalizePositions } from "./utils/shiftOperations";
+import {
+  AUTO_SCROLL_EDGE_PX,
+  AUTO_SCROLL_MAX_SPEED,
+  AUTO_SCROLL_MIN_SPEED,
+  type ShiftData,
+  type ShiftTableTestProps,
+  type SortMode,
+  type StaffType,
+  type SummaryDisplayMode,
+  type ToolMode,
+} from "./types";
+import { deletePositionFromShift, getTimeAxisWidth, normalizePositions } from "./utils/shiftOperations";
 import { sortStaffs } from "./utils/sortStaffs";
 
 // 時間スロットを生成
@@ -25,9 +37,21 @@ const generateTimeSlots = (start: number, end: number) => {
   return slots;
 };
 
-export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRange }: ShiftTableTestProps) => {
+export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates, timeRange }: ShiftTableTestProps) => {
   // === Undo/Redo管理 ===
   const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
+
+  // === スタッフ編集モーダル ===
+  const staffEditModal = useDialog();
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+
+  const handleStaffNameClick = useCallback(
+    (staffId: string) => {
+      setSelectedStaffId(staffId);
+      staffEditModal.open();
+    },
+    [staffEditModal],
+  );
 
   // === 正規化ラッパー ===
   const breakPosition = useMemo(() => positions.find((p) => p.name === "休憩") ?? null, [positions]);
@@ -104,6 +128,13 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
   const scrollDragRef = useRef({ isScrolling: false, startX: 0, startScrollLeft: 0 });
   const [isScrollDragging, setIsScrollDragging] = useState(false);
 
+  // === ドラッグ中の行rect保存（他行移動時も継続するため） ===
+  const dragRowRectRef = useRef<DOMRect | null>(null);
+
+  // === 自動スクロール用 ===
+  const mouseClientXRef = useRef<number>(0); // マウスのX座標（viewport基準）
+  const autoScrollRAFRef = useRef<number | null>(null); // requestAnimationFrame ID
+
   // スタッフ名取得関数（useDrag用）
   const getStaffName = useCallback((staffId: string) => staffs.find((s) => s.id === staffId)?.name ?? "", [staffs]);
 
@@ -120,6 +151,9 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
   // 時間スロット
   const timeSlots = useMemo(() => generateTimeSlots(timeRange.start, timeRange.end), [timeRange.start, timeRange.end]);
+
+  // 時間軸の固定幅を計算
+  const timeAxisWidth = useMemo(() => getTimeAxisWidth(timeRange), [timeRange]);
 
   // 選択日のシフトをスタッフごとにフィルタ
   const getShiftsForStaff = (staffId: string) => {
@@ -210,6 +244,11 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
       const rect = e.currentTarget.getBoundingClientRect();
       const dragStarted = handleMouseDown(e, staffId, rect);
 
+      // ドラッグ開始時にrectを保存（他行移動時も継続するため）
+      if (dragStarted) {
+        dragRowRectRef.current = rect;
+      }
+
       // 選択モードでドラッグ未開始（リサイズ端でない）→ 横スクロール開始
       if (toolMode === "select" && !dragStarted && tableContainerRef.current) {
         scrollDragRef.current = {
@@ -218,17 +257,10 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
           startScrollLeft: tableContainerRef.current.scrollLeft,
         };
         setIsScrollDragging(true);
+        dragRowRectRef.current = rect; // スクロール用にも保存
       }
     },
     [handleMouseDown, toolMode],
-  );
-
-  const handleRowMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      handleMouseMove(e, rect);
-    },
-    [handleMouseMove],
   );
 
   // カーソルスタイルを取得
@@ -236,7 +268,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
     (staffId: string, e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      return getCursor(staffId, x, rect.width);
+      return getCursor(staffId, x);
     },
     [getCursor],
   );
@@ -246,18 +278,137 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
 
   const handleRowMouseMoveForCursor = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, staffId: string) => {
+      // ドラッグ中でない場合のみカーソル更新（ドラッグ中はdocumentリスナーで処理）
+      if (!isDragging && !scrollDragRef.current.isScrolling) {
+        const cursor = getRowCursor(staffId, e);
+        setCursorStyle((prev) => ({ ...prev, [staffId]: cursor }));
+      }
+    },
+    [getRowCursor, isDragging],
+  );
+
+  // === document レベルのマウスイベントリスナー（ドラッグ継続用） ===
+  useEffect(() => {
+    const handleDocumentMouseMove = (e: MouseEvent) => {
+      // マウス位置を常に更新（自動スクロール用）
+      mouseClientXRef.current = e.clientX;
+
       // 横スクロール中
-      if (scrollDragRef.current.isScrolling && tableContainerRef.current) {
+      if (isScrollDragging && tableContainerRef.current) {
         const dx = e.clientX - scrollDragRef.current.startX;
         tableContainerRef.current.scrollLeft = scrollDragRef.current.startScrollLeft - dx;
+        return;
       }
 
-      const cursor = getRowCursor(staffId, e);
-      setCursorStyle((prev) => ({ ...prev, [staffId]: cursor }));
-      handleRowMouseMove(e);
-    },
-    [getRowCursor, handleRowMouseMove],
-  );
+      // ドラッグ中（ペイント/消去/リサイズ）
+      if (isDragging && dragRowRectRef.current) {
+        // 保存したrectを使ってhandleMouseMoveを呼び出す
+        handleMouseMove(e as unknown as React.MouseEvent<HTMLDivElement>, dragRowRectRef.current);
+      }
+    };
+
+    const handleDocumentMouseUp = () => {
+      // ドラッグ終了処理
+      if (isDragging) {
+        handleMouseUp();
+        dragRowRectRef.current = null;
+      }
+      // スクロール終了処理
+      if (isScrollDragging) {
+        stopScrollDrag();
+        dragRowRectRef.current = null;
+      }
+    };
+
+    // ドラッグ中またはスクロール中のみリスナー登録
+    if (isDragging || isScrollDragging) {
+      document.addEventListener("mousemove", handleDocumentMouseMove);
+      document.addEventListener("mouseup", handleDocumentMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleDocumentMouseMove);
+      document.removeEventListener("mouseup", handleDocumentMouseUp);
+    };
+  }, [isDragging, isScrollDragging, handleMouseMove, handleMouseUp, stopScrollDrag]);
+
+  // === 自動スクロール（ドラッグ中に端に近づいたら発動） ===
+  const STAFF_COLUMN_WIDTH = 120; // スタッフ名列の幅
+
+  useEffect(() => {
+    if (!isDragging || !tableContainerRef.current) {
+      // ドラッグ終了時にRAFをキャンセル
+      if (autoScrollRAFRef.current) {
+        cancelAnimationFrame(autoScrollRAFRef.current);
+        autoScrollRAFRef.current = null;
+      }
+      return;
+    }
+
+    const autoScroll = () => {
+      const container = tableContainerRef.current;
+      if (!container || !isDragging) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const mouseX = mouseClientXRef.current;
+
+      // 時間軸エリアの左端を基準に計算（スタッフ名列の幅を考慮）
+      const timeAxisLeft = containerRect.left + STAFF_COLUMN_WIDTH;
+      const timeAxisRight = containerRect.right;
+
+      let scrollDelta = 0;
+
+      // 左端に近い場合（時間軸エリア基準で判定）
+      const distanceFromLeft = mouseX - timeAxisLeft;
+      if (distanceFromLeft < AUTO_SCROLL_EDGE_PX && distanceFromLeft >= -STAFF_COLUMN_WIDTH) {
+        // マウスがスタッフ名列内にある場合も含めて左スクロール発動
+        const effectiveDistance = Math.max(0, distanceFromLeft);
+        const ratio = (AUTO_SCROLL_EDGE_PX - effectiveDistance) / AUTO_SCROLL_EDGE_PX;
+        scrollDelta = -(AUTO_SCROLL_MIN_SPEED + (AUTO_SCROLL_MAX_SPEED - AUTO_SCROLL_MIN_SPEED) * ratio);
+      }
+      // 右端に近い場合
+      else {
+        const distanceFromRight = timeAxisRight - mouseX;
+        if (distanceFromRight < AUTO_SCROLL_EDGE_PX && distanceFromRight >= 0) {
+          const ratio = (AUTO_SCROLL_EDGE_PX - distanceFromRight) / AUTO_SCROLL_EDGE_PX;
+          scrollDelta = AUTO_SCROLL_MIN_SPEED + (AUTO_SCROLL_MAX_SPEED - AUTO_SCROLL_MIN_SPEED) * ratio;
+        }
+      }
+
+      if (scrollDelta !== 0) {
+        container.scrollLeft += scrollDelta;
+
+        // スクロール後、rectを再取得してドラッグ座標を再計算
+        if (dragState.staffId) {
+          const currentRow = rowContainerRefs.current[dragState.staffId];
+          if (currentRow) {
+            dragRowRectRef.current = currentRow.getBoundingClientRect();
+          }
+        }
+
+        if (dragRowRectRef.current) {
+          const syntheticEvent = {
+            clientX: mouseClientXRef.current,
+            clientY: 0, // Y座標は使わないのでダミー
+          } as unknown as React.MouseEvent<HTMLDivElement>;
+          handleMouseMove(syntheticEvent, dragRowRectRef.current);
+        }
+      }
+
+      // 次フレームをスケジュール
+      autoScrollRAFRef.current = requestAnimationFrame(autoScroll);
+    };
+
+    // 自動スクロール開始
+    autoScrollRAFRef.current = requestAnimationFrame(autoScroll);
+
+    return () => {
+      if (autoScrollRAFRef.current) {
+        cancelAnimationFrame(autoScrollRAFRef.current);
+        autoScrollRAFRef.current = null;
+      }
+    };
+  }, [isDragging, handleMouseMove, dragState.staffId]);
 
   // maxHeight: _auth.tsx Container の余白分を差し引く
   // base: py=8px×2 + mb=80px(BottomMenu) = 96px
@@ -276,8 +427,6 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
           onRedo={redo}
           canUndo={canUndo}
           canRedo={canRedo}
-          summaryDisplayMode={summaryDisplayMode}
-          onSummaryDisplayModeChange={setSummaryDisplayMode}
         />
       </Box>
 
@@ -302,7 +451,7 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={11}>
                   <SortMenu sortMode={sortMode} onSortChange={handleSortChange} />
                 </Table.ColumnHeader>
-                <Table.ColumnHeader colSpan={timeSlots.length} p={0}>
+                <Table.ColumnHeader colSpan={timeSlots.length} p={0} w={`${timeAxisWidth}px`}>
                   <TimeHeader timeRange={timeRange} />
                 </Table.ColumnHeader>
               </Table.Row>
@@ -317,11 +466,15 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                       position="sticky"
                       left={0}
                       bg="white"
-                      zIndex={1}
+                      zIndex={5}
                       borderRight="1px solid"
                       borderColor="gray.100"
                     >
-                      <Box>
+                      <Box
+                        cursor="pointer"
+                        _hover={{ color: "teal.600" }}
+                        onClick={() => handleStaffNameClick(staff.id)}
+                      >
                         <Text fontWeight="medium">{staff.name}</Text>
                         {status === "no_request" && (
                           <Text color="gray.400" fontSize="xs">
@@ -335,21 +488,23 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                         )}
                       </Box>
                     </Table.Cell>
-                    <Table.Cell colSpan={timeSlots.length} p={0}>
+                    <Table.Cell colSpan={timeSlots.length} p={0} w={`${timeAxisWidth}px`}>
                       <Box
                         ref={(el: HTMLDivElement | null) => {
                           rowContainerRefs.current[staff.id] = el;
                         }}
                         position="relative"
                         height="50px"
-                        px={5}
+                        width={`${timeAxisWidth}px`}
                         bg="transparent"
+                        overflow="hidden"
                         onMouseDown={(e) => {
                           paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
                           handleRowMouseDown(e, staff.id);
                         }}
                         onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
                         onMouseUp={() => {
+                          // ドラッグ終了は document リスナーで処理するため、ここでは popover 表示のみ
                           // Paint モードで移動なし（クリック）→ 既存ポジション上ならポップオーバー表示
                           if (
                             dragState.mode === "paint" &&
@@ -382,12 +537,13 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                               setPopoverAnchor(paintClickAnchorRef.current);
                             }
                           }
-                          handleMouseUp();
-                          stopScrollDrag();
                         }}
                         onMouseLeave={() => {
-                          handleMouseUp();
-                          stopScrollDrag();
+                          // ドラッグ中は終了しない（documentリスナーで処理）
+                          // カーソルスタイルのみリセット
+                          if (!isDragging && !scrollDragRef.current.isScrolling) {
+                            setCursorStyle((prev) => ({ ...prev, [staff.id]: "default" }));
+                          }
                         }}
                         cursor={isScrollDragging ? "grabbing" : (cursorStyle[staff.id] ?? "default")}
                         userSelect="none"
@@ -453,7 +609,9 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
                 isExpanded={isSummaryExpanded}
                 onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
                 timeSlotsCount={timeSlots.length}
+                timeAxisWidth={timeAxisWidth}
                 displayMode={summaryDisplayMode}
+                onDisplayModeChange={setSummaryDisplayMode}
               />
             </Table.Footer>
           </Table.Root>
@@ -472,6 +630,17 @@ export const ShiftTableTest = ({ staffs, positions, initialShifts, dates, timeRa
         onDeletePosition={handleDeletePosition}
         onDeleteShift={handleClearAllPositions}
       />
+
+      {/* スタッフ編集モーダル */}
+      {selectedStaffId && (
+        <StaffEditModal
+          staffId={selectedStaffId}
+          shopId={shopId}
+          isOpen={staffEditModal.isOpen}
+          onOpenChange={staffEditModal.onOpenChange}
+          onClose={staffEditModal.close}
+        />
+      )}
 
       {/* デバッグ情報 */}
       <VStack flexShrink={0} align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">

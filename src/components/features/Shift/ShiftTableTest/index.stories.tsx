@@ -120,6 +120,7 @@ const mockDates = ["2026-01-21", "2026-01-22", "2026-01-23", "2026-01-24", "2026
 // 基本ストーリー
 export const Basic: Story = {
   args: {
+    shopId: "shop1",
     staffs: mockStaffs,
     positions: mockPositions,
     initialShifts: mockShifts,
@@ -131,6 +132,7 @@ export const Basic: Story = {
 // 空の状態
 export const Empty: Story = {
   args: {
+    shopId: "shop1",
     staffs: mockStaffs,
     positions: mockPositions,
     initialShifts: [],
@@ -142,6 +144,7 @@ export const Empty: Story = {
 // 多くのスタッフ
 export const ManyStaffs: Story = {
   args: {
+    shopId: "shop1",
     staffs: [
       ...mockStaffs,
       { id: "staff6", name: "Fさん", isSubmitted: true },
@@ -203,6 +206,7 @@ export const ManyStaffs: Story = {
 // 15分単位
 export const Unit15Minutes: Story = {
   args: {
+    shopId: "shop1",
     staffs: mockStaffs,
     positions: mockPositions,
     initialShifts: mockShifts,
@@ -214,6 +218,7 @@ export const Unit15Minutes: Story = {
 // 1日だけ
 export const SingleDay: Story = {
   args: {
+    shopId: "shop1",
     staffs: mockStaffs.slice(0, 3),
     positions: mockPositions,
     initialShifts: mockShifts.filter((s) => s.date === "2026-01-21"),
@@ -225,6 +230,7 @@ export const SingleDay: Story = {
 // ポジション10個（2行折り返しレイアウト確認用）
 export const ManyPositions: Story = {
   args: {
+    shopId: "shop1",
     staffs: mockStaffs,
     positions: [
       ...mockPositions,
@@ -246,6 +252,7 @@ export const ManyPositions: Story = {
 // 1/21: Aさん(希望あり), Bさん(希望あり), Cさん(未提出+割当済), Dさん(希望あり), Eさん(未提出)
 export const SubmissionStatus: Story = {
   args: {
+    shopId: "shop1",
     staffs: mockStaffs,
     positions: mockPositions,
     initialShifts: mockShifts,
@@ -404,6 +411,7 @@ const largeTeamShifts = generateLargeTeamShifts();
 // 40名スタッフ（大規模チーム・ソート確認用）
 export const LargeTeam: Story = {
   args: {
+    shopId: "shop1",
     staffs: largeTeamStaffs,
     positions: mockPositions,
     initialShifts: largeTeamShifts,
