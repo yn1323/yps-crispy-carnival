@@ -34,6 +34,7 @@ type DialogProps = {
   onClose?: () => void;
   closeLabel?: string;
   isLoading?: boolean;
+  isSubmitDisabled?: boolean;
   role?: "dialog" | "alertdialog";
   submitColorPalette?: string;
   hideFooter?: boolean;
@@ -51,6 +52,7 @@ export const Dialog = ({
   onClose,
   closeLabel = "キャンセル",
   isLoading = false,
+  isSubmitDisabled = false,
   role = "dialog",
   submitColorPalette = "teal",
   hideFooter = false,
@@ -75,7 +77,12 @@ export const Dialog = ({
                   {closeLabel}
                 </Button>
                 {onSubmit && (
-                  <Button colorPalette={submitColorPalette} onClick={onSubmit} loading={isLoading}>
+                  <Button
+                    colorPalette={submitColorPalette}
+                    onClick={onSubmit}
+                    loading={isLoading}
+                    disabled={isSubmitDisabled}
+                  >
                     {submitLabel}
                   </Button>
                 )}
