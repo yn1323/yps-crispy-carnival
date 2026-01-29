@@ -1,8 +1,12 @@
-import { Box, Button, Card, Container, Flex, Heading, Icon, Input, Table, Tabs, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Card, Container, Flex, Heading, Icon, Input, Table, Text, VStack } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
-import { LuSave, LuSettings } from "react-icons/lu";
+import { LuCopy, LuRefreshCw, LuSave, LuSettings } from "react-icons/lu";
+import { useDialog } from "@/src/components/ui/Dialog";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
+import { CopyModal } from "./CopyModal";
+import { DayTabs } from "./DayTabs";
+import { RegenerateModal } from "./RegenerateModal";
 
 // 必要人員データ型
 type RequiredStaffingType = {
@@ -26,18 +30,49 @@ type ShopType = {
   closeTime: string;
 };
 
+type StaffingItem = {
+  hour: number;
+  position: string;
+  requiredCount: number;
+};
+
+type AIInput = {
+  shopType: string;
+  customerCount: string;
+};
+
 type StaffingMatrixProps = {
   shopId: string;
   shop: ShopType;
   positions: PositionType[];
   initialStaffing: RequiredStaffingType[];
+  onSave: (params: { dayOfWeek: number; staffing: StaffingItem[]; aiInput?: AIInput }) => Promise<void>;
+  onCopy: (params: { sourceDayOfWeek: number; targetDaysOfWeek: number[] }) => Promise<void>;
+  isSaving?: boolean;
+  isCopying?: boolean;
 };
 
 const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
-export const StaffingMatrix = ({ shopId, shop, positions, initialStaffing }: StaffingMatrixProps) => {
+export const StaffingMatrix = ({
+  shopId,
+  shop,
+  positions,
+  initialStaffing,
+  onSave,
+  onCopy,
+  isSaving = false,
+  isCopying = false,
+}: StaffingMatrixProps) => {
   // 曜日タブ選択（月曜=1をデフォルト）
-  const [selectedDay, setSelectedDay] = useState("1");
+  const [selectedDay, setSelectedDay] = useState(1);
+
+  // モーダル管理
+  const copyModal = useDialog();
+  const regenerateModal = useDialog();
+
+  // AI入力の保存（作り直す時に前回値を使用）
+  const [aiInput, setAiInput] = useState({ shopType: "", customerCount: "" });
 
   // 営業時間から時間帯リストを生成
   const hours = useMemo(() => {
@@ -76,18 +111,94 @@ export const StaffingMatrix = ({ shopId, shop, positions, initialStaffing }: Sta
     setHasChanges(true);
   };
 
-  // 保存処理
-  const handleSave = () => {
-    // TODO: useMutation呼び出し
-    console.log("保存データ:", staffingMap);
-    toaster.create({
-      description: "必要人員設定を保存しました",
-      type: "success",
-    });
-    setHasChanges(false);
+  // 現在の曜日のstaffing配列を生成
+  const buildStaffingArray = (dayOfWeek: number) => {
+    const result: { hour: number; position: string; requiredCount: number }[] = [];
+    for (const hour of hours) {
+      for (const pos of positions) {
+        const key = `${dayOfWeek}-${hour}-${pos.name}`;
+        result.push({
+          hour,
+          position: pos.name,
+          requiredCount: staffingMap[key] ?? 0,
+        });
+      }
+    }
+    return result;
   };
 
-  const currentDayOfWeek = Number.parseInt(selectedDay, 10);
+  // 保存処理
+  const handleSave = async () => {
+    try {
+      await onSave({
+        dayOfWeek: selectedDay,
+        staffing: buildStaffingArray(selectedDay),
+        aiInput: aiInput.shopType ? aiInput : undefined,
+      });
+      setHasChanges(false);
+    } catch {
+      // エラーはpages側でハンドリング済み
+    }
+  };
+
+  // コピー処理
+  const handleCopy = async (targetDays: number[]) => {
+    try {
+      // まず現在の曜日を保存
+      await onSave({
+        dayOfWeek: selectedDay,
+        staffing: buildStaffingArray(selectedDay),
+      });
+
+      // 他の曜日にコピー
+      await onCopy({
+        sourceDayOfWeek: selectedDay,
+        targetDaysOfWeek: targetDays,
+      });
+
+      // ローカルstateも更新
+      setStaffingMap((prev) => {
+        const newMap = { ...prev };
+        for (const hour of hours) {
+          for (const pos of positions) {
+            const sourceKey = `${selectedDay}-${hour}-${pos.name}`;
+            const sourceValue = prev[sourceKey] ?? 0;
+            for (const targetDay of targetDays) {
+              const targetKey = `${targetDay}-${hour}-${pos.name}`;
+              newMap[targetKey] = sourceValue;
+            }
+          }
+        }
+        return newMap;
+      });
+
+      copyModal.close();
+    } catch {
+      // エラーはpages側でハンドリング済み
+    }
+  };
+
+  // AI再生成処理
+  const handleRegenerate = (
+    result: { hour: number; position: string; requiredCount: number }[],
+    newAiInput: { shopType: string; customerCount: string },
+  ) => {
+    setStaffingMap((prev) => {
+      const newMap = { ...prev };
+      for (const item of result) {
+        const key = `${selectedDay}-${item.hour}-${item.position}`;
+        newMap[key] = item.requiredCount;
+      }
+      return newMap;
+    });
+    setAiInput(newAiInput);
+    setHasChanges(true);
+    regenerateModal.close();
+    toaster.create({
+      description: "AIで再生成しました",
+      type: "success",
+    });
+  };
 
   return (
     <Container maxW="6xl">
@@ -108,22 +219,25 @@ export const StaffingMatrix = ({ shopId, shop, positions, initialStaffing }: Sta
         </Flex>
       </Title>
 
-      {/* 曜日タブ */}
-      <Box mb={4}>
-        <Tabs.Root value={selectedDay} onValueChange={(e) => setSelectedDay(e.value)} variant="outline">
-          <Tabs.List>
-            {DAY_LABELS.map((day, idx) => (
-              <Tabs.Trigger key={idx} value={String(idx)} px={{ base: 3, md: 4 }}>
-                {day}
-              </Tabs.Trigger>
-            ))}
-          </Tabs.List>
-        </Tabs.Root>
-      </Box>
+      {/* 曜日タブ + アクションボタン */}
+      <Flex mb={4} justify="space-between" align="center" wrap="wrap" gap={3}>
+        <DayTabs selectedDay={selectedDay} onChange={setSelectedDay} />
+
+        <Flex gap={2}>
+          <Button variant="outline" size="sm" onClick={copyModal.open}>
+            <Icon as={LuCopy} />
+            コピー
+          </Button>
+          <Button variant="outline" size="sm" onClick={regenerateModal.open}>
+            <Icon as={LuRefreshCw} />
+            作り直す
+          </Button>
+        </Flex>
+      </Flex>
 
       {/* 曜日見出し */}
       <Text fontWeight="bold" mb={3} color="gray.700">
-        {DAY_LABELS[currentDayOfWeek]}曜日の必要人員
+        {DAY_LABELS[selectedDay]}曜日の必要人員
       </Text>
 
       {/* PC表示: Table形式 */}
@@ -131,7 +245,7 @@ export const StaffingMatrix = ({ shopId, shop, positions, initialStaffing }: Sta
         <StaffingTable
           hours={hours}
           positions={positions}
-          dayOfWeek={currentDayOfWeek}
+          dayOfWeek={selectedDay}
           getCount={getCount}
           onCountChange={handleCountChange}
         />
@@ -142,11 +256,33 @@ export const StaffingMatrix = ({ shopId, shop, positions, initialStaffing }: Sta
         <StaffingCardList
           hours={hours}
           positions={positions}
-          dayOfWeek={currentDayOfWeek}
+          dayOfWeek={selectedDay}
           getCount={getCount}
           onCountChange={handleCountChange}
         />
       </Box>
+
+      {/* コピーモーダル */}
+      <CopyModal
+        isOpen={copyModal.isOpen}
+        onOpenChange={copyModal.onOpenChange}
+        onClose={copyModal.close}
+        sourceDayOfWeek={selectedDay}
+        onCopy={handleCopy}
+        isLoading={isCopying}
+      />
+
+      {/* AI再生成モーダル */}
+      <RegenerateModal
+        isOpen={regenerateModal.isOpen}
+        onOpenChange={regenerateModal.onOpenChange}
+        onClose={regenerateModal.close}
+        initialAIInput={aiInput}
+        onRegenerate={handleRegenerate}
+        openTime={shop.openTime}
+        closeTime={shop.closeTime}
+        positions={positions}
+      />
 
       {/* アクションボタン */}
       <Flex
@@ -158,7 +294,13 @@ export const StaffingMatrix = ({ shopId, shop, positions, initialStaffing }: Sta
         borderColor="gray.200"
         pt={6}
       >
-        <Button colorPalette="purple" onClick={handleSave} disabled={!hasChanges} w={{ base: "full", sm: "auto" }}>
+        <Button
+          colorPalette="teal"
+          onClick={handleSave}
+          disabled={!hasChanges}
+          loading={isSaving}
+          w={{ base: "full", sm: "auto" }}
+        >
           <Icon as={LuSave} />
           保存する
         </Button>
