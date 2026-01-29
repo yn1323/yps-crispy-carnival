@@ -98,12 +98,35 @@ const staffSkills = defineTable({
   .index("by_staff", ["staffId"])
   .index("by_position", ["positionId"]);
 
+// 必要人員設定（曜日ごと）
+const requiredStaffing = defineTable({
+  shopId: v.id("shops"),
+  dayOfWeek: v.number(), // 0=日, 1=月, ..., 6=土
+  staffing: v.array(
+    v.object({
+      hour: v.number(), // 0-23
+      position: v.string(),
+      requiredCount: v.number(),
+    }),
+  ),
+  // AI生成時の入力情報（作り直し用）
+  aiInput: v.optional(
+    v.object({
+      shopType: v.string(),
+      customerCount: v.string(),
+    }),
+  ),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+}).index("by_shop", ["shopId"]);
+
 const schema = defineSchema({
   users,
   shops,
   staffs,
   shopPositions,
   staffSkills,
+  requiredStaffing,
 });
 
 // テーブル名を型安全にエクスポート（testing.tsで使用）

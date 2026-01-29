@@ -1,11 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StaffingMatrix } from "./index";
 
+// モック関数
+const mockOnSave = async () => {
+  console.log("onSave called");
+};
+
+const mockOnCopy = async () => {
+  console.log("onCopy called");
+};
+
 const meta = {
   title: "features/Shift/StaffingMatrix",
   component: StaffingMatrix,
   parameters: {
     layout: "fullscreen",
+  },
+  args: {
+    onSave: mockOnSave,
+    onCopy: mockOnCopy,
   },
 } satisfies Meta<typeof StaffingMatrix>;
 
