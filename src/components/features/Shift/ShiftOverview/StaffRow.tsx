@@ -1,24 +1,39 @@
-import { Box, Table, Text } from "@chakra-ui/react";
+import { Box, HStack, Icon, Table, Text } from "@chakra-ui/react";
+import { LuTriangleAlert } from "react-icons/lu";
 import { DATE_CELL_WIDTH, ROW_HEIGHT, STAFF_NAME_CELL_WIDTH } from "./constants";
 import { MonthSummaryCell } from "./MonthSummaryCell";
-import type { StaffRowProps } from "./types";
+import type { DailyShift, StaffRowProps } from "./types";
 import { isHoliday, isSaturday, isSunday } from "./utils/dateUtils";
 
 /**
- * 日付セルの背景色を取得（ホバー時は gray.100）
+ * 日付セルの背景色を取得
+ * 未提出スタッフは薄い赤背景で強調
  */
-const getDateCellBg = (date: string, holidays: string[]) => {
-  if (isSunday(date) || isHoliday(date, holidays)) {
-    return "red.50";
-  }
-  if (isSaturday(date)) {
-    return "blue.50";
-  }
+const getDateCellBg = (date: string, holidays: string[], isUnsubmitted: boolean, hasShift: boolean) => {
+  if (isUnsubmitted && !hasShift) return "red.50";
+  if (isSunday(date) || isHoliday(date, holidays)) return "red.50";
+  if (isSaturday(date)) return "blue.50";
   return "white";
 };
 
+/**
+ * 日付セルの表示内容を決定
+ * - 未提出スタッフ: 「未」(orange.400)
+ * - 提出済み＆勤務あり: 「09:00-17:00」(gray.800)
+ * - 提出済み＆勤務なし: 「休」(gray.400)
+ */
+const getShiftCellDisplay = (shift: DailyShift | null | undefined, isSubmitted: boolean) => {
+  if (!isSubmitted) {
+    if (shift) return { label: `${shift.start}-${shift.end}`, color: "orange.400" };
+    return { label: "未", color: "orange.400" };
+  }
+  if (shift) return { label: `${shift.start}-${shift.end}`, color: "gray.800" };
+  return { label: "休", color: "gray.400" };
+};
+
 export const StaffRow = ({ data, dates, months, holidays, onStaffClick, onDateClick }: StaffRowProps) => {
-  const { staffId, staffName, dailyShifts, monthlyTotals, alerts } = data;
+  const { staffId, staffName, isSubmitted, dailyShifts, monthlyTotals, alerts } = data;
+  const isUnsubmitted = !isSubmitted;
 
   return (
     <Table.Row>
@@ -26,7 +41,7 @@ export const StaffRow = ({ data, dates, months, holidays, onStaffClick, onDateCl
       <Table.Cell
         position="sticky"
         left={0}
-        bg="white"
+        bg={isUnsubmitted ? "red.50" : "white"}
         zIndex={1}
         w={`${STAFF_NAME_CELL_WIDTH}px`}
         minW={`${STAFF_NAME_CELL_WIDTH}px`}
@@ -42,22 +57,26 @@ export const StaffRow = ({ data, dates, months, holidays, onStaffClick, onDateCl
           w="full"
           h="full"
           cursor="pointer"
-          _hover={{ bg: "gray.100" }}
+          _hover={{ bg: isUnsubmitted ? "red.100" : "gray.100" }}
           transition="all 0.15s"
           borderRadius="sm"
           px={1}
           onClick={onStaffClick}
         >
-          <Text fontSize="xs" fontWeight="medium" truncate>
-            {staffName}
-          </Text>
+          <HStack gap={1} w="full">
+            {isUnsubmitted && <Icon as={LuTriangleAlert} boxSize={3} color="orange.500" flexShrink={0} />}
+            <Text fontSize="xs" fontWeight="medium" truncate>
+              {staffName}
+            </Text>
+          </HStack>
         </Box>
       </Table.Cell>
 
       {/* 日付セル */}
       {dates.map((date) => {
         const shift = dailyShifts.get(date);
-        const bg = getDateCellBg(date, holidays);
+        const bg = getDateCellBg(date, holidays, isUnsubmitted, !!shift);
+        const { label, color } = getShiftCellDisplay(shift, isSubmitted);
 
         return (
           <Table.Cell
@@ -71,12 +90,12 @@ export const StaffRow = ({ data, dates, months, holidays, onStaffClick, onDateCl
             borderRight="1px solid"
             borderColor="gray.200"
             cursor={onDateClick ? "pointer" : "default"}
-            _hover={onDateClick ? { bg: "gray.100" } : undefined}
+            _hover={onDateClick ? { bg: isUnsubmitted ? "red.100" : "gray.100" } : undefined}
             transition="all 0.15s"
             onClick={() => onDateClick?.(date)}
           >
-            <Text fontSize="xs" color={shift ? "gray.800" : "gray.400"}>
-              {shift ? `${shift.start}-${shift.end}` : "-"}
+            <Text fontSize="xs" color={color}>
+              {label}
             </Text>
           </Table.Cell>
         );

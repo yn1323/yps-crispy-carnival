@@ -1,13 +1,66 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useCallback, useMemo, useState } from "react";
 import { ShiftTableTest } from ".";
+import { useUndoRedo } from "./hooks/useUndoRedo";
+import type { ShiftData, SortMode, StaffType } from "./types";
+import { sortStaffs } from "./utils/sortStaffs";
+
+// Controlled wrapper for Storybook
+const ShiftTableTestStory = (
+  props: Omit<
+    React.ComponentProps<typeof ShiftTableTest>,
+    | "shifts"
+    | "onShiftsChange"
+    | "selectedDate"
+    | "onDateChange"
+    | "onUndo"
+    | "onRedo"
+    | "canUndo"
+    | "canRedo"
+    | "sortMode"
+    | "onSortModeChange"
+    | "staffs"
+  > & { initialShifts: ShiftData[]; staffs: StaffType[] },
+) => {
+  const { initialShifts, staffs, ...rest } = props;
+  const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
+  const [selectedDate, setSelectedDate] = useState(rest.dates[0] ?? "");
+  const [sortMode, setSortMode] = useState<SortMode>("default");
+
+  const sortedStaffs = useMemo(
+    () => sortStaffs({ staffs, shifts, selectedDate, sortMode }),
+    [staffs, shifts, selectedDate, sortMode],
+  );
+
+  const handleDateChange = useCallback((date: string) => {
+    setSelectedDate(date);
+  }, []);
+
+  return (
+    <ShiftTableTest
+      {...rest}
+      staffs={sortedStaffs}
+      shifts={shifts}
+      onShiftsChange={setShifts}
+      selectedDate={selectedDate}
+      onDateChange={handleDateChange}
+      onUndo={undo}
+      onRedo={redo}
+      canUndo={canUndo}
+      canRedo={canRedo}
+      sortMode={sortMode}
+      onSortModeChange={setSortMode}
+    />
+  );
+};
 
 const meta = {
   title: "Features/Shift/ShiftTableTest",
-  component: ShiftTableTest,
+  component: ShiftTableTestStory,
   parameters: {
     layout: "fullscreen",
   },
-} satisfies Meta<typeof ShiftTableTest>;
+} satisfies Meta<typeof ShiftTableTestStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

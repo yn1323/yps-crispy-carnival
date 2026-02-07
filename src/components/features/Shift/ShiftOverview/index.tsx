@@ -4,23 +4,23 @@ import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { OverviewHeader } from "./OverviewHeader";
 import { StaffRow } from "./StaffRow";
-import type { OverviewSortMode, ShiftOverviewProps } from "./types";
+import { SummaryFooterRow } from "./SummaryFooterRow";
+import type { ShiftOverviewProps } from "./types";
 import { prepareStaffRowData } from "./utils/calculations";
-import { getDateRange, getMonthsInRange } from "./utils/dateUtils";
-import { sortStaffsForOverview } from "./utils/sortStaffs";
+import { getMonthsInRange } from "./utils/dateUtils";
 
 export const ShiftOverview = ({
   shopId,
-  startDate,
-  endDate,
+  dates,
   staffs,
   shifts,
   allShifts,
   holidays = [],
   onDateClick,
+  requiredStaffing,
+  sortMode,
+  onSortModeChange,
 }: ShiftOverviewProps) => {
-  const [sortMode, setSortMode] = useState<OverviewSortMode>("default");
-
   // スタッフ編集モーダル
   const staffEditModal = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
@@ -33,40 +33,35 @@ export const ShiftOverview = ({
     [staffEditModal],
   );
 
-  // 日付配列生成
-  const dates = useMemo(() => getDateRange(startDate, endDate), [startDate, endDate]);
-
   // 月一覧取得
-  const months = useMemo(() => getMonthsInRange(startDate, endDate), [startDate, endDate]);
+  const months = useMemo(() => (dates.length > 0 ? getMonthsInRange(dates[0], dates[dates.length - 1]) : []), [dates]);
 
   // 月合計用のシフトデータ（allShiftsがあればそれを使用）
   const shiftsForMonthly = allShifts ?? shifts;
 
-  // スタッフごとのデータ整形
+  // スタッフごとのデータ整形（staffs の props 順を維持）
   const staffRowDataList = useMemo(
     () => prepareStaffRowData(staffs, shifts, shiftsForMonthly, dates, months),
     [staffs, shifts, shiftsForMonthly, dates, months],
   );
 
-  // ソート適用
-  const sortedStaffData = useMemo(
-    () => sortStaffsForOverview(staffRowDataList, sortMode),
-    [staffRowDataList, sortMode],
-  );
+  // 未提出スタッフ数
+  const unsubmittedCount = useMemo(() => staffRowDataList.filter((s) => !s.isSubmitted).length, [staffRowDataList]);
 
   return (
     <>
-      <Box overflow="auto" maxH="80vh" border="1px solid" borderColor="gray.200" borderRadius="md">
+      <Box overflow="auto" border="1px solid" borderColor="gray.200" borderRadius="md">
         <Table.Root size="sm" variant="outline" stickyHeader>
           <OverviewHeader
             dates={dates}
             months={months}
             holidays={holidays}
-            sortMode={sortMode}
-            onSortChange={setSortMode}
+            unsubmittedCount={unsubmittedCount}
+            sortMode={sortMode ?? null}
+            onSortModeChange={onSortModeChange ?? (() => {})}
           />
           <Table.Body>
-            {sortedStaffData.map((staffData) => (
+            {staffRowDataList.map((staffData) => (
               <StaffRow
                 key={staffData.staffId}
                 data={staffData}
@@ -78,6 +73,13 @@ export const ShiftOverview = ({
               />
             ))}
           </Table.Body>
+          <SummaryFooterRow
+            shifts={shifts}
+            dates={dates}
+            months={months}
+            onDateClick={onDateClick}
+            requiredStaffing={requiredStaffing}
+          />
         </Table.Root>
       </Box>
 

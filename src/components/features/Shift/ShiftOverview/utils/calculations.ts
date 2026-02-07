@@ -133,6 +133,7 @@ export const prepareStaffRowData = (
     return {
       staffId: staff.id,
       staffName: staff.name,
+      isSubmitted: staff.isSubmitted,
       dailyShifts,
       monthlyTotals,
       totalMinutes,

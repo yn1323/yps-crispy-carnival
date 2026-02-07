@@ -86,12 +86,21 @@ export type LinkedResizeTarget = {
   boundaryMinutes: number;
 };
 
-// メインコンポーネントのProps
+// メインコンポーネントのProps（controlled）
 export type ShiftTableTestProps = {
   shopId: string;
   staffs: StaffType[];
   positions: PositionType[];
-  initialShifts: ShiftData[];
+  shifts: ShiftData[];
+  onShiftsChange: (shifts: ShiftData[]) => void;
   dates: string[];
   timeRange: TimeRange;
+  selectedDate: string;
+  onDateChange: (date: string) => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  sortMode: SortMode | null;
+  onSortModeChange: (mode: SortMode) => void;
 };
