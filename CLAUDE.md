@@ -199,3 +199,6 @@
 
 ## Claude Code Web(Claude Code Desktop)のE2E実行
 - スキル `e2e-execution` を参照（`.claude/skills/e2e-execution/SKILL.md`）
+
+## Agent Team開発ルール
+@CLAUDE.team.md を参照
