@@ -82,9 +82,48 @@ export const SummaryFooterRow = ({ shifts, dates, months, requiredStaffing }: Su
           borderRight="1px solid"
           borderColor="gray.200"
         >
-          <Text fontSize="xs" fontWeight="bold" color="gray.700">
-            出勤数
-          </Text>
+          <HStack gap={1}>
+            <Text fontSize="xs" fontWeight="bold" color="gray.700">
+              出勤数
+            </Text>
+            {hasRequiredStaffing && (
+              <Tooltip
+                showArrow
+                content={
+                  <Box p={1}>
+                    <Text fontSize="xs" mb={1}>
+                      充足度カラースケール
+                    </Text>
+                    <Flex>
+                      {FILL_RATE_COLORS.map((color, i) => (
+                        <Box
+                          key={color.bg}
+                          w="full"
+                          h="8px"
+                          bg={color.bg}
+                          borderLeftRadius={i === 0 ? "sm" : undefined}
+                          borderRightRadius={i === FILL_RATE_COLORS.length - 1 ? "sm" : undefined}
+                        />
+                      ))}
+                    </Flex>
+                    <Box position="relative" width="96px" mt={0.5} height="12px">
+                      <Text fontSize="9px" position="absolute" left="0">
+                        0%
+                      </Text>
+                      <Text fontSize="9px" position="absolute" left="90px" transform="translateX(-50%)">
+                        100%
+                      </Text>
+                      <Text fontSize="9px" position="absolute" left="100px" transform="translateX(50%)">
+                        超
+                      </Text>
+                    </Box>
+                  </Box>
+                }
+              >
+                <Icon as={LuInfo} boxSize={3} color="gray.400" cursor="help" />
+              </Tooltip>
+            )}
+          </HStack>
         </Table.Cell>
 
         {/* 日付ごとの出勤者数セル */}
