@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftOverview } from ".";
 import type { RequiredStaffingData, ShiftData, StaffType } from "./types";
+import { getDateRange } from "./utils/dateUtils";
 
 const meta = {
   title: "Features/Shift/ShiftOverview",
@@ -187,8 +188,7 @@ const mockRequiredStaffing: RequiredStaffingData[] = [
 
 export const Basic: Story = {
   args: {
-    startDate: "2026-01-27",
-    endDate: "2026-02-09",
+    dates: getDateRange("2026-01-27", "2026-02-09"),
     staffs: mockStaffs,
     shifts: mockShifts,
     holidays: mockHolidays,
@@ -198,8 +198,7 @@ export const Basic: Story = {
 
 export const WithHoliday: Story = {
   args: {
-    startDate: "2026-02-09",
-    endDate: "2026-02-15",
+    dates: getDateRange("2026-02-09", "2026-02-15"),
     staffs: mockStaffs.slice(0, 5),
     shifts: [
       createShift("h1", "staff1", "田中太郎", "2026-02-09", 9, 17),
@@ -214,8 +213,7 @@ export const WithHoliday: Story = {
 
 export const FewStaffs: Story = {
   args: {
-    startDate: "2026-01-27",
-    endDate: "2026-02-02",
+    dates: getDateRange("2026-01-27", "2026-02-02"),
     staffs: mockStaffs.slice(0, 3),
     shifts: mockShifts.filter((s) => ["staff1", "staff2", "staff3"].includes(s.staffId)),
     holidays: [],
@@ -224,8 +222,7 @@ export const FewStaffs: Story = {
 
 export const NoShifts: Story = {
   args: {
-    startDate: "2026-01-27",
-    endDate: "2026-02-02",
+    dates: getDateRange("2026-01-27", "2026-02-02"),
     staffs: mockStaffs.slice(0, 3),
     shifts: [],
     holidays: [],

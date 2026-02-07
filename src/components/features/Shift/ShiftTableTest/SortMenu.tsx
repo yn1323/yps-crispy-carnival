@@ -9,7 +9,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 ];
 
 type SortMenuProps = {
-  sortMode: SortMode;
+  sortMode: SortMode | null;
   onSortChange: (mode: SortMode) => void;
 };
 

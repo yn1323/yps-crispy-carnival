@@ -23,13 +23,13 @@ export const OverviewHeader = ({
   dates,
   months,
   holidays,
-  sortMode,
-  onSortChange,
   unsubmittedCount,
+  sortMode,
+  onSortModeChange,
 }: OverviewHeaderProps) => (
   <Table.Header>
     <Table.Row position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
-      {/* 左上コーナーセル（スタッフソートメニュー + 未提出バッジ） */}
+      {/* 左上コーナーセル（ソートメニュー + 未提出バッジ） */}
       <Table.ColumnHeader
         position="sticky"
         left={0}
@@ -43,7 +43,7 @@ export const OverviewHeader = ({
         borderColor="gray.200"
       >
         <VStack gap={0.5}>
-          <SortMenu sortMode={sortMode} onSortChange={onSortChange} />
+          <SortMenu sortMode={sortMode} onSortChange={onSortModeChange} />
           {unsubmittedCount > 0 && (
             <Badge colorPalette="red" variant="subtle" size="xs">
               未提出: {unsubmittedCount}名

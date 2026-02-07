@@ -9,8 +9,8 @@ import { isHoliday, isSaturday, isSunday } from "./utils/dateUtils";
  * 日付セルの背景色を取得
  * 未提出スタッフは薄い赤背景で強調
  */
-const getDateCellBg = (date: string, holidays: string[], isUnsubmitted: boolean) => {
-  if (isUnsubmitted) return "red.50";
+const getDateCellBg = (date: string, holidays: string[], isUnsubmitted: boolean, hasShift: boolean) => {
+  if (isUnsubmitted && !hasShift) return "red.50";
   if (isSunday(date) || isHoliday(date, holidays)) return "red.50";
   if (isSaturday(date)) return "blue.50";
   return "white";
@@ -23,7 +23,10 @@ const getDateCellBg = (date: string, holidays: string[], isUnsubmitted: boolean)
  * - 提出済み＆勤務なし: 「休」(gray.400)
  */
 const getShiftCellDisplay = (shift: DailyShift | null | undefined, isSubmitted: boolean) => {
-  if (!isSubmitted) return { label: "未", color: "orange.400" };
+  if (!isSubmitted) {
+    if (shift) return { label: `${shift.start}-${shift.end}`, color: "orange.400" };
+    return { label: "未", color: "orange.400" };
+  }
   if (shift) return { label: `${shift.start}-${shift.end}`, color: "gray.800" };
   return { label: "休", color: "gray.400" };
 };
@@ -72,7 +75,7 @@ export const StaffRow = ({ data, dates, months, holidays, onStaffClick, onDateCl
       {/* 日付セル */}
       {dates.map((date) => {
         const shift = dailyShifts.get(date);
-        const bg = getDateCellBg(date, holidays, isUnsubmitted);
+        const bg = getDateCellBg(date, holidays, isUnsubmitted, !!shift);
         const { label, color } = getShiftCellDisplay(shift, isSubmitted);
 
         return (

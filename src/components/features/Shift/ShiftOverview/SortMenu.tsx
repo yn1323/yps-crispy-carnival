@@ -1,13 +1,17 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { LuArrowUpDown, LuCheck } from "react-icons/lu";
-import { SORT_MODE_LABELS } from "./constants";
-import type { OverviewSortMode, SortMenuProps } from "./types";
+import type { SortMode } from "../ShiftTableTest/types";
 
-const SORT_OPTIONS: { value: OverviewSortMode; label: string }[] = [
-  { value: "default", label: SORT_MODE_LABELS.default },
-  { value: "name", label: SORT_MODE_LABELS.name },
-  { value: "totalHours", label: SORT_MODE_LABELS.totalHours },
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: "default", label: "デフォルト" },
+  { value: "request", label: "シフト希望順" },
+  { value: "startTime", label: "出勤順" },
 ];
+
+type SortMenuProps = {
+  sortMode: SortMode | null;
+  onSortChange: (mode: SortMode) => void;
+};
 
 export const SortMenu = ({ sortMode, onSortChange }: SortMenuProps) => (
   <Menu.Root positioning={{ placement: "bottom-start" }}>
