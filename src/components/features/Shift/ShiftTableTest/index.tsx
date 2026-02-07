@@ -6,8 +6,6 @@ import { DateTabs } from "./DateTabs";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { useDrag } from "./hooks/useDrag";
-import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { useUndoRedo } from "./hooks/useUndoRedo";
 import { PositionToolbar } from "./PositionToolbar";
 import { ShiftBar } from "./ShiftBar";
 import { ShiftPopover } from "./ShiftPopover";
@@ -20,13 +18,11 @@ import {
   AUTO_SCROLL_MIN_SPEED,
   type ShiftData,
   type ShiftTableTestProps,
-  type SortMode,
   type StaffType,
   type SummaryDisplayMode,
   type ToolMode,
 } from "./types";
 import { deletePositionFromShift, getTimeAxisWidth, normalizePositions } from "./utils/shiftOperations";
-import { sortStaffs } from "./utils/sortStaffs";
 
 // 時間スロットを生成
 const generateTimeSlots = (start: number, end: number) => {
@@ -37,10 +33,23 @@ const generateTimeSlots = (start: number, end: number) => {
   return slots;
 };
 
-export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates, timeRange }: ShiftTableTestProps) => {
-  // === Undo/Redo管理 ===
-  const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
-
+export const ShiftTableTest = ({
+  shopId,
+  staffs,
+  positions,
+  shifts,
+  onShiftsChange,
+  dates,
+  timeRange,
+  selectedDate,
+  onDateChange,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  sortMode,
+  onSortModeChange,
+}: ShiftTableTestProps) => {
   // === スタッフ編集モーダル ===
   const staffEditModal = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
@@ -59,57 +68,33 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
   const setShiftsNormalized = useCallback(
     (newShifts: ShiftData[]) => {
       if (!breakPosition) {
-        setShifts(newShifts);
+        onShiftsChange(newShifts);
         return;
       }
-      setShifts(
+      onShiftsChange(
         newShifts.map((shift) => ({
           ...shift,
           positions: normalizePositions({ positions: shift.positions, breakPosition }),
         })),
       );
     },
-    [setShifts, breakPosition],
+    [onShiftsChange, breakPosition],
   );
 
   // === ツール・ポジション状態 ===
-  const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const [toolMode, setToolMode] = useState<ToolMode>("select");
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [hoveredShiftId, setHoveredShiftId] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [summaryDisplayMode, setSummaryDisplayMode] = useState<SummaryDisplayMode>("color");
 
-  // === ソート状態（スナップショット方式） ===
-  const [sortMode, setSortMode] = useState<SortMode>("default");
-  const [sortedStaffIds, setSortedStaffIds] = useState<string[]>(() =>
-    sortStaffs({ staffs, shifts: initialShifts, selectedDate: dates[0] ?? "", sortMode: "default" }).map((s) => s.id),
-  );
-
-  const handleSortChange = useCallback(
-    (mode: SortMode) => {
-      setSortMode(mode);
-      const sorted = sortStaffs({ staffs, shifts, selectedDate, sortMode: mode });
-      setSortedStaffIds(sorted.map((s) => s.id));
-    },
-    [staffs, shifts, selectedDate],
-  );
-
-  // 日付タブ切替時に再ソート
+  // 日付タブ切替
   const handleDateChange = useCallback(
     (date: string) => {
-      setSelectedDate(date);
-      const sorted = sortStaffs({ staffs, shifts, selectedDate: date, sortMode });
-      setSortedStaffIds(sorted.map((s) => s.id));
+      onDateChange(date);
     },
-    [staffs, shifts, sortMode],
+    [onDateChange],
   );
-
-  // ソート順でスタッフを並べ替え
-  const sortedStaffs = useMemo(() => {
-    const staffMap = new Map(staffs.map((s) => [s.id, s]));
-    return sortedStaffIds.map((id) => staffMap.get(id)).filter((s): s is StaffType => s !== undefined);
-  }, [staffs, sortedStaffIds]);
 
   // selectedPositionIdからポジションオブジェクトを取得（useDrag用）
   const selectedPosition = selectedPositionId ? (positions.find((p) => p.id === selectedPositionId) ?? null) : null;
@@ -225,12 +210,6 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
     // 全削除後はポップオーバーを閉じる
     handlePopoverClose();
   }, [popoverShift, shifts, setShiftsNormalized, handlePopoverClose]);
-
-  // キーボードショートカット
-  useKeyboardShortcuts({
-    onUndo: undo,
-    onRedo: redo,
-  });
 
   // スクロール終了処理
   const stopScrollDrag = useCallback(() => {
@@ -414,7 +393,7 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
   // base: py=8px×2 + mb=80px(BottomMenu) = 96px
   // lg:   py=32px×2 = 64px
   return (
-    <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }} p={4}>
+    <Flex direction="column" flex={1} minHeight={0}>
       {/* ポジションツールバー（Undo/Redo統合済み） */}
       <Box mb={4} flexShrink={0}>
         <PositionToolbar
@@ -423,8 +402,8 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
           positions={positions}
           selectedPositionId={selectedPositionId}
           onPositionSelect={setSelectedPositionId}
-          onUndo={undo}
-          onRedo={redo}
+          onUndo={onUndo}
+          onRedo={onRedo}
           canUndo={canUndo}
           canRedo={canRedo}
         />
@@ -449,7 +428,7 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
             <Table.Header>
               <Table.Row bg="gray.50" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
                 <Table.ColumnHeader w="120px" position="sticky" left={0} bg="gray.50" zIndex={11}>
-                  <SortMenu sortMode={sortMode} onSortChange={handleSortChange} />
+                  <SortMenu sortMode={sortMode} onSortChange={onSortModeChange} />
                 </Table.ColumnHeader>
                 <Table.ColumnHeader colSpan={timeSlots.length} p={0} w={`${timeAxisWidth}px`}>
                   <TimeHeader timeRange={timeRange} />
@@ -457,7 +436,7 @@ export const ShiftTableTest = ({ shopId, staffs, positions, initialShifts, dates
               </Table.Row>
             </Table.Header>
             <Table.Body css={{ "& tr:last-child td": { borderBottom: "none" } }}>
-              {sortedStaffs.map((staff) => {
+              {staffs.map((staff) => {
                 const staffShifts = getShiftsForStaff(staff.id);
                 const status = getSubmissionStatus(staff, staffShifts);
                 return (

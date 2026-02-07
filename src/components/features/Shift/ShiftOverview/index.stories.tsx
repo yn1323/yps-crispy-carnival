@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftOverview } from ".";
-import type { ShiftData, StaffType } from "./types";
+import type { RequiredStaffingData, ShiftData, StaffType } from "./types";
+import { getDateRange } from "./utils/dateUtils";
 
 const meta = {
   title: "Features/Shift/ShiftOverview",
@@ -126,20 +127,78 @@ const mockShifts: ShiftData[] = [
 // 祝日
 const mockHolidays = ["2026-02-11"];
 
+// モックデータ: 必要人員設定（曜日ごと）
+const mockRequiredStaffing: RequiredStaffingData[] = [
+  {
+    dayOfWeek: 1, // 月
+    slots: [
+      { hour: 9, position: "ホール", requiredCount: 2 },
+      { hour: 9, position: "キッチン", requiredCount: 1 },
+      { hour: 10, position: "ホール", requiredCount: 3 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+      { hour: 11, position: "ホール", requiredCount: 3 },
+      { hour: 11, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 2, // 火
+    slots: [
+      { hour: 9, position: "ホール", requiredCount: 2 },
+      { hour: 9, position: "キッチン", requiredCount: 1 },
+      { hour: 11, position: "ホール", requiredCount: 3 },
+      { hour: 11, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 3, // 水
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 2 },
+      { hour: 10, position: "キッチン", requiredCount: 1 },
+    ],
+  },
+  {
+    dayOfWeek: 4, // 木
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 3 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 5, // 金
+    slots: [
+      { hour: 9, position: "ホール", requiredCount: 2 },
+      { hour: 9, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 6, // 土
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 4 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 0, // 日
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 3 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+];
+
 export const Basic: Story = {
   args: {
-    startDate: "2026-01-27",
-    endDate: "2026-02-09",
+    dates: getDateRange("2026-01-27", "2026-02-09"),
     staffs: mockStaffs,
     shifts: mockShifts,
     holidays: mockHolidays,
+    requiredStaffing: mockRequiredStaffing,
   },
 };
 
 export const WithHoliday: Story = {
   args: {
-    startDate: "2026-02-09",
-    endDate: "2026-02-15",
+    dates: getDateRange("2026-02-09", "2026-02-15"),
     staffs: mockStaffs.slice(0, 5),
     shifts: [
       createShift("h1", "staff1", "田中太郎", "2026-02-09", 9, 17),
@@ -154,8 +213,7 @@ export const WithHoliday: Story = {
 
 export const FewStaffs: Story = {
   args: {
-    startDate: "2026-01-27",
-    endDate: "2026-02-02",
+    dates: getDateRange("2026-01-27", "2026-02-02"),
     staffs: mockStaffs.slice(0, 3),
     shifts: mockShifts.filter((s) => ["staff1", "staff2", "staff3"].includes(s.staffId)),
     holidays: [],
@@ -164,8 +222,7 @@ export const FewStaffs: Story = {
 
 export const NoShifts: Story = {
   args: {
-    startDate: "2026-01-27",
-    endDate: "2026-02-02",
+    dates: getDateRange("2026-01-27", "2026-02-02"),
     staffs: mockStaffs.slice(0, 3),
     shifts: [],
     holidays: [],
