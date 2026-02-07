@@ -1,4 +1,4 @@
-import { HStack, Icon, Table, Text, VStack } from "@chakra-ui/react";
+import { Badge, HStack, Icon, Table, Text, VStack } from "@chakra-ui/react";
 import { LuInfo } from "react-icons/lu";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import { DATE_CELL_WIDTH, MONTH_TOTAL_CELL_WIDTH, ROW_HEIGHT, STAFF_NAME_CELL_WIDTH } from "./constants";
@@ -19,10 +19,17 @@ const getDateCellColors = (date: string, holidays: string[]) => {
   return { bg: "white", color: "gray.700" };
 };
 
-export const OverviewHeader = ({ dates, months, holidays, sortMode, onSortChange }: OverviewHeaderProps) => (
+export const OverviewHeader = ({
+  dates,
+  months,
+  holidays,
+  sortMode,
+  onSortChange,
+  unsubmittedCount,
+}: OverviewHeaderProps) => (
   <Table.Header>
     <Table.Row position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
-      {/* 左上コーナーセル（スタッフソートメニュー） */}
+      {/* 左上コーナーセル（スタッフソートメニュー + 未提出バッジ） */}
       <Table.ColumnHeader
         position="sticky"
         left={0}
@@ -35,7 +42,14 @@ export const OverviewHeader = ({ dates, months, holidays, sortMode, onSortChange
         borderRight="1px solid"
         borderColor="gray.200"
       >
-        <SortMenu sortMode={sortMode} onSortChange={onSortChange} />
+        <VStack gap={0.5}>
+          <SortMenu sortMode={sortMode} onSortChange={onSortChange} />
+          {unsubmittedCount > 0 && (
+            <Badge colorPalette="red" variant="subtle" size="xs">
+              未提出: {unsubmittedCount}名
+            </Badge>
+          )}
+        </VStack>
       </Table.ColumnHeader>
 
       {/* 日付セル */}

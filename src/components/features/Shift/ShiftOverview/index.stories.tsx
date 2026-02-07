@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftOverview } from ".";
-import type { ShiftData, StaffType } from "./types";
+import type { RequiredStaffingData, ShiftData, StaffType } from "./types";
 
 const meta = {
   title: "Features/Shift/ShiftOverview",
@@ -126,6 +126,65 @@ const mockShifts: ShiftData[] = [
 // 祝日
 const mockHolidays = ["2026-02-11"];
 
+// モックデータ: 必要人員設定（曜日ごと）
+const mockRequiredStaffing: RequiredStaffingData[] = [
+  {
+    dayOfWeek: 1, // 月
+    slots: [
+      { hour: 9, position: "ホール", requiredCount: 2 },
+      { hour: 9, position: "キッチン", requiredCount: 1 },
+      { hour: 10, position: "ホール", requiredCount: 3 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+      { hour: 11, position: "ホール", requiredCount: 3 },
+      { hour: 11, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 2, // 火
+    slots: [
+      { hour: 9, position: "ホール", requiredCount: 2 },
+      { hour: 9, position: "キッチン", requiredCount: 1 },
+      { hour: 11, position: "ホール", requiredCount: 3 },
+      { hour: 11, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 3, // 水
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 2 },
+      { hour: 10, position: "キッチン", requiredCount: 1 },
+    ],
+  },
+  {
+    dayOfWeek: 4, // 木
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 3 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 5, // 金
+    slots: [
+      { hour: 9, position: "ホール", requiredCount: 2 },
+      { hour: 9, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 6, // 土
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 4 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+  {
+    dayOfWeek: 0, // 日
+    slots: [
+      { hour: 10, position: "ホール", requiredCount: 3 },
+      { hour: 10, position: "キッチン", requiredCount: 2 },
+    ],
+  },
+];
+
 export const Basic: Story = {
   args: {
     startDate: "2026-01-27",
@@ -133,6 +192,7 @@ export const Basic: Story = {
     staffs: mockStaffs,
     shifts: mockShifts,
     holidays: mockHolidays,
+    requiredStaffing: mockRequiredStaffing,
   },
 };
 

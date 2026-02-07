@@ -1,6 +1,16 @@
 // 既存の型を再利用
 export type { ShiftData, StaffType } from "../ShiftTableTest/types";
 
+// 必要人員設定データ（convex/requiredStaffing テーブルの1レコードに対応）
+export type RequiredStaffingData = {
+  dayOfWeek: number; // 0=日, 1=月, ..., 6=土
+  slots: {
+    hour: number; // 0-23
+    position: string;
+    requiredCount: number;
+  }[];
+};
+
 // シフト俯瞰ビュー Props
 export type ShiftOverviewProps = {
   /** 店舗ID（スタッフモーダル表示用） */
@@ -19,6 +29,8 @@ export type ShiftOverviewProps = {
   holidays?: string[]; // ["2026-02-11", ...]
   /** 日付セルクリック時 */
   onDateClick?: (date: string) => void;
+  /** 必要人員設定（充足度カラー表示用） */
+  requiredStaffing?: RequiredStaffingData[];
 };
 
 // ソートモード
@@ -28,6 +40,8 @@ export type OverviewSortMode = "default" | "name" | "totalHours";
 export type StaffRowData = {
   staffId: string;
   staffName: string;
+  /** スタッフがシフト希望を提出済みか */
+  isSubmitted: boolean;
   /** 日付ごとの勤務時間 */
   dailyShifts: Map<string, DailyShift | null>; // key: "2026-01-27"
   /** 月別合計時間（分） */
@@ -64,6 +78,8 @@ export type OverviewHeaderProps = {
   holidays: string[];
   sortMode: OverviewSortMode;
   onSortChange: (mode: OverviewSortMode) => void;
+  /** 未提出スタッフ数 */
+  unsubmittedCount: number;
 };
 
 // スタッフ行 Props
@@ -87,4 +103,15 @@ export type MonthSummaryCellProps = {
 export type SortMenuProps = {
   sortMode: OverviewSortMode;
   onSortChange: (mode: OverviewSortMode) => void;
+};
+
+// 充足度サマリー行 Props
+export type SummaryFooterRowProps = {
+  shifts: import("../ShiftTableTest/types").ShiftData[];
+  dates: string[];
+  months: string[];
+  /** 日付セルクリック時のコールバック */
+  onDateClick?: (date: string) => void;
+  /** 必要人員設定（充足度カラー表示用） */
+  requiredStaffing?: RequiredStaffingData[];
 };

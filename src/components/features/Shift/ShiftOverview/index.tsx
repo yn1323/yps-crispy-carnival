@@ -4,6 +4,7 @@ import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { OverviewHeader } from "./OverviewHeader";
 import { StaffRow } from "./StaffRow";
+import { SummaryFooterRow } from "./SummaryFooterRow";
 import type { OverviewSortMode, ShiftOverviewProps } from "./types";
 import { prepareStaffRowData } from "./utils/calculations";
 import { getDateRange, getMonthsInRange } from "./utils/dateUtils";
@@ -18,6 +19,7 @@ export const ShiftOverview = ({
   allShifts,
   holidays = [],
   onDateClick,
+  requiredStaffing,
 }: ShiftOverviewProps) => {
   const [sortMode, setSortMode] = useState<OverviewSortMode>("default");
 
@@ -48,11 +50,16 @@ export const ShiftOverview = ({
     [staffs, shifts, shiftsForMonthly, dates, months],
   );
 
-  // ソート適用
-  const sortedStaffData = useMemo(
-    () => sortStaffsForOverview(staffRowDataList, sortMode),
-    [staffRowDataList, sortMode],
-  );
+  // 未提出スタッフ数
+  const unsubmittedCount = useMemo(() => staffRowDataList.filter((s) => !s.isSubmitted).length, [staffRowDataList]);
+
+  // ソート適用（未提出者は常に最上部）
+  const sortedStaffData = useMemo(() => {
+    const sorted = sortStaffsForOverview(staffRowDataList, sortMode);
+    const unsubmitted = sorted.filter((s) => !s.isSubmitted);
+    const submitted = sorted.filter((s) => s.isSubmitted);
+    return [...unsubmitted, ...submitted];
+  }, [staffRowDataList, sortMode]);
 
   return (
     <>
@@ -64,6 +71,7 @@ export const ShiftOverview = ({
             holidays={holidays}
             sortMode={sortMode}
             onSortChange={setSortMode}
+            unsubmittedCount={unsubmittedCount}
           />
           <Table.Body>
             {sortedStaffData.map((staffData) => (
@@ -78,6 +86,13 @@ export const ShiftOverview = ({
               />
             ))}
           </Table.Body>
+          <SummaryFooterRow
+            shifts={shifts}
+            dates={dates}
+            months={months}
+            onDateClick={onDateClick}
+            requiredStaffing={requiredStaffing}
+          />
         </Table.Root>
       </Box>
 

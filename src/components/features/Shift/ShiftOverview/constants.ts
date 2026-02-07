@@ -1,6 +1,6 @@
 // セル幅・高さ（px）
 export const STAFF_NAME_CELL_WIDTH = 120;
-export const DATE_CELL_WIDTH = 70;
+export const DATE_CELL_WIDTH = 90;
 export const MONTH_TOTAL_CELL_WIDTH = 60;
 export const ROW_HEIGHT = 48;
 
