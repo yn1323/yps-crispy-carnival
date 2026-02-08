@@ -148,3 +148,11 @@ export const WithRequiredStaffing: Story = {
     requiredStaffing: mockRequiredStaffing,
   },
 };
+
+export const ReadOnly: Story = {
+  args: {
+    ...Basic.args,
+    isReadOnly: true,
+    currentStaffId: "staff1",
+  },
+};

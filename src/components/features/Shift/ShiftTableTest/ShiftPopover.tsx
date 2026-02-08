@@ -11,6 +11,7 @@ type ShiftPopoverProps = {
   onClose: () => void;
   onDeletePosition: (positionId: string) => void;
   onDeleteShift: () => void;
+  isReadOnly?: boolean;
 };
 
 export const ShiftPopover = ({
@@ -21,6 +22,7 @@ export const ShiftPopover = ({
   onClose,
   onDeletePosition,
   onDeleteShift,
+  isReadOnly = false,
 }: ShiftPopoverProps) => {
   // スクロール時に自動で閉じる
   useEffect(() => {
@@ -97,7 +99,13 @@ export const ShiftPopover = ({
 
               {/* ポジション一覧 */}
               {shift.positions.length > 0 && (
-                <Box p={3} borderBottom="1px solid" borderColor="gray.100" maxH="200px" overflowY="auto">
+                <Box
+                  p={3}
+                  borderBottom={isReadOnly ? undefined : "1px solid"}
+                  borderColor="gray.100"
+                  maxH="200px"
+                  overflowY="auto"
+                >
                   {shift.positions.map((pos) => (
                     <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
                       <Flex align="center" gap={2}>
@@ -109,36 +117,40 @@ export const ShiftPopover = ({
                           {pos.start}-{pos.end}
                         </Text>
                       </Flex>
-                      <IconButton
-                        size="xs"
-                        variant="ghost"
-                        colorPalette="gray"
-                        aria-label={`${pos.positionName}を削除`}
-                        onClick={() => onDeletePosition(pos.id)}
-                        _hover={{ color: "red.500" }}
-                      >
-                        <LuMinus />
-                      </IconButton>
+                      {!isReadOnly && (
+                        <IconButton
+                          size="xs"
+                          variant="ghost"
+                          colorPalette="gray"
+                          aria-label={`${pos.positionName}を削除`}
+                          onClick={() => onDeletePosition(pos.id)}
+                          _hover={{ color: "red.500" }}
+                        >
+                          <LuMinus />
+                        </IconButton>
+                      )}
                     </Flex>
                   ))}
                 </Box>
               )}
 
-              {/* 全ポジションを削除ボタン */}
-              <Box p={3}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  colorPalette="red"
-                  width="100%"
-                  onClick={onDeleteShift}
-                  justifyContent="flex-start"
-                  disabled={shift.positions.length === 0}
-                >
-                  <LuTrash2 />
-                  <Text ml={2}>全ポジションを削除</Text>
-                </Button>
-              </Box>
+              {/* 全ポジションを削除ボタン（閲覧専用時は非表示） */}
+              {!isReadOnly && (
+                <Box p={3}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    colorPalette="red"
+                    width="100%"
+                    onClick={onDeleteShift}
+                    justifyContent="flex-start"
+                    disabled={shift.positions.length === 0}
+                  >
+                    <LuTrash2 />
+                    <Text ml={2}>全ポジションを削除</Text>
+                  </Button>
+                </Box>
+              )}
             </Popover.Body>
 
             <Popover.CloseTrigger position="absolute" top="2" right="2">

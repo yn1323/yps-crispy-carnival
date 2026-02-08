@@ -13,6 +13,8 @@ export type ShiftDailyCardSPProps = {
   onDateChange: (date: string) => void;
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
+  isReadOnly?: boolean;
+  currentStaffId?: string;
 };
 
 // スタッフカード
@@ -21,6 +23,7 @@ export type StaffCardProps = {
   shift: ShiftData | undefined;
   timeRange: TimeRange;
   onCardTap: () => void;
+  isHighlighted?: boolean;
 };
 
 // ミニバー（比例色付きバー）

@@ -31,6 +31,8 @@ export const ShiftViewSwitcher = ({
   holidays,
   allShifts,
   requiredStaffing,
+  isReadOnly = false,
+  currentStaffId,
 }: ShiftViewSwitcherProps) => {
   // === ビューモード ===
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
@@ -48,8 +50,14 @@ export const ShiftViewSwitcher = ({
   );
 
   // === キーボードショートカット（日毎ビュー時のみ有効） ===
-  const undoHandler = useMemo(() => (viewMode === "daily" ? undo : () => {}), [viewMode, undo]);
-  const redoHandler = useMemo(() => (viewMode === "daily" ? redo : () => {}), [viewMode, redo]);
+  const undoHandler = useMemo(
+    () => (!isReadOnly && viewMode === "daily" ? undo : () => {}),
+    [viewMode, undo, isReadOnly],
+  );
+  const redoHandler = useMemo(
+    () => (!isReadOnly && viewMode === "daily" ? redo : () => {}),
+    [viewMode, redo, isReadOnly],
+  );
 
   useKeyboardShortcuts({
     onUndo: undoHandler,
@@ -90,6 +98,8 @@ export const ShiftViewSwitcher = ({
           canRedo={canRedo}
           sortMode={sortMode}
           onSortModeChange={setSortMode}
+          isReadOnly={isReadOnly}
+          currentStaffId={currentStaffId}
         />
       </Box>
 
@@ -106,6 +116,8 @@ export const ShiftViewSwitcher = ({
           requiredStaffing={requiredStaffing}
           sortMode={sortMode}
           onSortModeChange={setSortMode}
+          isReadOnly={isReadOnly}
+          currentStaffId={currentStaffId}
         />
       </Box>
     </Flex>

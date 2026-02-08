@@ -22,6 +22,7 @@ export const DateCard = ({
   onTap,
   hasNonWorkingStaffs,
   onAddStaffClick,
+  isReadOnly = false,
 }: DateCardProps) => {
   const dateLabel = dayjs(date).format("M/D(ddd)");
   const dateColor = getDateColor(date, holiday);
@@ -59,7 +60,7 @@ export const DateCard = ({
         <Text fontSize="md" fontWeight="bold" color={dateColor}>
           {dateLabel}
         </Text>
-        {hasNonWorkingStaffs && (
+        {!isReadOnly && hasNonWorkingStaffs && (
           <IconButton
             aria-label="スタッフを追加"
             size="xs"

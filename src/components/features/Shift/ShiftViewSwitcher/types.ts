@@ -9,4 +9,6 @@ export type ShiftViewSwitcherBaseProps = {
   dates: string[];
   timeRange: TimeRange;
   holidays?: string[];
+  isReadOnly?: boolean;
+  currentStaffId?: string;
 };

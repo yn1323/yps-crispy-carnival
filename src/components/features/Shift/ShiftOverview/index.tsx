@@ -20,6 +20,8 @@ export const ShiftOverview = ({
   requiredStaffing,
   sortMode,
   onSortModeChange,
+  isReadOnly = false,
+  currentStaffId,
 }: ShiftOverviewProps) => {
   // スタッフ編集モーダル
   const staffEditModal = useDialog();
@@ -27,10 +29,11 @@ export const ShiftOverview = ({
 
   const handleStaffNameClick = useCallback(
     (staffId: string) => {
+      if (isReadOnly) return;
       setSelectedStaffId(staffId);
       staffEditModal.open();
     },
-    [staffEditModal],
+    [staffEditModal, isReadOnly],
   );
 
   // 月一覧取得
@@ -70,6 +73,7 @@ export const ShiftOverview = ({
                 holidays={holidays}
                 onStaffClick={() => handleStaffNameClick(staffData.staffId)}
                 onDateClick={onDateClick}
+                isHighlighted={staffData.staffId === currentStaffId}
               />
             ))}
           </Table.Body>
@@ -83,8 +87,8 @@ export const ShiftOverview = ({
         </Table.Root>
       </Box>
 
-      {/* スタッフ編集モーダル */}
-      {selectedStaffId && (
+      {/* スタッフ編集モーダル（閲覧専用時は非表示） */}
+      {!isReadOnly && selectedStaffId && (
         <StaffEditModal
           staffId={selectedStaffId}
           shopId={shopId}

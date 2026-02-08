@@ -105,3 +105,11 @@ export const WithHoliday: Story = {
     holidays: ["2026-01-23"],
   },
 };
+
+export const ReadOnly: Story = {
+  args: {
+    ...Basic.args,
+    isReadOnly: true,
+    currentStaffId: "staff1",
+  },
+};

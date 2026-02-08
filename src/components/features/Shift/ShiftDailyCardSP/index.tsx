@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { LuPlus } from "react-icons/lu";
 import { useBottomSheet } from "@/src/components/ui/BottomSheet";
 import { DateNavigator } from "./DateNavigator";
+import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 import { StaffAddSheet } from "./StaffAddSheet";
 import { StaffCard } from "./StaffCard";
@@ -19,8 +20,11 @@ export const ShiftDailyCardSP = ({
   timeRange,
   selectedDate,
   onDateChange,
+  isReadOnly = false,
+  currentStaffId,
 }: ShiftDailyCardSPProps) => {
   const editSheet = useBottomSheet();
+  const detailSheet = useBottomSheet();
   const addSheet = useBottomSheet();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const touchStartX = useRef(0);
@@ -47,13 +51,17 @@ export const ShiftDailyCardSP = ({
     [dateShifts, selectedStaffId],
   );
 
-  // カードタップ → 編集BottomSheet 開く
+  // カードタップ → read-only時は詳細シート、編集時は編集シート
   const handleCardTap = useCallback(
     (staffId: string) => {
       setSelectedStaffId(staffId);
-      editSheet.open();
+      if (isReadOnly) {
+        detailSheet.open();
+      } else {
+        editSheet.open();
+      }
     },
-    [editSheet],
+    [isReadOnly, detailSheet, editSheet],
   );
 
   // 追加シートからスタッフ選択 → 編集BottomSheet へ遷移
@@ -129,12 +137,13 @@ export const ShiftDailyCardSP = ({
               shift={staffShift}
               timeRange={timeRange}
               onCardTap={() => handleCardTap(staff.id)}
+              isHighlighted={staff.id === currentStaffId}
             />
           );
         })}
 
-        {/* スタッフ追加ボタン */}
-        {nonWorkingStaffs.length > 0 && (
+        {/* スタッフ追加ボタン（閲覧モードでは非表示） */}
+        {!isReadOnly && nonWorkingStaffs.length > 0 && (
           <Flex
             align="center"
             justify="center"
@@ -156,29 +165,42 @@ export const ShiftDailyCardSP = ({
         )}
       </VStack>
 
-      {/* スタッフ追加BottomSheet */}
-      <StaffAddSheet
-        staffs={nonWorkingStaffs}
-        shifts={dateShifts}
-        selectedDate={selectedDate}
-        isOpen={addSheet.isOpen}
-        onOpenChange={addSheet.onOpenChange}
-        onSelectStaff={handleStaffSelect}
-      />
-
-      {/* 編集BottomSheet */}
-      {selectedStaff && (
-        <ShiftEditSheet
+      {/* 閲覧モード: 詳細BottomSheet */}
+      {isReadOnly && selectedStaff && (
+        <ShiftDetailSheet
           staff={selectedStaff}
           shift={selectedShift}
-          positions={positions}
-          timeRange={timeRange}
           selectedDate={selectedDate}
-          isOpen={editSheet.isOpen}
-          onOpenChange={editSheet.onOpenChange}
-          onShiftUpdate={handleShiftUpdate}
-          onShiftDelete={handleShiftDelete}
+          isOpen={detailSheet.isOpen}
+          onOpenChange={detailSheet.onOpenChange}
         />
+      )}
+
+      {/* 編集モード: スタッフ追加 + 編集BottomSheet */}
+      {!isReadOnly && (
+        <>
+          <StaffAddSheet
+            staffs={nonWorkingStaffs}
+            shifts={dateShifts}
+            selectedDate={selectedDate}
+            isOpen={addSheet.isOpen}
+            onOpenChange={addSheet.onOpenChange}
+            onSelectStaff={handleStaffSelect}
+          />
+          {selectedStaff && (
+            <ShiftEditSheet
+              staff={selectedStaff}
+              shift={selectedShift}
+              positions={positions}
+              timeRange={timeRange}
+              selectedDate={selectedDate}
+              isOpen={editSheet.isOpen}
+              onOpenChange={editSheet.onOpenChange}
+              onShiftUpdate={handleShiftUpdate}
+              onShiftDelete={handleShiftDelete}
+            />
+          )}
+        </>
       )}
     </Box>
   );

@@ -3,7 +3,7 @@ import { LuTriangleAlert } from "react-icons/lu";
 import { MiniShiftBar } from "./MiniShiftBar";
 import type { StaffCardProps } from "./types";
 
-export const StaffCard = ({ staff, shift, timeRange, onCardTap }: StaffCardProps) => {
+export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = false }: StaffCardProps) => {
   const isUnsubmitted = !staff.isSubmitted;
   const hasPositions = shift && shift.positions.length > 0;
   const hasRequest = shift?.requestedTime !== null && shift?.requestedTime !== undefined;
@@ -18,16 +18,22 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap }: StaffCardProps
   // 休憩を除いたポジションセグメント
   const visibleSegments = shift?.positions.filter((p) => p.positionName !== "休憩") ?? [];
 
+  // ハイライト優先、次に未提出
+  const cardBg = isHighlighted ? "blue.50" : isUnsubmitted ? "red.50" : "white";
+  const cardBorderColor = isHighlighted ? "blue.400" : isUnsubmitted ? "red.200" : "gray.200";
+
   return (
     <Box
       borderWidth="1px"
-      borderColor={isUnsubmitted ? "red.200" : "gray.200"}
+      borderColor={cardBorderColor}
       borderRadius="md"
-      bg={isUnsubmitted ? "red.50" : "white"}
+      bg={cardBg}
+      borderLeft={isHighlighted ? "3px solid" : undefined}
+      borderLeftColor={isHighlighted ? "blue.400" : undefined}
       p={3}
       cursor="pointer"
       onClick={onCardTap}
-      _active={{ bg: isUnsubmitted ? "red.100" : "gray.50" }}
+      _active={{ bg: isHighlighted ? "blue.100" : isUnsubmitted ? "red.100" : "gray.50" }}
       transition="background 0.15s ease"
     >
       {/* 上段: スタッフ名 + 希望時間 */}

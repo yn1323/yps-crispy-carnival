@@ -31,17 +31,31 @@ const getShiftCellDisplay = (shift: DailyShift | null | undefined, isSubmitted: 
   return { label: "休", color: "gray.400" };
 };
 
-export const StaffRow = ({ data, dates, months, holidays, onStaffClick, onDateClick }: StaffRowProps) => {
+export const StaffRow = ({
+  data,
+  dates,
+  months,
+  holidays,
+  onStaffClick,
+  onDateClick,
+  isHighlighted = false,
+}: StaffRowProps) => {
   const { staffId, staffName, isSubmitted, dailyShifts, monthlyTotals, alerts } = data;
   const isUnsubmitted = !isSubmitted;
 
+  const staffCellBg = isHighlighted ? "blue.50" : isUnsubmitted ? "red.50" : "white";
+
   return (
-    <Table.Row>
+    <Table.Row
+      bg={isHighlighted ? "blue.50" : undefined}
+      borderLeft={isHighlighted ? "3px solid" : undefined}
+      borderLeftColor={isHighlighted ? "blue.400" : undefined}
+    >
       {/* スタッフ名セル（左固定） */}
       <Table.Cell
         position="sticky"
         left={0}
-        bg={isUnsubmitted ? "red.50" : "white"}
+        bg={staffCellBg}
         zIndex={1}
         w={`${STAFF_NAME_CELL_WIDTH}px`}
         minW={`${STAFF_NAME_CELL_WIDTH}px`}

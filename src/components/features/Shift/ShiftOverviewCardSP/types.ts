@@ -13,6 +13,7 @@ export type ShiftOverviewCardSPProps = {
   positions: PositionType[];
   timeRange: TimeRange;
   onShiftsChange: (shifts: ShiftData[]) => void;
+  isReadOnly?: boolean;
 };
 
 // 日付カード
@@ -24,4 +25,5 @@ export type DateCardProps = {
   onTap: () => void;
   hasNonWorkingStaffs: boolean;
   onAddStaffClick: () => void;
+  isReadOnly?: boolean;
 };

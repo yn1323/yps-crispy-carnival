@@ -103,4 +103,6 @@ export type ShiftTableTestProps = {
   canRedo: boolean;
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
+  isReadOnly?: boolean;
+  currentStaffId?: string;
 };

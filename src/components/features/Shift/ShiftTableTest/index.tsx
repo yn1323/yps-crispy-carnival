@@ -49,6 +49,8 @@ export const ShiftTableTest = ({
   canRedo,
   sortMode,
   onSortModeChange,
+  isReadOnly = false,
+  currentStaffId,
 }: ShiftTableTestProps) => {
   // === スタッフ編集モーダル ===
   const staffEditModal = useDialog();
@@ -394,20 +396,22 @@ export const ShiftTableTest = ({
   // lg:   py=32px×2 = 64px
   return (
     <Flex direction="column" flex={1} minHeight={0}>
-      {/* ポジションツールバー（Undo/Redo統合済み） */}
-      <Box mb={4} flexShrink={0}>
-        <PositionToolbar
-          toolMode={toolMode}
-          onToolModeChange={setToolMode}
-          positions={positions}
-          selectedPositionId={selectedPositionId}
-          onPositionSelect={setSelectedPositionId}
-          onUndo={onUndo}
-          onRedo={onRedo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      </Box>
+      {/* ポジションツールバー（Undo/Redo統合済み）- 閲覧専用時は非表示 */}
+      {!isReadOnly && (
+        <Box mb={4} flexShrink={0}>
+          <PositionToolbar
+            toolMode={toolMode}
+            onToolModeChange={setToolMode}
+            positions={positions}
+            selectedPositionId={selectedPositionId}
+            onPositionSelect={setSelectedPositionId}
+            onUndo={onUndo}
+            onRedo={onRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+        </Box>
+      )}
 
       {/* 日付タブ + シフト表（一体化） */}
       <Flex
@@ -440,19 +444,25 @@ export const ShiftTableTest = ({
                 const staffShifts = getShiftsForStaff(staff.id);
                 const status = getSubmissionStatus(staff, staffShifts);
                 return (
-                  <Table.Row key={staff.id} _hover={{ bg: "gray.50" }}>
+                  <Table.Row
+                    key={staff.id}
+                    _hover={{ bg: "gray.50" }}
+                    bg={staff.id === currentStaffId ? "blue.50" : undefined}
+                    borderLeft={staff.id === currentStaffId ? "3px solid" : undefined}
+                    borderLeftColor={staff.id === currentStaffId ? "blue.400" : undefined}
+                  >
                     <Table.Cell
                       position="sticky"
                       left={0}
-                      bg="white"
+                      bg={staff.id === currentStaffId ? "blue.50" : "white"}
                       zIndex={5}
                       borderRight="1px solid"
                       borderColor="gray.100"
                     >
                       <Box
-                        cursor="pointer"
-                        _hover={{ color: "teal.600" }}
-                        onClick={() => handleStaffNameClick(staff.id)}
+                        cursor={isReadOnly ? "default" : "pointer"}
+                        _hover={isReadOnly ? undefined : { color: "teal.600" }}
+                        onClick={isReadOnly ? undefined : () => handleStaffNameClick(staff.id)}
                       >
                         <Text fontWeight="medium">{staff.name}</Text>
                         {status === "no_request" && (
@@ -477,11 +487,15 @@ export const ShiftTableTest = ({
                         width={`${timeAxisWidth}px`}
                         bg="transparent"
                         overflow="hidden"
-                        onMouseDown={(e) => {
-                          paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
-                          handleRowMouseDown(e, staff.id);
-                        }}
-                        onMouseMove={(e) => handleRowMouseMoveForCursor(e, staff.id)}
+                        onMouseDown={
+                          isReadOnly
+                            ? undefined
+                            : (e) => {
+                                paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
+                                handleRowMouseDown(e, staff.id);
+                              }
+                        }
+                        onMouseMove={isReadOnly ? undefined : (e) => handleRowMouseMoveForCursor(e, staff.id)}
                         onMouseUp={() => {
                           // ドラッグ終了は document リスナーで処理するため、ここでは popover 表示のみ
                           // Paint モードで移動なし（クリック）→ 既存ポジション上ならポップオーバー表示
@@ -608,10 +622,11 @@ export const ShiftTableTest = ({
         onClose={handlePopoverClose}
         onDeletePosition={handleDeletePosition}
         onDeleteShift={handleClearAllPositions}
+        isReadOnly={isReadOnly}
       />
 
-      {/* スタッフ編集モーダル */}
-      {selectedStaffId && (
+      {/* スタッフ編集モーダル（閲覧専用時は非表示） */}
+      {!isReadOnly && selectedStaffId && (
         <StaffEditModal
           staffId={selectedStaffId}
           shopId={shopId}
@@ -621,19 +636,21 @@ export const ShiftTableTest = ({
         />
       )}
 
-      {/* デバッグ情報 */}
-      <VStack flexShrink={0} align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">
-        <Text fontWeight="bold">デバッグ情報:</Text>
-        <Text>選択日: {selectedDate}</Text>
-        <Text>ツールモード: {toolMode}</Text>
-        <Text>選択ポジション: {selectedPosition?.name ?? "(なし)"}</Text>
-        <Text>ホバー中シフト: {hoveredShiftId ?? "(なし)"}</Text>
-        <Text>シフト数: {shifts.length}</Text>
-        <Text>
-          履歴: Undo可能={canUndo ? "Y" : "N"} / Redo可能={canRedo ? "Y" : "N"}
-        </Text>
-        <Text>ドラッグモード: {dragState.mode ?? "(なし)"}</Text>
-      </VStack>
+      {/* デバッグ情報（閲覧専用時は非表示） */}
+      {!isReadOnly && (
+        <VStack flexShrink={0} align="start" mt={4} p={3} bg="blue.50" borderRadius="lg" fontSize="xs" color="blue.700">
+          <Text fontWeight="bold">デバッグ情報:</Text>
+          <Text>選択日: {selectedDate}</Text>
+          <Text>ツールモード: {toolMode}</Text>
+          <Text>選択ポジション: {selectedPosition?.name ?? "(なし)"}</Text>
+          <Text>ホバー中シフト: {hoveredShiftId ?? "(なし)"}</Text>
+          <Text>シフト数: {shifts.length}</Text>
+          <Text>
+            履歴: Undo可能={canUndo ? "Y" : "N"} / Redo可能={canRedo ? "Y" : "N"}
+          </Text>
+          <Text>ドラッグモード: {dragState.mode ?? "(なし)"}</Text>
+        </VStack>
+      )}
     </Flex>
   );
 };

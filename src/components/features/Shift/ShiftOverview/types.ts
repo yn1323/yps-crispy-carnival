@@ -33,6 +33,10 @@ export type ShiftOverviewProps = {
   sortMode?: import("../ShiftTableTest/types").SortMode | null;
   /** ソート変更コールバック */
   onSortModeChange?: (mode: import("../ShiftTableTest/types").SortMode) => void;
+  /** 閲覧専用モード */
+  isReadOnly?: boolean;
+  /** 現在のスタッフID（ハイライト用） */
+  currentStaffId?: string;
 };
 
 // スタッフ行表示用データ
@@ -91,6 +95,7 @@ export type StaffRowProps = {
   holidays: string[];
   onStaffClick: () => void;
   onDateClick?: (date: string) => void;
+  isHighlighted?: boolean;
 };
 
 // 月別合計セル Props

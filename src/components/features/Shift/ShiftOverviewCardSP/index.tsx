@@ -26,6 +26,7 @@ export const ShiftOverviewCardSP = ({
   positions,
   timeRange,
   onShiftsChange,
+  isReadOnly = false,
 }: ShiftOverviewCardSPProps) => {
   const addSheet = useBottomSheet();
   const editSheet = useBottomSheet();
@@ -143,6 +144,7 @@ export const ShiftOverviewCardSP = ({
           onTap={() => onDateClick?.(date)}
           hasNonWorkingStaffs={nonWorkingStaffsByDate.get(date) ?? false}
           onAddStaffClick={() => handleAddStaffClick(date)}
+          isReadOnly={isReadOnly}
         />
       ))}
 
@@ -152,31 +154,33 @@ export const ShiftOverviewCardSP = ({
         </Text>
       )}
 
-      {/* スタッフ追加BottomSheet */}
-      {addTargetDate && (
-        <StaffAddSheet
-          staffs={nonWorkingStaffsForAdd}
-          shifts={addTargetDateShifts}
-          selectedDate={addTargetDate}
-          isOpen={addSheet.isOpen}
-          onOpenChange={addSheet.onOpenChange}
-          onSelectStaff={handleStaffSelect}
-        />
-      )}
-
-      {/* 編集BottomSheet */}
-      {selectedStaff && addTargetDate && (
-        <ShiftEditSheet
-          staff={selectedStaff}
-          shift={selectedShift}
-          positions={positions}
-          timeRange={timeRange}
-          selectedDate={addTargetDate}
-          isOpen={editSheet.isOpen}
-          onOpenChange={editSheet.onOpenChange}
-          onShiftUpdate={handleShiftUpdate}
-          onShiftDelete={handleShiftDelete}
-        />
+      {/* スタッフ追加 + 編集BottomSheet（閲覧モードでは非表示） */}
+      {!isReadOnly && (
+        <>
+          {addTargetDate && (
+            <StaffAddSheet
+              staffs={nonWorkingStaffsForAdd}
+              shifts={addTargetDateShifts}
+              selectedDate={addTargetDate}
+              isOpen={addSheet.isOpen}
+              onOpenChange={addSheet.onOpenChange}
+              onSelectStaff={handleStaffSelect}
+            />
+          )}
+          {selectedStaff && addTargetDate && (
+            <ShiftEditSheet
+              staff={selectedStaff}
+              shift={selectedShift}
+              positions={positions}
+              timeRange={timeRange}
+              selectedDate={addTargetDate}
+              isOpen={editSheet.isOpen}
+              onOpenChange={editSheet.onOpenChange}
+              onShiftUpdate={handleShiftUpdate}
+              onShiftDelete={handleShiftDelete}
+            />
+          )}
+        </>
       )}
     </VStack>
   );

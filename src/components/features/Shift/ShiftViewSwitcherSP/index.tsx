@@ -25,6 +25,8 @@ export const ShiftViewSwitcherSP = ({
   dates,
   timeRange,
   holidays,
+  isReadOnly = false,
+  currentStaffId,
 }: ShiftViewSwitcherSPProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
@@ -44,15 +46,17 @@ export const ShiftViewSwitcherSP = ({
   return (
     <Flex direction="column" maxHeight="calc(100dvh - 96px)">
       {/* ヘッダー: Undo/Redo + ビュー切替 */}
-      <Flex align="center" justify="space-between" px={3} py={2} flexShrink={0}>
-        <HStack gap={1}>
-          <IconButton aria-label="元に戻す" size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
-            <LuUndo2 />
-          </IconButton>
-          <IconButton aria-label="やり直し" size="sm" variant="ghost" onClick={redo} disabled={!canRedo}>
-            <LuRedo2 />
-          </IconButton>
-        </HStack>
+      <Flex align="center" justify={isReadOnly ? "flex-end" : "space-between"} px={3} py={2} flexShrink={0}>
+        {!isReadOnly && (
+          <HStack gap={1}>
+            <IconButton aria-label="元に戻す" size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
+              <LuUndo2 />
+            </IconButton>
+            <IconButton aria-label="やり直し" size="sm" variant="ghost" onClick={redo} disabled={!canRedo}>
+              <LuRedo2 />
+            </IconButton>
+          </HStack>
+        )}
         <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
           <SegmentGroup.Indicator />
           <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
@@ -73,6 +77,8 @@ export const ShiftViewSwitcherSP = ({
           onDateChange={setSelectedDate}
           sortMode={sortMode}
           onSortModeChange={setSortMode}
+          isReadOnly={isReadOnly}
+          currentStaffId={currentStaffId}
         />
       </Box>
 
@@ -90,6 +96,7 @@ export const ShiftViewSwitcherSP = ({
           positions={positions}
           timeRange={timeRange}
           onShiftsChange={setShifts}
+          isReadOnly={isReadOnly}
         />
       </Box>
     </Flex>
