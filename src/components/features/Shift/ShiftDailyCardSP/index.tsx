@@ -114,8 +114,10 @@ export const ShiftDailyCardSP = ({
   return (
     <Box onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <VStack gap={3} align="stretch" px={3} pb={4}>
-        {/* 日付ナビ */}
-        <DateNavigator dates={dates} selectedDate={selectedDate} onDateChange={onDateChange} />
+        {/* 日付ナビ（スクロール時も固定） */}
+        <Box position="sticky" top={0} zIndex={10} bg="white" mx={-3} px={3} py={1}>
+          <DateNavigator dates={dates} selectedDate={selectedDate} onDateChange={onDateChange} />
+        </Box>
 
         {/* 出勤者カードリスト */}
         {workingStaffs.map((staff) => {

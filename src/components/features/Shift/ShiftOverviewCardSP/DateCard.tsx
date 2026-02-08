@@ -1,6 +1,7 @@
-import { Box, Flex, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, IconButton, Text, VStack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useMemo } from "react";
+import { LuPlus } from "react-icons/lu";
 import { getDailyShiftTime } from "../ShiftOverview/utils/calculations";
 import { isSaturday, isSunday } from "../ShiftOverview/utils/dateUtils";
 import type { DateCardProps } from "./types";
@@ -13,7 +14,15 @@ const getDateColor = (date: string, holiday: boolean) => {
   return "gray.800";
 };
 
-export const DateCard = ({ date, staffs, shifts, isHoliday: holiday, onTap }: DateCardProps) => {
+export const DateCard = ({
+  date,
+  staffs,
+  shifts,
+  isHoliday: holiday,
+  onTap,
+  hasNonWorkingStaffs,
+  onAddStaffClick,
+}: DateCardProps) => {
   const dateLabel = dayjs(date).format("M/D(ddd)");
   const dateColor = getDateColor(date, holiday);
 
@@ -45,10 +54,26 @@ export const DateCard = ({ date, staffs, shifts, isHoliday: holiday, onTap }: Da
       _active={{ bg: "gray.50" }}
       onClick={onTap}
     >
-      {/* ヘッダー: 日付 */}
-      <Text fontSize="md" fontWeight="bold" color={dateColor} mb={2}>
-        {dateLabel}
-      </Text>
+      {/* ヘッダー: 日付 + 追加ボタン */}
+      <Flex justify="space-between" align="center" mb={2}>
+        <Text fontSize="md" fontWeight="bold" color={dateColor}>
+          {dateLabel}
+        </Text>
+        {hasNonWorkingStaffs && (
+          <IconButton
+            aria-label="スタッフを追加"
+            size="xs"
+            variant="solid"
+            colorPalette="blue"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddStaffClick();
+            }}
+          >
+            <LuPlus />
+          </IconButton>
+        )}
+      </Flex>
 
       {/* スタッフリスト */}
       <VStack gap={1} align="stretch">

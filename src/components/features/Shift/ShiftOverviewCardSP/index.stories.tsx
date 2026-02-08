@@ -1,12 +1,21 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import type { SortMode } from "../ShiftTableTest/types";
+import type { ShiftData, SortMode } from "../ShiftTableTest/types";
 import { ShiftOverviewCardSP } from ".";
 
 const ShiftOverviewCardSPStory = (props: React.ComponentProps<typeof ShiftOverviewCardSP>) => {
   const [sortMode, setSortMode] = useState<SortMode>("default");
-  return <ShiftOverviewCardSP {...props} sortMode={sortMode} onSortModeChange={setSortMode} />;
+  const [shifts, setShifts] = useState<ShiftData[]>(props.shifts);
+  return (
+    <ShiftOverviewCardSP
+      {...props}
+      shifts={shifts}
+      onShiftsChange={setShifts}
+      sortMode={sortMode}
+      onSortModeChange={setSortMode}
+    />
+  );
 };
 
 const meta = {
@@ -28,6 +37,15 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 // === モックデータ ===
+
+const mockPositions = [
+  { id: "pos1", name: "ホール", color: "#3b82f6" },
+  { id: "pos2", name: "キッチン", color: "#f97316" },
+  { id: "pos3", name: "レジ", color: "#10b981" },
+  { id: "pos4", name: "休憩", color: "#6b7280" },
+];
+
+const mockTimeRange = { start: 9, end: 22, unit: 30 } as const;
 
 const mockStaffs = [
   { id: "staff1", name: "田中太郎", isSubmitted: true },
@@ -102,6 +120,9 @@ export const Basic: Story = {
     dates: mockDates,
     staffs: mockStaffs,
     shifts: mockShifts,
+    positions: mockPositions,
+    timeRange: mockTimeRange,
+    onShiftsChange: () => {},
     sortMode: "default",
     onSortModeChange: () => {},
   },

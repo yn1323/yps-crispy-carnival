@@ -1,4 +1,4 @@
-import type { ShiftData, SortMode, StaffType } from "../ShiftTableTest/types";
+import type { PositionType, ShiftData, SortMode, StaffType, TimeRange } from "../ShiftTableTest/types";
 
 // SP俯瞰ビュー メインProps
 export type ShiftOverviewCardSPProps = {
@@ -10,6 +10,9 @@ export type ShiftOverviewCardSPProps = {
   onDateClick?: (date: string) => void;
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
+  positions: PositionType[];
+  timeRange: TimeRange;
+  onShiftsChange: (shifts: ShiftData[]) => void;
 };
 
 // 日付カード
@@ -19,4 +22,6 @@ export type DateCardProps = {
   shifts: ShiftData[];
   isHoliday: boolean;
   onTap: () => void;
+  hasNonWorkingStaffs: boolean;
+  onAddStaffClick: () => void;
 };

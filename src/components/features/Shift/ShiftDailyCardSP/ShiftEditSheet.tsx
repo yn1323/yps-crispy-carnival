@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import { useCallback, useMemo, useState } from "react";
 import { LuPlus, LuTrash2, LuX } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
+import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
 import type { PositionType, ShiftData, TimeRange } from "../ShiftTableTest/types";
 import {
@@ -22,6 +23,14 @@ const generateTimeOptions = (timeRange: TimeRange) => {
   }
   return options;
 };
+
+// 開始用オプション: endTime未満の選択肢
+const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>
+  allOptions.filter((opt) => timeToMinutes(opt.value) < timeToMinutes(endTime));
+
+// 終了用オプション: startTimeより後の選択肢
+const getEndOptions = (allOptions: SelectItemType[], startTime: string) =>
+  allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime));
 
 // 休憩ポジションを取得
 const findBreakPosition = (positions: PositionType[]) => {
@@ -153,21 +162,23 @@ export const ShiftEditSheet = ({
                     {seg.positionName}
                   </Text>
                   <Select
-                    items={timeOptions}
+                    items={getStartOptions(timeOptions, seg.end)}
                     value={seg.start}
                     onChange={(v) => handleSegmentTimeChange(seg.id, "start", v)}
                     size="sm"
                     w="100px"
+                    usePortal={false}
                   />
                   <Text fontSize="sm" color="gray.400">
                     -
                   </Text>
                   <Select
-                    items={timeOptions}
+                    items={getEndOptions(timeOptions, seg.start)}
                     value={seg.end}
                     onChange={(v) => handleSegmentTimeChange(seg.id, "end", v)}
                     size="sm"
                     w="100px"
+                    usePortal={false}
                   />
                   <IconButton
                     aria-label="削除"
@@ -196,13 +207,28 @@ export const ShiftEditSheet = ({
               onChange={setAddPositionId}
               size="sm"
               placeholder="ポジション"
+              usePortal={false}
             />
             <HStack gap={2}>
-              <Select items={timeOptions} value={addStart} onChange={setAddStart} size="sm" w="120px" />
+              <Select
+                items={getStartOptions(timeOptions, addEnd)}
+                value={addStart}
+                onChange={setAddStart}
+                size="sm"
+                w="120px"
+                usePortal={false}
+              />
               <Text fontSize="sm" color="gray.400">
                 -
               </Text>
-              <Select items={timeOptions} value={addEnd} onChange={setAddEnd} size="sm" w="120px" />
+              <Select
+                items={getEndOptions(timeOptions, addStart)}
+                value={addEnd}
+                onChange={setAddEnd}
+                size="sm"
+                w="120px"
+                usePortal={false}
+              />
               <IconButton
                 aria-label="追加"
                 size="sm"

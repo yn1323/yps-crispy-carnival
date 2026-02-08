@@ -87,6 +87,9 @@ export const ShiftViewSwitcherSP = ({
           onDateClick={handleOverviewDateClick}
           sortMode={sortMode}
           onSortModeChange={setSortMode}
+          positions={positions}
+          timeRange={timeRange}
+          onShiftsChange={setShifts}
         />
       </Box>
     </Flex>
