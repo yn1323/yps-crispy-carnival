@@ -37,13 +37,13 @@ export const BottomSheet = ({ title, children, isOpen, onOpenChange }: BottomShe
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
-          <ChakraDialog.Content borderTopRadius="xl" maxH="60vh" overflowY="auto" w="100%">
+          <ChakraDialog.Content borderTopRadius="xl" maxH="60vh" w="100%">
             {title && (
               <ChakraDialog.Header>
                 <ChakraDialog.Title>{title}</ChakraDialog.Title>
               </ChakraDialog.Header>
             )}
-            <ChakraDialog.Body pt={title ? 0 : 10} pb={6}>
+            <ChakraDialog.Body pt={title ? 0 : 10} pb={6} overflowY="auto">
               {children}
             </ChakraDialog.Body>
             <ChakraDialog.CloseTrigger position="absolute" top="2" insetEnd="2">
