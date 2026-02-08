@@ -119,3 +119,43 @@ export type StaffAlert = {
   actualValue: number;
   threshold: number;
 };
+
+// ==========================================
+// 俯瞰ビュー コンポーネントProps
+// ==========================================
+
+// 日付ヘッダー Props
+export type OverviewHeaderProps = {
+  dates: string[];
+  months: string[]; // ["2026-01", "2026-02"]
+  holidays: string[];
+  unsubmittedCount: number;
+  sortMode: SortMode | null;
+  onSortModeChange: (mode: SortMode) => void;
+};
+
+// スタッフ行 Props
+export type StaffRowProps = {
+  data: StaffRowData;
+  dates: string[];
+  months: string[];
+  holidays: string[];
+  onStaffClick: () => void;
+  onDateClick?: (date: string) => void;
+  isHighlighted?: boolean;
+};
+
+// 月別合計セル Props
+export type MonthSummaryCellProps = {
+  totalMinutes: number;
+  alerts: StaffAlert[];
+  month: string;
+};
+
+// 充足度サマリー行 Props
+export type SummaryFooterRowProps = {
+  shifts: ShiftData[];
+  dates: string[];
+  months: string[];
+  requiredStaffing?: RequiredStaffingData[];
+};
