@@ -1,6 +1,5 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { RequiredStaffingData } from "../ShiftOverview/types";
 import { ShiftViewSwitcherSP } from ".";
 
 const meta = {
@@ -87,18 +86,6 @@ const mockShifts = [
   },
 ];
 
-const mockRequiredStaffing: RequiredStaffingData[] = [
-  {
-    dayOfWeek: 3,
-    slots: [
-      { hour: 10, position: "ホール", requiredCount: 2 },
-      { hour: 10, position: "キッチン", requiredCount: 1 },
-      { hour: 14, position: "ホール", requiredCount: 3 },
-      { hour: 14, position: "キッチン", requiredCount: 2 },
-    ],
-  },
-];
-
 // === ストーリー ===
 
 export const Basic: Story = {
@@ -112,10 +99,9 @@ export const Basic: Story = {
   },
 };
 
-export const WithRequiredStaffing: Story = {
+export const WithHoliday: Story = {
   args: {
     ...Basic.args,
     holidays: ["2026-01-23"],
-    requiredStaffing: mockRequiredStaffing,
   },
 };

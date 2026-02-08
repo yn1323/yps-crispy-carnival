@@ -5,19 +5,13 @@ import type { RequiredStaffingData } from "../ShiftOverview/types";
 import { ShiftTableTest } from "../ShiftTableTest";
 import { useKeyboardShortcuts } from "../ShiftTableTest/hooks/useKeyboardShortcuts";
 import { useUndoRedo } from "../ShiftTableTest/hooks/useUndoRedo";
-import type { PositionType, ShiftData, SortMode, StaffType, TimeRange } from "../ShiftTableTest/types";
+import type { ShiftData, SortMode } from "../ShiftTableTest/types";
 import { sortStaffs } from "../ShiftTableTest/utils/sortStaffs";
+import type { ShiftViewSwitcherBaseProps } from "./types";
 
 type ViewMode = "daily" | "overview";
 
-type ShiftViewSwitcherProps = {
-  shopId: string;
-  staffs: StaffType[];
-  positions: PositionType[];
-  initialShifts: ShiftData[];
-  dates: string[];
-  timeRange: TimeRange;
-  holidays?: string[];
+type ShiftViewSwitcherProps = ShiftViewSwitcherBaseProps & {
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
 };

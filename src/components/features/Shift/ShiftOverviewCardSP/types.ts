@@ -1,4 +1,3 @@
-import type { RequiredStaffingData } from "../ShiftOverview/types";
 import type { ShiftData, SortMode, StaffType } from "../ShiftTableTest/types";
 
 // SP俯瞰ビュー メインProps
@@ -9,7 +8,6 @@ export type ShiftOverviewCardSPProps = {
   shifts: ShiftData[];
   holidays?: string[];
   onDateClick?: (date: string) => void;
-  requiredStaffing?: RequiredStaffingData[];
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
 };
@@ -21,5 +19,4 @@ export type DateCardProps = {
   shifts: ShiftData[];
   isHoliday: boolean;
   onTap: () => void;
-  requiredCount?: number;
 };

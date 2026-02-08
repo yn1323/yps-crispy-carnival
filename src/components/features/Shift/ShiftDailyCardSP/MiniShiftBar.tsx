@@ -23,10 +23,8 @@ export const MiniShiftBar = ({ positions, timeRange }: MiniShiftBarProps) => {
     );
   }
 
-  // 最初のセグメントの開始時刻と最後のセグメントの終了時刻を取得
-  const sortedPositions = [...positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-  const firstStart = sortedPositions[0].start;
-  const lastEnd = sortedPositions[sortedPositions.length - 1].end;
+  const startLabel = `${String(timeRange.start).padStart(2, "0")}:00`;
+  const endLabel = `${String(timeRange.end).padStart(2, "0")}:00`;
 
   return (
     <Box>
@@ -52,10 +50,10 @@ export const MiniShiftBar = ({ positions, timeRange }: MiniShiftBarProps) => {
       </Box>
       <Flex justify="space-between" mt="2px">
         <Text fontSize="2xs" color="gray.500">
-          {firstStart}
+          {startLabel}
         </Text>
         <Text fontSize="2xs" color="gray.500">
-          {lastEnd}
+          {endLabel}
         </Text>
       </Flex>
     </Box>

@@ -1,4 +1,4 @@
-import { Box, Flex, Icon, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuTriangleAlert } from "react-icons/lu";
 import { MiniShiftBar } from "./MiniShiftBar";
 import type { StaffCardProps } from "./types";
@@ -14,6 +14,9 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap }: StaffCardProps
     if (!hasRequest) return "希望なし";
     return `希望 ${shift?.requestedTime?.start}-${shift?.requestedTime?.end}`;
   })();
+
+  // 休憩を除いたポジションセグメント
+  const visibleSegments = shift?.positions.filter((p) => p.positionName !== "休憩") ?? [];
 
   return (
     <Box
@@ -40,9 +43,22 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap }: StaffCardProps
         </Text>
       </Flex>
 
-      {/* 下段: ミニバー or メッセージ */}
+      {/* 下段: ミニバー + ポジションテキスト or メッセージ */}
       {hasPositions ? (
-        <MiniShiftBar positions={shift?.positions ?? []} timeRange={timeRange} />
+        <VStack gap={1} align="stretch">
+          <MiniShiftBar positions={shift?.positions ?? []} timeRange={timeRange} />
+          {/* ポジション名+時間テキスト */}
+          <Flex gap={3} flexWrap="wrap">
+            {visibleSegments.map((seg) => (
+              <Flex key={seg.id} align="center" gap={1}>
+                <Box w="8px" h="8px" borderRadius="full" bg={seg.color} flexShrink={0} />
+                <Text fontSize="2xs" color="gray.600">
+                  {seg.positionName} {seg.start}-{seg.end}
+                </Text>
+              </Flex>
+            ))}
+          </Flex>
+        </VStack>
       ) : (
         <Box h="20px" display="flex" alignItems="center" justifyContent="center">
           <Text fontSize="xs" color="gray.400">

@@ -2,25 +2,15 @@ import { Box, Flex, HStack, IconButton, SegmentGroup } from "@chakra-ui/react";
 import { useCallback, useMemo, useState } from "react";
 import { LuRedo2, LuUndo2 } from "react-icons/lu";
 import { ShiftDailyCardSP } from "../ShiftDailyCardSP";
-import type { RequiredStaffingData } from "../ShiftOverview/types";
 import { ShiftOverviewCardSP } from "../ShiftOverviewCardSP";
 import { useUndoRedo } from "../ShiftTableTest/hooks/useUndoRedo";
-import type { PositionType, ShiftData, SortMode, StaffType, TimeRange } from "../ShiftTableTest/types";
+import type { SortMode } from "../ShiftTableTest/types";
 import { sortStaffs } from "../ShiftTableTest/utils/sortStaffs";
+import type { ShiftViewSwitcherBaseProps } from "../ShiftViewSwitcher/types";
 
 type ViewMode = "daily" | "overview";
 
-type ShiftViewSwitcherSPProps = {
-  shopId: string;
-  staffs: StaffType[];
-  positions: PositionType[];
-  initialShifts: ShiftData[];
-  dates: string[];
-  timeRange: TimeRange;
-  holidays?: string[];
-  allShifts?: ShiftData[];
-  requiredStaffing?: RequiredStaffingData[];
-};
+type ShiftViewSwitcherSPProps = ShiftViewSwitcherBaseProps;
 
 const VIEW_OPTIONS = [
   { value: "daily", label: "日毎" },
@@ -35,7 +25,6 @@ export const ShiftViewSwitcherSP = ({
   dates,
   timeRange,
   holidays,
-  requiredStaffing,
 }: ShiftViewSwitcherSPProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const { state: shifts, set: setShifts, undo, redo, canUndo, canRedo } = useUndoRedo(initialShifts);
@@ -84,7 +73,6 @@ export const ShiftViewSwitcherSP = ({
           onDateChange={setSelectedDate}
           sortMode={sortMode}
           onSortModeChange={setSortMode}
-          requiredStaffing={requiredStaffing}
         />
       </Box>
 
@@ -97,7 +85,6 @@ export const ShiftViewSwitcherSP = ({
           shifts={shifts}
           holidays={holidays}
           onDateClick={handleOverviewDateClick}
-          requiredStaffing={requiredStaffing}
           sortMode={sortMode}
           onSortModeChange={setSortMode}
         />

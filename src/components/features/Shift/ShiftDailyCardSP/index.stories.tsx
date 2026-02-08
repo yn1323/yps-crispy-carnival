@@ -103,18 +103,6 @@ const mockShifts: ShiftData[] = [
   },
 ];
 
-const mockRequiredStaffing = [
-  {
-    dayOfWeek: 3,
-    slots: [
-      { hour: 10, position: "ホール", requiredCount: 2 },
-      { hour: 10, position: "キッチン", requiredCount: 1 },
-      { hour: 14, position: "ホール", requiredCount: 3 },
-      { hour: 14, position: "キッチン", requiredCount: 2 },
-    ],
-  },
-];
-
 // === ストーリー ===
 
 export const Basic: Story = {
@@ -130,7 +118,6 @@ export const Basic: Story = {
     onDateChange: () => {},
     sortMode: "default",
     onSortModeChange: () => {},
-    requiredStaffing: mockRequiredStaffing,
   },
 };
 

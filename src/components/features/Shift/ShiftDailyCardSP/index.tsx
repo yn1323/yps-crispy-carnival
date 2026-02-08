@@ -1,9 +1,10 @@
-import { Box, VStack } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { LuPlus } from "react-icons/lu";
 import { useBottomSheet } from "@/src/components/ui/BottomSheet";
 import { DateNavigator } from "./DateNavigator";
-import { FulfillmentBar } from "./FulfillmentBar";
 import { ShiftEditSheet } from "./ShiftEditSheet";
+import { StaffAddSheet } from "./StaffAddSheet";
 import { StaffCard } from "./StaffCard";
 import type { ShiftDailyCardSPProps } from "./types";
 
@@ -18,14 +19,26 @@ export const ShiftDailyCardSP = ({
   timeRange,
   selectedDate,
   onDateChange,
-  requiredStaffing,
 }: ShiftDailyCardSPProps) => {
-  const { isOpen, open, onOpenChange } = useBottomSheet();
+  const editSheet = useBottomSheet();
+  const addSheet = useBottomSheet();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const touchStartX = useRef(0);
 
   // 当日分のシフトを抽出
   const dateShifts = useMemo(() => shifts.filter((s) => s.date === selectedDate), [shifts, selectedDate]);
+
+  // 出勤者のみ（当日のシフトにポジションがあるスタッフ）
+  const workingStaffs = useMemo(() => {
+    const workingStaffIds = new Set(dateShifts.filter((s) => s.positions.length > 0).map((s) => s.staffId));
+    return staffs.filter((s) => workingStaffIds.has(s.id));
+  }, [staffs, dateShifts]);
+
+  // 未出勤スタッフ（追加シート用）
+  const nonWorkingStaffs = useMemo(() => {
+    const workingStaffIds = new Set(workingStaffs.map((s) => s.id));
+    return staffs.filter((s) => !workingStaffIds.has(s.id));
+  }, [staffs, workingStaffs]);
 
   // 選択中スタッフとそのシフト
   const selectedStaff = useMemo(() => staffs.find((s) => s.id === selectedStaffId), [staffs, selectedStaffId]);
@@ -34,13 +47,24 @@ export const ShiftDailyCardSP = ({
     [dateShifts, selectedStaffId],
   );
 
-  // カードタップ → BottomSheet 開く
+  // カードタップ → 編集BottomSheet 開く
   const handleCardTap = useCallback(
     (staffId: string) => {
       setSelectedStaffId(staffId);
-      open();
+      editSheet.open();
     },
-    [open],
+    [editSheet],
+  );
+
+  // 追加シートからスタッフ選択 → 編集BottomSheet へ遷移
+  const handleStaffSelect = useCallback(
+    (staffId: string) => {
+      addSheet.onOpenChange({ open: false });
+      setSelectedStaffId(staffId);
+      // 少し遅延させて前のシートが閉じてから開く
+      setTimeout(() => editSheet.open(), 150);
+    },
+    [addSheet, editSheet],
   );
 
   // シフト更新（BottomSheetから）
@@ -93,11 +117,8 @@ export const ShiftDailyCardSP = ({
         {/* 日付ナビ */}
         <DateNavigator dates={dates} selectedDate={selectedDate} onDateChange={onDateChange} />
 
-        {/* 充足度サマリー */}
-        <FulfillmentBar shifts={shifts} selectedDate={selectedDate} requiredStaffing={requiredStaffing} />
-
-        {/* スタッフカードリスト */}
-        {staffs.map((staff) => {
+        {/* 出勤者カードリスト */}
+        {workingStaffs.map((staff) => {
           const staffShift = dateShifts.find((s) => s.staffId === staff.id);
           return (
             <StaffCard
@@ -109,7 +130,39 @@ export const ShiftDailyCardSP = ({
             />
           );
         })}
+
+        {/* スタッフ追加ボタン */}
+        {nonWorkingStaffs.length > 0 && (
+          <Flex
+            align="center"
+            justify="center"
+            gap={2}
+            py={3}
+            borderWidth="1px"
+            borderStyle="dashed"
+            borderColor="gray.300"
+            borderRadius="md"
+            cursor="pointer"
+            _active={{ bg: "gray.50" }}
+            onClick={addSheet.open}
+          >
+            <Icon as={LuPlus} color="gray.500" boxSize={4} />
+            <Text fontSize="sm" color="gray.500">
+              スタッフを追加
+            </Text>
+          </Flex>
+        )}
       </VStack>
+
+      {/* スタッフ追加BottomSheet */}
+      <StaffAddSheet
+        staffs={nonWorkingStaffs}
+        shifts={dateShifts}
+        selectedDate={selectedDate}
+        isOpen={addSheet.isOpen}
+        onOpenChange={addSheet.onOpenChange}
+        onSelectStaff={handleStaffSelect}
+      />
 
       {/* 編集BottomSheet */}
       {selectedStaff && (
@@ -119,8 +172,8 @@ export const ShiftDailyCardSP = ({
           positions={positions}
           timeRange={timeRange}
           selectedDate={selectedDate}
-          isOpen={isOpen}
-          onOpenChange={onOpenChange}
+          isOpen={editSheet.isOpen}
+          onOpenChange={editSheet.onOpenChange}
           onShiftUpdate={handleShiftUpdate}
           onShiftDelete={handleShiftDelete}
         />

@@ -1,4 +1,3 @@
-import type { RequiredStaffingData } from "../ShiftOverview/types";
 import type { PositionSegment, PositionType, ShiftData, SortMode, StaffType, TimeRange } from "../ShiftTableTest/types";
 
 // SP日毎ビュー メインProps
@@ -14,7 +13,6 @@ export type ShiftDailyCardSPProps = {
   onDateChange: (date: string) => void;
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
-  requiredStaffing?: RequiredStaffingData[];
 };
 
 // スタッフカード
@@ -39,11 +37,14 @@ export type DateNavigatorProps = {
   holidays?: string[];
 };
 
-// 充足度サマリーバー
-export type FulfillmentBarProps = {
+// スタッフ追加BottomSheet
+export type StaffAddSheetProps = {
+  staffs: StaffType[];
   shifts: ShiftData[];
   selectedDate: string;
-  requiredStaffing?: RequiredStaffingData[];
+  isOpen: boolean;
+  onOpenChange: (details: { open: boolean }) => void;
+  onSelectStaff: (staffId: string) => void;
 };
 
 // 編集BottomSheet
