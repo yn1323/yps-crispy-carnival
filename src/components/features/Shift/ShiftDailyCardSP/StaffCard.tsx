@@ -1,0 +1,55 @@
+import { Box, Flex, Icon, Text } from "@chakra-ui/react";
+import { LuTriangleAlert } from "react-icons/lu";
+import { MiniShiftBar } from "./MiniShiftBar";
+import type { StaffCardProps } from "./types";
+
+export const StaffCard = ({ staff, shift, timeRange, onCardTap }: StaffCardProps) => {
+  const isUnsubmitted = !staff.isSubmitted;
+  const hasPositions = shift && shift.positions.length > 0;
+  const hasRequest = shift?.requestedTime !== null && shift?.requestedTime !== undefined;
+
+  // 希望時間テキスト
+  const requestLabel = (() => {
+    if (isUnsubmitted) return "未提出";
+    if (!hasRequest) return "希望なし";
+    return `希望 ${shift?.requestedTime?.start}-${shift?.requestedTime?.end}`;
+  })();
+
+  return (
+    <Box
+      borderWidth="1px"
+      borderColor={isUnsubmitted ? "red.200" : "gray.200"}
+      borderRadius="md"
+      bg={isUnsubmitted ? "red.50" : "white"}
+      p={3}
+      cursor="pointer"
+      onClick={onCardTap}
+      _active={{ bg: isUnsubmitted ? "red.100" : "gray.50" }}
+      transition="background 0.15s ease"
+    >
+      {/* 上段: スタッフ名 + 希望時間 */}
+      <Flex justify="space-between" align="center" mb={2}>
+        <Flex align="center" gap={1}>
+          {isUnsubmitted && <Icon as={LuTriangleAlert} color="red.500" boxSize={4} />}
+          <Text fontSize="sm" fontWeight="bold" color={isUnsubmitted ? "red.700" : "gray.800"}>
+            {staff.name}
+          </Text>
+        </Flex>
+        <Text fontSize="xs" color={isUnsubmitted ? "red.500" : "gray.500"}>
+          {requestLabel}
+        </Text>
+      </Flex>
+
+      {/* 下段: ミニバー or メッセージ */}
+      {hasPositions ? (
+        <MiniShiftBar positions={shift?.positions ?? []} timeRange={timeRange} />
+      ) : (
+        <Box h="20px" display="flex" alignItems="center" justifyContent="center">
+          <Text fontSize="xs" color="gray.400">
+            {isUnsubmitted ? "シフト希望なし" : hasRequest ? "ポジション未割当" : "希望なし"}
+          </Text>
+        </Box>
+      )}
+    </Box>
+  );
+};
