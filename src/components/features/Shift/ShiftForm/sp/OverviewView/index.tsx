@@ -85,13 +85,14 @@ export const SPOverviewView = () => {
     [addTargetDateShifts, selectedStaffId],
   );
 
-  // 日付カードタップ → 日別ビューに遷移
+  // 日付カードタップ → 日別ビューに遷移（readOnly時は無効）
   const handleDateClick = useCallback(
     (date: string) => {
+      if (isReadOnly) return;
       setSelectedDate(date);
       setViewMode("daily");
     },
-    [setSelectedDate, setViewMode],
+    [setSelectedDate, setViewMode, isReadOnly],
   );
 
   // DateCardの "+" ボタン

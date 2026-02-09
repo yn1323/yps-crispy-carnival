@@ -129,7 +129,6 @@ export type OverviewHeaderProps = {
   dates: string[];
   months: string[]; // ["2026-01", "2026-02"]
   holidays: string[];
-  unsubmittedCount: number;
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
 };
@@ -140,7 +139,7 @@ export type StaffRowProps = {
   dates: string[];
   months: string[];
   holidays: string[];
-  onStaffClick: () => void;
+  onStaffClick?: () => void;
   onDateClick?: (date: string) => void;
   isHighlighted?: boolean;
 };

@@ -13,7 +13,7 @@ import { requireShop } from "../helpers";
 export const upsert = mutation({
   args: {
     shopId: v.id("shops"),
-    dayOfWeek: v.number(), // 0=日, 1=月, ..., 6=土
+    dayOfWeek: v.number(), // 0=日, 1=月, ..., 6=土, 7=祝
     staffing: v.array(
       v.object({
         hour: v.number(),
@@ -32,7 +32,7 @@ export const upsert = mutation({
     await requireShop(ctx, args.shopId);
 
     // バリデーション
-    if (args.dayOfWeek < 0 || args.dayOfWeek > 6) {
+    if (args.dayOfWeek < 0 || args.dayOfWeek > 7) {
       throw new ConvexError({ message: "曜日の値が不正です", code: "INVALID_DAY_OF_WEEK" });
     }
 

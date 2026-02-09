@@ -8,7 +8,7 @@ import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
 import { viewModeAtom } from "./stores";
-import type { PositionType, RequiredStaffingData, ShiftData, StaffType, TimeRange, ViewMode } from "./types";
+import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
 
 const VIEW_OPTIONS = [
   { value: "daily", label: "日別" },
@@ -33,6 +33,8 @@ type ShiftFormProps = {
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
   initialViewMode?: ViewMode;
+  hideViewSwitcher?: boolean;
+  initialSortMode?: SortMode;
 };
 
 const ShiftFormInner = ({
@@ -48,6 +50,8 @@ const ShiftFormInner = ({
   allShifts,
   requiredStaffing,
   initialViewMode,
+  hideViewSwitcher = false,
+  initialSortMode,
 }: ShiftFormProps) => {
   // props → atoms 初期化
   useShiftFormInit({
@@ -63,6 +67,7 @@ const ShiftFormInner = ({
     allShifts,
     requiredStaffing,
     initialViewMode,
+    initialSortMode,
   });
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
@@ -71,32 +76,36 @@ const ShiftFormInner = ({
   return (
     <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }}>
       {/* SP ヘッダー: Undo/Redo + SegmentGroup */}
-      <Box display={{ base: "block", lg: "none" }}>
-        <Flex align="center" justify={isReadOnly ? "flex-end" : "space-between"} px={3} py={2} flexShrink={0}>
-          {!isReadOnly && (
-            <HStack gap={1}>
-              <IconButton aria-label="元に戻す" size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
-                <LuUndo2 />
-              </IconButton>
-              <IconButton aria-label="やり直し" size="sm" variant="ghost" onClick={redo} disabled={!canRedo}>
-                <LuRedo2 />
-              </IconButton>
-            </HStack>
-          )}
-          <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
-            <SegmentGroup.Indicator />
-            <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
-          </SegmentGroup.Root>
-        </Flex>
-      </Box>
+      {!hideViewSwitcher && (
+        <Box display={{ base: "block", lg: "none" }}>
+          <Flex align="center" justify={isReadOnly ? "flex-end" : "space-between"} px={3} py={2} flexShrink={0}>
+            {!isReadOnly && (
+              <HStack gap={1}>
+                <IconButton aria-label="元に戻す" size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
+                  <LuUndo2 />
+                </IconButton>
+                <IconButton aria-label="やり直し" size="sm" variant="ghost" onClick={redo} disabled={!canRedo}>
+                  <LuRedo2 />
+                </IconButton>
+              </HStack>
+            )}
+            <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+              <SegmentGroup.Indicator />
+              <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
+            </SegmentGroup.Root>
+          </Flex>
+        </Box>
+      )}
 
       {/* PC ヘッダー: SegmentGroup */}
-      <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0} p={4}>
-        <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
-          <SegmentGroup.Indicator />
-          <SegmentGroup.Items items={VIEW_OPTIONS_PC} cursor="pointer" />
-        </SegmentGroup.Root>
-      </Box>
+      {!hideViewSwitcher && (
+        <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0} p={4}>
+          <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+            <SegmentGroup.Indicator />
+            <SegmentGroup.Items items={VIEW_OPTIONS_PC} cursor="pointer" />
+          </SegmentGroup.Root>
+        </Box>
+      )}
 
       {/* 日別ビュー（display:none で常時マウント、UI状態保持） */}
       <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minHeight={0}>

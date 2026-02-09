@@ -1,25 +1,16 @@
 import { useMutation, useQuery } from "convex/react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffingMatrix } from "@/src/components/features/Shift/StaffingMatrix";
+import { StaffingRequirement } from "@/src/components/features/Shift/StaffingRequirement";
+import { SetupWizard } from "@/src/components/features/Shift/StaffingRequirement/SetupWizard";
+import type { AIInput, PatternType, StaffingEntry } from "@/src/components/features/Shift/StaffingRequirement/types";
 import { LazyShow } from "@/src/components/ui/LazyShow";
 import { LoadingState } from "@/src/components/ui/LoadingState";
 import { toaster } from "@/src/components/ui/toaster";
 
 type Props = {
   shopId: string;
-};
-
-type StaffingItem = {
-  hour: number;
-  position: string;
-  requiredCount: number;
-};
-
-type AIInput = {
-  shopType: string;
-  customerCount: string;
 };
 
 export const StaffingSettingsPage = ({ shopId }: Props) => {
@@ -32,14 +23,36 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
   // Mutations
   const upsertMutation = useMutation(api.requiredStaffing.mutations.upsert);
   const copyMutation = useMutation(api.requiredStaffing.mutations.copyToMultipleDays);
+  const saveAllMutation = useMutation(api.requiredStaffing.mutations.saveAll);
 
-  // ローディング状態
+  // UI状態
   const [isSaving, setIsSaving] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
-  // 保存処理
+  // requiredStaffingをフラット化（StaffingRequirement用）
+  // TODO: requiredStaffingクエリ有効化後、依存配列にrequiredStaffingを追加
+  const flattenedStaffing = useMemo(() => {
+    if (!requiredStaffing) return [];
+    return requiredStaffing.flatMap(
+      (dayRecord: { _id: string; shopId: string; dayOfWeek: number; staffing: StaffingEntry[] }) =>
+        dayRecord.staffing.map((entry) => ({
+          _id: dayRecord._id,
+          shopId: dayRecord.shopId,
+          dayOfWeek: dayRecord.dayOfWeek,
+          hour: entry.hour,
+          position: entry.position,
+          requiredCount: entry.requiredCount,
+        })),
+    );
+  }, []);
+
+  // データ未設定かどうか
+  const hasNoData = requiredStaffing !== undefined && requiredStaffing.length === 0;
+
+  // 保存処理（曜日単位）
   const handleSave = useCallback(
-    async (params: { dayOfWeek: number; staffing: StaffingItem[]; aiInput?: AIInput }) => {
+    async (params: { dayOfWeek: number; staffing: StaffingEntry[]; aiInput?: AIInput }) => {
       setIsSaving(true);
       try {
         await upsertMutation({
@@ -94,6 +107,42 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
     [shopId, copyMutation],
   );
 
+  // SetupWizard保存処理（全曜日一括）
+  const handleWizardSave = useCallback(
+    async (patterns: PatternType[], aiInput?: AIInput) => {
+      setIsSaving(true);
+      try {
+        const settings = patterns.flatMap((pattern) =>
+          pattern.appliedDays.map((dayOfWeek) => ({
+            dayOfWeek,
+            staffing: pattern.staffing,
+          })),
+        );
+
+        await saveAllMutation({
+          shopId: shopId as Id<"shops">,
+          settings,
+          aiInput,
+        });
+
+        setShowWizard(false);
+        toaster.create({
+          description: "初期設定を保存しました",
+          type: "success",
+        });
+      } catch (error) {
+        toaster.create({
+          description: "保存に失敗しました",
+          type: "error",
+        });
+        console.error("初期設定保存エラー:", error);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [shopId, saveAllMutation],
+  );
+
   // ローディング
   if (shop === undefined || positions === undefined) {
     return (
@@ -108,19 +157,37 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
     return null;
   }
 
+  const shopData = {
+    _id: shop._id,
+    shopName: shop.shopName,
+    openTime: shop.openTime,
+    closeTime: shop.closeTime,
+  };
+
+  const positionData = positions.map((p) => ({ _id: p._id, name: p.name }));
+
+  // SetupWizard表示（初回 or やり直し）
+  if (hasNoData || showWizard) {
+    return (
+      <SetupWizard
+        openTime={shop.openTime}
+        closeTime={shop.closeTime}
+        positions={positionData}
+        onSave={handleWizardSave}
+        onCancel={() => setShowWizard(false)}
+      />
+    );
+  }
+
   return (
-    <StaffingMatrix
+    <StaffingRequirement
       shopId={shopId}
-      shop={{
-        _id: shop._id,
-        shopName: shop.shopName,
-        openTime: shop.openTime,
-        closeTime: shop.closeTime,
-      }}
-      positions={positions.map((p) => ({ _id: p._id, name: p.name }))}
-      initialStaffing={requiredStaffing}
+      shop={shopData}
+      positions={positionData}
+      initialStaffing={flattenedStaffing}
       onSave={handleSave}
       onCopy={handleCopy}
+      onResetSetup={() => setShowWizard(true)}
       isSaving={isSaving}
       isCopying={isCopying}
     />

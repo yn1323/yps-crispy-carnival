@@ -162,7 +162,7 @@ export const SPDaily: Story = {
     ...Basic.args,
   },
   globals: {
-    viewport: { value: "mobile1", isRotated: false },
+    viewport: { value: "mobile2", isRotated: false },
   },
 };
 
@@ -172,6 +172,6 @@ export const SPOverview: Story = {
     initialViewMode: "overview",
   },
   globals: {
-    viewport: { value: "mobile1", isRotated: false },
+    viewport: { value: "mobile2", isRotated: false },
   },
 };
