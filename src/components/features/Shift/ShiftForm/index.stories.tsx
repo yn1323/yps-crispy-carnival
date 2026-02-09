@@ -156,3 +156,22 @@ export const ReadOnly: Story = {
     currentStaffId: "staff1",
   },
 };
+
+export const SPDaily: Story = {
+  args: {
+    ...Basic.args,
+  },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+};
+
+export const SPOverview: Story = {
+  args: {
+    ...Basic.args,
+    initialViewMode: "overview",
+  },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+};

@@ -62,9 +62,9 @@ export const DateCard = ({
       borderRadius="lg"
       p={3}
       bg="white"
-      cursor="pointer"
-      _active={{ bg: "gray.50" }}
-      onClick={onTap}
+      cursor={isReadOnly ? "default" : "pointer"}
+      _active={isReadOnly ? undefined : { bg: "gray.50" }}
+      onClick={isReadOnly ? undefined : onTap}
     >
       {/* ヘッダー: 日付 + 追加ボタン */}
       <Flex justify="space-between" align="center" mb={2}>

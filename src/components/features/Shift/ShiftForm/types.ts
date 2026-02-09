@@ -81,7 +81,7 @@ export type LinkedResizeTarget = {
 };
 
 // ==========================================
-// 俯瞰ビュー型
+// 一覧ビュー型
 // ==========================================
 
 // 必要人員設定データ（convex/requiredStaffing テーブルの1レコードに対応）
@@ -121,7 +121,7 @@ export type StaffAlert = {
 };
 
 // ==========================================
-// 俯瞰ビュー コンポーネントProps
+// 一覧ビュー コンポーネントProps
 // ==========================================
 
 // 日付ヘッダー Props
@@ -129,7 +129,6 @@ export type OverviewHeaderProps = {
   dates: string[];
   months: string[]; // ["2026-01", "2026-02"]
   holidays: string[];
-  unsubmittedCount: number;
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
 };
@@ -140,7 +139,7 @@ export type StaffRowProps = {
   dates: string[];
   months: string[];
   holidays: string[];
-  onStaffClick: () => void;
+  onStaffClick?: () => void;
   onDateClick?: (date: string) => void;
   isHighlighted?: boolean;
 };

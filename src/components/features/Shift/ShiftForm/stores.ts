@@ -104,7 +104,7 @@ export const redoAtom = atom(null, (get, set) => {
 });
 
 // ==========================================
-// PC日毎ビュー専用
+// PC日別ビュー専用
 // ==========================================
 export const toolModeAtom = atom<ToolMode>("select");
 export const selectedPositionIdAtom = atom<string | null>(null);
