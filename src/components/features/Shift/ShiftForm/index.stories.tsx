@@ -157,9 +157,21 @@ export const ReadOnly: Story = {
   },
 };
 
-export const InitialOverview: Story = {
+export const SPDaily: Story = {
+  args: {
+    ...Basic.args,
+  },
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+};
+
+export const SPOverview: Story = {
   args: {
     ...Basic.args,
     initialViewMode: "overview",
+  },
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
   },
 };
