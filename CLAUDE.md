@@ -23,6 +23,7 @@
    - `pnpm test` - Vitestテスト（ロジック、UI修正時のみ）
    - `pnpm e2e` - Playwright E2Eテスト（E2E作成・修正時のみ）
 - YOU MUST: 機能実装後（新機能追加、API追加、画面追加、スキーマ変更等）はドキュメント更新を確認してください。スキル `/doc-update` を使用。
+- YOU MUST: ワイヤーはASCIIで表示してください
 
 ### IMPORTANT（重要事項）
 - IMPORTANT: Chakra UI v3 Modern API準拠

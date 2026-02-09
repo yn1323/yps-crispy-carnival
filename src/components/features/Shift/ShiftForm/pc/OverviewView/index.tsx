@@ -28,13 +28,14 @@ export const OverviewView = () => {
 
   const { dates, holidays, isReadOnly, currentStaffId, allShifts, requiredStaffing } = config;
 
-  // 日付クリック → 日毎ビューに遷移
+  // 日付クリック → 日別ビューに遷移（readOnly時は無効）
   const handleDateClick = useCallback(
     (date: string) => {
+      if (isReadOnly) return;
       setSelectedDate(date);
       setViewMode("daily");
     },
-    [setSelectedDate, setViewMode],
+    [setSelectedDate, setViewMode, isReadOnly],
   );
 
   // スタッフ編集モーダル
@@ -62,9 +63,6 @@ export const OverviewView = () => {
     [sortedStaffs, shifts, shiftsForMonthly, dates, months],
   );
 
-  // 未提出スタッフ数
-  const unsubmittedCount = useMemo(() => staffRowDataList.filter((s) => !s.isSubmitted).length, [staffRowDataList]);
-
   return (
     <>
       <Box overflow="auto" border="1px solid" borderColor="gray.200" borderRadius="md">
@@ -73,7 +71,6 @@ export const OverviewView = () => {
             dates={dates}
             months={months}
             holidays={holidays}
-            unsubmittedCount={unsubmittedCount}
             sortMode={sortMode}
             onSortModeChange={setSortMode}
           />
@@ -85,8 +82,8 @@ export const OverviewView = () => {
                 dates={dates}
                 months={months}
                 holidays={holidays}
-                onStaffClick={() => handleStaffNameClick(staffData.staffId)}
-                onDateClick={handleDateClick}
+                onStaffClick={isReadOnly ? undefined : () => handleStaffNameClick(staffData.staffId)}
+                onDateClick={isReadOnly ? undefined : handleDateClick}
                 isHighlighted={staffData.staffId === currentStaffId}
               />
             ))}

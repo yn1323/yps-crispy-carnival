@@ -1,4 +1,4 @@
-import { ShiftEditor } from "@/src/components/features/Shift/ShiftEditor";
+import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 
 type Props = {
   shopId: string;
@@ -6,103 +6,110 @@ type Props = {
 };
 
 // モックデータ（将来的にはuseQueryで取得）
-const mockRecruitment = {
-  _id: "recruitment_1",
-  startDate: "2025-12-01",
-  endDate: "2025-12-07",
-};
+const mockStaffs = [
+  { id: "staff_1", name: "田中太郎", isSubmitted: true },
+  { id: "staff_2", name: "山田花子", isSubmitted: true },
+  { id: "staff_3", name: "鈴木次郎", isSubmitted: true },
+];
 
-// 希望シフトのモックデータ
-const mockShiftRequests = [
+const mockPositions = [
+  { id: "pos_hall", name: "ホール", color: "#3b82f6" },
+  { id: "pos_kitchen", name: "キッチン", color: "#f97316" },
+  { id: "pos_register", name: "レジ", color: "#10b981" },
+];
+
+const mockDates = ["2025-12-01", "2025-12-02", "2025-12-03", "2025-12-04", "2025-12-05", "2025-12-06", "2025-12-07"];
+
+const mockShifts = [
   {
-    _id: "req_1",
-    recruitmentId: "recruitment_1",
+    id: "shift_1",
     staffId: "staff_1",
     staffName: "田中太郎",
     date: "2025-12-01",
-    startTime: "09:00",
-    endTime: "17:00",
+    requestedTime: { start: "09:00", end: "17:00" },
+    positions: [
+      { id: "seg_1", positionId: "pos_hall", positionName: "ホール", color: "#3b82f6", start: "09:00", end: "17:00" },
+    ],
   },
   {
-    _id: "req_2",
-    recruitmentId: "recruitment_1",
+    id: "shift_2",
     staffId: "staff_2",
     staffName: "山田花子",
     date: "2025-12-01",
-    startTime: "11:00",
-    endTime: "19:00",
+    requestedTime: { start: "11:00", end: "19:00" },
+    positions: [
+      {
+        id: "seg_2",
+        positionId: "pos_kitchen",
+        positionName: "キッチン",
+        color: "#f97316",
+        start: "11:00",
+        end: "19:00",
+      },
+    ],
   },
   {
-    _id: "req_3",
-    recruitmentId: "recruitment_1",
+    id: "shift_3",
     staffId: "staff_3",
     staffName: "鈴木次郎",
     date: "2025-12-01",
-    startTime: "10:00",
-    endTime: "18:00",
+    requestedTime: { start: "10:00", end: "18:00" },
+    positions: [
+      {
+        id: "seg_3",
+        positionId: "pos_register",
+        positionName: "レジ",
+        color: "#10b981",
+        start: "10:00",
+        end: "18:00",
+      },
+    ],
   },
   {
-    _id: "req_4",
-    recruitmentId: "recruitment_1",
+    id: "shift_4",
     staffId: "staff_1",
     staffName: "田中太郎",
     date: "2025-12-02",
-    startTime: "10:00",
-    endTime: "18:00",
+    requestedTime: { start: "10:00", end: "18:00" },
+    positions: [
+      { id: "seg_4", positionId: "pos_hall", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "18:00" },
+    ],
   },
   {
-    _id: "req_5",
-    recruitmentId: "recruitment_1",
+    id: "shift_5",
     staffId: "staff_2",
     staffName: "山田花子",
     date: "2025-12-03",
-    startTime: "09:00",
-    endTime: "15:00",
+    requestedTime: { start: "09:00", end: "15:00" },
+    positions: [
+      {
+        id: "seg_5",
+        positionId: "pos_kitchen",
+        positionName: "キッチン",
+        color: "#f97316",
+        start: "09:00",
+        end: "15:00",
+      },
+    ],
   },
 ];
 
-// ポジション選択肢のモックデータ
-const mockPositions = [
-  { value: "hall", label: "ホール" },
-  { value: "kitchen", label: "キッチン" },
-  { value: "register", label: "レジ" },
-];
-
-// 必要人員のモックデータ（月曜日 = 1）
-const mockRequiredStaffing = [
-  { _id: "rs_1", shopId: "shop_1", dayOfWeek: 1, hour: 9, position: "ホール", requiredCount: 2 },
-  { _id: "rs_2", shopId: "shop_1", dayOfWeek: 1, hour: 9, position: "キッチン", requiredCount: 1 },
-  { _id: "rs_3", shopId: "shop_1", dayOfWeek: 1, hour: 10, position: "ホール", requiredCount: 2 },
-  { _id: "rs_4", shopId: "shop_1", dayOfWeek: 1, hour: 10, position: "キッチン", requiredCount: 1 },
-  { _id: "rs_5", shopId: "shop_1", dayOfWeek: 1, hour: 11, position: "ホール", requiredCount: 3 },
-  { _id: "rs_6", shopId: "shop_1", dayOfWeek: 1, hour: 11, position: "キッチン", requiredCount: 2 },
-  { _id: "rs_7", shopId: "shop_1", dayOfWeek: 1, hour: 12, position: "ホール", requiredCount: 3 },
-  { _id: "rs_8", shopId: "shop_1", dayOfWeek: 1, hour: 12, position: "キッチン", requiredCount: 2 },
-];
-
-export const ShiftConfirmPage = ({ shopId, recruitmentId }: Props) => {
+export const ShiftConfirmPage = ({ shopId }: Props) => {
   // 将来的にはuseQueryでデータ取得
   // const recruitment = useQuery(api.recruitment.queries.getById, { recruitmentId });
   // const shiftRequests = useQuery(api.shiftRequest.queries.listByRecruitment, { recruitmentId });
   // const positions = useQuery(api.position.queries.listByShop, { shopId });
-  // const requiredStaffing = useQuery(api.staffing.queries.listByShop, { shopId });
-
-  // 将来的なローディング・エラー処理
-  // if (recruitment === undefined || shiftRequests === undefined) {
-  //   return <LoadingState />;
-  // }
-  // if (recruitment === null) {
-  //   return <NotFoundState />;
-  // }
 
   return (
-    <ShiftEditor
+    <ShiftForm
       shopId={shopId}
-      recruitmentId={recruitmentId}
-      recruitment={mockRecruitment}
-      shiftRequests={mockShiftRequests}
+      staffs={mockStaffs}
       positions={mockPositions}
-      requiredStaffing={mockRequiredStaffing}
+      initialShifts={mockShifts}
+      dates={mockDates}
+      timeRange={{ start: 9, end: 22, unit: 30 }}
+      holidays={[]}
+      isReadOnly
     />
   );
 };

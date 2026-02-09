@@ -1,11 +1,17 @@
-import { RecruitmentDetail } from "@/src/components/features/Shift/RecruitmentDetail";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { RecruitmentDetail } from ".";
 
-type Props = {
-  shopId: string;
-  recruitmentId: string;
-};
+const meta = {
+  title: "Features/Shift/RecruitmentDetail",
+  component: RecruitmentDetail,
+  parameters: {
+    layout: "fullscreen",
+  },
+} satisfies Meta<typeof RecruitmentDetail>;
 
-// モックデータ（将来的にはuseQueryで取得）
+export default meta;
+type Story = StoryObj<typeof meta>;
+
 const mockStaffs = [
   { id: "staff_1", name: "田中太郎", isSubmitted: true },
   { id: "staff_2", name: "山田花子", isSubmitted: true },
@@ -60,21 +66,15 @@ const mockShifts = [
   },
 ];
 
-export const RecruitmentDetailPage = ({ shopId, recruitmentId }: Props) => {
-  // 将来的にはuseQueryでデータ取得
-  // const recruitment = useQuery(api.recruitment.queries.getById, { recruitmentId });
-  // const staffsWithRequests = useQuery(api.shiftRequest.queries.listByRecruitment, { recruitmentId });
-
-  return (
-    <RecruitmentDetail
-      shopId={shopId}
-      recruitmentId={recruitmentId}
-      staffs={mockStaffs}
-      positions={mockPositions}
-      shifts={mockShifts}
-      dates={mockDates}
-      timeRange={{ start: 9, end: 22, unit: 30 }}
-      holidays={[]}
-    />
-  );
+export const Basic: Story = {
+  args: {
+    shopId: "shop_1",
+    recruitmentId: "recruitment_1",
+    staffs: mockStaffs,
+    positions: mockPositions,
+    shifts: mockShifts,
+    dates: mockDates,
+    timeRange: { start: 9, end: 22, unit: 30 },
+    holidays: [],
+  },
 };
