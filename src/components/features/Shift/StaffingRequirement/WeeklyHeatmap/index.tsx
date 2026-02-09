@@ -32,6 +32,7 @@ export const WeeklyHeatmap = ({ staffingMap, hours, positions, onSelectDay }: We
                   _hover={{ bg: "gray.100" }}
                   onClick={() => onSelectDay(day)}
                   w="60px"
+                  color={getDayColor(day)}
                 >
                   {DAY_LABELS[day]}
                 </Table.ColumnHeader>
@@ -96,6 +97,7 @@ export const WeeklyHeatmap = ({ staffingMap, hours, positions, onSelectDay }: We
                   p={1}
                   cursor="pointer"
                   onClick={() => onSelectDay(day)}
+                  color={getDayColor(day)}
                 >
                   {DAY_LABELS[day]}
                 </Table.ColumnHeader>

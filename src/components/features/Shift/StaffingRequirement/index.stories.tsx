@@ -55,6 +55,7 @@ const fullWeekStaffing = [
   ...generateDayStaffing(5, "weekday"), // 金
   ...generateDayStaffing(6, "weekend"), // 土
   ...generateDayStaffing(0, "weekend"), // 日
+  ...generateDayStaffing(7, "weekend"), // 祝
 ];
 
 // 月曜だけデータありのパターン

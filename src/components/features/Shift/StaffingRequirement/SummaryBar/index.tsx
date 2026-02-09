@@ -1,5 +1,6 @@
 import { Flex, Icon, Text } from "@chakra-ui/react";
 import { LuCalendarCheck, LuChartBar, LuClock } from "react-icons/lu";
+import { DAY_COUNT } from "../constants";
 
 type SummaryBarProps = {
   weeklyTotalPersonHours: number;
@@ -35,7 +36,7 @@ export const SummaryBar = ({ weeklyTotalPersonHours, peakInfo, configuredDaysCou
       <Flex align="center" gap={2}>
         <Icon as={LuCalendarCheck} color="blue.500" boxSize={4} />
         <Text fontSize="sm" fontWeight="bold">
-          {configuredDaysCount}/7日設定済
+          {configuredDaysCount}/{DAY_COUNT}日設定済
         </Text>
       </Flex>
     </Flex>
