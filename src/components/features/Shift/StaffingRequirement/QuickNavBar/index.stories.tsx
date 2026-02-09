@@ -8,6 +8,10 @@ const meta = {
     layout: "padded",
     viewport: { defaultViewport: "mobile1" },
   },
+
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
 } satisfies Meta<typeof QuickNavBar>;
 
 export default meta;
