@@ -11,13 +11,13 @@ import { viewModeAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, StaffType, TimeRange, ViewMode } from "./types";
 
 const VIEW_OPTIONS = [
-  { value: "daily", label: "日毎" },
-  { value: "overview", label: "俯瞰" },
+  { value: "daily", label: "日別" },
+  { value: "overview", label: "一覧" },
 ];
 
 const VIEW_OPTIONS_PC = [
-  { value: "daily", label: "日毎ビュー" },
-  { value: "overview", label: "俯瞰ビュー" },
+  { value: "daily", label: "日別" },
+  { value: "overview", label: "一覧" },
 ];
 
 type ShiftFormProps = {
@@ -32,6 +32,7 @@ type ShiftFormProps = {
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
+  initialViewMode?: ViewMode;
 };
 
 const ShiftFormInner = ({
@@ -46,6 +47,7 @@ const ShiftFormInner = ({
   currentStaffId,
   allShifts,
   requiredStaffing,
+  initialViewMode,
 }: ShiftFormProps) => {
   // props → atoms 初期化
   useShiftFormInit({
@@ -60,6 +62,7 @@ const ShiftFormInner = ({
     currentStaffId,
     allShifts,
     requiredStaffing,
+    initialViewMode,
   });
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
@@ -95,7 +98,7 @@ const ShiftFormInner = ({
         </SegmentGroup.Root>
       </Box>
 
-      {/* 日毎ビュー（display:none で常時マウント、UI状態保持） */}
+      {/* 日別ビュー（display:none で常時マウント、UI状態保持） */}
       <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minHeight={0}>
         {/* PC */}
         <Box display={{ base: "none", lg: "flex" }} flexDirection="column" flex={1} minHeight={0} px={4}>
@@ -107,7 +110,7 @@ const ShiftFormInner = ({
         </Box>
       </Box>
 
-      {/* 俯瞰ビュー（display:none で常時マウント） */}
+      {/* 一覧ビュー（display:none で常時マウント） */}
       <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minHeight={0} overflow="auto">
         {/* PC */}
         <Box display={{ base: "none", lg: "block" }} px={4}>

@@ -1,7 +1,7 @@
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
-import { selectedDateAtom, shiftConfigAtom, shiftsHistoryAtom } from "../stores";
-import type { PositionType, RequiredStaffingData, ShiftData, StaffType, TimeRange } from "../types";
+import { selectedDateAtom, shiftConfigAtom, shiftsHistoryAtom, viewModeAtom } from "../stores";
+import type { PositionType, RequiredStaffingData, ShiftData, StaffType, TimeRange, ViewMode } from "../types";
 
 type UseShiftFormInitParams = {
   shopId: string;
@@ -15,6 +15,7 @@ type UseShiftFormInitParams = {
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
+  initialViewMode?: ViewMode;
 };
 
 export const useShiftFormInit = ({
@@ -29,10 +30,12 @@ export const useShiftFormInit = ({
   currentStaffId,
   allShifts,
   requiredStaffing,
+  initialViewMode,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
   const setHistory = useSetAtom(shiftsHistoryAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
+  const setViewMode = useSetAtom(viewModeAtom);
   const isInitialized = useRef(false);
 
   // 初回マウント時: 履歴を初期化 + 選択日を設定
@@ -46,7 +49,10 @@ export const useShiftFormInit = ({
       future: [],
     });
     setSelectedDate(dates[0] ?? "");
-  }, [initialShifts, dates, setHistory, setSelectedDate]);
+    if (initialViewMode) {
+      setViewMode(initialViewMode);
+    }
+  }, [initialShifts, dates, setHistory, setSelectedDate, initialViewMode, setViewMode]);
 
   // 外部設定の同期（props変更時に shiftConfigAtom を更新）
   useEffect(() => {

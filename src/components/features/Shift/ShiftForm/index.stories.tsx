@@ -156,3 +156,10 @@ export const ReadOnly: Story = {
     currentStaffId: "staff1",
   },
 };
+
+export const InitialOverview: Story = {
+  args: {
+    ...Basic.args,
+    initialViewMode: "overview",
+  },
+};

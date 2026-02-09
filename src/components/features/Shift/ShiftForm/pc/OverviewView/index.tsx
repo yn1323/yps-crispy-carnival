@@ -28,7 +28,7 @@ export const OverviewView = () => {
 
   const { dates, holidays, isReadOnly, currentStaffId, allShifts, requiredStaffing } = config;
 
-  // 日付クリック → 日毎ビューに遷移
+  // 日付クリック → 日別ビューに遷移
   const handleDateClick = useCallback(
     (date: string) => {
       setSelectedDate(date);
