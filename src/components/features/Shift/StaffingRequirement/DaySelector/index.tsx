@@ -1,5 +1,6 @@
 import { Box, Checkbox, Flex, Text } from "@chakra-ui/react";
-import { DAY_LABELS, getDayColor } from "../constants";
+import { DAY_LABELS } from "../constants";
+import { getDayColor } from "../utils/dayHelpers";
 
 type DaySelectorProps = {
   selectedDays: number[];

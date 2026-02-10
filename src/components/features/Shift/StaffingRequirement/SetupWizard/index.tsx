@@ -133,7 +133,7 @@ export const SetupWizard = ({ openTime, closeTime, positions, onSave, onCancel }
 
       {/* Step 2: 編集・曜日選択 */}
       {step === 2 && (
-        <VStack gap={6} align="stretch">
+        <VStack gap={6} align="stretch" pb={{ base: "120px", md: 0 }}>
           {/* パターンタブ（複数パターンがある場合） */}
           {patterns.length > 1 && (
             <Flex gap={2} wrap="wrap">
@@ -177,8 +177,15 @@ export const SetupWizard = ({ openTime, closeTime, positions, onSave, onCancel }
             />
           </Box>
 
-          {/* アクションボタン */}
-          <Flex gap={3} justify="space-between" borderTop="1px solid" borderColor="gray.200" pt={4}>
+          {/* PC: アクションボタン */}
+          <Flex
+            display={{ base: "none", md: "flex" }}
+            gap={3}
+            justify="space-between"
+            borderTop="1px solid"
+            borderColor="gray.200"
+            pt={4}
+          >
             <Button variant="ghost" onClick={handleBack}>
               <Icon as={LuArrowLeft} />
               戻る
@@ -192,6 +199,42 @@ export const SetupWizard = ({ openTime, closeTime, positions, onSave, onCancel }
                 </Button>
               )}
               <Button colorPalette="teal" onClick={handleSave} disabled={!canSave}>
+                <Icon as={LuSave} />
+                保存する
+              </Button>
+            </Flex>
+          </Flex>
+
+          {/* SP: 固定アクションバー */}
+          <Flex
+            display={{ base: "flex", md: "none" }}
+            position="fixed"
+            bottom="60px"
+            left={0}
+            right={0}
+            justify="space-between"
+            align="center"
+            px={3}
+            py={2}
+            bg="white"
+            borderTopWidth="1px"
+            borderColor="gray.200"
+            boxShadow="0 -2px 8px rgba(0, 0, 0, 0.08)"
+            zIndex={10}
+            h="48px"
+          >
+            <Button variant="ghost" size="sm" onClick={handleBack}>
+              <Icon as={LuArrowLeft} />
+              戻る
+            </Button>
+            <Flex gap={2}>
+              {!allDaysAssigned && (
+                <Button variant="outline" size="sm" onClick={handleAddPattern}>
+                  <Icon as={LuPlus} />
+                  別パターン
+                </Button>
+              )}
+              <Button size="sm" colorPalette="teal" onClick={handleSave} disabled={!canSave}>
                 <Icon as={LuSave} />
                 保存する
               </Button>

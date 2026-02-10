@@ -1,7 +1,8 @@
-import { Box, Button, Field, Flex, Icon, Input, Text, Textarea, VStack } from "@chakra-ui/react";
+import { Box, Button, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { useState } from "react";
 import { LuBot, LuSparkles } from "react-icons/lu";
 import { FormCard } from "@/src/components/ui/FormCard";
+import { AIInputFields } from "../AIInputFields";
 import type { AIInput, PositionType, StaffingEntry } from "../types";
 import { generateMockStaffing } from "../utils/generateMockStaffing";
 
@@ -31,7 +32,6 @@ export const AIGenerateForm = ({
     const aiInput: AIInput = { shopType, customerCount };
 
     // TODO: 実際のAI API呼び出しに置き換え
-    // 仮の生成ロジック
     const generatedStaffing = generateMockStaffing(openTime, closeTime, positions);
 
     onGenerate(generatedStaffing, aiInput);
@@ -42,31 +42,13 @@ export const AIGenerateForm = ({
   return (
     <FormCard icon={LuBot} iconColor="teal.600" title="AIで人員配置を提案">
       <VStack gap={4} align="stretch">
-        <Field.Root>
-          <Field.Label>どんなお店ですか？</Field.Label>
-          <Textarea
-            value={shopType}
-            onChange={(e) => setShopType(e.target.value)}
-            placeholder="例: カフェ、ランチメインで夜は軽め"
-            rows={2}
-            disabled={isLoading}
-          />
-        </Field.Root>
-
-        <Field.Root>
-          <Field.Label>
-            1日の来客数は？
-            <Text as="span" fontSize="xs" color="gray.500" ml={2}>
-              ざっくりでOK
-            </Text>
-          </Field.Label>
-          <Input
-            value={customerCount}
-            onChange={(e) => setCustomerCount(e.target.value)}
-            placeholder="例: 平日80人、土日120人くらい"
-            disabled={isLoading}
-          />
-        </Field.Root>
+        <AIInputFields
+          shopType={shopType}
+          onShopTypeChange={setShopType}
+          customerCount={customerCount}
+          onCustomerCountChange={setCustomerCount}
+          disabled={isLoading}
+        />
 
         <Box bg="gray.50" p={3} borderRadius="md">
           <Text fontSize="sm" color="gray.600">

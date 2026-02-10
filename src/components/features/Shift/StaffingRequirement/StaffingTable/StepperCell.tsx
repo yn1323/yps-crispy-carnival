@@ -7,14 +7,31 @@ type StepperCellProps = {
   min?: number;
   max?: number;
   disabled?: boolean;
+  isChanged?: boolean;
 };
 
-export const StepperCell = ({ value, onChange, min = 0, max = 10, disabled = false }: StepperCellProps) => {
+export const StepperCell = ({
+  value,
+  onChange,
+  min = 0,
+  max = 10,
+  disabled = false,
+  isChanged = false,
+}: StepperCellProps) => {
   return (
-    <Flex align="center" gap={1} justify="center">
+    <Flex
+      align="center"
+      gap={{ base: 2, md: 1 }}
+      justify="center"
+      bg={isChanged ? "orange.50" : "transparent"}
+      borderRadius="md"
+      px={{ base: 2, md: 1 }}
+      py={{ base: 1, md: 0.5 }}
+      transition="all 0.15s ease"
+    >
       <IconButton
         variant="outline"
-        size="2xs"
+        size={{ base: "xs", md: "2xs" }}
         aria-label="減らす"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={disabled || value <= min}
@@ -26,7 +43,7 @@ export const StepperCell = ({ value, onChange, min = 0, max = 10, disabled = fal
       </Text>
       <IconButton
         variant="outline"
-        size="2xs"
+        size={{ base: "xs", md: "2xs" }}
         aria-label="増やす"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={disabled || value >= max}
