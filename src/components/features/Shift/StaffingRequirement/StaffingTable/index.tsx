@@ -1,4 +1,4 @@
-import { Box, Flex, Table, Text } from "@chakra-ui/react";
+import { Box, Table } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { MobileAccordionView } from "../MobileAccordionView";
 import type { PositionType, StaffingEntry } from "../types";
@@ -11,6 +11,7 @@ type StaffingTableProps = {
   staffing: StaffingEntry[];
   onChange: (staffing: StaffingEntry[]) => void;
   disabled?: boolean;
+  initialStaffing?: StaffingEntry[];
 };
 
 export const StaffingTable = ({
@@ -20,6 +21,7 @@ export const StaffingTable = ({
   staffing,
   onChange,
   disabled = false,
+  initialStaffing,
 }: StaffingTableProps) => {
   // 営業時間から時間帯リストを生成
   const hours = useMemo(() => {
@@ -42,10 +44,28 @@ export const StaffingTable = ({
     return map;
   }, [staffing]);
 
+  // 初期値マップ（変更検出用）
+  const initialMap = useMemo(() => {
+    if (!initialStaffing) return {};
+    const map: Record<string, number> = {};
+    for (const entry of initialStaffing) {
+      const key = `${entry.hour}-${entry.position}`;
+      map[key] = entry.requiredCount;
+    }
+    return map;
+  }, [initialStaffing]);
+
   // 人員数取得
   const getCount = (hour: number, position: string) => {
     const key = `${hour}-${position}`;
     return staffingMap[key] ?? 0;
+  };
+
+  // 変更検出
+  const checkChanged = (hour: number, position: string) => {
+    if (!initialStaffing) return false;
+    const key = `${hour}-${position}`;
+    return (staffingMap[key] ?? 0) !== (initialMap[key] ?? 0);
   };
 
   // 人員数更新
@@ -65,10 +85,14 @@ export const StaffingTable = ({
     onChange(newStaffing);
   };
 
-  // 1日の合計人時を計算
-  const totalPersonHours = useMemo(() => {
-    return staffing.reduce((sum, entry) => sum + entry.requiredCount, 0);
-  }, [staffing]);
+  // ポジション別合計
+  const positionTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const pos of positions) {
+      totals[pos.name] = staffing.filter((e) => e.position === pos.name).reduce((sum, e) => sum + e.requiredCount, 0);
+    }
+    return totals;
+  }, [staffing, positions]);
 
   return (
     <Box>
@@ -76,11 +100,14 @@ export const StaffingTable = ({
       <Box display={{ base: "none", md: "block" }}>
         <Table.Root size="sm" variant="outline">
           <Table.Header>
-            <Table.Row>
+            <Table.Row position="sticky" top={0} zIndex={10} bg="gray.50" boxShadow="0 2px 4px rgba(0,0,0,0.04)">
               <Table.ColumnHeader>時間帯</Table.ColumnHeader>
               {positions.map((pos) => (
                 <Table.ColumnHeader key={pos._id} textAlign="center">
                   {pos.name}
+                  <Box as="span" fontSize="xs" color="gray.500" ml={1}>
+                    ({positionTotals[pos.name] ?? 0})
+                  </Box>
                 </Table.ColumnHeader>
               ))}
               <Table.ColumnHeader textAlign="center">合計</Table.ColumnHeader>
@@ -100,6 +127,7 @@ export const StaffingTable = ({
                         value={getCount(hour, pos.name)}
                         onChange={(value) => handleCountChange(hour, pos.name, value)}
                         disabled={disabled}
+                        isChanged={checkChanged(hour, pos.name)}
                       />
                     </Table.Cell>
                   ))}
@@ -117,16 +145,6 @@ export const StaffingTable = ({
       <Box display={{ base: "block", md: "none" }}>
         <MobileAccordionView hours={hours} positions={positions} staffing={staffing} onChange={onChange} />
       </Box>
-
-      {/* 合計表示 */}
-      <Flex justify="flex-end" mt={4}>
-        <Text fontSize="sm" color="gray.600">
-          1日の合計:{" "}
-          <Text as="span" fontWeight="bold">
-            {totalPersonHours}人時
-          </Text>
-        </Text>
-      </Flex>
     </Box>
   );
 };

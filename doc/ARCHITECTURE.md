@@ -37,6 +37,7 @@ convex/
 | スキル管理 | - | `StaffDetail`内 | `staffSkill/queries`, `mutations` |
 | ユーザー管理 | `MyPage`, `Settings` | `User/UserRegister`, `Setting/UserSetting` | `user/queries`, `mutations` |
 | 招待機能 | `Invite` | `Shop/MemberAddModal` | `invite/queries`, `mutations` |
+| シフト管理 | `Shops/ShiftsPage`, `RecruitmentNewPage`, `RecruitmentDetailPage`, `ShiftConfirmPage`, `StaffingSettingsPage` | `Shift/ShiftForm`, `RecruitmentForm`, `RecruitmentList`, `RecruitmentDetail`, `RecruitmentNew`, `StaffingRequirement` | `requiredStaffing/queries`, `mutations` |
 
 ---
 
@@ -89,6 +90,18 @@ convex/
 | `src/components/pages/Invite/` | 招待受け入れページ |
 | `src/components/features/Shop/MemberAddModal/` | スタッフ招待モーダル |
 | `convex/invite/` | DB操作 |
+
+### シフト管理
+| ファイルパス | 責務 |
+|-------------|------|
+| `src/routes/_auth/shops/$shopId/shifts/` | ルーティング |
+| `src/components/pages/Shops/ShiftsPage/` | useQuery、エラー/ローディング処理 |
+| `src/components/pages/Shops/RecruitmentNewPage/` | 募集作成ページ |
+| `src/components/pages/Shops/RecruitmentDetailPage/` | 募集詳細ページ |
+| `src/components/pages/Shops/ShiftConfirmPage/` | シフト確定ページ |
+| `src/components/pages/Shops/StaffingSettingsPage/` | 必要人員設定ページ |
+| `src/components/features/Shift/` | ドメインロジック、UI |
+| `convex/requiredStaffing/` | 必要人員DB操作 |
 
 ---
 
@@ -172,6 +185,7 @@ convex/
 | `userAtom` | ログインユーザー情報 | メモリ |
 | `selectedShopAtom` | 選択中の店舗情報 | localStorage |
 | `hasSelectedShopAtom` | 店舗選択済み判定（派生） | - |
+| ShiftForm Atoms | シフト編集状態（Jotai Provider内スコープ） | メモリ |
 
 ---
 

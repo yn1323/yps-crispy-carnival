@@ -7,11 +7,28 @@ type StepperCellProps = {
   min?: number;
   max?: number;
   disabled?: boolean;
+  isChanged?: boolean;
 };
 
-export const StepperCell = ({ value, onChange, min = 0, max = 10, disabled = false }: StepperCellProps) => {
+export const StepperCell = ({
+  value,
+  onChange,
+  min = 0,
+  max = 10,
+  disabled = false,
+  isChanged = false,
+}: StepperCellProps) => {
   return (
-    <Flex align="center" gap={1} justify="center">
+    <Flex
+      align="center"
+      gap={1}
+      justify="center"
+      bg={isChanged ? "orange.50" : "transparent"}
+      borderRadius="md"
+      px={1}
+      py={0.5}
+      transition="all 0.15s ease"
+    >
       <IconButton
         variant="outline"
         size="2xs"

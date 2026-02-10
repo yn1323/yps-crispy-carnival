@@ -1,18 +1,21 @@
-import { Box, Button, Container, Flex, Heading, Icon, Text } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Heading, Icon, SegmentGroup, Text } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
-import { LuCalendarDays, LuCopy, LuPencilLine, LuRefreshCw, LuRotateCcw, LuSave, LuSettings } from "react-icons/lu";
-import { useDialog } from "@/src/components/ui/Dialog";
+import { LuCopy, LuRefreshCw, LuRotateCcw, LuSave, LuSettings } from "react-icons/lu";
+import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
 import { CopyModal } from "./CopyModal";
-import { DAY_LABELS } from "./constants";
+import { DAY_COUNT } from "./constants";
 import { DayTabs } from "./DayTabs";
 import { RegenerateModal } from "./RegenerateModal";
 import { StaffingTable } from "./StaffingTable";
-import { SummaryBar } from "./SummaryBar";
 import type { AIInput, PositionType, ShopType, StaffingEntry } from "./types";
-import { calculateWeeklySummary } from "./utils/summaryCalculations";
 import { WeeklyHeatmap } from "./WeeklyHeatmap";
+
+const VIEW_OPTIONS = [
+  { value: "daily", label: "日別" },
+  { value: "overview", label: "一覧" },
+];
 
 // Convex DBから取得されるフラット化された必要人員レコード
 type RequiredStaffingFlat = {
@@ -47,8 +50,8 @@ export const StaffingRequirement = ({
   isSaving = false,
   isCopying = false,
 }: StaffingRequirementProps) => {
-  // ビューモード（週間俯瞰 / 日別編集）
-  const [viewMode, setViewMode] = useState<"weekly" | "daily">("daily");
+  // ビューモード（日別 / 一覧）
+  const [viewMode, setViewMode] = useState<"daily" | "overview">("daily");
 
   // 曜日タブ選択（月曜=1をデフォルト）
   const [selectedDay, setSelectedDay] = useState(1);
@@ -56,6 +59,11 @@ export const StaffingRequirement = ({
   // モーダル管理
   const copyModal = useDialog();
   const regenerateModal = useDialog();
+  const resetDialog = useDialog();
+  const unsavedDialog = useDialog();
+
+  // 未保存警告時の移動先曜日
+  const [pendingDay, setPendingDay] = useState<number | null>(null);
 
   // AI入力の保存（作り直す時に前回値を使用）
   const [aiInput, setAiInput] = useState({ shopType: "", customerCount: "" });
@@ -84,11 +92,28 @@ export const StaffingRequirement = ({
   // 変更フラグ
   const [hasChanges, setHasChanges] = useState(false);
 
-  // 週間サマリー
-  const summary = useMemo(
-    () => calculateWeeklySummary({ staffingMap, hours, positions }),
-    [staffingMap, hours, positions],
-  );
+  // 設定済み曜日の算出（DayTabsの濃淡表示用）
+  const configuredDays = useMemo(() => {
+    const days: number[] = [];
+    for (let day = 0; day < DAY_COUNT; day++) {
+      const hasData = hours.some((hour) =>
+        positions.some((pos) => (staffingMap[`${day}-${hour}-${pos.name}`] ?? 0) > 0),
+      );
+      if (hasData) days.push(day);
+    }
+    return days;
+  }, [staffingMap, hours, positions]);
+
+  // 選択中の曜日の初期値（変更ハイライト用）
+  const currentDayInitialStaffing = useMemo(() => {
+    const result: StaffingEntry[] = [];
+    for (const item of initialStaffing) {
+      if (item.dayOfWeek === selectedDay) {
+        result.push({ hour: item.hour, position: item.position, requiredCount: item.requiredCount });
+      }
+    }
+    return result;
+  }, [initialStaffing, selectedDay]);
 
   // 選択中の曜日のstaffing配列を生成
   const currentDayStaffing = useMemo(() => {
@@ -101,6 +126,44 @@ export const StaffingRequirement = ({
     }
     return result;
   }, [staffingMap, selectedDay, hours, positions]);
+
+  // 曜日タブ切替（未保存チェック付き）
+  const handleDayChange = (newDay: number) => {
+    if (hasChanges) {
+      setPendingDay(newDay);
+      unsavedDialog.open();
+    } else {
+      setSelectedDay(newDay);
+    }
+  };
+
+  // 未保存の変更を破棄して移動
+  const handleDiscardAndMove = () => {
+    if (pendingDay === null) return;
+    // 現在の曜日のデータを初期値に復元
+    setStaffingMap((prev) => {
+      const newMap = { ...prev };
+      // まず現曜日のキーをすべて0にリセット
+      for (const hour of hours) {
+        for (const pos of positions) {
+          const key = `${selectedDay}-${hour}-${pos.name}`;
+          newMap[key] = 0;
+        }
+      }
+      // 初期値で上書き
+      for (const item of initialStaffing) {
+        if (item.dayOfWeek === selectedDay) {
+          const key = `${item.dayOfWeek}-${item.hour}-${item.position}`;
+          newMap[key] = item.requiredCount;
+        }
+      }
+      return newMap;
+    });
+    setSelectedDay(pendingDay);
+    setHasChanges(false);
+    setPendingDay(null);
+    unsavedDialog.close();
+  };
 
   // StaffingTableからの変更を受け取る
   const handleStaffingChange = (newStaffing: StaffingEntry[]) => {
@@ -223,37 +286,20 @@ export const StaffingRequirement = ({
         </Flex>
       </Title>
 
-      {/* 週間サマリー */}
-      <SummaryBar
-        weeklyTotalPersonHours={summary.weeklyTotalPersonHours}
-        peakInfo={summary.peakInfo}
-        configuredDaysCount={summary.configuredDaysCount}
-      />
-
       {/* ビューモード切替 */}
-      <Flex mb={4} gap={2}>
-        <Button
+      <Flex mb={4}>
+        <SegmentGroup.Root
           size="sm"
-          variant={viewMode === "weekly" ? "solid" : "outline"}
-          colorPalette={viewMode === "weekly" ? "teal" : "gray"}
-          onClick={() => setViewMode("weekly")}
+          value={viewMode}
+          onValueChange={(e) => setViewMode(e.value as "daily" | "overview")}
         >
-          <Icon as={LuCalendarDays} />
-          週間俯瞰
-        </Button>
-        <Button
-          size="sm"
-          variant={viewMode === "daily" ? "solid" : "outline"}
-          colorPalette={viewMode === "daily" ? "teal" : "gray"}
-          onClick={() => setViewMode("daily")}
-        >
-          <Icon as={LuPencilLine} />
-          日別編集
-        </Button>
+          <SegmentGroup.Indicator />
+          <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
+        </SegmentGroup.Root>
       </Flex>
 
-      {/* 週間俯瞰モード */}
-      {viewMode === "weekly" && (
+      {/* 一覧モード */}
+      {viewMode === "overview" && (
         <WeeklyHeatmap
           staffingMap={staffingMap}
           hours={hours}
@@ -265,20 +311,14 @@ export const StaffingRequirement = ({
         />
       )}
 
-      {/* 日別編集モード */}
+      {/* 日別モード */}
       {viewMode === "daily" && (
         <>
           {/* 曜日タブ + アクションボタン */}
           <Flex mb={4} justify="space-between" align="center" wrap="wrap" gap={3}>
-            <DayTabs selectedDay={selectedDay} onChange={setSelectedDay} />
+            <DayTabs selectedDay={selectedDay} onChange={handleDayChange} configuredDays={configuredDays} />
 
             <Flex gap={2}>
-              {onResetSetup && (
-                <Button variant="ghost" size="sm" onClick={onResetSetup}>
-                  <Icon as={LuRotateCcw} />
-                  初期設定をやり直す
-                </Button>
-              )}
               <Button variant="outline" size="sm" onClick={copyModal.open}>
                 <Icon as={LuCopy} />
                 コピー
@@ -290,11 +330,6 @@ export const StaffingRequirement = ({
             </Flex>
           </Flex>
 
-          {/* 曜日見出し */}
-          <Text fontWeight="bold" mb={3} color="gray.700">
-            {DAY_LABELS[selectedDay]}曜日の必要人員
-          </Text>
-
           {/* 必要人員テーブル（PC: Table形式 / SP: Card形式） */}
           <StaffingTable
             openTime={shop.openTime}
@@ -302,9 +337,86 @@ export const StaffingRequirement = ({
             positions={positions}
             staffing={currentDayStaffing}
             onChange={handleStaffingChange}
+            initialStaffing={currentDayInitialStaffing}
           />
+
+          {/* アクションバー（テーブル下部に固定表示） */}
+          <Flex
+            position="sticky"
+            bottom={0}
+            zIndex={10}
+            bg="white"
+            borderTop="1px solid"
+            borderColor="gray.200"
+            py={3}
+            mt={2}
+            mx={-4}
+            px={4}
+            boxShadow="0 -2px 4px rgba(0,0,0,0.04)"
+            justify="space-between"
+            align="center"
+            wrap="wrap"
+            gap={2}
+          >
+            {onResetSetup ? (
+              <Button variant="outline" size="sm" colorPalette="red" onClick={resetDialog.open}>
+                <Icon as={LuRotateCcw} />
+                初期設定をやり直す
+              </Button>
+            ) : (
+              <Box />
+            )}
+            <Flex gap={3} align="center">
+              {hasChanges && (
+                <Text fontSize="sm" color="orange.600" fontWeight="medium" display={{ base: "none", md: "block" }}>
+                  未保存の変更があります
+                </Text>
+              )}
+              <Button colorPalette="teal" onClick={handleSave} disabled={!hasChanges} loading={isSaving}>
+                <Icon as={LuSave} />
+                保存する
+              </Button>
+            </Flex>
+          </Flex>
         </>
       )}
+
+      {/* 未保存警告ダイアログ */}
+      <Dialog
+        title="未保存の変更があります"
+        isOpen={unsavedDialog.isOpen}
+        onOpenChange={unsavedDialog.onOpenChange}
+        onClose={() => {
+          setPendingDay(null);
+          unsavedDialog.close();
+        }}
+        onSubmit={handleDiscardAndMove}
+        submitLabel="破棄して移動"
+        submitColorPalette="red"
+        role="alertdialog"
+      >
+        <Text>現在の曜日に未保存の変更があります。変更を破棄して移動しますか？</Text>
+      </Dialog>
+
+      {/* 初期設定リセット確認ダイアログ */}
+      <Dialog
+        title="初期設定をやり直しますか？"
+        isOpen={resetDialog.isOpen}
+        onOpenChange={resetDialog.onOpenChange}
+        onClose={resetDialog.close}
+        onSubmit={() => {
+          onResetSetup?.();
+          resetDialog.close();
+        }}
+        submitLabel="やり直す"
+        submitColorPalette="red"
+        role="alertdialog"
+      >
+        <Text>すべての必要人員設定が削除され、最初からやり直しになります。</Text>
+        <Text fontWeight="bold" color="red.600" mt={2}>
+          この操作は取り消せません。
+        </Text>
+      </Dialog>
 
       {/* コピーモーダル */}
       <CopyModal
@@ -327,28 +439,6 @@ export const StaffingRequirement = ({
         closeTime={shop.closeTime}
         positions={positions}
       />
-
-      {/* アクションボタン */}
-      <Flex
-        mt={6}
-        gap={3}
-        direction={{ base: "column", sm: "row" }}
-        justify="flex-end"
-        borderTop="1px solid"
-        borderColor="gray.200"
-        pt={6}
-      >
-        <Button
-          colorPalette="teal"
-          onClick={handleSave}
-          disabled={!hasChanges}
-          loading={isSaving}
-          w={{ base: "full", sm: "auto" }}
-        >
-          <Icon as={LuSave} />
-          保存する
-        </Button>
-      </Flex>
     </Container>
   );
 };
