@@ -1,5 +1,6 @@
 import { Tabs } from "@chakra-ui/react";
-import { getDayColor, WEEKDAY_ORDER } from "../constants";
+import { WEEKDAY_ORDER } from "../constants";
+import { getDayColor } from "../utils/dayHelpers";
 
 const DAY_TAB_LABELS = ["日", "月", "火", "水", "木", "金", "土", "祝"] as const;
 
@@ -22,6 +23,7 @@ export const DayTabs = ({ selectedDay, onChange, configuredDays }: DayTabsProps)
       variant="line"
       colorPalette="teal"
       size="sm"
+      w={{ base: "100%", md: "auto" }}
     >
       <Tabs.List
         overflowX="auto"
@@ -32,7 +34,13 @@ export const DayTabs = ({ selectedDay, onChange, configuredDays }: DayTabsProps)
       >
         {/* 月曜始まり: 月火水木金土日祝 */}
         {WEEKDAY_ORDER.map((dayIndex) => (
-          <Tabs.Trigger key={dayIndex} value={String(dayIndex)} px={{ base: 3, md: 4 }} color={getTabColor(dayIndex)}>
+          <Tabs.Trigger
+            key={dayIndex}
+            value={String(dayIndex)}
+            px={{ base: 3, md: 4 }}
+            color={getTabColor(dayIndex)}
+            flex={{ base: 1, md: "initial" }}
+          >
             {DAY_TAB_LABELS[dayIndex]}
           </Tabs.Trigger>
         ))}

@@ -1,7 +1,5 @@
-import { DAY_COUNT } from "../constants";
-
-// ヒートマップの色段階（blue系グラデーション）
-export const HEATMAP_COLORS = ["gray.50", "blue.100", "blue.300", "blue.500", "blue.700"] as const;
+import { DAY_COUNT, HEATMAP_COLORS } from "../constants";
+import { createStaffingKey } from "./staffingMapHelpers";
 
 type HeatmapInput = {
   staffingMap: Record<string, number>;
@@ -49,8 +47,8 @@ export const calculateHeatmapData = ({ staffingMap, hours, positions }: HeatmapI
     const row: number[] = [];
     for (let day = 0; day < DAY_COUNT; day++) {
       let total = 0;
-      for (const pos of positions) {
-        const key = `${day}-${hour}-${pos.name}`;
+      for (const position of positions) {
+        const key = createStaffingKey(day, hour, position.name);
         total += staffingMap[key] ?? 0;
       }
       row.push(total);

@@ -1,4 +1,5 @@
 import { DAY_COUNT, DAY_LABELS } from "../constants";
+import { createStaffingKey } from "./staffingMapHelpers";
 
 type SummaryInput = {
   staffingMap: Record<string, number>;
@@ -23,8 +24,8 @@ export const calculateWeeklySummary = ({ staffingMap, hours, positions }: Summar
     let dayHasData = false;
     for (const hour of hours) {
       let hourTotal = 0;
-      for (const pos of positions) {
-        const key = `${day}-${hour}-${pos.name}`;
+      for (const position of positions) {
+        const key = createStaffingKey(day, hour, position.name);
         const count = staffingMap[key] ?? 0;
         hourTotal += count;
         weeklyTotal += count;

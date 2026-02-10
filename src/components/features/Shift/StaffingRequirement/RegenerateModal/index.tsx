@@ -1,6 +1,8 @@
-import { Field, Input, Textarea, VStack } from "@chakra-ui/react";
+import { Button, useBreakpointValue, VStack } from "@chakra-ui/react";
 import { useState } from "react";
+import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { AIInputFields } from "../AIInputFields";
 import type { AIInput, PositionType, StaffingEntry } from "../types";
 import { generateMockStaffing } from "../utils/generateMockStaffing";
 
@@ -29,6 +31,7 @@ export const RegenerateModal = ({
 }: RegenerateModalProps) => {
   const [shopType, setShopType] = useState(initialAIInput?.shopType ?? "");
   const [customerCount, setCustomerCount] = useState(initialAIInput?.customerCount ?? "");
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const handleSubmit = () => {
     const aiInput: AIInput = { shopType, customerCount };
@@ -38,6 +41,43 @@ export const RegenerateModal = ({
 
     onRegenerate(generatedStaffing, aiInput);
   };
+
+  const content = (
+    <VStack gap={4} align="stretch">
+      <AIInputFields
+        shopType={shopType}
+        onShopTypeChange={setShopType}
+        customerCount={customerCount}
+        onCustomerCountChange={setCustomerCount}
+        disabled={isLoading}
+      />
+
+      {isMobile && (
+        <VStack gap={2} mt={2}>
+          <Button
+            w="100%"
+            colorPalette="teal"
+            onClick={handleSubmit}
+            loading={isLoading}
+            disabled={shopType.trim().length === 0}
+          >
+            作り直す
+          </Button>
+          <Button w="100%" variant="outline" onClick={onClose}>
+            キャンセル
+          </Button>
+        </VStack>
+      )}
+    </VStack>
+  );
+
+  if (isMobile) {
+    return (
+      <BottomSheet title="AIで作り直す" isOpen={isOpen} onOpenChange={onOpenChange}>
+        {content}
+      </BottomSheet>
+    );
+  }
 
   return (
     <Dialog
@@ -50,28 +90,7 @@ export const RegenerateModal = ({
       isLoading={isLoading}
       isSubmitDisabled={shopType.trim().length === 0}
     >
-      <VStack gap={4} align="stretch">
-        <Field.Root>
-          <Field.Label>どんなお店ですか？</Field.Label>
-          <Textarea
-            value={shopType}
-            onChange={(e) => setShopType(e.target.value)}
-            placeholder="例: カフェ、ランチメインで夜は軽め"
-            rows={2}
-            disabled={isLoading}
-          />
-        </Field.Root>
-
-        <Field.Root>
-          <Field.Label>1日の来客数は？（ざっくりでOK）</Field.Label>
-          <Input
-            value={customerCount}
-            onChange={(e) => setCustomerCount(e.target.value)}
-            placeholder="例: 平日80人、土日120人くらい"
-            disabled={isLoading}
-          />
-        </Field.Root>
-      </VStack>
+      {content}
     </Dialog>
   );
 };

@@ -1,7 +1,8 @@
 import { Box, Flex, Table, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
-import { DAY_LABELS, getDayColor, WEEKDAY_ORDER } from "../constants";
-import { calculateHeatmapData, HEATMAP_COLORS } from "../utils/heatmapCalculations";
+import { DAY_LABELS, HEATMAP_COLORS, WEEKDAY_ORDER } from "../constants";
+import { getDayColor } from "../utils/dayHelpers";
+import { calculateHeatmapData } from "../utils/heatmapCalculations";
 
 type WeeklyHeatmapProps = {
   staffingMap: Record<string, number>;

@@ -21,17 +21,17 @@ export const StepperCell = ({
   return (
     <Flex
       align="center"
-      gap={1}
+      gap={{ base: 2, md: 1 }}
       justify="center"
       bg={isChanged ? "orange.50" : "transparent"}
       borderRadius="md"
-      px={1}
-      py={0.5}
+      px={{ base: 2, md: 1 }}
+      py={{ base: 1, md: 0.5 }}
       transition="all 0.15s ease"
     >
       <IconButton
         variant="outline"
-        size="2xs"
+        size={{ base: "xs", md: "2xs" }}
         aria-label="減らす"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={disabled || value <= min}
@@ -43,7 +43,7 @@ export const StepperCell = ({
       </Text>
       <IconButton
         variant="outline"
-        size="2xs"
+        size={{ base: "xs", md: "2xs" }}
         aria-label="増やす"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={disabled || value >= max}
