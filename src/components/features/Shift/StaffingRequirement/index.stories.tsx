@@ -121,13 +121,34 @@ export const ShortHours: Story = {
   },
 };
 
-// SP表示確認用
-export const Mobile: Story = {
+// SP: 日別モード（メイン確認）
+export const MobileDaily: Story = {
   args: {
     initialStaffing: fullWeekStaffing,
     onResetSetup: () => {},
   },
-  parameters: {
-    viewport: { defaultViewport: "mobile1" },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+};
+
+// SP: 空状態（Wizard表示）
+export const MobileEmpty: Story = {
+  args: {
+    initialStaffing: [],
+  },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+};
+
+// SP: 一部設定済み
+export const MobilePartial: Story = {
+  args: {
+    initialStaffing: partialStaffing,
+    onResetSetup: () => {},
+  },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
   },
 };
