@@ -15,6 +15,7 @@ import type * as invite_queries from "../invite/queries.js";
 import type * as position_mutations from "../position/mutations.js";
 import type * as position_queries from "../position/queries.js";
 import type * as recruitment_mutations from "../recruitment/mutations.js";
+import type * as recruitment_queries from "../recruitment/queries.js";
 import type * as requiredStaffing_mutations from "../requiredStaffing/mutations.js";
 import type * as requiredStaffing_queries from "../requiredStaffing/queries.js";
 import type * as shop_mutations from "../shop/mutations.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   "position/mutations": typeof position_mutations;
   "position/queries": typeof position_queries;
   "recruitment/mutations": typeof recruitment_mutations;
+  "recruitment/queries": typeof recruitment_queries;
   "requiredStaffing/mutations": typeof requiredStaffing_mutations;
   "requiredStaffing/queries": typeof requiredStaffing_queries;
   "shop/mutations": typeof shop_mutations;
