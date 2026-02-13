@@ -120,6 +120,23 @@ const requiredStaffing = defineTable({
   updatedAt: v.number(),
 }).index("by_shop", ["shopId"]);
 
+// シフト募集テーブル
+const recruitments = defineTable({
+  shopId: v.id("shops"),
+  startDate: v.string(), // YYYY-MM-DD
+  endDate: v.string(), // YYYY-MM-DD
+  deadline: v.string(), // YYYY-MM-DD
+  status: v.string(), // "open" | "closed" | "confirmed"
+  appliedCount: v.number(), // 申請済みスタッフ数（初期値: 0）
+  totalStaffCount: v.number(), // 作成時のアクティブスタッフ数
+  confirmedAt: v.optional(v.number()),
+  createdBy: v.string(), // authId
+  createdAt: v.number(),
+  isDeleted: v.boolean(),
+})
+  .index("by_shop", ["shopId"])
+  .index("by_shop_and_status", ["shopId", "status"]);
+
 const schema = defineSchema({
   users,
   shops,
@@ -127,6 +144,7 @@ const schema = defineSchema({
   shopPositions,
   staffSkills,
   requiredStaffing,
+  recruitments,
 });
 
 // テーブル名を型安全にエクスポート（testing.tsで使用）

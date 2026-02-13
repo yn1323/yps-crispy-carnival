@@ -33,3 +33,7 @@ export type StaffRoleType = (typeof STAFF_ROLES)[number];
 // 招待関連
 export const INVITE_EXPIRY_DAYS = 14;
 export const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+// 募集ステータス定義
+export const RECRUITMENT_STATUS = ["open", "closed", "confirmed"] as const;
+export type RecruitmentStatusType = (typeof RECRUITMENT_STATUS)[number];

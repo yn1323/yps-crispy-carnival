@@ -4,6 +4,8 @@ export {
   POSITION_MAX_COUNT,
   POSITION_NAME_MAX_LENGTH,
   type PositionType,
+  RECRUITMENT_STATUS,
+  type RecruitmentStatusType,
   SHOP_MAX_LENGTH,
   SHOP_MIN_LENGTH,
   SHOP_SUBMIT_FREQUENCY,
