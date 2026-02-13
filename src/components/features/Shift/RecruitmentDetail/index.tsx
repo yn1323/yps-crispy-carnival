@@ -1,8 +1,8 @@
-import { Badge, Box, Button, Card, Container, Flex, Heading, HStack, Icon, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Container, Flex, Heading, HStack, Icon, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import dayjs from "dayjs";
 import "dayjs/locale/ja";
-import { LuCalendar, LuCheck, LuLock } from "react-icons/lu";
+import { LuCalendar, LuPencilLine } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/components/features/Shift/ShiftForm/types";
 import { Animation } from "@/src/components/templates/Animation";
@@ -43,16 +43,13 @@ export const RecruitmentDetail = ({
   const submittedCount = staffs.filter((s) => s.isSubmitted).length;
   const unsubmittedCount = staffs.length - submittedCount;
 
-  const handleCloseRecruitment = () => {
-    // TODO: useMutation呼び出し
-    console.log("募集を締め切る:", recruitmentId);
+  const handleCloseAndEdit = () => {
+    // TODO: 募集締め切りのuseMutation呼び出し
+    console.log("締切・編集:", recruitmentId);
     toaster.create({
       description: "募集を締め切りました",
       type: "success",
     });
-  };
-
-  const handleGoToConfirm = () => {
     navigate({
       to: "/shops/$shopId/shifts/recruitments/$recruitmentId/confirm",
       params: { shopId, recruitmentId },
@@ -67,16 +64,10 @@ export const RecruitmentDetail = ({
       <Title
         prev={{ url: `/shops/${shopId}/shifts`, label: "シフト管理に戻る" }}
         action={
-          <HStack gap={2} display={{ base: "none", md: "flex" }}>
-            <Button variant="outline" colorPalette="orange" size="sm" onClick={handleCloseRecruitment}>
-              <LuLock />
-              募集を締め切る
-            </Button>
-            <Button colorPalette="teal" size="sm" onClick={handleGoToConfirm}>
-              <LuCheck />
-              シフト確定へ
-            </Button>
-          </HStack>
+          <Button colorPalette="teal" size="sm" onClick={handleCloseAndEdit} display={{ base: "none", md: "flex" }}>
+            <LuPencilLine />
+            締切・編集へ
+          </Button>
         }
       >
         <Flex align="center" gap={3}>
@@ -112,37 +103,25 @@ export const RecruitmentDetail = ({
         </Card.Root>
 
         {/* モバイル用アクションボタン */}
-        <Box display={{ base: "block", md: "none" }} mb={4}>
-          <VStack gap={2}>
-            <Button w="full" variant="outline" colorPalette="orange" onClick={handleCloseRecruitment}>
-              <LuLock />
-              募集を締め切る
-            </Button>
-            <Button w="full" colorPalette="teal" onClick={handleGoToConfirm}>
-              <LuCheck />
-              シフト確定へ
-            </Button>
-          </VStack>
-        </Box>
+        <Button w="full" colorPalette="teal" onClick={handleCloseAndEdit} display={{ base: "flex", md: "none" }} mb={4}>
+          <LuPencilLine />
+          締切・編集へ
+        </Button>
 
         {/* ShiftForm: 一覧モード固定、readOnly、シフト希望順 */}
-        <Card.Root borderWidth={0} shadow="sm" overflow="hidden">
-          <Card.Body p={{ base: 0, md: 2 }}>
-            <ShiftForm
-              shopId={shopId}
-              staffs={staffs}
-              positions={positions}
-              initialShifts={shifts}
-              dates={dates}
-              timeRange={timeRange}
-              holidays={holidays}
-              isReadOnly
-              initialViewMode="overview"
-              hideViewSwitcher
-              initialSortMode="request"
-            />
-          </Card.Body>
-        </Card.Root>
+        <ShiftForm
+          shopId={shopId}
+          staffs={staffs}
+          positions={positions}
+          initialShifts={shifts}
+          dates={dates}
+          timeRange={timeRange}
+          holidays={holidays}
+          isReadOnly
+          initialViewMode="overview"
+          hideViewSwitcher
+          initialSortMode="request"
+        />
       </Animation>
     </Container>
   );

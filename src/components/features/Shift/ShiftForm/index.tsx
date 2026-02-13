@@ -110,7 +110,7 @@ const ShiftFormInner = ({
       {/* 日別ビュー（display:none で常時マウント、UI状態保持） */}
       <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minHeight={0}>
         {/* PC */}
-        <Box display={{ base: "none", lg: "flex" }} flexDirection="column" flex={1} minHeight={0} px={4}>
+        <Box display={{ base: "none", lg: "flex" }} flexDirection="column" flex={1} minHeight={0}>
           <DailyView undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
         </Box>
         {/* SP */}
@@ -122,7 +122,7 @@ const ShiftFormInner = ({
       {/* 一覧ビュー（display:none で常時マウント） */}
       <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minHeight={0} overflow="auto">
         {/* PC */}
-        <Box display={{ base: "none", lg: "block" }} px={4}>
+        <Box display={{ base: "none", lg: "block" }}>
           <OverviewView />
         </Box>
         {/* SP */}

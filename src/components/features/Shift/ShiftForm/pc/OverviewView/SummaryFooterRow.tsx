@@ -66,7 +66,7 @@ export const SummaryFooterRow = ({ shifts, dates, months, requiredStaffing }: Su
   return (
     <Table.Footer>
       <Table.Row
-        bg="gray.50"
+        bg="white"
         borderTop="2px solid"
         borderColor="gray.300"
         position="sticky"
@@ -78,7 +78,7 @@ export const SummaryFooterRow = ({ shifts, dates, months, requiredStaffing }: Su
         <Table.Cell
           position="sticky"
           left={0}
-          bg="gray.50"
+          bg="white"
           zIndex={3}
           w={`${STAFF_NAME_CELL_WIDTH}px`}
           minW={`${STAFF_NAME_CELL_WIDTH}px`}
@@ -162,7 +162,7 @@ export const SummaryFooterRow = ({ shifts, dates, months, requiredStaffing }: Su
           return (
             <Table.Cell
               key={`summary-${date}`}
-              bg="gray.50"
+              bg="white"
               w={`${DATE_CELL_WIDTH}px`}
               minW={`${DATE_CELL_WIDTH}px`}
               h={`${ROW_HEIGHT}px`}
@@ -182,7 +182,7 @@ export const SummaryFooterRow = ({ shifts, dates, months, requiredStaffing }: Su
         {months.map((month) => (
           <Table.Cell
             key={`summary-${month}`}
-            bg="gray.50"
+            bg="white"
             w={`${MONTH_TOTAL_CELL_WIDTH}px`}
             minW={`${MONTH_TOTAL_CELL_WIDTH}px`}
             h={`${ROW_HEIGHT}px`}
