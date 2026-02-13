@@ -14,7 +14,8 @@ export const listByShop = query({
   handler: async (ctx, args) => {
     const recruitments = await ctx.db
       .query("recruitments")
-      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
+      .withIndex("by_shop_and_startDate", (q) => q.eq("shopId", args.shopId))
+      .order("desc")
       .filter((q) => q.neq(q.field("isDeleted"), true))
       .collect();
 

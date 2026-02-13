@@ -135,7 +135,8 @@ const recruitments = defineTable({
   isDeleted: v.boolean(),
 })
   .index("by_shop", ["shopId"])
-  .index("by_shop_and_status", ["shopId", "status"]);
+  .index("by_shop_and_status", ["shopId", "status"])
+  .index("by_shop_and_startDate", ["shopId", "startDate"]);
 
 const schema = defineSchema({
   users,

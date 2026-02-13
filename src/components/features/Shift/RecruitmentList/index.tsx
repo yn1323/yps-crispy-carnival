@@ -53,15 +53,10 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // ステータスフィルター
+  // ステータスフィルター（バックエンドで開始日の降順ソート済み）
   const filteredRecruitments = recruitments.filter((recruitment) => {
     if (statusFilter === "all") return true;
     return recruitment.status === statusFilter;
-  });
-
-  // ソート: 開始日の降順（新しい順）
-  const sortedRecruitments = filteredRecruitments.toSorted((a, b) => {
-    return dayjs(b.startDate).valueOf() - dayjs(a.startDate).valueOf();
   });
 
   return (
@@ -137,13 +132,13 @@ export const RecruitmentList = ({ shop, recruitments }: RecruitmentListProps) =>
         </Box>
 
         {/* 募集一覧 */}
-        {sortedRecruitments.length > 0 ? (
+        {filteredRecruitments.length > 0 ? (
           <>
             <Text fontSize="sm" color="gray.600" mb={3}>
-              {sortedRecruitments.length}件の募集
+              {filteredRecruitments.length}件の募集
             </Text>
             <Box>
-              {sortedRecruitments.map((recruitment) => {
+              {filteredRecruitments.map((recruitment) => {
                 const config = STATUS_CONFIG[recruitment.status];
                 return (
                   <Card.Root
