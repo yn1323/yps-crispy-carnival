@@ -5,9 +5,10 @@
  * - シフト募集の作成
  */
 import { ConvexError, v } from "convex/values";
+import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
 import { RECRUITMENT_STATUS } from "../constants";
-import { requireShop, requireShopOwnerOrManager } from "../helpers";
+import { generateToken, requireShop, requireShopOwnerOrManager } from "../helpers";
 
 // 日付形式バリデーション（YYYY-MM-DD形式）
 const isValidDateFormat = (date: string) => {
@@ -64,6 +65,19 @@ export const create = mutation({
 
     const totalStaffCount = activeStaffs.length;
 
+    // 各スタッフにマジックリンクトークンを生成・更新
+    const deadlineEnd = new Date(`${args.deadline}T23:59:59`).getTime();
+    const recipients: { email: string; magicLinkToken: string }[] = [];
+
+    for (const staff of activeStaffs) {
+      const token = generateToken();
+      await ctx.db.patch(staff._id, {
+        magicLinkToken: token,
+        magicLinkExpiresAt: deadlineEnd,
+      });
+      recipients.push({ email: staff.email, magicLinkToken: token });
+    }
+
     // 募集作成
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId: args.shopId,
@@ -77,6 +91,18 @@ export const create = mutation({
       createdAt: Date.now(),
       isDeleted: false,
     });
+
+    // 店舗情報を取得してメール送信をスケジュール
+    const shop = await requireShop(ctx, args.shopId);
+    if (recipients.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendRecruitmentNotification, {
+        shopName: shop.shopName,
+        startDate: args.startDate,
+        endDate: args.endDate,
+        deadline: args.deadline,
+        recipients,
+      });
+    }
 
     return { success: true, data: { recruitmentId, totalStaffCount } };
   },
