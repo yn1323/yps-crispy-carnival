@@ -18,7 +18,7 @@ export const TimeHeader = ({ timeRange }: TimeHeaderProps) => {
   const totalWidth = getTimeAxisWidth(timeRange);
 
   return (
-    <Box position="relative" height="24px" bg="gray.50" width={`${totalWidth}px`} minWidth="100%">
+    <Box position="relative" height="24px" bg="white" width={`${totalWidth}px`} minWidth="100%">
       {timeLabels.map(({ hour, x }) => (
         <Text
           key={hour}

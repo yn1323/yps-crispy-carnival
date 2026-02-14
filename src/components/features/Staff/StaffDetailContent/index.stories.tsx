@@ -120,3 +120,10 @@ export const NoHourlyWage: Story = {
     },
   },
 };
+
+export const NoPositions: Story = {
+  args: {
+    positions: [],
+    staffSkills: [],
+  },
+};

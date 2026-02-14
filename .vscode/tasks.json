@@ -72,6 +72,16 @@
       }
     },
     {
+      "label": "Convex環境変数セットアップ",
+      "type": "shell",
+      "command": "pnpm convex:env:setup",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "difit",
       "type": "shell",
       "command": "npx difit .",

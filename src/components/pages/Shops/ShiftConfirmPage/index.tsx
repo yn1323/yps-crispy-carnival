@@ -1,3 +1,4 @@
+import { Box } from "@chakra-ui/react";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 
 type Props = {
@@ -101,15 +102,17 @@ export const ShiftConfirmPage = ({ shopId }: Props) => {
   // const positions = useQuery(api.position.queries.listByShop, { shopId });
 
   return (
-    <ShiftForm
-      shopId={shopId}
-      staffs={mockStaffs}
-      positions={mockPositions}
-      initialShifts={mockShifts}
-      dates={mockDates}
-      timeRange={{ start: 9, end: 22, unit: 30 }}
-      holidays={[]}
-      isReadOnly
-    />
+    <Box px={4}>
+      <ShiftForm
+        shopId={shopId}
+        staffs={mockStaffs}
+        positions={mockPositions}
+        initialShifts={mockShifts}
+        dates={mockDates}
+        timeRange={{ start: 9, end: 22, unit: 30 }}
+        holidays={[]}
+        isReadOnly
+      />
+    </Box>
   );
 };

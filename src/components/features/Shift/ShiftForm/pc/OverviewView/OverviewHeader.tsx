@@ -33,7 +33,7 @@ export const OverviewHeader = ({ dates, months, holidays, sortMode, onSortModeCh
       <Table.ColumnHeader
         position="sticky"
         left={0}
-        bg="gray.50"
+        bg="white"
         zIndex={11}
         w={`${STAFF_NAME_CELL_WIDTH}px`}
         minW={`${STAFF_NAME_CELL_WIDTH}px`}
@@ -76,7 +76,7 @@ export const OverviewHeader = ({ dates, months, holidays, sortMode, onSortModeCh
       {months.map((month, index) => (
         <Table.ColumnHeader
           key={month}
-          bg="gray.50"
+          bg="white"
           w={`${MONTH_TOTAL_CELL_WIDTH}px`}
           minW={`${MONTH_TOTAL_CELL_WIDTH}px`}
           h={`${ROW_HEIGHT}px`}

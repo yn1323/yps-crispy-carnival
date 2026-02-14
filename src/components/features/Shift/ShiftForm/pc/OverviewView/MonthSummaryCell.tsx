@@ -9,7 +9,7 @@ export const MonthSummaryCell = ({ totalMinutes, alerts }: MonthSummaryCellProps
 
   return (
     <Table.Cell
-      bg="gray.50"
+      bg="white"
       w={`${MONTH_TOTAL_CELL_WIDTH}px`}
       minW={`${MONTH_TOTAL_CELL_WIDTH}px`}
       h={`${ROW_HEIGHT}px`}

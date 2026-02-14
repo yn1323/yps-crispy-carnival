@@ -65,7 +65,7 @@ export const OverviewView = () => {
 
   return (
     <>
-      <Box overflow="auto" border="1px solid" borderColor="gray.200" borderRadius="md">
+      <Box overflow="auto" border="1px solid" borderColor="gray.200" borderRadius="md" bg="white">
         <Table.Root size="sm" variant="outline" stickyHeader>
           <OverviewHeader
             dates={dates}
