@@ -120,6 +120,25 @@ const requiredStaffing = defineTable({
   updatedAt: v.number(),
 }).index("by_shop", ["shopId"]);
 
+// シフト提出テーブル（スタッフがマジックリンクから提出）
+const shiftRequests = defineTable({
+  recruitmentId: v.id("recruitments"),
+  staffId: v.id("staffs"),
+  entries: v.array(
+    v.object({
+      date: v.string(), // "YYYY-MM-DD"
+      isAvailable: v.boolean(),
+      startTime: v.optional(v.string()), // "09:00"（isAvailable=true時）
+      endTime: v.optional(v.string()), // "17:00"（isAvailable=true時）
+    }),
+  ),
+  submittedAt: v.number(),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_recruitment", ["recruitmentId"])
+  .index("by_staff", ["staffId"])
+  .index("by_recruitment_and_staff", ["recruitmentId", "staffId"]);
+
 // シフト募集テーブル
 const recruitments = defineTable({
   shopId: v.id("shops"),
@@ -145,6 +164,7 @@ const schema = defineSchema({
   shopPositions,
   staffSkills,
   requiredStaffing,
+  shiftRequests,
   recruitments,
 });
 
