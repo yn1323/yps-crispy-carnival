@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "@storybook/test";
 import { SubmittedView } from "./SubmittedView";
 
 const meta = {
@@ -9,7 +8,7 @@ const meta = {
     layout: "centered",
   },
   args: {
-    onEdit: fn(),
+    onEdit: () => {},
   },
 } satisfies Meta<typeof SubmittedView>;
 

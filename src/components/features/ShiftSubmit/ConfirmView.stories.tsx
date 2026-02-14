@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "@storybook/test";
 import { ConfirmView } from "./ConfirmView";
 
 const meta = {
@@ -9,7 +8,7 @@ const meta = {
     layout: "centered",
   },
   args: {
-    onBack: fn(),
+    onBack: () => {},
   },
 } satisfies Meta<typeof ConfirmView>;
 
@@ -29,6 +28,6 @@ const mockEntries = [
 export const Basic: Story = {
   args: {
     entries: mockEntries,
-    onSubmit: fn(() => new Promise((resolve) => setTimeout(resolve, 1000))),
+    onSubmit: () => new Promise((resolve) => setTimeout(resolve, 1000)),
   },
 };

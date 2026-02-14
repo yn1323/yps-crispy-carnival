@@ -1,6 +1,5 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "@storybook/test";
 import { DayCard } from "./DayCard";
 
 const meta = {
@@ -17,7 +16,7 @@ const meta = {
     ),
   ],
   args: {
-    onUpdate: fn(),
+    onUpdate: () => {},
   },
 } satisfies Meta<typeof DayCard>;
 
