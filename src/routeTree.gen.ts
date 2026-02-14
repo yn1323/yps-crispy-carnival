@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ShiftSubmitRouteImport } from './routes/shift-submit'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
@@ -33,6 +34,11 @@ import { Route as AuthShopsShopIdShiftsRecruitmentsNewRouteImport } from './rout
 import { Route as AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRouteImport } from './routes/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/index'
 import { Route as AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRouteImport } from './routes/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
 
+const ShiftSubmitRoute = ShiftSubmitRouteImport.update({
+  id: '/shift-submit',
+  path: '/shift-submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InviteRoute = InviteRouteImport.update({
   id: '/invite',
   path: '/invite',
@@ -162,6 +168,7 @@ const AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/invite': typeof InviteRoute
+  '/shift-submit': typeof ShiftSubmitRoute
   '/mypage': typeof AuthMypageRoute
   '/shifts': typeof AuthShiftsRoute
   '/welcome': typeof UnregisteredWelcomeRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/invite': typeof InviteRoute
+  '/shift-submit': typeof ShiftSubmitRoute
   '/mypage': typeof AuthMypageRoute
   '/shifts': typeof AuthShiftsRoute
   '/welcome': typeof UnregisteredWelcomeRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
   '/invite': typeof InviteRoute
+  '/shift-submit': typeof ShiftSubmitRoute
   '/_auth/mypage': typeof AuthMypageRoute
   '/_auth/shifts': typeof AuthShiftsRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/invite'
+    | '/shift-submit'
     | '/mypage'
     | '/shifts'
     | '/welcome'
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/invite'
+    | '/shift-submit'
     | '/mypage'
     | '/shifts'
     | '/welcome'
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_unregistered'
     | '/invite'
+    | '/shift-submit'
     | '/_auth/mypage'
     | '/_auth/shifts'
     | '/_unregistered/welcome'
@@ -310,10 +322,18 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
   InviteRoute: typeof InviteRoute
+  ShiftSubmitRoute: typeof ShiftSubmitRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/shift-submit': {
+      id: '/shift-submit'
+      path: '/shift-submit'
+      fullPath: '/shift-submit'
+      preLoaderRoute: typeof ShiftSubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite': {
       id: '/invite'
       path: '/invite'
@@ -543,6 +563,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
   InviteRoute: InviteRoute,
+  ShiftSubmitRoute: ShiftSubmitRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

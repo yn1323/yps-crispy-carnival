@@ -1,4 +1,4 @@
-import { Box, Button, Card, Container, Flex, Grid, Icon, Skeleton, SkeletonText, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Card, Container, Flex, Grid, Icon, Skeleton, SkeletonText, VStack } from "@chakra-ui/react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LuMail, LuPencil, LuUser } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -51,74 +51,41 @@ type StaffDetailProps = {
 export const StaffDetail = ({ staff, shop, positions, staffSkills }: StaffDetailProps) => {
   const navigate = useNavigate();
 
-  // アバターのイニシャル生成
-  const getInitials = (name: string) => {
-    return name
-      .split("")
-      .slice(0, 2)
-      .map((char) => char.toUpperCase())
-      .join("");
-  };
-
   return (
     <Container maxW="6xl">
-      {/* ヘッダー */}
-      <Title
-        prev={{ url: `/shops/${shop._id}/staffs`, label: "スタッフ一覧に戻る" }}
-        action={
-          <Flex gap={2}>
-            <Button
-              onClick={() => {
-                navigate({
-                  to: "/shops/$shopId/staffs/$staffId/edit",
-                  params: { shopId: shop._id, staffId: staff._id },
-                });
-              }}
-              colorPalette="teal"
-              gap={2}
-            >
-              <Icon as={LuPencil} boxSize={4} />
-              <Text display={{ base: "none", md: "inline" }}>編集</Text>
-            </Button>
-            {staff.status === "pending" && (
-              <Button colorPalette="orange" gap={2}>
-                <Icon as={LuMail} boxSize={4} />
-                <Text display={{ base: "none", md: "inline" }}>招待メールを再送</Text>
-              </Button>
-            )}
-          </Flex>
-        }
-      >
-        <Flex align="center" gap={4}>
-          {/* アバター */}
-          <Flex
-            w={{ base: 16, md: 20 }}
-            h={{ base: 16, md: 20 }}
-            borderRadius="full"
-            bgGradient="to-br"
-            gradientFrom="teal.400"
-            gradientTo="teal.600"
-            align="center"
-            justify="center"
-            color="white"
-            flexShrink={0}
-          >
-            <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">
-              {getInitials(staff.displayName)}
-            </Text>
-          </Flex>
-
-          <Box>
-            <Text as="h2" fontSize="xl" fontWeight="bold" color="gray.900" mb={1}>
-              {staff.displayName}
-            </Text>
-          </Box>
-        </Flex>
-      </Title>
+      {/* 戻るリンク */}
+      <Title prev={{ url: `/shops/${shop._id}/staffs`, label: "スタッフ一覧に戻る" }}>{null}</Title>
 
       {/* コンテンツ部分（共通コンポーネント使用） */}
       <Animation>
-        <StaffDetailContent staff={staff} positions={positions} staffSkills={staffSkills} />
+        <StaffDetailContent
+          staff={staff}
+          positions={positions}
+          staffSkills={staffSkills}
+          action={
+            <Flex gap={2}>
+              <Button
+                onClick={() => {
+                  navigate({
+                    to: "/shops/$shopId/staffs/$staffId/edit",
+                    params: { shopId: shop._id, staffId: staff._id },
+                  });
+                }}
+                colorPalette="teal"
+                gap={2}
+              >
+                <Icon as={LuPencil} boxSize={4} />
+                編集
+              </Button>
+              {staff.status === "pending" && (
+                <Button colorPalette="orange" gap={2}>
+                  <Icon as={LuMail} boxSize={4} />
+                  招待メールを再送
+                </Button>
+              )}
+            </Flex>
+          }
+        />
       </Animation>
     </Container>
   );

@@ -1,10 +1,15 @@
 import { Box, Container, Flex, Heading, Icon } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import { useAtomValue } from "jotai";
 import { useForm } from "react-hook-form";
 import { LuCalendarPlus } from "react-icons/lu";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Title } from "@/src/components/ui/Title";
 import { toaster } from "@/src/components/ui/toaster";
+import { userAtom } from "@/src/stores/user";
 import { RecruitmentForm } from "../RecruitmentForm";
 import { type RecruitmentFormSchemaType, recruitmentFormSchema } from "../RecruitmentForm/schema";
 
@@ -14,6 +19,8 @@ type RecruitmentNewProps = {
 
 export const RecruitmentNew = ({ shopId }: RecruitmentNewProps) => {
   const navigate = useNavigate();
+  const user = useAtomValue(userAtom);
+  const createRecruitment = useMutation(api.recruitment.mutations.create);
 
   const {
     register,
@@ -24,15 +31,36 @@ export const RecruitmentNew = ({ shopId }: RecruitmentNewProps) => {
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    // TODO: useMutation呼び出し
-    console.log("募集作成:", { shopId, ...data });
+    if (!user.authId) {
+      toaster.create({
+        description: "ログインが必要です",
+        type: "error",
+      });
+      return;
+    }
 
-    toaster.create({
-      description: "シフト募集を作成しました",
-      type: "success",
-    });
+    try {
+      const result = await createRecruitment({
+        shopId: shopId as Id<"shops">,
+        authId: user.authId,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        deadline: data.deadline,
+      });
 
-    navigate({ to: "/shops/$shopId/shifts", params: { shopId } });
+      if (result.success) {
+        toaster.create({
+          description: "シフト募集を作成しました",
+          type: "success",
+        });
+        navigate({ to: "/shops/$shopId/shifts", params: { shopId } });
+      }
+    } catch {
+      toaster.create({
+        description: "シフト募集の作成に失敗しました",
+        type: "error",
+      });
+    }
   });
 
   return (

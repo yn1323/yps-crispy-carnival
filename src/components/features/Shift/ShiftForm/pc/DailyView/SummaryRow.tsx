@@ -223,11 +223,11 @@ export const SummaryRow = ({
           const positionGradient = buildGradientStyle(counts, required);
 
           return (
-            <Table.Row key={position.id} bg="gray.50">
+            <Table.Row key={position.id} bg="white">
               <Table.Cell
                 position="sticky"
                 left={0}
-                bg="gray.50"
+                bg="white"
                 zIndex={11}
                 borderRight="1px solid"
                 borderColor="gray.100"

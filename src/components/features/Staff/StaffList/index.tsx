@@ -1,18 +1,4 @@
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  Container,
-  Flex,
-  Heading,
-  HStack,
-  Icon,
-  Input,
-  InputGroup,
-  Spacer,
-  Text,
-} from "@chakra-ui/react";
+import { Badge, Box, Button, Card, Container, Flex, Heading, Icon, Input, InputGroup, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
@@ -218,29 +204,9 @@ export const StaffList = ({ shop, staffs, staffSkillsMap }: StaffListProps) => {
 
                           {/* スタッフ情報 */}
                           <Box flex={1} minW={0}>
-                            <HStack gap={2} flexWrap="wrap">
-                              <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
-                                {staff.displayName}
-                              </Text>
-                              <Spacer />
-                              {/* ロールバッジ（マネージャーのみ表示） */}
-                              {staff.isManager && (
-                                <Badge colorPalette="purple" size="sm" flexShrink={0}>
-                                  マネージャー
-                                </Badge>
-                              )}
-                              {/* ステータスバッジ */}
-                              {staff.status === "pending" && (
-                                <Badge colorPalette="orange" size="sm" flexShrink={0}>
-                                  招待中
-                                </Badge>
-                              )}
-                              {staff.status === "resigned" && (
-                                <Badge colorPalette="gray" size="sm" flexShrink={0}>
-                                  退職済み
-                                </Badge>
-                              )}
-                            </HStack>
+                            <Text fontSize={{ base: "sm", md: "base" }} color="gray.900" truncate>
+                              {staff.displayName}
+                            </Text>
                             {/* スキル表示（一人前以上のみ） */}
                             {(() => {
                               const staffSkills = staffSkillsMap[staff._id] || [];
@@ -264,8 +230,25 @@ export const StaffList = ({ shop, staffs, staffSkillsMap }: StaffListProps) => {
                           </Box>
                         </Flex>
 
-                        {/* 矢印アイコン */}
-                        <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
+                        {/* ロールバッジ・ステータスバッジ + 矢印アイコン */}
+                        <Flex align="center" gap={2} flexShrink={0}>
+                          {staff.isManager && (
+                            <Badge colorPalette="purple" size="sm">
+                              マネージャー
+                            </Badge>
+                          )}
+                          {staff.status === "pending" && (
+                            <Badge colorPalette="orange" size="sm">
+                              招待中
+                            </Badge>
+                          )}
+                          {staff.status === "resigned" && (
+                            <Badge colorPalette="gray" size="sm">
+                              退職済み
+                            </Badge>
+                          )}
+                          <Icon as={LuChevronRight} boxSize={5} color="gray.400" />
+                        </Flex>
                       </Flex>
                     </Card.Body>
                   </Card.Root>
