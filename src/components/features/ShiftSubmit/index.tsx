@@ -5,6 +5,7 @@ import "dayjs/locale/ja";
 import { useMutation } from "convex/react";
 import { LuCalendarDays } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
+import { generateDateRange } from "@/src/components/features/Shift/utils/transformRecruitmentData";
 import { toaster } from "@/src/components/ui/toaster";
 import { ConfirmView } from "./ConfirmView";
 import { EntryForm } from "./EntryForm";
@@ -43,18 +44,6 @@ type ShiftSubmitProps = {
 
 type ViewState = "form" | "confirm" | "submitted";
 
-// 募集期間の全日付を生成
-const generateDates = (startDate: string, endDate: string) => {
-  const dates: string[] = [];
-  let current = dayjs(startDate);
-  const end = dayjs(endDate);
-  while (current.isBefore(end) || current.isSame(end, "day")) {
-    dates.push(current.format("YYYY-MM-DD"));
-    current = current.add(1, "day");
-  }
-  return dates;
-};
-
 // 初期エントリーを生成（既存提出があればそれを使用、なければ全日不可）
 const createInitialEntries = (dates: string[], existingRequest: ShiftSubmitProps["existingRequest"]): ShiftEntry[] => {
   if (existingRequest) {
@@ -79,7 +68,7 @@ export const ShiftSubmit = ({
   previousRequest,
   frequentTimePatterns,
 }: ShiftSubmitProps) => {
-  const dates = generateDates(recruitment.startDate, recruitment.endDate);
+  const dates = generateDateRange(recruitment.startDate, recruitment.endDate);
   const [view, setView] = useState<ViewState>(existingRequest ? "submitted" : "form");
   const [entries, setEntries] = useState<ShiftEntry[]>(() => createInitialEntries(dates, existingRequest));
   const [submittedAt, setSubmittedAt] = useState<number | null>(
