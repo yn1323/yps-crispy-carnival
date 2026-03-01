@@ -1,5 +1,6 @@
 import { Box, Flex, HStack, IconButton, SegmentGroup } from "@chakra-ui/react";
-import { Provider, useAtom } from "jotai";
+import { Provider, useAtom, useAtomValue } from "jotai";
+import { useEffect, useRef } from "react";
 import { LuRedo2, LuUndo2 } from "react-icons/lu";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { useUndoRedo } from "./hooks/useUndoRedo";
@@ -7,7 +8,7 @@ import { DailyView } from "./pc/DailyView";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
-import { viewModeAtom } from "./stores";
+import { shiftsAtom, viewModeAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
 
 const VIEW_OPTIONS = [
@@ -35,6 +36,7 @@ type ShiftFormProps = {
   initialViewMode?: ViewMode;
   hideViewSwitcher?: boolean;
   initialSortMode?: SortMode;
+  onShiftsChange?: (shifts: ShiftData[]) => void;
 };
 
 const ShiftFormInner = ({
@@ -52,6 +54,7 @@ const ShiftFormInner = ({
   initialViewMode,
   hideViewSwitcher = false,
   initialSortMode,
+  onShiftsChange,
 }: ShiftFormProps) => {
   // props → atoms 初期化
   useShiftFormInit({
@@ -69,6 +72,15 @@ const ShiftFormInner = ({
     initialViewMode,
     initialSortMode,
   });
+
+  // シフトデータの変更を親に通知
+  const shifts = useAtomValue(shiftsAtom);
+  const onShiftsChangeRef = useRef(onShiftsChange);
+  onShiftsChangeRef.current = onShiftsChange;
+
+  useEffect(() => {
+    onShiftsChangeRef.current?.(shifts);
+  }, [shifts]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
   const { undo, redo, canUndo, canRedo } = useUndoRedo();

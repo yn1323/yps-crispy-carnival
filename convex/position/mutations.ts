@@ -7,7 +7,7 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { DEFAULT_POSITIONS, SKILL_LEVELS } from "../constants";
+import { DEFAULT_POSITIONS, POSITION_COLORS, SKILL_LEVELS } from "../constants";
 import { requireShop } from "../helpers";
 
 // ポジション作成
@@ -48,6 +48,7 @@ export const create = mutation({
     const positionId = await ctx.db.insert("shopPositions", {
       shopId: args.shopId,
       name: trimmedName,
+      color: POSITION_COLORS[(maxOrder + 1) % POSITION_COLORS.length],
       order: maxOrder + 1,
       isDeleted: false,
       createdAt: Date.now(),
@@ -87,6 +88,25 @@ export const updateName = mutation({
     }
 
     await ctx.db.patch(args.positionId, { name: trimmedName });
+
+    return { success: true };
+  },
+});
+
+// ポジションカラー更新
+export const updateColor = mutation({
+  args: {
+    positionId: v.id("shopPositions"),
+    color: v.string(),
+    authId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const position = await ctx.db.get(args.positionId);
+    if (!position || position.isDeleted) {
+      throw new ConvexError({ message: "ポジションが見つかりません", code: "NOT_FOUND" });
+    }
+
+    await ctx.db.patch(args.positionId, { color: args.color });
 
     return { success: true };
   },
@@ -147,6 +167,7 @@ export const initializeDefaultPositions = mutation({
       const positionId = await ctx.db.insert("shopPositions", {
         shopId: args.shopId,
         name: DEFAULT_POSITIONS[i],
+        color: POSITION_COLORS[i % POSITION_COLORS.length],
         order: i,
         isDeleted: false,
         createdAt: Date.now(),

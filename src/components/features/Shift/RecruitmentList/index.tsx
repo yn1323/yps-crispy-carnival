@@ -36,7 +36,7 @@ type RecruitmentListProps = {
 const STATUS_CONFIG = {
   open: { label: "募集中", colorPalette: "teal", iconBg: "teal.50" },
   closed: { label: "締切済み", colorPalette: "orange", iconBg: "orange.50" },
-  confirmed: { label: "確定済み", colorPalette: "gray", iconBg: "gray.100" },
+  confirmed: { label: "確定済み", colorPalette: "blue", iconBg: "blue.50" },
 } as const;
 
 const formatDateRange = (startDate: string, endDate: string) => {

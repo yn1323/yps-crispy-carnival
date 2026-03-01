@@ -22,6 +22,8 @@ import { useState } from "react";
 import { LuCheck, LuGripVertical, LuInfo, LuPencil, LuPlus, LuTag, LuTrash2, LuX } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { POSITION_COLORS } from "@/convex/constants";
+import { ColorPicker } from "@/src/components/ui/ColorPicker";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { FormCard } from "@/src/components/ui/FormCard";
 import { toaster } from "@/src/components/ui/toaster";
@@ -31,6 +33,7 @@ import { userAtom } from "@/src/stores/user";
 type PositionType = {
   _id: Id<"shopPositions">;
   name: string;
+  color?: string;
   order: number;
 };
 
@@ -44,9 +47,11 @@ type PositionItemProps = {
   position: PositionType;
   isEditing: boolean;
   editingName: string;
+  editingColor: string;
   onEditStart: () => void;
   onEditCancel: () => void;
   onEditChange: (value: string) => void;
+  onColorChange: (color: string) => void;
   onEditSave: () => void;
   onDeleteClick: () => void;
   isUpdating: boolean;
@@ -57,9 +62,11 @@ const PositionItem = ({
   position,
   isEditing,
   editingName,
+  editingColor,
   onEditStart,
   onEditCancel,
   onEditChange,
+  onColorChange,
   onEditSave,
   onDeleteClick,
   isUpdating,
@@ -111,7 +118,7 @@ const PositionItem = ({
         {isEditing ? (
           // 編集モード
           <Flex flex={1} gap={2} align="flex-start" direction="column">
-            <Flex gap={2} w="full">
+            <Flex gap={2} w="full" align="center">
               <Field.Root invalid={!!editError} flex={1}>
                 <Input
                   value={editingName}
@@ -130,6 +137,7 @@ const PositionItem = ({
                 <LuX />
               </IconButton>
             </Flex>
+            <ColorPicker value={editingColor} onChange={onColorChange} />
             {editError && (
               <Text fontSize="xs" color="red.500">
                 {editError}
@@ -139,12 +147,19 @@ const PositionItem = ({
         ) : (
           // 通常表示
           <>
+            <Box
+              w={4}
+              h={4}
+              borderRadius="full"
+              bg={position.color ?? POSITION_COLORS[position.order % POSITION_COLORS.length]}
+              flexShrink={0}
+            />
             <Text flex={1} fontWeight="medium" color="gray.700">
               {position.name}
             </Text>
             <Flex gap={1}>
               <IconButton
-                aria-label="ポジション名を編集"
+                aria-label="ポジションを編集"
                 size="sm"
                 variant="ghost"
                 colorPalette="gray"
@@ -215,9 +230,12 @@ export const PositionManager = ({ shopId, positions: initialPositions }: Positio
 
   const deleteDialog = useDialog();
 
+  const [editingColor, setEditingColor] = useState("");
+
   // Mutations
   const createPosition = useMutation(api.position.mutations.create);
   const updatePositionName = useMutation(api.position.mutations.updateName);
+  const updatePositionColor = useMutation(api.position.mutations.updateColor);
   const removePosition = useMutation(api.position.mutations.remove);
   const updatePositionOrder = useMutation(api.position.mutations.updateOrder);
 
@@ -291,6 +309,7 @@ export const PositionManager = ({ shopId, positions: initialPositions }: Positio
   const handleEditStart = (position: PositionType) => {
     setEditingId(position._id);
     setEditingName(position.name);
+    setEditingColor(position.color ?? POSITION_COLORS[position.order % POSITION_COLORS.length]);
     setEditError(null);
   };
 
@@ -317,17 +336,31 @@ export const PositionManager = ({ shopId, positions: initialPositions }: Positio
 
     setIsUpdating(true);
     try {
+      const currentPosition = positions.find((p) => p._id === editingId);
       await updatePositionName({
         positionId: editingId,
         name: trimmedName,
         authId: user.authId,
       });
 
-      setPositions(positions.map((p) => (p._id === editingId ? { ...p, name: trimmedName } : p)));
+      // カラーが変更されていたら更新
+      if (
+        editingColor !==
+        (currentPosition?.color ?? POSITION_COLORS[currentPosition?.order ?? 0 % POSITION_COLORS.length])
+      ) {
+        await updatePositionColor({
+          positionId: editingId,
+          color: editingColor,
+          authId: user.authId,
+        });
+      }
+
+      setPositions(positions.map((p) => (p._id === editingId ? { ...p, name: trimmedName, color: editingColor } : p)));
       setEditingId(null);
       setEditingName("");
+      setEditingColor("");
       setEditError(null);
-      toaster.success({ title: "ポジション名を更新しました" });
+      toaster.success({ title: "ポジションを更新しました" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "ポジション名の更新に失敗しました";
       setEditError(message);
@@ -435,9 +468,11 @@ export const PositionManager = ({ shopId, positions: initialPositions }: Positio
                     position={position}
                     isEditing={editingId === position._id}
                     editingName={editingName}
+                    editingColor={editingColor}
                     onEditStart={() => handleEditStart(position)}
                     onEditCancel={handleEditCancel}
                     onEditChange={setEditingName}
+                    onColorChange={setEditingColor}
                     onEditSave={handleEditSave}
                     onDeleteClick={() => handleDeleteClick(position)}
                     isUpdating={isUpdating}

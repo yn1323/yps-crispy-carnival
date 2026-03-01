@@ -3,23 +3,44 @@
  *
  * 責務:
  * - マジックリンクからの提出ページデータ取得
+ * - 募集に紐づく全申請の取得
  */
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import { getStaffByMagicLinkToken } from "../helpers";
+import { getMagicLinkByToken } from "../helpers";
+
+// 募集に紐づく全申請を取得（管理者の募集詳細ページ用）
+export const listByRecruitment = query({
+  args: { recruitmentId: v.id("recruitments") },
+  handler: async (ctx, args) => {
+    const requests = await ctx.db
+      .query("shiftRequests")
+      .withIndex("by_recruitment", (q) => q.eq("recruitmentId", args.recruitmentId))
+      .collect();
+
+    return requests.map((r) => ({
+      _id: r._id,
+      staffId: r.staffId,
+      entries: r.entries,
+      submittedAt: r.submittedAt,
+      updatedAt: r.updatedAt,
+    }));
+  },
+});
 
 // 提出ページデータ取得（マジックリンクトークンで認証）
 export const getSubmitPageData = query({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    // トークンからスタッフを取得
-    const staff = await getStaffByMagicLinkToken(ctx, args.token);
-    if (!staff) {
+    // トークンからmagicLinkレコードとスタッフを取得
+    const result = await getMagicLinkByToken(ctx, args.token);
+    if (!result) {
       return { error: "INVALID_TOKEN" as const };
     }
+    const { magicLink, staff } = result;
 
     // トークン有効期限チェック
-    if (staff.magicLinkExpiresAt && staff.magicLinkExpiresAt < Date.now()) {
+    if (magicLink.expiresAt < Date.now()) {
       return { error: "TOKEN_EXPIRED" as const };
     }
 
@@ -29,67 +50,98 @@ export const getSubmitPageData = query({
       return { error: "SHOP_NOT_FOUND" as const };
     }
 
-    // オープン中の募集を取得
-    const recruitment = await ctx.db
-      .query("recruitments")
-      .withIndex("by_shop_and_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!recruitment) {
+    // トークンに紐づく募集を直接取得
+    const recruitment = await ctx.db.get(magicLink.recruitmentId);
+    if (!recruitment || recruitment.isDeleted) {
       return { error: "NO_OPEN_RECRUITMENT" as const };
     }
 
-    // 今回の募集への既存提出データ
-    const existingRequest = await ctx.db
-      .query("shiftRequests")
-      .withIndex("by_recruitment_and_staff", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))
-      .first();
+    // 募集ステータスに応じた分岐
+    if (recruitment.status === "open") {
+      const existingRequest = await ctx.db
+        .query("shiftRequests")
+        .withIndex("by_recruitment_and_staff", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))
+        .first();
 
-    // 前回の提出データ（今回の募集以外で最新のもの）
-    const allPastRequests = await ctx.db
-      .query("shiftRequests")
-      .withIndex("by_staff", (q) => q.eq("staffId", staff._id))
-      .order("desc")
-      .collect();
+      const allPastRequests = await ctx.db
+        .query("shiftRequests")
+        .withIndex("by_staff", (q) => q.eq("staffId", staff._id))
+        .order("desc")
+        .collect();
 
-    const previousRequest = allPastRequests.find((r) => r.recruitmentId !== recruitment._id) ?? null;
+      const previousRequest = allPastRequests.find((r) => r.recruitmentId !== recruitment._id) ?? null;
+      const frequentTimePatterns = calcFrequentTimePatterns(allPastRequests);
 
-    // よく使う時間パターン上位3つを算出
-    const frequentTimePatterns = calcFrequentTimePatterns(allPastRequests);
+      return {
+        error: null,
+        status: "open" as const,
+        staff: { _id: staff._id, displayName: staff.displayName },
+        shop: { shopName: shop.shopName, timeUnit: shop.timeUnit, openTime: shop.openTime, closeTime: shop.closeTime },
+        recruitment: {
+          _id: recruitment._id,
+          startDate: recruitment.startDate,
+          endDate: recruitment.endDate,
+          deadline: recruitment.deadline,
+        },
+        existingRequest: existingRequest
+          ? {
+              entries: existingRequest.entries,
+              submittedAt: existingRequest.submittedAt,
+              updatedAt: existingRequest.updatedAt,
+            }
+          : null,
+        previousRequest: previousRequest ? { entries: previousRequest.entries } : null,
+        frequentTimePatterns,
+      };
+    }
 
-    return {
-      error: null,
-      staff: {
-        _id: staff._id,
-        displayName: staff.displayName,
-      },
-      shop: {
-        shopName: shop.shopName,
-        timeUnit: shop.timeUnit,
-        openTime: shop.openTime,
-        closeTime: shop.closeTime,
-      },
-      recruitment: {
-        _id: recruitment._id,
-        startDate: recruitment.startDate,
-        endDate: recruitment.endDate,
-        deadline: recruitment.deadline,
-      },
-      existingRequest: existingRequest
-        ? {
-            entries: existingRequest.entries,
-            submittedAt: existingRequest.submittedAt,
-            updatedAt: existingRequest.updatedAt,
-          }
-        : null,
-      previousRequest: previousRequest
-        ? {
-            entries: previousRequest.entries,
-          }
-        : null,
-      frequentTimePatterns,
-    };
+    if (recruitment.status === "confirmed") {
+      const positions = await ctx.db
+        .query("shopPositions")
+        .withIndex("by_shop", (q) => q.eq("shopId", staff.shopId))
+        .filter((q) => q.neq(q.field("isDeleted"), true))
+        .collect();
+
+      const allStaffs = await ctx.db
+        .query("staffs")
+        .withIndex("by_shop", (q) => q.eq("shopId", staff.shopId))
+        .filter((q) => q.and(q.neq(q.field("isDeleted"), true), q.neq(q.field("status"), "resigned")))
+        .collect();
+
+      const shiftRequests = await ctx.db
+        .query("shiftRequests")
+        .withIndex("by_recruitment", (q) => q.eq("recruitmentId", recruitment._id))
+        .collect();
+
+      const shiftAssignment = await ctx.db
+        .query("shiftAssignments")
+        .withIndex("by_recruitment", (q) => q.eq("recruitmentId", recruitment._id))
+        .first();
+
+      return {
+        error: null,
+        status: "confirmed" as const,
+        staff: { _id: staff._id, displayName: staff.displayName },
+        shop: { shopName: shop.shopName, timeUnit: shop.timeUnit, openTime: shop.openTime, closeTime: shop.closeTime },
+        recruitment: {
+          _id: recruitment._id,
+          startDate: recruitment.startDate,
+          endDate: recruitment.endDate,
+        },
+        positions: positions
+          .sort((a, b) => a.order - b.order)
+          .map((p) => ({ _id: p._id, name: p.name, color: p.color, order: p.order })),
+        staffs: allStaffs.map((s) => ({ _id: s._id, displayName: s.displayName, status: s.status })),
+        shiftRequests: shiftRequests.map((r) => ({ _id: r._id, staffId: r.staffId, entries: r.entries })),
+        shiftAssignment: shiftAssignment ? { assignments: shiftAssignment.assignments } : null,
+      };
+    }
+
+    if (recruitment.status === "closed") {
+      return { error: "RECRUITMENT_CLOSED" as const };
+    }
+
+    return { error: "NO_OPEN_RECRUITMENT" as const };
   },
 });
 

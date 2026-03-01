@@ -66,15 +66,30 @@ const mockShifts = [
   },
 ];
 
-export const Basic: Story = {
+export const Open: Story = {
   args: {
     shopId: "shop_1",
     recruitmentId: "recruitment_1",
+    recruitmentStatus: "open",
     staffs: mockStaffs,
     positions: mockPositions,
     shifts: mockShifts,
     dates: mockDates,
     timeRange: { start: 9, end: 22, unit: 30 },
     holidays: [],
+  },
+};
+
+export const Closed: Story = {
+  args: {
+    ...Open.args,
+    recruitmentStatus: "closed",
+  },
+};
+
+export const Confirmed: Story = {
+  args: {
+    ...Open.args,
+    recruitmentStatus: "confirmed",
   },
 };

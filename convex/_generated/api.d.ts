@@ -19,6 +19,8 @@ import type * as recruitment_mutations from "../recruitment/mutations.js";
 import type * as recruitment_queries from "../recruitment/queries.js";
 import type * as requiredStaffing_mutations from "../requiredStaffing/mutations.js";
 import type * as requiredStaffing_queries from "../requiredStaffing/queries.js";
+import type * as shiftAssignment_mutations from "../shiftAssignment/mutations.js";
+import type * as shiftAssignment_queries from "../shiftAssignment/queries.js";
 import type * as shiftRequest_mutations from "../shiftRequest/mutations.js";
 import type * as shiftRequest_queries from "../shiftRequest/queries.js";
 import type * as shop_mutations from "../shop/mutations.js";
@@ -47,6 +49,8 @@ declare const fullApi: ApiFromModules<{
   "recruitment/queries": typeof recruitment_queries;
   "requiredStaffing/mutations": typeof requiredStaffing_mutations;
   "requiredStaffing/queries": typeof requiredStaffing_queries;
+  "shiftAssignment/mutations": typeof shiftAssignment_mutations;
+  "shiftAssignment/queries": typeof shiftAssignment_queries;
   "shiftRequest/mutations": typeof shiftRequest_mutations;
   "shiftRequest/queries": typeof shiftRequest_queries;
   "shop/mutations": typeof shop_mutations;

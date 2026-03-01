@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { LuCalendarClock, LuCircleX, LuClock } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { ShiftSubmit } from "@/src/components/features/ShiftSubmit";
+import { ConfirmedView } from "@/src/components/features/ShiftSubmit/ConfirmedView";
 
 type ShiftSubmitPageProps = {
   token: string;
@@ -59,12 +60,34 @@ export const ShiftSubmitPage = ({ token }: ShiftSubmitPageProps) => {
         title: "現在は募集を受け付けていません",
         desc: "現在この店舗で受付中の募集はありません。",
       },
+      RECRUITMENT_CLOSED: {
+        icon: LuCalendarClock,
+        color: "orange.500",
+        title: "募集は締め切りました",
+        desc: "シフトが確定するまでお待ちください。",
+      },
     } as const;
 
     const config = errorConfig[data.error];
     return <ErrorState icon={config.icon} iconColor={config.color} title={config.title} description={config.desc} />;
   }
 
+  // 確定シフト閲覧
+  if (data.status === "confirmed") {
+    return (
+      <ConfirmedView
+        staff={data.staff}
+        shop={data.shop}
+        recruitment={data.recruitment}
+        positions={data.positions}
+        staffs={data.staffs}
+        shiftRequests={data.shiftRequests}
+        shiftAssignment={data.shiftAssignment}
+      />
+    );
+  }
+
+  // シフト希望提出フォーム
   return (
     <ShiftSubmit
       token={token}

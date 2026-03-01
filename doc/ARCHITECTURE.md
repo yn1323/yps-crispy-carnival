@@ -37,7 +37,7 @@ convex/
 | スキル管理 | - | `StaffDetail`内 | `staffSkill/queries`, `mutations` |
 | ユーザー管理 | `MyPage`, `Settings` | `User/UserRegister`, `Setting/UserSetting` | `user/queries`, `mutations` |
 | 招待機能 | `Invite` | `Shop/MemberAddModal` | `invite/queries`, `mutations` |
-| シフト管理 | `Shops/ShiftsPage`, `RecruitmentNewPage`, `RecruitmentDetailPage`, `ShiftConfirmPage`, `StaffingSettingsPage` | `Shift/ShiftForm`, `RecruitmentForm`, `RecruitmentList`, `RecruitmentDetail`, `RecruitmentNew`, `StaffingRequirement` | `requiredStaffing/queries`, `mutations` |
+| シフト管理 | `Shops/ShiftsPage`, `RecruitmentNewPage`, `RecruitmentDetailPage`, `ShiftConfirmPage`, `StaffingSettingsPage` | `Shift/ShiftForm`, `ShiftConfirm`, `RecruitmentForm`, `RecruitmentList`, `RecruitmentDetail`, `RecruitmentNew`, `StaffingRequirement` | `recruitment/queries,mutations`, `shiftRequest/queries,mutations`, `shiftAssignment/queries,mutations`, `requiredStaffing/queries,mutations` |
 
 ---
 
@@ -62,8 +62,9 @@ convex/
 ### ポジション管理
 | ファイルパス | 責務 |
 |-------------|------|
-| `src/components/features/Shop/PositionManager/` | ポジション一覧管理 |
-| `src/components/features/Shop/PositionEditor/` | ポジション個別編集 |
+| `src/components/features/Shop/PositionManager/` | ポジション一覧管理（カラー選択対応） |
+| `src/components/features/Shop/PositionEditor/` | ポジション個別編集（カラー選択対応） |
+| `src/components/ui/ColorPicker/` | プリセットカラー選択コンポーネント |
 | `convex/position/` | DB操作 |
 
 ### スキル管理
@@ -97,10 +98,15 @@ convex/
 | `src/routes/_auth/shops/$shopId/shifts/` | ルーティング |
 | `src/components/pages/Shops/ShiftsPage/` | useQuery、エラー/ローディング処理 |
 | `src/components/pages/Shops/RecruitmentNewPage/` | 募集作成ページ |
-| `src/components/pages/Shops/RecruitmentDetailPage/` | 募集詳細ページ |
-| `src/components/pages/Shops/ShiftConfirmPage/` | シフト確定ページ |
+| `src/components/pages/Shops/RecruitmentDetailPage/` | 募集詳細ページ（申請状況確認） |
+| `src/components/pages/Shops/ShiftConfirmPage/` | シフト編集・確定ページ |
 | `src/components/pages/Shops/StaffingSettingsPage/` | 必要人員設定ページ |
 | `src/components/features/Shift/` | ドメインロジック、UI |
+| `src/components/features/Shift/ShiftConfirm/` | シフト編集・保存・締切・確定 |
+| `src/components/features/Shift/utils/transformRecruitmentData.ts` | Convexデータ→ShiftForm用props変換 |
+| `convex/recruitment/` | 募集のCRUD・締切・確定 |
+| `convex/shiftRequest/` | スタッフの希望提出 |
+| `convex/shiftAssignment/` | 管理者のシフト割当 |
 | `convex/requiredStaffing/` | 必要人員DB操作 |
 
 ---
