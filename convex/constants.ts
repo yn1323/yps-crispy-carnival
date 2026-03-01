@@ -26,6 +26,20 @@ export type PositionType = (typeof DEFAULT_POSITIONS)[number];
 export const POSITION_MAX_COUNT = 10;
 export const POSITION_NAME_MAX_LENGTH = 20;
 
+// ポジションカラーパレット
+export const POSITION_COLORS = [
+  "#3b82f6", // blue
+  "#f97316", // orange
+  "#10b981", // green
+  "#8b5cf6", // purple
+  "#ec4899", // pink
+  "#f59e0b", // amber
+  "#06b6d4", // cyan
+  "#84cc16", // lime
+  "#ef4444", // red
+  "#6366f1", // indigo
+] as const;
+
 // ロール定義
 export const STAFF_ROLES = ["owner", "manager", "general"] as const;
 export type StaffRoleType = (typeof STAFF_ROLES)[number];

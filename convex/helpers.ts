@@ -75,15 +75,19 @@ export const getStaffByEmail = async (ctx: QueryCtx | MutationCtx, shopId: Id<"s
   return staff;
 };
 
-// マジックリンクトークンでスタッフを取得
-export const getStaffByMagicLinkToken = async (ctx: QueryCtx | MutationCtx, token: string) => {
-  const staff = await ctx.db
-    .query("staffs")
-    .withIndex("by_magic_link_token", (q) => q.eq("magicLinkToken", token))
-    .filter((q) => q.neq(q.field("isDeleted"), true))
+// マジックリンクトークンからmagicLinkレコードとスタッフを取得
+export const getMagicLinkByToken = async (ctx: QueryCtx | MutationCtx, token: string) => {
+  const magicLink = await ctx.db
+    .query("magicLinks")
+    .withIndex("by_token", (q) => q.eq("token", token))
     .first();
 
-  return staff;
+  if (!magicLink) return null;
+
+  const staff = await ctx.db.get(magicLink.staffId);
+  if (!staff || staff.isDeleted) return null;
+
+  return { magicLink, staff };
 };
 
 // 招待トークンでスタッフを取得

@@ -48,10 +48,6 @@ const staffs = defineTable({
   ),
   maxWeeklyHours: v.optional(v.number()),
 
-  // マジックリンク（シフト申請サイクルごとに発行）
-  magicLinkToken: v.optional(v.string()),
-  magicLinkExpiresAt: v.optional(v.number()),
-
   // 招待トークン（マネージャー招待用）
   inviteToken: v.optional(v.string()),
   inviteExpiresAt: v.optional(v.number()),
@@ -73,7 +69,6 @@ const staffs = defineTable({
   .index("by_shop", ["shopId"])
   .index("by_email", ["email"])
   .index("by_shop_and_email", ["shopId", "email"])
-  .index("by_magic_link_token", ["magicLinkToken"])
   .index("by_invite_token", ["inviteToken"])
   .index("by_user", ["userId"]);
 
@@ -81,6 +76,7 @@ const staffs = defineTable({
 const shopPositions = defineTable({
   shopId: v.id("shops"),
   name: v.string(), // "ホール", "キッチン" など
+  color: v.optional(v.string()), // "#3b82f6" など
   order: v.number(), // 表示順
   isDeleted: v.boolean(),
   createdAt: v.number(),
@@ -139,6 +135,27 @@ const shiftRequests = defineTable({
   .index("by_staff", ["staffId"])
   .index("by_recruitment_and_staff", ["recruitmentId", "staffId"]);
 
+// シフト割当テーブル（管理者が編集・確定するシフト）
+const shiftAssignments = defineTable({
+  recruitmentId: v.id("recruitments"),
+  assignments: v.array(
+    v.object({
+      staffId: v.string(),
+      date: v.string(), // "YYYY-MM-DD"
+      positions: v.array(
+        v.object({
+          positionId: v.string(),
+          positionName: v.string(),
+          color: v.string(),
+          start: v.string(), // "09:00"
+          end: v.string(), // "17:00"
+        }),
+      ),
+    }),
+  ),
+  updatedAt: v.number(),
+}).index("by_recruitment", ["recruitmentId"]);
+
 // シフト募集テーブル
 const recruitments = defineTable({
   shopId: v.id("shops"),
@@ -157,6 +174,16 @@ const recruitments = defineTable({
   .index("by_shop_and_status", ["shopId", "status"])
   .index("by_shop_and_startDate", ["shopId", "startDate"]);
 
+// マジックリンクテーブル（スタッフ × 募集単位でトークン管理）
+const magicLinks = defineTable({
+  staffId: v.id("staffs"),
+  recruitmentId: v.id("recruitments"),
+  token: v.string(),
+  expiresAt: v.number(),
+})
+  .index("by_token", ["token"])
+  .index("by_recruitment", ["recruitmentId"]);
+
 const schema = defineSchema({
   users,
   shops,
@@ -165,7 +192,9 @@ const schema = defineSchema({
   staffSkills,
   requiredStaffing,
   shiftRequests,
+  shiftAssignments,
   recruitments,
+  magicLinks,
 });
 
 // テーブル名を型安全にエクスポート（testing.tsで使用）

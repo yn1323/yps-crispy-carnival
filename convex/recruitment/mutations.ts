@@ -3,6 +3,8 @@
  *
  * 責務:
  * - シフト募集の作成
+ * - シフト募集の締め切り
+ * - シフト募集の確定（メール通知付き）
  */
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
@@ -65,19 +67,6 @@ export const create = mutation({
 
     const totalStaffCount = activeStaffs.length;
 
-    // 各スタッフにマジックリンクトークンを生成・更新
-    const deadlineEnd = new Date(`${args.deadline}T23:59:59`).getTime();
-    const recipients: { email: string; magicLinkToken: string }[] = [];
-
-    for (const staff of activeStaffs) {
-      const token = generateToken();
-      await ctx.db.patch(staff._id, {
-        magicLinkToken: token,
-        magicLinkExpiresAt: deadlineEnd,
-      });
-      recipients.push({ email: staff.email, magicLinkToken: token });
-    }
-
     // 募集作成
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId: args.shopId,
@@ -92,6 +81,21 @@ export const create = mutation({
       isDeleted: false,
     });
 
+    // 各スタッフにマジックリンクトークンを生成（募集単位）
+    const deadlineEnd = new Date(`${args.deadline}T23:59:59`).getTime();
+    const recipients: { email: string; magicLinkToken: string }[] = [];
+
+    for (const staff of activeStaffs) {
+      const token = generateToken();
+      await ctx.db.insert("magicLinks", {
+        staffId: staff._id,
+        recruitmentId,
+        token,
+        expiresAt: deadlineEnd,
+      });
+      recipients.push({ email: staff.email, magicLinkToken: token });
+    }
+
     // 店舗情報を取得してメール送信をスケジュール
     const shop = await requireShop(ctx, args.shopId);
     if (recipients.length > 0) {
@@ -105,5 +109,86 @@ export const create = mutation({
     }
 
     return { success: true, data: { recruitmentId, totalStaffCount } };
+  },
+});
+
+// シフト募集の締め切り
+export const close = mutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    authId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const recruitment = await ctx.db.get(args.recruitmentId);
+    if (!recruitment || recruitment.isDeleted) {
+      throw new ConvexError({ message: "募集が見つかりません", code: "RECRUITMENT_NOT_FOUND" });
+    }
+
+    // 権限チェック
+    await requireShopOwnerOrManager(ctx, recruitment.shopId, args.authId);
+
+    // ステータスチェック（openのみ締め切り可能）
+    if (recruitment.status !== RECRUITMENT_STATUS[0]) {
+      throw new ConvexError({ message: "この募集は締め切り済みです", code: "ALREADY_CLOSED" });
+    }
+
+    await ctx.db.patch(args.recruitmentId, {
+      status: RECRUITMENT_STATUS[1], // "closed"
+    });
+
+    return { success: true };
+  },
+});
+
+// シフト募集の確定（確定通知メール送信）
+export const confirm = mutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    authId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const recruitment = await ctx.db.get(args.recruitmentId);
+    if (!recruitment || recruitment.isDeleted) {
+      throw new ConvexError({ message: "募集が見つかりません", code: "RECRUITMENT_NOT_FOUND" });
+    }
+
+    // 権限チェック
+    await requireShopOwnerOrManager(ctx, recruitment.shopId, args.authId);
+
+    // ステータスチェック（closedのみ確定可能）
+    if (recruitment.status !== RECRUITMENT_STATUS[1]) {
+      throw new ConvexError({ message: "締め切り後に確定してください", code: "NOT_CLOSED" });
+    }
+
+    await ctx.db.patch(args.recruitmentId, {
+      status: RECRUITMENT_STATUS[2], // "confirmed"
+      confirmedAt: Date.now(),
+    });
+
+    // 確定通知メール送信
+    const shop = await requireShop(ctx, recruitment.shopId);
+    const magicLinksForRecruitment = await ctx.db
+      .query("magicLinks")
+      .withIndex("by_recruitment", (q) => q.eq("recruitmentId", args.recruitmentId))
+      .collect();
+
+    const recipients: { email: string; magicLinkToken: string }[] = [];
+    for (const ml of magicLinksForRecruitment) {
+      const staff = await ctx.db.get(ml.staffId);
+      if (staff && !staff.isDeleted && staff.status !== "resigned") {
+        recipients.push({ email: staff.email, magicLinkToken: ml.token });
+      }
+    }
+
+    if (recipients.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendShiftConfirmationNotification, {
+        shopName: shop.shopName,
+        startDate: recruitment.startDate,
+        endDate: recruitment.endDate,
+        recipients,
+      });
+    }
+
+    return { success: true };
   },
 });

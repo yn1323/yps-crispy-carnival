@@ -6,7 +6,7 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { getStaffByMagicLinkToken, isValidTimeFormat } from "../helpers";
+import { getMagicLinkByToken, isValidTimeFormat } from "../helpers";
 
 // シフト希望提出
 export const submit = mutation({
@@ -22,25 +22,21 @@ export const submit = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // トークンからスタッフを取得
-    const staff = await getStaffByMagicLinkToken(ctx, args.token);
-    if (!staff) {
+    // トークンからmagicLinkレコードとスタッフを取得
+    const result = await getMagicLinkByToken(ctx, args.token);
+    if (!result) {
       throw new ConvexError({ message: "無効なトークンです", code: "INVALID_TOKEN" });
     }
+    const { magicLink, staff } = result;
 
     // トークン有効期限チェック
-    if (staff.magicLinkExpiresAt && staff.magicLinkExpiresAt < Date.now()) {
+    if (magicLink.expiresAt < Date.now()) {
       throw new ConvexError({ message: "トークンの有効期限が切れています", code: "TOKEN_EXPIRED" });
     }
 
-    // オープン中の募集を取得
-    const recruitment = await ctx.db
-      .query("recruitments")
-      .withIndex("by_shop_and_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .first();
-
-    if (!recruitment) {
+    // トークンに紐づく募集を直接取得
+    const recruitment = await ctx.db.get(magicLink.recruitmentId);
+    if (!recruitment || recruitment.isDeleted || recruitment.status !== "open") {
       throw new ConvexError({ message: "募集が見つかりません", code: "NO_OPEN_RECRUITMENT" });
     }
 
