@@ -1,7 +1,7 @@
 import { defineConfig } from "@yn1323/cognac";
 
 export default defineConfig({
-  port: 4000,
+  port: 4100,
   git: {
     defaultBranch: "develop",
   },
