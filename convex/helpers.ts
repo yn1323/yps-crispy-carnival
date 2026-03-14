@@ -2,7 +2,7 @@
 import { ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { DEFAULT_POSITIONS, SKILL_LEVELS } from "./constants";
+import { DEFAULT_POSITIONS, POSITION_COLORS, SKILL_LEVELS } from "./constants";
 
 // セキュアなトークン生成（crypto APIを使用）
 export const generateToken = () => {
@@ -172,6 +172,7 @@ export const initializeDefaultPositions = async (ctx: MutationCtx, shopId: Id<"s
     const positionId = await ctx.db.insert("shopPositions", {
       shopId,
       name: DEFAULT_POSITIONS[i],
+      color: POSITION_COLORS[i % POSITION_COLORS.length],
       order: i,
       isDeleted: false,
       createdAt: Date.now(),

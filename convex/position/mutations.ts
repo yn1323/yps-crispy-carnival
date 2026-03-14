@@ -7,8 +7,12 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { DEFAULT_POSITIONS, POSITION_COLORS, SKILL_LEVELS } from "../constants";
-import { requireShop } from "../helpers";
+import { POSITION_COLORS } from "../constants";
+import {
+  initializeDefaultPositions as initializeDefaultPositionsHelper,
+  initializeStaffSkills as initializeStaffSkillsHelper,
+  requireShop,
+} from "../helpers";
 
 // ポジション作成
 export const create = mutation({
@@ -161,20 +165,7 @@ export const initializeDefaultPositions = mutation({
     shopId: v.id("shops"),
   },
   handler: async (ctx, args) => {
-    const positionIds: string[] = [];
-
-    for (let i = 0; i < DEFAULT_POSITIONS.length; i++) {
-      const positionId = await ctx.db.insert("shopPositions", {
-        shopId: args.shopId,
-        name: DEFAULT_POSITIONS[i],
-        color: POSITION_COLORS[i % POSITION_COLORS.length],
-        order: i,
-        isDeleted: false,
-        createdAt: Date.now(),
-      });
-      positionIds.push(positionId);
-    }
-
+    const positionIds = await initializeDefaultPositionsHelper(ctx, args.shopId);
     return { success: true, positionIds };
   },
 });
@@ -186,21 +177,7 @@ export const initializeStaffSkills = mutation({
     staffId: v.id("staffs"),
   },
   handler: async (ctx, args) => {
-    const positions = await ctx.db
-      .query("shopPositions")
-      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
-      .filter((q) => q.neq(q.field("isDeleted"), true))
-      .collect();
-
-    for (const position of positions) {
-      await ctx.db.insert("staffSkills", {
-        staffId: args.staffId,
-        positionId: position._id,
-        level: SKILL_LEVELS[0], // "未経験"
-        updatedAt: Date.now(),
-      });
-    }
-
+    await initializeStaffSkillsHelper(ctx, args.shopId, args.staffId);
     return { success: true };
   },
 });

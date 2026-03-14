@@ -41,7 +41,7 @@ export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose,
     isOpen ? { staffId: staffId as Id<"staffs"> } : "skip",
   );
 
-  const updateStaffInfo = useMutation(api.shop.mutations.updateStaffInfo);
+  const updateStaffInfo = useMutation(api.staff.mutations.updateStaffInfo);
 
   const isLoading = staff === undefined || positions === undefined || staffSkills === undefined;
   const hasError = staff === null;
