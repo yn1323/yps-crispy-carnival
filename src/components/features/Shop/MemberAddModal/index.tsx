@@ -34,7 +34,7 @@ const roleOptions: { value: MemberRole; label: string; description: string; subD
 ];
 
 export const MemberAddModal = ({ shopId, authId, isOpen, onOpenChange, onClose, onSuccess }: MemberAddModalProps) => {
-  const addStaff = useMutation(api.shop.mutations.addStaff);
+  const addStaff = useMutation(api.staff.mutations.addStaff);
   const createInvite = useMutation(api.invite.mutations.create);
 
   const {

@@ -51,6 +51,15 @@ export const listByShop = query({
       .filter((q) => q.neq(q.field("isDeleted"), true))
       .collect();
 
+    // ポジション一覧を事前に一括取得してMap化（N+1回避）
+    const positions = await ctx.db
+      .query("shopPositions")
+      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
+      .filter((q) => q.neq(q.field("isDeleted"), true))
+      .collect();
+
+    const positionMap = new Map(positions.map((p) => [p._id, p]));
+
     // 各スタッフのスキルを取得
     const staffSkillsMap = new Map<
       string,
@@ -63,31 +72,21 @@ export const listByShop = query({
         .withIndex("by_staff", (q) => q.eq("staffId", staff._id))
         .collect();
 
-      const skillsWithPositions = await Promise.all(
-        skills.map(async (skill) => {
-          const position = await ctx.db.get(skill.positionId);
+      const skillsWithPositions = skills
+        .map((skill) => {
+          const position = positionMap.get(skill.positionId);
+          if (!position) return null;
           return {
-            positionId: skill.positionId,
-            positionName: position?.name ?? "",
+            positionId: skill.positionId as string,
+            positionName: position.name,
             level: skill.level,
-            order: position?.order ?? 0,
-            isDeleted: position?.isDeleted ?? true,
+            order: position.order,
           };
-        }),
-      );
+        })
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+        .sort((a, b) => a.order - b.order);
 
-      staffSkillsMap.set(
-        staff._id,
-        skillsWithPositions
-          .filter((s) => !s.isDeleted)
-          .sort((a, b) => a.order - b.order)
-          .map(({ positionId, positionName, level, order }) => ({
-            positionId,
-            positionName,
-            level,
-            order,
-          })),
-      );
+      staffSkillsMap.set(staff._id, skillsWithPositions);
     }
 
     return Object.fromEntries(staffSkillsMap);

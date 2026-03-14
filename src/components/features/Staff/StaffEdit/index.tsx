@@ -49,8 +49,8 @@ type StaffEditProps = {
 export const StaffEdit = ({ staff, shop, positions, staffSkills }: StaffEditProps) => {
   const navigate = useNavigate();
   const user = useAtomValue(userAtom);
-  const updateStaffInfo = useMutation(api.shop.mutations.updateStaffInfo);
-  const resignStaff = useMutation(api.shop.mutations.resignStaff);
+  const updateStaffInfo = useMutation(api.staff.mutations.updateStaffInfo);
+  const resignStaff = useMutation(api.staff.mutations.resignStaff);
 
   const [resignationReason, setResignationReason] = useState("");
   const [isResigning, setIsResigning] = useState(false);
