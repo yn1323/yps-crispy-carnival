@@ -102,7 +102,7 @@ export const DailyView = ({ undo, redo, canUndo, canRedo }: UndoRedoHandlers) =>
     handlePopoverClose();
   }, [popoverShift, shifts, setShifts, handlePopoverClose]);
 
-  // paint/eraseクリック時のポップオーバー表示
+  // paintクリック時のポップオーバー表示
   const handlePaintClickPopover = useCallback((shift: ShiftData, anchorRect: DOMRect) => {
     setPopoverShift(shift);
     setPopoverAnchor(anchorRect);

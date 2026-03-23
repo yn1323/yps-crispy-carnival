@@ -1,5 +1,5 @@
 import { Box, Button, Flex, Icon, IconButton, Text } from "@chakra-ui/react";
-import { LuEraser, LuMousePointer2, LuPaintbrush, LuRedo2, LuUndo2 } from "react-icons/lu";
+import { LuMousePointer2, LuPaintbrush, LuRedo2, LuUndo2 } from "react-icons/lu";
 import type { PositionType, ToolMode } from "../../types";
 
 type ToolButtonProps = {
@@ -46,11 +46,9 @@ export const PositionToolbar = ({
   canUndo,
   canRedo,
 }: PositionToolbarProps) => {
-  const isPositionDisabled = toolMode !== "assign";
-
   return (
     <Box border="1px solid" borderColor="gray.200" borderRadius="lg" p={3}>
-      {/* 3グループ: 履歴・ツール・ポジション */}
+      {/* 履歴・ツール・ポジション */}
       <Flex gap={4} align="flex-start" flexWrap="wrap">
         {/* グループ1: 履歴 */}
         <Box>
@@ -84,16 +82,9 @@ export const PositionToolbar = ({
             />
             <ToolButton
               icon={LuPaintbrush}
-              label="割当"
+              label="シフト割当"
               isActive={toolMode === "assign"}
               onClick={() => onToolModeChange("assign")}
-            />
-            <ToolButton
-              icon={LuEraser}
-              label="消す"
-              isActive={toolMode === "erase"}
-              onClick={() => onToolModeChange("erase")}
-              activeColorPalette="red"
             />
           </Flex>
         </Box>
@@ -102,7 +93,7 @@ export const PositionToolbar = ({
         <Box borderLeft="1px solid" borderColor="gray.200" alignSelf="stretch" />
 
         {/* グループ3: ポジション */}
-        <Box opacity={isPositionDisabled ? 0.4 : 1} pointerEvents={isPositionDisabled ? "none" : "auto"} flex={1}>
+        <Box flex={1}>
           <Text fontSize="xs" color="gray.500" mb={1}>
             ポジション
           </Text>
@@ -117,7 +108,13 @@ export const PositionToolbar = ({
                   bg={isSelected ? position.color : "transparent"}
                   borderColor={position.color}
                   color={isSelected ? "white" : "gray.700"}
-                  onClick={() => onPositionSelect(position.id)}
+                  onClick={() => {
+                    onPositionSelect(position.id);
+                    // ポジション選択時に自動でシフト割当モードに切替
+                    if (toolMode !== "assign") {
+                      onToolModeChange("assign");
+                    }
+                  }}
                   _hover={{
                     bg: isSelected ? position.color : `${position.color}20`,
                   }}

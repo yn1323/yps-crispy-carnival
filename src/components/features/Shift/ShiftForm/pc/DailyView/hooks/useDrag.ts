@@ -5,8 +5,6 @@ import { selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom, to
 import type { DragMode, LinkedResizeTarget, ShiftData } from "../../../types";
 import {
   detectLinkedResizeEdge,
-  erasePosition,
-  findPositionAtPosition,
   findShiftAtPosition,
   paintPosition,
   resizeLinkedPositions,
@@ -165,36 +163,6 @@ export const useDrag = (): UseDragReturn => {
         return true;
       }
 
-      // === 消すモード: リサイズ or ドラッグ消去 ===
-      if (toolMode === "erase") {
-        // まずリサイズエッジを判定（select/assignと同様）
-        if (tryDetectResize(staffId, x, minutes)) return true;
-
-        // リサイズエッジでなければドラッグ消去
-        const positionInfo = findPositionAtPosition({
-          shifts,
-          staffId,
-          date: selectedDate,
-          minutes,
-        });
-
-        if (positionInfo) {
-          setDragState({
-            mode: "erase",
-            staffId,
-            startMinutes: minutes,
-            currentMinutes: minutes,
-            targetShiftId: positionInfo.shiftId,
-            targetPositionId: positionInfo.positionId,
-            positionColor: null,
-            resizeEdge: null,
-            linkedTarget: null,
-          });
-          return true;
-        }
-        return false;
-      }
-
       return false;
     },
     [shifts, setShifts, selectedPosition, toolMode, selectedDate, timeRange, generateId, getStaffName, tryDetectResize],
@@ -271,24 +239,8 @@ export const useDrag = (): UseDragReturn => {
       }
     }
 
-    // 3. 消去モード（ドラッグ範囲消去 -- クリック時は消去しない）
-    if (mode === "erase" && dragState.staffId && Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
-      const staffShifts = shifts.filter((s) => s.staffId === dragState.staffId && s.date === selectedDate);
-      let updatedShifts = [...shifts];
-
-      for (const staffShift of staffShifts) {
-        const erasedShift = erasePosition({
-          shift: staffShift,
-          startMinutes,
-          endMinutes: currentMinutes,
-        });
-        updatedShifts = updatedShifts.map((s) => (s.id === staffShift.id ? erasedShift : s));
-      }
-      setShifts(updatedShifts);
-    }
-
     setDragState(initialDragState);
-  }, [dragState, shifts, setShifts, selectedPosition, selectedDate, timeRange, generateId]);
+  }, [dragState, shifts, setShifts, selectedPosition, timeRange, generateId]);
 
   // === カーソル判定 ===
   const getCursor = useCallback(
@@ -298,7 +250,7 @@ export const useDrag = (): UseDragReturn => {
         if (dragState.mode === "position-resize-start" || dragState.mode === "position-resize-end") {
           return "ew-resize";
         }
-        if (dragState.mode === "erase" || dragState.mode === "paint") {
+        if (dragState.mode === "paint") {
           return "crosshair";
         }
         return "default";
@@ -334,32 +286,6 @@ export const useDrag = (): UseDragReturn => {
           return "ew-resize";
         }
         if (selectedPosition) {
-          return "crosshair";
-        }
-        return "default";
-      }
-
-      // 消すモード
-      if (toolMode === "erase") {
-        const linkedResizeInfo = detectLinkedResizeEdge({
-          shifts,
-          staffId,
-          date: selectedDate,
-          x,
-          timeRange,
-          threshold: RESIZE_EDGE_THRESHOLD,
-        });
-        if (linkedResizeInfo) {
-          return "ew-resize";
-        }
-        const minutes = pixelToMinutes({ x, timeRange });
-        const positionInfo = findPositionAtPosition({
-          shifts,
-          staffId,
-          date: selectedDate,
-          minutes,
-        });
-        if (positionInfo) {
           return "crosshair";
         }
         return "default";

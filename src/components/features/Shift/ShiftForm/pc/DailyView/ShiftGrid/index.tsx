@@ -1,6 +1,7 @@
-import { Box, Table } from "@chakra-ui/react";
+import { Box, Flex, Icon, Table, Text } from "@chakra-ui/react";
 import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LuInfo, LuMousePointer2, LuPaintbrush } from "react-icons/lu";
 import { SortMenu } from "../../../shared/SortMenu";
 import {
   selectedDateAtom,
@@ -33,7 +34,7 @@ const generateTimeSlots = (start: number, end: number) => {
 type ShiftGridProps = {
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
   onStaffNameClick: (staffId: string) => void;
-  // paint/eraseクリック時のポップオーバー表示用
+  // paintクリック時のポップオーバー表示用
   onPaintClickPopover: (shift: ShiftData, anchorRect: DOMRect) => void;
 };
 
@@ -117,7 +118,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
     [getCursor, isDragging, isScrolling],
   );
 
-  // paint/eraseクリック時のポップオーバー表示
+  // paintクリック時のポップオーバー表示
   const handleMouseUpOnRow = useCallback(
     (_staffId: string) => {
       // Paint モードで移動なし（クリック）→ 既存ポジション上ならポップオーバー表示
@@ -137,17 +138,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
           if (hasExistingPosition && paintClickAnchorRef.current) {
             onPaintClickPopover(targetShift, paintClickAnchorRef.current);
           }
-        }
-      }
-      // Erase モードで移動なし（クリック）→ ポジション上ならポップオーバー表示
-      if (
-        dragState.mode === "erase" &&
-        dragState.targetShiftId &&
-        Math.abs(dragState.currentMinutes - dragState.startMinutes) < timeRange.unit
-      ) {
-        const targetShift = shifts.find((s) => s.id === dragState.targetShiftId);
-        if (targetShift && paintClickAnchorRef.current) {
-          onPaintClickPopover(targetShift, paintClickAnchorRef.current);
         }
       }
     },
@@ -193,8 +183,71 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
     };
   }, [isDragging, isScrollDragging, handleMouseMove, handleMouseUp, stopScrollDrag, handleScrollDragMove]);
 
+  // 空状態判定: 選択日にポジション割当が1つもない
+  const hasAnyPositions = useMemo(() => {
+    return shifts.some((s) => s.date === selectedDate && s.positions.length > 0);
+  }, [shifts, selectedDate]);
+
   return (
     <Box ref={tableContainerRef} flex={1} minHeight={0} overflowX="auto" overflowY="auto">
+      {/* 空状態ガイド */}
+      {!isReadOnly && !hasAnyPositions && (
+        <Flex
+          bg="blue.50"
+          borderBottom="1px solid"
+          borderColor="blue.100"
+          px={4}
+          py={3}
+          gap={4}
+          align="center"
+          flexShrink={0}
+        >
+          <Icon as={LuInfo} color="blue.500" boxSize={5} flexShrink={0} />
+          <Flex gap={4} align="center" flexWrap="wrap">
+            <Flex align="center" gap={2}>
+              <Flex
+                bg="blue.500"
+                color="white"
+                w={5}
+                h={5}
+                borderRadius="full"
+                align="center"
+                justify="center"
+                fontSize="xs"
+                fontWeight="bold"
+                flexShrink={0}
+              >
+                1
+              </Flex>
+              <Icon as={LuPaintbrush} color="gray.600" boxSize={4} />
+              <Text fontSize="sm" color="gray.700">
+                ポジションを選択
+              </Text>
+            </Flex>
+            <Text color="gray.400">→</Text>
+            <Flex align="center" gap={2}>
+              <Flex
+                bg="blue.500"
+                color="white"
+                w={5}
+                h={5}
+                borderRadius="full"
+                align="center"
+                justify="center"
+                fontSize="xs"
+                fontWeight="bold"
+                flexShrink={0}
+              >
+                2
+              </Flex>
+              <Icon as={LuMousePointer2} color="gray.600" boxSize={4} />
+              <Text fontSize="sm" color="gray.700">
+                スタッフの行をドラッグして時間を割り当て
+              </Text>
+            </Flex>
+          </Flex>
+        </Flex>
+      )}
       <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
         <Table.Header>
           <Table.Row bg="white" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
