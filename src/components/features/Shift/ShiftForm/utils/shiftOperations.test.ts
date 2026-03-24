@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { LinkedResizeTarget, PositionSegment, ShiftData } from "../types";
 import {
+  computeVisualBreaks,
   deletePositionFromShift,
   fillGapsWithBreak,
   mergeAdjacentPositions,
@@ -335,5 +336,41 @@ describe("resizeLinkedPositions", () => {
     });
     expect(result.positions).toHaveLength(1);
     expect(result.positions.find((p) => p.id === "b")).toBeUndefined();
+  });
+});
+
+describe("computeVisualBreaks", () => {
+  test("2つのポジション間のギャップが休憩として返される", () => {
+    const positions = [seg({ id: "a", start: "10:00", end: "12:00" }), seg({ id: "b", start: "14:00", end: "18:00" })];
+    const result = computeVisualBreaks(positions);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ start: "12:00", end: "14:00" });
+  });
+
+  test("隣接するポジション間にはギャップなし", () => {
+    const positions = [seg({ id: "a", start: "10:00", end: "12:00" }), seg({ id: "b", start: "12:00", end: "14:00" })];
+    const result = computeVisualBreaks(positions);
+    expect(result).toHaveLength(0);
+  });
+
+  test("ポジション1つのみ → 空配列", () => {
+    const positions = [seg({ id: "a", start: "10:00", end: "14:00" })];
+    expect(computeVisualBreaks(positions)).toHaveLength(0);
+  });
+
+  test("空配列 → 空配列", () => {
+    expect(computeVisualBreaks([])).toHaveLength(0);
+  });
+
+  test("3つのポジション間に複数ギャップ", () => {
+    const positions = [
+      seg({ id: "a", start: "10:00", end: "12:00" }),
+      seg({ id: "b", start: "13:00", end: "14:00" }),
+      seg({ id: "c", start: "16:00", end: "18:00" }),
+    ];
+    const result = computeVisualBreaks(positions);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ start: "12:00", end: "13:00" });
+    expect(result[1]).toEqual({ start: "14:00", end: "16:00" });
   });
 });

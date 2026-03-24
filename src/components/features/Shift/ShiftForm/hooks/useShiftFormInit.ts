@@ -1,6 +1,6 @@
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
-import { selectedDateAtom, shiftConfigAtom, shiftsHistoryAtom, sortModeAtom, viewModeAtom } from "../stores";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortModeAtom, viewModeAtom } from "../stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "../types";
 
 type UseShiftFormInitParams = {
@@ -35,22 +35,18 @@ export const useShiftFormInit = ({
   initialSortMode,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
-  const setHistory = useSetAtom(shiftsHistoryAtom);
+  const setShifts = useSetAtom(shiftsAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const setSortMode = useSetAtom(sortModeAtom);
   const isInitialized = useRef(false);
 
-  // 初回マウント時: 履歴を初期化 + 選択日を設定
+  // 初回マウント時: シフトデータ初期化 + 選択日を設定
   useEffect(() => {
     if (isInitialized.current) return;
     isInitialized.current = true;
 
-    setHistory({
-      past: [],
-      present: initialShifts,
-      future: [],
-    });
+    setShifts(initialShifts);
     setSelectedDate(dates[0] ?? "");
     if (initialViewMode) {
       setViewMode(initialViewMode);
@@ -58,7 +54,7 @@ export const useShiftFormInit = ({
     if (initialSortMode) {
       setSortMode(initialSortMode);
     }
-  }, [initialShifts, dates, setHistory, setSelectedDate, initialViewMode, setViewMode, initialSortMode, setSortMode]);
+  }, [initialShifts, dates, setShifts, setSelectedDate, initialViewMode, setViewMode, initialSortMode, setSortMode]);
 
   // 外部設定の同期（props変更時に shiftConfigAtom を更新）
   useEffect(() => {

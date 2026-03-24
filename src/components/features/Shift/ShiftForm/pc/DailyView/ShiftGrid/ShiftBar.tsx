@@ -1,5 +1,6 @@
 import { Box, Text } from "@chakra-ui/react";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "../../../types";
+import { computeVisualBreaks } from "../../../utils/shiftOperations";
 import { minutesToPixel, timeToMinutes } from "../../../utils/timeConversion";
 
 type ShiftBarProps = {
@@ -76,12 +77,7 @@ export const ShiftBar = ({
           borderRadius="md"
           top="50%"
           transform="translateY(-50%)"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          onClick={(e) => onClick(shift.id, null, e)}
-          cursor="inherit"
-          transition="all 0.15s"
-          _hover={{ borderColor: "gray.500" }}
+          pointerEvents="none"
           zIndex={1}
         />
       )}
@@ -168,12 +164,39 @@ export const ShiftBar = ({
               cursor="inherit"
               transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
               opacity={0.9}
-              _hover={{ opacity: 1 }}
+              _hover={{ opacity: 1, boxShadow: "0 0 0 2px rgba(0,0,0,0.15)" }}
               zIndex={2}
             />
           );
         });
       })()}
+
+      {/* ビジュアル休憩バー（ポジション間のギャップをストライプ表示） */}
+      {shift.positions.length >= 2 &&
+        !linkedTarget &&
+        computeVisualBreaks(shift.positions).map((gap) => {
+          const gapStartPx = minutesToPixel(timeToMinutes(gap.start), timeRange);
+          const gapEndPx = minutesToPixel(timeToMinutes(gap.end), timeRange);
+          const relativeLeft = gapStartPx - barLeft;
+          const relativeWidth = gapEndPx - gapStartPx;
+
+          return (
+            <Box
+              key={`break-${gap.start}-${gap.end}`}
+              position="absolute"
+              left={`${relativeLeft}px`}
+              width={`${relativeWidth}px`}
+              height="20px"
+              backgroundImage="repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 4px, transparent 4px, transparent 8px)"
+              borderRadius="0"
+              top="50%"
+              transform="translateY(-50%)"
+              opacity={0.5}
+              pointerEvents="none"
+              zIndex={2}
+            />
+          );
+        })}
 
       {/* 時刻ラベル（ポジションがある場合のみ表示、リサイズ中は非表示） */}
       {shift.positions.length > 0 &&
@@ -203,11 +226,11 @@ export const ShiftBar = ({
                 top="50%"
                 transform="translateY(-50%)"
                 fontSize="xs"
-                color="gray.600"
-                fontWeight="medium"
+                color="gray.700"
+                fontWeight="semibold"
                 zIndex={3}
                 pointerEvents="none"
-                textShadow="0 0 2px white, 0 0 2px white"
+                textShadow="0 0 3px white, 0 0 3px white, 0 0 6px white"
               >
                 {earliestStart}
               </Text>
@@ -217,11 +240,11 @@ export const ShiftBar = ({
                 top="50%"
                 transform="translate(-100%, -50%)"
                 fontSize="xs"
-                color="gray.600"
-                fontWeight="medium"
+                color="gray.700"
+                fontWeight="semibold"
                 zIndex={3}
                 pointerEvents="none"
-                textShadow="0 0 2px white, 0 0 2px white"
+                textShadow="0 0 3px white, 0 0 3px white, 0 0 6px white"
               >
                 {latestEnd}
               </Text>

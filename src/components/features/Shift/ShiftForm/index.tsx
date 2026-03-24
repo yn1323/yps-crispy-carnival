@@ -1,22 +1,16 @@
-import { Box, Flex, HStack, IconButton, SegmentGroup } from "@chakra-ui/react";
+import { Box, Flex, SegmentGroup } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
-import { LuRedo2, LuUndo2 } from "react-icons/lu";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
-import { useUndoRedo } from "./hooks/useUndoRedo";
 import { DailyView } from "./pc/DailyView";
+import { PositionToolbar } from "./pc/DailyView/PositionToolbar";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
-import { shiftsAtom, viewModeAtom } from "./stores";
+import { selectedPositionIdAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
 
 const VIEW_OPTIONS = [
-  { value: "daily", label: "日別" },
-  { value: "overview", label: "一覧" },
-];
-
-const VIEW_OPTIONS_PC = [
   { value: "daily", label: "日別" },
   { value: "overview", label: "一覧" },
 ];
@@ -83,24 +77,19 @@ const ShiftFormInner = ({
   }, [shifts]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
-  const { undo, redo, canUndo, canRedo } = useUndoRedo();
+  const config = useAtomValue(shiftConfigAtom);
+  const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
+
+  const showViewSwitcher = !hideViewSwitcher;
+  const showPositionButtons = !config.isReadOnly && viewMode === "daily";
+  const showToolbar = showViewSwitcher || showPositionButtons;
 
   return (
     <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }}>
-      {/* SP ヘッダー: Undo/Redo + SegmentGroup */}
+      {/* SP ヘッダー: SegmentGroup */}
       {!hideViewSwitcher && (
         <Box display={{ base: "block", lg: "none" }}>
-          <Flex align="center" justify={isReadOnly ? "flex-end" : "space-between"} px={3} py={2} flexShrink={0}>
-            {!isReadOnly && (
-              <HStack gap={1}>
-                <IconButton aria-label="元に戻す" size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
-                  <LuUndo2 />
-                </IconButton>
-                <IconButton aria-label="やり直し" size="sm" variant="ghost" onClick={redo} disabled={!canRedo}>
-                  <LuRedo2 />
-                </IconButton>
-              </HStack>
-            )}
+          <Flex align="center" justify="flex-end" px={3} py={2} flexShrink={0}>
             <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
               <SegmentGroup.Indicator />
               <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
@@ -109,13 +98,34 @@ const ShiftFormInner = ({
         </Box>
       )}
 
-      {/* PC ヘッダー: SegmentGroup */}
-      {!hideViewSwitcher && (
-        <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0} p={4}>
-          <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
-            <SegmentGroup.Indicator />
-            <SegmentGroup.Items items={VIEW_OPTIONS_PC} cursor="pointer" />
-          </SegmentGroup.Root>
+      {/* PC ツールバー: ビュー切替 + ポジション */}
+      {showToolbar && (
+        <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0}>
+          <Flex
+            bg="white"
+            border="1px solid"
+            borderColor="gray.200"
+            borderRadius="lg"
+            py={3}
+            px={4}
+            align="center"
+            gap={4}
+            height="60px"
+          >
+            {showViewSwitcher && (
+              <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+                <SegmentGroup.Indicator />
+                <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
+              </SegmentGroup.Root>
+            )}
+            {showPositionButtons && (
+              <PositionToolbar
+                positions={config.positions}
+                selectedPositionId={selectedPositionId}
+                onPositionSelect={setSelectedPositionId}
+              />
+            )}
+          </Flex>
         </Box>
       )}
 
@@ -123,7 +133,7 @@ const ShiftFormInner = ({
       <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minHeight={0}>
         {/* PC */}
         <Box display={{ base: "none", lg: "flex" }} flexDirection="column" flex={1} minHeight={0}>
-          <DailyView undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
+          <DailyView />
         </Box>
         {/* SP */}
         <Box display={{ base: "block", lg: "none" }} flex={1} overflow="auto">

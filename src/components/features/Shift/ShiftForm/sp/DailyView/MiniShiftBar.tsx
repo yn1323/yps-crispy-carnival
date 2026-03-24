@@ -1,5 +1,6 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { PositionSegment, TimeRange } from "../../types";
+import { computeVisualBreaks } from "../../utils/shiftOperations";
 import { timeToMinutes } from "../../utils/timeConversion";
 
 type MiniShiftBarProps = {
@@ -44,7 +45,26 @@ export const MiniShiftBar = ({ positions, timeRange }: MiniShiftBarProps) => {
               width={`${width}%`}
               h="100%"
               bg={seg.color}
-              opacity={seg.positionName === "休憩" ? 0.3 : 0.8}
+              opacity={0.8}
+            />
+          );
+        })}
+        {/* ビジュアル休憩バー（ポジション間のギャップをストライプ表示） */}
+        {computeVisualBreaks(positions).map((gap) => {
+          const startMin = timeToMinutes(gap.start) - timeRange.start * 60;
+          const endMin = timeToMinutes(gap.end) - timeRange.start * 60;
+          const left = (startMin / totalMinutes) * 100;
+          const width = ((endMin - startMin) / totalMinutes) * 100;
+
+          return (
+            <Box
+              key={`break-${gap.start}-${gap.end}`}
+              position="absolute"
+              left={`${left}%`}
+              width={`${width}%`}
+              h="100%"
+              backgroundImage="repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 3px, transparent 3px, transparent 6px)"
+              opacity={0.5}
             />
           );
         })}

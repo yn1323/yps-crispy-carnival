@@ -4,6 +4,7 @@ import { Tooltip } from "@/src/components/ui/tooltip";
 import { DATE_CELL_WIDTH, MONTH_TOTAL_CELL_WIDTH, ROW_HEIGHT, STAFF_NAME_CELL_WIDTH } from "../../constants";
 import { SortMenu } from "../../shared/SortMenu";
 import type { OverviewHeaderProps } from "../../types";
+
 import {
   formatDateShort,
   formatMonthLabel,
@@ -26,7 +27,14 @@ const getDateCellColors = (date: string, holidays: string[]) => {
   return { bg: "white", color: "gray.700" };
 };
 
-export const OverviewHeader = ({ dates, months, holidays, sortMode, onSortModeChange }: OverviewHeaderProps) => (
+export const OverviewHeader = ({
+  dates,
+  months,
+  holidays,
+  sortMode,
+  onSortModeChange,
+  dateStatuses,
+}: OverviewHeaderProps) => (
   <Table.Header>
     <Table.Row position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
       {/* 左上コーナーセル（ソートメニュー） */}
@@ -63,6 +71,8 @@ export const OverviewHeader = ({ dates, months, holidays, sortMode, onSortModeCh
             <VStack gap={0}>
               <Text fontSize="xs" fontWeight="bold" color={color}>
                 {formatDateShort(date)}
+                {dateStatuses?.get(date) === "warning" && " ⚠️"}
+                {dateStatuses?.get(date) === "ok" && " ✅"}
               </Text>
               <Text fontSize="2xs" color={color}>
                 {getWeekdayLabel(date)}

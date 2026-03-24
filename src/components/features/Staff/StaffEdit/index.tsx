@@ -109,10 +109,8 @@ export const StaffEdit = ({ staff, shop, positions, staffSkills }: StaffEditProp
         email: data.email,
         displayName: data.displayName,
         skills: skillsToSubmit,
-        maxWeeklyHours: typeof data.maxWeeklyHours === "number" ? data.maxWeeklyHours : null,
         memo: data.memo ?? "",
         workStyleNote: data.workStyleNote ?? "",
-        hourlyWage: typeof data.hourlyWage === "number" ? data.hourlyWage : null,
       });
 
       toaster.success({

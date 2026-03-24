@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
 import { useDialog } from "@/src/components/ui/Dialog";
+import { useDateStatuses } from "../../hooks/useDateStatuses";
 import {
   selectedDateAtom,
   shiftConfigAtom,
@@ -57,6 +58,8 @@ export const OverviewView = () => {
   // 月合計用のシフトデータ（allShiftsがあればそれを使用）
   const shiftsForMonthly = allShifts ?? shifts;
 
+  const dateStatuses = useDateStatuses();
+
   // スタッフごとのデータ整形（sortedStaffs の順序を維持）
   const staffRowDataList = useMemo(
     () => prepareStaffRowData(sortedStaffs, shifts, shiftsForMonthly, dates, months),
@@ -65,7 +68,7 @@ export const OverviewView = () => {
 
   return (
     <>
-      <Box overflow="auto" border="1px solid" borderColor="gray.200" borderRadius="md" bg="white">
+      <Box overflow="auto" border="1px solid" borderColor="gray.200" borderRadius="lg" bg="white">
         <Table.Root size="sm" variant="outline" stickyHeader>
           <OverviewHeader
             dates={dates}
@@ -73,6 +76,7 @@ export const OverviewView = () => {
             holidays={holidays}
             sortMode={sortMode}
             onSortModeChange={setSortMode}
+            dateStatuses={dateStatuses}
           />
           <Table.Body>
             {staffRowDataList.map((staffData) => (
@@ -100,6 +104,7 @@ export const OverviewView = () => {
           isOpen={staffEditModal.isOpen}
           onOpenChange={staffEditModal.onOpenChange}
           onClose={staffEditModal.close}
+          viewOnly
         />
       )}
     </>

@@ -12,10 +12,8 @@ const mockStaff = {
   email: "tanaka@example.com",
   displayName: "田中太郎",
   status: "active" as const,
-  maxWeeklyHours: 40,
   memo: "シフト調整に柔軟に対応してくれます。\n土日出勤可能。",
   workStyleNote: "午前中の勤務を希望。",
-  hourlyWage: 1200,
   resignedAt: undefined,
   resignationReason: undefined,
   createdAt: Date.now(),
@@ -90,7 +88,6 @@ export const PendingStatus: Story = {
     staff: {
       ...mockStaff,
       status: "pending" as const,
-      maxWeeklyHours: undefined,
     },
     staffSkills: [], // 招待中はスキル未設定
   },

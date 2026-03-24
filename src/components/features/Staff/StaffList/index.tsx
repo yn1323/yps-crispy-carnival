@@ -19,7 +19,6 @@ type StaffType = {
   email: string;
   displayName: string;
   status: string;
-  maxWeeklyHours: number | undefined;
   createdAt: number;
   isManager: boolean;
 };

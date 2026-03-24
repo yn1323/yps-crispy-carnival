@@ -2,7 +2,7 @@ import { Box, Flex, Icon, IconButton, Table, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { LuChevronDown, LuChevronRight, LuHash, LuInfo, LuPalette } from "react-icons/lu";
 import { Tooltip } from "@/src/components/ui/tooltip";
-import { FILL_RATE_COLORS } from "../../constants";
+import { FILL_RATE_COLORS, TIME_AXIS_PADDING_PX } from "../../constants";
 import type { PositionType, ShiftData, SummaryDisplayMode, TimeRange } from "../../types";
 import { GridLines } from "./ShiftGrid/GridLines";
 
@@ -47,8 +47,11 @@ const generateTimeSlots = (timeRange: TimeRange): string[] => {
   return slots;
 };
 
+const UNASSIGNED_COLOR = { bg: "hsl(0, 0%, 85%)", text: "hsl(0, 0%, 55%)" } as const;
+
 const getFillRateColor = (count: number, required: number) => {
   if (required === 0) return FILL_RATE_COLORS[4];
+  if (count === 0) return UNASSIGNED_COLOR;
   const ratio = count / required;
   if (ratio > 1) return FILL_RATE_COLORS[5];
   if (ratio > 0.8) return FILL_RATE_COLORS[4];
@@ -199,7 +202,7 @@ export const SummaryRow = ({
                 <Box width="100%" height="20px" borderRadius="sm" background={totalGradient} />
               </Box>
             ) : (
-              <Flex position="relative" zIndex={1} height="100%" align="center">
+              <Flex position="relative" zIndex={1} height="100%" align="center" px={`${TIME_AXIS_PADDING_PX}px`}>
                 {timeSlots.map((time, idx) => {
                   const count = totalCounts[idx];
                   const { text } = getFillRateColor(count, requiredCountPerHour);
@@ -249,7 +252,7 @@ export const SummaryRow = ({
                       <Box width="100%" height="16px" borderRadius="sm" background={positionGradient} />
                     </Box>
                   ) : (
-                    <Flex position="relative" zIndex={1} height="100%" align="center">
+                    <Flex position="relative" zIndex={1} height="100%" align="center" px={`${TIME_AXIS_PADDING_PX}px`}>
                       {timeSlots.map((time, idx) => {
                         const count = counts[idx];
                         const { text } = getFillRateColor(count, required);
