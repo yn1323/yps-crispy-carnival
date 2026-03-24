@@ -36,6 +36,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
 
 ## 実装のルール
+- フロントエンドのReactコンポーネントを適宜分割すること
 - 実装完了後、`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
 - 上記完了後、`/simplify`を実行してリファクタを行うこと
 
