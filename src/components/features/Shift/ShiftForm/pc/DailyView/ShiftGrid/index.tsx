@@ -11,13 +11,12 @@ import {
   sortModeAtom,
   summaryDisplayModeAtom,
   summaryExpandedAtom,
-  toolModeAtom,
 } from "../../../stores";
 import type { ShiftData, StaffType } from "../../../types";
 import { getTimeAxisWidth } from "../../../utils/timeConversion";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import { useDrag } from "../hooks/useDrag";
-import { useScrollDrag } from "../hooks/useScrollDrag";
+import { PeakBandAlert } from "../PeakBandAlert";
 import { SummaryRow } from "../SummaryRow";
 import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
@@ -46,14 +45,10 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const [sortMode, setSortMode] = [useAtomValue(sortModeAtom), useAtom(sortModeAtom)[1]];
   const [isSummaryExpanded, setIsSummaryExpanded] = useAtom(summaryExpandedAtom);
   const [summaryDisplayMode, setSummaryDisplayMode] = useAtom(summaryDisplayModeAtom);
-  const toolMode = useAtomValue(toolModeAtom);
-  const { timeRange, positions, isReadOnly, currentStaffId } = config;
+  const { timeRange, positions, isReadOnly, currentStaffId, requiredStaffing } = config;
 
   // === ドラッグ管理 ===
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag();
-
-  // === スクロールドラッグ ===
-  const { isScrollDragging, startScrollDrag, handleScrollDragMove, stopScrollDrag, isScrolling } = useScrollDrag();
 
   // === ref管理 ===
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
@@ -95,27 +90,21 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
       if (dragStarted) {
         dragRowRectRef.current = rect;
       }
-
-      // 選択モードでドラッグ未開始 → 横スクロール開始
-      if (toolMode === "select" && !dragStarted && tableContainerRef.current) {
-        startScrollDrag(e, tableContainerRef.current);
-        dragRowRectRef.current = rect;
-      }
     },
-    [handleMouseDown, toolMode, startScrollDrag],
+    [handleMouseDown],
   );
 
   // カーソル更新
   const handleRowMouseMoveForCursor = useCallback(
     (e: React.MouseEvent<HTMLDivElement>, staffId: string) => {
-      if (!isDragging && !isScrolling()) {
+      if (!isDragging) {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const cursor = getCursor(staffId, x);
         setCursorStyles((prev) => ({ ...prev, [staffId]: cursor }));
       }
     },
-    [getCursor, isDragging, isScrolling],
+    [getCursor, isDragging],
   );
 
   // paintクリック時のポップオーバー表示
@@ -149,13 +138,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
     const handleDocumentMouseMove = (e: MouseEvent) => {
       mouseClientXRef.current = e.clientX;
 
-      // 横スクロール中
-      if (isScrollDragging && tableContainerRef.current) {
-        handleScrollDragMove(e, tableContainerRef.current);
-        return;
-      }
-
-      // ドラッグ中（ペイント/消去/リサイズ）
+      // ドラッグ中（ペイント/リサイズ）
       if (isDragging && dragRowRectRef.current) {
         handleMouseMove(e as unknown as React.MouseEvent<HTMLDivElement>, dragRowRectRef.current);
       }
@@ -166,13 +149,9 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
         handleMouseUp();
         dragRowRectRef.current = null;
       }
-      if (isScrollDragging) {
-        stopScrollDrag();
-        dragRowRectRef.current = null;
-      }
     };
 
-    if (isDragging || isScrollDragging) {
+    if (isDragging) {
       document.addEventListener("mousemove", handleDocumentMouseMove);
       document.addEventListener("mouseup", handleDocumentMouseUp);
     }
@@ -181,12 +160,19 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
       document.removeEventListener("mousemove", handleDocumentMouseMove);
       document.removeEventListener("mouseup", handleDocumentMouseUp);
     };
-  }, [isDragging, isScrollDragging, handleMouseMove, handleMouseUp, stopScrollDrag, handleScrollDragMove]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // 空状態判定: 選択日にポジション割当が1つもない
   const hasAnyPositions = useMemo(() => {
     return shifts.some((s) => s.date === selectedDate && s.positions.length > 0);
   }, [shifts, selectedDate]);
+
+  // 選択日の曜日に対応するピーク帯設定を取得
+  const currentDayStaffing = useMemo(() => {
+    if (!requiredStaffing || !selectedDate) return undefined;
+    const dayOfWeek = new Date(selectedDate).getDay();
+    return requiredStaffing.find((rs) => rs.dayOfWeek === dayOfWeek);
+  }, [requiredStaffing, selectedDate]);
 
   return (
     <Box ref={tableContainerRef} flex={1} minHeight={0} overflowX="auto" overflowY="auto">
@@ -248,6 +234,13 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
           </Flex>
         </Flex>
       )}
+      {/* ピーク帯充足度アラート */}
+      <PeakBandAlert
+        shifts={shifts}
+        date={selectedDate}
+        peakBands={currentDayStaffing?.peakBands}
+        minimumStaff={currentDayStaffing?.minimumStaff}
+      />
       <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
         <Table.Header>
           <Table.Row bg="white" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
@@ -278,7 +271,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 onStaffNameClick={onStaffNameClick}
                 dragState={dragState}
                 isDragging={isDragging}
-                isScrollDragging={isScrollDragging}
                 cursorStyle={cursorStyles[staff.id] ?? "default"}
                 rowRef={(el: HTMLDivElement | null) => {
                   rowContainerRefs.current[staff.id] = el;

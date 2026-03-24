@@ -1,7 +1,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useRef, useState } from "react";
 import { RESIZE_EDGE_THRESHOLD } from "../../../constants";
-import { selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom, toolModeAtom } from "../../../stores";
+import { selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "../../../types";
 import {
   detectLinkedResizeEdge,
@@ -49,7 +49,6 @@ export const useDrag = (): UseDragReturn => {
   const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const selectedPosition = useAtomValue(selectedPositionAtom);
-  const toolMode = useAtomValue(toolModeAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const config = useAtomValue(shiftConfigAtom);
   const timeRange = config.timeRange;
@@ -112,60 +111,48 @@ export const useDrag = (): UseDragReturn => {
       const x = e.clientX - containerRect.left;
       const minutes = pixelToMinutes({ x, timeRange });
 
-      // === 選択モード: リサイズのみ ===
-      if (toolMode === "select") {
-        if (tryDetectResize(staffId, x, minutes)) return true;
-        // リサイズ端でなければドラッグなし（スクロールはindex.tsx側で処理）
-        return false;
-      }
+      // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
+      if (tryDetectResize(staffId, x, minutes)) return true;
 
-      // === 割当モード: リサイズ or 塗り ===
-      if (toolMode === "assign") {
-        // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
-        if (tryDetectResize(staffId, x, minutes)) return true;
+      // リサイズエッジでなければ塗りモード
+      if (!selectedPosition) return false;
 
-        // リサイズエッジでなければ塗りモード
-        if (!selectedPosition) return false;
+      let targetShift = findShiftAtPosition({
+        shifts,
+        staffId,
+        date: selectedDate,
+        minutes,
+      });
 
-        let targetShift = findShiftAtPosition({
-          shifts,
+      // シフトがなければ新規作成（未提出者対応）
+      if (!targetShift) {
+        const newShiftId = generateId();
+        const newShift: ShiftData = {
+          id: newShiftId,
           staffId,
+          staffName: getStaffName(staffId),
           date: selectedDate,
-          minutes,
-        });
-
-        // シフトがなければ新規作成（未提出者対応）
-        if (!targetShift) {
-          const newShiftId = generateId();
-          const newShift: ShiftData = {
-            id: newShiftId,
-            staffId,
-            staffName: getStaffName(staffId),
-            date: selectedDate,
-            requestedTime: null,
-            positions: [],
-          };
-          setShifts([...shifts, newShift]);
-          targetShift = newShift;
-        }
-
-        setDragState({
-          mode: "paint",
-          staffId,
-          startMinutes: minutes,
-          currentMinutes: minutes,
-          targetShiftId: targetShift.id,
-          targetPositionId: null,
-          positionColor: selectedPosition.color,
-          resizeEdge: null,
-          linkedTarget: null,
-        });
-        return true;
+          requestedTime: null,
+          positions: [],
+        };
+        setShifts([...shifts, newShift]);
+        targetShift = newShift;
       }
 
-      return false;
+      setDragState({
+        mode: "paint",
+        staffId,
+        startMinutes: minutes,
+        currentMinutes: minutes,
+        targetShiftId: targetShift.id,
+        targetPositionId: null,
+        positionColor: selectedPosition.color,
+        resizeEdge: null,
+        linkedTarget: null,
+      });
+      return true;
     },
-    [shifts, setShifts, selectedPosition, toolMode, selectedDate, timeRange, generateId, getStaffName, tryDetectResize],
+    [shifts, setShifts, selectedPosition, selectedDate, timeRange, generateId, getStaffName, tryDetectResize],
   );
 
   // === ドラッグ中 ===
@@ -256,44 +243,27 @@ export const useDrag = (): UseDragReturn => {
         return "default";
       }
 
-      // 選択モード
-      if (toolMode === "select") {
-        const linkedResizeInfo = detectLinkedResizeEdge({
-          shifts,
-          staffId,
-          date: selectedDate,
-          x,
-          timeRange,
-          threshold: RESIZE_EDGE_THRESHOLD,
-        });
-        if (linkedResizeInfo) {
-          return "ew-resize";
-        }
-        return "grab";
+      // リサイズ端の検出
+      const linkedResizeInfo = detectLinkedResizeEdge({
+        shifts,
+        staffId,
+        date: selectedDate,
+        x,
+        timeRange,
+        threshold: RESIZE_EDGE_THRESHOLD,
+      });
+      if (linkedResizeInfo) {
+        return "ew-resize";
       }
 
-      // 割当モード
-      if (toolMode === "assign") {
-        const linkedResizeInfo = detectLinkedResizeEdge({
-          shifts,
-          staffId,
-          date: selectedDate,
-          x,
-          timeRange,
-          threshold: RESIZE_EDGE_THRESHOLD,
-        });
-        if (linkedResizeInfo) {
-          return "ew-resize";
-        }
-        if (selectedPosition) {
-          return "crosshair";
-        }
-        return "default";
+      // ポジション選択中
+      if (selectedPosition) {
+        return "crosshair";
       }
 
       return "default";
     },
-    [isDragging, dragState.mode, shifts, selectedDate, timeRange, selectedPosition, toolMode],
+    [isDragging, dragState.mode, shifts, selectedDate, timeRange, selectedPosition],
   );
 
   return {

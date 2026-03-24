@@ -1,9 +1,7 @@
-import { Box, Flex, HStack, IconButton, SegmentGroup } from "@chakra-ui/react";
+import { Box, Flex, SegmentGroup } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
-import { LuRedo2, LuUndo2 } from "react-icons/lu";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
-import { useUndoRedo } from "./hooks/useUndoRedo";
 import { DailyView } from "./pc/DailyView";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
@@ -83,24 +81,13 @@ const ShiftFormInner = ({
   }, [shifts]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
-  const { undo, redo, canUndo, canRedo } = useUndoRedo();
 
   return (
     <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }}>
-      {/* SP ヘッダー: Undo/Redo + SegmentGroup */}
+      {/* SP ヘッダー: SegmentGroup */}
       {!hideViewSwitcher && (
         <Box display={{ base: "block", lg: "none" }}>
-          <Flex align="center" justify={isReadOnly ? "flex-end" : "space-between"} px={3} py={2} flexShrink={0}>
-            {!isReadOnly && (
-              <HStack gap={1}>
-                <IconButton aria-label="元に戻す" size="sm" variant="ghost" onClick={undo} disabled={!canUndo}>
-                  <LuUndo2 />
-                </IconButton>
-                <IconButton aria-label="やり直し" size="sm" variant="ghost" onClick={redo} disabled={!canRedo}>
-                  <LuRedo2 />
-                </IconButton>
-              </HStack>
-            )}
+          <Flex align="center" justify="flex-end" px={3} py={2} flexShrink={0}>
             <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
               <SegmentGroup.Indicator />
               <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
@@ -123,7 +110,7 @@ const ShiftFormInner = ({
       <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minHeight={0}>
         {/* PC */}
         <Box display={{ base: "none", lg: "flex" }} flexDirection="column" flex={1} minHeight={0}>
-          <DailyView undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
+          <DailyView />
         </Box>
         {/* SP */}
         <Box display={{ base: "block", lg: "none" }} flex={1} overflow="auto">

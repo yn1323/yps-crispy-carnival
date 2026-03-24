@@ -55,10 +55,7 @@ export type TimeRange = {
 export type ViewMode = "daily" | "overview";
 
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
-export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | "scroll" | null;
-
-// ツールモード（常にどれか1つが選択される）
-export type ToolMode = "select" | "assign";
+export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | null;
 
 // サマリー行の表示モード
 export type SummaryDisplayMode = "color" | "number";
@@ -84,6 +81,14 @@ export type LinkedResizeTarget = {
 // 一覧ビュー型
 // ==========================================
 
+// ピーク帯定義
+export type PeakBand = {
+  name: string; // "ランチ", "ディナー"
+  startTime: string; // "11:00"
+  endTime: string; // "14:00"
+  requiredCount: number; // 必要人数
+};
+
 // 必要人員設定データ（convex/requiredStaffing テーブルの1レコードに対応）
 export type RequiredStaffingData = {
   dayOfWeek: number; // 0=日, 1=月, ..., 6=土
@@ -92,6 +97,8 @@ export type RequiredStaffingData = {
     position: string;
     requiredCount: number;
   }[];
+  peakBands?: PeakBand[];
+  minimumStaff?: number;
 };
 
 // スタッフ行表示用データ
@@ -125,12 +132,15 @@ export type StaffAlert = {
 // ==========================================
 
 // 日付ヘッダー Props
+export type DayStatus = "none" | "warning" | "ok";
+
 export type OverviewHeaderProps = {
   dates: string[];
   months: string[]; // ["2026-01", "2026-02"]
   holidays: string[];
   sortMode: SortMode | null;
   onSortModeChange: (mode: SortMode) => void;
+  dateStatuses?: Map<string, DayStatus>;
 };
 
 // スタッフ行 Props

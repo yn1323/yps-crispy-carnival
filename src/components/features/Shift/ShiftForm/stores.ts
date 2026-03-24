@@ -1,5 +1,4 @@
 import { atom } from "jotai";
-import { UNDO_REDO_HISTORY_LIMIT } from "./constants";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -8,10 +7,8 @@ import type {
   StaffType,
   SummaryDisplayMode,
   TimeRange,
-  ToolMode,
   ViewMode,
 } from "./types";
-import { normalizePositions } from "./utils/shiftOperations";
 import { sortStaffs } from "./utils/sortStaffs";
 
 // ==========================================
@@ -46,67 +43,13 @@ export const selectedDateAtom = atom<string>("");
 export const sortModeAtom = atom<SortMode>("default");
 
 // ==========================================
-// シフトデータ + Undo/Redo 履歴
+// シフトデータ
 // ==========================================
-export const shiftsHistoryAtom = atom<{
-  past: ShiftData[][];
-  present: ShiftData[];
-  future: ShiftData[][];
-}>({ past: [], present: [], future: [] });
-
-// 読み書きatom: 書き込み時に自動正規化 + 履歴追加
-export const shiftsAtom = atom(
-  (get) => get(shiftsHistoryAtom).present,
-  (get, set, newShifts: ShiftData[]) => {
-    const breakPos = get(breakPositionAtom);
-    const normalized = breakPos
-      ? newShifts.map((s) => ({
-          ...s,
-          positions: normalizePositions({
-            positions: s.positions,
-            breakPosition: breakPos,
-          }),
-        }))
-      : newShifts;
-    const history = get(shiftsHistoryAtom);
-    set(shiftsHistoryAtom, {
-      past: [...history.past.slice(-(UNDO_REDO_HISTORY_LIMIT - 1)), history.present],
-      present: normalized,
-      future: [],
-    });
-  },
-);
-
-// Undo/Redo 状態
-export const canUndoAtom = atom((get) => get(shiftsHistoryAtom).past.length > 0);
-export const canRedoAtom = atom((get) => get(shiftsHistoryAtom).future.length > 0);
-
-// Undo アクション (write-only atom)
-export const undoAtom = atom(null, (get, set) => {
-  const history = get(shiftsHistoryAtom);
-  if (history.past.length === 0) return;
-  set(shiftsHistoryAtom, {
-    past: history.past.slice(0, -1),
-    present: history.past[history.past.length - 1],
-    future: [history.present, ...history.future],
-  });
-});
-
-// Redo アクション (write-only atom)
-export const redoAtom = atom(null, (get, set) => {
-  const history = get(shiftsHistoryAtom);
-  if (history.future.length === 0) return;
-  set(shiftsHistoryAtom, {
-    past: [...history.past, history.present],
-    present: history.future[0],
-    future: history.future.slice(1),
-  });
-});
+export const shiftsAtom = atom<ShiftData[]>([]);
 
 // ==========================================
 // PC日別ビュー専用
 // ==========================================
-export const toolModeAtom = atom<ToolMode>("select");
 export const selectedPositionIdAtom = atom<string | null>(null);
 export const summaryExpandedAtom = atom<boolean>(false);
 export const summaryDisplayModeAtom = atom<SummaryDisplayMode>("color");
@@ -126,8 +69,4 @@ export const selectedPositionAtom = atom((get) => {
   const config = get(shiftConfigAtom);
   const id = get(selectedPositionIdAtom);
   return id ? (config.positions.find((p) => p.id === id) ?? null) : null;
-});
-
-export const breakPositionAtom = atom((get) => {
-  return get(shiftConfigAtom).positions.find((p) => p.name === "休憩") ?? null;
 });

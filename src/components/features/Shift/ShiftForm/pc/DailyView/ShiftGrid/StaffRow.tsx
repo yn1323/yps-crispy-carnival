@@ -28,7 +28,6 @@ type StaffRowProps = {
   onStaffNameClick: (staffId: string) => void;
   dragState: DragState;
   isDragging: boolean;
-  isScrollDragging: boolean;
   cursorStyle: string;
   rowRef: (el: HTMLDivElement | null) => void;
   paintClickAnchorRef: React.MutableRefObject<DOMRect | null>;
@@ -49,7 +48,6 @@ export const StaffRow = ({
   onStaffNameClick,
   dragState,
   isDragging,
-  isScrollDragging,
   cursorStyle,
   rowRef,
   paintClickAnchorRef,
@@ -119,7 +117,7 @@ export const StaffRow = ({
           onMouseLeave={() => {
             // カーソルスタイルのリセットは親で処理
           }}
-          cursor={isScrollDragging ? "grabbing" : cursorStyle}
+          cursor={cursorStyle}
           userSelect="none"
         >
           {/* グリッドライン（最背面） */}
