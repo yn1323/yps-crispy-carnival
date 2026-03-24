@@ -35,6 +35,10 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
 - `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
 
+## 実装のルール
+- 実装完了後、`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
+- 上記完了後、`/simplify`を実行してリファクタを行うこと
+
 ### 環境変数
 
 - `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク
