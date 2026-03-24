@@ -1,14 +1,13 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useDateStatuses } from "../../hooks/useDateStatuses";
-import { selectedDateAtom, selectedPositionIdAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
 import type { ShiftData } from "../../types";
 import { mergeAdjacentPositions } from "../../utils/shiftOperations";
 import { DateTabs } from "./DateTabs";
-import { PositionToolbar } from "./PositionToolbar";
 import { ShiftGrid } from "./ShiftGrid";
 import { ShiftPopover } from "./ShiftPopover";
 
@@ -16,10 +15,9 @@ export const DailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
-  const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
 
-  const { positions, dates, isReadOnly, shopId, holidays } = config;
+  const { dates, isReadOnly, shopId, holidays } = config;
   const dateStatuses = useDateStatuses();
 
   // === スタッフ編集モーダル ===
@@ -88,17 +86,6 @@ export const DailyView = () => {
 
   return (
     <Flex direction="column" flex={1} minHeight={0}>
-      {/* ポジションツールバー（閲覧専用時は非表示） */}
-      {!isReadOnly && (
-        <Box mb={4} flexShrink={0}>
-          <PositionToolbar
-            positions={positions}
-            selectedPositionId={selectedPositionId}
-            onPositionSelect={setSelectedPositionId}
-          />
-        </Box>
-      )}
-
       {/* 日付タブ + シフト表 */}
       <Flex
         direction="column"

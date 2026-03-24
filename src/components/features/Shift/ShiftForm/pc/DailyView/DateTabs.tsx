@@ -58,13 +58,7 @@ export const DateTabs = ({ dates, selectedDate, onSelect, holidays = [], dateSta
           const status = dateStatuses?.get(date) ?? "none";
 
           return (
-            <Tabs.Trigger
-              key={date}
-              value={date}
-              flexShrink={0}
-              color={dayColor}
-              _selected={{ fontWeight: "bold", bg: "teal.50" }}
-            >
+            <Tabs.Trigger key={date} value={date} flexShrink={0} color={dayColor} _selected={{ bg: "teal.50" }}>
               <Flex align="center" gap={1}>
                 {formatDate(date)}
                 <StatusBadge status={status} />
