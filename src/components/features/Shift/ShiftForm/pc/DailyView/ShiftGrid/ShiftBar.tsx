@@ -80,7 +80,7 @@ export const ShiftBar = ({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={(e) => onClick(shift.id, null, e)}
-          cursor="inherit"
+          cursor="pointer"
           transition="all 0.15s"
           _hover={{ borderColor: "gray.500" }}
           zIndex={1}

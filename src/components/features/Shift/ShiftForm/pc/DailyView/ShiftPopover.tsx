@@ -2,6 +2,7 @@ import { Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui
 import { useEffect } from "react";
 import { LuMinus, LuTrash2, LuX } from "react-icons/lu";
 import type { ShiftData } from "../../types";
+import { timeToMinutes } from "../../utils/timeConversion";
 
 type ShiftPopoverProps = {
   shift: ShiftData | null;
@@ -106,31 +107,33 @@ export const ShiftPopover = ({
                   maxH="200px"
                   overflowY="auto"
                 >
-                  {shift.positions.map((pos) => (
-                    <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
-                      <Flex align="center" gap={2}>
-                        <Box w="12px" h="12px" borderRadius="sm" bg={pos.color} />
-                        <Text fontSize="sm" color="gray.700">
-                          {pos.positionName}
-                        </Text>
-                        <Text fontSize="xs" color="gray.500">
-                          {pos.start}-{pos.end}
-                        </Text>
+                  {[...shift.positions]
+                    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
+                    .map((pos) => (
+                      <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
+                        <Flex align="center" gap={2}>
+                          <Box w="12px" h="12px" borderRadius="sm" bg={pos.color} />
+                          <Text fontSize="sm" color="gray.700">
+                            {pos.positionName}
+                          </Text>
+                          <Text fontSize="xs" color="gray.500">
+                            {pos.start}-{pos.end}
+                          </Text>
+                        </Flex>
+                        {!isReadOnly && (
+                          <IconButton
+                            size="xs"
+                            variant="ghost"
+                            colorPalette="gray"
+                            aria-label={`${pos.positionName}を削除`}
+                            onClick={() => onDeletePosition(pos.id)}
+                            _hover={{ color: "red.500" }}
+                          >
+                            <LuMinus />
+                          </IconButton>
+                        )}
                       </Flex>
-                      {!isReadOnly && (
-                        <IconButton
-                          size="xs"
-                          variant="ghost"
-                          colorPalette="gray"
-                          aria-label={`${pos.positionName}を削除`}
-                          onClick={() => onDeletePosition(pos.id)}
-                          _hover={{ color: "red.500" }}
-                        >
-                          <LuMinus />
-                        </IconButton>
-                      )}
-                    </Flex>
-                  ))}
+                    ))}
                 </Box>
               )}
 
