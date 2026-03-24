@@ -1,5 +1,5 @@
 import { Flex, Icon, Text } from "@chakra-ui/react";
-import { LuInfo, LuTriangleAlert } from "react-icons/lu";
+import { LuTriangleAlert } from "react-icons/lu";
 import { Dialog } from "@/src/components/ui/Dialog";
 
 type ModeConfirmDialogProps = {
@@ -30,14 +30,8 @@ export const ModeConfirmDialog = ({ isOpen, onOpenChange, onConfirm, onCancel }:
           </Text>
         </Flex>
         <Text color="gray.700" fontSize="sm">
-          かんたんモードに切り替えると、曜日ごとの個別設定は「平日」「休日」の設定で上書きされます。
+          かんたんモードで保存すると、平日・休日それぞれ同じ設定が全曜日に適用されます。
         </Text>
-        <Flex align="center" gap={2} bg="orange.50" borderRadius="md" px={3} py={2}>
-          <Icon as={LuInfo} color="orange.500" boxSize={4} />
-          <Text fontSize="sm" color="orange.600">
-            この操作は取り消せません
-          </Text>
-        </Flex>
       </Flex>
     </Dialog>
   );

@@ -1,8 +1,9 @@
 import { Box, Button, Container, Flex, Heading, Icon, IconButton, Input, Tabs, Text, VStack } from "@chakra-ui/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LuCircle, LuMinus, LuPlus, LuSettings, LuTrash2 } from "react-icons/lu";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { Title } from "@/src/components/ui/Title";
+import { toaster } from "@/src/components/ui/toaster";
 import type { PeakBand } from "../ShiftForm/types";
 import { HOLIDAY_DAYS, WEEKDAY_DAYS } from "./constants";
 import { DayTabs } from "./DayTabs";
@@ -103,6 +104,12 @@ export const PeakBandSettings = ({
   const [hasChanges, setHasChanges] = useState(false);
   const confirmDialog = useDialog();
 
+  // initialData変更時にdaySettingsMapを同期（selectedDayは維持）
+  useEffect(() => {
+    setDaySettingsMap(buildDaySettingsMap(initialData));
+    setHasChanges(false);
+  }, [initialData]);
+
   // 現在の編集対象dayOfWeek
   const activeDayOfWeek = mode === "simple" ? getRepresentativeDay(selectedGroup) : selectedDay;
   const currentSettings = daySettingsMap[activeDayOfWeek] ?? DEFAULT_DAY_SETTINGS;
@@ -153,9 +160,10 @@ export const PeakBandSettings = ({
 
   const handleBandChange = useCallback(
     (index: number, field: keyof PeakBand, value: string | number) => {
+      const clampedValue = field === "requiredCount" ? Math.max(1, Number(value)) : value;
       updateCurrentDay((prev) => ({
         ...prev,
-        peakBands: prev.peakBands.map((band, i) => (i === index ? { ...band, [field]: value } : band)),
+        peakBands: prev.peakBands.map((band, i) => (i === index ? { ...band, [field]: clampedValue } : band)),
       }));
     },
     [updateCurrentDay],
@@ -169,6 +177,12 @@ export const PeakBandSettings = ({
   );
 
   const handleSave = useCallback(async () => {
+    for (const band of currentSettings.peakBands) {
+      if (band.startTime >= band.endTime) {
+        toaster.create({ description: "終了時刻は開始時刻より後にしてください", type: "error" });
+        return;
+      }
+    }
     try {
       const dayOfWeeks = mode === "simple" ? getGroupDays(selectedGroup) : [selectedDay];
       await onSave({

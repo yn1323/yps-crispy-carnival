@@ -7,7 +7,7 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { requireShop } from "../helpers";
+import { isValidTimeFormat, requireShop } from "../helpers";
 
 // 必要人員設定を保存・更新（曜日単位）
 export const upsert = mutation({
@@ -145,6 +145,18 @@ export const upsertPeakBands = mutation({
 
     if (args.dayOfWeek < 0 || args.dayOfWeek > 7) {
       throw new ConvexError({ message: "曜日の値が不正です", code: "INVALID_DAY_OF_WEEK" });
+    }
+
+    for (const band of args.peakBands) {
+      if (band.requiredCount < 1) {
+        throw new ConvexError({ message: "必要人数は1以上を指定してください", code: "INVALID_REQUIRED_COUNT" });
+      }
+      if (!isValidTimeFormat(band.startTime) || !isValidTimeFormat(band.endTime)) {
+        throw new ConvexError({ message: "時刻の形式が不正です", code: "INVALID_TIME_FORMAT" });
+      }
+      if (band.startTime >= band.endTime) {
+        throw new ConvexError({ message: "終了時刻は開始時刻より後にしてください", code: "INVALID_TIME_RANGE" });
+      }
     }
 
     const existing = await ctx.db
