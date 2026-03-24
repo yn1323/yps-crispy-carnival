@@ -16,5 +16,9 @@ export const TIME_PERIODS = [
   { label: "夜", rangeStart: 21, rangeEnd: 30 },
 ] as const;
 
+// 平日（月〜金）/ 休日（日,土,祝）のグルーピング
+export const WEEKDAY_DAYS = [1, 2, 3, 4, 5] as const;
+export const HOLIDAY_DAYS = [0, 6, 7] as const;
+
 // ヒートマップの色段階（blue系グラデーション）
 export const HEATMAP_COLORS = ["gray.50", "blue.100", "blue.300", "blue.500", "blue.700"] as const;

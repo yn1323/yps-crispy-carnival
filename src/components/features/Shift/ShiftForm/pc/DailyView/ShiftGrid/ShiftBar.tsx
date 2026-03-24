@@ -77,12 +77,7 @@ export const ShiftBar = ({
           borderRadius="md"
           top="50%"
           transform="translateY(-50%)"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          onClick={(e) => onClick(shift.id, null, e)}
-          cursor="pointer"
-          transition="all 0.15s"
-          _hover={{ borderColor: "gray.500" }}
+          pointerEvents="none"
           zIndex={1}
         />
       )}
@@ -166,7 +161,7 @@ export const ShiftBar = ({
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               onClick={(e) => onClick(shift.id, pos.id, e)}
-              cursor="pointer"
+              cursor="inherit"
               transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
               opacity={0.9}
               _hover={{ opacity: 1, boxShadow: "0 0 0 2px rgba(0,0,0,0.15)" }}

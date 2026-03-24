@@ -83,7 +83,6 @@ export type LinkedResizeTarget = {
 
 // ピーク帯定義
 export type PeakBand = {
-  name: string; // "ランチ", "ディナー"
   startTime: string; // "11:00"
   endTime: string; // "14:00"
   requiredCount: number; // 必要人数

@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useCallback, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { InitialDayData } from "@/src/components/features/Shift/PeakBandSettings";
 import { PeakBandSettings } from "@/src/components/features/Shift/PeakBandSettings";
 import { LazyShow } from "@/src/components/ui/LazyShow";
 import { LoadingState } from "@/src/components/ui/LoadingState";
@@ -13,6 +14,7 @@ type Props = {
 
 export const StaffingSettingsPage = ({ shopId }: Props) => {
   const shop = useQuery(api.shop.queries.getById, { shopId: shopId as Id<"shops"> });
+  const staffingData = useQuery(api.requiredStaffing.queries.getByShopId, { shopId: shopId as Id<"shops"> });
 
   // Mutations
   const upsertPeakBandsMutation = useMutation(api.requiredStaffing.mutations.upsertPeakBands);
@@ -20,21 +22,26 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
   // UI状態
   const [isSaving, setIsSaving] = useState(false);
 
-  // 保存処理
+  // 保存処理（複数曜日対応）
   const handleSave = useCallback(
     async (params: {
-      dayOfWeek: number;
-      peakBands: { name: string; startTime: string; endTime: string; requiredCount: number }[];
+      dayOfWeeks: readonly number[];
+      peakBands: { startTime: string; endTime: string; requiredCount: number }[];
       minimumStaff: number;
     }) => {
       setIsSaving(true);
       try {
-        await upsertPeakBandsMutation({
-          shopId: shopId as Id<"shops">,
-          dayOfWeek: params.dayOfWeek,
-          peakBands: params.peakBands,
-          minimumStaff: params.minimumStaff,
-        });
+        // 全dayOfWeekに同じ設定を保存
+        await Promise.all(
+          params.dayOfWeeks.map((dayOfWeek) =>
+            upsertPeakBandsMutation({
+              shopId: shopId as Id<"shops">,
+              dayOfWeek,
+              peakBands: params.peakBands,
+              minimumStaff: params.minimumStaff,
+            }),
+          ),
+        );
         toaster.create({
           description: "必要人員設定を保存しました",
           type: "success",
@@ -54,7 +61,7 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
   );
 
   // ローディング
-  if (shop === undefined) {
+  if (shop === undefined || staffingData === undefined) {
     return (
       <LazyShow>
         <LoadingState />
@@ -67,5 +74,20 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
     return null;
   }
 
-  return <PeakBandSettings shopId={shopId} shopName={shop.shopName} onSave={handleSave} isSaving={isSaving} />;
+  // 初期データを変換
+  const initialData: InitialDayData[] = (staffingData ?? []).map((s) => ({
+    dayOfWeek: s.dayOfWeek,
+    peakBands: s.peakBands,
+    minimumStaff: s.minimumStaff,
+  }));
+
+  return (
+    <PeakBandSettings
+      shopId={shopId}
+      shopName={shop.shopName}
+      initialData={initialData}
+      onSave={handleSave}
+      isSaving={isSaving}
+    />
+  );
 };

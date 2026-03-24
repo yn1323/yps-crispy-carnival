@@ -133,7 +133,6 @@ export const upsertPeakBands = mutation({
     dayOfWeek: v.number(),
     peakBands: v.array(
       v.object({
-        name: v.string(),
         startTime: v.string(),
         endTime: v.string(),
         requiredCount: v.number(),

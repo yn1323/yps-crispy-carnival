@@ -34,14 +34,14 @@ export const PeakBandAlert = ({ shifts, date, peakBands, minimumStaff }: PeakBan
     >
       {/* ピーク帯ステータス */}
       {status.peakBandStatuses.map((band) => (
-        <Flex key={`${band.name}-${band.startTime}`} align="center" gap={1.5}>
+        <Flex key={`${band.startTime}-${band.endTime}`} align="center" gap={1.5}>
           {band.isSatisfied ? (
             <Icon as={LuCircleCheck} color="green.500" boxSize={4} />
           ) : (
             <Icon as={LuTriangleAlert} color="orange.500" boxSize={4} />
           )}
           <Text fontSize="sm" fontWeight="medium" color={band.isSatisfied ? "green.700" : "orange.700"}>
-            {band.name || `${band.startTime}〜${band.endTime}`}
+            {band.startTime}〜{band.endTime}
           </Text>
           {!band.isSatisfied && (
             <Text fontSize="sm" color="orange.600">

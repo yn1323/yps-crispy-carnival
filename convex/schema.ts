@@ -109,7 +109,6 @@ const requiredStaffing = defineTable({
   peakBands: v.optional(
     v.array(
       v.object({
-        name: v.string(), // "ランチ", "ディナー"
         startTime: v.string(), // "11:00"
         endTime: v.string(), // "14:00"
         requiredCount: v.number(), // 必要人数

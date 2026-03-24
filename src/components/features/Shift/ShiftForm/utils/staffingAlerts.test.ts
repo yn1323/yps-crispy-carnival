@@ -20,8 +20,8 @@ const makeShift = (staffId: string, positions: { start: string; end: string }[])
 
 describe("calculateDayStaffingStatus", () => {
   const peakBands: PeakBand[] = [
-    { name: "ランチ", startTime: "11:00", endTime: "14:00", requiredCount: 3 },
-    { name: "ディナー", startTime: "17:00", endTime: "21:00", requiredCount: 5 },
+    { startTime: "11:00", endTime: "14:00", requiredCount: 3 },
+    { startTime: "17:00", endTime: "21:00", requiredCount: 5 },
   ];
 
   test("ピーク帯が充足している場合", () => {
@@ -75,7 +75,7 @@ describe("calculateDayStaffingStatus", () => {
     const result = calculateDayStaffingStatus({
       shifts,
       date: "2026-03-24",
-      peakBands: [{ name: "ランチ", startTime: "11:00", endTime: "14:00", requiredCount: 3 }],
+      peakBands: [{ startTime: "11:00", endTime: "14:00", requiredCount: 3 }],
     });
     expect(getDayStatus(result)).toBe("ok");
   });

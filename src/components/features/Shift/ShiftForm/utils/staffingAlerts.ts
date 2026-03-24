@@ -2,7 +2,6 @@ import type { PeakBand, ShiftData } from "../types";
 import { timeToMinutes } from "./timeConversion";
 
 export type PeakBandStatus = {
-  name: string;
   startTime: string;
   endTime: string;
   requiredCount: number;
@@ -69,7 +68,6 @@ export const calculateDayStaffingStatus = (params: {
     const actualCount = getMinStaffInBand(shifts, date, band.startTime, band.endTime);
     const shortfall = Math.max(0, band.requiredCount - actualCount);
     return {
-      name: band.name,
       startTime: band.startTime,
       endTime: band.endTime,
       requiredCount: band.requiredCount,
