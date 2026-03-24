@@ -1,6 +1,6 @@
 import { Tabs } from "@chakra-ui/react";
 import { WEEKDAY_ORDER } from "../constants";
-import { getDayColor } from "../utils/dayHelpers";
+import { getDayColor } from "../dayHelpers";
 
 const DAY_TAB_LABELS = ["日", "月", "火", "水", "木", "金", "土", "祝"] as const;
 

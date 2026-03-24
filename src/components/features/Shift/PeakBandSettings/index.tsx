@@ -4,8 +4,8 @@ import { LuCircle, LuMinus, LuPlus, LuSettings, LuTrash2 } from "react-icons/lu"
 import { useDialog } from "@/src/components/ui/Dialog";
 import { Title } from "@/src/components/ui/Title";
 import type { PeakBand } from "../ShiftForm/types";
-import { HOLIDAY_DAYS, WEEKDAY_DAYS } from "../StaffingRequirement/constants";
-import { DayTabs } from "../StaffingRequirement/DayTabs";
+import { HOLIDAY_DAYS, WEEKDAY_DAYS } from "./constants";
+import { DayTabs } from "./DayTabs";
 import { ModeConfirmDialog } from "./ModeConfirmDialog";
 
 type DaySettings = {
