@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { InitialDayData } from "@/src/components/features/Shift/PeakBandSettings";
@@ -21,6 +21,16 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
 
   // UI状態
   const [isSaving, setIsSaving] = useState(false);
+
+  const initialData = useMemo<InitialDayData[]>(
+    () =>
+      (staffingData ?? []).map((s) => ({
+        dayOfWeek: s.dayOfWeek,
+        peakBands: s.peakBands,
+        minimumStaff: s.minimumStaff,
+      })),
+    [staffingData],
+  );
 
   // 保存処理（複数曜日対応）
   const handleSave = useCallback(
@@ -73,13 +83,6 @@ export const StaffingSettingsPage = ({ shopId }: Props) => {
   if (shop === null) {
     return null;
   }
-
-  // 初期データを変換
-  const initialData: InitialDayData[] = (staffingData ?? []).map((s) => ({
-    dayOfWeek: s.dayOfWeek,
-    peakBands: s.peakBands,
-    minimumStaff: s.minimumStaff,
-  }));
 
   return (
     <PeakBandSettings
