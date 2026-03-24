@@ -21,9 +21,18 @@ type StaffEditModalProps = {
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   onSave?: () => void;
+  viewOnly?: boolean;
 };
 
-export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose, onSave }: StaffEditModalProps) => {
+export const StaffEditModal = ({
+  staffId,
+  shopId,
+  isOpen,
+  onOpenChange,
+  onClose,
+  onSave,
+  viewOnly = false,
+}: StaffEditModalProps) => {
   const user = useAtomValue(userAtom);
   const [mode, setMode] = useState<ModalMode>("view");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,9 +146,11 @@ export const StaffEditModal = ({ staffId, shopId, isOpen, onOpenChange, onClose,
               <Button variant="outline" onClick={handleClose}>
                 閉じる
               </Button>
-              <Button colorPalette="teal" onClick={handleEditClick}>
-                編集
-              </Button>
+              {!viewOnly && (
+                <Button colorPalette="teal" onClick={handleEditClick}>
+                  編集
+                </Button>
+              )}
             </Flex>
           </VStack>
         ) : (
