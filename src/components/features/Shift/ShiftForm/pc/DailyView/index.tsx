@@ -3,38 +3,23 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
 import { useDialog } from "@/src/components/ui/Dialog";
-import {
-  breakPositionAtom,
-  selectedDateAtom,
-  selectedPositionIdAtom,
-  shiftConfigAtom,
-  shiftsAtom,
-  toolModeAtom,
-} from "../../stores";
+import { useDateStatuses } from "../../hooks/useDateStatuses";
+import { selectedDateAtom, selectedPositionIdAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
 import type { ShiftData } from "../../types";
-import { deletePositionFromShift, normalizePositions } from "../../utils/shiftOperations";
 import { DateTabs } from "./DateTabs";
 import { PositionToolbar } from "./PositionToolbar";
 import { ShiftGrid } from "./ShiftGrid";
 import { ShiftPopover } from "./ShiftPopover";
 
-type UndoRedoHandlers = {
-  undo: () => void;
-  redo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-};
-
-export const DailyView = ({ undo, redo, canUndo, canRedo }: UndoRedoHandlers) => {
+export const DailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
-  const breakPosition = useAtomValue(breakPositionAtom);
-  const [toolMode, setToolMode] = useAtom(toolModeAtom);
   const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
 
-  const { positions, dates, isReadOnly, shopId } = config;
+  const { positions, dates, isReadOnly, shopId, holidays } = config;
+  const dateStatuses = useDateStatuses();
 
   // === スタッフ編集モーダル ===
   const staffEditModal = useDialog();
@@ -72,25 +57,16 @@ export const DailyView = ({ undo, redo, canUndo, canRedo }: UndoRedoHandlers) =>
   const handleDeletePosition = useCallback(
     (positionId: string) => {
       if (!popoverShift) return;
-      const updatedShift = breakPosition
-        ? deletePositionFromShift({
-            shift: popoverShift,
-            positionSegmentId: positionId,
-            breakPositionId: breakPosition.id,
-          })
-        : { ...popoverShift, positions: popoverShift.positions.filter((p) => p.id !== positionId) };
+      const updatedShift = { ...popoverShift, positions: popoverShift.positions.filter((p) => p.id !== positionId) };
       const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
       setShifts(newShifts);
-      const normalizedPositions = breakPosition
-        ? normalizePositions({ positions: updatedShift.positions, breakPosition })
-        : updatedShift.positions;
-      if (normalizedPositions.length === 0) {
+      if (updatedShift.positions.length === 0) {
         handlePopoverClose();
         return;
       }
-      setPopoverShift({ ...updatedShift, positions: normalizedPositions });
+      setPopoverShift(updatedShift);
     },
-    [popoverShift, shifts, setShifts, breakPosition, handlePopoverClose],
+    [popoverShift, shifts, setShifts, handlePopoverClose],
   );
 
   // 全ポジション削除
@@ -114,15 +90,9 @@ export const DailyView = ({ undo, redo, canUndo, canRedo }: UndoRedoHandlers) =>
       {!isReadOnly && (
         <Box mb={4} flexShrink={0}>
           <PositionToolbar
-            toolMode={toolMode}
-            onToolModeChange={setToolMode}
             positions={positions}
             selectedPositionId={selectedPositionId}
             onPositionSelect={setSelectedPositionId}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
           />
         </Box>
       )}
@@ -137,7 +107,13 @@ export const DailyView = ({ undo, redo, canUndo, canRedo }: UndoRedoHandlers) =>
         borderRadius="lg"
         overflow="hidden"
       >
-        <DateTabs dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} />
+        <DateTabs
+          dates={dates}
+          selectedDate={selectedDate}
+          onSelect={setSelectedDate}
+          holidays={holidays}
+          dateStatuses={dateStatuses}
+        />
         <ShiftGrid
           onShiftClick={handleShiftClick}
           onStaffNameClick={handleStaffNameClick}
@@ -167,6 +143,7 @@ export const DailyView = ({ undo, redo, canUndo, canRedo }: UndoRedoHandlers) =>
           isOpen={staffEditModal.isOpen}
           onOpenChange={staffEditModal.onOpenChange}
           onClose={staffEditModal.close}
+          viewOnly
         />
       )}
     </Flex>

@@ -105,6 +105,19 @@ const requiredStaffing = defineTable({
       requiredCount: v.number(),
     }),
   ),
+  // ピーク帯定義（簡易入力モード）
+  peakBands: v.optional(
+    v.array(
+      v.object({
+        name: v.string(), // "ランチ", "ディナー"
+        startTime: v.string(), // "11:00"
+        endTime: v.string(), // "14:00"
+        requiredCount: v.number(), // 必要人数
+      }),
+    ),
+  ),
+  // 最低人員（常時必要な最低人数）
+  minimumStaff: v.optional(v.number()),
   // AI生成時の入力情報（作り直し用）
   aiInput: v.optional(
     v.object({

@@ -102,6 +102,8 @@ export const copyToMultipleDays = mutation({
       if (existing) {
         await ctx.db.patch(existing._id, {
           staffing: source.staffing,
+          peakBands: source.peakBands,
+          minimumStaff: source.minimumStaff,
           updatedAt: now,
         });
         results.push({ dayOfWeek: targetDay, id: existing._id });
@@ -110,6 +112,8 @@ export const copyToMultipleDays = mutation({
           shopId: args.shopId,
           dayOfWeek: targetDay,
           staffing: source.staffing,
+          peakBands: source.peakBands,
+          minimumStaff: source.minimumStaff,
           aiInput: source.aiInput,
           createdAt: now,
           updatedAt: now,
@@ -119,6 +123,59 @@ export const copyToMultipleDays = mutation({
     }
 
     return { success: true, copiedDays: results };
+  },
+});
+
+// ピーク帯設定を保存・更新（曜日単位）
+export const upsertPeakBands = mutation({
+  args: {
+    shopId: v.id("shops"),
+    dayOfWeek: v.number(),
+    peakBands: v.array(
+      v.object({
+        name: v.string(),
+        startTime: v.string(),
+        endTime: v.string(),
+        requiredCount: v.number(),
+      }),
+    ),
+    minimumStaff: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireShop(ctx, args.shopId);
+
+    if (args.dayOfWeek < 0 || args.dayOfWeek > 7) {
+      throw new ConvexError({ message: "曜日の値が不正です", code: "INVALID_DAY_OF_WEEK" });
+    }
+
+    const existing = await ctx.db
+      .query("requiredStaffing")
+      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
+      .collect()
+      .then((list) => list.find((s) => s.dayOfWeek === args.dayOfWeek));
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        peakBands: args.peakBands,
+        minimumStaff: args.minimumStaff,
+        updatedAt: now,
+      });
+      return { success: true, id: existing._id, isNew: false };
+    }
+
+    const id = await ctx.db.insert("requiredStaffing", {
+      shopId: args.shopId,
+      dayOfWeek: args.dayOfWeek,
+      staffing: [],
+      peakBands: args.peakBands,
+      minimumStaff: args.minimumStaff,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { success: true, id, isNew: true };
   },
 });
 
