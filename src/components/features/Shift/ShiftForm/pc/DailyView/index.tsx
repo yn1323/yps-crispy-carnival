@@ -6,6 +6,7 @@ import { useDialog } from "@/src/components/ui/Dialog";
 import { useDateStatuses } from "../../hooks/useDateStatuses";
 import { selectedDateAtom, selectedPositionIdAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
 import type { ShiftData } from "../../types";
+import { mergeAdjacentPositions } from "../../utils/shiftOperations";
 import { DateTabs } from "./DateTabs";
 import { PositionToolbar } from "./PositionToolbar";
 import { ShiftGrid } from "./ShiftGrid";
@@ -57,7 +58,8 @@ export const DailyView = () => {
   const handleDeletePosition = useCallback(
     (positionId: string) => {
       if (!popoverShift) return;
-      const updatedShift = { ...popoverShift, positions: popoverShift.positions.filter((p) => p.id !== positionId) };
+      const filteredPositions = popoverShift.positions.filter((p) => p.id !== positionId);
+      const updatedShift = { ...popoverShift, positions: mergeAdjacentPositions(filteredPositions) };
       const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
       setShifts(newShifts);
       if (updatedShift.positions.length === 0) {

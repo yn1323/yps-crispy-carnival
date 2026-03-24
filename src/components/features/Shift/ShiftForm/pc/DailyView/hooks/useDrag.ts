@@ -6,6 +6,7 @@ import type { DragMode, LinkedResizeTarget, ShiftData } from "../../../types";
 import {
   detectLinkedResizeEdge,
   findShiftAtPosition,
+  mergeAdjacentPositions,
   paintPosition,
   resizeLinkedPositions,
   resizePosition,
@@ -190,8 +191,8 @@ export const useDrag = (): UseDragReturn => {
           newMinutes: currentMinutes,
           minDuration: timeRange.unit,
         });
-
-        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
+        const mergedShift = { ...resizedShift, positions: mergeAdjacentPositions(resizedShift.positions) };
+        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? mergedShift : s));
         setShifts(updatedShifts);
       } else if (targetShift && targetPositionId && resizeEdge) {
         const resizedShift = resizePosition({
@@ -201,8 +202,8 @@ export const useDrag = (): UseDragReturn => {
           newMinutes: currentMinutes,
           minDuration: timeRange.unit,
         });
-
-        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? resizedShift : s));
+        const mergedShift = { ...resizedShift, positions: mergeAdjacentPositions(resizedShift.positions) };
+        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? mergedShift : s));
         setShifts(updatedShifts);
       }
     }
@@ -220,8 +221,8 @@ export const useDrag = (): UseDragReturn => {
           endMinutes: currentMinutes,
           segmentId: generateId(),
         });
-
-        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? paintedShift : s));
+        const mergedShift = { ...paintedShift, positions: mergeAdjacentPositions(paintedShift.positions) };
+        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? mergedShift : s));
         setShifts(updatedShifts);
       }
     }
