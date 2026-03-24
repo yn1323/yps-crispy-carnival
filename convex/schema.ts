@@ -46,8 +46,6 @@ const staffs = defineTable({
       }),
     ),
   ),
-  maxWeeklyHours: v.optional(v.number()),
-
   // 招待トークン（マネージャー招待用）
   inviteToken: v.optional(v.string()),
   inviteExpiresAt: v.optional(v.number()),
@@ -60,7 +58,6 @@ const staffs = defineTable({
   // スタッフメモ（管理者用）
   memo: v.optional(v.string()),
   workStyleNote: v.optional(v.string()), // AIシフト作成用
-  hourlyWage: v.optional(v.number()),
 
   // メタ
   createdAt: v.number(),

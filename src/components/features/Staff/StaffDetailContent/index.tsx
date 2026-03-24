@@ -1,5 +1,5 @@
 import { Badge, Box, Card, Flex, Heading, HStack, Icon, Text, VStack } from "@chakra-ui/react";
-import { LuBriefcase, LuCalendar, LuClock, LuMail, LuStickyNote, LuWallet } from "react-icons/lu";
+import { LuBriefcase, LuCalendar, LuMail, LuStickyNote } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 
 type StaffType = {
@@ -7,10 +7,8 @@ type StaffType = {
   email: string;
   displayName: string;
   status: string;
-  maxWeeklyHours: number | undefined;
   memo: string;
   workStyleNote: string;
-  hourlyWage: number | null;
   resignedAt: number | undefined;
   resignationReason: string | undefined;
   createdAt: number;
@@ -213,28 +211,6 @@ export const StaffDetailContent = ({ staff, positions, staffSkills, action }: St
                 {staff.email}
               </Text>
             </Flex>
-
-            {/* 週最大勤務時間 */}
-            {staff.maxWeeklyHours && (
-              <Flex align="center" gap={3}>
-                <Icon as={LuClock} boxSize={5} color="gray.500" />
-                <Text fontWeight="medium">週最大勤務時間</Text>
-                <Text ml="auto" color="gray.600">
-                  {staff.maxWeeklyHours}時間
-                </Text>
-              </Flex>
-            )}
-
-            {/* 時給（オーナーのみ表示） */}
-            {staff.hourlyWage && (
-              <Flex align="center" gap={3}>
-                <Icon as={LuWallet} boxSize={5} color="gray.500" />
-                <Text fontWeight="medium">時給</Text>
-                <Text ml="auto" color="gray.600">
-                  ¥{staff.hourlyWage.toLocaleString()}
-                </Text>
-              </Flex>
-            )}
           </VStack>
         </Card.Body>
       </Card.Root>
