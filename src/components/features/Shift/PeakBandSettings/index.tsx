@@ -1,6 +1,6 @@
 import { Box, Button, Container, Flex, Heading, Icon, IconButton, Input, Tabs, Text, VStack } from "@chakra-ui/react";
 import { useCallback, useMemo, useState } from "react";
-import { LuCircle, LuMinus, LuPlus, LuTrash2 } from "react-icons/lu";
+import { LuCircle, LuMinus, LuPlus, LuSettings, LuTrash2 } from "react-icons/lu";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { Title } from "@/src/components/ui/Title";
 import type { PeakBand } from "../ShiftForm/types";
@@ -212,12 +212,19 @@ export const PeakBandSettings = ({
     <Container maxW="6xl">
       {/* ヘッダー */}
       <Title prev={{ url: `/shops/${shopId}/shifts`, label: "シフト管理" }}>
-        <Heading as="h2" size={{ base: "lg", md: "xl" }} color="gray.900">
-          必要人員設定
-        </Heading>
-        <Text color="gray.500" fontSize="sm" display={{ base: "none", md: "block" }}>
-          {shopName}
-        </Text>
+        <Flex align="center" gap={3}>
+          <Flex p={{ base: 2, md: 3 }} bg="teal.50" borderRadius="lg">
+            <Icon as={LuSettings} boxSize={6} color="teal.600" />
+          </Flex>
+          <Box>
+            <Heading as="h2" size={{ base: "lg", md: "xl" }} color="gray.900">
+              必要人員設定
+            </Heading>
+            <Text color="gray.500" fontSize="sm" display={{ base: "none", md: "block" }}>
+              {shopName}
+            </Text>
+          </Box>
+        </Flex>
       </Title>
 
       {/* モード切替タブ */}
@@ -332,7 +339,7 @@ const SimpleDayTabs = ({
       <Tabs.Trigger value="weekday" px={{ base: 6, md: 4 }} flex={{ base: 1, md: "initial" }}>
         平日
       </Tabs.Trigger>
-      <Tabs.Trigger value="holiday" px={{ base: 6, md: 4 }} flex={{ base: 1, md: "initial" }}>
+      <Tabs.Trigger value="holiday" px={{ base: 6, md: 4 }} flex={{ base: 1, md: "initial" }} color="red.500">
         休日
       </Tabs.Trigger>
     </Tabs.List>
