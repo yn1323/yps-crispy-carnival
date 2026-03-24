@@ -166,7 +166,7 @@ export const ShiftBar = ({
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
               onClick={(e) => onClick(shift.id, pos.id, e)}
-              cursor="inherit"
+              cursor="pointer"
               transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
               opacity={0.9}
               _hover={{ opacity: 1 }}
