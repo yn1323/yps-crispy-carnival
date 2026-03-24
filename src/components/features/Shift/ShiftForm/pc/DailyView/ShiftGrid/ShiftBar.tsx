@@ -169,7 +169,7 @@ export const ShiftBar = ({
               cursor="pointer"
               transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
               opacity={0.9}
-              _hover={{ opacity: 1 }}
+              _hover={{ opacity: 1, boxShadow: "0 0 0 2px rgba(0,0,0,0.15)" }}
               zIndex={2}
             />
           );
@@ -231,11 +231,11 @@ export const ShiftBar = ({
                 top="50%"
                 transform="translateY(-50%)"
                 fontSize="xs"
-                color="gray.600"
-                fontWeight="medium"
+                color="gray.700"
+                fontWeight="semibold"
                 zIndex={3}
                 pointerEvents="none"
-                textShadow="0 0 2px white, 0 0 2px white"
+                textShadow="0 0 3px white, 0 0 3px white, 0 0 6px white"
               >
                 {earliestStart}
               </Text>
@@ -245,11 +245,11 @@ export const ShiftBar = ({
                 top="50%"
                 transform="translate(-100%, -50%)"
                 fontSize="xs"
-                color="gray.600"
-                fontWeight="medium"
+                color="gray.700"
+                fontWeight="semibold"
                 zIndex={3}
                 pointerEvents="none"
-                textShadow="0 0 2px white, 0 0 2px white"
+                textShadow="0 0 3px white, 0 0 3px white, 0 0 6px white"
               >
                 {latestEnd}
               </Text>

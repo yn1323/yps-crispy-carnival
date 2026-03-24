@@ -1,4 +1,4 @@
-import { Box, Flex, Table, Text } from "@chakra-ui/react";
+import { Box, Table, Text } from "@chakra-ui/react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "../../../types";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
@@ -136,15 +136,6 @@ export const StaffRow = ({
               linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
             />
           ))}
-
-          {/* 空状態テキスト */}
-          {status !== "has_request" && staffShifts.every((s) => s.positions.length === 0) && (
-            <Flex position="absolute" inset={0} align="center" justify="center" pointerEvents="none">
-              <Text color={status === "no_request" ? "gray.400" : "orange.400"} fontSize="sm">
-                {status === "no_request" ? "希望なし" : "未提出"}
-              </Text>
-            </Flex>
-          )}
 
           {/* ドラッグプレビュー */}
           {isDragging &&
