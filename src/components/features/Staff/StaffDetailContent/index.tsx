@@ -253,36 +253,34 @@ export const StaffDetailContent = ({ staff, positions, staffSkills, action }: St
       </Card.Root>
 
       {/* メモカード（オーナーのみ表示） */}
-      {(staff.memo || staff.workStyleNote) && (
-        <Card.Root borderWidth={0} shadow="sm">
-          <Card.Header>
-            <HStack>
-              <Icon as={LuStickyNote} boxSize={5} color="gray.500" />
-              <Text fontWeight="medium">メモ</Text>
-            </HStack>
-          </Card.Header>
-          <Card.Body pt={0}>
-            <VStack align="stretch" gap={4}>
-              {staff.memo && (
-                <Box>
-                  <Text fontSize="sm" color="gray.500" mb={1}>
-                    スタッフメモ
-                  </Text>
-                  <Text whiteSpace="pre-wrap">{staff.memo}</Text>
-                </Box>
+      <Card.Root borderWidth={0} shadow="sm">
+        <Card.Header>
+          <HStack>
+            <Icon as={LuStickyNote} boxSize={5} color="gray.500" />
+            <Text fontWeight="medium">メモ</Text>
+          </HStack>
+        </Card.Header>
+        <Card.Body pt={0}>
+          <VStack align="stretch" gap={4}>
+            <Box>
+              <Text fontSize="sm" color="gray.500" mb={1}>
+                スタッフメモ
+              </Text>
+              {staff.memo ? <Text whiteSpace="pre-wrap">{staff.memo}</Text> : <Text color="gray.400">記入なし</Text>}
+            </Box>
+            <Box>
+              <Text fontSize="sm" color="gray.500" mb={1}>
+                勤務スタイルメモ
+              </Text>
+              {staff.workStyleNote ? (
+                <Text whiteSpace="pre-wrap">{staff.workStyleNote}</Text>
+              ) : (
+                <Text color="gray.400">記入なし</Text>
               )}
-              {staff.workStyleNote && (
-                <Box>
-                  <Text fontSize="sm" color="gray.500" mb={1}>
-                    勤務スタイルメモ
-                  </Text>
-                  <Text whiteSpace="pre-wrap">{staff.workStyleNote}</Text>
-                </Box>
-              )}
-            </VStack>
-          </Card.Body>
-        </Card.Root>
-      )}
+            </Box>
+          </VStack>
+        </Card.Body>
+      </Card.Root>
     </VStack>
   );
 };
