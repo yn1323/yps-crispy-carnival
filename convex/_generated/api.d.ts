@@ -25,6 +25,7 @@ import type * as shiftRequest_mutations from "../shiftRequest/mutations.js";
 import type * as shiftRequest_queries from "../shiftRequest/queries.js";
 import type * as shop_mutations from "../shop/mutations.js";
 import type * as shop_queries from "../shop/queries.js";
+import type * as staff_mutations from "../staff/mutations.js";
 import type * as staffSkill_mutations from "../staffSkill/mutations.js";
 import type * as staffSkill_queries from "../staffSkill/queries.js";
 import type * as testing from "../testing.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   "shiftRequest/queries": typeof shiftRequest_queries;
   "shop/mutations": typeof shop_mutations;
   "shop/queries": typeof shop_queries;
+  "staff/mutations": typeof staff_mutations;
   "staffSkill/mutations": typeof staffSkill_mutations;
   "staffSkill/queries": typeof staffSkill_queries;
   testing: typeof testing;

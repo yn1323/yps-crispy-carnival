@@ -89,7 +89,7 @@ export const SummaryFooterRow = ({ shifts, dates, months, requiredStaffing }: Su
         >
           <HStack gap={1}>
             <Text fontSize="xs" fontWeight="bold" color="gray.700">
-              出勤数
+              人数
             </Text>
             {hasRequiredStaffing && (
               <Tooltip

@@ -1,7 +1,8 @@
-import { Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
 import { LuMinus, LuTrash2, LuX } from "react-icons/lu";
 import type { ShiftData } from "../../types";
+import { timeToMinutes } from "../../utils/timeConversion";
 
 type ShiftPopoverProps = {
   shift: ShiftData | null;
@@ -88,13 +89,20 @@ export const ShiftPopover = ({
         >
           <Popover.Content width="280px" boxShadow="lg" borderRadius="lg">
             <Popover.Body p={0}>
-              {/* 労働時間 */}
+              {/* 希望時間 */}
               <Box p={3} borderBottom="1px solid" borderColor="gray.100">
-                <Text fontWeight="bold" fontSize="md" color={!isStaffSubmitted ? "orange.500" : "gray.700"}>
-                  {!isStaffSubmitted
-                    ? "未提出"
-                    : `希望：${shift.requestedTime ? `${shift.requestedTime.start} - ${shift.requestedTime.end}` : "なし"}`}
-                </Text>
+                <Flex align="center" gap={2}>
+                  <Text fontWeight="bold" fontSize="md" color="gray.700">
+                    {shift.requestedTime
+                      ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
+                      : "希望: なし"}
+                  </Text>
+                  {!isStaffSubmitted && (
+                    <Badge colorPalette="orange" size="sm">
+                      未提出
+                    </Badge>
+                  )}
+                </Flex>
               </Box>
 
               {/* ポジション一覧 */}
@@ -106,31 +114,33 @@ export const ShiftPopover = ({
                   maxH="200px"
                   overflowY="auto"
                 >
-                  {shift.positions.map((pos) => (
-                    <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
-                      <Flex align="center" gap={2}>
-                        <Box w="12px" h="12px" borderRadius="sm" bg={pos.color} />
-                        <Text fontSize="sm" color="gray.700">
-                          {pos.positionName}
-                        </Text>
-                        <Text fontSize="xs" color="gray.500">
-                          {pos.start}-{pos.end}
-                        </Text>
+                  {[...shift.positions]
+                    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
+                    .map((pos) => (
+                      <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
+                        <Flex align="center" gap={2}>
+                          <Box w="12px" h="12px" borderRadius="sm" bg={pos.color} />
+                          <Text fontSize="sm" color="gray.700">
+                            {pos.positionName}
+                          </Text>
+                          <Text fontSize="xs" color="gray.500">
+                            {pos.start}-{pos.end}
+                          </Text>
+                        </Flex>
+                        {!isReadOnly && (
+                          <IconButton
+                            size="xs"
+                            variant="ghost"
+                            colorPalette="gray"
+                            aria-label={`${pos.positionName}を削除`}
+                            onClick={() => onDeletePosition(pos.id)}
+                            _hover={{ color: "red.500" }}
+                          >
+                            <LuMinus />
+                          </IconButton>
+                        )}
                       </Flex>
-                      {!isReadOnly && (
-                        <IconButton
-                          size="xs"
-                          variant="ghost"
-                          colorPalette="gray"
-                          aria-label={`${pos.positionName}を削除`}
-                          onClick={() => onDeletePosition(pos.id)}
-                          _hover={{ color: "red.500" }}
-                        >
-                          <LuMinus />
-                        </IconButton>
-                      )}
-                    </Flex>
-                  ))}
+                    ))}
                 </Box>
               )}
 

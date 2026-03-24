@@ -11,10 +11,8 @@ type StaffType = {
   email: string;
   displayName: string;
   status: string;
-  maxWeeklyHours: number | undefined;
   memo: string;
   workStyleNote: string;
-  hourlyWage: number | null;
   resignedAt: number | undefined;
   resignationReason: string | undefined;
   createdAt: number;
@@ -158,10 +156,8 @@ export const StaffEditForm = ({
       email: staff.email,
       displayName: staff.displayName,
       skills: convertSkillsArrayToObject(positions, staffSkills),
-      maxWeeklyHours: staff.maxWeeklyHours ?? "",
       memo: staff.memo ?? "",
       workStyleNote: staff.workStyleNote ?? "",
-      hourlyWage: staff.hourlyWage ?? "",
     },
   });
 
@@ -189,48 +185,6 @@ export const StaffEditForm = ({
                 <Field.Label>表示名</Field.Label>
                 <Input {...register("displayName")} placeholder="表示名を入力" />
                 <Field.ErrorText>{errors.displayName?.message}</Field.ErrorText>
-              </Field.Root>
-
-              {/* 週最大勤務時間 */}
-              <Field.Root invalid={!!errors.maxWeeklyHours}>
-                <Field.Label>週最大勤務時間</Field.Label>
-                <Controller
-                  control={control}
-                  name="maxWeeklyHours"
-                  render={({ field }) => (
-                    <Input
-                      type="number"
-                      placeholder="例: 40"
-                      value={field.value === "" || field.value === null ? "" : field.value}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        field.onChange(value === "" ? "" : Number(value));
-                      }}
-                    />
-                  )}
-                />
-                <Field.ErrorText>{errors.maxWeeklyHours?.message}</Field.ErrorText>
-              </Field.Root>
-
-              {/* 時給 */}
-              <Field.Root invalid={!!errors.hourlyWage}>
-                <Field.Label>時給</Field.Label>
-                <Controller
-                  control={control}
-                  name="hourlyWage"
-                  render={({ field }) => (
-                    <Input
-                      type="number"
-                      placeholder="例: 1200"
-                      value={field.value === "" || field.value === null ? "" : field.value}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        field.onChange(value === "" ? "" : Number(value));
-                      }}
-                    />
-                  )}
-                />
-                <Field.ErrorText>{errors.hourlyWage?.message}</Field.ErrorText>
               </Field.Root>
             </VStack>
           </Card.Body>

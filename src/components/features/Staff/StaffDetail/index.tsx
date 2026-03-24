@@ -12,10 +12,8 @@ type StaffType = {
   email: string;
   displayName: string;
   status: string;
-  maxWeeklyHours: number | undefined;
   memo: string;
   workStyleNote: string;
-  hourlyWage: number | null;
   resignedAt: number | undefined;
   resignationReason: string | undefined;
   createdAt: number;

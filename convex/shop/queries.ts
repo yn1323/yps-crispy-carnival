@@ -84,7 +84,6 @@ export const listStaffs = query({
       displayName: staff.displayName,
       status: staff.status,
       skills: staff.skills ?? [],
-      maxWeeklyHours: staff.maxWeeklyHours,
       createdAt: staff.createdAt,
       isManager: staff.role === "manager" || staff.role === "owner",
     }));
@@ -112,10 +111,8 @@ export const getStaffInfo = query({
       displayName: staff.displayName,
       status: staff.status,
       skills: staff.skills ?? [],
-      maxWeeklyHours: staff.maxWeeklyHours,
       memo: staff.memo ?? "",
       workStyleNote: staff.workStyleNote ?? "",
-      hourlyWage: staff.hourlyWage ?? null,
       resignedAt: staff.resignedAt,
       resignationReason: staff.resignationReason,
       createdAt: staff.createdAt,

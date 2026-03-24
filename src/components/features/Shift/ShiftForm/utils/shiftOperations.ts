@@ -414,6 +414,29 @@ export const mergeAdjacentPositions = (positions: PositionSegment[]): PositionSe
   return merged;
 };
 
+// ポジション間のギャップを休憩として計算（UI表示専用、DB保存しない）
+// 最初のstartから最後のendの間のみ対象（出勤前・退勤後は対象外）
+export const computeVisualBreaks = (positions: PositionSegment[]): { start: string; end: string }[] => {
+  if (positions.length <= 1) return [];
+
+  const sorted = [...positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+  const breaks: { start: string; end: string }[] = [];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prevEnd = timeToMinutes(sorted[i - 1].end);
+    const currentStart = timeToMinutes(sorted[i].start);
+
+    if (currentStart > prevEnd) {
+      breaks.push({
+        start: minutesToTime(prevEnd),
+        end: minutesToTime(currentStart),
+      });
+    }
+  }
+
+  return breaks;
+};
+
 // バー間の空白を休憩で埋める（端は埋めない）
 export const fillGapsWithBreak = (params: {
   positions: PositionSegment[];

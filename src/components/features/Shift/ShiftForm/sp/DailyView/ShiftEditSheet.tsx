@@ -1,4 +1,4 @@
-import { Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useCallback, useMemo, useState } from "react";
 import { LuPlus, LuTrash2, LuX } from "react-icons/lu";
@@ -72,12 +72,9 @@ export const ShiftEditSheet = ({
 
   const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
 
-  // 希望時間テキスト
-  const requestLabel = (() => {
-    if (!staff.isSubmitted) return "未提出";
-    if (!shift?.requestedTime) return "希望: なし";
-    return `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`;
-  })();
+  const requestLabel = shift?.requestedTime
+    ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
+    : "希望: なし";
 
   // 現在のshift（なければ空で作る）
   const currentShift: ShiftData = shift ?? {
@@ -151,9 +148,16 @@ export const ShiftEditSheet = ({
     <BottomSheet title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange}>
       <VStack gap={4} align="stretch">
         {/* 希望時間 */}
-        <Text fontSize="sm" color="gray.600">
-          {requestLabel}
-        </Text>
+        <Flex align="center" gap={2}>
+          <Text fontSize="sm" color="gray.600">
+            {requestLabel}
+          </Text>
+          {!staff.isSubmitted && (
+            <Badge colorPalette="orange" size="sm">
+              未提出
+            </Badge>
+          )}
+        </Flex>
 
         {/* 割当ポジション一覧 */}
         {visibleSegments.length > 0 && (

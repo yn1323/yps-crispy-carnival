@@ -46,8 +46,6 @@ const staffs = defineTable({
       }),
     ),
   ),
-  maxWeeklyHours: v.optional(v.number()),
-
   // 招待トークン（マネージャー招待用）
   inviteToken: v.optional(v.string()),
   inviteExpiresAt: v.optional(v.number()),
@@ -60,7 +58,6 @@ const staffs = defineTable({
   // スタッフメモ（管理者用）
   memo: v.optional(v.string()),
   workStyleNote: v.optional(v.string()), // AIシフト作成用
-  hourlyWage: v.optional(v.number()),
 
   // メタ
   createdAt: v.number(),
@@ -105,6 +102,18 @@ const requiredStaffing = defineTable({
       requiredCount: v.number(),
     }),
   ),
+  // ピーク帯定義（簡易入力モード）
+  peakBands: v.optional(
+    v.array(
+      v.object({
+        startTime: v.string(), // "11:00"
+        endTime: v.string(), // "14:00"
+        requiredCount: v.number(), // 必要人数
+      }),
+    ),
+  ),
+  // 最低人員（常時必要な最低人数）
+  minimumStaff: v.optional(v.number()),
   // AI生成時の入力情報（作り直し用）
   aiInput: v.optional(
     v.object({

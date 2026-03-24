@@ -33,7 +33,7 @@ convex-seeds/backup
 
 .serena
 
-.claude/settings.local.json
+settings.local.json
 .mcp.json
 CLAUDE.local.md
 

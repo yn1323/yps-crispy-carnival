@@ -26,16 +26,34 @@ pnpm convex:dev       # Convex開発サーバー
 ### 単一テスト実行
 
 ```bash
-pnpm vitest --project=logic src/path/to/file.test.ts    # 特定ファイル
+pnpm vitest --project=logic src/path/to/file.test.ts    # 特定ロジックテスト
 pnpm vitest --project=logic -t "テスト名"                # 特定テスト名
+pnpm vitest --project=ui                                 # UIテスト（Storybook必須）
 pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 ```
+
+- `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
+- `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
+
+## 実装のルール
+- フロントエンドのReactコンポーネントを適宜分割すること
+- 実装完了後、`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
+- 上記完了後、`/simplify`を実行してリファクタを行うこと
+
+## 仕様の相談
+- ユーザーの意見に批判的・懐疑的になってください
+- よりよい意見をプロの観点からアドバイスしてください
+
+### 環境変数
+
+- `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク
+- `pnpm convex:env:setup`で環境変数を同期
 
 ## アーキテクチャ
 
 ### 技術スタック
 
-React 19 / Vite / TanStack Router / Chakra UI v3 / React Hook Form + Zod / Jotai / Clerk(認証) / Convex(BaaS) / Biome(lint/format)
+React 19 / Vite 7 / TanStack Router / Chakra UI v3 / React Hook Form + Zod 4 / Jotai / Clerk(認証) / Convex(BaaS) / Biome(lint/format)
 
 ### レイヤー構造とデータフロー
 
@@ -49,7 +67,7 @@ features/     → ドメインロジック、useMutation、UI組成
 convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / policies.ts(権限判定)
 ```
 
-- **routes/**: TanStack Routerのファイルベースルーティング。ページコンポーネントの呼び出し**のみ**
+- **routes/**: TanStack Routerのファイルベースルーティング。ページコンポーネントの呼び出し**のみ**。`_auth/`（Clerk認証必須）と`_unregistered/`（ゲスト）でレイアウト分離
 - **pages/**: `useQuery`でデータ取得し、エラー/ローディング/正常系を振り分け。正常系のみfeaturesを呼ぶ
 - **features/**: ドメイン別ディレクトリ（Shop, Shift, Staff等）。`useMutation`はここで定義
 - **ui/**: 汎用UIコンポーネント（FormCard, BottomSheet等）。Select, DialogなどChakra UIのラッパーもここに配置
@@ -92,7 +110,7 @@ import { bar } from "@/convex/...";
 
 ### バリデーション
 
-- Zodスキーマ + カスタムエラーマップ（日本語メッセージ）
+- Zod v4スキーマ + カスタムエラーマップ（日本語メッセージ）
 - カスタムバリデータ: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
 
 ### Storybook
@@ -103,12 +121,18 @@ import { bar } from "@/convex/...";
 
 ## デザイン
 
-- `design.pen`: UIデザインファイル。Pencil MCPツール経由で読み書きする（`Read`や`Grep`では読めない）
+- `doc/design/`: デザインファイル格納ディレクトリ。`.pen`ファイルはPencil MCPツール経由で読み書きする（`Read`や`Grep`では読めない）
 - デザイン確認・編集には `batch_get`、`batch_design`、`get_screenshot` 等のPencil MCPツールを使用
+- `doc/design/INDEX.md`: .penファイルのフレームIDインデックス。参照時はまずここのIDで `batch_get(nodeIds=[...])` を使い、IDが無効な場合は `batch_get(patterns=[{name: "..."}])` でフォールバックする
+- デザインフレームを追加・削除した際は `doc/design/INDEX.md` のIDを更新すること
 
 ## コーディング
 
 - `pnpm lint`, `pnpm type-check`を必ず実行すること
+- 以下の自動生成ファイルは絶対に手動で編集しないこと（各ツールが自動再生成する）
+  - `convex/_generated/` — Convex CLIが生成（`pnpm convex:dev`）
+  - `src/routeTree.gen.ts` — TanStack Routerが生成（`pnpm dev`）
+  - `pnpm-lock.yaml` — pnpmが管理
 
 ## プラン
 
@@ -118,7 +142,14 @@ import { bar } from "@/convex/...";
 
 - `doc/ARCHITECTURE.md`: 全体構造、機能→ファイルマッピング、データフロー
 - `doc/INDEX.md`: 機能仕様ドキュメントのインデックス
-- `doc/features/`: 各機能の仕様
+- `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
 - `doc/plans/`: 実装計画
 - `doc/claude/soul.md`: 設計判断の指針
 - `convex/CLAUDE.md`: Convexアーキテクチャの詳細
+
+### ドキュメント運用ルール
+
+- 新機能を実装したら `doc/features/` に概要ドキュメントを作成・更新する
+- 機能概要には: 機能説明（1-2文）、関連ファイルパス、画面一覧、API一覧を含める
+- 詳細な仕様・ロジックはコードに書く（ドキュメントとコードの二重管理を避ける）
+- `doc/INDEX.md` に新規ドキュメントへのリンクを追加する

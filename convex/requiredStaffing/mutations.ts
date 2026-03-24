@@ -7,7 +7,7 @@
  */
 import { ConvexError, v } from "convex/values";
 import { mutation } from "../_generated/server";
-import { requireShop } from "../helpers";
+import { isValidTimeFormat, requireShop } from "../helpers";
 
 // 必要人員設定を保存・更新（曜日単位）
 export const upsert = mutation({
@@ -102,6 +102,8 @@ export const copyToMultipleDays = mutation({
       if (existing) {
         await ctx.db.patch(existing._id, {
           staffing: source.staffing,
+          peakBands: source.peakBands,
+          minimumStaff: source.minimumStaff,
           updatedAt: now,
         });
         results.push({ dayOfWeek: targetDay, id: existing._id });
@@ -110,6 +112,8 @@ export const copyToMultipleDays = mutation({
           shopId: args.shopId,
           dayOfWeek: targetDay,
           staffing: source.staffing,
+          peakBands: source.peakBands,
+          minimumStaff: source.minimumStaff,
           aiInput: source.aiInput,
           createdAt: now,
           updatedAt: now,
@@ -119,6 +123,70 @@ export const copyToMultipleDays = mutation({
     }
 
     return { success: true, copiedDays: results };
+  },
+});
+
+// ピーク帯設定を保存・更新（曜日単位）
+export const upsertPeakBands = mutation({
+  args: {
+    shopId: v.id("shops"),
+    dayOfWeek: v.number(),
+    peakBands: v.array(
+      v.object({
+        startTime: v.string(),
+        endTime: v.string(),
+        requiredCount: v.number(),
+      }),
+    ),
+    minimumStaff: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireShop(ctx, args.shopId);
+
+    if (args.dayOfWeek < 0 || args.dayOfWeek > 7) {
+      throw new ConvexError({ message: "曜日の値が不正です", code: "INVALID_DAY_OF_WEEK" });
+    }
+
+    for (const band of args.peakBands) {
+      if (band.requiredCount < 1) {
+        throw new ConvexError({ message: "必要人数は1以上を指定してください", code: "INVALID_REQUIRED_COUNT" });
+      }
+      if (!isValidTimeFormat(band.startTime) || !isValidTimeFormat(band.endTime)) {
+        throw new ConvexError({ message: "時刻の形式が不正です", code: "INVALID_TIME_FORMAT" });
+      }
+      if (band.startTime >= band.endTime) {
+        throw new ConvexError({ message: "終了時刻は開始時刻より後にしてください", code: "INVALID_TIME_RANGE" });
+      }
+    }
+
+    const existing = await ctx.db
+      .query("requiredStaffing")
+      .withIndex("by_shop", (q) => q.eq("shopId", args.shopId))
+      .collect()
+      .then((list) => list.find((s) => s.dayOfWeek === args.dayOfWeek));
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        peakBands: args.peakBands,
+        minimumStaff: args.minimumStaff,
+        updatedAt: now,
+      });
+      return { success: true, id: existing._id, isNew: false };
+    }
+
+    const id = await ctx.db.insert("requiredStaffing", {
+      shopId: args.shopId,
+      dayOfWeek: args.dayOfWeek,
+      staffing: [],
+      peakBands: args.peakBands,
+      minimumStaff: args.minimumStaff,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { success: true, id, isNew: true };
   },
 });
 
