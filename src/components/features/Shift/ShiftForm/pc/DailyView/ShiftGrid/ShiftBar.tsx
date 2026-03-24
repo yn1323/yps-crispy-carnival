@@ -1,5 +1,6 @@
 import { Box, Text } from "@chakra-ui/react";
 import type { LinkedResizeTarget, ShiftData, TimeRange } from "../../../types";
+import { computeVisualBreaks } from "../../../utils/shiftOperations";
 import { minutesToPixel, timeToMinutes } from "../../../utils/timeConversion";
 
 type ShiftBarProps = {
@@ -174,6 +175,33 @@ export const ShiftBar = ({
           );
         });
       })()}
+
+      {/* ビジュアル休憩バー（ポジション間のギャップをストライプ表示） */}
+      {shift.positions.length >= 2 &&
+        !linkedTarget &&
+        computeVisualBreaks(shift.positions).map((gap) => {
+          const gapStartPx = minutesToPixel(timeToMinutes(gap.start), timeRange);
+          const gapEndPx = minutesToPixel(timeToMinutes(gap.end), timeRange);
+          const relativeLeft = gapStartPx - barLeft;
+          const relativeWidth = gapEndPx - gapStartPx;
+
+          return (
+            <Box
+              key={`break-${gap.start}-${gap.end}`}
+              position="absolute"
+              left={`${relativeLeft}px`}
+              width={`${relativeWidth}px`}
+              height="20px"
+              backgroundImage="repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 4px, transparent 4px, transparent 8px)"
+              borderRadius="0"
+              top="50%"
+              transform="translateY(-50%)"
+              opacity={0.5}
+              pointerEvents="none"
+              zIndex={2}
+            />
+          );
+        })}
 
       {/* 時刻ラベル（ポジションがある場合のみ表示、リサイズ中は非表示） */}
       {shift.positions.length > 0 &&
