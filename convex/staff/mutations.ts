@@ -24,7 +24,6 @@ export const addStaff = mutation({
         }),
       ),
     ),
-    maxWeeklyHours: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireShop(ctx, args.shopId);
@@ -54,7 +53,6 @@ export const addStaff = mutation({
       displayName: trimmedDisplayName,
       status: "active",
       skills, // 後方互換のため残す
-      maxWeeklyHours: args.maxWeeklyHours,
       invitedBy: args.authId,
       createdAt: Date.now(),
       isDeleted: false,
@@ -113,10 +111,8 @@ export const updateStaffInfo = mutation({
         }),
       ),
     ),
-    maxWeeklyHours: v.optional(v.union(v.number(), v.null())),
     memo: v.optional(v.string()),
     workStyleNote: v.optional(v.string()),
-    hourlyWage: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const staff = await getStaff(ctx, args.staffId);
@@ -127,10 +123,8 @@ export const updateStaffInfo = mutation({
     const fieldsToUpdate: Partial<{
       email: string;
       displayName: string;
-      maxWeeklyHours: number | undefined;
       memo: string;
       workStyleNote: string;
-      hourlyWage: number | undefined;
     }> = {};
 
     if (args.email !== undefined) {
@@ -139,17 +133,11 @@ export const updateStaffInfo = mutation({
     if (args.displayName !== undefined) {
       fieldsToUpdate.displayName = args.displayName.trim();
     }
-    if (args.maxWeeklyHours !== undefined) {
-      fieldsToUpdate.maxWeeklyHours = args.maxWeeklyHours ?? undefined;
-    }
     if (args.memo !== undefined) {
       fieldsToUpdate.memo = args.memo;
     }
     if (args.workStyleNote !== undefined) {
       fieldsToUpdate.workStyleNote = args.workStyleNote;
-    }
-    if (args.hourlyWage !== undefined) {
-      fieldsToUpdate.hourlyWage = args.hourlyWage ?? undefined;
     }
 
     // スキルの更新（staffSkillsテーブル）
