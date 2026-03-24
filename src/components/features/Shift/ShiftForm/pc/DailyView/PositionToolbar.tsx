@@ -9,7 +9,7 @@ type PositionToolbarProps = {
 
 export const PositionToolbar = ({ positions, selectedPositionId, onPositionSelect }: PositionToolbarProps) => {
   return (
-    <Box border="1px solid" borderColor="gray.200" borderRadius="lg" p={3}>
+    <Box bg="gray.50" borderRadius="lg" py={3}>
       <Flex gap={4} align="flex-start" flexWrap="wrap">
         <Box flex={1}>
           <Text fontSize="xs" color="gray.500" mb={1}>

@@ -10,7 +10,7 @@ import { MonthSummaryCell } from "./MonthSummaryCell";
  * 未提出スタッフは薄い赤背景で強調
  */
 const getDateCellBg = (date: string, holidays: string[], isUnsubmitted: boolean, hasShift: boolean) => {
-  if (isUnsubmitted && !hasShift) return "red.50";
+  if (isUnsubmitted && !hasShift) return "gray.50";
   if (isSunday(date) || isHoliday(date, holidays)) return "red.50";
   if (isSaturday(date)) return "blue.50";
   return "white";
@@ -25,7 +25,7 @@ const getDateCellBg = (date: string, holidays: string[], isUnsubmitted: boolean,
 const getShiftCellDisplay = (shift: DailyShift | null | undefined, isSubmitted: boolean) => {
   if (!isSubmitted) {
     if (shift) return { label: `${shift.start}-${shift.end}`, color: "orange.400" };
-    return { label: "未", color: "orange.400" };
+    return { label: "-", color: "gray.300" };
   }
   if (shift) return { label: `${shift.start}-${shift.end}`, color: "gray.800" };
   return { label: "休", color: "gray.400" };
@@ -43,7 +43,7 @@ export const StaffRow = ({
   const { staffId, staffName, isSubmitted, dailyShifts, monthlyTotals, alerts } = data;
   const isUnsubmitted = !isSubmitted;
 
-  const staffCellBg = isHighlighted ? "blue.50" : isUnsubmitted ? "red.50" : "white";
+  const staffCellBg = isHighlighted ? "blue.50" : "white";
 
   return (
     <Table.Row
@@ -71,7 +71,7 @@ export const StaffRow = ({
           w="full"
           h="full"
           cursor={onStaffClick ? "pointer" : "default"}
-          _hover={onStaffClick ? { bg: isUnsubmitted ? "red.100" : "gray.100" } : undefined}
+          _hover={onStaffClick ? { bg: "gray.100" } : undefined}
           transition="all 0.15s"
           borderRadius="sm"
           px={1}
@@ -104,7 +104,7 @@ export const StaffRow = ({
             borderRight="1px solid"
             borderColor="gray.200"
             cursor={onDateClick ? "pointer" : "default"}
-            _hover={onDateClick ? { bg: isUnsubmitted ? "red.100" : "gray.100" } : undefined}
+            _hover={onDateClick ? { bg: "gray.100" } : undefined}
             transition="all 0.15s"
             onClick={() => onDateClick?.(date)}
           >

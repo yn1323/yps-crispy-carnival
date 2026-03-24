@@ -176,17 +176,22 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
 
   return (
     <Box ref={tableContainerRef} flex={1} minHeight={0} overflowX="auto" overflowY="auto">
-      {/* 空状態ガイド */}
-      {!isReadOnly && !hasAnyPositions && (
+      {/* 空状態ガイド（レイアウトシフト防止のため常にレンダリング） */}
+      {!isReadOnly && (
         <Flex
           bg="blue.50"
           borderBottom="1px solid"
           borderColor="blue.100"
           px={4}
-          py={3}
+          py={hasAnyPositions ? 0 : 3}
           gap={4}
           align="center"
           flexShrink={0}
+          overflow="hidden"
+          maxHeight={hasAnyPositions ? "0px" : "48px"}
+          opacity={hasAnyPositions ? 0 : 1}
+          transition="all 0.2s ease"
+          borderBottomWidth={hasAnyPositions ? "0px" : "1px"}
         >
           <Icon as={LuInfo} color="blue.500" boxSize={5} flexShrink={0} />
           <Flex gap={4} align="center" flexWrap="wrap">

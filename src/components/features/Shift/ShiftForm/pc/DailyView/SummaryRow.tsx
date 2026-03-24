@@ -47,8 +47,11 @@ const generateTimeSlots = (timeRange: TimeRange): string[] => {
   return slots;
 };
 
+const UNASSIGNED_COLOR = { bg: "hsl(0, 0%, 85%)", text: "hsl(0, 0%, 55%)" } as const;
+
 const getFillRateColor = (count: number, required: number) => {
   if (required === 0) return FILL_RATE_COLORS[4];
+  if (count === 0) return UNASSIGNED_COLOR;
   const ratio = count / required;
   if (ratio > 1) return FILL_RATE_COLORS[5];
   if (ratio > 0.8) return FILL_RATE_COLORS[4];
