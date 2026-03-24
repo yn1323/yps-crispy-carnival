@@ -238,7 +238,7 @@ export const useDrag = (): UseDragReturn => {
           return "ew-resize";
         }
         if (dragState.mode === "paint") {
-          return "crosshair";
+          return "default";
         }
         return "default";
       }
@@ -258,7 +258,7 @@ export const useDrag = (): UseDragReturn => {
 
       // ポジション選択中
       if (selectedPosition) {
-        return "crosshair";
+        return "default";
       }
 
       return "default";
