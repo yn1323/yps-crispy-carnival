@@ -1,94 +1,40 @@
-# Convex アーキテクチャ設計方針
+# Convex アーキテクチャ規約
 
-## 設計名
-**Feature Slices + CQRS + Policy Pattern**
+## 設計方針
+
+**Use-Case Slices + CQRS** — ユースケース（画面/機能）単位でディレクトリを分割し、読み取り（queries）と書き込み（mutations）を分離する。
 
 ## ディレクトリ構造
 
 ```
 convex/
-├── shop/                    # ドメイン単位でディレクトリ
-│   ├── queries.ts           # 読み取り操作
-│   ├── mutations.ts         # 書き込み操作
-│   └── policies.ts          # ロール判定ロジック
+├── {useCase}/              # ユースケース単位のディレクトリ
+│   ├── queries.ts          # 読み取り（query）
+│   ├── mutations.ts        # 書き込み（mutation）
+│   └── actions.ts          # 外部API呼び出し（internalAction）
 │
-├── user/
-│   ├── queries.ts
-│   ├── mutations.ts
-│   └── policies.ts
-│
-├── invite/
-│   ├── queries.ts
-│   ├── mutations.ts
-│   └── policies.ts
-│
-├── helpers.ts               # 全ドメイン共通ヘルパー
-├── constants.ts             # 全ドメイン共通定数
-└── schema.ts                # DBスキーマ
+├── _lib/                   # 共通ユーティリティ
+├── constants.ts            # グローバル定数・型定義
+├── schema.ts               # DBスキーマ
+├── auth.config.ts          # Clerk認証設定
+└── _generated/             # 自動生成（編集禁止）
 ```
 
-## 各ファイルの責務
+## ファイル配置ルール
 
-| ファイル | 責務 | 特徴 |
-|----------|------|------|
-| **queries.ts** | データ取得 | 副作用なし、policiesで表示フィルタリング |
-| **mutations.ts** | データ変更 | 副作用あり、policiesで操作可否判定 |
-| **policies.ts** | 権限判定 | 純粋関数、テスト容易、ドメイン知識集約 |
-| **helpers.ts** | DB操作共通処理 | `getUserByAuthId`, `requireShop`等 |
+| コードの種類 | 配置先 |
+|------------|--------|
+| 特定画面/機能のAPI | そのユースケースの `queries.ts` / `mutations.ts` |
+| 外部APIを呼ぶ処理 | そのユースケースの `actions.ts`（`internalAction`） |
+| 複数ユースケースの共通処理 | `_lib/` |
+| 定数・型定義 | `constants.ts` |
 
-## policies.tsの設計原則
+**判断基準**: 「この API は誰が、どの画面で使うか？」で決める。DBテーブルではなくユースケースに紐付ける。
 
-```ts
-// ✅ 純粋関数（DBアクセスなし）
-export const canResignUser = (
-  executorRole: ShopUserRoleType | null,
-  targetRole: ShopUserRoleType,
-) => {
-  if (!executorRole) return false;
-  if (targetRole === "owner") return false;
-  if (executorRole === "manager" && targetRole === "manager") return false;
-  return executorRole === "owner" || executorRole === "manager";
-};
+## Convex 固有の注意事項
 
-// ✅ 命名規則: can〜 / is〜
-canViewResignedUsers()
-canUpdateShop()
-canManageInvitation()
-```
-
-## API呼び出し規則
-
-```ts
-// フロントエンド
-api.shop.queries.getById        // 読み取り
-api.shop.mutations.create       // 書き込み
-
-api.user.queries.getByAuthId
-api.user.mutations.update
-
-api.invite.queries.getByToken
-api.invite.mutations.accept
-```
-
-## データフロー
-
-```
-[Frontend]
-    ↓ useQuery / useMutation
-[queries.ts / mutations.ts]
-    ↓ 権限判定
-[policies.ts] ← 純粋関数で判定
-    ↓ DB操作
-[helpers.ts] ← 共通処理
-    ↓
-[Convex DB]
-```
-
-## 設計原則まとめ
-
-| 原則 | 内容 |
-|------|------|
-| **Feature Slices** | ドメイン単位でディレクトリ分割 |
-| **CQRS** | 読み取り(queries)と書き込み(mutations)を分離 |
-| **Policy Pattern** | 権限判定を純粋関数として集約 |
-| **コロケーション** | 関連コードは同じディレクトリに配置 |
+- `_` プレフィクスのディレクトリ（`_lib/` 等）はConvexがAPIとして公開しない
+- `_generated/` は Convex CLI が自動生成するため手動編集禁止
+- `actions.ts` は `internalAction` で定義し、`mutations` から `ctx.scheduler` 経由で呼び出す
+- queries のエラーは `null` or `{ error }` を返す（throwしない）。mutations のエラーは `ConvexError` をthrow
+- 論理削除は `isDeleted` フラグを使用。クエリでは常にフィルタリングする
