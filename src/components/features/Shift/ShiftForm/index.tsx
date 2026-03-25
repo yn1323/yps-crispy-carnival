@@ -3,11 +3,10 @@ import { Provider, useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
-import { PositionToolbar } from "./pc/DailyView/PositionToolbar";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
-import { selectedPositionIdAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "./stores";
+import { shiftsAtom, viewModeAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
 
 const VIEW_OPTIONS = [
@@ -77,12 +76,8 @@ const ShiftFormInner = ({
   }, [shifts]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
-  const config = useAtomValue(shiftConfigAtom);
-  const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
 
   const showViewSwitcher = !hideViewSwitcher;
-  const showPositionButtons = !config.isReadOnly && viewMode === "daily";
-  const showToolbar = showViewSwitcher || showPositionButtons;
 
   return (
     <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }}>
@@ -98,8 +93,8 @@ const ShiftFormInner = ({
         </Box>
       )}
 
-      {/* PC ツールバー: ビュー切替 + ポジション */}
-      {showToolbar && (
+      {/* PC ツールバー: ビュー切替 */}
+      {showViewSwitcher && (
         <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0}>
           <Flex
             bg="white"
@@ -112,19 +107,10 @@ const ShiftFormInner = ({
             gap={4}
             height="60px"
           >
-            {showViewSwitcher && (
-              <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
-                <SegmentGroup.Indicator />
-                <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
-              </SegmentGroup.Root>
-            )}
-            {showPositionButtons && (
-              <PositionToolbar
-                positions={config.positions}
-                selectedPositionId={selectedPositionId}
-                onPositionSelect={setSelectedPositionId}
-              />
-            )}
+            <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+              <SegmentGroup.Indicator />
+              <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
+            </SegmentGroup.Root>
           </Flex>
         </Box>
       )}

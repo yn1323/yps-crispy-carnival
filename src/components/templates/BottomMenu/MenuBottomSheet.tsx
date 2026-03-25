@@ -1,21 +1,11 @@
 import { Box, Dialog as ChakraDialog, Flex, Icon, Portal, Text, VStack } from "@chakra-ui/react";
 import { useClerk } from "@clerk/clerk-react";
-import { Link } from "@tanstack/react-router";
-import { LuChevronRight, LuLogOut, LuSettings, LuX } from "react-icons/lu";
-import { ShopSelector } from "@/src/components/features/Shop/ShopSelector";
-
-type Shop = {
-  _id: string;
-  shopName: string;
-};
+import { LuLogOut, LuX } from "react-icons/lu";
 
 type MenuBottomSheetProps = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
-  shops: Shop[];
-  selectedShopId: string | null;
-  onShopChange: (shop: { shopId: string; shopName: string }) => void;
 };
 
 const MenuItem = ({
@@ -23,13 +13,11 @@ const MenuItem = ({
   label,
   onClick,
   color = "gray.800",
-  showArrow = true,
 }: {
   icon: React.ElementType;
   label: string;
   onClick?: () => void;
   color?: string;
-  showArrow?: boolean;
 }) => (
   <Flex
     as="button"
@@ -48,27 +36,15 @@ const MenuItem = ({
     <Text ml={4} flex={1} textAlign="left" fontWeight="medium">
       {label}
     </Text>
-    {showArrow && <Icon as={LuChevronRight} boxSize={5} color="gray.400" />}
   </Flex>
 );
 
-export const MenuBottomSheet = ({
-  isOpen,
-  onOpenChange,
-  onClose,
-  shops,
-  selectedShopId,
-  onShopChange,
-}: MenuBottomSheetProps) => {
+export const MenuBottomSheet = ({ isOpen, onOpenChange, onClose }: MenuBottomSheetProps) => {
   const { signOut } = useClerk();
 
   const handleSignOut = () => {
-    signOut();
-  };
-
-  const handleShopChange = (shop: { shopId: string; shopName: string }) => {
-    onShopChange(shop);
     onClose();
+    signOut();
   };
 
   return (
@@ -116,52 +92,9 @@ export const MenuBottomSheet = ({
             {/* Content */}
             <Box flex={1} overflowY="auto" bg="gray.50">
               <VStack align="stretch" gap={4} py={4}>
-                {/* 店舗セクション */}
-                <Box bg="gray.100">
-                  <Box px={5} py={3}>
-                    <Text fontSize="xs" fontWeight="medium" color="gray.500" mb={3}>
-                      現在の店舗
-                    </Text>
-                    <ShopSelector
-                      shops={shops}
-                      selectedShopId={selectedShopId}
-                      onShopChange={handleShopChange}
-                      usePortal={false}
-                    />
-                    <Link to="/shops" onClick={onClose}>
-                      <Text
-                        fontSize="xs"
-                        color="teal.600"
-                        mt={3}
-                        _hover={{ textDecoration: "underline" }}
-                        cursor="pointer"
-                        transition="all 0.15s"
-                      >
-                        店舗一覧を見る
-                      </Text>
-                    </Link>
-                  </Box>
-                </Box>
-
-                {/* アカウントセクション */}
-                <Box bg="white">
-                  <Text fontSize="xs" fontWeight="medium" color="gray.500" px={5} py={3}>
-                    アカウント
-                  </Text>
-                  <Link to="/settings" onClick={onClose} style={{ display: "block" }}>
-                    <MenuItem icon={LuSettings} label="設定" />
-                  </Link>
-                </Box>
-
                 {/* ログアウト */}
                 <Box bg="white">
-                  <MenuItem
-                    icon={LuLogOut}
-                    label="ログアウト"
-                    color="red.500"
-                    showArrow={false}
-                    onClick={handleSignOut}
-                  />
+                  <MenuItem icon={LuLogOut} label="ログアウト" color="red.500" onClick={handleSignOut} />
                 </Box>
               </VStack>
             </Box>
