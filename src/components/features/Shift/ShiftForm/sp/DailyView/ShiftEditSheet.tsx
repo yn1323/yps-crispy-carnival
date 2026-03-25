@@ -5,6 +5,7 @@ import { LuPlus, LuTrash2, LuX } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
+import { DEFAULT_POSITION } from "../../constants";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "../../types";
 import { normalizePositions, paintPosition } from "../../utils/shiftOperations";
 import { minutesToTime, timeToMinutes } from "../../utils/timeConversion";
@@ -58,15 +59,10 @@ export const ShiftEditSheet = ({
 }: ShiftEditSheetProps) => {
   const timeOptions = useMemo(() => generateTimeOptions(timeRange), [timeRange]);
   const breakPosition = useMemo(() => findBreakPosition(positions), [positions]);
-  const positionOptions = useMemo(
-    () => positions.filter((p) => p.name !== "休憩").map((p) => ({ value: p.id, label: p.name })),
-    [positions],
-  );
 
   // 追加用のローカルstate
   const defaultStart = minutesToTime(timeRange.start * 60);
   const defaultEnd = minutesToTime(timeRange.start * 60 + timeRange.unit);
-  const [addPositionId, setAddPositionId] = useState(positionOptions[0]?.value ?? "");
   const [addStart, setAddStart] = useState(defaultStart);
   const [addEnd, setAddEnd] = useState(defaultEnd);
 
@@ -115,34 +111,31 @@ export const ShiftEditSheet = ({
     [currentShift, breakPosition, onShiftUpdate],
   );
 
-  // ポジション追加
+  // ポジション追加（デフォルトポジションを使用）
   const handleAdd = useCallback(() => {
-    const pos = positions.find((p) => p.id === addPositionId);
-    if (!pos) return;
-
     const startMin = timeToMinutes(addStart);
     const endMin = timeToMinutes(addEnd);
     if (startMin >= endMin) return;
 
     const painted = paintPosition({
       shift: currentShift,
-      positionId: pos.id,
-      positionName: pos.name,
-      positionColor: pos.color,
+      positionId: DEFAULT_POSITION.id,
+      positionName: DEFAULT_POSITION.name,
+      positionColor: DEFAULT_POSITION.color,
       startMinutes: startMin,
       endMinutes: endMin,
       segmentId: `seg-${Date.now()}`,
     });
     const normalized = normalizePositions({ positions: painted.positions, breakPosition });
     onShiftUpdate({ ...painted, positions: normalized });
-  }, [currentShift, positions, addPositionId, addStart, addEnd, breakPosition, onShiftUpdate]);
+  }, [currentShift, addStart, addEnd, breakPosition, onShiftUpdate]);
 
   // 全削除
   const handleClearAll = useCallback(() => {
     onShiftDelete(staff.id);
   }, [staff.id, onShiftDelete]);
 
-  const canAdd = addPositionId && timeToMinutes(addStart) < timeToMinutes(addEnd);
+  const canAdd = timeToMinutes(addStart) < timeToMinutes(addEnd);
 
   return (
     <BottomSheet title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -206,52 +199,42 @@ export const ShiftEditSheet = ({
           </Box>
         )}
 
-        {/* ポジション追加 */}
+        {/* シフト追加 */}
         <Box borderTopWidth="1px" borderColor="gray.200" pt={3}>
           <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
-            ポジション追加
+            時間を追加
           </Text>
-          <VStack gap={2} align="stretch">
+          <HStack gap={2}>
             <Select
-              items={positionOptions}
-              value={addPositionId}
-              onChange={setAddPositionId}
+              items={getStartOptions(timeOptions, addEnd)}
+              value={addStart}
+              onChange={setAddStart}
               size="sm"
-              placeholder="ポジション"
+              w="120px"
               usePortal={false}
             />
-            <HStack gap={2}>
-              <Select
-                items={getStartOptions(timeOptions, addEnd)}
-                value={addStart}
-                onChange={setAddStart}
-                size="sm"
-                w="120px"
-                usePortal={false}
-              />
-              <Text fontSize="sm" color="gray.400">
-                -
-              </Text>
-              <Select
-                items={getEndOptions(timeOptions, addStart)}
-                value={addEnd}
-                onChange={setAddEnd}
-                size="sm"
-                w="120px"
-                usePortal={false}
-              />
-              <IconButton
-                aria-label="追加"
-                size="sm"
-                colorPalette="blue"
-                variant="solid"
-                onClick={handleAdd}
-                disabled={!canAdd}
-              >
-                <LuPlus />
-              </IconButton>
-            </HStack>
-          </VStack>
+            <Text fontSize="sm" color="gray.400">
+              -
+            </Text>
+            <Select
+              items={getEndOptions(timeOptions, addStart)}
+              value={addEnd}
+              onChange={setAddEnd}
+              size="sm"
+              w="120px"
+              usePortal={false}
+            />
+            <IconButton
+              aria-label="追加"
+              size="sm"
+              colorPalette="blue"
+              variant="solid"
+              onClick={handleAdd}
+              disabled={!canAdd}
+            >
+              <LuPlus />
+            </IconButton>
+          </HStack>
         </Box>
 
         {/* フッター */}
