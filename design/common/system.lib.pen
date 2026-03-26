@@ -4,9 +4,11 @@
     {
       "type": "frame",
       "id": "0Gmwl",
-      "x": 0,
-      "y": 0,
+      "x": -846,
+      "y": -119,
       "name": "Templates",
+      "width": 1407,
+      "height": 1533,
       "layout": "vertical",
       "gap": 20,
       "children": [
@@ -294,6 +296,17 @@
               ]
             }
           ]
+        },
+        {
+          "type": "frame",
+          "id": "qc9x6",
+          "name": "ContentWrapper",
+          "reusable": true,
+          "width": 1024,
+          "height": "fit_content(400)",
+          "layout": "vertical",
+          "gap": 32,
+          "padding": 32
         }
       ]
     },
