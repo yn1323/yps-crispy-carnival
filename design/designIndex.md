@@ -1,13 +1,23 @@
 # Design Index
 
+## dashboard.pen — ダッシュボード画面
+
+| ID | Name | Description |
+|---|---|---|
+| `RokyI` | Dashboard/Normal | 通常時（募集あり・スタッフ登録済） |
+| `Bieli` | Dashboard/Empty | 初回・空状態（募集なし・スタッフ未登録） |
+| `IdakJ` | Dashboard/CreateRecruitmentModal | 募集作成モーダル |
+| `1yq4G` | Dashboard/AddStaffModal | スタッフ追加モーダル |
+
 ## design.pen
 （画面デザイン）
 
-## common/system.pen - Reusable Components
+## common/system.lib.pen - Reusable Components
 
 ### Templates
 | ID | Name | Description |
 |---|---|---|
+| `mHVYK` | ContentWrapper | コンテンツ領域ラッパー（1024px、padding:32、gap:32） |
 | `E7Xz5` | TitleTemplate/PC | PC用ヘッダー（パンくずナビ） |
 | `cD5XT` | TitleTemplate/SP | SP用ヘッダー（戻るボタン+タイトル） |
 | `gwN4y` | SideMenu | 左固定サイドバー（ロゴ・メニュー・ログアウト） |
