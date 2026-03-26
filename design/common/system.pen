@@ -1,6 +1,960 @@
 {
   "version": "2.9",
-  "children": [],
+  "children": [
+    {
+      "type": "frame",
+      "id": "0Gmwl",
+      "x": 0,
+      "y": 0,
+      "name": "Templates",
+      "layout": "vertical",
+      "gap": 20,
+      "children": [
+        {
+          "type": "text",
+          "id": "bwfRx",
+          "name": "Section/Templates",
+          "fill": "$fg/default",
+          "content": "Templates",
+          "fontFamily": "Inter",
+          "fontSize": "$fontSize/2xl",
+          "fontWeight": "700"
+        },
+        {
+          "type": "frame",
+          "id": "E7Xz5",
+          "name": "TitleTemplate/PC",
+          "reusable": true,
+          "width": 480,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            16,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "ZI3Ul",
+              "name": "Breadcrumbs",
+              "width": "fill_container",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "7a562",
+                  "name": "BreadcrumbItem1",
+                  "fill": "$teal/solid",
+                  "content": "ホーム",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/sm",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "mc0ue",
+                  "name": "Separator",
+                  "fill": "$fg/subtle",
+                  "content": "/",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/sm",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "VjlWg",
+                  "name": "BreadcrumbItem2",
+                  "fill": "$fg/default",
+                  "content": "スタッフ管理",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "cD5XT",
+          "name": "TitleTemplate/SP",
+          "reusable": true,
+          "width": 320,
+          "gap": 8,
+          "padding": [
+            12,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "xlJeu",
+              "name": "BackIcon",
+              "width": 20,
+              "height": 20,
+              "iconFontName": "arrow-left",
+              "iconFontFamily": "lucide",
+              "fill": "$fg/default"
+            },
+            {
+              "type": "text",
+              "id": "bVXRZ",
+              "name": "Title",
+              "fill": "$fg/default",
+              "content": "ページタイトル",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/md",
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "gwN4y",
+          "name": "SideMenu",
+          "reusable": true,
+          "width": 256,
+          "height": 600,
+          "fill": "$bg/default",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "right": 1
+            },
+            "fill": "$border/default"
+          },
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "XpoJk",
+              "name": "Header",
+              "width": "fill_container",
+              "height": 56,
+              "fill": "$teal/solid",
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "igUK5",
+                  "name": "AppTitle",
+                  "fill": "$teal/contrast",
+                  "content": "シフト管理",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/lg",
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "or7Pp",
+              "name": "ContentSlot",
+              "slot": [],
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "padding": [
+                8,
+                0
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "NmtnG",
+                  "name": "MenuItem",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    12,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "31lWP",
+                      "name": "menuIcon1",
+                      "width": 20,
+                      "height": 20,
+                      "iconFontName": "calendar",
+                      "iconFontFamily": "lucide",
+                      "fill": "$fg/muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JjPSb",
+                      "name": "menuLabel1",
+                      "fill": "$fg/default",
+                      "content": "シフト一覧",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "TyiXj",
+              "name": "Separator",
+              "fill": "$border/default",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "YWuJq",
+              "name": "Footer",
+              "width": "fill_container",
+              "gap": 8,
+              "padding": [
+                12,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "eRQmD",
+                  "name": "logoutIcon",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "log-out",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                },
+                {
+                  "type": "text",
+                  "id": "vMF09",
+                  "name": "logoutLabel",
+                  "fill": "$fg/muted",
+                  "content": "ログアウト",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "YloJ8",
+          "name": "BottomMenu",
+          "reusable": true,
+          "width": 375,
+          "height": 60,
+          "fill": "$bg/default",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "top": 1
+            },
+            "fill": "$border/default"
+          },
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "30Omm",
+              "name": "MenuButton",
+              "layout": "vertical",
+              "gap": 2,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "0KZ5D",
+                  "name": "menuIcon",
+                  "width": 24,
+                  "height": 24,
+                  "iconFontName": "menu",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                },
+                {
+                  "type": "text",
+                  "id": "OrnNc",
+                  "name": "menuLabel",
+                  "fill": "$fg/muted",
+                  "content": "メニュー",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/2xs",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "O5E5S",
+      "x": 600,
+      "y": 0,
+      "name": "UI Components",
+      "layout": "vertical",
+      "gap": 20,
+      "children": [
+        {
+          "type": "text",
+          "id": "yNQLx",
+          "name": "Section/UI",
+          "fill": "$fg/default",
+          "content": "UI Components",
+          "fontFamily": "Inter",
+          "fontSize": "$fontSize/2xl",
+          "fontWeight": "700"
+        },
+        {
+          "type": "frame",
+          "id": "6nLI6",
+          "name": "BottomSheet",
+          "reusable": true,
+          "width": 375,
+          "height": 400,
+          "fill": "#00000040",
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Xiipr",
+              "x": 0,
+              "y": 120,
+              "name": "Panel",
+              "width": 375,
+              "height": 280,
+              "fill": "$bg/default",
+              "cornerRadius": [
+                "$radii/xl",
+                "$radii/xl",
+                0,
+                0
+              ],
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "YfKX2",
+                  "name": "Header",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XmxfH",
+                      "name": "Title",
+                      "fill": "$fg/default",
+                      "content": "タイトル",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/md",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "1JyOI",
+                      "name": "CloseButton",
+                      "width": 20,
+                      "height": 20,
+                      "iconFontName": "x",
+                      "iconFontFamily": "lucide",
+                      "fill": "$fg/muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "3e3rS",
+                  "name": "ContentSlot",
+                  "slot": [],
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hE1nc",
+          "name": "ColorPicker",
+          "reusable": true,
+          "gap": 8,
+          "children": [
+            {
+              "type": "ellipse",
+              "id": "C5Pcy",
+              "name": "Swatch/Blue",
+              "fill": "#3b82f6",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "hdvpt",
+              "name": "Swatch/Red",
+              "fill": "#ef4444",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "46Kk7",
+              "name": "Swatch/Green",
+              "fill": "#22c55e",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "La6eS",
+              "name": "Swatch/Amber",
+              "fill": "#f59e0b",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "aaOkJ",
+              "name": "Swatch/Purple",
+              "fill": "#8b5cf6",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "PqYBK",
+              "name": "Swatch/Pink",
+              "fill": "#ec4899",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "Yo77y",
+              "name": "Swatch/Cyan",
+              "fill": "#06b6d4",
+              "width": 28,
+              "height": 28
+            },
+            {
+              "type": "ellipse",
+              "id": "TjnYf",
+              "name": "Swatch/Orange",
+              "fill": "#f97316",
+              "width": 28,
+              "height": 28
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "tXGfG",
+          "name": "Dialog",
+          "reusable": true,
+          "width": 480,
+          "height": 360,
+          "fill": "#00000040",
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "QszSJ",
+              "x": 40,
+              "y": 40,
+              "name": "ModalPanel",
+              "width": 400,
+              "fill": "$bg/default",
+              "cornerRadius": "$radii/xl",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Oo7KW",
+                  "name": "Header",
+                  "width": "fill_container",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": {
+                      "bottom": 1
+                    },
+                    "fill": "$border/default"
+                  },
+                  "padding": [
+                    16,
+                    24
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "z7Oey",
+                      "name": "Title",
+                      "fill": "$fg/default",
+                      "content": "確認",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/lg",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "GlGv1",
+                      "name": "CloseButton",
+                      "width": 20,
+                      "height": 20,
+                      "iconFontName": "x",
+                      "iconFontFamily": "lucide",
+                      "fill": "$fg/muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XBOzQ",
+                  "name": "ContentSlot",
+                  "slot": [],
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cWhVy",
+                      "name": "SampleContent",
+                      "fill": "$fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "ダイアログの内容がここに入ります。",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "A0ell",
+                  "name": "Footer",
+                  "width": "fill_container",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": {
+                      "top": 1
+                    },
+                    "fill": "$border/default"
+                  },
+                  "gap": 12,
+                  "padding": [
+                    16,
+                    24
+                  ],
+                  "justifyContent": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "P3TCf",
+                      "name": "CancelButton",
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        8,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Cj3v3",
+                          "name": "cancelLabel",
+                          "fill": "$fg/default",
+                          "content": "キャンセル",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TIEcU",
+                      "name": "SubmitButton",
+                      "fill": "$teal/solid",
+                      "cornerRadius": "$radii/md",
+                      "padding": [
+                        8,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "8AJJa",
+                          "name": "submitLabel",
+                          "fill": "$teal/contrast",
+                          "content": "送信",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "WBKk6",
+          "name": "Empty",
+          "reusable": true,
+          "width": 400,
+          "height": 300,
+          "fill": "$bg/default",
+          "layout": "vertical",
+          "gap": 12,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "5Y2Rr",
+              "name": "Icon",
+              "width": 48,
+              "height": 48,
+              "iconFontName": "inbox",
+              "iconFontFamily": "lucide",
+              "fill": "$fg/subtle"
+            },
+            {
+              "type": "text",
+              "id": "6lAYy",
+              "name": "Title",
+              "fill": "$fg/default",
+              "content": "データがありません",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/md",
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "RtB4q",
+              "name": "Description",
+              "fill": "$fg/muted",
+              "textGrowth": "fixed-width",
+              "width": 280,
+              "content": "表示するデータが見つかりませんでした。",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/sm",
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "GZ9mf",
+              "name": "ActionSlot",
+              "slot": [],
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
+              "gap": 8
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "880Ef",
+          "name": "FormCard",
+          "reusable": true,
+          "width": 400,
+          "fill": "$bg/default",
+          "cornerRadius": "$radii/lg",
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#0000001A",
+            "offset": {
+              "x": 0,
+              "y": 1
+            },
+            "blur": 3
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "PBTe8",
+              "name": "Header",
+              "width": "fill_container",
+              "gap": 8,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "iXpME",
+                  "name": "TitleGroup",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "MErB3",
+                      "name": "Icon",
+                      "width": 20,
+                      "height": 20,
+                      "iconFontName": "file-text",
+                      "iconFontFamily": "lucide",
+                      "fill": "$fg/muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "3LaiD",
+                      "name": "Title",
+                      "fill": "$fg/default",
+                      "content": "基本情報",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/md",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LTLX1",
+                  "name": "RightSlot",
+                  "slot": [],
+                  "width": "fit_content(0)",
+                  "height": "fit_content(0)"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bYOZa",
+              "name": "ContentSlot",
+              "slot": [],
+              "width": "fill_container",
+              "height": "fit_content(0)",
+              "layout": "vertical",
+              "gap": 12
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "PznSp",
+          "name": "LoadingState",
+          "reusable": true,
+          "width": 400,
+          "height": 300,
+          "fill": "$bg/default",
+          "layout": "vertical",
+          "gap": 12,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "ellipse",
+              "id": "nbs8P",
+              "name": "Spinner",
+              "fill": "$transparent",
+              "width": 36,
+              "height": 36,
+              "stroke": {
+                "align": "center",
+                "thickness": 3,
+                "fill": "$teal/solid"
+              }
+            },
+            {
+              "type": "text",
+              "id": "XJnld",
+              "name": "Message",
+              "fill": "$fg/muted",
+              "content": "読み込み中...",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/sm",
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "DZo1D",
+          "name": "Select",
+          "reusable": true,
+          "width": 280,
+          "layout": "vertical",
+          "gap": 4,
+          "children": [
+            {
+              "type": "text",
+              "id": "jVYqf",
+              "name": "Label",
+              "fill": "$fg/default",
+              "content": "ラベル",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/sm",
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "AnsmN",
+              "name": "SelectBox",
+              "width": "fill_container",
+              "height": 40,
+              "fill": "$bg/default",
+              "cornerRadius": "$radii/md",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border/default"
+              },
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MR4Wd",
+                  "name": "Value",
+                  "fill": "$fg/subtle",
+                  "content": "選択してください",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/sm",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "0S7f0",
+                  "name": "Chevron",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "chevron-down",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "R0X7G",
+              "name": "Note",
+              "fill": "$fg/muted",
+              "content": "補足テキスト",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "5CGeJ",
+          "name": "Title",
+          "reusable": true,
+          "width": 480,
+          "gap": 8,
+          "padding": [
+            12,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "czmiH",
+              "name": "LeftGroup",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "gDe8A",
+                  "name": "BackLink",
+                  "gap": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "ihmnd",
+                      "name": "BackIcon",
+                      "width": 20,
+                      "height": 20,
+                      "iconFontName": "chevron-left",
+                      "iconFontFamily": "lucide",
+                      "fill": "$teal/solid"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HKKab",
+                      "name": "BackLabel",
+                      "fill": "$teal/solid",
+                      "content": "戻る",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "SdEyZ",
+                  "name": "TitleText",
+                  "fill": "$fg/default",
+                  "content": "ページタイトル",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/xl",
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "A3v0n",
+              "name": "ActionSlot",
+              "slot": [],
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
+              "gap": 8
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "variables": {
     "black": {
       "type": "color",
