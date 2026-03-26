@@ -3,19 +3,19 @@ import type { Recruitment, Staff } from "./types";
 export const mockRecruitments: Recruitment[] = [
   {
     id: "rec-1",
-    period: { start: "2026-04-01", end: "2026-04-07" },
-    deadline: "2026-03-25",
+    period: { start: "2026-03-31", end: "2026-04-06" },
+    deadline: "2026-03-28",
     status: "open",
-    responseCount: 3,
-    totalStaffCount: 5,
+    responseCount: 8,
+    totalStaffCount: 10,
   },
   {
     id: "rec-2",
-    period: { start: "2026-04-08", end: "2026-04-14" },
-    deadline: "2026-04-01",
-    status: "open",
-    responseCount: 0,
-    totalStaffCount: 5,
+    period: { start: "2026-03-24", end: "2026-03-30" },
+    deadline: "2026-03-21",
+    status: "completed",
+    responseCount: 10,
+    totalStaffCount: 10,
   },
 ];
 

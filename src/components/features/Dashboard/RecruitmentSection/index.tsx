@@ -7,9 +7,10 @@ import type { Recruitment } from "../types";
 type Props = {
   recruitments: Recruitment[];
   onCreateClick: () => void;
+  onOpenShiftBoard: (recruitmentId: string) => void;
 };
 
-export const RecruitmentSection = ({ recruitments, onCreateClick }: Props) => {
+export const RecruitmentSection = ({ recruitments, onCreateClick, onOpenShiftBoard }: Props) => {
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
@@ -31,7 +32,7 @@ export const RecruitmentSection = ({ recruitments, onCreateClick }: Props) => {
       ) : (
         <Stack gap={3}>
           {recruitments.map((recruitment) => (
-            <RecruitmentCard key={recruitment.id} recruitment={recruitment} />
+            <RecruitmentCard key={recruitment.id} recruitment={recruitment} onOpenShiftBoard={onOpenShiftBoard} />
           ))}
         </Stack>
       )}

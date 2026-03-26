@@ -1,18 +1,20 @@
-import { Field, Input, Stack } from "@chakra-ui/react";
+import { Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 
 export const CreateRecruitmentForm = () => {
   return (
     <Stack gap={5}>
       <Field.Root>
-        <Field.Label>募集期間（開始）</Field.Label>
-        <Input type="date" />
+        <Field.Label>シフト期間</Field.Label>
+        <Flex gap={2} align="center" w="100%">
+          <Input type="date" flex={1} />
+          <Text color="gray.500" flexShrink={0}>
+            〜
+          </Text>
+          <Input type="date" flex={1} />
+        </Flex>
       </Field.Root>
       <Field.Root>
-        <Field.Label>募集期間（終了）</Field.Label>
-        <Input type="date" />
-      </Field.Root>
-      <Field.Root>
-        <Field.Label>回答締切</Field.Label>
+        <Field.Label>提出締切日</Field.Label>
         <Input type="date" />
       </Field.Root>
     </Stack>

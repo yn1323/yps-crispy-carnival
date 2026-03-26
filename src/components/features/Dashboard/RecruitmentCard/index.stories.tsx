@@ -16,11 +16,13 @@ type Story = StoryObj<typeof meta>;
 export const Open: Story = {
   args: {
     recruitment: mockRecruitments[0],
+    onOpenShiftBoard: () => {},
   },
 };
 
-export const Closed: Story = {
+export const Completed: Story = {
   args: {
-    recruitment: { ...mockRecruitments[1], status: "closed" },
+    recruitment: mockRecruitments[1],
+    onOpenShiftBoard: () => {},
   },
 };

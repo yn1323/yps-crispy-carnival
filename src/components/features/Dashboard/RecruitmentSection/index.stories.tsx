@@ -17,6 +17,7 @@ export const Normal: Story = {
   args: {
     recruitments: mockRecruitments,
     onCreateClick: () => {},
+    onOpenShiftBoard: () => {},
   },
 };
 
@@ -24,5 +25,6 @@ export const EmptyState: Story = {
   args: {
     recruitments: [],
     onCreateClick: () => {},
+    onOpenShiftBoard: () => {},
   },
 };
