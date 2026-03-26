@@ -23,7 +23,11 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
   return (
     <>
       <ContentWrapper>
-        <RecruitmentSection recruitments={recruitments} onCreateClick={recruitmentModal.open} />
+        <RecruitmentSection
+          recruitments={recruitments}
+          onCreateClick={recruitmentModal.open}
+          onOpenShiftBoard={() => {}}
+        />
         <StaffSection staffs={staffs} onAddClick={staffModal.open} />
       </ContentWrapper>
 
@@ -31,11 +35,9 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         title="新しい募集を作成"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
-        {...(!isMobile && {
-          onSubmit: recruitmentModal.close,
-          submitLabel: "作成",
-          onClose: recruitmentModal.close,
-        })}
+        onSubmit={recruitmentModal.close}
+        submitLabel="作成する"
+        onClose={recruitmentModal.close}
       >
         <CreateRecruitmentForm />
       </Modal>
@@ -44,11 +46,9 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         title="スタッフを追加"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
-        {...(!isMobile && {
-          onSubmit: staffModal.close,
-          submitLabel: "追加",
-          onClose: staffModal.close,
-        })}
+        onSubmit={staffModal.close}
+        submitLabel="追加する"
+        onClose={staffModal.close}
       >
         <AddStaffForm />
       </Modal>
