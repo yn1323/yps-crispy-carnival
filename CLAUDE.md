@@ -116,10 +116,7 @@ import { bar } from "@/convex/...";
 
 ## デザイン
 
-- `design.pen`: Pencil MCP 経由でアクセスすること（`Read`や`Grep`では読めない）
-- デザイン確認・編集には `batch_get`、`batch_design`、`get_screenshot` 等のPencil MCPツールを使用
-- `designIndex.md`: .penファイルのフレームIDインデックス。参照時はまずここのIDで `batch_get(nodeIds=[...])` を使い、IDが無効な場合は `batch_get(patterns=[{name: "..."}])` でフォールバックする
-- デザインフレームを追加・削除した際は `designIndex.md` のIDを更新すること
+デザイン関連のファイル・ルールは `design/` ディレクトリを参照（`design/CLAUDE.md`）。
 
 ## コーディング
 
