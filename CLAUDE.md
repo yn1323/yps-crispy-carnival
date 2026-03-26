@@ -40,8 +40,8 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
 
 ## 実装のルール
-- 実装完了後、`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
-- 上記完了後、`/simplify`を実行してリファクタを行うこと
+- 実装完了後、SubAgentで`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること（Context消費したくない）
+- 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
 
 ### 環境変数
 
