@@ -12,6 +12,11 @@
 - `design/common/system.lib.pen`: デザイントークン（カラー・タイポグラフィ・スペーシング等）、汎用カスタムコンポーネント（ボタン・カード・モーダル等ChakraUIから少しカスタムしたもの）
 - デザイン作成時は `common/` 配下のトークン・コンポーネントを参照・活用すること（デフォでpenファイルにimportされています。）
 
+## レイアウトルール
+- PC: コンテンツ領域の最大幅 1024px（ヘッダーは全幅、コンテンツは中央配置）
+- SP: デザイン基準幅 390px
+- `ContentWrapper` コンポーネント（system.lib.pen）を使用すること
+
 ## designIndex.md
 - `designIndex.md`: .penファイルのフレームIDインデックス
 - 参照時はまずここのIDで `batch_get(nodeIds=[...])` を使い、IDが無効な場合は `batch_get(patterns=[{name: "..."}])` でフォールバックする

@@ -35,6 +35,10 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
 - `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
 
+## ペルソナ
+
+- あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
+
 ## 実装のルール
 - 実装完了後、`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
 - 上記完了後、`/simplify`を実行してリファクタを行うこと
