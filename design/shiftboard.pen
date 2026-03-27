@@ -1,4 +1,1509 @@
 {
   "version": "2.9",
-  "children": []
+  "children": [
+    {
+      "type": "frame",
+      "id": "LLTqi",
+      "x": 0,
+      "y": 0,
+      "name": "ShiftBoard/Normal",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$5:bg/subtle",
+      "children": [
+        {
+          "type": "frame",
+          "id": "jlWC6",
+          "name": "ContentArea",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$5:bg/subtle",
+          "layout": "vertical",
+          "padding": [
+            0,
+            24,
+            24,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "cUJgW",
+              "name": "PageHeader",
+              "width": "fill_container",
+              "fill": "$5:bg/default",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$5:border/default"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                16,
+                32
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "uhIFk",
+                  "name": "Breadcrumb",
+                  "gap": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "dQX07",
+                      "name": "backIcon",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "chevron-left",
+                      "iconFontFamily": "lucide",
+                      "fill": "$5:teal/solid"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wmItB",
+                      "name": "backText",
+                      "fill": "$5:teal/solid",
+                      "content": "ダッシュボード",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kklVn",
+                  "name": "TitleRow",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "smMAg",
+                      "name": "TitleLeft",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xEU4L",
+                          "name": "titleText",
+                          "fill": "$5:fg/default",
+                          "content": "1/20(月)〜1/26(日) のシフト",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xl",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "syIXo",
+                          "name": "statusText",
+                          "fill": "$5:fg/muted",
+                          "content": "提出状況: 8/10人完了",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gBRYB",
+                      "name": "ButtonGroup",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Lonph",
+                          "name": "SaveButton",
+                          "cornerRadius": "$5:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$5:border/default"
+                          },
+                          "gap": 6,
+                          "padding": [
+                            8,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "mL6rQ",
+                              "name": "saveIcon",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "save",
+                              "iconFontFamily": "lucide",
+                              "fill": "$5:fg/muted"
+                            },
+                            {
+                              "type": "text",
+                              "id": "spb5B",
+                              "name": "saveLabel",
+                              "fill": "$5:fg/default",
+                              "content": "保存",
+                              "fontFamily": "Inter",
+                              "fontSize": "$5:fontSize/sm",
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "InzbV",
+                          "name": "ConfirmButton",
+                          "fill": "$5:teal/solid",
+                          "cornerRadius": "$5:radii/md",
+                          "gap": 6,
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "zTVAX",
+                              "name": "confirmLabel",
+                              "fill": "$5:teal/contrast",
+                              "content": "シフトを送る",
+                              "fontFamily": "Inter",
+                              "fontSize": "$5:fontSize/sm",
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "VPJgk",
+              "name": "ShiftEditFormPlaceholder",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$5:bg/muted",
+              "cornerRadius": "$5:radii/lg",
+              "stroke": {
+                "align": "inside",
+                "thickness": 2,
+                "fill": "$5:border/default"
+              },
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zmX5s",
+                  "name": "placeholderText",
+                  "fill": "$5:fg/subtle",
+                  "content": "ShiftEditForm",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/lg",
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "9Ojj0",
+                  "name": "placeholderSubtext",
+                  "fill": "$5:fg/subtle",
+                  "content": "（既存コンポーネントをここに配置）",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "nIHuW",
+      "x": 1540,
+      "y": 0,
+      "name": "ShiftBoard/Confirmed",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$5:bg/subtle",
+      "children": [
+        {
+          "type": "frame",
+          "id": "jLrcM",
+          "name": "ContentArea",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$5:bg/subtle",
+          "layout": "vertical",
+          "padding": [
+            0,
+            24,
+            24,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "BR9oE",
+              "name": "PageHeader",
+              "width": "fill_container",
+              "fill": "$5:bg/default",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$5:border/default"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                16,
+                32
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "GXBs0",
+                  "name": "Breadcrumb",
+                  "gap": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "AjXqP",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "chevron-left",
+                      "iconFontFamily": "lucide",
+                      "fill": "$5:teal/solid"
+                    },
+                    {
+                      "type": "text",
+                      "id": "gf1Tg",
+                      "fill": "$5:teal/solid",
+                      "content": "ダッシュボード",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "49kI4",
+                  "name": "TitleRow",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "J08zd",
+                      "name": "TitleLeft",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "7KvAT",
+                          "fill": "$5:fg/default",
+                          "content": "1/20(月)〜1/26(日) のシフト",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xl",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "fDQag",
+                          "fill": "$5:fg/success",
+                          "content": "提出状況: 10/10人完了 ✓",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "SQbbp",
+                      "name": "ButtonGroup",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "alignItems": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "RWk7B",
+                          "name": "ButtonRow",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "dBkZW",
+                              "name": "SaveButton",
+                              "cornerRadius": "$5:radii/md",
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "$5:border/default"
+                              },
+                              "gap": 6,
+                              "padding": [
+                                8,
+                                16
+                              ],
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "omqvH",
+                                  "width": 16,
+                                  "height": 16,
+                                  "iconFontName": "save",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "$5:fg/muted"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "WjG1I",
+                                  "fill": "$5:fg/default",
+                                  "content": "保存",
+                                  "fontFamily": "Inter",
+                                  "fontSize": "$5:fontSize/sm",
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "zF68w",
+                              "name": "ReconfirmButton",
+                              "cornerRadius": "$5:radii/md",
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "$5:teal/solid"
+                              },
+                              "gap": 6,
+                              "padding": [
+                                8,
+                                20
+                              ],
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "nMiTh",
+                                  "fill": "$5:teal/solid",
+                                  "content": "再送する",
+                                  "fontFamily": "Inter",
+                                  "fontSize": "$5:fontSize/sm",
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "A8Yyx",
+                          "name": "ConfirmedStatus",
+                          "gap": 4,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "rU4c5",
+                              "width": 14,
+                              "height": 14,
+                              "iconFontName": "circle-check",
+                              "iconFontFamily": "lucide",
+                              "fill": "$5:fg/success"
+                            },
+                            {
+                              "type": "text",
+                              "id": "vuIwK",
+                              "fill": "$5:fg/success",
+                              "content": "確定済み（2026/3/28 23:15）",
+                              "fontFamily": "Inter",
+                              "fontSize": "$5:fontSize/xs",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "B3aIt",
+              "name": "ShiftEditFormPlaceholder",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$5:bg/muted",
+              "cornerRadius": "$5:radii/lg",
+              "stroke": {
+                "align": "inside",
+                "thickness": 2,
+                "fill": "$5:border/default"
+              },
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "WTz3O",
+                  "fill": "$5:fg/subtle",
+                  "content": "ShiftEditForm",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/lg",
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "OJZEE",
+                  "fill": "$5:fg/subtle",
+                  "content": "（既存コンポーネントをここに配置）",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Wa1Wl",
+      "x": 3084,
+      "y": -58,
+      "name": "ShiftBoard/ConfirmDialog",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$5:bg/subtle",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "SyOsj",
+          "x": 0,
+          "y": 0,
+          "name": "ContentArea",
+          "width": 1440,
+          "height": 900,
+          "fill": "$5:bg/subtle",
+          "layout": "vertical",
+          "padding": [
+            0,
+            24,
+            24,
+            24
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "xs4oj",
+              "name": "PageHeader",
+              "width": "fill_container",
+              "fill": "$5:bg/default",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$5:border/default"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                16,
+                32
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "r7Xoa",
+                  "name": "Breadcrumb",
+                  "gap": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "5oeZ1",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "chevron-left",
+                      "iconFontFamily": "lucide",
+                      "fill": "$5:teal/solid"
+                    },
+                    {
+                      "type": "text",
+                      "id": "axLdC",
+                      "fill": "$5:teal/solid",
+                      "content": "ダッシュボード",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "T763p",
+                  "name": "TitleRow",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "lswUQ",
+                      "name": "TitleLeft",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ba0d2",
+                          "fill": "$5:fg/default",
+                          "content": "1/20(月)〜1/26(日) のシフト",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xl",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "DSrJJ",
+                          "fill": "$5:fg/muted",
+                          "content": "提出状況: 8/10人完了",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "HLjPa",
+                      "name": "ButtonGroup",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "nRpBo",
+                          "name": "SaveButton",
+                          "cornerRadius": "$5:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$5:border/default"
+                          },
+                          "gap": 6,
+                          "padding": [
+                            8,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "qRyO0",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "save",
+                              "iconFontFamily": "lucide",
+                              "fill": "$5:fg/muted"
+                            },
+                            {
+                              "type": "text",
+                              "id": "wF20H",
+                              "fill": "$5:fg/default",
+                              "content": "保存",
+                              "fontFamily": "Inter",
+                              "fontSize": "$5:fontSize/sm",
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "98P0p",
+                          "name": "ConfirmButton",
+                          "fill": "$5:teal/solid",
+                          "cornerRadius": "$5:radii/md",
+                          "gap": 6,
+                          "padding": [
+                            8,
+                            20
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "rCIzt",
+                              "name": "シフトを送る",
+                              "fill": "$5:teal/contrast",
+                              "content": "シフトを送る",
+                              "fontFamily": "Inter",
+                              "fontSize": "$5:fontSize/sm",
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "StRJS",
+              "name": "ShiftEditFormPlaceholder",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$5:bg/muted",
+              "cornerRadius": "$5:radii/lg",
+              "stroke": {
+                "align": "inside",
+                "thickness": 2,
+                "fill": "$5:border/default"
+              },
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YuW7k",
+                  "fill": "$5:fg/subtle",
+                  "content": "ShiftEditForm",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/lg",
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "W0b9i",
+                  "fill": "$5:fg/subtle",
+                  "content": "（既存コンポーネントをここに配置）",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "tfnDn",
+      "x": 0,
+      "y": 1000,
+      "name": "ShiftBoard/Normal/SP",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$5:bg/subtle",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "wWjnz",
+          "name": "SPHeader",
+          "width": "fill_container",
+          "fill": "$5:bg/default",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$5:border/default"
+          },
+          "gap": 8,
+          "padding": [
+            12,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "gHD4J",
+              "width": 20,
+              "height": 20,
+              "iconFontName": "arrow-left",
+              "iconFontFamily": "lucide",
+              "fill": "$5:fg/default"
+            },
+            {
+              "type": "text",
+              "id": "xRlU3",
+              "fill": "$5:fg/default",
+              "content": "シフト表",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/md",
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "EGuP0",
+          "name": "SPInfoBar",
+          "width": "fill_container",
+          "fill": "$5:bg/default",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$5:border/default"
+          },
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            12,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "FPwn1",
+              "name": "spInfoRow1",
+              "fill": "$5:fg/default",
+              "content": "1/20(月)〜1/26(日) のシフト",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/sm",
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "x7NDB",
+              "name": "SPStatusRow",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "t6PUH",
+                  "fill": "$5:fg/muted",
+                  "content": "提出状況: 8/10人完了",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/xs",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "23r67",
+                  "name": "SPButtonGroup",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "9I1qB",
+                      "name": "SaveButton",
+                      "cornerRadius": "$5:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$5:border/default"
+                      },
+                      "gap": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "K0tZA",
+                          "fill": "$5:fg/default",
+                          "content": "保存",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DmRVf",
+                      "name": "ConfirmButton",
+                      "fill": "$5:teal/solid",
+                      "cornerRadius": "$5:radii/md",
+                      "gap": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "H8qO0",
+                          "fill": "$5:teal/contrast",
+                          "content": "送る",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qCa9k",
+          "name": "ShiftEditFormPlaceholder",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$5:bg/muted",
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "$5:border/default"
+          },
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "00CIY",
+              "fill": "$5:fg/subtle",
+              "content": "ShiftEditForm (SP)",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/md",
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "jjxLY",
+              "fill": "$5:fg/subtle",
+              "content": "（既存コンポーネント）",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "K5zai",
+      "x": 490,
+      "y": 1000,
+      "name": "ShiftBoard/Confirmed/SP",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$5:bg/subtle",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "d6uF6",
+          "name": "SPHeader",
+          "width": "fill_container",
+          "fill": "$5:bg/default",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$5:border/default"
+          },
+          "gap": 8,
+          "padding": [
+            12,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "TKEet",
+              "width": 20,
+              "height": 20,
+              "iconFontName": "arrow-left",
+              "iconFontFamily": "lucide",
+              "fill": "$5:fg/default"
+            },
+            {
+              "type": "text",
+              "id": "8uikN",
+              "fill": "$5:fg/default",
+              "content": "シフト表",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/md",
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "RKlL0",
+          "name": "SPInfoBar",
+          "width": "fill_container",
+          "fill": "$5:bg/default",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$5:border/default"
+          },
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            12,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "XZzWJ",
+              "fill": "$5:fg/default",
+              "content": "1/20(月)〜1/26(日) のシフト",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/sm",
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "5QEoj",
+              "name": "SPStatusRow",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tLGSp",
+                  "fill": "$5:fg/success",
+                  "content": "提出状況: 10/10人完了 ✓",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/xs",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "1uXiT",
+                  "name": "SPButtonGroup",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "q1QFY",
+                      "name": "SaveButton",
+                      "cornerRadius": "$5:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$5:border/default"
+                      },
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nYQPk",
+                          "fill": "$5:fg/default",
+                          "content": "保存",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "j6pcd",
+                      "name": "ReconfirmButton",
+                      "cornerRadius": "$5:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$5:teal/solid"
+                      },
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "mMCU0",
+                          "fill": "$5:teal/solid",
+                          "content": "再送",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WIAlZ",
+              "name": "ConfirmedStatus",
+              "gap": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "Zt9oh",
+                  "width": 12,
+                  "height": 12,
+                  "iconFontName": "circle-check",
+                  "iconFontFamily": "lucide",
+                  "fill": "$5:fg/success"
+                },
+                {
+                  "type": "text",
+                  "id": "jF36S",
+                  "fill": "$5:fg/success",
+                  "content": "送付済み（2026/3/28 23:15）",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/xs",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qRPlu",
+          "name": "ShiftEditFormPlaceholder",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$5:bg/muted",
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "$5:border/default"
+          },
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "ynqEs",
+              "fill": "$5:fg/subtle",
+              "content": "ShiftEditForm (SP)",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/md",
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "JYgoj",
+              "fill": "$5:fg/subtle",
+              "content": "（既存コンポーネント）",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "0sBBB",
+      "x": 980,
+      "y": 1000,
+      "name": "ShiftBoard/ConfirmBottomSheet/SP",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$5:bg/subtle",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "q241x",
+          "x": 0.3147201968374702,
+          "y": 0,
+          "name": "Overlay",
+          "rotation": -0.021365094104497998,
+          "width": 390,
+          "height": 844,
+          "fill": "#00000040",
+          "layout": "none",
+          "children": [
+            {
+              "id": "Paz2D",
+              "type": "ref",
+              "ref": "5:6nLI6",
+              "width": 390,
+              "height": 844,
+              "x": 0,
+              "y": 0,
+              "name": "bs",
+              "descendants": {
+                "5:Xiipr": {
+                  "y": 524,
+                  "height": "fit_content",
+                  "width": 390,
+                  "gap": 16,
+                  "padding": [
+                    20,
+                    20,
+                    24,
+                    20
+                  ]
+                },
+                "5:YfKX2": {
+                  "height": "fit_content"
+                },
+                "5:XmxfH": {
+                  "content": "シフトを確定しますか？"
+                },
+                "5:1JyOI": {
+                  "y": 1.5
+                },
+                "5:3e3rS": {
+                  "height": "fit_content",
+                  "y": 59,
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EDhIp",
+                      "name": "desc",
+                      "fill": "$5:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "全スタッフにメールで確定シフトが通知されます。",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dwOTE",
+                      "name": "InfoBox",
+                      "width": "fill_container",
+                      "fill": "$5:bg/subtle",
+                      "cornerRadius": "$5:radii/md",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "padding": 12,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "fGZba",
+                          "name": "t1",
+                          "fill": "$5:fg/default",
+                          "content": "対象: 10名",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xs",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "5vn2X",
+                          "name": "t2",
+                          "fill": "$5:fg/default",
+                          "content": "期間: 1/20(月)〜1/26(日)",
+                          "fontFamily": "Inter",
+                          "fontSize": "$5:fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "5:EYQ3g": {
+                  "height": "fit_content",
+                  "y": 172
+                },
+                "5:F0C2z": {
+                  "width": "fit_content",
+                  "height": "fit_content",
+                  "x": 152
+                },
+                "5:skPjt": {
+                  "content": "キャンセル"
+                },
+                "5:IU5cb": {
+                  "width": "fit_content",
+                  "height": "fit_content",
+                  "x": 262,
+                  "fill": "$5:teal/solid"
+                },
+                "5:3EiO1": {
+                  "content": "確定する"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Wb1t9",
+      "x": 3084,
+      "y": -58,
+      "name": "Overlay",
+      "width": 1440,
+      "height": 900,
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "avqc0",
+          "x": 500,
+          "y": 240,
+          "name": "DialogPanel",
+          "width": 440,
+          "fill": "$5:bg/default",
+          "cornerRadius": "$5:radii/xl",
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000033",
+            "offset": {
+              "x": 0,
+              "y": 4
+            },
+            "blur": 24
+          },
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "tVH3K",
+              "name": "DialogHeader",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$5:border/default"
+              },
+              "padding": [
+                20,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "n4dmo",
+                  "fill": "$5:fg/default",
+                  "content": "シフトを確定しますか？",
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/lg",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "rBIMg",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "x",
+                  "iconFontFamily": "lucide",
+                  "fill": "$5:fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yVBxS",
+              "name": "DialogBody",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R0cwM",
+                  "fill": "$5:fg/default",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "全スタッフにメールで確定シフトが通知されます。",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": "$5:fontSize/sm",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "7bhlI",
+                  "name": "InfoBox",
+                  "width": "fill_container",
+                  "fill": "$5:bg/subtle",
+                  "cornerRadius": "$5:radii/md",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "eMNwe",
+                      "fill": "$5:fg/default",
+                      "content": "対象: 10名",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "5saQd",
+                      "fill": "$5:fg/default",
+                      "content": "期間: 1/20(月)〜1/26(日)",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vVC0D",
+              "name": "DialogFooter",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "$5:border/default"
+              },
+              "gap": 12,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "uz30F",
+                  "name": "CancelButton",
+                  "cornerRadius": "$5:radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$5:border/default"
+                  },
+                  "padding": [
+                    8,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "i9epQ",
+                      "fill": "$5:fg/default",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eFakB",
+                  "name": "ConfirmActionButton",
+                  "fill": "$5:teal/solid",
+                  "cornerRadius": "$5:radii/md",
+                  "padding": [
+                    8,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hxEFu",
+                      "fill": "$5:teal/contrast",
+                      "content": "確定する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$5:fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "5": "common/system.lib.pen"
+  }
 }

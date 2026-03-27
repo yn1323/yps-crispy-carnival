@@ -13,6 +13,17 @@
 | `3iRDC` | Dashboard/CreateRecruitmentSheet | SP募集作成BottomSheet |
 | `QQcZk` | Dashboard/AddStaffSheet | SPスタッフ追加BottomSheet |
 
+## shiftboard.pen — シフトボード画面
+
+| ID | Name | Description |
+|---|---|---|
+| `LLTqi` | ShiftBoard/Normal | PC通常時（未確定） |
+| `nIHuW` | ShiftBoard/Confirmed | PC確定済み |
+| `Wa1Wl` | ShiftBoard/ConfirmDialog | PC確定ダイアログ表示 |
+| `tfnDn` | ShiftBoard/Normal/SP | SP通常時（未確定） |
+| `K5zai` | ShiftBoard/Confirmed/SP | SP確定済み |
+| `0sBBB` | ShiftBoard/ConfirmDialog/SP | SP確定ダイアログ表示 |
+
 ## design.pen
 （画面デザイン）
 
