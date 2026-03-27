@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 pnpm dev              # 開発サーバー起動 (port 3000)
+pnpm dev:all          # dev + convex + storybook を並列起動
 pnpm build            # ビルド (vite build && tsc)
 pnpm lint             # Biomeでlint
 pnpm format           # Biomeでフォーマット (--write)
