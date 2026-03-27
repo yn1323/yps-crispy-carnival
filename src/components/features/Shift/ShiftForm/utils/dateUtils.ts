@@ -68,3 +68,8 @@ export const formatMonthLabel = (month: string): string => {
 export const getMonthKey = (date: string): string => {
   return dayjs(date).format("YYYY-MM");
 };
+
+// 日時を表示用にフォーマット（Date → "2026/3/28 23:15"）
+export const formatDateTime = (date: Date): string => {
+  return dayjs(date).format("YYYY/M/D HH:mm");
+};

@@ -1,4 +1,5 @@
 import { useBreakpointValue } from "@chakra-ui/react";
+import { useNavigate } from "@tanstack/react-router";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
@@ -14,11 +15,16 @@ type Props = {
 };
 
 export const DashboardContent = ({ recruitments, staffs }: Props) => {
+  const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
 
   const Modal = isMobile ? BottomSheet : Dialog;
+
+  const handleOpenShiftBoard = (recruitmentId: string) => {
+    navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
+  };
 
   return (
     <>
@@ -26,7 +32,7 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         <RecruitmentSection
           recruitments={recruitments}
           onCreateClick={recruitmentModal.open}
-          onOpenShiftBoard={() => {}}
+          onOpenShiftBoard={handleOpenShiftBoard}
         />
         <StaffSection staffs={staffs} onAddClick={staffModal.open} />
       </ContentWrapper>
