@@ -77,6 +77,7 @@ export const StaffRow = ({
         zIndex={5}
         borderRight="1px solid"
         borderColor="gray.100"
+        whiteSpace="nowrap"
       >
         <Box
           cursor={isReadOnly ? "default" : "pointer"}

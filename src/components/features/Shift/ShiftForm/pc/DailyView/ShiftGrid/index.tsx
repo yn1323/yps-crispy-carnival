@@ -186,7 +186,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
       <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
         <Table.Header>
           <Table.Row bg="white" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
-            <Table.ColumnHeader w="120px" position="sticky" left={0} bg="white" zIndex={11}>
+            <Table.ColumnHeader w="120px" whiteSpace="nowrap" position="sticky" left={0} bg="white" zIndex={11}>
               <SortMenu sortMode={sortMode} onSortChange={setSortMode} />
             </Table.ColumnHeader>
             <Table.ColumnHeader colSpan={timeSlots.length} p={0} w={`${timeAxisWidth}px`}>
