@@ -1365,16 +1365,1317 @@
     },
     {
       "type": "frame",
-      "id": "mHVYK",
-      "x": 0,
-      "y": 1200,
-      "name": "ContentWrapper",
-      "reusable": true,
-      "width": 1024,
-      "height": "fit_content(400)",
+      "id": "IkGpN",
+      "x": 3085,
+      "y": 0,
+      "name": "Dashboard/Normal/SP",
+      "width": 390,
+      "fill": "$bg/default",
       "layout": "vertical",
-      "gap": 32,
-      "padding": 32
+      "children": [
+        {
+          "type": "frame",
+          "id": "LU1Ml",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "$teal/solid",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "ZNthZ",
+              "name": "spLogo",
+              "fill": "$teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/md",
+              "fontWeight": "700"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ubhkO",
+          "name": "MainContent",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "dIPU1",
+              "name": "RecruitmentSection",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "mf2Pa",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "34JIc",
+                      "name": "spRecruitTitle",
+                      "fill": "$fg/default",
+                      "content": "募集一覧",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/lg",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "2CJIy",
+                      "name": "CreateButton",
+                      "fill": "$teal/solid",
+                      "cornerRadius": "$radii/md",
+                      "gap": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "Abg0I",
+                          "name": "spRecruitBtnIcon",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$teal/contrast"
+                        },
+                        {
+                          "type": "text",
+                          "id": "0khKH",
+                          "name": "spRecruitBtnLabel",
+                          "fill": "$teal/contrast",
+                          "content": "新規作成",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qcCkG",
+                  "name": "RecruitmentCard1",
+                  "width": "fill_container",
+                  "cornerRadius": "$radii/lg",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "neYhc",
+                      "name": "TopRow",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "5fw6H",
+                          "name": "spCard1Period",
+                          "fill": "$fg/default",
+                          "content": "3/31〜4/6",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "WHSRo",
+                          "name": "Badge",
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$radii/full",
+                          "padding": [
+                            2,
+                            8
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "JMphA",
+                              "name": "spCard1BadgeText",
+                              "fill": "$teal/contrast",
+                              "content": "募集中",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "duiFR",
+                      "name": "InfoRow",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "GomcM",
+                          "name": "spCard1Deadline",
+                          "fill": "$fg/muted",
+                          "content": "締切: 3/28",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "d3W9W",
+                          "name": "spCard1Submitted",
+                          "fill": "$fg/muted",
+                          "content": "提出: 8/10人",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "CtIsg",
+                      "name": "ActionButton",
+                      "width": "fill_container",
+                      "height": 36,
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "gap": 4,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xFOgJ",
+                          "name": "spCard1ActionLabel",
+                          "fill": "$fg/default",
+                          "content": "シフトボードを開く",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "cyW18",
+                          "name": "spCard1ActionIcon",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "arrow-right",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "9nB9L",
+                  "name": "RecruitmentCard2",
+                  "width": "fill_container",
+                  "cornerRadius": "$radii/lg",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "s9V6G",
+                      "name": "TopRow",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "2bYCL",
+                          "name": "spCard2Period",
+                          "fill": "$fg/default",
+                          "content": "3/24〜3/30",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "kCyS0",
+                          "name": "Badge",
+                          "fill": "$bg/muted",
+                          "cornerRadius": "$radii/full",
+                          "padding": [
+                            2,
+                            8
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "bqWi5",
+                              "name": "spCard2BadgeText",
+                              "fill": "$fg/muted",
+                              "content": "送付完了",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kG1n1",
+                      "name": "InfoRow",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "vsXuV",
+                          "name": "spCard2Deadline",
+                          "fill": "$fg/muted",
+                          "content": "締切: 3/21",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "EeqAj",
+                          "name": "spCard2Submitted",
+                          "fill": "$fg/muted",
+                          "content": "提出: 10/10人",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "JdFOq",
+                      "name": "ActionButton",
+                      "width": "fill_container",
+                      "height": 36,
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "gap": 4,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ebVXS",
+                          "name": "spCard2ActionLabel",
+                          "fill": "$fg/default",
+                          "content": "シフトボードを開く",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "y5WGg",
+                          "name": "spCard2ActionIcon",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "arrow-right",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "osIEU",
+              "name": "StaffSection",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "vgbgu",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qAYnL",
+                      "name": "spStaffTitle",
+                      "fill": "$fg/default",
+                      "content": "スタッフ管理",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/lg",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "MewbT",
+                      "name": "AddButton",
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "gap": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "QDp2C",
+                          "name": "spStaffBtnIcon",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/default"
+                        },
+                        {
+                          "type": "text",
+                          "id": "HGhCu",
+                          "name": "spStaffBtnLabel",
+                          "fill": "$fg/default",
+                          "content": "追加",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XbCZD",
+                  "name": "StaffList",
+                  "width": "fill_container",
+                  "cornerRadius": "$radii/lg",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "KCXqT",
+                      "name": "StaffRow1",
+                      "width": "fill_container",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": {
+                          "bottom": 1
+                        },
+                        "fill": "$border/default"
+                      },
+                      "layout": "vertical",
+                      "gap": 2,
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "piulj",
+                          "name": "spStaffName1",
+                          "fill": "$fg/default",
+                          "content": "田中 花子",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "bjYx9",
+                          "name": "spStaffEmail1",
+                          "fill": "$fg/muted",
+                          "content": "hanako@example.com",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "tIWlV",
+                      "name": "StaffRow2",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "padding": [
+                        12,
+                        16
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "iIuba",
+                          "name": "spStaffName2",
+                          "fill": "$fg/default",
+                          "content": "鈴木 一郎",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "bCLjn",
+                          "name": "spStaffEmail2",
+                          "fill": "$fg/muted",
+                          "content": "ichiro@example.com",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "NMbYI",
+      "x": 3535,
+      "y": 0,
+      "name": "Dashboard/Empty/SP",
+      "width": 390,
+      "fill": "$bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "oQx5j",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "$teal/solid",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "7xkky",
+              "name": "seLogo",
+              "fill": "$teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/md",
+              "fontWeight": "700"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "sav6B",
+          "name": "MainContent",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "weEEA",
+              "name": "RecruitmentSection",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "kDE3z",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HtcCB",
+                      "name": "seRecruitTitle",
+                      "fill": "$fg/default",
+                      "content": "募集一覧",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/lg",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Ele6D",
+                      "name": "CreateButton",
+                      "fill": "$teal/solid",
+                      "cornerRadius": "$radii/md",
+                      "gap": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "9v3aM",
+                          "name": "seRecruitBtnIcon",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$teal/contrast"
+                        },
+                        {
+                          "type": "text",
+                          "id": "wNhFs",
+                          "name": "seRecruitBtnLabel",
+                          "fill": "$teal/contrast",
+                          "content": "新規作成",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tmYdB",
+                  "name": "EmptyState",
+                  "width": "fill_container",
+                  "height": 120,
+                  "cornerRadius": "$radii/lg",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "yZwrh",
+                      "name": "seEmptyRecruitIcon",
+                      "width": 28,
+                      "height": 28,
+                      "iconFontName": "inbox",
+                      "iconFontFamily": "lucide",
+                      "fill": "$fg/subtle"
+                    },
+                    {
+                      "type": "text",
+                      "id": "6BD0G",
+                      "name": "seEmptyRecruitText",
+                      "fill": "$fg/muted",
+                      "content": "まだ募集がありません",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/xs",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "V2oYF",
+              "name": "StaffSection",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "k2RQ1",
+                  "name": "SectionHeader",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TVX8F",
+                      "name": "seStaffTitle",
+                      "fill": "$fg/default",
+                      "content": "スタッフ管理",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/lg",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "9TnHC",
+                      "name": "AddButton",
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "gap": 4,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "IkeBW",
+                          "name": "seStaffBtnIcon",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/default"
+                        },
+                        {
+                          "type": "text",
+                          "id": "uoikI",
+                          "name": "seStaffBtnLabel",
+                          "fill": "$fg/default",
+                          "content": "追加",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "6D6gZ",
+                  "name": "EmptyState",
+                  "width": "fill_container",
+                  "height": 120,
+                  "cornerRadius": "$radii/lg",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "layout": "vertical",
+                  "gap": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "eyQuP",
+                      "name": "seEmptyStaffIcon",
+                      "width": 28,
+                      "height": 28,
+                      "iconFontName": "users",
+                      "iconFontFamily": "lucide",
+                      "fill": "$fg/subtle"
+                    },
+                    {
+                      "type": "text",
+                      "id": "grl7Z",
+                      "name": "seEmptyStaffText",
+                      "fill": "$fg/muted",
+                      "content": "スタッフを登録してください",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/xs",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "3iRDC",
+      "x": 3085,
+      "y": 900,
+      "name": "Dashboard/CreateRecruitmentSheet",
+      "width": 390,
+      "height": 500,
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "FZIlC",
+          "x": 0,
+          "y": 160,
+          "name": "Panel",
+          "width": 390,
+          "fill": "$bg/default",
+          "cornerRadius": [
+            "$radii/xl",
+            "$radii/xl",
+            0,
+            0
+          ],
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "u4WdF",
+              "name": "Header",
+              "width": "fill_container",
+              "padding": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "H6yfQ",
+                  "name": "bsTitle",
+                  "fill": "$fg/default",
+                  "content": "新しい募集を作成",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/md",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "bX9cT",
+                  "name": "bsClose",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "x",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "up5ja",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                8,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ti2d1",
+                  "name": "PeriodField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "J5pRj",
+                      "name": "bsPeriodLabel",
+                      "fill": "$fg/default",
+                      "content": "シフト期間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "oTQL5",
+                      "name": "DateRow",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "eNcPP",
+                          "name": "DateInput",
+                          "width": "fill_container",
+                          "height": 40,
+                          "cornerRadius": "$radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$border/default"
+                          },
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "liTTC",
+                              "name": "bsPeriodStartText",
+                              "fill": "$fg/default",
+                              "content": "2026/03/31",
+                              "fontFamily": "Inter",
+                              "fontSize": "$fontSize/xs",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "SYoqd",
+                          "name": "bsPeriodSep",
+                          "fill": "$fg/muted",
+                          "content": "〜",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "qEuT8",
+                          "name": "DateInput",
+                          "width": "fill_container",
+                          "height": 40,
+                          "cornerRadius": "$radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$border/default"
+                          },
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Gvvgm",
+                              "name": "bsPeriodEndText",
+                              "fill": "$fg/default",
+                              "content": "2026/04/06",
+                              "fontFamily": "Inter",
+                              "fontSize": "$fontSize/xs",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cQk3T",
+                  "name": "DeadlineField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "18rv5",
+                      "name": "bsDeadlineLabel",
+                      "fill": "$fg/default",
+                      "content": "提出締切日",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Zo6Dy",
+                      "name": "DateInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "CixlF",
+                          "name": "bsDeadlineText",
+                          "fill": "$fg/default",
+                          "content": "2026/03/28",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "hZcUR",
+              "name": "Footer",
+              "width": "fill_container",
+              "gap": 12,
+              "padding": 16,
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "itoEt",
+                  "name": "CancelButton",
+                  "cornerRadius": "$radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EkG9r",
+                      "name": "bsCancelLabel",
+                      "fill": "$fg/default",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "3N24t",
+                  "name": "SubmitButton",
+                  "fill": "$teal/solid",
+                  "cornerRadius": "$radii/md",
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gjasb",
+                      "name": "bsSubmitLabel",
+                      "fill": "$teal/contrast",
+                      "content": "作成する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "QQcZk",
+      "x": 3535,
+      "y": 900,
+      "name": "Dashboard/AddStaffSheet",
+      "width": 390,
+      "height": 500,
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "GiTpw",
+          "x": 0,
+          "y": 160,
+          "name": "Panel",
+          "width": 390,
+          "fill": "$bg/default",
+          "cornerRadius": [
+            "$radii/xl",
+            "$radii/xl",
+            0,
+            0
+          ],
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "tZQ68",
+              "name": "Header",
+              "width": "fill_container",
+              "padding": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "20AIg",
+                  "name": "bs2Title",
+                  "fill": "$fg/default",
+                  "content": "スタッフを追加",
+                  "fontFamily": "Inter",
+                  "fontSize": "$fontSize/md",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "Gv89d",
+                  "name": "bs2Close",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "x",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "NSEOq",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                8,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "8Q3XT",
+                  "name": "NameField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IwGTz",
+                      "name": "bs2NameLabel",
+                      "fill": "$fg/default",
+                      "content": "名前",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "fNcnL",
+                      "name": "TextInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BJ8Kn",
+                          "name": "bs2NamePlaceholder",
+                          "fill": "$fg/subtle",
+                          "content": "例: 田中 花子",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "AyJvS",
+                  "name": "EmailField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8USuE",
+                      "name": "bs2EmailLabel",
+                      "fill": "$fg/default",
+                      "content": "メールアドレス",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "vYa1C",
+                      "name": "TextInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "bZdci",
+                          "name": "bs2EmailPlaceholder",
+                          "fill": "$fg/subtle",
+                          "content": "例: hanako@example.com",
+                          "fontFamily": "Inter",
+                          "fontSize": "$fontSize/xs",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "M6Iwc",
+              "name": "Footer",
+              "width": "fill_container",
+              "gap": 12,
+              "padding": 16,
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "xM1hM",
+                  "name": "CancelButton",
+                  "cornerRadius": "$radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aVxz6",
+                      "name": "bs2CancelLabel",
+                      "fill": "$fg/default",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Wd7a0",
+                  "name": "SubmitButton",
+                  "fill": "$teal/solid",
+                  "cornerRadius": "$radii/md",
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qIfLe",
+                      "name": "bs2SubmitLabel",
+                      "fill": "$teal/contrast",
+                      "content": "追加する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "variables": {
