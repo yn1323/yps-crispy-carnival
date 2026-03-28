@@ -25,7 +25,7 @@ const AuthenticatedLayout = () => {
       </Box>
 
       {/* Content Area */}
-      <Box ml={{ base: 0, lg: "64" }} flex={1} display="flex" justifyContent="center" bg="gray.50" minH="100vh">
+      <Box ml={{ base: 0, lg: "64" }} flex={1} display="flex" justifyContent="center" minH="100vh">
         <Container maxW="container.xl" py={{ base: 2, lg: 8 }} px={4} mb={{ base: "80px", lg: 0 }} w="100%">
           <Outlet />
         </Container>
