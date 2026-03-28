@@ -9,6 +9,10 @@ export const staffEntrySchema = z
   .refine((entry) => entry.name.trim() !== "" || entry.email.trim() === "", {
     message: "名前を入力してください",
     path: ["name"],
+  })
+  .refine((entry) => entry.email.trim() !== "" || entry.name.trim() === "", {
+    message: "メールアドレスを入力してください",
+    path: ["email"],
   });
 
 export const addStaffSchema = z

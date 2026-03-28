@@ -7,9 +7,12 @@ describe("staffEntrySchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("名前のみ入力で有効", () => {
+  it("名前あり・メールなしはエラー", () => {
     const result = staffEntrySchema.safeParse({ name: "田中 花子", email: "" });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe("メールアドレスを入力してください");
+    }
   });
 
   it.each([
@@ -70,7 +73,7 @@ describe("addStaffSchema", () => {
     const result = addStaffSchema.safeParse({
       entries: [
         { name: "田中", email: "tanaka@example.com" },
-        { name: "佐藤", email: "" },
+        { name: "佐藤", email: "sato@example.com" },
       ],
     });
     expect(result.success).toBe(true);
