@@ -1,6 +1,9 @@
+import type { Id } from "@/convex/_generated/dataModel";
+
 export type Recruitment = {
-  id: string;
-  period: { start: string; end: string };
+  _id: Id<"recruitments">;
+  periodStart: string;
+  periodEnd: string;
   deadline: string;
   status: "open" | "confirmed";
   responseCount: number;
@@ -8,8 +11,7 @@ export type Recruitment = {
 };
 
 export type Staff = {
-  id: string;
+  _id: Id<"staffs">;
   name: string;
   email: string;
-  role: "admin" | "staff";
 };

@@ -31,7 +31,7 @@ export const StaffSection = ({ staffs, onAddClick }: Props) => {
       ) : (
         <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
           {staffs.map((staff) => (
-            <StaffListItem key={staff.id} staff={staff} />
+            <StaffListItem key={staff._id} staff={staff} />
           ))}
         </Box>
       )}

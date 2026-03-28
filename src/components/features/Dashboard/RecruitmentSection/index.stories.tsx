@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockRecruitments } from "../mocks";
+import { mockRecruitments } from "../storyMocks";
 import { RecruitmentSection } from "./index";
 
 const meta = {

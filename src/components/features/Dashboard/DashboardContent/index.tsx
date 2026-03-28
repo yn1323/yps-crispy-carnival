@@ -1,27 +1,37 @@
 import { useBreakpointValue } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
+import { api } from "@/convex/_generated/api";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { toaster } from "@/src/components/ui/toaster";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import { RecruitmentSection } from "../RecruitmentSection";
+import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffSection } from "../StaffSection";
 import type { Recruitment, Staff } from "../types";
 
 type Props = {
+  shop: { name: string } | null;
   recruitments: Recruitment[];
   staffs: Staff[];
 };
 
-export const DashboardContent = ({ recruitments, staffs }: Props) => {
+export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
   const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
-  const hasNoRecruitments = recruitments.length === 0;
+  const isSetupRequired = shop === null;
+
+  const createShop = useMutation(api.setup.mutations.createShop);
+  const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
+  const addStaffs = useMutation(api.staff.mutations.addStaffs);
 
   const Modal = isMobile ? BottomSheet : Dialog;
 
@@ -29,14 +39,56 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
   };
 
+  const handleSetupComplete = async (data: SetupData) => {
+    try {
+      await createShop({
+        shopName: data.shopName,
+        shiftStartTime: data.shiftStartTime,
+        shiftEndTime: data.shiftEndTime,
+      });
+      await createRecruitment({
+        periodStart: data.periodStart,
+        periodEnd: data.periodEnd,
+        deadline: data.deadline,
+      });
+      setupModal.close();
+      toaster.create({ title: "セットアップが完了しました", type: "success" });
+    } catch (error) {
+      const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
+      toaster.create({ title, type: "error" });
+    }
+  };
+
+  const handleCreateRecruitment = async (data: { periodStart: string; periodEnd: string; deadline: string }) => {
+    try {
+      await createRecruitment(data);
+      recruitmentModal.close();
+      toaster.create({ title: "募集を作成しました", type: "success" });
+    } catch (error) {
+      const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
+      toaster.create({ title, type: "error" });
+    }
+  };
+
+  const handleAddStaffs = async (data: { entries: Array<{ name: string; email: string }> }) => {
+    try {
+      await addStaffs({ entries: data.entries });
+      staffModal.close();
+      toaster.create({ title: "スタッフを追加しました", type: "success" });
+    } catch (error) {
+      const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
+      toaster.create({ title, type: "error" });
+    }
+  };
+
   return (
     <>
       <ContentWrapper>
         <RecruitmentSection
           recruitments={recruitments}
-          onCreateClick={hasNoRecruitments ? setupModal.open : recruitmentModal.open}
+          onCreateClick={isSetupRequired ? setupModal.open : recruitmentModal.open}
           onOpenShiftBoard={handleOpenShiftBoard}
-          onSetupClick={hasNoRecruitments ? setupModal.open : undefined}
+          onSetupClick={isSetupRequired ? setupModal.open : undefined}
         />
         <StaffSection staffs={staffs} onAddClick={staffModal.open} />
       </ContentWrapper>
@@ -49,12 +101,7 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         submitLabel="作成する"
         onClose={recruitmentModal.close}
       >
-        <CreateRecruitmentForm
-          onSubmit={(data) => {
-            console.log("Recruitment created:", data);
-            recruitmentModal.close();
-          }}
-        />
+        <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
       </Modal>
 
       <Modal
@@ -67,22 +114,14 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         maxW="640px"
         maxH="85dvh"
       >
-        <AddStaffForm
-          onSubmit={(data) => {
-            console.log("Staff added:", data);
-            staffModal.close();
-          }}
-        />
+        <AddStaffForm onSubmit={handleAddStaffs} />
       </Modal>
 
-      {hasNoRecruitments && (
+      {isSetupRequired && (
         <SetupModal
           isOpen={setupModal.isOpen}
           onOpenChange={setupModal.onOpenChange}
-          onComplete={(data) => {
-            console.log("Setup complete:", data);
-            setupModal.close();
-          }}
+          onComplete={handleSetupComplete}
         />
       )}
     </>

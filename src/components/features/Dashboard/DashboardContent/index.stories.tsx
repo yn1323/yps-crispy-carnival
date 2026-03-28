@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockRecruitments, mockStaffs } from "../mocks";
+import { mockRecruitments, mockStaffs } from "../storyMocks";
 import { DashboardContent } from "./index";
 
 const meta = {
@@ -15,6 +15,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Normal: Story = {
   args: {
+    shop: { name: "居酒屋たなか" },
     recruitments: mockRecruitments,
     staffs: mockStaffs,
   },
@@ -22,6 +23,15 @@ export const Normal: Story = {
 
 export const Empty: Story = {
   args: {
+    shop: { name: "居酒屋たなか" },
+    recruitments: [],
+    staffs: [],
+  },
+};
+
+export const Setup: Story = {
+  args: {
+    shop: null,
     recruitments: [],
     staffs: [],
   },

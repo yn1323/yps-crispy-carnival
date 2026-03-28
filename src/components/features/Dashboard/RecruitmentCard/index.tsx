@@ -9,14 +9,14 @@ type Props = {
 };
 
 export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
-  const { id, period, deadline, status, responseCount, totalStaffCount } = recruitment;
+  const { _id, periodStart, periodEnd, deadline, status, responseCount, totalStaffCount } = recruitment;
 
   return (
     <Box border="1px solid" borderColor="gray.200" borderRadius="lg" p={{ base: 4, lg: 5 }}>
       <Stack gap={{ base: 2.5, lg: 3 }}>
         <Flex justify="space-between" align="center">
           <Text fontWeight="600" fontSize={{ base: "sm", lg: "md" }}>
-            {formatDateShort(period.start)}〜{formatDateShort(period.end)}
+            {formatDateShort(periodStart)}〜{formatDateShort(periodEnd)}
           </Text>
           <Text color="gray.600" fontSize="sm">
             締切: {formatDateShort(deadline)}
@@ -42,7 +42,7 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
             size="sm"
             gap={1.5}
             width={{ base: "full", lg: "auto" }}
-            onClick={() => onOpenShiftBoard(id)}
+            onClick={() => onOpenShiftBoard(_id)}
           >
             シフトボードを開く
             <LuArrowRight />

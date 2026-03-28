@@ -1,11 +1,25 @@
+import { Flex, Spinner } from "@chakra-ui/react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { DashboardContent } from "@/src/components/features/Dashboard/DashboardContent";
-import { mockRecruitments, mockStaffs } from "@/src/components/features/Dashboard/mocks";
 
 export const Route = createFileRoute("/_auth/dashboard")({
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  return <DashboardContent recruitments={mockRecruitments} staffs={mockStaffs} />;
+  const data = useQuery(api.dashboard.queries.getDashboardData);
+
+  if (data === undefined) {
+    return (
+      <Flex justify="center" align="center" minH="200px">
+        <Spinner />
+      </Flex>
+    );
+  }
+
+  if (data === null) return null;
+
+  return <DashboardContent shop={data.shop} recruitments={data.recruitments} staffs={data.staffs} />;
 }

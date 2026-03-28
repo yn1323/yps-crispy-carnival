@@ -40,7 +40,7 @@ export const RecruitmentSection = ({ recruitments, onCreateClick, onOpenShiftBoa
       ) : (
         <Stack gap={3}>
           {recruitments.map((recruitment) => (
-            <RecruitmentCard key={recruitment.id} recruitment={recruitment} onOpenShiftBoard={onOpenShiftBoard} />
+            <RecruitmentCard key={recruitment._id} recruitment={recruitment} onOpenShiftBoard={onOpenShiftBoard} />
           ))}
         </Stack>
       )}

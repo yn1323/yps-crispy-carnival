@@ -1,43 +1,51 @@
-import { Box, Spinner } from "@chakra-ui/react";
+import { Flex, Spinner } from "@chakra-ui/react";
 import { useAuth } from "@clerk/clerk-react";
 import { Navigate } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
+import { useEffect } from "react";
+import { api } from "@/convex/_generated/api";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
   children: React.ReactNode;
 };
 
+const FullPageSpinner = () => (
+  <Flex justify="center" align="center" height="100vh">
+    <Spinner />
+  </Flex>
+);
+
 export const AuthGuard = ({ children }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
   const [user, setUser] = useAtom(userAtom);
+  const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
 
-  // ユーザーが状態管理にいれば即返却
+  useEffect(() => {
+    if (userId && currentUser) {
+      setUser({
+        authId: userId,
+        name: currentUser.name ?? "",
+        email: currentUser.email ?? "",
+      });
+    }
+  }, [userId, currentUser, setUser]);
+
   if (user.authId) {
     return children;
   }
 
-  // Clerkがローディング中
   if (!isLoaded) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <Spinner />
-      </Box>
-    );
+    return <FullPageSpinner />;
   }
 
-  // 未認証の場合、TOPにリダイレクト
   if (!isSignedIn) {
     return <Navigate to="/" />;
   }
 
-  // TODO: v3ではConvexスキーマ再構築後にユーザー取得を復活させる
-  if (userId) {
-    setUser({
-      name: "",
-      authId: userId,
-      email: "",
-    });
+  if (currentUser === undefined) {
+    return <FullPageSpinner />;
   }
 
   return children;
