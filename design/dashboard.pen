@@ -4587,6 +4587,1739 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "s9hbW",
+      "x": -12,
+      "y": 1700,
+      "name": "Dashboard/SetupModal/Step1",
+      "width": 560,
+      "height": "fit_content(520)",
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ibyMm",
+          "x": 40,
+          "y": 30,
+          "name": "ModalPanel",
+          "width": 480,
+          "fill": "$bg/default",
+          "cornerRadius": "$i:radii/xl",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Y9q7T",
+              "name": "Header",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$border/default"
+              },
+              "layout": "vertical",
+              "gap": 4,
+              "padding": [
+                20,
+                24
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ex1SU",
+                  "name": "WelcomeText",
+                  "fill": "$teal/solid",
+                  "content": "ようこそYPSへ",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "bdi4f",
+                  "name": "StepTitle",
+                  "fill": "$fg/default",
+                  "content": "店舗情報を登録",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/lg",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "daO5n",
+                  "name": "Stepper",
+                  "width": "fill_container",
+                  "padding": [
+                    12,
+                    0,
+                    4,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "PNwe7",
+                      "name": "Step1Group",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "TkNUX",
+                          "name": "Step1Circle",
+                          "width": 28,
+                          "height": 28,
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$i:radii/full",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "kAVO1",
+                              "x": 10,
+                              "y": 6,
+                              "name": "Step1Num",
+                              "fill": "$teal/contrast",
+                              "content": "1",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/xs",
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "uk3Ok",
+                          "name": "Step1Label",
+                          "fill": "$teal/solid",
+                          "content": "店舗情報",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "6RY9j",
+                      "name": "Connector",
+                      "width": "fill_container",
+                      "height": 2,
+                      "fill": "$i:colors/gray/200",
+                      "layout": "none"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YpmAj",
+                      "name": "Step2Group",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "b5Qz0",
+                          "name": "Step2Circle",
+                          "width": 28,
+                          "height": 28,
+                          "fill": "$i:colors/gray/200",
+                          "cornerRadius": "$i:radii/full",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "msabh",
+                              "x": 10,
+                              "y": 6,
+                              "name": "Step2Num",
+                              "fill": "$fg/subtle",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/xs",
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "wCHJV",
+                          "name": "Step2Label",
+                          "fill": "$fg/subtle",
+                          "content": "シフト募集作成",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "shZaj",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 20,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "i46Yt",
+                  "name": "ShopNameField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "is6qj",
+                      "name": "ShopLabel",
+                      "fill": "$fg/default",
+                      "content": "店舗名",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NQHwE",
+                      "name": "ShopInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Ffycy",
+                          "name": "ShopValue",
+                          "fill": "$fg/default",
+                          "content": "居酒屋たなか",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mkIm5",
+                  "name": "TimeGroup",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "KLbb3",
+                      "name": "TimeRow",
+                      "width": "fill_container",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "KQCoQ",
+                          "name": "StartField",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "KKdiY",
+                              "name": "StartLabel",
+                              "fill": "$fg/default",
+                              "content": "シフト開始時間",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "2bT0E",
+                              "name": "StartSelect",
+                              "width": "fill_container",
+                              "height": 40,
+                              "fill": "$bg/default",
+                              "cornerRadius": "$i:radii/md",
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "$border/default"
+                              },
+                              "padding": [
+                                0,
+                                12
+                              ],
+                              "justifyContent": "space_between",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "1BFWX",
+                                  "name": "StartValue",
+                                  "fill": "$fg/default",
+                                  "content": "14:00",
+                                  "fontFamily": "Inter",
+                                  "fontSize": "$i:fontSize/sm",
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "icon_font",
+                                  "id": "FZs0b",
+                                  "name": "StartChevron",
+                                  "width": 16,
+                                  "height": 16,
+                                  "iconFontName": "chevron-down",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "$fg/muted"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Gr3VG",
+                          "name": "EndField",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "syWYL",
+                              "name": "EndLabel",
+                              "fill": "$fg/default",
+                              "content": "シフト終了時間",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Q5IbB",
+                              "name": "EndSelect",
+                              "width": "fill_container",
+                              "height": 40,
+                              "fill": "$bg/default",
+                              "cornerRadius": "$i:radii/md",
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 1,
+                                "fill": "$border/default"
+                              },
+                              "padding": [
+                                0,
+                                12
+                              ],
+                              "justifyContent": "space_between",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "VADAR",
+                                  "name": "EndValue",
+                                  "fill": "$fg/default",
+                                  "content": "翌 1:00",
+                                  "fontFamily": "Inter",
+                                  "fontSize": "$i:fontSize/sm",
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "icon_font",
+                                  "id": "ObjAv",
+                                  "name": "EndChevron",
+                                  "width": 16,
+                                  "height": 16,
+                                  "iconFontName": "chevron-down",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "$fg/muted"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Ax8Ah",
+                      "name": "HelpText",
+                      "fill": "$fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "営業時間ではなく、仕込み・片付けを含めたスタッフが勤務する可能性のある時間帯を入力してください",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/xs"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xiqKl",
+              "name": "Footer",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "$border/default"
+              },
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ZSGUj",
+                  "name": "NextButton",
+                  "fill": "$teal/solid",
+                  "cornerRadius": "$i:radii/md",
+                  "gap": 4,
+                  "padding": [
+                    10,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "C4sdX",
+                      "name": "NextLabel",
+                      "fill": "$teal/contrast",
+                      "content": "次へ",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "hTIta",
+                      "name": "NextIcon",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "arrow-right",
+                      "iconFontFamily": "lucide",
+                      "fill": "$teal/contrast"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "xoJw8",
+      "x": 650,
+      "y": 1700,
+      "name": "Dashboard/SetupModal/Step2",
+      "width": 560,
+      "height": "fit_content(520)",
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "zylLJ",
+          "x": 40,
+          "y": 30,
+          "name": "ModalPanel",
+          "width": 480,
+          "fill": "$bg/default",
+          "cornerRadius": "$i:radii/xl",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "8lU2m",
+              "name": "Header",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$border/default"
+              },
+              "layout": "vertical",
+              "gap": 4,
+              "padding": [
+                20,
+                24
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "TEizq",
+                  "name": "StepTitle",
+                  "fill": "$fg/default",
+                  "content": "シフト募集を作成",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/lg",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "WGEbC",
+                  "name": "Stepper",
+                  "width": "fill_container",
+                  "padding": [
+                    12,
+                    0,
+                    4,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "9tEza",
+                      "name": "Step1Group",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "DD8cm",
+                          "name": "Step1Circle",
+                          "width": 28,
+                          "height": 28,
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$i:radii/full",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "geAZg",
+                              "name": "CheckIcon",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "check",
+                              "iconFontFamily": "lucide",
+                              "fill": "$teal/contrast"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "QnsX8",
+                          "name": "Step1Label",
+                          "fill": "$teal/solid",
+                          "content": "店舗情報",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gLggX",
+                      "name": "Connector",
+                      "width": "fill_container",
+                      "height": 2,
+                      "fill": "$teal/solid",
+                      "layout": "none"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "em96d",
+                      "name": "Step2Group",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "z90qb",
+                          "name": "Step2Circle",
+                          "width": 28,
+                          "height": 28,
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$i:radii/full",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "2mbPc",
+                              "x": 10,
+                              "y": 6,
+                              "name": "Step2Num",
+                              "fill": "$teal/contrast",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/xs",
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "xq9BR",
+                          "name": "Step2Label",
+                          "fill": "$teal/solid",
+                          "content": "シフト募集作成",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "prtUq",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 20,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "xpq93",
+                  "name": "PeriodField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kRboE",
+                      "name": "PeriodLabel",
+                      "fill": "$fg/default",
+                      "content": "シフト期間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "fz1rz",
+                      "name": "DateRow",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "kDPVR",
+                          "name": "StartDateInput",
+                          "width": "fill_container",
+                          "height": 40,
+                          "fill": "$bg/default",
+                          "cornerRadius": "$i:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$border/default"
+                          },
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "rZ2Lo",
+                              "name": "StartDatePlaceholder",
+                              "fill": "$fg/subtle",
+                              "content": "開始日",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "gGwuj",
+                              "name": "CalIcon1",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "calendar",
+                              "iconFontFamily": "lucide",
+                              "fill": "$fg/muted"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "i6cup",
+                          "name": "DateSeparator",
+                          "fill": "$fg/muted",
+                          "content": "〜",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "HGy2X",
+                          "name": "EndDateInput",
+                          "width": "fill_container",
+                          "height": 40,
+                          "fill": "$bg/default",
+                          "cornerRadius": "$i:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$border/default"
+                          },
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "EL9jM",
+                              "name": "EndDatePlaceholder",
+                              "fill": "$fg/subtle",
+                              "content": "終了日",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "GL9BF",
+                              "name": "CalIcon2",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "calendar",
+                              "iconFontFamily": "lucide",
+                              "fill": "$fg/muted"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "6W6l1",
+                  "name": "DeadlineField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "uKGZA",
+                      "name": "DeadlineLabel",
+                      "fill": "$fg/default",
+                      "content": "提出締切日",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "91QP4",
+                      "name": "DeadlineInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "iZty9",
+                          "name": "DeadlinePlaceholder",
+                          "fill": "$fg/subtle",
+                          "content": "締切日を選択",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "pdDzN",
+                          "name": "CalIcon3",
+                          "width": 16,
+                          "height": 16,
+                          "iconFontName": "calendar",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "qjzXn",
+              "name": "Footer",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "$border/default"
+              },
+              "gap": 12,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "otYNM",
+                  "name": "BackButton",
+                  "cornerRadius": "$i:radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "RKqP0",
+                      "name": "BackLabel",
+                      "fill": "$fg/default",
+                      "content": "戻る",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "0iIMU",
+                  "name": "CreateButton",
+                  "fill": "$i:colors/gray/200",
+                  "cornerRadius": "$i:radii/md",
+                  "padding": [
+                    10,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "rgP5U",
+                      "name": "CreateLabel",
+                      "fill": "$fg/subtle",
+                      "content": "作成する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "VLWsg",
+      "x": 1300,
+      "y": 1700,
+      "name": "Dashboard/SetupSheet/Step1",
+      "width": 390,
+      "height": "fit_content(750)",
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "I440G",
+          "x": 0,
+          "y": 160,
+          "name": "Panel",
+          "width": 390,
+          "fill": "$bg/default",
+          "cornerRadius": [
+            "$i:radii/xl",
+            "$i:radii/xl",
+            0,
+            0
+          ],
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Zn9WV",
+              "name": "Header",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BLUOF",
+                  "name": "WelcomeText",
+                  "fill": "$teal/solid",
+                  "content": "ようこそYPSへ",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "uFCTb",
+                  "name": "StepTitle",
+                  "fill": "$fg/default",
+                  "content": "店舗情報を登録",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/md",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "lBGo3",
+                  "name": "Stepper",
+                  "width": "fill_container",
+                  "padding": [
+                    8,
+                    0,
+                    0,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "1nBfu",
+                      "name": "Step1Group",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "mJ8Bq",
+                          "name": "Step1Circle",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$i:radii/full",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Y9x01",
+                              "x": 8,
+                              "y": 5,
+                              "name": "Step1Num",
+                              "fill": "$teal/contrast",
+                              "content": "1",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/2xs",
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "Px1Sc",
+                          "name": "Step1Label",
+                          "fill": "$teal/solid",
+                          "content": "店舗情報",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/xs",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "4URsc",
+                      "name": "Connector",
+                      "width": "fill_container",
+                      "height": 2,
+                      "fill": "$i:colors/gray/200",
+                      "layout": "none"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "D3l4P",
+                      "name": "Step2Group",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Lhf8L",
+                          "name": "Step2Circle",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$i:colors/gray/200",
+                          "cornerRadius": "$i:radii/full",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "GIN3a",
+                              "x": 8,
+                              "y": 5,
+                              "name": "Step2Num",
+                              "fill": "$fg/subtle",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/2xs",
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "BqFrP",
+                          "name": "Step2Label",
+                          "fill": "$fg/subtle",
+                          "content": "シフト募集作成",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/xs"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "gD8hZ",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                8,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "xuumo",
+                  "name": "ShopNameField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "o2GdG",
+                      "name": "ShopLabel",
+                      "fill": "$fg/default",
+                      "content": "店舗名",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kP2t5",
+                      "name": "ShopInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xLl1U",
+                          "name": "ShopValue",
+                          "fill": "$fg/default",
+                          "content": "居酒屋たなか",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "oyVsr",
+                  "name": "StartField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "7pNXj",
+                      "name": "StartLabel",
+                      "fill": "$fg/default",
+                      "content": "シフト開始時間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cECRH",
+                      "name": "StartSelect",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Y3woh",
+                          "name": "StartValue",
+                          "fill": "$fg/default",
+                          "content": "14:00",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "UwIff",
+                          "name": "Chevron",
+                          "width": 16,
+                          "height": 16,
+                          "iconFontName": "chevron-down",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "0AcYj",
+                  "name": "EndField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "LasGg",
+                      "name": "EndLabel",
+                      "fill": "$fg/default",
+                      "content": "シフト終了時間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "5tquN",
+                      "name": "EndSelect",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "OPFVU",
+                          "name": "EndValue",
+                          "fill": "$fg/default",
+                          "content": "翌 1:00",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "vV0do",
+                          "name": "Chevron",
+                          "width": 16,
+                          "height": 16,
+                          "iconFontName": "chevron-down",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "wFdIW",
+                  "name": "HelpText",
+                  "fill": "$fg/muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "営業時間ではなく、仕込み・片付けを含めたスタッフが勤務する可能性のある時間帯を入力してください",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vRh7d",
+              "name": "Footer",
+              "width": "fill_container",
+              "padding": 16,
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "a3dLM",
+                  "name": "NextButton",
+                  "width": "fill_container",
+                  "fill": "$teal/solid",
+                  "cornerRadius": "$i:radii/md",
+                  "gap": 4,
+                  "padding": [
+                    12,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "4Muvk",
+                      "name": "NextLabel",
+                      "fill": "$teal/contrast",
+                      "content": "次へ",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "icon_font",
+                      "id": "ZVJe5",
+                      "name": "NextIcon",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "arrow-right",
+                      "iconFontFamily": "lucide",
+                      "fill": "$teal/contrast"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "3yqIS",
+      "x": 1790,
+      "y": 1700,
+      "name": "Dashboard/SetupSheet/Step2",
+      "width": 390,
+      "height": "fit_content(700)",
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "WMJCS",
+          "x": 0,
+          "y": 160,
+          "name": "Panel",
+          "width": 390,
+          "fill": "$bg/default",
+          "cornerRadius": [
+            "$i:radii/xl",
+            "$i:radii/xl",
+            0,
+            0
+          ],
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "dhWUr",
+              "name": "Header",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "K4qDM",
+                  "name": "StepTitle",
+                  "fill": "$fg/default",
+                  "content": "シフト募集を作成",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/md",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "nKDFr",
+                  "name": "Stepper",
+                  "width": "fill_container",
+                  "padding": [
+                    8,
+                    0,
+                    0,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "920lL",
+                      "name": "Step1Group",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "nmZqP",
+                          "name": "Step1Circle",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$i:radii/full",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "mMBeg",
+                              "name": "CheckIcon",
+                              "width": 14,
+                              "height": 14,
+                              "iconFontName": "check",
+                              "iconFontFamily": "lucide",
+                              "fill": "$teal/contrast"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "X9RDO",
+                          "name": "Step1Label",
+                          "fill": "$teal/solid",
+                          "content": "店舗情報",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/xs",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EOzTc",
+                      "name": "Connector",
+                      "width": "fill_container",
+                      "height": 2,
+                      "fill": "$teal/solid",
+                      "layout": "none"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "V8SCB",
+                      "name": "Step2Group",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "MejFd",
+                          "name": "Step2Circle",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$teal/solid",
+                          "cornerRadius": "$i:radii/full",
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "S5WIr",
+                              "x": 8,
+                              "y": 5,
+                              "name": "Step2Num",
+                              "fill": "$teal/contrast",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/2xs",
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "JpgJh",
+                          "name": "Step2Label",
+                          "fill": "$teal/solid",
+                          "content": "シフト募集作成",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/xs",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "97uQo",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": [
+                8,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ptlDr",
+                  "name": "PeriodField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nUFw2",
+                      "name": "PeriodLabel",
+                      "fill": "$fg/default",
+                      "content": "シフト期間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ZUY6g",
+                      "name": "DateRow",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "QuxKe",
+                          "name": "StartDateInput",
+                          "width": "fill_container",
+                          "height": 40,
+                          "fill": "$bg/default",
+                          "cornerRadius": "$i:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$border/default"
+                          },
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "xUExA",
+                              "name": "Placeholder",
+                              "fill": "$fg/subtle",
+                              "content": "開始日",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "tH9Io",
+                              "name": "CalIcon",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "calendar",
+                              "iconFontFamily": "lucide",
+                              "fill": "$fg/muted"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "F86W3",
+                          "name": "Separator",
+                          "fill": "$fg/muted",
+                          "content": "〜",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "8CqPm",
+                          "name": "EndDateInput",
+                          "width": "fill_container",
+                          "height": 40,
+                          "fill": "$bg/default",
+                          "cornerRadius": "$i:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$border/default"
+                          },
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "r4I9E",
+                              "name": "Placeholder",
+                              "fill": "$fg/subtle",
+                              "content": "終了日",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "Snuqh",
+                              "name": "CalIcon",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "calendar",
+                              "iconFontFamily": "lucide",
+                              "fill": "$fg/muted"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "0LgQK",
+                  "name": "DeadlineField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hZnan",
+                      "name": "DeadlineLabel",
+                      "fill": "$fg/default",
+                      "content": "提出締切日",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h5JDP",
+                      "name": "DeadlineInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "3WJdS",
+                          "name": "Placeholder",
+                          "fill": "$fg/subtle",
+                          "content": "締切日を選択",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "pDl8z",
+                          "name": "CalIcon",
+                          "width": 16,
+                          "height": 16,
+                          "iconFontName": "calendar",
+                          "iconFontFamily": "lucide",
+                          "fill": "$fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "P1aBT",
+              "name": "Footer",
+              "width": "fill_container",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "HDkM6",
+                  "name": "BackButton",
+                  "width": "fill_container",
+                  "cornerRadius": "$i:radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border/default"
+                  },
+                  "padding": [
+                    12,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "po84h",
+                      "name": "BackLabel",
+                      "fill": "$fg/default",
+                      "content": "戻る",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Kv2pl",
+                  "name": "CreateButton",
+                  "width": "fill_container",
+                  "fill": "$i:colors/gray/200",
+                  "cornerRadius": "$i:radii/md",
+                  "padding": [
+                    12,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "9agrI",
+                      "name": "CreateLabel",
+                      "fill": "$fg/subtle",
+                      "content": "作成する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "variables": {
