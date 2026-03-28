@@ -22,9 +22,9 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
             締切: {formatDateShort(deadline)}
           </Text>
         </Flex>
-        <Flex justify="space-between" align="center">
-          <Flex gap={3} align="center">
-            <Text color="gray.600" fontSize="sm">
+        <Flex justify="space-between" align="center" flexWrap="wrap" gap={{ base: 2.5, lg: 0 }}>
+          <Flex gap={3} align="center" width={{ base: "full", lg: "auto" }}>
+            <Text color="gray.600" fontSize="sm" whiteSpace="nowrap">
               提出状況: {responseCount}/{totalStaffCount}人
             </Text>
             <Badge
@@ -37,7 +37,13 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
               {status === "open" ? "募集中" : "送付完了"}
             </Badge>
           </Flex>
-          <Button variant="outline" size="sm" gap={1.5} onClick={() => onOpenShiftBoard(id)}>
+          <Button
+            variant="outline"
+            size="sm"
+            gap={1.5}
+            width={{ base: "full", lg: "auto" }}
+            onClick={() => onOpenShiftBoard(id)}
+          >
             シフトボードを開く
             <LuArrowRight />
           </Button>
