@@ -131,7 +131,12 @@ import { bar } from "@/convex/...";
 ### バリデーション
 
 - Zod v4スキーマ + カスタムエラーマップ（日本語メッセージ）
-- カスタムバリデータ: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
+- **mutation引数のZodスキーマは `convex/{useCase}/schemas.ts` に配置し、フロントと共有する**
+  - フロントからは `@/convex/{useCase}/schemas` でインポート
+  - フォーム固有のラッパー（配列化、UI専用refinement等）は `src/` 側に残す
+  - `schemas.ts` は純粋な Zod 定義のみ。DB アクセスや Convex API のインポート禁止
+- カスタムバリデータ（フロント専用）: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
+- 共通バリデータ（mutation共有）: `convex/_lib/validation.ts`（`optionalEmail`等）
 
 ### Storybook
 
