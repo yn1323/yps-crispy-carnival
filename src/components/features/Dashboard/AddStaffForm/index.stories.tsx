@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AddStaffForm } from "./index";
+import { AddStaffForm } from "./index.tsx";
 
 const meta = {
   title: "Features/Dashboard/AddStaffForm",
@@ -8,6 +8,7 @@ const meta = {
     layout: "padded",
   },
   args: {
+    onSubmit: () => {},
     onEntriesChange: () => {},
   },
 } satisfies Meta<typeof AddStaffForm>;
