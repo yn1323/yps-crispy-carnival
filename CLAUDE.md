@@ -175,3 +175,11 @@ import { bar } from "@/convex/...";
 - 機能概要には: 機能説明（1-2文）、関連ファイルパス、画面一覧、API一覧を含める
 - 詳細な仕様・ロジックはコードに書く（ドキュメントとコードの二重管理を避ける）
 - `doc/INDEX.md` に新規ドキュメントへのリンクを追加する
+
+<!-- convex-ai-start -->
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read `convex/_generated/ai/guidelines.md` first** for important guidelines on how to correctly use Convex APIs and patterns. The file contains rules that override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running `npx convex ai-files install`.
+<!-- convex-ai-end -->
