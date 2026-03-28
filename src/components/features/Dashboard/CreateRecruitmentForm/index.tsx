@@ -34,6 +34,10 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
   const periodEnd = watch("periodEnd");
   const deadline = watch("deadline");
 
+  const deadlineMax = periodStart
+    ? new Date(new Date(periodStart).getTime() - 86400000).toISOString().split("T")[0]
+    : undefined;
+
   return (
     <form id="create-recruitment-form" onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={5}>
@@ -75,7 +79,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
             <Input
               type="date"
               {...register("deadline")}
-              max={periodStart || undefined}
+              max={deadlineMax}
               color={deadline ? undefined : "transparent"}
             />
             <DatePlaceholder visible={!deadline}>2026/03/25</DatePlaceholder>
