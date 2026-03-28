@@ -105,6 +105,7 @@ convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / polici
 
 - react-hookform + zodResolverを利用
 - index.tsに外出しし、index.test.tsにテストを書くこと
+- 常にSubmitボタンはEnabledの状態にする。バリデーションエラーがあれば、Submitボタンは押せるが、エラーで次に進めないような実装方針にしたい。
 
 ### 認証
 
