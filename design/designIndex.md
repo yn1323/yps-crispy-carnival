@@ -12,6 +12,10 @@
 | `NMbYI` | Dashboard/Empty/SP | SP初回・空状態 |
 | `3iRDC` | Dashboard/CreateRecruitmentSheet | SP募集作成BottomSheet |
 | `QQcZk` | Dashboard/AddStaffSheet | SPスタッフ追加BottomSheet |
+| `s9hbW` | Dashboard/SetupModal/Step1 | 初回セットアップモーダル Step1（店舗情報・入力済み） |
+| `xoJw8` | Dashboard/SetupModal/Step2 | 初回セットアップモーダル Step2（シフト募集作成・初期状態） |
+| `VLWsg` | Dashboard/SetupSheet/Step1 | SP初回セットアップSheet Step1（店舗情報・入力済み） |
+| `3yqIS` | Dashboard/SetupSheet/Step2 | SP初回セットアップSheet Step2（シフト募集作成・初期状態） |
 
 ## shiftboard.pen — シフトボード画面
 
