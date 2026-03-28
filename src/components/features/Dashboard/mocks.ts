@@ -13,7 +13,7 @@ export const mockRecruitments: Recruitment[] = [
     id: "rec-2",
     period: { start: "2026-03-24", end: "2026-03-30" },
     deadline: "2026-03-21",
-    status: "completed",
+    status: "confirmed",
     responseCount: 10,
     totalStaffCount: 10,
   },
