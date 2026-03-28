@@ -4740,9 +4740,10 @@
                           "id": "wCHJV",
                           "name": "Step2Label",
                           "fill": "$fg/subtle",
-                          "content": "シフト募集作成",
+                          "content": "あなたの情報",
                           "fontFamily": "Inter",
-                          "fontSize": "$i:fontSize/sm"
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -4803,7 +4804,8 @@
                           "fill": "$fg/default",
                           "content": "居酒屋たなか",
                           "fontFamily": "Inter",
-                          "fontSize": "$i:fontSize/sm"
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -4960,7 +4962,8 @@
                       "content": "営業時間ではなく、仕込み・片付けを含めたスタッフが勤務する可能性のある時間帯を入力してください",
                       "lineHeight": 1.5,
                       "fontFamily": "Inter",
-                      "fontSize": "$i:fontSize/xs"
+                      "fontSize": "$i:fontSize/xs",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -5072,7 +5075,7 @@
                   "id": "TEizq",
                   "name": "StepTitle",
                   "fill": "$fg/default",
-                  "content": "シフト募集を作成",
+                  "content": "あなたの情報を登録",
                   "fontFamily": "Inter",
                   "fontSize": "$i:fontSize/lg",
                   "fontWeight": "600"
@@ -5177,7 +5180,7 @@
                           "id": "xq9BR",
                           "name": "Step2Label",
                           "fill": "$teal/solid",
-                          "content": "シフト募集作成",
+                          "content": "あなたの情報",
                           "fontFamily": "Inter",
                           "fontSize": "$i:fontSize/sm",
                           "fontWeight": "600"
@@ -5190,159 +5193,35 @@
             },
             {
               "type": "frame",
-              "id": "prtUq",
+              "id": "Xt4xV",
               "name": "Content",
               "width": "fill_container",
               "layout": "vertical",
-              "gap": 20,
+              "gap": 16,
               "padding": 24,
               "children": [
                 {
                   "type": "frame",
-                  "id": "xpq93",
-                  "name": "PeriodField",
+                  "id": "J4qg2",
+                  "name": "NameField",
                   "width": "fill_container",
                   "layout": "vertical",
                   "gap": 6,
                   "children": [
                     {
                       "type": "text",
-                      "id": "kRboE",
-                      "name": "PeriodLabel",
+                      "id": "n3Wkx",
+                      "name": "nameLabel",
                       "fill": "$fg/default",
-                      "content": "シフト期間",
+                      "content": "あなたの名前",
                       "fontFamily": "Inter",
                       "fontSize": "$i:fontSize/sm",
                       "fontWeight": "500"
                     },
                     {
                       "type": "frame",
-                      "id": "fz1rz",
-                      "name": "DateRow",
-                      "width": "fill_container",
-                      "gap": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "kDPVR",
-                          "name": "StartDateInput",
-                          "width": "fill_container",
-                          "height": 40,
-                          "fill": "$bg/default",
-                          "cornerRadius": "$i:radii/md",
-                          "stroke": {
-                            "align": "inside",
-                            "thickness": 1,
-                            "fill": "$border/default"
-                          },
-                          "padding": [
-                            0,
-                            12
-                          ],
-                          "justifyContent": "space_between",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "rZ2Lo",
-                              "name": "StartDatePlaceholder",
-                              "fill": "$fg/subtle",
-                              "content": "開始日",
-                              "fontFamily": "Inter",
-                              "fontSize": "$i:fontSize/sm",
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "icon_font",
-                              "id": "gGwuj",
-                              "name": "CalIcon1",
-                              "width": 16,
-                              "height": 16,
-                              "iconFontName": "calendar",
-                              "iconFontFamily": "lucide",
-                              "fill": "$fg/muted"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "text",
-                          "id": "i6cup",
-                          "name": "DateSeparator",
-                          "fill": "$fg/muted",
-                          "content": "〜",
-                          "fontFamily": "Inter",
-                          "fontSize": "$i:fontSize/sm",
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "type": "frame",
-                          "id": "HGy2X",
-                          "name": "EndDateInput",
-                          "width": "fill_container",
-                          "height": 40,
-                          "fill": "$bg/default",
-                          "cornerRadius": "$i:radii/md",
-                          "stroke": {
-                            "align": "inside",
-                            "thickness": 1,
-                            "fill": "$border/default"
-                          },
-                          "padding": [
-                            0,
-                            12
-                          ],
-                          "justifyContent": "space_between",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "EL9jM",
-                              "name": "EndDatePlaceholder",
-                              "fill": "$fg/subtle",
-                              "content": "終了日",
-                              "fontFamily": "Inter",
-                              "fontSize": "$i:fontSize/sm",
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "icon_font",
-                              "id": "GL9BF",
-                              "name": "CalIcon2",
-                              "width": 16,
-                              "height": 16,
-                              "iconFontName": "calendar",
-                              "iconFontFamily": "lucide",
-                              "fill": "$fg/muted"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "6W6l1",
-                  "name": "DeadlineField",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "uKGZA",
-                      "name": "DeadlineLabel",
-                      "fill": "$fg/default",
-                      "content": "提出締切日",
-                      "fontFamily": "Inter",
-                      "fontSize": "$i:fontSize/sm",
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "frame",
-                      "id": "91QP4",
-                      "name": "DeadlineInput",
+                      "id": "to3jj",
+                      "name": "nameInput",
                       "width": "fill_container",
                       "height": 40,
                       "fill": "$bg/default",
@@ -5356,32 +5235,80 @@
                         0,
                         12
                       ],
-                      "justifyContent": "space_between",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "iZty9",
-                          "name": "DeadlinePlaceholder",
-                          "fill": "$fg/subtle",
-                          "content": "締切日を選択",
+                          "id": "sTrVc",
+                          "fill": "$fg/default",
+                          "content": "山田 太郎",
                           "fontFamily": "Inter",
                           "fontSize": "$i:fontSize/sm",
                           "fontWeight": "normal"
-                        },
-                        {
-                          "type": "icon_font",
-                          "id": "pdDzN",
-                          "name": "CalIcon3",
-                          "width": 16,
-                          "height": 16,
-                          "iconFontName": "calendar",
-                          "iconFontFamily": "lucide",
-                          "fill": "$fg/muted"
                         }
                       ]
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tex2O",
+                  "name": "EmailField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "6R81A",
+                      "name": "emailLabel",
+                      "fill": "$fg/default",
+                      "content": "メールアドレス",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cD7Wm",
+                      "name": "emailInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "iRvbS",
+                          "fill": "$fg/default",
+                          "content": "yamada@example.com",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "nKFvu",
+                  "name": "helpText",
+                  "fill": "$fg/muted",
+                  "content": "ほかのスタッフはセットアップ完了後にいつでも追加・編集できます",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -5451,7 +5378,7 @@
                       "id": "rgP5U",
                       "name": "CreateLabel",
                       "fill": "$fg/subtle",
-                      "content": "作成する",
+                      "content": "登録する",
                       "fontFamily": "Inter",
                       "fontSize": "$i:fontSize/sm",
                       "fontWeight": "500"
@@ -5611,9 +5538,10 @@
                           "id": "BqFrP",
                           "name": "Step2Label",
                           "fill": "$fg/subtle",
-                          "content": "シフト募集作成",
+                          "content": "あなたの情報",
                           "fontFamily": "Inter",
-                          "fontSize": "$i:fontSize/xs"
+                          "fontSize": "$i:fontSize/xs",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -5915,7 +5843,7 @@
                   "id": "K4qDM",
                   "name": "StepTitle",
                   "fill": "$fg/default",
-                  "content": "シフト募集を作成",
+                  "content": "あなたの情報を登録",
                   "fontFamily": "Inter",
                   "fontSize": "$i:fontSize/md",
                   "fontWeight": "600"
@@ -6020,7 +5948,7 @@
                           "id": "JpgJh",
                           "name": "Step2Label",
                           "fill": "$teal/solid",
-                          "content": "シフト募集作成",
+                          "content": "あなたの情報",
                           "fontFamily": "Inter",
                           "fontSize": "$i:fontSize/xs",
                           "fontWeight": "600"
@@ -6033,7 +5961,7 @@
             },
             {
               "type": "frame",
-              "id": "97uQo",
+              "id": "iJTdV",
               "name": "Content",
               "width": "fill_container",
               "layout": "vertical",
@@ -6045,150 +5973,26 @@
               "children": [
                 {
                   "type": "frame",
-                  "id": "ptlDr",
-                  "name": "PeriodField",
+                  "id": "mtd1V",
+                  "name": "NameField",
                   "width": "fill_container",
                   "layout": "vertical",
                   "gap": 6,
                   "children": [
                     {
                       "type": "text",
-                      "id": "nUFw2",
-                      "name": "PeriodLabel",
+                      "id": "9jKCK",
+                      "name": "spNameLabel",
                       "fill": "$fg/default",
-                      "content": "シフト期間",
+                      "content": "あなたの名前",
                       "fontFamily": "Inter",
                       "fontSize": "$i:fontSize/sm",
                       "fontWeight": "500"
                     },
                     {
                       "type": "frame",
-                      "id": "ZUY6g",
-                      "name": "DateRow",
-                      "width": "fill_container",
-                      "gap": 8,
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "QuxKe",
-                          "name": "StartDateInput",
-                          "width": "fill_container",
-                          "height": 40,
-                          "fill": "$bg/default",
-                          "cornerRadius": "$i:radii/md",
-                          "stroke": {
-                            "align": "inside",
-                            "thickness": 1,
-                            "fill": "$border/default"
-                          },
-                          "padding": [
-                            0,
-                            12
-                          ],
-                          "justifyContent": "space_between",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "xUExA",
-                              "name": "Placeholder",
-                              "fill": "$fg/subtle",
-                              "content": "開始日",
-                              "fontFamily": "Inter",
-                              "fontSize": "$i:fontSize/sm",
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "icon_font",
-                              "id": "tH9Io",
-                              "name": "CalIcon",
-                              "width": 16,
-                              "height": 16,
-                              "iconFontName": "calendar",
-                              "iconFontFamily": "lucide",
-                              "fill": "$fg/muted"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "text",
-                          "id": "F86W3",
-                          "name": "Separator",
-                          "fill": "$fg/muted",
-                          "content": "〜",
-                          "fontFamily": "Inter",
-                          "fontSize": "$i:fontSize/sm",
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "type": "frame",
-                          "id": "8CqPm",
-                          "name": "EndDateInput",
-                          "width": "fill_container",
-                          "height": 40,
-                          "fill": "$bg/default",
-                          "cornerRadius": "$i:radii/md",
-                          "stroke": {
-                            "align": "inside",
-                            "thickness": 1,
-                            "fill": "$border/default"
-                          },
-                          "padding": [
-                            0,
-                            12
-                          ],
-                          "justifyContent": "space_between",
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "r4I9E",
-                              "name": "Placeholder",
-                              "fill": "$fg/subtle",
-                              "content": "終了日",
-                              "fontFamily": "Inter",
-                              "fontSize": "$i:fontSize/sm",
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "icon_font",
-                              "id": "Snuqh",
-                              "name": "CalIcon",
-                              "width": 16,
-                              "height": 16,
-                              "iconFontName": "calendar",
-                              "iconFontFamily": "lucide",
-                              "fill": "$fg/muted"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "0LgQK",
-                  "name": "DeadlineField",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "hZnan",
-                      "name": "DeadlineLabel",
-                      "fill": "$fg/default",
-                      "content": "提出締切日",
-                      "fontFamily": "Inter",
-                      "fontSize": "$i:fontSize/sm",
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "frame",
-                      "id": "h5JDP",
-                      "name": "DeadlineInput",
+                      "id": "7w3At",
+                      "name": "spNameInput",
                       "width": "fill_container",
                       "height": 40,
                       "fill": "$bg/default",
@@ -6202,32 +6006,80 @@
                         0,
                         12
                       ],
-                      "justifyContent": "space_between",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "text",
-                          "id": "3WJdS",
-                          "name": "Placeholder",
-                          "fill": "$fg/subtle",
-                          "content": "締切日を選択",
+                          "id": "zhu8s",
+                          "fill": "$fg/default",
+                          "content": "山田 太郎",
                           "fontFamily": "Inter",
                           "fontSize": "$i:fontSize/sm",
                           "fontWeight": "normal"
-                        },
-                        {
-                          "type": "icon_font",
-                          "id": "pDl8z",
-                          "name": "CalIcon",
-                          "width": 16,
-                          "height": 16,
-                          "iconFontName": "calendar",
-                          "iconFontFamily": "lucide",
-                          "fill": "$fg/muted"
                         }
                       ]
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "UMc3R",
+                  "name": "EmailField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kIvZR",
+                      "name": "spEmailLabel",
+                      "fill": "$fg/default",
+                      "content": "メールアドレス",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "1xhfk",
+                      "name": "spEmailInput",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$bg/default",
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wVwu0",
+                          "fill": "$fg/default",
+                          "content": "yamada@example.com",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "fg50f",
+                  "name": "spHelp",
+                  "fill": "$fg/muted",
+                  "content": "ほかのスタッフはセットアップ完了後にいつでも追加・編集できます",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -6288,7 +6140,7 @@
                       "id": "9agrI",
                       "name": "CreateLabel",
                       "fill": "$fg/subtle",
-                      "content": "作成する",
+                      "content": "登録する",
                       "fontFamily": "Inter",
                       "fontSize": "$i:fontSize/sm",
                       "fontWeight": "500"
