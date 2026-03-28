@@ -8,9 +8,10 @@ type Props = {
   recruitments: Recruitment[];
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
+  onSetupClick?: () => void;
 };
 
-export const RecruitmentSection = ({ recruitments, onCreateClick, onOpenShiftBoard }: Props) => {
+export const RecruitmentSection = ({ recruitments, onCreateClick, onOpenShiftBoard, onSetupClick }: Props) => {
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
@@ -27,6 +28,13 @@ export const RecruitmentSection = ({ recruitments, onCreateClick, onOpenShiftBoa
             title="募集がありません"
             description="新しい募集を作成して、スタッフのシフトを集めましょう"
             minH="160px"
+            action={
+              onSetupClick && (
+                <Button colorPalette="teal" onClick={onSetupClick}>
+                  はじめる
+                </Button>
+              )
+            }
           />
         </Box>
       ) : (
