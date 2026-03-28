@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SideMenu } from "./index";
+import { Header } from "./index";
 
 const meta = {
-  title: "templates/SideMenu",
-  component: SideMenu,
-} satisfies Meta<typeof SideMenu>;
+  title: "templates/Header",
+  component: Header,
+  parameters: {
+    layout: "fullscreen",
+  },
+} satisfies Meta<typeof Header>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
