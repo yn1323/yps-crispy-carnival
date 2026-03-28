@@ -1,9 +1,7 @@
-"use client";
-
 import { Toaster as ChakraToaster, createToaster, Portal, Spinner, Stack, Toast } from "@chakra-ui/react";
 
 export const toaster = createToaster({
-  placement: "top-start",
+  placement: "top",
   pauseOnPageIdle: true,
 });
 

@@ -66,16 +66,14 @@ export const ShiftBoardHeader = ({
               </Button>
             )}
           </Flex>
-          {isConfirmed && (
-            <Flex align="center" gap={1}>
-              <Icon color="green.600" boxSize={3.5}>
-                <LuCircleCheck />
-              </Icon>
-              <Text fontSize="xs" color="green.600">
-                送付済み（{formatDateTime(confirmedAt)}）
-              </Text>
-            </Flex>
-          )}
+          <Flex align="center" gap={1} visibility={isConfirmed ? "visible" : "hidden"}>
+            <Icon color="green.600" boxSize={3.5}>
+              <LuCircleCheck />
+            </Icon>
+            <Text fontSize="xs" color="green.600">
+              送付済み（{confirmedAt && formatDateTime(confirmedAt)}）
+            </Text>
+          </Flex>
         </Flex>
       </Flex>
     </Box>
