@@ -20,4 +20,6 @@
 ## designIndex.md
 - `designIndex.md`: .penファイルのフレームIDインデックス
 - 参照時はまずここのIDで `batch_get(nodeIds=[...])` を使い、IDが無効な場合は `batch_get(patterns=[{name: "..."}])` でフォールバックする
-- デザインフレームを追加・削除した際は `designIndex.md` のIDを更新すること
+- デザインフレームを追加・削除した際は必ず `designIndex.md` のIDを更新すること
+- デザインフレームを追加・削除した際は必ず `designIndex.md` のIDを更新すること
+- デザインフレームを追加・削除した際は必ず `designIndex.md` のIDを更新すること（忘れないで！）
