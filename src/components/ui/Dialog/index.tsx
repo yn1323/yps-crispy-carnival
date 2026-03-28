@@ -40,6 +40,7 @@ type DialogProps = {
   hideFooter?: boolean;
   maxW?: string;
   maxH?: string;
+  formId?: string;
 };
 
 export const Dialog = ({
@@ -58,6 +59,7 @@ export const Dialog = ({
   hideFooter = false,
   maxW,
   maxH,
+  formId,
 }: DialogProps) => {
   return (
     <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center">
@@ -76,10 +78,10 @@ export const Dialog = ({
                 <Button variant="outline" onClick={onClose}>
                   {closeLabel}
                 </Button>
-                {onSubmit && (
+                {(onSubmit || formId) && (
                   <Button
                     colorPalette={submitColorPalette}
-                    onClick={onSubmit}
+                    {...(formId ? { type: "submit", form: formId } : { onClick: onSubmit })}
                     loading={isLoading}
                     disabled={isSubmitDisabled}
                   >
