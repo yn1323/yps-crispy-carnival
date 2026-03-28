@@ -1,6 +1,5 @@
 import { useBreakpointValue } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
@@ -22,7 +21,6 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
   const staffModal = useDialog();
   const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
-  const [hasStaffEntry, setHasStaffEntry] = useState(false);
   const isEmpty = recruitments.length === 0 && staffs.length === 0;
 
   const Modal = isMobile ? BottomSheet : Dialog;
@@ -30,10 +28,6 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
   const handleOpenShiftBoard = (recruitmentId: string) => {
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
   };
-
-  const handleStaffEntriesChange = useCallback((hasValid: boolean) => {
-    setHasStaffEntry(hasValid);
-  }, []);
 
   return (
     <>
@@ -70,7 +64,6 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         formId="add-staff-form"
         submitLabel="登録する"
         onClose={staffModal.close}
-        isSubmitDisabled={!hasStaffEntry}
         maxW="640px"
       >
         <AddStaffForm
@@ -78,7 +71,6 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
             console.log("Staff added:", data);
             staffModal.close();
           }}
-          onEntriesChange={handleStaffEntriesChange}
         />
       </Modal>
 
