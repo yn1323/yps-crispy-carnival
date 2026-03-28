@@ -101,6 +101,11 @@ convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / polici
 - `userAtom`: ログインユーザー情報
 - ShiftForm系Atoms: Jotai Providerでスコープ管理
 
+### フォーム
+
+- react-hookform + zodResolverを利用
+- index.tsに外出しし、index.test.tsにテストを書くこと
+
 ### 認証
 
 - **Clerk**: アプリ認証（管理者・マネージャー）
