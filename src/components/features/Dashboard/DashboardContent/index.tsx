@@ -21,7 +21,7 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
   const staffModal = useDialog();
   const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
-  const isEmpty = recruitments.length === 0 && staffs.length === 0;
+  const hasNoRecruitments = recruitments.length === 0;
 
   const Modal = isMobile ? BottomSheet : Dialog;
 
@@ -34,9 +34,9 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
       <ContentWrapper>
         <RecruitmentSection
           recruitments={recruitments}
-          onCreateClick={recruitmentModal.open}
+          onCreateClick={hasNoRecruitments ? setupModal.open : recruitmentModal.open}
           onOpenShiftBoard={handleOpenShiftBoard}
-          onSetupClick={isEmpty ? setupModal.open : undefined}
+          onSetupClick={hasNoRecruitments ? setupModal.open : undefined}
         />
         <StaffSection staffs={staffs} onAddClick={staffModal.open} />
       </ContentWrapper>
@@ -75,7 +75,7 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         />
       </Modal>
 
-      {isEmpty && (
+      {hasNoRecruitments && (
         <SetupModal
           isOpen={setupModal.isOpen}
           onOpenChange={setupModal.onOpenChange}
