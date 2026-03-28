@@ -1,4 +1,1 @@
-export {
-  type CreateRecruitmentInput as Step2Data,
-  createRecruitmentSchema as step2Schema,
-} from "@/convex/recruitment/schemas";
+export { type OwnerProfileInput as Step2Data, ownerProfileSchema as step2Schema } from "@/convex/setup/schemas";

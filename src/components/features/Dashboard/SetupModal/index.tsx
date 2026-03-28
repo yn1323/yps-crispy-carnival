@@ -3,7 +3,6 @@ import {
   Button,
   Dialog as ChakraDialog,
   Circle,
-  CloseButton,
   Flex,
   HStack,
   Icon,
@@ -54,7 +53,7 @@ const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
         fontWeight={currentStep >= 2 ? "semibold" : "normal"}
         color={currentStep >= 2 ? "teal.solid" : "fg.subtle"}
       >
-        シフト募集作成
+        あなたの情報
       </Text>
     </HStack>
   </HStack>
@@ -83,20 +82,24 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete }: Props) => {
 
   const handleOpenChange = useCallback(
     (details: { open: boolean }) => {
-      if (!details.open) {
-        setCurrentStep(1);
-        setStep1Data(INITIAL_STEP1);
-      }
+      // 強制モーダル: 閉じれない
+      if (!details.open) return;
       onOpenChange(details);
     },
     [onOpenChange],
   );
 
-  const title = currentStep === 1 ? "店舗情報を登録" : "シフト募集を作成";
+  const title = currentStep === 1 ? "店舗情報を登録" : "あなたの情報を登録";
   const placement = isMobile ? "bottom" : "center";
 
   return (
-    <ChakraDialog.Root open={isOpen} onOpenChange={handleOpenChange} placement={placement} modal={!isMobile}>
+    <ChakraDialog.Root
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+      placement={placement}
+      modal={!isMobile}
+      closeOnInteractOutside={false}
+    >
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -135,14 +138,10 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete }: Props) => {
                 </Button>
               ) : (
                 <Button type="submit" form="setup-step2" colorPalette="teal">
-                  作成する
+                  登録する
                 </Button>
               )}
             </Flex>
-
-            <ChakraDialog.CloseTrigger position="absolute" top="2" insetEnd="2">
-              <CloseButton size="sm" />
-            </ChakraDialog.CloseTrigger>
           </ChakraDialog.Content>
         </ChakraDialog.Positioner>
       </Portal>

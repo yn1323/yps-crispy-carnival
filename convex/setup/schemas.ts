@@ -13,3 +13,10 @@ export const createShopSchema = z
   });
 
 export type CreateShopInput = z.infer<typeof createShopSchema>;
+
+export const ownerProfileSchema = z.object({
+  name: z.string().min(1, "名前を入力してください"),
+  email: z.string().min(1, "メールアドレスを入力してください").email("正しいメールアドレスを入力してください"),
+});
+
+export type OwnerProfileInput = z.infer<typeof ownerProfileSchema>;

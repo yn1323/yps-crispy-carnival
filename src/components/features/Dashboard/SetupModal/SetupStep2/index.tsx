@@ -1,48 +1,39 @@
-import { Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type Step2Data, step2Schema } from "./index";
 
 type Props = {
-  defaultValues?: Step2Data;
   onSubmit: (data: Step2Data) => void;
   formId?: string;
 };
 
-export const SetupStep2 = ({ defaultValues, onSubmit, formId = "setup-step2" }: Props) => {
+export const SetupStep2 = ({ onSubmit, formId = "setup-step2" }: Props) => {
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<Step2Data>({
     resolver: zodResolver(step2Schema),
-    defaultValues: defaultValues ?? { periodStart: "", periodEnd: "", deadline: "" },
+    defaultValues: { name: "", email: "" },
   });
-
-  const periodStart = watch("periodStart");
-  const periodEnd = watch("periodEnd");
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={5}>
-        <Field.Root invalid={!!errors.periodStart || !!errors.periodEnd}>
-          <Field.Label>シフト期間</Field.Label>
-          <Flex gap={2} align="center" w="100%">
-            <Input type="date" flex={1} {...register("periodStart")} max={periodEnd || undefined} />
-            <Text color="gray.500" flexShrink={0}>
-              〜
-            </Text>
-            <Input type="date" flex={1} {...register("periodEnd")} min={periodStart || undefined} />
-          </Flex>
-          {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
-          {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
+        <Field.Root invalid={!!errors.name}>
+          <Field.Label>あなたの名前</Field.Label>
+          <Input {...register("name")} placeholder="山田 太郎" />
+          {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
-        <Field.Root invalid={!!errors.deadline}>
-          <Field.Label>提出締切日</Field.Label>
-          <Input type="date" {...register("deadline")} max={periodStart || undefined} />
-          {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
+        <Field.Root invalid={!!errors.email}>
+          <Field.Label>メールアドレス</Field.Label>
+          <Input type="email" {...register("email")} placeholder="yamada@example.com" />
+          {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
+        <Text fontSize="xs" color="fg.muted">
+          ほかのスタッフはセットアップ完了後にいつでも追加・編集できます
+        </Text>
       </Stack>
     </form>
   );

@@ -25,11 +25,10 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
-  const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
 
-  const createShop = useMutation(api.setup.mutations.createShop);
+  const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
   const addStaffs = useMutation(api.staff.mutations.addStaffs);
 
@@ -41,17 +40,13 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
 
   const handleSetupComplete = async (data: SetupData) => {
     try {
-      await createShop({
+      await setupShopAndOwner({
         shopName: data.shopName,
         shiftStartTime: data.shiftStartTime,
         shiftEndTime: data.shiftEndTime,
+        ownerName: data.name,
+        ownerEmail: data.email,
       });
-      await createRecruitment({
-        periodStart: data.periodStart,
-        periodEnd: data.periodEnd,
-        deadline: data.deadline,
-      });
-      setupModal.close();
       toaster.create({ title: "セットアップが完了しました", type: "success" });
     } catch (error) {
       const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
@@ -86,9 +81,8 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
       <ContentWrapper>
         <RecruitmentSection
           recruitments={recruitments}
-          onCreateClick={isSetupRequired ? setupModal.open : recruitmentModal.open}
+          onCreateClick={recruitmentModal.open}
           onOpenShiftBoard={handleOpenShiftBoard}
-          onSetupClick={isSetupRequired ? setupModal.open : undefined}
         />
         <StaffSection staffs={staffs} onAddClick={staffModal.open} />
       </ContentWrapper>
@@ -117,13 +111,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
         <AddStaffForm onSubmit={handleAddStaffs} />
       </Modal>
 
-      {isSetupRequired && (
-        <SetupModal
-          isOpen={setupModal.isOpen}
-          onOpenChange={setupModal.onOpenChange}
-          onComplete={handleSetupComplete}
-        />
-      )}
+      {isSetupRequired && <SetupModal isOpen={true} onOpenChange={() => {}} onComplete={handleSetupComplete} />}
     </>
   );
 };

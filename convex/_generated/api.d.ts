@@ -18,6 +18,7 @@ import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
 import type * as staff_mutations from "../staff/mutations.js";
 import type * as staff_schemas from "../staff/schemas.js";
+import type * as testing from "../testing.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   "setup/schemas": typeof setup_schemas;
   "staff/mutations": typeof staff_mutations;
   "staff/schemas": typeof staff_schemas;
+  testing: typeof testing;
 }>;
 
 /**

@@ -4,20 +4,22 @@ import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
 
+const setupArgs = {
+  shopName: "テスト店舗",
+  shiftStartTime: "09:00",
+  shiftEndTime: "22:00",
+  ownerName: "山田 太郎",
+  ownerEmail: "yamada@example.com",
+};
+
 describe("setup/mutations", () => {
-  describe("createShop", () => {
+  describe("setupShopAndOwner", () => {
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
-      await expect(
-        t.mutation(api.setup.mutations.createShop, {
-          shopName: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-        }),
-      ).rejects.toThrow();
+      await expect(t.mutation(api.setup.mutations.setupShopAndOwner, setupArgs)).rejects.toThrow();
     });
 
-    it("店舗とユーザーレコードを作成する", async () => {
+    it("店舗・ユーザー・スタッフを1トランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
       const asUser = t.withIdentity({
         subject: "user_new",
@@ -25,21 +27,15 @@ describe("setup/mutations", () => {
         email: "new@example.com",
       });
 
-      const shopId = await asUser.mutation(api.setup.mutations.createShop, {
-        shopName: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-      });
-
+      const shopId = await asUser.mutation(api.setup.mutations.setupShopAndOwner, setupArgs);
       expect(shopId).toBeDefined();
 
       // shops テーブルを確認
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("テスト店舗");
       expect(shop?.ownerId).toBe("user_new");
-      expect(shop?.isDeleted).toBe(false);
 
-      // users テーブルにも作成されていること
+      // users テーブルを確認
       const user = await t.run(async (ctx) =>
         ctx.db
           .query("users")
@@ -47,7 +43,21 @@ describe("setup/mutations", () => {
           .first(),
       );
       expect(user).not.toBeNull();
+      expect(user?.name).toBe("山田 太郎");
+      expect(user?.email).toBe("yamada@example.com");
       expect(user?.role).toBe("manager");
+
+      // staffs テーブルを確認
+      const staffs = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffs")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .collect(),
+      );
+      expect(staffs).toHaveLength(1);
+      expect(staffs[0].name).toBe("山田 太郎");
+      expect(staffs[0].email).toBe("yamada@example.com");
+      expect(staffs[0].userId).toBe(user?._id);
     });
 
     it("既に店舗がある場合エラーをthrow", async () => {
@@ -71,42 +81,33 @@ describe("setup/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "user_existing" }).mutation(api.setup.mutations.createShop, {
-          shopName: "重複店舗",
-          shiftStartTime: "10:00",
-          shiftEndTime: "20:00",
-        }),
+        t.withIdentity({ subject: "user_existing" }).mutation(api.setup.mutations.setupShopAndOwner, setupArgs),
       ).rejects.toThrow(ConvexError);
     });
 
-    it("既存ユーザーレコードがある場合は users を再作成しない", async () => {
+    it("既存ユーザーレコードがある場合は名前・メールを更新する", async () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
         await ctx.db.insert("users", {
           clerkId: "user_has_record",
-          name: "既存ユーザー",
-          email: "existing@example.com",
+          name: "旧名前",
+          email: "old@example.com",
           role: "manager",
           isDeleted: false,
         });
       });
 
-      await t.withIdentity({ subject: "user_has_record" }).mutation(api.setup.mutations.createShop, {
-        shopName: "新店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-      });
+      await t.withIdentity({ subject: "user_has_record" }).mutation(api.setup.mutations.setupShopAndOwner, setupArgs);
 
-      // users が1件のままであること
-      const users = await t.run(async (ctx) =>
+      const user = await t.run(async (ctx) =>
         ctx.db
           .query("users")
           .withIndex("by_clerkId", (q) => q.eq("clerkId", "user_has_record"))
-          .collect(),
+          .first(),
       );
-      expect(users).toHaveLength(1);
-      expect(users[0].name).toBe("既存ユーザー");
+      expect(user?.name).toBe("山田 太郎");
+      expect(user?.email).toBe("yamada@example.com");
     });
   });
 });

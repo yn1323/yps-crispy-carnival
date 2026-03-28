@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { step2Schema } from "./index";
 
-describe("step2Schema", () => {
+describe("step2Schema (ownerProfile)", () => {
   const validData = {
-    periodStart: "2026-04-01",
-    periodEnd: "2026-04-14",
-    deadline: "2026-03-28",
+    name: "山田 太郎",
+    email: "yamada@example.com",
   };
 
   it("有効なデータを受け入れる", () => {
@@ -13,71 +12,27 @@ describe("step2Schema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("開始日が空の場合エラー", () => {
-    const result = step2Schema.safeParse({ ...validData, periodStart: "" });
+  it("名前が空の場合エラー", () => {
+    const result = step2Schema.safeParse({ ...validData, name: "" });
     expect(result.success).toBe(false);
   });
 
-  it("終了日が空の場合エラー", () => {
-    const result = step2Schema.safeParse({ ...validData, periodEnd: "" });
+  it("メールアドレスが空の場合エラー", () => {
+    const result = step2Schema.safeParse({ ...validData, email: "" });
     expect(result.success).toBe(false);
   });
 
-  it("締切日が空の場合エラー", () => {
-    const result = step2Schema.safeParse({ ...validData, deadline: "" });
-    expect(result.success).toBe(false);
-  });
-
-  it("終了日が開始日と同じ場合は有効", () => {
-    const result = step2Schema.safeParse({
-      ...validData,
-      periodStart: "2026-04-01",
-      periodEnd: "2026-04-01",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("終了日が開始日より前の場合エラー", () => {
-    const result = step2Schema.safeParse({
-      ...validData,
-      periodStart: "2026-04-14",
-      periodEnd: "2026-04-01",
-    });
+  it("メールアドレスが不正な形式の場合エラー", () => {
+    const result = step2Schema.safeParse({ ...validData, email: "invalid-email" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const error = result.error.issues.find((i) => i.path.includes("periodEnd"));
-      expect(error?.message).toBe("終了日は開始日以降にしてください");
+      const error = result.error.issues.find((i) => i.path.includes("email"));
+      expect(error?.message).toBe("正しいメールアドレスを入力してください");
     }
   });
 
-  it("締切日が開始日より前なら有効", () => {
-    const result = step2Schema.safeParse({
-      ...validData,
-      periodStart: "2026-04-01",
-      deadline: "2026-03-31",
-    });
+  it("有効なメールアドレスを受け入れる", () => {
+    const result = step2Schema.safeParse({ ...validData, email: "test+tag@sub.domain.co.jp" });
     expect(result.success).toBe(true);
-  });
-
-  it("締切日が開始日と同じ場合エラー", () => {
-    const result = step2Schema.safeParse({
-      ...validData,
-      periodStart: "2026-04-01",
-      deadline: "2026-04-01",
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const error = result.error.issues.find((i) => i.path.includes("deadline"));
-      expect(error?.message).toBe("締切日は開始日より前にしてください");
-    }
-  });
-
-  it("締切日が開始日より後の場合エラー", () => {
-    const result = step2Schema.safeParse({
-      ...validData,
-      periodStart: "2026-04-01",
-      deadline: "2026-04-05",
-    });
-    expect(result.success).toBe(false);
   });
 });

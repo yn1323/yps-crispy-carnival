@@ -31,6 +31,7 @@ const schema = defineSchema({
     shopId: v.id("shops"),
     name: v.string(),
     email: v.string(),
+    userId: v.optional(v.id("users")),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
