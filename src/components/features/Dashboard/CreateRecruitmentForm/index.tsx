@@ -1,4 +1,4 @@
-import { Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type CreateRecruitmentData, createRecruitmentSchema } from "./index";
@@ -8,6 +8,13 @@ type Props = {
   onSubmit: (data: CreateRecruitmentData) => void;
 };
 
+const DatePlaceholder = ({ children, visible }: { children: string; visible: boolean }) =>
+  visible ? (
+    <Text position="absolute" top="50%" left="12px" transform="translateY(-50%)" color="gray.400" pointerEvents="none">
+      {children}
+    </Text>
+  ) : null;
+
 export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
   const {
     register,
@@ -16,30 +23,63 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
     formState: { errors },
   } = useForm<CreateRecruitmentData>({
     resolver: zodResolver(createRecruitmentSchema),
-    defaultValues: defaultValues ?? { periodStart: "", periodEnd: "", deadline: "" },
+    defaultValues: defaultValues ?? {
+      periodStart: "",
+      periodEnd: "",
+      deadline: "",
+    },
   });
 
   const periodStart = watch("periodStart");
   const periodEnd = watch("periodEnd");
+  const deadline = watch("deadline");
 
   return (
     <form id="create-recruitment-form" onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={5}>
         <Field.Root invalid={!!errors.periodStart || !!errors.periodEnd}>
           <Field.Label>シフト期間</Field.Label>
-          <Flex gap={2} align="center" w="100%">
-            <Input type="date" flex={1} {...register("periodStart")} max={periodEnd || undefined} />
-            <Text color="gray.500" flexShrink={0}>
+          <Flex gap={2} w="100%">
+            <Box flex={1}>
+              <Box position="relative">
+                <Input
+                  type="date"
+                  {...register("periodStart")}
+                  max={periodEnd || undefined}
+                  color={periodStart ? undefined : "transparent"}
+                />
+                <DatePlaceholder visible={!periodStart}>2026/04/01</DatePlaceholder>
+              </Box>
+              {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
+            </Box>
+            <Text color="gray.500" flexShrink={0} h="10" display="flex" alignItems="center">
               〜
             </Text>
-            <Input type="date" flex={1} {...register("periodEnd")} min={periodStart || undefined} />
+            <Box flex={1}>
+              <Box position="relative">
+                <Input
+                  type="date"
+                  {...register("periodEnd")}
+                  min={periodStart || undefined}
+                  color={periodEnd ? undefined : "transparent"}
+                />
+                <DatePlaceholder visible={!periodEnd}>2026/04/30</DatePlaceholder>
+              </Box>
+              {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
+            </Box>
           </Flex>
-          {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
-          {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.deadline}>
           <Field.Label>提出締切日</Field.Label>
-          <Input type="date" {...register("deadline")} max={periodStart || undefined} />
+          <Box position="relative">
+            <Input
+              type="date"
+              {...register("deadline")}
+              max={periodStart || undefined}
+              color={deadline ? undefined : "transparent"}
+            />
+            <DatePlaceholder visible={!deadline}>2026/03/25</DatePlaceholder>
+          </Box>
           {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
         </Field.Root>
       </Stack>
