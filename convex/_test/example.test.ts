@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { modules, schema } from "./setup";
+import { modules, schema } from "./setup.test-helper";
 
 describe("convex-test setup", () => {
   it("convexTest インスタンスが生成できる", async () => {
