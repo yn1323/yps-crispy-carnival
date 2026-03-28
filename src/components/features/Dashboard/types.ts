@@ -2,7 +2,7 @@ export type Recruitment = {
   id: string;
   period: { start: string; end: string };
   deadline: string;
-  status: "open" | "completed";
+  status: "open" | "confirmed";
   responseCount: number;
   totalStaffCount: number;
 };
