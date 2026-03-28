@@ -6,9 +6,10 @@ import { type Step2Data, step2Schema } from "./index";
 type Props = {
   defaultValues?: Step2Data;
   onSubmit: (data: Step2Data) => void;
+  formId?: string;
 };
 
-export const SetupStep2 = ({ defaultValues, onSubmit }: Props) => {
+export const SetupStep2 = ({ defaultValues, onSubmit, formId = "setup-step2" }: Props) => {
   const {
     register,
     handleSubmit,
@@ -23,7 +24,7 @@ export const SetupStep2 = ({ defaultValues, onSubmit }: Props) => {
   const periodEnd = watch("periodEnd");
 
   return (
-    <form id="setup-step2" onSubmit={handleSubmit(onSubmit)}>
+    <form id={formId} onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={5}>
         <Field.Root invalid={!!errors.periodStart || !!errors.periodEnd}>
           <Field.Label>シフト期間</Field.Label>

@@ -4,8 +4,8 @@ import { useCallback, useState } from "react";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { AddStaffForm } from "../AddStaffForm";
-import { CreateRecruitmentForm } from "../CreateRecruitmentForm";
+import { AddStaffForm } from "../AddStaffForm/index.tsx";
+import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import { RecruitmentSection } from "../RecruitmentSection";
 import { SetupModal } from "../SetupModal";
 import { StaffSection } from "../StaffSection";
@@ -51,24 +51,35 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         title="新しい募集を作成"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
-        onSubmit={recruitmentModal.close}
+        formId="create-recruitment-form"
         submitLabel="作成する"
         onClose={recruitmentModal.close}
       >
-        <CreateRecruitmentForm />
+        <CreateRecruitmentForm
+          onSubmit={(data) => {
+            console.log("Recruitment created:", data);
+            recruitmentModal.close();
+          }}
+        />
       </Modal>
 
       <Modal
         title="スタッフを追加"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
-        onSubmit={staffModal.close}
+        formId="add-staff-form"
         submitLabel="登録する"
         onClose={staffModal.close}
         isSubmitDisabled={!hasStaffEntry}
         maxW="640px"
       >
-        <AddStaffForm onEntriesChange={handleStaffEntriesChange} />
+        <AddStaffForm
+          onSubmit={(data) => {
+            console.log("Staff added:", data);
+            staffModal.close();
+          }}
+          onEntriesChange={handleStaffEntriesChange}
+        />
       </Modal>
 
       {isEmpty && (
