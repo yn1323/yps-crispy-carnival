@@ -4631,16 +4631,6 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "ex1SU",
-                  "name": "WelcomeText",
-                  "fill": "$teal/solid",
-                  "content": "ようこそYPSへ",
-                  "fontFamily": "Inter",
-                  "fontSize": "$i:fontSize/xs",
-                  "fontWeight": "500"
-                },
-                {
-                  "type": "text",
                   "id": "bdi4f",
                   "name": "StepTitle",
                   "fill": "$fg/default",
@@ -5510,16 +5500,6 @@
               "gap": 4,
               "padding": 16,
               "children": [
-                {
-                  "type": "text",
-                  "id": "BLUOF",
-                  "name": "WelcomeText",
-                  "fill": "$teal/solid",
-                  "content": "ようこそYPSへ",
-                  "fontFamily": "Inter",
-                  "fontSize": "$i:fontSize/xs",
-                  "fontWeight": "500"
-                },
                 {
                   "type": "text",
                   "id": "uFCTb",
