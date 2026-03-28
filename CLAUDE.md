@@ -41,8 +41,25 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
 
 ## 実装のルール
+
 - 実装完了後、SubAgentで`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること（Context消費したくない）
 - 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
+
+### フロントエンド（UIあり）
+
+- コロケーションでファイルを作成する
+   - index.tsx
+   - index.stories.tsx
+   - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
+- 
+
+### フロントエンド（UIなし）
+
+- コロケーションでファイルを作成する
+
+   - index.tsx
+   - index.stories.tsx
+   - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
 
 ### 環境変数
 
