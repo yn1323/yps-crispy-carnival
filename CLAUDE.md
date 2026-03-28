@@ -48,18 +48,15 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 ### フロントエンド（UIあり）
 
 - コロケーションでファイルを作成する
-   - index.tsx
-   - index.stories.tsx
+   - index.tsx（必須）
+   - index.stories.tsx（必須）
    - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
-- 
+- UIパターンごとにindex.stories.tsxに記載すること（細かすぎないよう注意！）。後工程でVRTに利用します
+- 複雑な動きがある場合、index.stories.tsxに操作テストを記載すること
 
-### フロントエンド（UIなし）
+### フロントエンド（UIなしロジック）
 
-- コロケーションでファイルを作成する
-
-   - index.tsx
-   - index.stories.tsx
-   - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
+- テストファイルも合わせて作成すること
 
 ### 環境変数
 
