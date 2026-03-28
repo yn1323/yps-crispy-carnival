@@ -33,6 +33,7 @@ type BottomSheetProps = {
   submitLabel?: string;
   onClose?: () => void;
   closeLabel?: string;
+  isSubmitDisabled?: boolean;
 };
 
 export const BottomSheet = ({
@@ -44,6 +45,7 @@ export const BottomSheet = ({
   submitLabel = "送信",
   onClose,
   closeLabel = "キャンセル",
+  isSubmitDisabled = false,
 }: BottomSheetProps) => {
   return (
     <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} placement="bottom" modal={false}>
@@ -67,7 +69,7 @@ export const BottomSheet = ({
                   </Button>
                 )}
                 {onSubmit && (
-                  <Button colorPalette="teal" onClick={onSubmit}>
+                  <Button colorPalette="teal" onClick={onSubmit} disabled={isSubmitDisabled}>
                     {submitLabel}
                   </Button>
                 )}

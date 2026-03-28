@@ -7,9 +7,24 @@ const meta = {
   parameters: {
     layout: "padded",
   },
+  args: {
+    onEntriesChange: () => {},
+  },
 } satisfies Meta<typeof AddStaffForm>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Basic: Story = {};
+/** 初期状態: 3行の空入力欄 */
+export const Empty: Story = {};
+
+/** PC幅: 横並びレイアウト確認用 */
+export const PCWidth: Story = {
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: "580px" }}>
+        <Story />
+      </div>
+    ),
+  ],
+};
