@@ -3,6 +3,7 @@ import {
   Button,
   Dialog as ChakraDialog,
   Circle,
+  CloseButton,
   Flex,
   HStack,
   Icon,
@@ -139,7 +140,9 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete }: Props) => {
               )}
             </Flex>
 
-            <ChakraDialog.CloseTrigger position="absolute" top="2" insetEnd="2" />
+            <ChakraDialog.CloseTrigger position="absolute" top="2" insetEnd="2">
+              <CloseButton size="sm" />
+            </ChakraDialog.CloseTrigger>
           </ChakraDialog.Content>
         </ChakraDialog.Positioner>
       </Portal>
