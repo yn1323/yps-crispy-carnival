@@ -12,6 +12,7 @@
     "scaffdog": "scaffdog generate",
     "serve": "vite preview",
     "start": "vite --port 3000",
+    "difit": "npx -y difit .",
     "test": "vitest",
     "test:logic": "vitest --project=logic",
     "test:ui": "vitest --project=ui",
