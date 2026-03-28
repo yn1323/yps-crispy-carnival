@@ -34,9 +34,12 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
   const periodEnd = watch("periodEnd");
   const deadline = watch("deadline");
 
-  const deadlineMax = periodStart
-    ? new Date(new Date(periodStart).getTime() - 86400000).toISOString().split("T")[0]
-    : undefined;
+  const deadlineMax = (() => {
+    if (!periodStart) return undefined;
+    const date = new Date(periodStart);
+    date.setDate(date.getDate() - 1);
+    return date.toISOString().split("T")[0];
+  })();
 
   return (
     <form id="create-recruitment-form" onSubmit={handleSubmit(onSubmit)}>
