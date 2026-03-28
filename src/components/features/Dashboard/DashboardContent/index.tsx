@@ -65,6 +65,7 @@ export const DashboardContent = ({ recruitments, staffs }: Props) => {
         submitLabel="登録する"
         onClose={staffModal.close}
         maxW="640px"
+        maxH="85dvh"
       >
         <AddStaffForm
           onSubmit={(data) => {

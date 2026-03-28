@@ -33,8 +33,14 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   const rootError = errors.entries?.root;
 
   return (
-    <form id="add-staff-form" onSubmit={handleSubmit(onSubmit)}>
+    <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={4}>
+        {rootError && (
+          <Text fontSize="sm" color="fg.error">
+            {rootError.message}
+          </Text>
+        )}
+
         <Flex gap={3} display={{ base: "none", lg: "flex" }} align="center">
           <Text fontSize="sm" fontWeight="medium" w="200px" flexShrink={0}>
             名前
@@ -46,6 +52,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
         </Flex>
 
         {fields.map((field, index) => {
+          const nameError = errors.entries?.[index]?.name;
           const emailError = errors.entries?.[index]?.email;
 
           return (
@@ -58,8 +65,9 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
               </Flex>
 
               <Flex gap={3} direction={{ base: "column", lg: "row" }} align={{ lg: "center" }}>
-                <Field.Root w={{ lg: "200px" }} flexShrink={0}>
+                <Field.Root w={{ lg: "200px" }} flexShrink={0} invalid={!!nameError}>
                   <Input placeholder="例: 田中 花子" {...register(`entries.${index}.name`)} />
+                  {nameError && <Field.ErrorText>{nameError.message}</Field.ErrorText>}
                 </Field.Root>
 
                 <Field.Root invalid={!!emailError} flex={1}>
@@ -74,12 +82,6 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
             </Stack>
           );
         })}
-
-        {rootError && (
-          <Text fontSize="sm" color="fg.error">
-            {rootError.message}
-          </Text>
-        )}
 
         <Button
           variant="plain"

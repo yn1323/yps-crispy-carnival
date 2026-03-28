@@ -1,9 +1,15 @@
 import { z } from "zod";
+import { optionalEmail } from "@/src/helpers/validation";
 
-export const staffEntrySchema = z.object({
-  name: z.string(),
-  email: z.union([z.literal(""), z.string().email("正しいメールアドレスを入力してください")]),
-});
+export const staffEntrySchema = z
+  .object({
+    name: z.string(),
+    email: z.string().superRefine(optionalEmail),
+  })
+  .refine((entry) => entry.name.trim() !== "" || entry.email.trim() === "", {
+    message: "名前を入力してください",
+    path: ["name"],
+  });
 
 export const addStaffSchema = z
   .object({
