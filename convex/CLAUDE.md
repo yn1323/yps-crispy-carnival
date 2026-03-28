@@ -38,3 +38,112 @@ convex/
 - `actions.ts` は `internalAction` で定義し、`mutations` から `ctx.scheduler` 経由で呼び出す
 - queries のエラーは `null` or `{ error }` を返す（throwしない）。mutations のエラーは `ConvexError` をthrow
 - 論理削除は `isDeleted` フラグを使用。クエリでは常にフィルタリングする
+
+## セキュリティ
+
+### 大前提：Convex はパブリック API
+
+mutation / query はクライアントから直接呼べる。**関数名が分かれば誰でも叩ける**前提で全関数を設計する。
+
+### 認証ラッパー（必須）
+
+`convex-helpers` の `customMutation` / `customQuery` でラッパーを作り、**生の `mutation` / `query` を直接使わない**。
+
+```ts
+// convex/_lib/functions.ts
+export const managerMutation = customMutation(mutation, {
+  args: {},
+  input: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Unauthenticated");
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "manager") throw new Error("Forbidden");
+    return { ctx: { user }, args: {} };
+  },
+});
+
+export const staffMutation = customMutation(mutation, {
+  args: { token: v.string() },
+  input: async (ctx, args) => {
+    const staff = await verifyMagicLinkToken(ctx, args.token);
+    if (!staff) throw new Error("Invalid or expired token");
+    return { ctx: { staff }, args: {} };
+  },
+});
+// managerQuery, staffQuery も同様に作成
+```
+
+Biome / ESLint で `_generated/server` からの生 `mutation` / `query` インポートを禁止する。
+
+### IDOR 対策
+
+クライアントから渡される ID は信頼しない。取得後に所属を必ず検証する。
+
+```ts
+// ❌ ID をそのまま信頼
+const recruitment = await ctx.db.get(args.recruitmentId);
+
+// ✅ 取得後に所属を検証
+const recruitment = await ctx.db.get(args.recruitmentId);
+if (!recruitment || recruitment.shopId !== ctx.user.shopId) {
+  throw new Error("Not found");
+}
+```
+
+### 列挙攻撃対策
+
+「Not found」と「Forbidden」を区別しない。同一エラーを返す。
+
+```ts
+// ❌ 情報が漏れる
+if (!recruitment) throw new Error("Not found");
+if (recruitment.shopId !== shopId) throw new Error("Forbidden");
+
+// ✅ 区別しない
+if (!recruitment || recruitment.shopId !== shopId) {
+  throw new Error("Not found");
+}
+```
+
+### 過剰なデータ露出の防止
+
+query の返り値はドキュメントをそのまま返さず、必要なフィールドだけに絞る。
+
+- スタッフ向け API でマネージャーのメールアドレスを返さない
+- スタッフ同士のメールアドレスも返さない（名前のみ）
+- シフト希望の詳細は本人 + マネージャーのみ
+
+### Magic Link セキュリティ
+
+| 項目 | 対策 |
+|------|------|
+| トークン | UUID v4（128bit エントロピー） |
+| 有効期限 | 72 時間 |
+| 使用回数 | ワンタイム（使用後に `usedAt` を記録し無効化） |
+| ブルートフォース | レートリミット必須（`convex-helpers` Rate Limiter） |
+| URL 漏洩 | `rel="noreferrer"` でリファラー漏洩を防止 |
+
+### 入力バリデーション
+
+- 全 mutation の `args` に `v.` バリデータを必ず定義
+- 文字列の最大長、配列の最大件数などビジネスロジック制約も加える
+- 必要に応じて `withZod` で高度なバリデーションを追加
+
+### レートリミット
+
+`convex-helpers` の Rate Limiter を使用。特に以下に適用必須：
+
+- Magic Link トークン検証
+- シフト希望提出
+
+### 実装チェックリスト
+
+- [ ] `convex-helpers` をインストール
+- [ ] `managerMutation` / `managerQuery` ラッパーを作成
+- [ ] `staffMutation` / `staffQuery` ラッパーを作成
+- [ ] 生の `mutation` / `query` インポートをリンターで禁止
+- [ ] 全 public 関数で shop 所属チェックを実装
+- [ ] query の返り値を必要最低限のフィールドに制限
+- [ ] Magic Link のワンタイム・有効期限を実装
+- [ ] エラーメッセージから内部情報が漏れないことを確認
+- [ ] レートリミットを Magic Link 検証に適用
