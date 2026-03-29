@@ -54,6 +54,11 @@ export type TimeRange = {
 // ビューモード
 export type ViewMode = "daily" | "overview";
 
+export const VIEW_OPTIONS = [
+  { value: "daily", label: "日別" },
+  { value: "overview", label: "一覧" },
+];
+
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
 export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | null;
 

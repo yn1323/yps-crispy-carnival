@@ -1,18 +1,14 @@
 import { Box, Flex, SegmentGroup } from "@chakra-ui/react";
-import { Provider, useAtom, useAtomValue } from "jotai";
+import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
-import { shiftsAtom, viewModeAtom } from "./stores";
+import { shiftsAtom, viewModeAtom, viewModeCallbackAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
-
-const VIEW_OPTIONS = [
-  { value: "daily", label: "日別" },
-  { value: "overview", label: "一覧" },
-];
+import { VIEW_OPTIONS } from "./types";
 
 type ShiftFormProps = {
   shopId: string;
@@ -30,6 +26,8 @@ type ShiftFormProps = {
   hideViewSwitcher?: boolean;
   initialSortMode?: SortMode;
   onShiftsChange?: (shifts: ShiftData[]) => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 };
 
 const ShiftFormInner = ({
@@ -48,6 +46,8 @@ const ShiftFormInner = ({
   hideViewSwitcher = false,
   initialSortMode,
   onShiftsChange,
+  viewMode: externalViewMode,
+  onViewModeChange,
 }: ShiftFormProps) => {
   // props → atoms 初期化
   useShiftFormInit({
@@ -75,9 +75,33 @@ const ShiftFormInner = ({
     onShiftsChangeRef.current?.(shifts);
   }, [shifts]);
 
-  const [viewMode, setViewMode] = useAtom(viewModeAtom);
+  const [internalViewMode, setInternalViewMode] = useAtom(viewModeAtom);
 
-  const showViewSwitcher = !hideViewSwitcher;
+  // Write-through callback: atomへの書き込み時に親へ自動通知（外部sync中は抑制）
+  const setViewModeCallback = useSetAtom(viewModeCallbackAtom);
+  const onViewModeChangeRef = useRef(onViewModeChange);
+  onViewModeChangeRef.current = onViewModeChange;
+  const isSyncingRef = useRef(false);
+
+  useEffect(() => {
+    setViewModeCallback(() => (mode: ViewMode) => {
+      if (!isSyncingRef.current) {
+        onViewModeChangeRef.current?.(mode);
+      }
+    });
+    return () => setViewModeCallback(undefined);
+  }, [setViewModeCallback]);
+
+  // 外部 → 内部: 親のviewModeをatomに反映（コールバック抑制で不要な親通知を防止）
+  useEffect(() => {
+    if (externalViewMode !== undefined) {
+      isSyncingRef.current = true;
+      setInternalViewMode(externalViewMode);
+      isSyncingRef.current = false;
+    }
+  }, [externalViewMode, setInternalViewMode]);
+
+  const viewMode = externalViewMode ?? internalViewMode;
 
   return (
     <Flex direction="column">
@@ -85,7 +109,11 @@ const ShiftFormInner = ({
       {!hideViewSwitcher && (
         <Box display={{ base: "block", lg: "none" }}>
           <Flex align="center" justify="flex-end" px={3} py={2} flexShrink={0}>
-            <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+            <SegmentGroup.Root
+              size="sm"
+              value={viewMode}
+              onValueChange={(e) => setInternalViewMode(e.value as ViewMode)}
+            >
               <SegmentGroup.Indicator />
               <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
             </SegmentGroup.Root>
@@ -94,7 +122,7 @@ const ShiftFormInner = ({
       )}
 
       {/* PC ツールバー: ビュー切替 */}
-      {showViewSwitcher && (
+      {!hideViewSwitcher && (
         <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0}>
           <Flex
             bg="white"
@@ -107,7 +135,11 @@ const ShiftFormInner = ({
             gap={4}
             height="60px"
           >
-            <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+            <SegmentGroup.Root
+              size="sm"
+              value={viewMode}
+              onValueChange={(e) => setInternalViewMode(e.value as ViewMode)}
+            >
               <SegmentGroup.Indicator />
               <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
             </SegmentGroup.Root>

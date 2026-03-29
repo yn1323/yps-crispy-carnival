@@ -29,7 +29,16 @@ export const shiftConfigAtom = atom<{
 // ==========================================
 // コア状態
 // ==========================================
-export const viewModeAtom = atom<ViewMode>("daily");
+const baseViewModeAtom = atom<ViewMode>("daily");
+export const viewModeCallbackAtom = atom<((mode: ViewMode) => void) | undefined>(undefined);
+export const viewModeAtom = atom(
+  (get) => get(baseViewModeAtom),
+  (get, set, newValue: ViewMode) => {
+    if (get(baseViewModeAtom) === newValue) return;
+    set(baseViewModeAtom, newValue);
+    get(viewModeCallbackAtom)?.(newValue);
+  },
+);
 export const selectedDateAtom = atom<string>("");
 export const sortModeAtom = atom<SortMode>("default");
 
