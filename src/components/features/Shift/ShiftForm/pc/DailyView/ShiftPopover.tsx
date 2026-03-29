@@ -1,6 +1,6 @@
-import { Badge, Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
-import { LuMinus, LuTrash2, LuX } from "react-icons/lu";
+import { LuTrash2, LuX } from "react-icons/lu";
 import { BREAK_POSITION } from "../../constants";
 import type { ShiftData } from "../../types";
 import { timeToMinutes } from "../../utils/timeConversion";
@@ -12,7 +12,6 @@ type ShiftPopoverProps = {
   isStaffSubmitted: boolean;
   onClose: () => void;
   onDeletePosition: (positionId: string) => void;
-  onDeleteShift: () => void;
   isReadOnly?: boolean;
 };
 
@@ -23,7 +22,6 @@ export const ShiftPopover = ({
   isStaffSubmitted,
   onClose,
   onDeletePosition,
-  onDeleteShift,
   isReadOnly = false,
 }: ShiftPopoverProps) => {
   // スクロール時に自動で閉じる
@@ -113,13 +111,7 @@ export const ShiftPopover = ({
 
               {/* ポジション一覧（休憩は自動挿入のため非表示） */}
               {visibleSegments.length > 0 && (
-                <Box
-                  p={3}
-                  borderBottom={isReadOnly ? undefined : "1px solid"}
-                  borderColor="gray.100"
-                  maxH="200px"
-                  overflowY="auto"
-                >
+                <Box p={3} maxH="200px" overflowY="auto">
                   {visibleSegments.map((pos) => (
                     <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
                       <Text fontSize="sm" color="gray.700">
@@ -134,29 +126,11 @@ export const ShiftPopover = ({
                           onClick={() => onDeletePosition(pos.id)}
                           _hover={{ color: "red.500" }}
                         >
-                          <LuMinus />
+                          <LuTrash2 />
                         </IconButton>
                       )}
                     </Flex>
                   ))}
-                </Box>
-              )}
-
-              {/* 全ポジションを削除ボタン（閲覧専用時は非表示） */}
-              {!isReadOnly && (
-                <Box p={3}>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    colorPalette="red"
-                    width="100%"
-                    onClick={onDeleteShift}
-                    justifyContent="flex-start"
-                    disabled={shift.positions.length === 0}
-                  >
-                    <LuTrash2 />
-                    <Text ml={2}>シフトを削除</Text>
-                  </Button>
                 </Box>
               )}
             </Popover.Body>

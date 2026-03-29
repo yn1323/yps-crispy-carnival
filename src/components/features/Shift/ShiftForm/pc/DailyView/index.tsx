@@ -55,15 +55,6 @@ export const DailyView = () => {
     [popoverShift, shifts, setShifts, handlePopoverClose],
   );
 
-  // 全ポジション削除
-  const handleClearAllPositions = useCallback(() => {
-    if (!popoverShift) return;
-    const updatedShift = { ...popoverShift, positions: [] };
-    const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
-    setShifts(newShifts);
-    handlePopoverClose();
-  }, [popoverShift, shifts, setShifts, handlePopoverClose]);
-
   // paintクリック時のポップオーバー表示
   const handlePaintClickPopover = useCallback((shift: ShiftData, anchorRect: DOMRect) => {
     setPopoverShift(shift);
@@ -106,7 +97,6 @@ export const DailyView = () => {
         }
         onClose={handlePopoverClose}
         onDeletePosition={handleDeletePosition}
-        onDeleteShift={handleClearAllPositions}
         isReadOnly={isReadOnly}
       />
     </Flex>
