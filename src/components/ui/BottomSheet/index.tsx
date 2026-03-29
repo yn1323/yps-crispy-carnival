@@ -62,14 +62,16 @@ export const BottomSheet = ({
           <ChakraDialog.Content borderTopRadius="xl" maxH="60vh" w="100%">
             {title && (
               <ChakraDialog.Header>
-                <Flex align="center" gap={1}>
-                  {onBack && (
+                {onBack ? (
+                  <Flex align="center" gap={1}>
                     <IconButton aria-label="戻る" size="xs" variant="ghost" onClick={onBack} ms={-2}>
                       <LuChevronLeft />
                     </IconButton>
-                  )}
+                    <ChakraDialog.Title>{title}</ChakraDialog.Title>
+                  </Flex>
+                ) : (
                   <ChakraDialog.Title>{title}</ChakraDialog.Title>
-                </Flex>
+                )}
               </ChakraDialog.Header>
             )}
             <ChakraDialog.Body pt={title ? 0 : 10} pb={6} overflowY={overflowY}>
