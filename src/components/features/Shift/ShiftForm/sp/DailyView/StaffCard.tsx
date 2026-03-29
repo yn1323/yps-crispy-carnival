@@ -1,5 +1,6 @@
 import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuTriangleAlert } from "react-icons/lu";
+import { BREAK_POSITION } from "../../constants";
 import type { ShiftData, StaffType, TimeRange } from "../../types";
 import { MiniShiftBar } from "./MiniShiftBar";
 
@@ -24,7 +25,7 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = 
   })();
 
   // 休憩を除いたポジションセグメント
-  const visibleSegments = shift?.positions.filter((p) => p.positionName !== "休憩") ?? [];
+  const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
 
   // ハイライト優先、次に未提出
   const cardBg = isHighlighted ? "blue.50" : isUnsubmitted ? "red.50" : "white";

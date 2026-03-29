@@ -7,7 +7,7 @@ import { LuTrash2, LuX } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
-import { DEFAULT_POSITION } from "../../constants";
+import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "../../types";
 import { normalizePositions, paintPosition } from "../../utils/shiftOperations";
 import { minutesToTime, timeToMinutes } from "../../utils/timeConversion";
@@ -44,10 +44,10 @@ const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>
 const getEndOptions = (allOptions: SelectItemType[], startTime: string) =>
   startTime ? allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime)) : allOptions;
 
-// 休憩ポジションを取得
+// 休憩ポジションを取得（propsにあればそのIDを使い、なければ定数のフォールバック）
 const findBreakPosition = (positions: PositionType[]) => {
-  const bp = positions.find((p) => p.name === "休憩");
-  return bp ? { id: bp.id, name: bp.name, color: bp.color } : { id: "break", name: "休憩", color: "#6b7280" };
+  const bp = positions.find((p) => p.name === BREAK_POSITION.name);
+  return bp ? { id: bp.id, name: bp.name, color: bp.color } : { ...BREAK_POSITION };
 };
 
 export const ShiftEditSheet = ({

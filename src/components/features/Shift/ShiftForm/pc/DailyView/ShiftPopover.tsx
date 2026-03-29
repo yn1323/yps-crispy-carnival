@@ -1,6 +1,7 @@
 import { Badge, Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
 import { LuMinus, LuTrash2, LuX } from "react-icons/lu";
+import { BREAK_POSITION } from "../../constants";
 import type { ShiftData } from "../../types";
 import { timeToMinutes } from "../../utils/timeConversion";
 
@@ -42,6 +43,11 @@ export const ShiftPopover = ({
   }, [isOpen, onClose]);
 
   if (!shift) return null;
+
+  // 休憩を除いた表示用セグメント（休憩は自動挿入のため非表示）
+  const visibleSegments = [...shift.positions]
+    .filter((p) => p.positionName !== BREAK_POSITION.name)
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
 
   return (
     <Popover.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()}>
@@ -105,8 +111,8 @@ export const ShiftPopover = ({
                 </Flex>
               </Box>
 
-              {/* ポジション一覧 */}
-              {shift.positions.length > 0 && (
+              {/* ポジション一覧（休憩は自動挿入のため非表示） */}
+              {visibleSegments.length > 0 && (
                 <Box
                   p={3}
                   borderBottom={isReadOnly ? undefined : "1px solid"}
@@ -114,27 +120,25 @@ export const ShiftPopover = ({
                   maxH="200px"
                   overflowY="auto"
                 >
-                  {[...shift.positions]
-                    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
-                    .map((pos) => (
-                      <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
-                        <Text fontSize="sm" color="gray.700">
-                          {pos.start}-{pos.end}
-                        </Text>
-                        {!isReadOnly && (
-                          <IconButton
-                            size="xs"
-                            variant="ghost"
-                            colorPalette="gray"
-                            aria-label="時間帯を削除"
-                            onClick={() => onDeletePosition(pos.id)}
-                            _hover={{ color: "red.500" }}
-                          >
-                            <LuMinus />
-                          </IconButton>
-                        )}
-                      </Flex>
-                    ))}
+                  {visibleSegments.map((pos) => (
+                    <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
+                      <Text fontSize="sm" color="gray.700">
+                        {pos.start}-{pos.end}
+                      </Text>
+                      {!isReadOnly && (
+                        <IconButton
+                          size="xs"
+                          variant="ghost"
+                          colorPalette="gray"
+                          aria-label="時間帯を削除"
+                          onClick={() => onDeletePosition(pos.id)}
+                          _hover={{ color: "red.500" }}
+                        >
+                          <LuMinus />
+                        </IconButton>
+                      )}
+                    </Flex>
+                  ))}
                 </Box>
               )}
 
