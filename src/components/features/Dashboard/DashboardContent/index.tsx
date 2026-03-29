@@ -15,6 +15,11 @@ import { SetupModal } from "../SetupModal";
 import { StaffSection } from "../StaffSection";
 import type { Recruitment, Staff } from "../types";
 
+function showErrorToast(error: unknown): void {
+  const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
+  toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
+}
+
 type Props = {
   shop: { name: string } | null;
   recruitments: Recruitment[];
@@ -49,8 +54,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
       });
       toaster.create({ title: "セットアップが完了しました", type: "success" });
     } catch (error) {
-      const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
-      toaster.create({ title, type: "error" });
+      showErrorToast(error);
     }
   };
 
@@ -60,8 +64,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
       recruitmentModal.close();
       toaster.create({ title: "募集を作成しました", type: "success" });
     } catch (error) {
-      const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
-      toaster.create({ title, type: "error" });
+      showErrorToast(error);
     }
   };
 
@@ -71,8 +74,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
       staffModal.close();
       toaster.create({ title: "スタッフを追加しました", type: "success" });
     } catch (error) {
-      const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
-      toaster.create({ title, type: "error" });
+      showErrorToast(error);
     }
   };
 

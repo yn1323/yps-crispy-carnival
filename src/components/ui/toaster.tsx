@@ -3,6 +3,7 @@ import { Toaster as ChakraToaster, createToaster, Portal, Spinner, Stack, Toast 
 export const toaster = createToaster({
   placement: "top",
   pauseOnPageIdle: true,
+  duration: 2000,
 });
 
 export const Toaster = () => {
@@ -17,7 +18,7 @@ export const Toaster = () => {
               {toast.description && <Toast.Description>{toast.description}</Toast.Description>}
             </Stack>
             {toast.action && <Toast.ActionTrigger>{toast.action.label}</Toast.ActionTrigger>}
-            {toast.closable && <Toast.CloseTrigger />}
+            <Toast.CloseTrigger />
           </Toast.Root>
         )}
       </ChakraToaster>
