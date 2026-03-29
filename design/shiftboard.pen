@@ -235,7 +235,7 @@
                           "id": "cMurm",
                           "name": "confirmLabel",
                           "fill": "$5:teal/contrast",
-                          "content": "シフトを確定する",
+                          "content": "スタッフに送信する",
                           "fontFamily": "Inter",
                           "fontSize": "$5:fontSize/sm",
                           "fontWeight": "500"
@@ -554,7 +554,7 @@
                           "id": "p8VxL",
                           "name": "rcl2",
                           "fill": "$5:teal/solid",
-                          "content": "再確定する",
+                          "content": "再送信する",
                           "fontFamily": "Inter",
                           "fontSize": "$5:fontSize/sm",
                           "fontWeight": "500"
@@ -583,7 +583,7 @@
                           "id": "Mln2J",
                           "name": "cst2",
                           "fill": "$5:fg/success",
-                          "content": "確定済み（3/28 23:15）",
+                          "content": "送信済み（3/28 23:15）",
                           "fontFamily": "Inter",
                           "fontSize": "$5:fontSize/xs",
                           "fontWeight": "normal"
@@ -835,9 +835,9 @@
                             {
                               "type": "text",
                               "id": "rCIzt",
-                              "name": "シフトを送る",
+                              "name": "スタッフに送信する",
                               "fill": "$5:teal/contrast",
-                              "content": "シフトを送る",
+                              "content": "スタッフに送信する",
                               "fontFamily": "Inter",
                               "fontSize": "$5:fontSize/sm",
                               "fontWeight": "500"
@@ -1206,7 +1206,7 @@
                       "id": "KOMem",
                       "name": "cflSp",
                       "fill": "$5:teal/contrast",
-                      "content": "確定",
+                      "content": "送信",
                       "fontFamily": "Inter",
                       "fontSize": "$5:fontSize/xs",
                       "fontWeight": "500"
@@ -1511,7 +1511,7 @@
                       "id": "4FovR",
                       "name": "rcl4",
                       "fill": "$5:teal/solid",
-                      "content": "再確定",
+                      "content": "再送信",
                       "fontFamily": "Inter",
                       "fontSize": "$5:fontSize/xs",
                       "fontWeight": "500"
@@ -1778,7 +1778,7 @@
                   "type": "text",
                   "id": "n4dmo",
                   "fill": "$5:fg/default",
-                  "content": "シフトを確定しますか？",
+                  "content": "スタッフにシフトを送信しますか？",
                   "fontFamily": "Inter",
                   "fontSize": "$5:fontSize/lg",
                   "fontWeight": "600"
@@ -1809,7 +1809,7 @@
                   "fill": "$5:fg/default",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "全スタッフにメールで確定シフトが通知されます。",
+                  "content": "全スタッフにメールでシフトが送信されます。",
                   "lineHeight": 1.5,
                   "fontFamily": "Inter",
                   "fontSize": "$5:fontSize/sm",
@@ -1912,7 +1912,7 @@
                       "type": "text",
                       "id": "hxEFu",
                       "fill": "$5:teal/contrast",
-                      "content": "確定する",
+                      "content": "送信する",
                       "fontFamily": "Inter",
                       "fontSize": "$5:fontSize/sm",
                       "fontWeight": "500"
