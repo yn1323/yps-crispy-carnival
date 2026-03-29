@@ -46,11 +46,11 @@ export const ShiftBoardHeader = ({
 
         {isConfirmed ? (
           <Button variant="outline" size="sm" borderColor="teal.600" color="teal.600" onClick={onConfirm}>
-            再確定する
+            再送信する
           </Button>
         ) : (
           <Button size="sm" colorPalette="teal" onClick={onConfirm}>
-            シフトを確定する
+            スタッフに送信する
           </Button>
         )}
 
@@ -60,7 +60,7 @@ export const ShiftBoardHeader = ({
               <LuCircleCheck />
             </Icon>
             <Text fontSize="xs" color="green.600">
-              確定済み（{formatDateTime(confirmedAt)}）
+              送信済み（{formatDateTime(confirmedAt)}）
             </Text>
           </Flex>
         )}

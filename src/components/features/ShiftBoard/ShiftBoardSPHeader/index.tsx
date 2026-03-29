@@ -45,11 +45,11 @@ export const ShiftBoardSPHeader = ({
           </Button>
           {isConfirmed ? (
             <Button variant="outline" size="xs" borderColor="teal.600" color="teal.600" onClick={onConfirm}>
-              再確定
+              再送信
             </Button>
           ) : (
             <Button size="xs" colorPalette="teal" onClick={onConfirm}>
-              確定
+              送信
             </Button>
           )}
           {isConfirmed && (
