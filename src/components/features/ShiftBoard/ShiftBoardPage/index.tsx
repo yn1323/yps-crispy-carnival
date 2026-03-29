@@ -52,7 +52,7 @@ export const ShiftBoardPage = () => {
   const confirmTitle = isConfirmed ? "シフトを再送しますか？" : "シフトを確定しますか？";
 
   return (
-    <Box display="flex" flexDirection="column" h="100vh" mx={{ base: 0, lg: -4 }} mt={{ base: -2, lg: -8 }}>
+    <Box display="flex" flexDirection="column">
       <Box display={{ base: "none", lg: "block" }}>
         <ShiftBoardHeader
           periodLabel={mockPeriodLabel}
@@ -65,20 +65,19 @@ export const ShiftBoardPage = () => {
         />
       </Box>
 
-      <Box display={{ base: "block", lg: "none" }}>
-        <ShiftBoardSPHeader
-          periodLabel={mockPeriodLabel}
-          submittedCount={submittedCount}
-          totalStaffCount={mockStaffs.length}
-          confirmedAt={confirmedAt}
-          onBack={handleBack}
-          onSave={handleSave}
-          onConfirm={confirmModal.open}
-          isSaving={isSaving}
-        />
-      </Box>
-
-      <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={{ base: 0, lg: 6 }} py={{ base: 0, lg: 6 }}>
+      <Box px={{ base: 0, lg: 6 }}>
+        <Box display={{ base: "block", lg: "none" }}>
+          <ShiftBoardSPHeader
+            periodLabel={mockPeriodLabel}
+            submittedCount={submittedCount}
+            totalStaffCount={mockStaffs.length}
+            confirmedAt={confirmedAt}
+            onBack={handleBack}
+            onSave={handleSave}
+            onConfirm={confirmModal.open}
+            isSaving={isSaving}
+          />
+        </Box>
         <ShiftForm
           shopId="shop-1"
           staffs={mockStaffs}

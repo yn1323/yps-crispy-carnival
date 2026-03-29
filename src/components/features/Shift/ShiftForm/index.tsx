@@ -80,7 +80,7 @@ const ShiftFormInner = ({
   const showViewSwitcher = !hideViewSwitcher;
 
   return (
-    <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }}>
+    <Flex direction="column">
       {/* SP ヘッダー: SegmentGroup */}
       {!hideViewSwitcher && (
         <Box display={{ base: "block", lg: "none" }}>

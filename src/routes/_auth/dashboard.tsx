@@ -1,4 +1,4 @@
-import { Flex, Spinner } from "@chakra-ui/react";
+import { Container, Flex, Spinner } from "@chakra-ui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -14,17 +14,21 @@ function DashboardPage() {
 
   if (data === undefined) {
     return (
-      <Flex justify="center" align="center" minH="200px">
-        <Spinner />
-      </Flex>
+      <Container maxW="1024px" px={4} pb={8} w="100%">
+        <Flex justify="center" align="center" minH="200px">
+          <Spinner />
+        </Flex>
+      </Container>
     );
   }
 
   if (data === null) return null;
 
   return (
-    <Animation>
-      <DashboardContent shop={data.shop} recruitments={data.recruitments} staffs={data.staffs} />
-    </Animation>
+    <Container maxW="1024px" px={4} pb={8} w="100%">
+      <Animation>
+        <DashboardContent shop={data.shop} recruitments={data.recruitments} staffs={data.staffs} />
+      </Animation>
+    </Container>
   );
 }
