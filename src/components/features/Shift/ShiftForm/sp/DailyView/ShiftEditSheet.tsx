@@ -1,9 +1,9 @@
-import { Badge, Box, Field, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
+import { Badge, Field, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
 import { useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { LuTrash2, LuX } from "react-icons/lu";
+import { LuTrash2 } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
@@ -26,7 +26,6 @@ type ShiftEditSheetProps = {
   onShiftDelete: (staffId: string) => void;
 };
 
-// 時刻選択肢を生成
 const generateTimeOptions = (timeRange: TimeRange) => {
   const options = [];
   for (let m = timeRange.start * 60; m <= timeRange.end * 60; m += timeRange.unit) {
@@ -36,15 +35,12 @@ const generateTimeOptions = (timeRange: TimeRange) => {
   return options;
 };
 
-// 開始用オプション: endTime未満の選択肢（空なら全選択肢）
 const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>
   endTime ? allOptions.filter((opt) => timeToMinutes(opt.value) < timeToMinutes(endTime)) : allOptions;
 
-// 終了用オプション: startTimeより後の選択肢（空なら全選択肢）
 const getEndOptions = (allOptions: SelectItemType[], startTime: string) =>
   startTime ? allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime)) : allOptions;
 
-// 休憩ポジションを取得（propsにあればそのIDを使い、なければ定数のフォールバック）
 const findBreakPosition = (positions: PositionType[]) => {
   const bp = positions.find((p) => p.name === BREAK_POSITION.name);
   return bp ? { id: bp.id, name: bp.name, color: bp.color } : { ...BREAK_POSITION };
@@ -69,10 +65,14 @@ export const ShiftEditSheet = ({
     if (!shift || shift.positions.length === 0) return { initialStart: "", initialEnd: "" };
     const starts = shift.positions.map((p) => timeToMinutes(p.start));
     const ends = shift.positions.map((p) => timeToMinutes(p.end));
-    return { initialStart: minutesToTime(Math.min(...starts)), initialEnd: minutesToTime(Math.max(...ends)) };
+    return {
+      initialStart: minutesToTime(Math.min(...starts)),
+      initialEnd: minutesToTime(Math.max(...ends)),
+    };
   }, [shift]);
+
   const {
-    handleSubmit: handleAddSubmit,
+    handleSubmit,
     watch,
     setValue,
     formState: { errors },
@@ -80,8 +80,8 @@ export const ShiftEditSheet = ({
     resolver: zodResolver(addTimeSchema),
     defaultValues: { startTime: initialStart, endTime: initialEnd },
   });
-  const addStart = watch("startTime");
-  const addEnd = watch("endTime");
+  const startTime = watch("startTime");
+  const endTime = watch("endTime");
 
   const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
 
@@ -89,7 +89,6 @@ export const ShiftEditSheet = ({
     ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
     : "希望: なし";
 
-  // 現在のshift（なければ空で作る）
   const currentShift: ShiftData = shift ?? {
     id: `shift-${staff.id}-${selectedDate}`,
     staffId: staff.id,
@@ -99,45 +98,12 @@ export const ShiftEditSheet = ({
     positions: [],
   };
 
-  // 非休憩セグメントのみ表示（休憩は自動挿入のため非表示）
-  const visibleSegments = currentShift.positions.filter((p) => p.positionId !== breakPosition.id);
-
-  // セグメント時刻変更
-  const handleSegmentTimeChange = useCallback(
-    (segmentId: string, edge: "start" | "end", newTime: string) => {
-      const updated = {
-        ...currentShift,
-        positions: currentShift.positions.map((seg) => {
-          if (seg.id !== segmentId) return seg;
-          return edge === "start" ? { ...seg, start: newTime } : { ...seg, end: newTime };
-        }),
-      };
-      const normalized = normalizePositions({
-        positions: updated.positions,
-        breakPosition,
-      });
-      onShiftUpdate({ ...updated, positions: normalized });
-    },
-    [currentShift, breakPosition, onShiftUpdate],
-  );
-
-  // セグメント削除
-  const handleSegmentDelete = useCallback(
-    (segmentId: string) => {
-      const remaining = currentShift.positions.filter((p) => p.id !== segmentId);
-      const normalized = normalizePositions({
-        positions: remaining,
-        breakPosition,
-      });
-      onShiftUpdate({ ...currentShift, positions: normalized });
-    },
-    [currentShift, breakPosition, onShiftUpdate],
-  );
-
   const handleClearAll = useCallback(() => {
     onShiftDelete(staff.id);
-  }, [staff.id, onShiftDelete]);
+    onOpenChange({ open: false });
+  }, [staff.id, onShiftDelete, onOpenChange]);
 
+  // 確定時にstoreへ反映
   const handleConfirm = useCallback(
     (data: AddTimeFormData) => {
       const startMin = timeToMinutes(data.startTime);
@@ -162,7 +128,7 @@ export const ShiftEditSheet = ({
     [currentShift, breakPosition, onShiftUpdate, onOpenChange],
   );
 
-  const onSubmit = useMemo(() => handleAddSubmit(handleConfirm), [handleAddSubmit, handleConfirm]);
+  const onSubmit = useMemo(() => handleSubmit(handleConfirm), [handleSubmit, handleConfirm]);
 
   return (
     <BottomSheet
@@ -175,7 +141,6 @@ export const ShiftEditSheet = ({
       overflowY="visible"
     >
       <VStack gap={4} align="stretch">
-        {/* 希望時間 */}
         <Flex align="center" gap={2}>
           <Text fontSize="sm" color="gray.600">
             {requestLabel}
@@ -187,93 +152,46 @@ export const ShiftEditSheet = ({
           )}
         </Flex>
 
-        {/* 割当ポジション一覧 */}
-        {visibleSegments.length > 0 && (
-          <Box>
-            <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
-              シフト時間
-            </Text>
-            <VStack gap={2} align="stretch">
-              {visibleSegments.map((seg) => (
-                <Flex key={seg.id} align="center" gap={2}>
-                  <Select
-                    items={getStartOptions(timeOptions, seg.end)}
-                    value={seg.start}
-                    onChange={(v) => handleSegmentTimeChange(seg.id, "start", v)}
-                    size="sm"
-                    w="100px"
-                    usePortal={false}
-                  />
-                  <Text fontSize="sm" color="gray.400">
-                    -
-                  </Text>
-                  <Select
-                    items={getEndOptions(timeOptions, seg.start)}
-                    value={seg.end}
-                    onChange={(v) => handleSegmentTimeChange(seg.id, "end", v)}
-                    size="sm"
-                    w="100px"
-                    usePortal={false}
-                  />
-                  <IconButton
-                    aria-label="削除"
-                    size="xs"
-                    variant="ghost"
-                    colorPalette="red"
-                    onClick={() => handleSegmentDelete(seg.id)}
-                  >
-                    <LuX />
-                  </IconButton>
-                </Flex>
-              ))}
-            </VStack>
-          </Box>
-        )}
-
-        {/* シフト追加 */}
-        <Box borderTopWidth="1px" borderColor="gray.200" pt={3}>
-          <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
-            時間を追加
+        <HStack gap={2} align="start">
+          <Field.Root invalid={!!errors.startTime}>
+            <Select
+              items={getStartOptions(timeOptions, endTime)}
+              value={startTime}
+              onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
+              size="sm"
+              usePortal={false}
+              invalid={!!errors.startTime}
+            />
+            {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
+          </Field.Root>
+          <Text fontSize="sm" color="gray.400" pt={2}>
+            ~
           </Text>
-          <HStack gap={2} align="start">
-            <Field.Root invalid={!!errors.startTime}>
-              <Select
-                items={getStartOptions(timeOptions, addEnd)}
-                value={addStart}
-                onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
-                size="sm"
-                w="120px"
-                usePortal={false}
-                invalid={!!errors.startTime}
-              />
-              {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
-            </Field.Root>
-            <Text fontSize="sm" color="gray.400" pt={2}>
-              -
-            </Text>
-            <Field.Root invalid={!!errors.endTime}>
-              <Select
-                items={getEndOptions(timeOptions, addStart)}
-                value={addEnd}
-                onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
-                size="sm"
-                w="120px"
-                usePortal={false}
-                invalid={!!errors.endTime}
-              />
-              {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
-            </Field.Root>
-          </HStack>
-        </Box>
-
-        {/* 全削除 */}
-        {currentShift.positions.length > 0 && (
-          <Flex justify="flex-end">
-            <IconButton aria-label="全削除" size="xs" variant="ghost" colorPalette="red" onClick={handleClearAll}>
-              <LuTrash2 />
-            </IconButton>
-          </Flex>
-        )}
+          <Field.Root invalid={!!errors.endTime}>
+            <Select
+              items={getEndOptions(timeOptions, startTime)}
+              value={endTime}
+              onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
+              size="sm"
+              usePortal={false}
+              invalid={!!errors.endTime}
+            />
+            {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
+          </Field.Root>
+          {currentShift.positions.length > 0 && (
+            <Flex justify="flex-end">
+              <IconButton
+                aria-label="シフトを削除"
+                size="xs"
+                variant="ghost"
+                colorPalette="red"
+                onClick={handleClearAll}
+              >
+                <LuTrash2 />
+              </IconButton>
+            </Flex>
+          )}
+        </HStack>
       </VStack>
     </BottomSheet>
   );
