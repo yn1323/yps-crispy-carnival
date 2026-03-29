@@ -307,6 +307,58 @@
           "layout": "vertical",
           "gap": 32,
           "padding": 32
+        },
+        {
+          "type": "frame",
+          "id": "vLjy4",
+          "name": "Header/PC",
+          "reusable": true,
+          "width": 480,
+          "height": 56,
+          "fill": "$teal/solid",
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "mCnss",
+              "name": "Logo",
+              "fill": "$teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/lg",
+              "fontWeight": "700"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "3ibeM",
+          "name": "Header/SP",
+          "reusable": true,
+          "width": 320,
+          "height": 48,
+          "fill": "$teal/solid",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "CZlf8",
+              "name": "Logo",
+              "fill": "$teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$fontSize/md",
+              "fontWeight": "700"
+            }
+          ]
         }
       ]
     },

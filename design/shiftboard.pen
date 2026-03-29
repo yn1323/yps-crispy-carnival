@@ -11,13 +11,16 @@
       "width": 1440,
       "height": 900,
       "fill": "$5:bg/subtle",
+      "layout": "none",
       "children": [
         {
           "type": "frame",
           "id": "jlWC6",
+          "x": 0,
+          "y": 56,
           "name": "ContentArea",
-          "width": "fill_container",
-          "height": "fill_container",
+          "width": 1440,
+          "height": 844,
           "fill": "$5:bg/subtle",
           "layout": "vertical",
           "padding": [
@@ -232,6 +235,33 @@
               ]
             }
           ]
+        },
+        {
+          "type": "frame",
+          "id": "QQy6r",
+          "x": 0,
+          "y": 0,
+          "name": "Header",
+          "width": 1440,
+          "height": 56,
+          "fill": "$5:teal/solid",
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "AbLfd",
+              "name": "Logo",
+              "fill": "$5:teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/lg",
+              "fontWeight": "700"
+            }
+          ]
         }
       ]
     },
@@ -245,13 +275,16 @@
       "width": 1440,
       "height": 900,
       "fill": "$5:bg/subtle",
+      "layout": "none",
       "children": [
         {
           "type": "frame",
           "id": "jLrcM",
+          "x": 0,
+          "y": 56,
           "name": "ContentArea",
-          "width": "fill_container",
-          "height": "fill_container",
+          "width": 1440,
+          "height": 844,
           "fill": "$5:bg/subtle",
           "layout": "vertical",
           "padding": [
@@ -497,6 +530,33 @@
               ]
             }
           ]
+        },
+        {
+          "type": "frame",
+          "id": "HaR0L",
+          "x": 0,
+          "y": 0,
+          "name": "Header",
+          "width": 1440,
+          "height": 56,
+          "fill": "$5:teal/solid",
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "E8oaQ",
+              "name": "Logo",
+              "fill": "$5:teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/lg",
+              "fontWeight": "700"
+            }
+          ]
         }
       ]
     },
@@ -516,10 +576,10 @@
           "type": "frame",
           "id": "SyOsj",
           "x": 0,
-          "y": 0,
+          "y": 56,
           "name": "ContentArea",
           "width": 1440,
-          "height": 900,
+          "height": 844,
           "fill": "$5:bg/subtle",
           "layout": "vertical",
           "padding": [
@@ -726,6 +786,33 @@
               ]
             }
           ]
+        },
+        {
+          "type": "frame",
+          "id": "0Hhr3",
+          "x": 0,
+          "y": 0,
+          "name": "Header",
+          "width": 1440,
+          "height": 56,
+          "fill": "$5:teal/solid",
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "zd9yo",
+              "name": "Logo",
+              "fill": "$5:teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/lg",
+              "fontWeight": "700"
+            }
+          ]
         }
       ]
     },
@@ -739,13 +826,15 @@
       "width": 390,
       "height": 844,
       "fill": "$5:bg/subtle",
-      "layout": "vertical",
+      "layout": "none",
       "children": [
         {
           "type": "frame",
           "id": "wWjnz",
+          "x": 0,
+          "y": 48,
           "name": "SPHeader",
-          "width": "fill_container",
+          "width": 390,
           "fill": "$5:bg/default",
           "stroke": {
             "align": "inside",
@@ -784,8 +873,10 @@
         {
           "type": "frame",
           "id": "EGuP0",
+          "x": 0,
+          "y": 95,
           "name": "SPInfoBar",
-          "width": "fill_container",
+          "width": 390,
           "fill": "$5:bg/default",
           "stroke": {
             "align": "inside",
@@ -898,9 +989,11 @@
         {
           "type": "frame",
           "id": "qCa9k",
+          "x": 0,
+          "y": 176,
           "name": "ShiftEditFormPlaceholder",
-          "width": "fill_container",
-          "height": "fill_container",
+          "width": 390,
+          "height": 668,
           "fill": "$5:bg/muted",
           "stroke": {
             "align": "inside",
@@ -930,6 +1023,33 @@
               "fontWeight": "normal"
             }
           ]
+        },
+        {
+          "type": "frame",
+          "id": "BcNeO",
+          "x": 0,
+          "y": 0,
+          "name": "Header",
+          "width": 390,
+          "height": 48,
+          "fill": "$5:teal/solid",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "IKp2e",
+              "name": "Logo",
+              "fill": "$5:teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/md",
+              "fontWeight": "700"
+            }
+          ]
         }
       ]
     },
@@ -943,13 +1063,15 @@
       "width": 390,
       "height": 844,
       "fill": "$5:bg/subtle",
-      "layout": "vertical",
+      "layout": "none",
       "children": [
         {
           "type": "frame",
           "id": "d6uF6",
+          "x": 0,
+          "y": 48,
           "name": "SPHeader",
-          "width": "fill_container",
+          "width": 390,
           "fill": "$5:bg/default",
           "stroke": {
             "align": "inside",
@@ -988,8 +1110,10 @@
         {
           "type": "frame",
           "id": "RKlL0",
+          "x": 0,
+          "y": 95,
           "name": "SPInfoBar",
-          "width": "fill_container",
+          "width": 390,
           "fill": "$5:bg/default",
           "stroke": {
             "align": "inside",
@@ -1130,9 +1254,11 @@
         {
           "type": "frame",
           "id": "qRPlu",
+          "x": 0,
+          "y": 201,
           "name": "ShiftEditFormPlaceholder",
-          "width": "fill_container",
-          "height": "fill_container",
+          "width": 390,
+          "height": 643,
           "fill": "$5:bg/muted",
           "stroke": {
             "align": "inside",
@@ -1160,6 +1286,33 @@
               "fontFamily": "Inter",
               "fontSize": "$5:fontSize/xs",
               "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Hyj5b",
+          "x": 0,
+          "y": 0,
+          "name": "Header",
+          "width": 390,
+          "height": 48,
+          "fill": "$5:teal/solid",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "XPuZc",
+              "name": "Logo",
+              "fill": "$5:teal/contrast",
+              "content": "YPS",
+              "fontFamily": "Inter",
+              "fontSize": "$5:fontSize/md",
+              "fontWeight": "700"
             }
           ]
         }
@@ -1212,18 +1365,24 @@
                   ]
                 },
                 "5:YfKX2": {
-                  "height": "fit_content"
+                  "height": "fit_content",
+                  "width": "fill_container",
+                  "x": 20,
+                  "y": 20
                 },
                 "5:XmxfH": {
                   "content": "シフトを確定しますか？"
                 },
                 "5:1JyOI": {
-                  "y": 1.5
+                  "y": 1.5,
+                  "x": 330
                 },
                 "5:3e3rS": {
                   "height": "fit_content",
                   "y": 59,
                   "gap": 12,
+                  "width": "fill_container",
+                  "x": 20,
                   "children": [
                     {
                       "type": "text",
@@ -1275,7 +1434,9 @@
                 },
                 "5:EYQ3g": {
                   "height": "fit_content",
-                  "y": 172
+                  "y": 172,
+                  "width": "fill_container",
+                  "x": 20
                 },
                 "5:F0C2z": {
                   "width": "fit_content",
