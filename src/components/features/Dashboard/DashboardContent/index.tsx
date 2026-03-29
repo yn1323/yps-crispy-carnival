@@ -1,12 +1,11 @@
 import { useBreakpointValue } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { toaster } from "@/src/components/ui/toaster";
+import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import { RecruitmentSection } from "../RecruitmentSection";
@@ -14,11 +13,6 @@ import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffSection } from "../StaffSection";
 import type { Recruitment, Staff } from "../types";
-
-function showErrorToast(error: unknown): void {
-  const title = error instanceof ConvexError ? (error.data as string) : "エラーが発生しました";
-  toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
-}
 
 type Props = {
   shop: { name: string } | null;

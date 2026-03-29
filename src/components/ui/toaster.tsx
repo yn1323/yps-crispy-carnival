@@ -1,4 +1,10 @@
 import { Toaster as ChakraToaster, createToaster, Portal, Spinner, Stack, Toast } from "@chakra-ui/react";
+import { ConvexError } from "convex/values";
+
+export function showErrorToast(error: unknown): void {
+  const title = error instanceof ConvexError && typeof error.data === "string" ? error.data : "エラーが発生しました";
+  toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
+}
 
 export const toaster = createToaster({
   placement: "top",
