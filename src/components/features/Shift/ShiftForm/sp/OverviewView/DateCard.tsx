@@ -49,8 +49,6 @@ export const DateCard = ({
     [staffs, shifts],
   );
 
-  const staffCount = workingStaffs.length;
-
   return (
     <Box
       borderWidth="1px"
@@ -95,7 +93,7 @@ export const DateCard = ({
             </Text>
           </Flex>
         ))}
-        {staffCount === 0 && (
+        {workingStaffs.length === 0 && (
           <Text fontSize="xs" color="gray.400" textAlign="center" py={1}>
             出勤者なし
           </Text>
