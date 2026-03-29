@@ -95,7 +95,10 @@ export const ShiftEditSheet = ({
           return edge === "start" ? { ...seg, start: newTime } : { ...seg, end: newTime };
         }),
       };
-      const normalized = normalizePositions({ positions: updated.positions, breakPosition });
+      const normalized = normalizePositions({
+        positions: updated.positions,
+        breakPosition,
+      });
       onShiftUpdate({ ...updated, positions: normalized });
     },
     [currentShift, breakPosition, onShiftUpdate],
@@ -105,7 +108,10 @@ export const ShiftEditSheet = ({
   const handleSegmentDelete = useCallback(
     (segmentId: string) => {
       const remaining = currentShift.positions.filter((p) => p.id !== segmentId);
-      const normalized = normalizePositions({ positions: remaining, breakPosition });
+      const normalized = normalizePositions({
+        positions: remaining,
+        breakPosition,
+      });
       onShiftUpdate({ ...currentShift, positions: normalized });
     },
     [currentShift, breakPosition, onShiftUpdate],
@@ -126,7 +132,10 @@ export const ShiftEditSheet = ({
       endMinutes: endMin,
       segmentId: `seg-${Date.now()}`,
     });
-    const normalized = normalizePositions({ positions: painted.positions, breakPosition });
+    const normalized = normalizePositions({
+      positions: painted.positions,
+      breakPosition,
+    });
     onShiftUpdate({ ...painted, positions: normalized });
   }, [currentShift, addStart, addEnd, breakPosition, onShiftUpdate]);
 
@@ -227,7 +236,7 @@ export const ShiftEditSheet = ({
             <IconButton
               aria-label="追加"
               size="sm"
-              colorPalette="blue"
+              colorPalette="teal"
               variant="solid"
               onClick={handleAdd}
               disabled={!canAdd}

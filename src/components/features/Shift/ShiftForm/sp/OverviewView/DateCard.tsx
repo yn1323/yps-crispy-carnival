@@ -70,7 +70,7 @@ export const DateCard = ({
             aria-label="スタッフを追加"
             size="xs"
             variant="solid"
-            colorPalette="blue"
+            colorPalette="teal"
             onClick={(e) => {
               e.stopPropagation();
               onAddStaffClick();
