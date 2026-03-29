@@ -12,10 +12,8 @@ export const mockStaffs: StaffType[] = [
 ];
 
 export const mockPositions: PositionType[] = [
-  { id: "pos1", name: "ホール", color: "#3b82f6" },
-  { id: "pos2", name: "キッチン", color: "#f97316" },
-  { id: "pos3", name: "レジ", color: "#10b981" },
-  { id: "pos4", name: "休憩", color: "#6b7280" },
+  { id: "default", name: "シフト", color: "#3b82f6" },
+  { id: "break", name: "休憩", color: "#6b7280" },
 ];
 
 export const mockDates = [
@@ -40,8 +38,7 @@ export const mockShifts: ShiftData[] = [
     date: "2026-01-21",
     requestedTime: { start: "10:00", end: "18:00" },
     positions: [
-      { id: "seg1", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "10:00", end: "14:00" },
-      { id: "seg2", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "14:00", end: "18:00" },
+      { id: "seg1", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "10:00", end: "18:00" },
     ],
   },
   {
@@ -51,8 +48,7 @@ export const mockShifts: ShiftData[] = [
     date: "2026-01-21",
     requestedTime: { start: "12:00", end: "20:00" },
     positions: [
-      { id: "seg3", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "12:00", end: "16:00" },
-      { id: "seg4", positionId: "pos3", positionName: "レジ", color: "#10b981", start: "16:00", end: "20:00" },
+      { id: "seg3", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "12:00", end: "20:00" },
     ],
   },
   {
@@ -62,7 +58,7 @@ export const mockShifts: ShiftData[] = [
     date: "2026-01-21",
     requestedTime: { start: "15:00", end: "21:00" },
     positions: [
-      { id: "seg5", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "15:00", end: "21:00" },
+      { id: "seg5", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "15:00", end: "21:00" },
     ],
   },
   {
@@ -72,9 +68,9 @@ export const mockShifts: ShiftData[] = [
     date: "2026-01-22",
     requestedTime: { start: "09:00", end: "17:00" },
     positions: [
-      { id: "seg6", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "09:00", end: "12:00" },
-      { id: "seg7", positionId: "pos4", positionName: "休憩", color: "#6b7280", start: "12:00", end: "13:00" },
-      { id: "seg8", positionId: "pos1", positionName: "ホール", color: "#3b82f6", start: "13:00", end: "17:00" },
+      { id: "seg6", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "09:00", end: "12:00" },
+      { id: "seg7", positionId: "break", positionName: "休憩", color: "#6b7280", start: "12:00", end: "13:00" },
+      { id: "seg8", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "13:00", end: "17:00" },
     ],
   },
   {
@@ -84,7 +80,7 @@ export const mockShifts: ShiftData[] = [
     date: "2026-01-22",
     requestedTime: { start: "10:00", end: "18:00" },
     positions: [
-      { id: "seg9", positionId: "pos3", positionName: "レジ", color: "#10b981", start: "10:00", end: "18:00" },
+      { id: "seg9", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "10:00", end: "18:00" },
     ],
   },
   {
@@ -94,7 +90,7 @@ export const mockShifts: ShiftData[] = [
     date: "2026-01-21",
     requestedTime: null,
     positions: [
-      { id: "seg10", positionId: "pos2", positionName: "キッチン", color: "#f97316", start: "10:00", end: "14:00" },
+      { id: "seg10", positionId: "default", positionName: "シフト", color: "#3b82f6", start: "10:00", end: "14:00" },
     ],
   },
 ];
@@ -103,18 +99,13 @@ export const mockRequiredStaffing: RequiredStaffingData[] = [
   {
     dayOfWeek: 3,
     slots: [
-      { hour: 10, position: "ホール", requiredCount: 2 },
-      { hour: 10, position: "キッチン", requiredCount: 1 },
-      { hour: 14, position: "ホール", requiredCount: 3 },
-      { hour: 14, position: "キッチン", requiredCount: 2 },
+      { hour: 10, position: "シフト", requiredCount: 3 },
+      { hour: 14, position: "シフト", requiredCount: 5 },
     ],
   },
   {
     dayOfWeek: 4,
-    slots: [
-      { hour: 9, position: "ホール", requiredCount: 2 },
-      { hour: 9, position: "キッチン", requiredCount: 1 },
-    ],
+    slots: [{ hour: 9, position: "シフト", requiredCount: 3 }],
   },
 ];
 

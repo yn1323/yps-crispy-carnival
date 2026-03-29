@@ -191,15 +191,11 @@ export const ShiftEditSheet = ({
         {visibleSegments.length > 0 && (
           <Box>
             <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
-              割当ポジション
+              シフト時間
             </Text>
             <VStack gap={2} align="stretch">
               {visibleSegments.map((seg) => (
                 <Flex key={seg.id} align="center" gap={2}>
-                  <Box w="12px" h="12px" borderRadius="sm" bg={seg.color} flexShrink={0} />
-                  <Text fontSize="sm" minW="60px" flexShrink={0}>
-                    {seg.positionName}
-                  </Text>
                   <Select
                     items={getStartOptions(timeOptions, seg.end)}
                     value={seg.start}

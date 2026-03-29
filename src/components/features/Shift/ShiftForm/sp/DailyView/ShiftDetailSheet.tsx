@@ -37,19 +37,13 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
         {visibleSegments.length > 0 && (
           <Box>
             <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
-              割当ポジション
+              シフト時間
             </Text>
             <VStack gap={2} align="stretch">
               {visibleSegments.map((seg) => (
-                <Flex key={seg.id} align="center" gap={2}>
-                  <Box w="12px" h="12px" borderRadius="sm" bg={seg.color} flexShrink={0} />
-                  <Text fontSize="sm" flexShrink={0}>
-                    {seg.positionName}
-                  </Text>
-                  <Text fontSize="sm" color="gray.500">
-                    {seg.start} - {seg.end}
-                  </Text>
-                </Flex>
+                <Text key={seg.id} fontSize="sm" color="gray.700">
+                  {seg.start} - {seg.end}
+                </Text>
               ))}
             </VStack>
           </Box>
@@ -57,7 +51,7 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
 
         {visibleSegments.length === 0 && (
           <Text fontSize="sm" color="gray.400" textAlign="center" py={4}>
-            ポジション未割当
+            シフト未設定
           </Text>
         )}
       </VStack>

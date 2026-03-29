@@ -118,21 +118,15 @@ export const ShiftPopover = ({
                     .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
                     .map((pos) => (
                       <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
-                        <Flex align="center" gap={2}>
-                          <Box w="12px" h="12px" borderRadius="sm" bg={pos.color} />
-                          <Text fontSize="sm" color="gray.700">
-                            {pos.positionName}
-                          </Text>
-                          <Text fontSize="xs" color="gray.500">
-                            {pos.start}-{pos.end}
-                          </Text>
-                        </Flex>
+                        <Text fontSize="sm" color="gray.700">
+                          {pos.start}-{pos.end}
+                        </Text>
                         {!isReadOnly && (
                           <IconButton
                             size="xs"
                             variant="ghost"
                             colorPalette="gray"
-                            aria-label={`${pos.positionName}を削除`}
+                            aria-label="時間帯を削除"
                             onClick={() => onDeletePosition(pos.id)}
                             _hover={{ color: "red.500" }}
                           >
@@ -157,7 +151,7 @@ export const ShiftPopover = ({
                     disabled={shift.positions.length === 0}
                   >
                     <LuTrash2 />
-                    <Text ml={2}>全ポジションを削除</Text>
+                    <Text ml={2}>シフトを削除</Text>
                   </Button>
                 </Box>
               )}

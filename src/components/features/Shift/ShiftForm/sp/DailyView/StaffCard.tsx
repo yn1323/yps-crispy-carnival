@@ -61,22 +61,19 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = 
       {hasPositions ? (
         <VStack gap={1} align="stretch">
           <MiniShiftBar positions={shift?.positions ?? []} timeRange={timeRange} />
-          {/* ポジション名+時間テキスト */}
+          {/* 時間テキスト */}
           <Flex gap={3} flexWrap="wrap">
             {visibleSegments.map((seg) => (
-              <Flex key={seg.id} align="center" gap={1}>
-                <Box w="8px" h="8px" borderRadius="full" bg={seg.color} flexShrink={0} />
-                <Text fontSize="2xs" color="gray.600">
-                  {seg.positionName} {seg.start}-{seg.end}
-                </Text>
-              </Flex>
+              <Text key={seg.id} fontSize="2xs" color="gray.600">
+                {seg.start}-{seg.end}
+              </Text>
             ))}
           </Flex>
         </VStack>
       ) : (
         <Box h="20px" display="flex" alignItems="center" justifyContent="center">
           <Text fontSize="xs" color="gray.400">
-            {isUnsubmitted ? "シフト希望なし" : hasRequest ? "ポジション未割当" : "希望なし"}
+            {isUnsubmitted ? "シフト希望なし" : hasRequest ? "シフト未設定" : "希望なし"}
           </Text>
         </Box>
       )}
