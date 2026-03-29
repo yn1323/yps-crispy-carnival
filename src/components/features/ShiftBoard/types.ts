@@ -1,18 +1,11 @@
-export type ConfirmStatus = {
-  confirmedAt: Date | null;
-};
+import type { ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
 
 export type ShiftBoardHeaderProps = {
   periodLabel: string;
-  submittedCount: number;
-  totalStaffCount: number;
   confirmedAt: Date | null;
   onSave: () => void;
   onConfirm: () => void;
   isSaving?: boolean;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
 };
-
-export function formatSubmissionStatus(submittedCount: number, totalStaffCount: number): string {
-  const base = `提出状況: ${submittedCount}/${totalStaffCount}人完了`;
-  return submittedCount >= totalStaffCount ? `${base} ✓` : base;
-}
