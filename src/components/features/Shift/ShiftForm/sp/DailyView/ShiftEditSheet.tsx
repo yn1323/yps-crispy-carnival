@@ -1,7 +1,9 @@
-import { Badge, Box, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Field, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
-import { useCallback, useMemo, useState } from "react";
-import { LuPlus, LuTrash2, LuX } from "react-icons/lu";
+import { useCallback, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { LuTrash2, LuX } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
@@ -9,6 +11,7 @@ import { DEFAULT_POSITION } from "../../constants";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "../../types";
 import { normalizePositions, paintPosition } from "../../utils/shiftOperations";
 import { minutesToTime, timeToMinutes } from "../../utils/timeConversion";
+import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
 
 type ShiftEditSheetProps = {
   staff: StaffType;
@@ -18,6 +21,7 @@ type ShiftEditSheetProps = {
   selectedDate: string;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
+  onBack?: () => void;
   onShiftUpdate: (updatedShift: ShiftData) => void;
   onShiftDelete: (staffId: string) => void;
 };
@@ -54,24 +58,30 @@ export const ShiftEditSheet = ({
   selectedDate,
   isOpen,
   onOpenChange,
+  onBack,
   onShiftUpdate,
   onShiftDelete,
 }: ShiftEditSheetProps) => {
   const timeOptions = useMemo(() => generateTimeOptions(timeRange), [timeRange]);
   const breakPosition = useMemo(() => findBreakPosition(positions), [positions]);
 
-  // 追加用のローカルstate（シフト未設定の場合は空欄）
-  const hasShift = shift && shift.positions.length > 0;
-  const [addStart, setAddStart] = useState(() => {
-    if (!hasShift) return "";
-    const earliest = Math.min(...shift.positions.map((p) => timeToMinutes(p.start)));
-    return minutesToTime(earliest);
+  const { initialStart, initialEnd } = useMemo(() => {
+    if (!shift || shift.positions.length === 0) return { initialStart: "", initialEnd: "" };
+    const starts = shift.positions.map((p) => timeToMinutes(p.start));
+    const ends = shift.positions.map((p) => timeToMinutes(p.end));
+    return { initialStart: minutesToTime(Math.min(...starts)), initialEnd: minutesToTime(Math.max(...ends)) };
+  }, [shift]);
+  const {
+    handleSubmit: handleAddSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<AddTimeFormData>({
+    resolver: zodResolver(addTimeSchema),
+    defaultValues: { startTime: initialStart, endTime: initialEnd },
   });
-  const [addEnd, setAddEnd] = useState(() => {
-    if (!hasShift) return "";
-    const latest = Math.max(...shift.positions.map((p) => timeToMinutes(p.end)));
-    return minutesToTime(latest);
-  });
+  const addStart = watch("startTime");
+  const addEnd = watch("endTime");
 
   const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
 
@@ -124,46 +134,45 @@ export const ShiftEditSheet = ({
     [currentShift, breakPosition, onShiftUpdate],
   );
 
-  // ポジション追加（デフォルトポジションを使用）
-  const handleAdd = useCallback(() => {
-    const startMin = timeToMinutes(addStart);
-    const endMin = timeToMinutes(addEnd);
-    if (startMin >= endMin) return;
-
-    const painted = paintPosition({
-      shift: currentShift,
-      positionId: DEFAULT_POSITION.id,
-      positionName: DEFAULT_POSITION.name,
-      positionColor: DEFAULT_POSITION.color,
-      startMinutes: startMin,
-      endMinutes: endMin,
-      segmentId: `seg-${Date.now()}`,
-    });
-    const normalized = normalizePositions({
-      positions: painted.positions,
-      breakPosition,
-    });
-    onShiftUpdate({ ...painted, positions: normalized });
-  }, [currentShift, addStart, addEnd, breakPosition, onShiftUpdate]);
-
-  // 全削除
   const handleClearAll = useCallback(() => {
     onShiftDelete(staff.id);
   }, [staff.id, onShiftDelete]);
 
-  const canAdd = addStart !== "" && addEnd !== "" && timeToMinutes(addStart) < timeToMinutes(addEnd);
+  const handleConfirm = useCallback(
+    (data: AddTimeFormData) => {
+      const startMin = timeToMinutes(data.startTime);
+      const endMin = timeToMinutes(data.endTime);
 
-  const handleSubmit = useCallback(() => {
-    onOpenChange({ open: false });
-  }, [onOpenChange]);
+      const painted = paintPosition({
+        shift: currentShift,
+        positionId: DEFAULT_POSITION.id,
+        positionName: DEFAULT_POSITION.name,
+        positionColor: DEFAULT_POSITION.color,
+        startMinutes: startMin,
+        endMinutes: endMin,
+        segmentId: `seg-${Date.now()}`,
+      });
+      const normalized = normalizePositions({
+        positions: painted.positions,
+        breakPosition,
+      });
+      onShiftUpdate({ ...painted, positions: normalized });
+      onOpenChange({ open: false });
+    },
+    [currentShift, breakPosition, onShiftUpdate, onOpenChange],
+  );
+
+  const onSubmit = useMemo(() => handleAddSubmit(handleConfirm), [handleAddSubmit, handleConfirm]);
 
   return (
     <BottomSheet
       title={`${staff.name}のシフト  ${dateLabel}`}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onBack={onBack}
+      onSubmit={onSubmit}
       submitLabel="確定"
+      overflowY="visible"
     >
       <VStack gap={4} align="stretch">
         {/* 希望時間 */}
@@ -230,36 +239,34 @@ export const ShiftEditSheet = ({
           <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>
             時間を追加
           </Text>
-          <HStack gap={2}>
-            <Select
-              items={getStartOptions(timeOptions, addEnd)}
-              value={addStart}
-              onChange={setAddStart}
-              size="sm"
-              w="120px"
-              usePortal={false}
-            />
-            <Text fontSize="sm" color="gray.400">
+          <HStack gap={2} align="start">
+            <Field.Root invalid={!!errors.startTime}>
+              <Select
+                items={getStartOptions(timeOptions, addEnd)}
+                value={addStart}
+                onChange={(v) => setValue("startTime", v, { shouldValidate: true })}
+                size="sm"
+                w="120px"
+                usePortal={false}
+                invalid={!!errors.startTime}
+              />
+              {errors.startTime && <Field.ErrorText>{errors.startTime.message}</Field.ErrorText>}
+            </Field.Root>
+            <Text fontSize="sm" color="gray.400" pt={2}>
               -
             </Text>
-            <Select
-              items={getEndOptions(timeOptions, addStart)}
-              value={addEnd}
-              onChange={setAddEnd}
-              size="sm"
-              w="120px"
-              usePortal={false}
-            />
-            <IconButton
-              aria-label="追加"
-              size="sm"
-              colorPalette="teal"
-              variant="solid"
-              onClick={handleAdd}
-              disabled={!canAdd}
-            >
-              <LuPlus />
-            </IconButton>
+            <Field.Root invalid={!!errors.endTime}>
+              <Select
+                items={getEndOptions(timeOptions, addStart)}
+                value={addEnd}
+                onChange={(v) => setValue("endTime", v, { shouldValidate: true })}
+                size="sm"
+                w="120px"
+                usePortal={false}
+                invalid={!!errors.endTime}
+              />
+              {errors.endTime && <Field.ErrorText>{errors.endTime.message}</Field.ErrorText>}
+            </Field.Root>
           </HStack>
         </Box>
 

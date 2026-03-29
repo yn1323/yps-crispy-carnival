@@ -138,6 +138,11 @@ import { bar } from "@/convex/...";
 - カスタムバリデータ（フロント専用）: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
 - 共通バリデータ（mutation共有）: `convex/_lib/validation.ts`（`optionalEmail`等）
 
+### Select × モーダル/BottomSheet
+
+- モーダルやBottomSheet内でSelectを使う場合は `usePortal={false}` を指定すること（Portalだとドロップダウンがモーダル背後に回る）
+- BottomSheetの `overflowY="auto"` がドロップダウンをクリップする場合は `overflowY="visible"` を渡すこと
+
 ### Storybook
 
 - `@storybook/react-vite`を使用（`@storybook/react`ではない）
