@@ -21,7 +21,6 @@ export const Normal: Story = {
     submittedCount: 8,
     totalStaffCount: 10,
     confirmedAt: null,
-    onBack: () => {},
     onSave: () => {},
     onConfirm: () => {},
   },

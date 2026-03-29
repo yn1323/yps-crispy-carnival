@@ -1,8 +1,8 @@
 import { Box, useBreakpointValue } from "@chakra-ui/react";
-import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ShiftData } from "@/src/components/features/Shift/ShiftForm/types";
+import { TitleTemplate } from "@/src/components/templates/TitleTemplate";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
@@ -11,8 +11,9 @@ import { mockDates, mockPeriodLabel, mockPositions, mockShifts, mockStaffs, mock
 import { ShiftBoardHeader } from "../ShiftBoardHeader";
 import { ShiftBoardSPHeader } from "../ShiftBoardSPHeader";
 
+const breadCrumbs = [{ label: "ダッシュボード", path: "/dashboard" as const }, { label: "シフト表" }];
+
 export const ShiftBoardPage = () => {
-  const navigate = useNavigate();
   const isMobile = useBreakpointValue({ base: true, lg: false });
 
   const [confirmedAt, setConfirmedAt] = useState<Date | null>(null);
@@ -28,10 +29,6 @@ export const ShiftBoardPage = () => {
 
   const submittedCount = mockStaffs.filter((s) => s.isSubmitted).length;
   const isConfirmed = confirmedAt !== null;
-
-  const handleBack = useCallback(() => {
-    navigate({ to: "/dashboard" });
-  }, [navigate]);
 
   const handleSave = useCallback(async () => {
     if (isSaving) return;
@@ -52,7 +49,7 @@ export const ShiftBoardPage = () => {
   const confirmTitle = isConfirmed ? "シフトを再送しますか？" : "シフトを確定しますか？";
 
   return (
-    <Box display="flex" flexDirection="column">
+    <TitleTemplate title="シフト表" breadCrumbs={breadCrumbs}>
       <Box display={{ base: "none", lg: "block" }}>
         <ShiftBoardHeader
           periodLabel={mockPeriodLabel}
@@ -65,29 +62,27 @@ export const ShiftBoardPage = () => {
         />
       </Box>
 
-      <Box px={{ base: 0, lg: 6 }}>
-        <Box display={{ base: "block", lg: "none" }}>
-          <ShiftBoardSPHeader
-            periodLabel={mockPeriodLabel}
-            submittedCount={submittedCount}
-            totalStaffCount={mockStaffs.length}
-            confirmedAt={confirmedAt}
-            onBack={handleBack}
-            onSave={handleSave}
-            onConfirm={confirmModal.open}
-            isSaving={isSaving}
-          />
-        </Box>
-        <ShiftForm
-          shopId="shop-1"
-          staffs={mockStaffs}
-          positions={mockPositions}
-          initialShifts={mockShifts}
-          dates={mockDates}
-          timeRange={mockTimeRange}
-          onShiftsChange={handleShiftsChange}
+      <Box display={{ base: "block", lg: "none" }}>
+        <ShiftBoardSPHeader
+          periodLabel={mockPeriodLabel}
+          submittedCount={submittedCount}
+          totalStaffCount={mockStaffs.length}
+          confirmedAt={confirmedAt}
+          onSave={handleSave}
+          onConfirm={confirmModal.open}
+          isSaving={isSaving}
         />
       </Box>
+
+      <ShiftForm
+        shopId="shop-1"
+        staffs={mockStaffs}
+        positions={mockPositions}
+        initialShifts={mockShifts}
+        dates={mockDates}
+        timeRange={mockTimeRange}
+        onShiftsChange={handleShiftsChange}
+      />
 
       <Modal
         title={confirmTitle}
@@ -99,6 +94,6 @@ export const ShiftBoardPage = () => {
       >
         <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={mockPeriodLabel} />
       </Modal>
-    </Box>
+    </TitleTemplate>
   );
 };
