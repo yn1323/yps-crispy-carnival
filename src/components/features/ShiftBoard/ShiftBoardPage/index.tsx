@@ -5,9 +5,14 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ShiftData, StaffType, ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
+import {
+  formatDateShort,
+  getDateRange,
+  getWeekdayLabel,
+} from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { toaster } from "@/src/components/ui/toaster";
+import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { ShiftBoardHeader } from "../ShiftBoardHeader";
 import { ShiftBoardSPHeader } from "../ShiftBoardSPHeader";
@@ -15,28 +20,12 @@ import type { ShiftBoardData } from "../types";
 
 const DEFAULT_POSITION = { id: "default", name: "勤務", color: "#3b82f6" } as const;
 
-const DAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
-
-/** periodStart〜periodEnd の日付配列を生成 */
-function generateDates(periodStart: string, periodEnd: string): string[] {
-  const dates: string[] = [];
-  const current = new Date(`${periodStart}T00:00:00`);
-  const end = new Date(`${periodEnd}T00:00:00`);
-  while (current <= end) {
-    dates.push(current.toISOString().slice(0, 10));
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
-}
-
 /** dates配列から "M/D(曜)〜M/D(曜) のシフト" を生成 */
 function generatePeriodLabel(dates: string[]): string {
   if (dates.length === 0) return "";
-  const first = new Date(`${dates[0]}T00:00:00`);
-  const last = new Date(`${dates[dates.length - 1]}T00:00:00`);
-  const f = `${first.getMonth() + 1}/${first.getDate()}(${DAY_LABELS[first.getDay()]})`;
-  const l = `${last.getMonth() + 1}/${last.getDate()}(${DAY_LABELS[last.getDay()]})`;
-  return `${f}〜${l} のシフト`;
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  return `${formatDateShort(first)}(${getWeekdayLabel(first)})〜${formatDateShort(last)}(${getWeekdayLabel(last)}) のシフト`;
 }
 
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
@@ -104,7 +93,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const isConfirmed = confirmedAt !== null;
 
   const dates = useMemo(
-    () => generateDates(data.recruitment.periodStart, data.recruitment.periodEnd),
+    () => getDateRange(data.recruitment.periodStart, data.recruitment.periodEnd),
     [data.recruitment.periodStart, data.recruitment.periodEnd],
   );
 
@@ -143,8 +132,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
       toaster.create({ title: "保存しました", type: "success" });
-    } catch {
-      toaster.create({ title: "保存に失敗しました", type: "error" });
+    } catch (error) {
+      showErrorToast(error);
     } finally {
       setIsSaving(false);
     }
@@ -156,8 +145,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       await confirmRecruitmentMutation({ recruitmentId });
       confirmModal.close();
       toaster.create({ title: "送信しました", type: "success" });
-    } catch {
-      toaster.create({ title: "送信に失敗しました", type: "error" });
+    } catch (error) {
+      showErrorToast(error);
     }
   }, [saveShiftAssignments, confirmRecruitmentMutation, recruitmentId, buildAssignments, confirmModal]);
 
@@ -190,7 +179,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       </Box>
 
       <ShiftForm
-        shopId={recruitmentId}
+        shopId={data.shopId}
         staffs={staffs}
         positions={[DEFAULT_POSITION]}
         initialShifts={initialShifts}

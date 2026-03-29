@@ -12,6 +12,7 @@ export type ShiftBoardHeaderProps = {
 };
 
 export type ShiftBoardData = {
+  shopId: Id<"shops">;
   recruitment: {
     _id: Id<"recruitments">;
     periodStart: string;

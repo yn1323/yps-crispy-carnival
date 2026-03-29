@@ -4,6 +4,7 @@ import type { ShiftBoardData } from "../types";
 import { ShiftBoardPage } from "./index";
 
 const mockData: ShiftBoardData = {
+  shopId: "shop-1" as Id<"shops">,
   recruitment: {
     _id: "recruitment-1" as Id<"recruitments">,
     periodStart: "2026-01-20",

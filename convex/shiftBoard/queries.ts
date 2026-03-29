@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
+import { timeToMinutes } from "../_lib/time";
 
 const MAX_STAFFS = 200;
 const MAX_SHIFT_REQUESTS = 2000;
@@ -38,10 +39,12 @@ export const getShiftBoardData = managerQuery({
     // isSubmitted: そのスタッフのshiftRequestsが1件以上あるか
     const submittedStaffIds = new Set(shiftRequests.map((r) => r.staffId));
 
-    const startHour = Number.parseInt(shop.shiftStartTime, 10);
-    const endHour = Number.parseInt(shop.shiftEndTime, 10);
+    // TimeRange.start/end は「時」の数値を期待（9, 22 等）
+    const startHour = Math.floor(timeToMinutes(shop.shiftStartTime) / 60);
+    const endHour = Math.ceil(timeToMinutes(shop.shiftEndTime) / 60);
 
     return {
+      shopId: shop._id,
       recruitment: {
         _id: recruitment._id,
         periodStart: recruitment.periodStart,
