@@ -7,7 +7,7 @@ type Props = {
 
 export const ContentWrapper = ({ children }: Props) => {
   return (
-    <Stack maxW="1024px" w="full" mx="auto" p={{ base: 4, lg: 8 }} gap={{ base: 6, lg: 8 }}>
+    <Stack maxW="1024px" w="full" mx="auto" gap={{ base: 6, lg: 8 }}>
       {children}
     </Stack>
   );
