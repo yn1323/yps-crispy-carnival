@@ -138,6 +138,12 @@ import { bar } from "@/convex/...";
 - カスタムバリデータ（フロント専用）: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
 - 共通バリデータ（mutation共有）: `convex/_lib/validation.ts`（`optionalEmail`等）
 
+### 日付操作
+
+- フロントの日付操作は `src/components/features/Shift/ShiftForm/utils/dateUtils.ts`（dayjs）を使用する
+- `new Date()` + `toISOString()` による日付文字列生成はTZずれの原因になるため禁止
+- Convexバックエンド（`convex/`）ではdayjsを使えないため、文字列比較（"YYYY-MM-DD"）で対応
+
 ### Select × モーダル/BottomSheet
 
 - モーダルやBottomSheet内でSelectを使う場合は `usePortal={false}` を指定すること（Portalだとドロップダウンがモーダル背後に回る）
