@@ -32,13 +32,13 @@ const generateTimeOptions = (timeRange: TimeRange) => {
   return options;
 };
 
-// 開始用オプション: endTime未満の選択肢
+// 開始用オプション: endTime未満の選択肢（空なら全選択肢）
 const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>
-  allOptions.filter((opt) => timeToMinutes(opt.value) < timeToMinutes(endTime));
+  endTime ? allOptions.filter((opt) => timeToMinutes(opt.value) < timeToMinutes(endTime)) : allOptions;
 
-// 終了用オプション: startTimeより後の選択肢
+// 終了用オプション: startTimeより後の選択肢（空なら全選択肢）
 const getEndOptions = (allOptions: SelectItemType[], startTime: string) =>
-  allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime));
+  startTime ? allOptions.filter((opt) => timeToMinutes(opt.value) > timeToMinutes(startTime)) : allOptions;
 
 // 休憩ポジションを取得
 const findBreakPosition = (positions: PositionType[]) => {
@@ -60,11 +60,18 @@ export const ShiftEditSheet = ({
   const timeOptions = useMemo(() => generateTimeOptions(timeRange), [timeRange]);
   const breakPosition = useMemo(() => findBreakPosition(positions), [positions]);
 
-  // 追加用のローカルstate
-  const defaultStart = minutesToTime(timeRange.start * 60);
-  const defaultEnd = minutesToTime(timeRange.start * 60 + timeRange.unit);
-  const [addStart, setAddStart] = useState(defaultStart);
-  const [addEnd, setAddEnd] = useState(defaultEnd);
+  // 追加用のローカルstate（シフト未設定の場合は空欄）
+  const hasShift = shift && shift.positions.length > 0;
+  const [addStart, setAddStart] = useState(() => {
+    if (!hasShift) return "";
+    const earliest = Math.min(...shift.positions.map((p) => timeToMinutes(p.start)));
+    return minutesToTime(earliest);
+  });
+  const [addEnd, setAddEnd] = useState(() => {
+    if (!hasShift) return "";
+    const latest = Math.max(...shift.positions.map((p) => timeToMinutes(p.end)));
+    return minutesToTime(latest);
+  });
 
   const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
 
@@ -144,10 +151,20 @@ export const ShiftEditSheet = ({
     onShiftDelete(staff.id);
   }, [staff.id, onShiftDelete]);
 
-  const canAdd = timeToMinutes(addStart) < timeToMinutes(addEnd);
+  const canAdd = addStart !== "" && addEnd !== "" && timeToMinutes(addStart) < timeToMinutes(addEnd);
+
+  const handleSubmit = useCallback(() => {
+    onOpenChange({ open: false });
+  }, [onOpenChange]);
 
   return (
-    <BottomSheet title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange}>
+    <BottomSheet
+      title={`${staff.name}のシフト  ${dateLabel}`}
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      onSubmit={handleSubmit}
+      submitLabel="確定"
+    >
       <VStack gap={4} align="stretch">
         {/* 希望時間 */}
         <Flex align="center" gap={2}>
@@ -246,19 +263,14 @@ export const ShiftEditSheet = ({
           </HStack>
         </Box>
 
-        {/* フッター */}
-        <Flex justify="space-between" borderTopWidth="1px" borderColor="gray.200" pt={3}>
-          <IconButton
-            aria-label="全削除"
-            size="sm"
-            variant="ghost"
-            colorPalette="red"
-            onClick={handleClearAll}
-            disabled={currentShift.positions.length === 0}
-          >
-            <LuTrash2 />
-          </IconButton>
-        </Flex>
+        {/* 全削除 */}
+        {currentShift.positions.length > 0 && (
+          <Flex justify="flex-end">
+            <IconButton aria-label="全削除" size="xs" variant="ghost" colorPalette="red" onClick={handleClearAll}>
+              <LuTrash2 />
+            </IconButton>
+          </Flex>
+        )}
       </VStack>
     </BottomSheet>
   );
