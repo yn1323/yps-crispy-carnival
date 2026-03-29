@@ -1,7 +1,7 @@
 import { Badge, Field, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuTrash2 } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
@@ -75,11 +75,18 @@ export const ShiftEditSheet = ({
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<AddTimeFormData>({
     resolver: zodResolver(addTimeSchema),
     defaultValues: { startTime: initialStart, endTime: initialEnd },
   });
+
+  // shift（スタッフ）切り替え時にフォームをリセット
+  useEffect(() => {
+    reset({ startTime: initialStart, endTime: initialEnd });
+  }, [initialStart, initialEnd, reset]);
+
   const startTime = watch("startTime");
   const endTime = watch("endTime");
 
