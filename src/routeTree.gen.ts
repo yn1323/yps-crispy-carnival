@@ -14,6 +14,8 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
+import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 
 const UnregisteredRoute = UnregisteredRouteImport.update({
@@ -39,6 +41,17 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
+  id: '/shifts/view',
+  path: '/shifts/view',
+  getParentRoute: () => UnregisteredRoute,
+} as any)
+const UnregisteredShiftsReissueRoute =
+  UnregisteredShiftsReissueRouteImport.update({
+    id: '/shifts/reissue',
+    path: '/shifts/reissue',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
@@ -51,12 +64,16 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthDashboardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof AuthDashboardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -66,12 +83,26 @@ export interface FileRoutesById {
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/welcome' | '/shiftboard/$recruitmentId'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/welcome'
+    | '/shiftboard/$recruitmentId'
+    | '/shifts/reissue'
+    | '/shifts/view'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/welcome' | '/shiftboard/$recruitmentId'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/welcome'
+    | '/shiftboard/$recruitmentId'
+    | '/shifts/reissue'
+    | '/shifts/view'
   id:
     | '__root__'
     | '/'
@@ -80,6 +111,8 @@ export interface FileRouteTypes {
     | '/_auth/dashboard'
     | '/_unregistered/welcome'
     | '/_auth/shiftboard/$recruitmentId'
+    | '/_unregistered/shifts/reissue'
+    | '/_unregistered/shifts/view'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -125,6 +158,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_unregistered/shifts/view': {
+      id: '/_unregistered/shifts/view'
+      path: '/shifts/view'
+      fullPath: '/shifts/view'
+      preLoaderRoute: typeof UnregisteredShiftsViewRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/shifts/reissue': {
+      id: '/_unregistered/shifts/reissue'
+      path: '/shifts/reissue'
+      fullPath: '/shifts/reissue'
+      preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
       path: '/shiftboard/$recruitmentId'
@@ -149,10 +196,14 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface UnregisteredRouteChildren {
   UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
+  UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
+  UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
 }
 
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
   UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
+  UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
+  UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
 }
 
 const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
