@@ -1,4 +1,4 @@
-import { Box, Flex, Spinner } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
@@ -7,7 +7,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { ReissueFormValues } from "@/convex/staffAuth/schemas";
 import { ReissueDone } from "@/src/components/features/StaffView/ReissueDone";
 import { ReissueForm } from "@/src/components/features/StaffView/ReissueForm";
-import { StaffHeader } from "@/src/components/templates/StaffHeader";
+import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 
 export const Route = createFileRoute("/_unregistered/shifts/reissue")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -40,33 +41,26 @@ function ReissueRoute() {
   };
 
   if (info === undefined) {
-    return (
-      <Flex justify="center" align="center" minH="100vh">
-        <Spinner />
-      </Flex>
-    );
+    return <FullPageSpinner />;
   }
 
   const shopName = info?.shopName ?? "シフト閲覧";
 
   return (
-    <Flex direction="column" minH="100vh">
-      <StaffHeader shopName={shopName} />
-      <Box pt={{ base: "48px", lg: "56px" }}>
-        <Box px={{ base: 4, lg: 6 }} py={3}>
-          <Box fontSize="md" fontWeight="semibold">
-            シフト閲覧リンクの再発行
-          </Box>
+    <StaffLayout shopName={shopName}>
+      <Box px={{ base: 4, lg: 6 }} py={3}>
+        <Box fontSize="md" fontWeight="semibold">
+          シフト閲覧リンクの再発行
         </Box>
-
-        {isDone ? (
-          <ReissueDone />
-        ) : (
-          <Box px={{ base: 4, lg: 6 }} maxW="480px" mx={{ lg: "auto" }}>
-            <ReissueForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
-          </Box>
-        )}
       </Box>
-    </Flex>
+
+      {isDone ? (
+        <ReissueDone />
+      ) : (
+        <Box px={{ base: 4, lg: 6 }} maxW="480px" mx={{ lg: "auto" }}>
+          <ReissueForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+        </Box>
+      )}
+    </StaffLayout>
   );
 }

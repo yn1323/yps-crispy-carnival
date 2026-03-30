@@ -1,21 +1,15 @@
-import { Flex, Spinner } from "@chakra-ui/react";
 import { useAuth } from "@clerk/clerk-react";
 import { Navigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
+import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
   children: React.ReactNode;
 };
-
-const FullPageSpinner = () => (
-  <Flex justify="center" align="center" height="100vh">
-    <Spinner />
-  </Flex>
-);
 
 export const AuthGuard = ({ children }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
