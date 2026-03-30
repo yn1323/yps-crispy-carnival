@@ -91,47 +91,6 @@
               "fontWeight": "normal"
             }
           ]
-        },
-        {
-          "type": "frame",
-          "id": "HnW6J",
-          "name": "FooterInfo",
-          "width": "fill_container",
-          "stroke": {
-            "align": "inside",
-            "thickness": {
-              "top": 1
-            },
-            "fill": "$N:border/default"
-          },
-          "gap": 6,
-          "padding": [
-            12,
-            16
-          ],
-          "alignItems": "center",
-          "children": [
-            {
-              "type": "icon_font",
-              "id": "RrfxB",
-              "name": "infoIcon",
-              "width": 14,
-              "height": 14,
-              "iconFontName": "info",
-              "iconFontFamily": "lucide",
-              "fill": "$N:fg/subtle"
-            },
-            {
-              "type": "text",
-              "id": "FRVPh",
-              "name": "infoText",
-              "fill": "$N:fg/muted",
-              "content": "このページは14日間閲覧できます",
-              "fontFamily": "Inter",
-              "fontSize": "$N:fontSize/xs",
-              "fontWeight": "normal"
-            }
-          ]
         }
       ]
     },
@@ -241,40 +200,6 @@
                       "name": "phText2",
                       "fill": "$N:fg/subtle",
                       "content": "（既存コンポーネント）",
-                      "fontFamily": "Inter",
-                      "fontSize": "$N:fontSize/xs",
-                      "fontWeight": "normal"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "t4M9v",
-                  "name": "FooterInfo",
-                  "width": "fill_container",
-                  "gap": 6,
-                  "padding": [
-                    12,
-                    0
-                  ],
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon_font",
-                      "id": "5q5tr",
-                      "name": "infoIcon",
-                      "width": 14,
-                      "height": 14,
-                      "iconFontName": "info",
-                      "iconFontFamily": "lucide",
-                      "fill": "$N:fg/subtle"
-                    },
-                    {
-                      "type": "text",
-                      "id": "shOtw",
-                      "name": "infoText",
-                      "fill": "$N:fg/muted",
-                      "content": "このページは14日間閲覧できます",
                       "fontFamily": "Inter",
                       "fontSize": "$N:fontSize/xs",
                       "fontWeight": "normal"

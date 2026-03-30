@@ -5,7 +5,6 @@ import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
 import type { ShiftData, StaffType } from "@/src/components/features/Shift/ShiftForm/types";
 import { getDateRange } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { FooterInfo } from "../FooterInfo";
 import { PeriodBar } from "../PeriodBar";
 
 const POSITIONS = [DEFAULT_POSITION];
@@ -84,10 +83,6 @@ export function ShiftViewPage({ periodLabel, periodStart, periodEnd, staffs, ass
           timeRange={timeRange}
           isReadOnly
         />
-      </Box>
-
-      <Box mt="auto">
-        <FooterInfo />
       </Box>
     </Flex>
   );
