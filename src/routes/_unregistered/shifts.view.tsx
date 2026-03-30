@@ -1,4 +1,3 @@
-import { Box, Flex, Spinner } from "@chakra-ui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
@@ -6,14 +5,13 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ExpiredView } from "@/src/components/features/StaffView/ExpiredView";
 import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage";
-import { StaffHeader } from "@/src/components/templates/StaffHeader";
+import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 
 type SessionInfo = {
   sessionToken: string;
   recruitmentId: string;
 };
-
-const STAFF_HEADER_PT = { base: "48px", lg: "56px" };
 
 function getStoredSession(recruitmentId?: string): SessionInfo | null {
   try {
@@ -91,11 +89,7 @@ function ShiftViewRoute() {
   }
 
   if (!session || verifying) {
-    return (
-      <Flex justify="center" align="center" minH="100vh">
-        <Spinner />
-      </Flex>
-    );
+    return <FullPageSpinner />;
   }
 
   return <ShiftViewContent session={session} />;
@@ -108,11 +102,7 @@ function ShiftViewContent({ session }: { session: SessionInfo }) {
   });
 
   if (data === undefined) {
-    return (
-      <Flex justify="center" align="center" minH="100vh">
-        <Spinner />
-      </Flex>
-    );
+    return <FullPageSpinner />;
   }
 
   if (data === null) {
@@ -125,18 +115,14 @@ function ShiftViewContent({ session }: { session: SessionInfo }) {
 
   return (
     <StaffLayout shopName={data.shopName}>
-      <ShiftViewPage periodLabel={data.periodLabel} staffs={data.staffs} assignments={data.assignments} />
+      <ShiftViewPage
+        periodLabel={data.periodLabel}
+        periodStart={data.periodStart}
+        periodEnd={data.periodEnd}
+        staffs={data.staffs}
+        assignments={data.assignments}
+        timeRange={data.timeRange}
+      />
     </StaffLayout>
-  );
-}
-
-function StaffLayout({ shopName, children }: { shopName: string; children: React.ReactNode }) {
-  return (
-    <Flex direction="column" minH="100vh">
-      <StaffHeader shopName={shopName} />
-      <Box pt={STAFF_HEADER_PT} flex={1} display="flex" flexDirection="column">
-        {children}
-      </Box>
-    </Flex>
   );
 }

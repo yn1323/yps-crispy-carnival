@@ -36,6 +36,8 @@ export const getShiftViewData = staffSessionQuery({
     return {
       shopName: ctx.shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      periodStart: recruitment.periodStart,
+      periodEnd: recruitment.periodEnd,
       staffs: activeStaffs.map((s) => ({ _id: s._id, name: s.name })),
       assignments: assignments.map((a) => ({
         staffId: a.staffId,

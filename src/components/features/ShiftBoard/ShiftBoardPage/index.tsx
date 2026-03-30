@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
+import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
 import type { ShiftData, StaffType, ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
 import {
   formatDateShort,
@@ -18,7 +19,7 @@ import { ShiftBoardHeader } from "../ShiftBoardHeader";
 import { ShiftBoardSPHeader } from "../ShiftBoardSPHeader";
 import type { ShiftBoardData } from "../types";
 
-const DEFAULT_POSITION = { id: "default", name: "勤務", color: "#3b82f6" } as const;
+const POSITIONS = [DEFAULT_POSITION];
 
 /** dates配列から "M/D(曜)〜M/D(曜) のシフト" を生成 */
 function generatePeriodLabel(dates: string[]): string {
@@ -178,18 +179,20 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         />
       </Box>
 
-      <ShiftForm
-        shopId={data.shopId}
-        staffs={staffs}
-        positions={[DEFAULT_POSITION]}
-        initialShifts={initialShifts}
-        dates={dates}
-        timeRange={data.timeRange}
-        onShiftsChange={handleShiftsChange}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        hideViewSwitcher
-      />
+      <Box px={{ base: 0, lg: 4 }}>
+        <ShiftForm
+          shopId={data.shopId}
+          staffs={staffs}
+          positions={POSITIONS}
+          initialShifts={initialShifts}
+          dates={dates}
+          timeRange={data.timeRange}
+          onShiftsChange={handleShiftsChange}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          hideViewSwitcher
+        />
+      </Box>
 
       <Modal
         title={confirmTitle}

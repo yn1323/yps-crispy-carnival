@@ -37,15 +37,21 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   args: {
     periodLabel: "1/20(月)〜1/26(日)",
+    periodStart: "2026-01-20",
+    periodEnd: "2026-01-26",
     staffs: mockStaffs,
     assignments: mockAssignments,
+    timeRange: { start: 9, end: 23, unit: 30 },
   },
 };
 
 export const Empty: Story = {
   args: {
     periodLabel: "1/20(月)〜1/26(日)",
+    periodStart: "2026-01-20",
+    periodEnd: "2026-01-26",
     staffs: [],
     assignments: [],
+    timeRange: { start: 9, end: 23, unit: 30 },
   },
 };
