@@ -1,0 +1,558 @@
+{
+  "version": "2.9",
+  "children": [
+    {
+      "type": "frame",
+      "id": "J6GqE",
+      "x": 0,
+      "y": 1800,
+      "name": "ShiftView/SP/Normal",
+      "clip": true,
+      "width": 375,
+      "height": 812,
+      "fill": "$N:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "mVYgE",
+          "type": "ref",
+          "ref": "N:3ibeM",
+          "width": "fill_container",
+          "name": "header",
+          "y": 0,
+          "descendants": {
+            "N:CZlf8": {
+              "y": 12.5,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "skHo6",
+          "name": "PeriodBar",
+          "width": "fill_container",
+          "stroke": {
+            "thickness": 0
+          },
+          "padding": [
+            12,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "xmNlH",
+              "name": "PeriodText",
+              "fill": "$N:fg/default",
+              "content": "1/20(月)〜1/26(日) のシフト",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/sm",
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hOCdR",
+          "name": "ShiftTablePlaceholder",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$N:bg/muted",
+          "cornerRadius": "$N:radii/lg",
+          "stroke": {
+            "align": "inside",
+            "thickness": 2,
+            "fill": "$N:border/default"
+          },
+          "layout": "vertical",
+          "gap": 4,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "UIy2m",
+              "name": "phText1",
+              "fill": "$N:fg/subtle",
+              "content": "ShiftTable (SP)",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/md",
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "0Pkke",
+              "name": "phText2",
+              "fill": "$N:fg/subtle",
+              "content": "（既存コンポーネント）",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "HnW6J",
+          "name": "FooterInfo",
+          "width": "fill_container",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "top": 1
+            },
+            "fill": "$N:border/default"
+          },
+          "gap": 6,
+          "padding": [
+            12,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "RrfxB",
+              "name": "infoIcon",
+              "width": 14,
+              "height": 14,
+              "iconFontName": "info",
+              "iconFontFamily": "lucide",
+              "fill": "$N:fg/subtle"
+            },
+            {
+              "type": "text",
+              "id": "FRVPh",
+              "name": "infoText",
+              "fill": "$N:fg/muted",
+              "content": "このページは14日間閲覧できます",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "sE6kC",
+      "x": 475,
+      "y": 1800,
+      "name": "ShiftView/PC/Normal",
+      "clip": true,
+      "width": 1280,
+      "height": 800,
+      "fill": "$N:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "cK7X8",
+          "type": "ref",
+          "ref": "N:vLjy4",
+          "width": "fill_container",
+          "name": "header",
+          "y": 0,
+          "descendants": {
+            "N:mCnss": {
+              "y": 15,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "49ssi",
+          "name": "CenterContent",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Np0J9",
+              "name": "InnerWrapper",
+              "width": 640,
+              "height": "fill_container",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "DCqaE",
+                  "name": "PeriodBar",
+                  "width": "fill_container",
+                  "stroke": {
+                    "thickness": 0
+                  },
+                  "padding": [
+                    16,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "K2u8K",
+                      "name": "PeriodText",
+                      "fill": "$N:fg/default",
+                      "content": "1/20(月)〜1/26(日) のシフト",
+                      "fontFamily": "Inter",
+                      "fontSize": "$N:fontSize/md",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "1QDuv",
+                  "name": "ShiftTablePlaceholder",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$N:bg/muted",
+                  "cornerRadius": "$N:radii/lg",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 2,
+                    "fill": "$N:border/default"
+                  },
+                  "layout": "vertical",
+                  "gap": 4,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YJbmy",
+                      "name": "phText1",
+                      "fill": "$N:fg/subtle",
+                      "content": "ShiftTable (PC)",
+                      "fontFamily": "Inter",
+                      "fontSize": "$N:fontSize/md",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YfXxQ",
+                      "name": "phText2",
+                      "fill": "$N:fg/subtle",
+                      "content": "（既存コンポーネント）",
+                      "fontFamily": "Inter",
+                      "fontSize": "$N:fontSize/xs",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "t4M9v",
+                  "name": "FooterInfo",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "5q5tr",
+                      "name": "infoIcon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "info",
+                      "iconFontFamily": "lucide",
+                      "fill": "$N:fg/subtle"
+                    },
+                    {
+                      "type": "text",
+                      "id": "shOtw",
+                      "name": "infoText",
+                      "fill": "$N:fg/muted",
+                      "content": "このページは14日間閲覧できます",
+                      "fontFamily": "Inter",
+                      "fontSize": "$N:fontSize/xs",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "5EhT7",
+      "x": 0,
+      "y": 2712,
+      "name": "ShiftView/SP/Expired",
+      "clip": true,
+      "width": 375,
+      "height": 812,
+      "fill": "$N:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "rKZmp",
+          "type": "ref",
+          "ref": "N:3ibeM",
+          "width": "fill_container",
+          "name": "header",
+          "y": 0,
+          "descendants": {
+            "N:CZlf8": {
+              "y": 12.5,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "8S07H",
+          "name": "SubHeader",
+          "width": "fill_container",
+          "stroke": {
+            "thickness": 0
+          },
+          "padding": [
+            12,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "xVzIl",
+              "name": "subText",
+              "fill": "$N:fg/default",
+              "content": "シフト閲覧",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/sm",
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "7amcK",
+          "name": "CenterContent",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            0,
+            32
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "cqt29",
+              "name": "warnIcon",
+              "width": 48,
+              "height": 48,
+              "iconFontName": "triangle-alert",
+              "iconFontFamily": "lucide",
+              "fill": "$N:orange/solid"
+            },
+            {
+              "type": "text",
+              "id": "C78b9",
+              "name": "title",
+              "fill": "$N:fg/default",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "このリンクの有効期限が\n切れています",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/lg",
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "Bf8jT",
+              "name": "desc",
+              "fill": "$N:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "下のボタンから新しいリンクを\n発行してください",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/sm",
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "IFNWG",
+              "name": "ReissueButton",
+              "height": 40,
+              "fill": "$N:teal/solid",
+              "cornerRadius": "$N:radii/lg",
+              "padding": [
+                0,
+                24
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yyjDL",
+                  "name": "btnText",
+                  "fill": "$N:white",
+                  "content": "リンクを再発行する",
+                  "fontFamily": "Inter",
+                  "fontSize": "$N:fontSize/sm",
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kKima",
+      "x": 475,
+      "y": 2712,
+      "name": "ShiftView/PC/Expired",
+      "clip": true,
+      "width": 1280,
+      "height": 800,
+      "fill": "$N:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "LsFia",
+          "type": "ref",
+          "ref": "N:vLjy4",
+          "width": "fill_container",
+          "name": "header",
+          "y": 0,
+          "descendants": {
+            "N:mCnss": {
+              "y": 15,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "PRTJb",
+          "name": "SubHeader",
+          "width": "fill_container",
+          "stroke": {
+            "thickness": 0
+          },
+          "padding": [
+            12,
+            24
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "RLlqO",
+              "name": "subText",
+              "fill": "$N:fg/default",
+              "content": "シフト閲覧",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/sm",
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FVtyf",
+          "name": "CenterContent",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            0,
+            32
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "37NhM",
+              "name": "warnIcon",
+              "width": 48,
+              "height": 48,
+              "iconFontName": "triangle-alert",
+              "iconFontFamily": "lucide",
+              "fill": "$N:orange/solid"
+            },
+            {
+              "type": "text",
+              "id": "YsBsZ",
+              "name": "title",
+              "fill": "$N:fg/default",
+              "textGrowth": "fixed-width",
+              "width": 400,
+              "content": "このリンクの有効期限が切れています",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/lg",
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "WmIZV",
+              "name": "desc",
+              "fill": "$N:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": 400,
+              "content": "下のボタンから新しいリンクを発行してください",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$N:fontSize/sm",
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "k5Tot",
+              "name": "ReissueButton",
+              "height": 40,
+              "fill": "$N:teal/solid",
+              "cornerRadius": "$N:radii/lg",
+              "padding": [
+                0,
+                24
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GeoDD",
+                  "name": "btnText",
+                  "fill": "$N:white",
+                  "content": "リンクを再発行する",
+                  "fontFamily": "Inter",
+                  "fontSize": "$N:fontSize/sm",
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "N": "common/system.lib.pen"
+  }
+}

@@ -1,0 +1,592 @@
+{
+  "version": "2.9",
+  "children": [
+    {
+      "type": "frame",
+      "id": "4oYOK",
+      "x": 0,
+      "y": 0,
+      "name": "Reissue/SP/Form",
+      "clip": true,
+      "width": 375,
+      "height": 812,
+      "fill": "$2:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "vVws1",
+          "type": "ref",
+          "ref": "2:3ibeM",
+          "width": "fill_container",
+          "name": "header",
+          "y": 0,
+          "descendants": {
+            "2:CZlf8": {
+              "y": 12.5,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "id": "YRNXY",
+          "type": "ref",
+          "ref": "2:cD5XT",
+          "width": "fill_container",
+          "stroke": {
+            "thickness": 0
+          },
+          "name": "sp1",
+          "descendants": {
+            "2:xlJeu": {
+              "enabled": false
+            },
+            "2:bVXRZ": {
+              "content": "シフト閲覧リンクの再発行"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "kFYaM",
+          "name": "Content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 20,
+          "padding": [
+            24,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "JvJ5i",
+              "name": "desc",
+              "fill": "$2:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "お店に伝えたメールアドレスを入力してください。新しい閲覧リンクをお送りします。",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/sm",
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "vqlca",
+              "name": "FormGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "37D7I",
+                  "name": "label",
+                  "fill": "$2:fg/default",
+                  "content": "メールアドレス",
+                  "fontFamily": "Inter",
+                  "fontSize": "$2:fontSize/sm",
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "MtHx6",
+                  "name": "InputBox",
+                  "width": "fill_container",
+                  "height": 40,
+                  "fill": "$2:bg/default",
+                  "cornerRadius": "$2:radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$2:border/default"
+                  },
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n2IWW",
+                      "name": "placeholder",
+                      "fill": "$2:fg/subtle",
+                      "content": "example@email.com",
+                      "fontFamily": "Inter",
+                      "fontSize": "$2:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LTac2",
+              "name": "SubmitButton",
+              "width": "fill_container",
+              "height": 40,
+              "fill": "$2:teal/solid",
+              "cornerRadius": "$2:radii/lg",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "3XPiH",
+                  "name": "btnText",
+                  "fill": "$2:white",
+                  "content": "リンクを送信する",
+                  "fontFamily": "Inter",
+                  "fontSize": "$2:fontSize/sm",
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "8QtZs",
+              "name": "Divider",
+              "fill": "$2:border/default",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "text",
+              "id": "DfYZg",
+              "name": "note",
+              "fill": "$2:fg/subtle",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "※ お心当たりのないメールが届いた場合は無視してください。",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "u7waf",
+      "x": 475,
+      "y": 0,
+      "name": "Reissue/PC/Form",
+      "clip": true,
+      "width": 1280,
+      "height": 800,
+      "fill": "$2:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "8fMrW",
+          "type": "ref",
+          "ref": "2:vLjy4",
+          "width": "fill_container",
+          "name": "header",
+          "y": 0,
+          "descendants": {
+            "2:mCnss": {
+              "y": 15,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "id": "CmDlo",
+          "type": "ref",
+          "ref": "2:cD5XT",
+          "width": "fill_container",
+          "padding": [
+            12,
+            24
+          ],
+          "stroke": {
+            "thickness": 0
+          },
+          "name": "pc1",
+          "descendants": {
+            "2:xlJeu": {
+              "enabled": false
+            },
+            "2:bVXRZ": {
+              "content": "シフト閲覧リンクの再発行"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "r1mHe",
+          "name": "CenterWrapper",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "CBWgh",
+              "name": "Content",
+              "width": 480,
+              "layout": "vertical",
+              "gap": 20,
+              "padding": [
+                32,
+                0
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "X0VJ4",
+                  "name": "desc",
+                  "fill": "$2:fg/muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "お店に伝えたメールアドレスを入力してください。新しい閲覧リンクをお送りします。",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": "$2:fontSize/sm",
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "YTSz7",
+                  "name": "FormGroup",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "k2a8p",
+                      "name": "label",
+                      "fill": "$2:fg/default",
+                      "content": "メールアドレス",
+                      "fontFamily": "Inter",
+                      "fontSize": "$2:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EF2zC",
+                      "name": "InputBox",
+                      "width": "fill_container",
+                      "height": 40,
+                      "fill": "$2:bg/default",
+                      "cornerRadius": "$2:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$2:border/default"
+                      },
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Tedch",
+                          "name": "ph",
+                          "fill": "$2:fg/subtle",
+                          "content": "example@email.com",
+                          "fontFamily": "Inter",
+                          "fontSize": "$2:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "NfchY",
+                  "name": "SubmitButton",
+                  "width": "fill_container",
+                  "height": 40,
+                  "fill": "$2:teal/solid",
+                  "cornerRadius": "$2:radii/lg",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "argZJ",
+                      "name": "btnText",
+                      "fill": "$2:white",
+                      "content": "リンクを送信する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$2:fontSize/sm",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "XUUYT",
+                  "name": "Divider",
+                  "fill": "$2:border/default",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "text",
+                  "id": "W1mKh",
+                  "name": "note",
+                  "fill": "$2:fg/subtle",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "※ お心当たりのないメールが届いた場合は無視してください。",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": "$2:fontSize/xs",
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "hNw4o",
+      "x": 0,
+      "y": 912,
+      "name": "Reissue/SP/Done",
+      "clip": true,
+      "width": 375,
+      "height": 812,
+      "fill": "$2:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "2vSNv",
+          "type": "ref",
+          "ref": "2:3ibeM",
+          "width": "fill_container",
+          "name": "h1",
+          "y": 0,
+          "descendants": {
+            "2:CZlf8": {
+              "y": 12.5,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "id": "7pghd",
+          "type": "ref",
+          "ref": "2:cD5XT",
+          "width": "fill_container",
+          "stroke": {
+            "thickness": 0
+          },
+          "name": "sp2",
+          "descendants": {
+            "2:xlJeu": {
+              "enabled": false
+            },
+            "2:bVXRZ": {
+              "content": "シフト閲覧リンクの再発行"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "hzV6c",
+          "name": "CenterContent",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            0,
+            32
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "gVcAh",
+              "name": "mailIcon1",
+              "width": 48,
+              "height": 48,
+              "iconFontName": "mail",
+              "iconFontFamily": "lucide",
+              "fill": "$2:teal/solid"
+            },
+            {
+              "type": "text",
+              "id": "BWMPG",
+              "name": "title1",
+              "fill": "$2:fg/default",
+              "content": "メールを送信しました",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/lg",
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "INtVn",
+              "name": "desc1",
+              "fill": "$2:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "ご入力いただいたメールアドレスに\n新しい閲覧リンクをお送りしました。\nメールをご確認ください。",
+              "lineHeight": 1.5,
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/sm",
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "sMDkJ",
+              "name": "note1",
+              "fill": "$2:fg/subtle",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "メールが届かない場合は\nお店に直接ご連絡ください。",
+              "lineHeight": 1.5,
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "9jjIP",
+      "x": 475,
+      "y": 912,
+      "name": "Reissue/PC/Done",
+      "clip": true,
+      "width": 1280,
+      "height": 800,
+      "fill": "$2:bg/default",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "IHwZP",
+          "type": "ref",
+          "ref": "2:vLjy4",
+          "width": "fill_container",
+          "name": "h2",
+          "y": 0,
+          "descendants": {
+            "2:mCnss": {
+              "y": 15,
+              "content": "居酒屋さくら"
+            }
+          }
+        },
+        {
+          "id": "Zq0kU",
+          "type": "ref",
+          "ref": "2:cD5XT",
+          "width": "fill_container",
+          "padding": [
+            12,
+            24
+          ],
+          "stroke": {
+            "thickness": 0
+          },
+          "name": "pc2",
+          "descendants": {
+            "2:xlJeu": {
+              "enabled": false
+            },
+            "2:bVXRZ": {
+              "content": "シフト閲覧リンクの再発行"
+            }
+          }
+        },
+        {
+          "type": "frame",
+          "id": "428XH",
+          "name": "CenterContent",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            0,
+            32
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "4EXDc",
+              "name": "mailIcon2",
+              "width": 48,
+              "height": 48,
+              "iconFontName": "mail",
+              "iconFontFamily": "lucide",
+              "fill": "$2:teal/solid"
+            },
+            {
+              "type": "text",
+              "id": "o2sEN",
+              "name": "title2",
+              "fill": "$2:fg/default",
+              "content": "メールを送信しました",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/lg",
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "gaRt3",
+              "name": "desc2",
+              "fill": "$2:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": 400,
+              "content": "ご入力いただいたメールアドレスに新しい閲覧リンクをお送りしました。\nメールをご確認ください。",
+              "lineHeight": 1.5,
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/sm",
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "X8s8B",
+              "name": "note2",
+              "fill": "$2:fg/subtle",
+              "textGrowth": "fixed-width",
+              "width": 400,
+              "content": "メールが届かない場合はお店に直接ご連絡ください。",
+              "lineHeight": 1.5,
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": "$2:fontSize/xs",
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "2": "common/system.lib.pen"
+  }
+}
