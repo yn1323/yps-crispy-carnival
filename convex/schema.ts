@@ -99,7 +99,8 @@ const schema = defineSchema({
     token: v.string(), // UUID v4
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
-    expiresAt: v.number(), // Unix ms（72時間後）
+    recruitmentId: v.id("recruitments"),
+    expiresAt: v.number(), // Unix ms（24時間後）
     usedAt: v.optional(v.number()), // 使用日時（ワンタイム制御）
   })
     .index("by_token", ["token"])
@@ -112,10 +113,12 @@ const schema = defineSchema({
     sessionToken: v.string(),
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
-    expiresAt: v.number(), // Unix ms（7日後）
+    recruitmentId: v.id("recruitments"),
+    expiresAt: v.number(), // Unix ms（14日後）
   })
     .index("by_sessionToken", ["sessionToken"])
-    .index("by_staffId", ["staffId"]),
+    .index("by_staffId", ["staffId"])
+    .index("by_staffId_recruitmentId", ["staffId", "recruitmentId"]),
 
   // ========================================
   // マネージャー招待（Phase 2、スキーマのみ）

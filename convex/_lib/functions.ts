@@ -1,5 +1,5 @@
 import type { UserIdentity } from "convex/server";
-import { ConvexError } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
@@ -111,5 +111,39 @@ export const managerMutation = customMutation(mutation, {
       throw new ConvexError("Not found");
     }
     return { ctx: { user, shop }, args: {} };
+  },
+});
+
+// ========================================
+// スタッフセッション認証（マジックリンク経由）
+// ========================================
+
+type StaffSessionQueryCtx = {
+  staff: Doc<"staffs"> | null;
+  shop: Doc<"shops"> | null;
+  session: Doc<"sessions"> | null;
+};
+
+/**
+ * staffSessionQuery
+ * - sessionToken でスタッフセッションを検証
+ * - Clerk認証不要（スタッフはClerkアカウントを持たない）
+ * - 無効/期限切れの場合は null を返す（throwしない）
+ */
+export const staffSessionQuery = customQuery(query, {
+  args: { sessionToken: v.string() },
+  input: async (ctx, { sessionToken }): Promise<{ ctx: StaffSessionQueryCtx; args: Record<string, never> }> => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+      .first();
+    if (!session || session.expiresAt < Date.now()) {
+      return { ctx: { staff: null, shop: null, session: null }, args: {} };
+    }
+    const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
+    if (!staff || staff.isDeleted || !shop || shop.isDeleted) {
+      return { ctx: { staff: null, shop: null, session: null }, args: {} };
+    }
+    return { ctx: { staff, shop, session }, args: {} };
   },
 });
