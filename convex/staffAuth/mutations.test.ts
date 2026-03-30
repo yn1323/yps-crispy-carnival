@@ -1,27 +1,22 @@
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用データセットアップ */
-// biome-ignore lint/suspicious/noExplicitAny: convex-test の型がジェネリクスで複雑なため
-async function setupTestData(t: any) {
-  let shopId: Id<"shops">;
-  let recruitmentId: Id<"recruitments">;
-  let staffId: Id<"staffs">;
-  let magicLinkToken: string;
+async function setupTestData(t: TestConvex<typeof schema>) {
+  const magicLinkToken = "test-token-valid";
 
-  // biome-ignore lint/suspicious/noExplicitAny: t.run の ctx 型推論が効かないため
-  await t.run(async (ctx: any) => {
-    shopId = await ctx.db.insert("shops", {
+  const result = await t.run(async (ctx) => {
+    const shopId = await ctx.db.insert("shops", {
       name: "テスト店舗",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
       ownerId: "user_owner",
       isDeleted: false,
     });
-    recruitmentId = await ctx.db.insert("recruitments", {
+    const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
       periodStart: "2026-01-20",
       periodEnd: "2026-01-26",
@@ -30,13 +25,12 @@ async function setupTestData(t: any) {
       confirmedAt: Date.now(),
       isDeleted: false,
     });
-    staffId = await ctx.db.insert("staffs", {
+    const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
       isDeleted: false,
     });
-    magicLinkToken = "test-token-valid";
     await ctx.db.insert("magicLinks", {
       token: magicLinkToken,
       staffId,
@@ -44,10 +38,10 @@ async function setupTestData(t: any) {
       recruitmentId,
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
     });
+    return { shopId, recruitmentId, staffId };
   });
 
-  // biome-ignore lint/style/noNonNullAssertion: テストセットアップ内で必ず初期化される
-  return { shopId: shopId!, recruitmentId: recruitmentId!, staffId: staffId!, magicLinkToken: magicLinkToken! };
+  return { ...result, magicLinkToken };
 }
 
 describe("staffAuth/mutations", () => {
@@ -78,13 +72,12 @@ describe("staffAuth/mutations", () => {
       expect(result.status).toBe("ok");
       if (result.status === "ok") {
         // セッションのexpiresAtを検証
-        // biome-ignore lint/suspicious/noExplicitAny: t.run の ctx 型推論が効かないため
-        await t.run(async (ctx: any) => {
+        await t.run(async (ctx) => {
           const session = await ctx.db
             .query("sessions")
-            .withIndex("by_sessionToken", (q: any) => q.eq("sessionToken", result.sessionToken))
+            .withIndex("by_sessionToken", (q) => q.eq("sessionToken", result.sessionToken))
             .first();
-          expect(session).not.toBeNull();
+          if (!session) throw new Error("session not found");
           const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
           const diff = session.expiresAt - Date.now();
           // 14日±1分の範囲

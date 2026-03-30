@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
@@ -6,16 +7,9 @@ import type { Id } from "../_generated/dataModel";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用にshop + user + recruitment + staffsをセットアップ */
-// biome-ignore lint/suspicious/noExplicitAny: convex-test の型がジェネリクスで複雑なため
-async function setupTestData(t: any) {
-  let shopId: Id<"shops">;
-  let recruitmentId: Id<"recruitments">;
-  let staffId1: Id<"staffs">;
-  let staffId2: Id<"staffs">;
-
-  // biome-ignore lint/suspicious/noExplicitAny: t.run の ctx 型推論が効かないため
-  await t.run(async (ctx: any) => {
-    shopId = await ctx.db.insert("shops", {
+async function setupTestData(t: TestConvex<typeof schema>) {
+  const result = await t.run(async (ctx) => {
+    const shopId = await ctx.db.insert("shops", {
       name: "テスト店舗",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
@@ -29,29 +23,30 @@ async function setupTestData(t: any) {
       role: "manager",
       isDeleted: false,
     });
-    recruitmentId = await ctx.db.insert("recruitments", {
-      shopId: shopId!,
+    const recruitmentId = await ctx.db.insert("recruitments", {
+      shopId,
       periodStart: "2026-01-20",
       periodEnd: "2026-01-26",
       deadline: "2026-01-17",
       status: "open",
       isDeleted: false,
     });
-    staffId1 = await ctx.db.insert("staffs", {
-      shopId: shopId!,
+    const staffId1 = await ctx.db.insert("staffs", {
+      shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
       isDeleted: false,
     });
-    staffId2 = await ctx.db.insert("staffs", {
-      shopId: shopId!,
+    const staffId2 = await ctx.db.insert("staffs", {
+      shopId,
       name: "佐藤花子",
       email: "sato@example.com",
       isDeleted: false,
     });
+    return { shopId, recruitmentId, staffId1, staffId2 };
   });
 
-  return { shopId: shopId!, recruitmentId: recruitmentId!, staffId1: staffId1!, staffId2: staffId2! };
+  return result;
 }
 
 describe("shiftBoard/mutations", () => {
@@ -236,10 +231,12 @@ describe("shiftBoard/mutations", () => {
 
       let deletedStaffId: Id<"staffs">;
       await t.run(async (ctx) => {
-        const shopId = (await ctx.db
+        const shop = await ctx.db
           .query("shops")
           .withIndex("by_ownerId", (q) => q.eq("ownerId", "user_owner"))
-          .first())!._id;
+          .first();
+        if (!shop) throw new Error("shop not found");
+        const shopId = shop._id;
         deletedStaffId = await ctx.db.insert("staffs", {
           shopId,
           name: "削除済み",
