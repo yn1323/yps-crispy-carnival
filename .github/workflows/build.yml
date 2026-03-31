@@ -13,14 +13,17 @@ jobs:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Build
+      - name: Deploy Convex Preview
         run: |
-          npx convex dev &        
-          sleep 5
-          pnpm run build
-          kill %1
+          npx convex deploy --preview-create develop \
+            --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_ENV"' \
+            --cmd-url-env-var-name CONVEX_URL
         env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          CLERK_JWT_ISSUER_DOMAIN: ${{ secrets.CLERK_JWT_ISSUER_DOMAIN }}
+      - name: Build
+        run: pnpm run build
+        env:
+          VITE_CONVEX_URL: ${{ env.PREVIEW_URL }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          
