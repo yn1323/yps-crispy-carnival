@@ -43,6 +43,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 ## 実装のルール
 
 - 実装完了後、SubAgentで`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること（Context消費したくない）
+- `lint`はwarningでも修正すること
 - 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
 
 ### フロントエンド（UIあり）
