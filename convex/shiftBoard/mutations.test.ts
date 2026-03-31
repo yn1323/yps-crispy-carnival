@@ -1,7 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -229,15 +229,14 @@ describe("shiftBoard/mutations", () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
 
-      let deletedStaffId: Id<"staffs">;
-      await t.run(async (ctx) => {
+      const deletedStaffId = await t.run(async (ctx) => {
         const shop = await ctx.db
           .query("shops")
           .withIndex("by_ownerId", (q) => q.eq("ownerId", "user_owner"))
           .first();
         if (!shop) throw new Error("shop not found");
         const shopId = shop._id;
-        deletedStaffId = await ctx.db.insert("staffs", {
+        return await ctx.db.insert("staffs", {
           shopId,
           name: "削除済み",
           email: "deleted@example.com",
@@ -248,13 +247,18 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
-          assignments: [{ staffId: deletedStaffId!, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
+          assignments: [{ staffId: deletedStaffId, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
         }),
       ).rejects.toThrow(ConvexError);
     });
   });
 
   describe("confirmRecruitment", () => {
+    // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
+    // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
       await expect(
