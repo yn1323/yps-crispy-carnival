@@ -85,12 +85,12 @@ export const StaffRow = ({
           onClick={isReadOnly ? undefined : () => onStaffNameClick(staff.id)}
         >
           <Text fontWeight="medium">{staff.name}</Text>
-          {status === "no_request" && (
+          {!isReadOnly && status === "no_request" && (
             <Text color="gray.400" fontSize="xs">
               希望なし
             </Text>
           )}
-          {status === "not_submitted" && (
+          {!isReadOnly && status === "not_submitted" && (
             <Text color="orange.400" fontSize="xs">
               未提出
             </Text>
@@ -133,6 +133,7 @@ export const StaffRow = ({
               onHover={() => {}}
               onClick={onShiftClick}
               isDragging={isDragging}
+              isReadOnly={isReadOnly}
               currentMinutes={dragState.currentMinutes}
               linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
             />

@@ -1,4 +1,4 @@
-import { Badge, Box, Flex, Text, VStack } from "@chakra-ui/react";
+import { Box, Text, VStack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { BREAK_POSITION } from "../../constants";
@@ -15,26 +15,11 @@ type ShiftDetailSheetProps = {
 export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenChange }: ShiftDetailSheetProps) => {
   const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
 
-  const requestLabel = shift?.requestedTime
-    ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
-    : "希望: なし";
-
   const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
 
   return (
     <BottomSheet title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange}>
       <VStack gap={4} align="stretch">
-        <Flex align="center" gap={2}>
-          <Text fontSize="sm" color="gray.600">
-            {requestLabel}
-          </Text>
-          {!staff.isSubmitted && (
-            <Badge colorPalette="orange" size="sm">
-              未提出
-            </Badge>
-          )}
-        </Flex>
-
         {visibleSegments.length > 0 && (
           <Box>
             <Text fontSize="xs" fontWeight="bold" color="gray.600" mb={2}>

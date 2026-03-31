@@ -10,9 +10,17 @@ type StaffCardProps = {
   timeRange: TimeRange;
   onCardTap: () => void;
   isHighlighted?: boolean;
+  isReadOnly?: boolean;
 };
 
-export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = false }: StaffCardProps) => {
+export const StaffCard = ({
+  staff,
+  shift,
+  timeRange,
+  onCardTap,
+  isHighlighted = false,
+  isReadOnly = false,
+}: StaffCardProps) => {
   const isUnsubmitted = !staff.isSubmitted;
   const hasPositions = shift && shift.positions.length > 0;
   const hasRequest = shift?.requestedTime !== null && shift?.requestedTime !== undefined;
@@ -53,9 +61,11 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = 
             {staff.name}
           </Text>
         </Flex>
-        <Text fontSize="xs" color={isUnsubmitted ? "red.500" : "gray.500"}>
-          {requestLabel}
-        </Text>
+        {!isReadOnly && (
+          <Text fontSize="xs" color={isUnsubmitted ? "red.500" : "gray.500"}>
+            {requestLabel}
+          </Text>
+        )}
       </Flex>
 
       {/* 下段: ミニバー + ポジションテキスト or メッセージ */}

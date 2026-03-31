@@ -93,21 +93,23 @@ export const ShiftPopover = ({
         >
           <Popover.Content width="280px" boxShadow="lg" borderRadius="lg">
             <Popover.Body p={0}>
-              {/* 希望時間 */}
-              <Box p={3} borderBottom="1px solid" borderColor="gray.100">
-                <Flex align="center" gap={2}>
-                  <Text fontWeight="bold" fontSize="md" color="gray.700">
-                    {shift.requestedTime
-                      ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
-                      : "希望: なし"}
-                  </Text>
-                  {!isStaffSubmitted && (
-                    <Badge colorPalette="orange" size="sm">
-                      未提出
-                    </Badge>
-                  )}
-                </Flex>
-              </Box>
+              {/* 希望時間（readonly時は非表示） */}
+              {!isReadOnly && (
+                <Box p={3} borderBottom="1px solid" borderColor="gray.100">
+                  <Flex align="center" gap={2}>
+                    <Text fontWeight="bold" fontSize="md" color="gray.700">
+                      {shift.requestedTime
+                        ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
+                        : "希望: なし"}
+                    </Text>
+                    {!isStaffSubmitted && (
+                      <Badge colorPalette="orange" size="sm">
+                        未提出
+                      </Badge>
+                    )}
+                  </Flex>
+                </Box>
+              )}
 
               {/* ポジション一覧（休憩は自動挿入のため非表示） */}
               {visibleSegments.length > 0 && (

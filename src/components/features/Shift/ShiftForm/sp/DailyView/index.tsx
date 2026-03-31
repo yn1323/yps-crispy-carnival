@@ -150,6 +150,7 @@ export const SPDailyView = () => {
               timeRange={timeRange}
               onCardTap={() => handleCardTap(staff.id)}
               isHighlighted={staff.id === currentStaffId}
+              isReadOnly={isReadOnly}
             />
           );
         })}
