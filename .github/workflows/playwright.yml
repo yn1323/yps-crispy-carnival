@@ -28,7 +28,6 @@ jobs:
           --cmd-url-env-var-name CONVEX_URL
       env:
         CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-        CLERK_JWT_ISSUER_DOMAIN: ${{ secrets.CLERK_JWT_ISSUER_DOMAIN }}
     - name: Seed Database
       run: |
         npx convex import --replace-all convex-seeds/seeds/db.zip --yes --url "${{ steps.preview.outputs.PREVIEW_URL }}"
