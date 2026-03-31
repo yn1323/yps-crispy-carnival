@@ -33,8 +33,6 @@ const config: StorybookConfig = {
   },
   env: (config) => ({
     ...config,
-    STORYBOOK_CONVEX_URL: process.env.VITE_CONVEX_URL ?? "",
-    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "",
   }),
 };
 export default config;
