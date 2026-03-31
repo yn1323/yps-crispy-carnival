@@ -27,6 +27,8 @@ const config: StorybookConfig = {
       "@/src": path.resolve(__dirname, "../src"),
       "@/e2e": path.resolve(__dirname, "../e2e"),
       "@/convex": path.resolve(__dirname, "../convex"),
+      "convex/react": path.resolve(__dirname, "mocks/convex-react.ts"),
+      "convex/react-clerk": path.resolve(__dirname, "mocks/convex-react.ts"),
     };
 
     return config;
