@@ -178,7 +178,8 @@ import { bar } from "@/convex/...";
 - `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
 - `doc/plans/`: 実装計画
 - `doc/claude/soul.md`: 設計判断の指針
-- `convex/CLAUDE.md`: Convexアーキテクチャの詳細
+- `convex/CLAUDE.md`: Convexアーキテクチャ、実装観点の詳細
+- `e2e/CLAUDE.md`: E2Eアーキテクチャ、実装観点の詳細
 
 ### ドキュメント運用ルール
 
