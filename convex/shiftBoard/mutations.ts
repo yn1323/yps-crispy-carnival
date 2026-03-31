@@ -93,6 +93,8 @@ export const confirmRecruitment = managerMutation({
       throw new ConvexError("Not found");
     }
 
+    const isResend = recruitment.status === "confirmed";
+
     await ctx.db.patch(args.recruitmentId, {
       status: "confirmed",
       confirmedAt: Date.now(),
@@ -100,6 +102,7 @@ export const confirmRecruitment = managerMutation({
 
     await ctx.scheduler.runAfter(0, internal.email.actions.sendShiftConfirmationEmails, {
       recruitmentId: args.recruitmentId,
+      isResend,
     });
   },
 });

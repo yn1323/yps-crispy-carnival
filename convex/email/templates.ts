@@ -10,6 +10,7 @@ type ConfirmationEmailParams = {
   shifts: ShiftEntry[];
   magicLinkUrl: string;
   reissueUrl: string;
+  isResend: boolean;
 };
 
 type ReissueEmailParams = {
@@ -33,6 +34,9 @@ function shiftRow(shift: ShiftEntry): string {
 
 export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): string {
   const shiftRows = params.shifts.map(shiftRow).join("");
+  const bodyMessage = params.isResend
+    ? `${params.periodLabel} のシフトに変更がありました。最新のシフトをご確認ください。`
+    : `${params.periodLabel} のシフトが確定しました。`;
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -48,7 +52,7 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフトが確定しました。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${bodyMessage}</p>
 
           <!-- Shift Table -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">

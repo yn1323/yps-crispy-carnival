@@ -11,8 +11,8 @@ import { buildConfirmationEmailHtml, buildReissueEmailHtml } from "./templates";
  * confirmRecruitment mutation から ctx.scheduler 経由で呼ばれる
  */
 export const sendShiftConfirmationEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), isResend: v.boolean() },
+  handler: async (ctx, { recruitmentId, isResend }) => {
     const data = await ctx.runQuery(internal.email.queries.getConfirmationEmailData, { recruitmentId });
     if (!data) return;
 
@@ -32,13 +32,16 @@ export const sendShiftConfirmationEmails = internalAction({
       await resend.emails.send({
         from: `${data.shopName} <onboarding@resend.dev>`,
         to: staffData.email,
-        subject: `【${data.shopName}】${data.periodLabel} シフト確定のお知らせ`,
+        subject: isResend
+          ? `【シフト変更】【${data.shopName}】${data.periodLabel} シフト変更のお知らせ`
+          : `【${data.shopName}】${data.periodLabel} シフト確定のお知らせ`,
         html: buildConfirmationEmailHtml({
           staffName: staffData.name,
           periodLabel: data.periodLabel,
           shifts: staffData.shifts,
           magicLinkUrl,
           reissueUrl,
+          isResend,
         }),
       });
     }
