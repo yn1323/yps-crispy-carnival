@@ -12,6 +12,10 @@
 | `NMbYI` | Dashboard/Empty/SP | SP初回・空状態 |
 | `3iRDC` | Dashboard/CreateRecruitmentSheet | SPシフト希望収集BottomSheet |
 | `QQcZk` | Dashboard/AddStaffSheet | SPスタッフ追加BottomSheet |
+| `Mf7qf` | Dashboard/EditStaffModal | PCスタッフ編集モーダル |
+| `aF4J8` | Dashboard/EditStaffSheet | SPスタッフ編集BottomSheet |
+| `m5Svv` | Dashboard/DeleteStaffDialog | PCスタッフ削除確認ダイアログ |
+| `66Jwd` | Dashboard/DeleteStaffSheet | SPスタッフ削除確認BottomSheet |
 | `s9hbW` | Dashboard/SetupModal/Step1 | 初回セットアップモーダル Step1（店舗情報・入力済み） |
 | `xoJw8` | Dashboard/SetupModal/Step2 | 初回セットアップモーダル Step2（シフト募集作成・初期状態） |
 | `VLWsg` | Dashboard/SetupSheet/Step1 | SP初回セットアップSheet Step1（店舗情報・入力済み） |

@@ -67,7 +67,7 @@
                       "id": "jvAZI",
                       "name": "emptyRecruitTitle",
                       "fill": "$fg/default",
-                      "content": "募集一覧",
+                      "content": "シフト",
                       "fontFamily": "Inter",
                       "fontSize": "$fontSize/xl",
                       "fontWeight": "600"
@@ -100,7 +100,7 @@
                           "id": "832LP",
                           "name": "emptyRecruitBtnLabel",
                           "fill": "$teal/contrast",
-                          "content": "新しい募集を作成",
+                          "content": "シフト希望を集める",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/sm",
                           "fontWeight": "500"
@@ -141,7 +141,7 @@
                       "id": "ZstLQ",
                       "name": "emptyRecruitText",
                       "fill": "$fg/muted",
-                      "content": "まだ募集がありません",
+                      "content": "シフトがありません",
                       "fontFamily": "Inter",
                       "fontSize": "$fontSize/sm",
                       "fontWeight": "normal"
@@ -328,7 +328,7 @@
                       "id": "QImRp",
                       "name": "recruitTitle",
                       "fill": "$fg/default",
-                      "content": "募集一覧",
+                      "content": "シフト",
                       "fontFamily": "Inter",
                       "fontSize": "$fontSize/xl",
                       "fontWeight": "600"
@@ -361,7 +361,7 @@
                           "id": "nTr9t",
                           "name": "recruitBtnLabel",
                           "fill": "$teal/contrast",
-                          "content": "新しい募集を作成",
+                          "content": "シフト希望を集める",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/sm",
                           "fontWeight": "500"
@@ -456,7 +456,7 @@
                                   "id": "5F4k8",
                                   "name": "card1BadgeText",
                                   "fill": "$teal/contrast",
-                                  "content": "募集中",
+                                  "content": "収集・編集中",
                                   "fontFamily": "Inter",
                                   "fontSize": "$fontSize/xs",
                                   "fontWeight": "500"
@@ -487,7 +487,7 @@
                               "id": "2cjeM",
                               "name": "card1ActionLabel",
                               "fill": "$fg/default",
-                              "content": "シフトボードを開く",
+                              "content": "シフトを編集する",
                               "fontFamily": "Inter",
                               "fontSize": "$fontSize/sm",
                               "fontWeight": "500"
@@ -594,7 +594,7 @@
                                   "id": "mPtLu",
                                   "name": "card2BadgeText",
                                   "fill": "$fg/muted",
-                                  "content": "送付完了",
+                                  "content": "確定済み",
                                   "fontFamily": "Inter",
                                   "fontSize": "$fontSize/xs",
                                   "fontWeight": "500"
@@ -625,7 +625,7 @@
                               "id": "5W9x8",
                               "name": "card2ActionLabel",
                               "fill": "$fg/default",
-                              "content": "シフトボードを開く",
+                              "content": "シフトを編集する",
                               "fontFamily": "Inter",
                               "fontSize": "$fontSize/sm",
                               "fontWeight": "500"
@@ -857,7 +857,7 @@
                   "id": "MTLiw",
                   "name": "modalTitle",
                   "fill": "$fg/default",
-                  "content": "新しい募集を作成",
+                  "content": "シフト希望を集める",
                   "fontFamily": "Inter",
                   "fontSize": "$fontSize/md",
                   "fontWeight": "600"
@@ -1177,7 +1177,7 @@
                       "id": "34JIc",
                       "name": "spRecruitTitle",
                       "fill": "$fg/default",
-                      "content": "募集一覧",
+                      "content": "シフト",
                       "fontFamily": "Inter",
                       "fontSize": "$fontSize/lg",
                       "fontWeight": "600"
@@ -1297,7 +1297,7 @@
                               "id": "JMphA",
                               "name": "spCard1BadgeText",
                               "fill": "$teal/contrast",
-                              "content": "募集中",
+                              "content": "収集・編集中",
                               "fontFamily": "Inter",
                               "fontSize": 14,
                               "fontWeight": "500"
@@ -1327,7 +1327,7 @@
                           "id": "xFOgJ",
                           "name": "spCard1ActionLabel",
                           "fill": "$fg/default",
-                          "content": "シフトボードを開く",
+                          "content": "シフトを編集する",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "500"
@@ -1424,7 +1424,7 @@
                               "id": "bqWi5",
                               "name": "spCard2BadgeText",
                               "fill": "$fg/muted",
-                              "content": "送付完了",
+                              "content": "確定済み",
                               "fontFamily": "Inter",
                               "fontSize": 14,
                               "fontWeight": "500"
@@ -1454,7 +1454,7 @@
                           "id": "ebVXS",
                           "name": "spCard2ActionLabel",
                           "fill": "$fg/default",
-                          "content": "シフトボードを開く",
+                          "content": "シフトを編集する",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "500"
@@ -1703,7 +1703,7 @@
                       "id": "HtcCB",
                       "name": "seRecruitTitle",
                       "fill": "$fg/default",
-                      "content": "募集一覧",
+                      "content": "シフト",
                       "fontFamily": "Inter",
                       "fontSize": "$fontSize/lg",
                       "fontWeight": "600"
@@ -1777,7 +1777,7 @@
                       "id": "6BD0G",
                       "name": "seEmptyRecruitText",
                       "fill": "$fg/muted",
-                      "content": "まだ募集がありません",
+                      "content": "シフトがありません",
                       "fontFamily": "Inter",
                       "fontSize": "$fontSize/xs",
                       "fontWeight": "normal"
@@ -1939,7 +1939,7 @@
                   "id": "H6yfQ",
                   "name": "bsTitle",
                   "fill": "$fg/default",
-                  "content": "新しい募集を作成",
+                  "content": "シフト希望を集める",
                   "fontFamily": "Inter",
                   "fontSize": "$fontSize/md",
                   "fontWeight": "600"
