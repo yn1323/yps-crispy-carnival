@@ -1,18 +1,23 @@
 "use node";
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalAction } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { getResendClient } from "../_lib/resend";
 import { buildConfirmationEmailHtml, buildReissueEmailHtml } from "./templates";
 
 /**
  * シフト確定メールを全スタッフに送信
- * confirmRecruitment mutation から ctx.scheduler 経由で呼ばれる
+ * フロントから useAction 経由で直接呼ばれる
  */
-export const sendShiftConfirmationEmails = internalAction({
+export const sendShiftConfirmationEmails = action({
   args: { recruitmentId: v.id("recruitments"), isResend: v.boolean() },
   handler: async (ctx, { recruitmentId, isResend }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Unauthenticated");
+    }
+
     const data = await ctx.runQuery(internal.email.queries.getConfirmationEmailData, { recruitmentId });
     if (!data) return;
 

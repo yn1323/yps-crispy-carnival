@@ -1,7 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -254,11 +254,6 @@ describe("shiftBoard/mutations", () => {
   });
 
   describe("confirmRecruitment", () => {
-    // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
-    // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
-
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
       await expect(
@@ -272,9 +267,11 @@ describe("shiftBoard/mutations", () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
 
-      await t
+      const result = await t
         .withIdentity({ subject: "user_owner" })
         .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+
+      expect(result).toEqual({ isResend: false });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.status).toBe("confirmed");

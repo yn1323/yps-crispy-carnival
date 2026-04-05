@@ -1,5 +1,4 @@
 import { ConvexError, v } from "convex/values";
-import { internal } from "../_generated/api";
 import { managerMutation } from "../_lib/functions";
 import { timeToMinutes } from "../_lib/time";
 
@@ -100,9 +99,6 @@ export const confirmRecruitment = managerMutation({
       confirmedAt: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, internal.email.actions.sendShiftConfirmationEmails, {
-      recruitmentId: args.recruitmentId,
-      isResend,
-    });
+    return { isResend };
   },
 });

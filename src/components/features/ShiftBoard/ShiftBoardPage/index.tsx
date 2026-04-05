@@ -1,5 +1,5 @@
 import { Box, useBreakpointValue } from "@chakra-ui/react";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -89,6 +89,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useMutation(api.shiftBoard.mutations.confirmRecruitment);
+  const sendConfirmationEmails = useAction(api.email.actions.sendShiftConfirmationEmails);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = confirmedAt !== null;
@@ -143,13 +144,21 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const handleConfirm = useCallback(async () => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
-      await confirmRecruitmentMutation({ recruitmentId });
+      const { isResend } = await confirmRecruitmentMutation({ recruitmentId });
       confirmModal.close();
+      await sendConfirmationEmails({ recruitmentId, isResend });
       toaster.create({ title: "送信しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
-  }, [saveShiftAssignments, confirmRecruitmentMutation, recruitmentId, buildAssignments, confirmModal]);
+  }, [
+    saveShiftAssignments,
+    confirmRecruitmentMutation,
+    sendConfirmationEmails,
+    recruitmentId,
+    buildAssignments,
+    confirmModal,
+  ]);
 
   const confirmTitle = isConfirmed ? "スタッフにシフトを再送信しますか？" : "スタッフにシフトを送信しますか？";
 
