@@ -1,8 +1,8 @@
 name: Playwright Tests
 
 on:
-    pull_request:
-      branches: [develop]
+  pull_request:
+    branches: [develop]
 
 permissions:
   contents: read
@@ -13,70 +13,72 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     environment: Preview
+    env:
+      REPORT_DIR: yps-crispy-carnival
     steps:
-    - uses: actions/checkout@v6
-    - name: Setup
-      uses: ./.github/actions/setup
-    - name: Setup Playwright
-      uses: ./.github/actions/playwright
-    - name: Deploy Preview
-      id: preview
-      run: |
-        PREVIEW_NAME="pr-${{ github.event.pull_request.number }}"
-        npx convex deploy --preview-create "$PREVIEW_NAME" \
-          --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
-          --cmd-url-env-var-name CONVEX_URL
-      env:
-        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-        CLERK_JWT_ISSUER_DOMAIN: ${{ secrets.CLERK_JWT_ISSUER_DOMAIN }}
-    - name: Seed Database
-      run: |
-        npx convex import --replace-all convex-seeds/seeds/db.zip --yes --url "${{ steps.preview.outputs.PREVIEW_URL }}"
-      env:
-        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-    - name: Run Playwright tests
-      id: playwright
-      run: pnpm e2e
-      env:
-        VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
-        E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
-        E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
-        E2E_CLERK_USER_B: ${{ vars.E2E_CLERK_USER_B }}
-        E2E_CLERK_PASSWORD_B: ${{ vars.E2E_CLERK_PASSWORD_B }}
-        CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-        VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-    - uses: actions/upload-artifact@v6
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
-    - name: Deploy Report to GitHub Pages
-      if: ${{ !cancelled() }}
-      run: |
-        git clone https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
-        rm -rf hosting-pages/playwright/${{ github.event.pull_request.number }}
-        mkdir -p hosting-pages/playwright/${{ github.event.pull_request.number }}
-        cp -r playwright-report/* hosting-pages/playwright/${{ github.event.pull_request.number }}/
-        cd hosting-pages
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add .
-        git commit -m "Playwright report for PR #${{ github.event.pull_request.number }}" || exit 0
-        git push
-    - name: Comment PR with Report Link
-      if: ${{ !cancelled() }}
-      uses: actions/github-script@v8
-      with:
-        script: |
-          const reportUrl = `https://yn1323.github.io/hosting-pages/playwright/${{ github.event.pull_request.number }}/`;
-          const testResult = '${{ steps.playwright.outcome }}';
-          const statusEmoji = testResult === 'success' ? '✅' : '❌';
-          const statusText = testResult === 'success' ? '成功' : '失敗';
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-            body: `## 📊 Playwright Test Report\n\n${statusEmoji} **テスト結果: ${statusText}**\n\n[View Report](${reportUrl})`
-          });
+      - uses: actions/checkout@v6
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup Playwright
+        uses: ./.github/actions/playwright
+      - name: Deploy Preview
+        id: preview
+        run: |
+          PREVIEW_NAME="pr-${{ github.event.pull_request.number }}"
+          npx convex deploy --preview-create "$PREVIEW_NAME" \
+            --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
+            --cmd-url-env-var-name CONVEX_URL
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          CLERK_JWT_ISSUER_DOMAIN: ${{ secrets.CLERK_JWT_ISSUER_DOMAIN }}
+      - name: Seed Database
+        run: |
+          npx convex import --replace-all convex-seeds/seeds/db.zip --yes --url "${{ steps.preview.outputs.PREVIEW_URL }}"
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      - name: Run Playwright tests
+        id: playwright
+        run: pnpm e2e
+        env:
+          VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
+          E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
+          E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
+          E2E_CLERK_USER_B: ${{ vars.E2E_CLERK_USER_B }}
+          E2E_CLERK_PASSWORD_B: ${{ vars.E2E_CLERK_PASSWORD_B }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      - uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+      - name: Deploy Report to GitHub Pages
+        if: ${{ !cancelled() }}
+        run: |
+          git clone https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
+          rm -rf hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}
+          mkdir -p hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}
+          cp -r playwright-report/* hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}/
+          cd hosting-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Playwright report for PR #${{ github.event.pull_request.number }}" || exit 0
+          git push
+      - name: Comment PR with Report Link
+        if: ${{ !cancelled() }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const reportUrl = `https://yn1323.github.io/hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}/`;
+            const testResult = '${{ steps.playwright.outcome }}';
+            const statusEmoji = testResult === 'success' ? '✅' : '❌';
+            const statusText = testResult === 'success' ? '成功' : '失敗';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 📊 Playwright Test Report\n\n${statusEmoji} **テスト結果: ${statusText}**\n\n[View Report](${reportUrl})`
+            });
