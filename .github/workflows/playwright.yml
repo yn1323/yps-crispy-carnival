@@ -103,7 +103,7 @@ jobs:
 
               summary = `\n\n**${passed} passed** / **${failed} failed** / **${skipped} skipped**\n\n`;
               if (rows.length > 0) {
-                summary += `<details><summary>テスト詳細</summary>\n\n| Status | Test |\n|--------|------|\n${rows.join('\n')}\n\n</details>`;
+                summary += `| Status | Test |\n|--------|------|\n${rows.join('\n')}`;
               }
             } catch (e) {
               summary = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
