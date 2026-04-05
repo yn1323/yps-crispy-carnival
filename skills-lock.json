@@ -25,6 +25,11 @@
       "source": "get-convex/agent-skills",
       "sourceType": "github",
       "computedHash": "92a5c170cf238f45f08439d9d5d7947af490b880ee8f15306183240483cbed02"
+    },
+    "difit-review": {
+      "source": "yoshiko-pg/difit",
+      "sourceType": "github",
+      "computedHash": "605b3b582f2929d067ee3ddc8bbae4cbd10f067c1e14e11edf8fcd2d825a5a75"
     }
   }
 }
