@@ -2,20 +2,15 @@ name: Playwright setup from cache
 description: Playwright setup from cache
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
-    - name: Install Japanese fonts
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y fonts-noto-cjk fonts-noto-cjk-extra
     - name: Setup Playwright cache
       id: playwright-cache
       uses: actions/cache@v5
       with:
         path: /home/runner/.cache
         key: ${{ runner.os }}-playwright-cache-${{ hashFiles('pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-playwright-cache-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-playwright-cache-
     - name: Install Playwright browsers if cache miss
       shell: bash
       if: steps.playwright-cache.outputs.cache-hit != 'true'

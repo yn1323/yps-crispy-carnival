@@ -17,8 +17,6 @@ type DateCardProps = {
   isReadOnly?: boolean;
 };
 
-const MAX_VISIBLE_STAFFS = 5;
-
 const getDateColor = (date: string, holiday: boolean) => {
   if (holiday || isSunday(date)) return "red.500";
   if (isSaturday(date)) return "blue.500";
@@ -51,10 +49,6 @@ export const DateCard = ({
     [staffs, shifts],
   );
 
-  const visibleStaffs = workingStaffs.slice(0, MAX_VISIBLE_STAFFS);
-  const hiddenCount = workingStaffs.length - MAX_VISIBLE_STAFFS;
-  const staffCount = workingStaffs.length;
-
   return (
     <Box
       borderWidth="1px"
@@ -76,7 +70,7 @@ export const DateCard = ({
             aria-label="スタッフを追加"
             size="xs"
             variant="solid"
-            colorPalette="blue"
+            colorPalette="teal"
             onClick={(e) => {
               e.stopPropagation();
               onAddStaffClick();
@@ -89,7 +83,7 @@ export const DateCard = ({
 
       {/* スタッフリスト */}
       <VStack gap={1} align="stretch">
-        {visibleStaffs.map(({ staff, time }) => (
+        {workingStaffs.map(({ staff, time }) => (
           <Flex key={staff.id} justify="space-between" align="center">
             <Text fontSize="sm" color="gray.700" truncate maxW="60%">
               {staff.name}
@@ -99,12 +93,7 @@ export const DateCard = ({
             </Text>
           </Flex>
         ))}
-        {hiddenCount > 0 && (
-          <Text fontSize="xs" color="gray.400">
-            他 {hiddenCount}名
-          </Text>
-        )}
-        {staffCount === 0 && (
+        {workingStaffs.length === 0 && (
           <Text fontSize="xs" color="gray.400" textAlign="center" py={1}>
             出勤者なし
           </Text>

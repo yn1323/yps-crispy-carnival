@@ -1,23 +1,13 @@
 import { Box, Flex, Icon, Table, Text } from "@chakra-ui/react";
 import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuInfo, LuMousePointer2, LuPaintbrush } from "react-icons/lu";
+import { LuInfo, LuMousePointer2 } from "react-icons/lu";
 import { SortMenu } from "../../../shared/SortMenu";
-import {
-  selectedDateAtom,
-  shiftConfigAtom,
-  shiftsAtom,
-  sortedStaffsAtom,
-  sortModeAtom,
-  summaryDisplayModeAtom,
-  summaryExpandedAtom,
-} from "../../../stores";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom, sortModeAtom } from "../../../stores";
 import type { ShiftData, StaffType } from "../../../types";
 import { getTimeAxisWidth } from "../../../utils/timeConversion";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import { useDrag } from "../hooks/useDrag";
-import { PeakBandAlert } from "../PeakBandAlert";
-import { SummaryRow } from "../SummaryRow";
 import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
 
@@ -43,9 +33,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const selectedDate = useAtomValue(selectedDateAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const [sortMode, setSortMode] = [useAtomValue(sortModeAtom), useAtom(sortModeAtom)[1]];
-  const [isSummaryExpanded, setIsSummaryExpanded] = useAtom(summaryExpandedAtom);
-  const [summaryDisplayMode, setSummaryDisplayMode] = useAtom(summaryDisplayModeAtom);
-  const { timeRange, positions, isReadOnly, currentStaffId, requiredStaffing } = config;
+  const { timeRange, isReadOnly, currentStaffId } = config;
 
   // === ドラッグ管理 ===
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag();
@@ -167,13 +155,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
     return shifts.some((s) => s.date === selectedDate && s.positions.length > 0);
   }, [shifts, selectedDate]);
 
-  // 選択日の曜日に対応するピーク帯設定を取得
-  const currentDayStaffing = useMemo(() => {
-    if (!requiredStaffing || !selectedDate) return undefined;
-    const dayOfWeek = new Date(selectedDate).getDay();
-    return requiredStaffing.find((rs) => rs.dayOfWeek === dayOfWeek);
-  }, [requiredStaffing, selectedDate]);
-
   return (
     <Box ref={tableContainerRef} flex={1} minHeight={0} overflowX="auto" overflowY="auto">
       {/* 空状態ガイド（レイアウトシフト防止のため常にレンダリング） */}
@@ -194,62 +175,18 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
           borderBottomWidth={hasAnyPositions ? "0px" : "1px"}
         >
           <Icon as={LuInfo} color="blue.500" boxSize={5} flexShrink={0} />
-          <Flex gap={4} align="center" flexWrap="wrap">
-            <Flex align="center" gap={2}>
-              <Flex
-                bg="blue.500"
-                color="white"
-                w={5}
-                h={5}
-                borderRadius="full"
-                align="center"
-                justify="center"
-                fontSize="xs"
-                fontWeight="bold"
-                flexShrink={0}
-              >
-                1
-              </Flex>
-              <Icon as={LuPaintbrush} color="gray.600" boxSize={4} />
-              <Text fontSize="sm" color="gray.700">
-                ポジションを選択
-              </Text>
-            </Flex>
-            <Text color="gray.400">→</Text>
-            <Flex align="center" gap={2}>
-              <Flex
-                bg="blue.500"
-                color="white"
-                w={5}
-                h={5}
-                borderRadius="full"
-                align="center"
-                justify="center"
-                fontSize="xs"
-                fontWeight="bold"
-                flexShrink={0}
-              >
-                2
-              </Flex>
-              <Icon as={LuMousePointer2} color="gray.600" boxSize={4} />
-              <Text fontSize="sm" color="gray.700">
-                スタッフの行をドラッグして時間を割り当て
-              </Text>
-            </Flex>
+          <Flex align="center" gap={2}>
+            <Icon as={LuMousePointer2} color="gray.600" boxSize={4} />
+            <Text fontSize="sm" color="gray.700">
+              スタッフの行をドラッグして時間を割り当て
+            </Text>
           </Flex>
         </Flex>
       )}
-      {/* ピーク帯充足度アラート */}
-      <PeakBandAlert
-        shifts={shifts}
-        date={selectedDate}
-        peakBands={currentDayStaffing?.peakBands}
-        minimumStaff={currentDayStaffing?.minimumStaff}
-      />
       <Table.Root size="sm" borderCollapse="separate" borderSpacing={0}>
         <Table.Header>
           <Table.Row bg="white" position="sticky" top={0} zIndex={10} boxShadow="0 2px 4px rgba(0,0,0,0.04)">
-            <Table.ColumnHeader w="120px" position="sticky" left={0} bg="white" zIndex={11}>
+            <Table.ColumnHeader w="120px" whiteSpace="nowrap" position="sticky" left={0} bg="white" zIndex={11}>
               <SortMenu sortMode={sortMode} onSortChange={setSortMode} />
             </Table.ColumnHeader>
             <Table.ColumnHeader colSpan={timeSlots.length} p={0} w={`${timeAxisWidth}px`}>
@@ -286,27 +223,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             );
           })}
         </Table.Body>
-        <Table.Footer
-          position="sticky"
-          bottom={0}
-          zIndex={10}
-          bg="white"
-          boxShadow="0 -2px 4px rgba(0,0,0,0.04)"
-          css={{ "& tr:last-child td": { borderBottom: "none" } }}
-        >
-          <SummaryRow
-            shifts={shifts}
-            positions={positions}
-            timeRange={timeRange}
-            date={selectedDate}
-            isExpanded={isSummaryExpanded}
-            onToggleExpand={() => setIsSummaryExpanded(!isSummaryExpanded)}
-            timeSlotsCount={timeSlots.length}
-            timeAxisWidth={timeAxisWidth}
-            displayMode={summaryDisplayMode}
-            onDisplayModeChange={setSummaryDisplayMode}
-          />
-        </Table.Footer>
       </Table.Root>
     </Box>
   );

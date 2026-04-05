@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
 
 dotenv.config({ debug: false, quiet: true });
@@ -34,7 +34,7 @@ export default defineConfig({
   /* Opt out of parallel tests on CI. */
   workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [["list"], ["html"]],
+  reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
@@ -53,19 +53,19 @@ export default defineConfig({
     // Step 1: 認証セットアップ（全プロジェクトの前提条件）
     {
       name: "setup",
-      testMatch: /fixtures\/setup\/.*\.setup\.ts/,
+      testMatch: /fixtures\/.*\.setup\.ts/,
     },
 
     // Step 2: メインユーザー（管理者）のテスト
-    // {
-    //   name: "認証済みテスト",
-    //   testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
-    //   use: {
-    //     ...devices["Desktop Chrome"],
-    //     storageState: E2EAuthJsonFileMainUser,
-    //   },
-    //   dependencies: ["setup"],
-    // },
+    {
+      name: "シナリオテスト",
+      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.clerk/user.json",
+      },
+      dependencies: ["setup"],
+    },
 
     // Step 3: サブユーザー（新規店長）のテスト
     // DB未登録状態での初回ログインをテスト
@@ -74,7 +74,7 @@ export default defineConfig({
     //   testMatch: /scenarios\/userB\/.*\.test\.ts/,
     //   use: {
     //     ...devices["Desktop Chrome"],
-    //     storageState: E2EAuthJsonFileSubUser,
+    //     storageState: "e2e/.clerk/user-b.json",
     //   },
     //   dependencies: ["setup"],
     // },

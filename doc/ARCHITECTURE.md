@@ -8,7 +8,7 @@
 src/
 ├── routes/           # TanStack Router（ページ呼び出しのみ）
 ├── components/
-│   ├── pages/        # ページコンポーネント（useQuery、エラー/ローディング処理）
+│   ├── pages/        # ページコンポーネント（useQuery、エラー/ローディング処理）※現在未実装
 │   ├── features/     # 機能コンポーネント（ドメインロジック、useMutation）
 │   ├── templates/    # レイアウト（BottomMenu、SideMenu等）
 │   └── ui/           # 汎用UIコンポーネント
@@ -21,93 +21,28 @@ src/
 convex/
 ├── schema.ts         # DBスキーマ（Single Source of Truth）
 ├── constants.ts      # DB定数
-├── helpers.ts        # 共通ヘルパー
-└── [domain]/         # ドメイン別（queries.ts, mutations.ts, policies.ts）
+├── _lib/             # 共通ユーティリティ
+└── {useCase}/        # ユースケース別ディレクトリ（queries.ts, mutations.ts, actions.ts）※現在未作成
 ```
 
 ---
 
 ## 機能→ファイルマッピング
 
+> 現在、各機能の実装は再構築中です。以下は実装済みのコンポーネントのみ記載しています。
+
 | 機能 | Pages | Features | Convex |
 |------|-------|----------|--------|
-| 店舗管理 | `Shops/ListPage`, `DetailPage`, `EditPage`, `NewPage` | `Shop/ShopForm`, `ShopList`, `ShopDetail`, `ShopEdit`, `ShopSelector` | `shop/queries`, `mutations` |
-| スタッフ管理 | `Staffs/ListPage`, `DetailPage`, `EditPage` | `Staff/StaffList`, `StaffDetail`, `StaffEdit` | `staff/queries`, `mutations` |
-| ポジション管理 | - | `Shop/PositionManager`, `PositionEditor` | `position/queries`, `mutations` |
-| スキル管理 | - | `StaffDetail`内 | `staffSkill/queries`, `mutations` |
-| ユーザー管理 | `MyPage`, `Settings` | `User/UserRegister`, `Setting/UserSetting` | `user/queries`, `mutations` |
-| 招待機能 | `Invite` | `Shop/MemberAddModal` | `invite/queries`, `mutations` |
-| シフト管理 | `Shops/ShiftsPage`, `RecruitmentNewPage`, `RecruitmentDetailPage`, `ShiftConfirmPage`, `StaffingSettingsPage` | `Shift/ShiftForm`, `ShiftConfirm`, `RecruitmentForm`, `RecruitmentList`, `RecruitmentDetail`, `RecruitmentNew`, `StaffingRequirement` | `recruitment/queries,mutations`, `shiftRequest/queries,mutations`, `shiftAssignment/queries,mutations`, `requiredStaffing/queries,mutations` |
+| シフトフォーム | - | `Shift/ShiftForm` | 未実装 |
 
 ---
 
 ## ファイル→機能マッピング（逆引き）
 
-### 店舗管理
+### シフトフォーム
 | ファイルパス | 責務 |
 |-------------|------|
-| `src/routes/_auth/shops/` | ルーティング |
-| `src/components/pages/Shops/` | useQuery、エラー/ローディング処理 |
-| `src/components/features/Shop/` | ドメインロジック、UI |
-| `convex/shop/` | DB操作 |
-
-### スタッフ管理
-| ファイルパス | 責務 |
-|-------------|------|
-| `src/routes/_auth/shops/$shopId/staffs/` | ルーティング |
-| `src/components/pages/Staffs/` | useQuery、エラー/ローディング処理 |
-| `src/components/features/Staff/` | ドメインロジック、UI |
-| `convex/staff/` | DB操作 |
-
-### ポジション管理
-| ファイルパス | 責務 |
-|-------------|------|
-| `src/components/features/Shop/PositionManager/` | ポジション一覧管理（カラー選択対応） |
-| `src/components/features/Shop/PositionEditor/` | ポジション個別編集（カラー選択対応） |
-| `src/components/ui/ColorPicker/` | プリセットカラー選択コンポーネント |
-| `convex/position/` | DB操作 |
-
-### スキル管理
-| ファイルパス | 責務 |
-|-------------|------|
-| `src/components/features/Staff/StaffDetail/` | スキル表示・編集UI |
-| `convex/staffSkill/` | DB操作 |
-
-### ユーザー管理
-| ファイルパス | 責務 |
-|-------------|------|
-| `src/routes/_auth/mypage.tsx` | マイページルーティング |
-| `src/routes/_auth/settings/` | 設定ルーティング |
-| `src/components/pages/MyPage/` | マイページ |
-| `src/components/pages/Settings/` | 設定ページ |
-| `src/components/features/User/` | ユーザー登録 |
-| `src/components/features/Setting/` | 設定UI |
-| `convex/user/` | DB操作 |
-
-### 招待機能
-| ファイルパス | 責務 |
-|-------------|------|
-| `src/routes/invite.tsx` | 招待ページルーティング |
-| `src/components/pages/Invite/` | 招待受け入れページ |
-| `src/components/features/Shop/MemberAddModal/` | スタッフ招待モーダル |
-| `convex/invite/` | DB操作 |
-
-### シフト管理
-| ファイルパス | 責務 |
-|-------------|------|
-| `src/routes/_auth/shops/$shopId/shifts/` | ルーティング |
-| `src/components/pages/Shops/ShiftsPage/` | useQuery、エラー/ローディング処理 |
-| `src/components/pages/Shops/RecruitmentNewPage/` | 募集作成ページ |
-| `src/components/pages/Shops/RecruitmentDetailPage/` | 募集詳細ページ（申請状況確認） |
-| `src/components/pages/Shops/ShiftConfirmPage/` | シフト編集・確定ページ |
-| `src/components/pages/Shops/StaffingSettingsPage/` | 必要人員設定ページ |
-| `src/components/features/Shift/` | ドメインロジック、UI |
-| `src/components/features/Shift/ShiftConfirm/` | シフト編集・保存・締切・確定 |
-| `src/components/features/Shift/utils/transformRecruitmentData.ts` | Convexデータ→ShiftForm用props変換 |
-| `convex/recruitment/` | 募集のCRUD・締切・確定 |
-| `convex/shiftRequest/` | スタッフの希望提出 |
-| `convex/shiftAssignment/` | 管理者のシフト割当 |
-| `convex/requiredStaffing/` | 必要人員DB操作 |
+| `src/components/features/Shift/ShiftForm/` | シフト編集UI（PC版・SP版）、ドラッグ操作、表示切替 |
 
 ---
 
@@ -141,10 +76,10 @@ convex/
       │
       ▼
 ┌─────────────────────────────────────┐
-│ [Convex] convex/[domain]/           │
+│ [Convex] convex/{useCase}/          │
 │   - queries.ts → 読み取り           │
 │   - mutations.ts → 書き込み         │
-│   - policies.ts → 権限判定          │
+│   - actions.ts → 外部API呼び出し    │
 └─────────────────────────────────────┘
       │
       ▼
@@ -203,7 +138,7 @@ convex/
 | フレームワーク | React 19 |
 | ルーティング | TanStack Router |
 | UI | Chakra UI v3 |
-| フォーム | React Hook Form + Zod |
+| フォーム | React Hook Form + Zod 4 |
 | 状態管理 | Jotai |
 | 認証 | Clerk |
 | バックエンド | Convex |

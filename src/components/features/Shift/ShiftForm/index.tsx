@@ -1,19 +1,14 @@
 import { Box, Flex, SegmentGroup } from "@chakra-ui/react";
-import { Provider, useAtom, useAtomValue } from "jotai";
+import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
-import { PositionToolbar } from "./pc/DailyView/PositionToolbar";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
-import { selectedPositionIdAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "./stores";
+import { shiftsAtom, viewModeAtom, viewModeCallbackAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
-
-const VIEW_OPTIONS = [
-  { value: "daily", label: "日別" },
-  { value: "overview", label: "一覧" },
-];
+import { VIEW_OPTIONS } from "./types";
 
 type ShiftFormProps = {
   shopId: string;
@@ -31,6 +26,8 @@ type ShiftFormProps = {
   hideViewSwitcher?: boolean;
   initialSortMode?: SortMode;
   onShiftsChange?: (shifts: ShiftData[]) => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
 };
 
 const ShiftFormInner = ({
@@ -49,6 +46,8 @@ const ShiftFormInner = ({
   hideViewSwitcher = false,
   initialSortMode,
   onShiftsChange,
+  viewMode: externalViewMode,
+  onViewModeChange,
 }: ShiftFormProps) => {
   // props → atoms 初期化
   useShiftFormInit({
@@ -76,21 +75,45 @@ const ShiftFormInner = ({
     onShiftsChangeRef.current?.(shifts);
   }, [shifts]);
 
-  const [viewMode, setViewMode] = useAtom(viewModeAtom);
-  const config = useAtomValue(shiftConfigAtom);
-  const [selectedPositionId, setSelectedPositionId] = useAtom(selectedPositionIdAtom);
+  const [internalViewMode, setInternalViewMode] = useAtom(viewModeAtom);
 
-  const showViewSwitcher = !hideViewSwitcher;
-  const showPositionButtons = !config.isReadOnly && viewMode === "daily";
-  const showToolbar = showViewSwitcher || showPositionButtons;
+  // Write-through callback: atomへの書き込み時に親へ自動通知（外部sync中は抑制）
+  const setViewModeCallback = useSetAtom(viewModeCallbackAtom);
+  const onViewModeChangeRef = useRef(onViewModeChange);
+  onViewModeChangeRef.current = onViewModeChange;
+  const isSyncingRef = useRef(false);
+
+  useEffect(() => {
+    setViewModeCallback(() => (mode: ViewMode) => {
+      if (!isSyncingRef.current) {
+        onViewModeChangeRef.current?.(mode);
+      }
+    });
+    return () => setViewModeCallback(undefined);
+  }, [setViewModeCallback]);
+
+  // 外部 → 内部: 親のviewModeをatomに反映（コールバック抑制で不要な親通知を防止）
+  useEffect(() => {
+    if (externalViewMode !== undefined) {
+      isSyncingRef.current = true;
+      setInternalViewMode(externalViewMode);
+      isSyncingRef.current = false;
+    }
+  }, [externalViewMode, setInternalViewMode]);
+
+  const viewMode = externalViewMode ?? internalViewMode;
 
   return (
-    <Flex direction="column" maxHeight={{ base: "calc(100dvh - 96px)", lg: "calc(100dvh - 64px + 200px)" }}>
+    <Flex direction="column">
       {/* SP ヘッダー: SegmentGroup */}
       {!hideViewSwitcher && (
         <Box display={{ base: "block", lg: "none" }}>
           <Flex align="center" justify="flex-end" px={3} py={2} flexShrink={0}>
-            <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
+            <SegmentGroup.Root
+              size="sm"
+              value={viewMode}
+              onValueChange={(e) => setInternalViewMode(e.value as ViewMode)}
+            >
               <SegmentGroup.Indicator />
               <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
             </SegmentGroup.Root>
@@ -98,8 +121,8 @@ const ShiftFormInner = ({
         </Box>
       )}
 
-      {/* PC ツールバー: ビュー切替 + ポジション */}
-      {showToolbar && (
+      {/* PC ツールバー: ビュー切替 */}
+      {!hideViewSwitcher && (
         <Box display={{ base: "none", lg: "block" }} mb={4} flexShrink={0}>
           <Flex
             bg="white"
@@ -112,19 +135,14 @@ const ShiftFormInner = ({
             gap={4}
             height="60px"
           >
-            {showViewSwitcher && (
-              <SegmentGroup.Root size="sm" value={viewMode} onValueChange={(e) => setViewMode(e.value as ViewMode)}>
-                <SegmentGroup.Indicator />
-                <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
-              </SegmentGroup.Root>
-            )}
-            {showPositionButtons && (
-              <PositionToolbar
-                positions={config.positions}
-                selectedPositionId={selectedPositionId}
-                onPositionSelect={setSelectedPositionId}
-              />
-            )}
+            <SegmentGroup.Root
+              size="sm"
+              value={viewMode}
+              onValueChange={(e) => setInternalViewMode(e.value as ViewMode)}
+            >
+              <SegmentGroup.Indicator />
+              <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
+            </SegmentGroup.Root>
           </Flex>
         </Box>
       )}

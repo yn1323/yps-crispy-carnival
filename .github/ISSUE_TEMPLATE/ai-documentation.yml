@@ -12,7 +12,7 @@ body:
       placeholder: "例: 新規ユーザー向けの認証機能の使い方ガイド"
     validations:
       required: true
-      
+
   - type: dropdown
     id: doc_type
     attributes:
@@ -26,7 +26,7 @@ body:
         - 🎯 機能仕様書
     validations:
       required: true
-      
+
   - type: dropdown
     id: doc_action
     attributes:
@@ -37,7 +37,7 @@ body:
         - 🔄 刷新
     validations:
       required: true
-      
+
   - type: textarea
     id: content_requirements
     attributes:
@@ -50,7 +50,7 @@ body:
         - 注意事項
     validations:
       required: true
-      
+
   - type: textarea
     id: related_files
     attributes:
@@ -61,7 +61,7 @@ body:
         - 既存のREADME.md
     validations:
       required: false
-      
+
   - type: dropdown
     id: detail_level
     attributes:
@@ -72,7 +72,7 @@ body:
         - ⚡ 簡潔 (要点のみ)
     validations:
       required: true
-      
+
   - type: textarea
     id: additional_context
     attributes:
@@ -81,7 +81,7 @@ body:
       placeholder: "例: 対象読者、配置場所、スタイルガイドなど"
     validations:
       required: false
-      
+
   - type: markdown
     attributes:
       value: |

@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useRef, useState } from "react";
-import { RESIZE_EDGE_THRESHOLD } from "../../../constants";
+import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
 import { selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "../../../types";
 import {
@@ -116,7 +116,7 @@ export const useDrag = (): UseDragReturn => {
       if (tryDetectResize(staffId, x, minutes)) return true;
 
       // リサイズエッジでなければ塗りモード
-      if (!selectedPosition) return false;
+      const position = selectedPosition ?? DEFAULT_POSITION;
 
       let targetShift = findShiftAtPosition({
         shifts,
@@ -147,7 +147,7 @@ export const useDrag = (): UseDragReturn => {
         currentMinutes: minutes,
         targetShiftId: targetShift.id,
         targetPositionId: null,
-        positionColor: selectedPosition.color,
+        positionColor: position.color,
         resizeEdge: null,
         linkedTarget: null,
       });
@@ -209,14 +209,15 @@ export const useDrag = (): UseDragReturn => {
     }
 
     // 2. 塗りモード
-    if (mode === "paint" && targetShiftId && selectedPosition) {
+    if (mode === "paint" && targetShiftId) {
+      const position = selectedPosition ?? DEFAULT_POSITION;
       const targetShift = shifts.find((s) => s.id === targetShiftId);
       if (targetShift && Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
         const paintedShift = paintPosition({
           shift: targetShift,
-          positionId: selectedPosition.id,
-          positionName: selectedPosition.name,
-          positionColor: selectedPosition.color,
+          positionId: position.id,
+          positionName: position.name,
+          positionColor: position.color,
           startMinutes,
           endMinutes: currentMinutes,
           segmentId: generateId(),

@@ -7,7 +7,6 @@ jobs:
   unit-test:
     runs-on: ubuntu-latest
     strategy:
-      
       fail-fast: false
       matrix:
         shard: [1/2, 2/2]
@@ -17,7 +16,5 @@ jobs:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Setup Playwright
-        uses: ./.github/actions/playwright
       - name: Run Test
         run: pnpm vitest run --shard=${{ matrix.shard }} --project=logic

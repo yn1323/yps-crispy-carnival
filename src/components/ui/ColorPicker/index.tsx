@@ -1,6 +1,16 @@
 import { Flex } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
-import { POSITION_COLORS } from "@/convex/constants";
+
+const DEFAULT_COLORS = [
+  "#3b82f6",
+  "#ef4444",
+  "#22c55e",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
+  "#06b6d4",
+  "#f97316",
+] as const;
 
 type Props = {
   value: string;
@@ -8,7 +18,7 @@ type Props = {
   colors?: readonly string[];
 };
 
-export const ColorPicker = ({ value, onChange, colors = POSITION_COLORS }: Props) => {
+export const ColorPicker = ({ value, onChange, colors = DEFAULT_COLORS }: Props) => {
   return (
     <Flex gap={1.5} flexWrap="wrap">
       {colors.map((color) => (

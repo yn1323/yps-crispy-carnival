@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 pnpm dev              # 開発サーバー起動 (port 3000)
+pnpm dev:all          # dev + convex + storybook を並列起動
 pnpm build            # ビルド (vite build && tsc)
 pnpm lint             # Biomeでlint
 pnpm format           # Biomeでフォーマット (--write)
@@ -35,14 +36,28 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
 - `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
 
-## 実装のルール
-- フロントエンドのReactコンポーネントを適宜分割すること
-- 実装完了後、`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
-- 上記完了後、`/simplify`を実行してリファクタを行うこと
+## ペルソナ
 
-## 仕様の相談
-- ユーザーの意見に批判的・懐疑的になってください
-- よりよい意見をプロの観点からアドバイスしてください
+- あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
+
+## 実装のルール
+
+- 実装完了後、SubAgentで`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること（Context消費したくない）
+- `lint`はwarningでも修正すること
+- 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
+
+### フロントエンド（UIあり）
+
+- コロケーションでファイルを作成する
+   - index.tsx（必須）
+   - index.stories.tsx（必須）
+   - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
+- UIパターンごとにindex.stories.tsxに記載すること（細かすぎないよう注意！）。後工程でVRTに利用します
+- 複雑な動きがある場合、index.stories.tsxに操作テストを記載すること
+
+### フロントエンド（UIなしロジック）
+
+- テストファイルも合わせて作成すること
 
 ### 環境変数
 
@@ -87,6 +102,12 @@ convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / polici
 - `userAtom`: ログインユーザー情報
 - ShiftForm系Atoms: Jotai Providerでスコープ管理
 
+### フォーム開発
+
+- react-hookform + zodResolverを利用
+- index.tsに外出しし、index.test.tsにテストを書くこと
+- 常にSubmitボタンはEnabledの状態にする。バリデーションエラーがあれば、Submitボタンは押せるが、エラーで次に進めないような実装方針にしたい。
+
 ### 認証
 
 - **Clerk**: アプリ認証（管理者・マネージャー）
@@ -111,7 +132,23 @@ import { bar } from "@/convex/...";
 ### バリデーション
 
 - Zod v4スキーマ + カスタムエラーマップ（日本語メッセージ）
-- カスタムバリデータ: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
+- **mutation引数のZodスキーマは `convex/{useCase}/schemas.ts` に配置し、フロントと共有する**
+  - フロントからは `@/convex/{useCase}/schemas` でインポート
+  - フォーム固有のラッパー（配列化、UI専用refinement等）は `src/` 側に残す
+  - `schemas.ts` は純粋な Zod 定義のみ。DB アクセスや Convex API のインポート禁止
+- カスタムバリデータ（フロント専用）: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
+- 共通バリデータ（mutation共有）: `convex/_lib/validation.ts`（`optionalEmail`等）
+
+### 日付操作
+
+- フロントの日付操作は `src/components/features/Shift/ShiftForm/utils/dateUtils.ts`（dayjs）を使用する
+- `new Date()` + `toISOString()` による日付文字列生成はTZずれの原因になるため禁止
+- Convexバックエンド（`convex/`）ではdayjsを使えないため、文字列比較（"YYYY-MM-DD"）で対応
+
+### Select × モーダル/BottomSheet
+
+- モーダルやBottomSheet内でSelectを使う場合は `usePortal={false}` を指定すること（Portalだとドロップダウンがモーダル背後に回る）
+- BottomSheetの `overflowY="auto"` がドロップダウンをクリップする場合は `overflowY="visible"` を渡すこと
 
 ### Storybook
 
@@ -121,10 +158,7 @@ import { bar } from "@/convex/...";
 
 ## デザイン
 
-- `doc/design/`: デザインファイル格納ディレクトリ。`.pen`ファイルはPencil MCPツール経由で読み書きする（`Read`や`Grep`では読めない）
-- デザイン確認・編集には `batch_get`、`batch_design`、`get_screenshot` 等のPencil MCPツールを使用
-- `doc/design/INDEX.md`: .penファイルのフレームIDインデックス。参照時はまずここのIDで `batch_get(nodeIds=[...])` を使い、IDが無効な場合は `batch_get(patterns=[{name: "..."}])` でフォールバックする
-- デザインフレームを追加・削除した際は `doc/design/INDEX.md` のIDを更新すること
+デザイン関連のファイル・ルールは `design/` ディレクトリを参照（`design/CLAUDE.md`）。
 
 ## コーディング
 
@@ -145,7 +179,8 @@ import { bar } from "@/convex/...";
 - `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
 - `doc/plans/`: 実装計画
 - `doc/claude/soul.md`: 設計判断の指針
-- `convex/CLAUDE.md`: Convexアーキテクチャの詳細
+- `convex/CLAUDE.md`: Convexアーキテクチャ、実装観点の詳細
+- `e2e/CLAUDE.md`: E2Eアーキテクチャ、実装観点の詳細
 
 ### ドキュメント運用ルール
 
@@ -153,3 +188,11 @@ import { bar } from "@/convex/...";
 - 機能概要には: 機能説明（1-2文）、関連ファイルパス、画面一覧、API一覧を含める
 - 詳細な仕様・ロジックはコードに書く（ドキュメントとコードの二重管理を避ける）
 - `doc/INDEX.md` に新規ドキュメントへのリンクを追加する
+
+<!-- convex-ai-start -->
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read `convex/_generated/ai/guidelines.md` first** for important guidelines on how to correctly use Convex APIs and patterns. The file contains rules that override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running `npx convex ai-files install`.
+<!-- convex-ai-end -->

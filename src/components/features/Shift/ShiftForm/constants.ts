@@ -30,6 +30,21 @@ export const MONTH_TOTAL_CELL_WIDTH = 60;
 export const ROW_HEIGHT = 48;
 
 // ==========================================
+// デフォルトポジション（ポジション未設定時のフォールバック）
+// ==========================================
+export const DEFAULT_POSITION = {
+  id: "default",
+  name: "シフト",
+  color: "#3b82f6", // blue-500
+} as const;
+
+export const BREAK_POSITION = {
+  id: "break",
+  name: "休憩",
+  color: "#6b7280", // gray-500
+} as const;
+
+// ==========================================
 // ビジネスルール
 // ==========================================
 

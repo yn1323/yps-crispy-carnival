@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export { optionalEmail } from "@/convex/_lib/validation";
+
 export const betweenLength = (min: number, max: number) => (val: string, ctx: z.RefinementCtx) => {
   if (val.length < min || val.length > max) {
     ctx.addIssue({
