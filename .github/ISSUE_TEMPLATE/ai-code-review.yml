@@ -12,7 +12,7 @@ body:
       placeholder: "例: 新しいユーザー認証機能の実装"
     validations:
       required: true
-      
+
   - type: textarea
     id: target_files
     attributes:
@@ -24,7 +24,7 @@ body:
         - src/hooks/useAuth.ts
     validations:
       required: true
-      
+
   - type: checkboxes
     id: review_focus
     attributes:
@@ -37,7 +37,7 @@ body:
         - label: 📖 可読性・保守性
         - label: 🧪 テスタビリティ
         - label: 🔧 TypeScript型安全性
-        
+
   - type: dropdown
     id: review_depth
     attributes:
@@ -48,7 +48,7 @@ body:
         - ⚡ 簡潔 (重要な問題のみ)
     validations:
       required: true
-      
+
   - type: textarea
     id: specific_concerns
     attributes:
@@ -60,7 +60,7 @@ body:
         - エラーハンドリングが適切か
     validations:
       required: false
-      
+
   - type: dropdown
     id: urgency
     attributes:
@@ -72,7 +72,7 @@ body:
         - 🕰️ 低 (時間があるとき)
     validations:
       required: true
-      
+
   - type: textarea
     id: additional_context
     attributes:
@@ -81,7 +81,7 @@ body:
       placeholder: "例: 実装の背景、技術的制約、テスト状況など"
     validations:
       required: false
-      
+
   - type: markdown
     attributes:
       value: |

@@ -2,7 +2,7 @@ name: Playwright setup from cache
 description: Playwright setup from cache
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Install Japanese fonts
       shell: bash

@@ -25,16 +25,12 @@ export class DashboardPage {
   }
 
   async expectSetupComplete() {
-    await expect(
-      this.page.getByText("セットアップが完了しました"),
-    ).toBeVisible();
+    await expect(this.page.getByText("セットアップが完了しました")).toBeVisible();
   }
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
     await this.page.getByRole("button", { name: "スタッフを追加" }).click();
-    await expect(
-      this.page.getByRole("dialog", { name: "スタッフを追加" }),
-    ).toBeVisible();
+    await expect(this.page.getByRole("dialog", { name: "スタッフを追加" })).toBeVisible();
 
     const form = this.page.locator("[id='add-staff-form']");
     const nameInputs = form.getByPlaceholder("例: 田中 花子");
@@ -46,29 +42,18 @@ export class DashboardPage {
     }
 
     // 余剰行を削除（フォームの初期行数 > 入力数の場合）
-    const deleteButtons = this.page
-      .getByRole("dialog")
-      .getByRole("button", { name: "削除" });
+    const deleteButtons = this.page.getByRole("dialog").getByRole("button", { name: "削除" });
     while ((await deleteButtons.count()) > entries.length) {
       await deleteButtons.last().click();
     }
 
-    await this.page
-      .getByRole("dialog")
-      .getByRole("button", { name: "登録する" })
-      .click();
+    await this.page.getByRole("dialog").getByRole("button", { name: "登録する" }).click();
     await expect(this.page.getByText("スタッフを追加しました")).toBeVisible();
   }
 
-  async createRecruitment(data: {
-    periodStart: string;
-    periodEnd: string;
-    deadline: string;
-  }) {
+  async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
     await this.page.getByRole("button", { name: "新しい募集を作成" }).click();
-    await expect(
-      this.page.getByRole("dialog", { name: "新しい募集を作成" }),
-    ).toBeVisible();
+    await expect(this.page.getByRole("dialog", { name: "新しい募集を作成" })).toBeVisible();
 
     const form = this.page.locator("[id='create-recruitment-form']");
     const dateInputs = form.locator("input[type='date']");
@@ -76,10 +61,7 @@ export class DashboardPage {
     await dateInputs.nth(1).fill(data.periodEnd);
     await dateInputs.nth(2).fill(data.deadline);
 
-    await this.page
-      .getByRole("dialog")
-      .getByRole("button", { name: "作成する" })
-      .click();
+    await this.page.getByRole("dialog").getByRole("button", { name: "作成する" }).click();
     await expect(this.page.getByText("募集を作成しました")).toBeVisible();
   }
 
@@ -89,9 +71,7 @@ export class DashboardPage {
   }
 
   async expectStaffSectionVisible() {
-    await expect(
-      this.page.getByRole("heading", { name: "スタッフ", exact: true }),
-    ).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "スタッフ", exact: true })).toBeVisible();
   }
 
   async expectStaffVisible(name: string) {
@@ -99,9 +79,7 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardVisible() {
-    await expect(
-      this.page.getByRole("button", { name: "シフトボードを開く" }),
-    ).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "シフトボードを開く" })).toBeVisible();
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択
