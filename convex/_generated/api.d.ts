@@ -10,6 +10,7 @@
 
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
 import type * as _lib_functions from "../_lib/functions.js";
+import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
@@ -41,6 +42,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_lib/dateFormat": typeof _lib_dateFormat;
   "_lib/functions": typeof _lib_functions;
+  "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
   "_lib/time": typeof _lib_time;
   "_lib/uuid": typeof _lib_uuid;

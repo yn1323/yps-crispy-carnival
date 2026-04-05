@@ -34,7 +34,7 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
               px={2.5}
               fontSize="xs"
             >
-              {status === "open" ? "募集中" : "送付完了"}
+              {status === "open" ? "収集・編集中" : "確定済み"}
             </Badge>
           </Flex>
           <Button
@@ -44,7 +44,7 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
             width={{ base: "full", lg: "auto" }}
             onClick={() => onOpenShiftBoard(_id)}
           >
-            シフトボードを開く
+            シフトを編集する
             <LuArrowRight />
           </Button>
         </Flex>

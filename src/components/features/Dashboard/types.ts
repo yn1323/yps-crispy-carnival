@@ -14,4 +14,5 @@ export type Staff = {
   _id: Id<"staffs">;
   name: string;
   email: string;
+  isOwner: boolean;
 };

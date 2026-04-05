@@ -4,14 +4,18 @@
 
 | ID | Name | Description |
 |---|---|---|
-| `RokyI` | Dashboard/Normal | 通常時（募集あり・スタッフ登録済） |
-| `Bieli` | Dashboard/Empty | 初回・空状態（募集なし・スタッフ未登録） |
-| `IdakJ` | Dashboard/CreateRecruitmentModal | 募集作成モーダル |
+| `RokyI` | Dashboard/Normal | 通常時（シフトあり・スタッフ登録済） |
+| `Bieli` | Dashboard/Empty | 初回・空状態（シフトなし・スタッフ未登録） |
+| `IdakJ` | Dashboard/CreateRecruitmentModal | シフト希望収集モーダル |
 | `1yq4G` | Dashboard/AddStaffModal | スタッフ追加モーダル |
-| `IkGpN` | Dashboard/Normal/SP | SP通常時（募集あり・スタッフ登録済） |
+| `IkGpN` | Dashboard/Normal/SP | SP通常時（シフトあり・スタッフ登録済） |
 | `NMbYI` | Dashboard/Empty/SP | SP初回・空状態 |
-| `3iRDC` | Dashboard/CreateRecruitmentSheet | SP募集作成BottomSheet |
+| `3iRDC` | Dashboard/CreateRecruitmentSheet | SPシフト希望収集BottomSheet |
 | `QQcZk` | Dashboard/AddStaffSheet | SPスタッフ追加BottomSheet |
+| `Mf7qf` | Dashboard/EditStaffModal | PCスタッフ編集モーダル |
+| `aF4J8` | Dashboard/EditStaffSheet | SPスタッフ編集BottomSheet |
+| `m5Svv` | Dashboard/DeleteStaffDialog | PCスタッフ削除確認ダイアログ |
+| `66Jwd` | Dashboard/DeleteStaffSheet | SPスタッフ削除確認BottomSheet |
 | `s9hbW` | Dashboard/SetupModal/Step1 | 初回セットアップモーダル Step1（店舗情報・入力済み） |
 | `xoJw8` | Dashboard/SetupModal/Step2 | 初回セットアップモーダル Step2（シフト募集作成・初期状態） |
 | `VLWsg` | Dashboard/SetupSheet/Step1 | SP初回セットアップSheet Step1（店舗情報・入力済み） |
@@ -19,14 +23,16 @@
 
 ## shiftboard.pen — シフトボード画面
 
+> **注意**: 以下のIDは現在無効です。ShiftBoard画面フレームの再作成が必要です。
+
 | ID | Name | Description |
 |---|---|---|
-| `LLTqi` | ShiftBoard/Normal | PC通常時（未確定） |
-| `nIHuW` | ShiftBoard/Confirmed | PC確定済み |
-| `Wa1Wl` | ShiftBoard/ConfirmDialog | PC確定ダイアログ表示 |
-| `tfnDn` | ShiftBoard/Normal/SP | SP通常時（未確定） |
-| `K5zai` | ShiftBoard/Confirmed/SP | SP確定済み |
-| `0sBBB` | ShiftBoard/ConfirmDialog/SP | SP確定ダイアログ表示 |
+| ~~`LLTqi`~~ | ShiftBoard/Normal | PC通常時（未確定） |
+| ~~`nIHuW`~~ | ShiftBoard/Confirmed | PC確定済み |
+| ~~`Wa1Wl`~~ | ShiftBoard/ConfirmDialog | PC確定ダイアログ表示 |
+| ~~`tfnDn`~~ | ShiftBoard/Normal/SP | SP通常時（未確定） |
+| ~~`K5zai`~~ | ShiftBoard/Confirmed/SP | SP確定済み |
+| ~~`0sBBB`~~ | ShiftBoard/ConfirmDialog/SP | SP確定ダイアログ表示 |
 
 ## design.pen
 （画面デザイン）

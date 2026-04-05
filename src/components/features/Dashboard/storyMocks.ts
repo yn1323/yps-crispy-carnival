@@ -23,7 +23,7 @@ export const mockRecruitments = [
 ] as unknown as Recruitment[];
 
 export const mockStaffs = [
-  { _id: "s1", name: "田中太郎", email: "tanaka@example.com" },
-  { _id: "s2", name: "佐藤花子", email: "sato@example.com" },
-  { _id: "s3", name: "鈴木一郎", email: "suzuki@example.com" },
+  { _id: "s1", name: "田中太郎", email: "tanaka@example.com", isOwner: true },
+  { _id: "s2", name: "佐藤花子", email: "sato@example.com", isOwner: false },
+  { _id: "s3", name: "鈴木一郎", email: "suzuki@example.com", isOwner: false },
 ] as unknown as Staff[];

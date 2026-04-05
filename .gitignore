@@ -19,6 +19,7 @@ storybook-static
 node_modules/
 /test-results/
 /playwright-report/
+test-results.json
 /blob-report/
 /playwright/.cache/
 

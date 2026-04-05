@@ -26,28 +26,23 @@ export class ShiftBoardPage {
     await this.page.locator("[data-scope='segment-group'] [data-part='item-text']").getByText("一覧").first().click();
   }
 
-  async save() {
-    await this.page.getByRole("button", { name: "保存" }).click();
-    await expect(this.page.getByText("保存しました")).toBeVisible();
-  }
-
   async confirm(staffCount: number) {
-    await this.page.getByRole("button", { name: "スタッフに送信する" }).click();
+    await this.page.getByRole("button", { name: "確定して通知する" }).click();
 
     const dialog = this.page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(`対象: ${staffCount}名`)).toBeVisible();
 
-    await dialog.getByRole("button", { name: "送信する" }).click();
+    await dialog.getByRole("button", { name: "確定して通知する" }).click();
 
-    await expect(this.page.getByText("送信しました")).toBeVisible();
+    await expect(this.page.getByText("確定しました")).toBeVisible();
   }
 
   async expectConfirmedStatus() {
-    await expect(this.page.getByText(/送信済み/)).toBeVisible();
+    await expect(this.page.getByText(/確定済み/)).toBeVisible();
   }
 
   async expectResendButton() {
-    await expect(this.page.getByRole("button", { name: "再送信する" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "再通知する" })).toBeVisible();
   }
 }

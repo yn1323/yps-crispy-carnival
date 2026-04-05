@@ -14,18 +14,18 @@ export const RecruitmentSection = ({ recruitments, onCreateClick, onOpenShiftBoa
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
-        <Heading size={{ base: "md", lg: "lg" }}>募集</Heading>
+        <Heading size={{ base: "md", lg: "lg" }}>シフト</Heading>
         <Button size="sm" colorPalette="teal" onClick={onCreateClick}>
           <LuCalendarPlus />
-          新しい募集を作成
+          シフト希望を集める
         </Button>
       </Flex>
       {recruitments.length === 0 ? (
         <Box border="1px solid" borderColor="gray.200" borderRadius="lg">
           <Empty
             icon={LuClipboardList}
-            title="募集がありません"
-            description="新しい募集を作成して、スタッフのシフトを集めましょう"
+            title="シフトがありません"
+            description="新しいシフトを作成して、スタッフの希望を集めましょう"
             minH="160px"
           />
         </Box>

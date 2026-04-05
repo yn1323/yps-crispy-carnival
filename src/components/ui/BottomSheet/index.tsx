@@ -95,7 +95,7 @@ export const BottomSheet = ({
                 )}
               </Flex>
             )}
-            <ChakraDialog.CloseTrigger position="absolute" top="2" insetEnd="2">
+            <ChakraDialog.CloseTrigger asChild position="absolute" top="2" insetEnd="2">
               <CloseButton size="sm" />
             </ChakraDialog.CloseTrigger>
           </ChakraDialog.Content>

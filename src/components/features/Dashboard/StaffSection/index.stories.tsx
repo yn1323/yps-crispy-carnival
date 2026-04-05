@@ -17,6 +17,8 @@ export const Normal: Story = {
   args: {
     staffs: mockStaffs,
     onAddClick: () => {},
+    onEdit: () => {},
+    onDelete: () => {},
   },
 };
 
@@ -24,5 +26,7 @@ export const EmptyState: Story = {
   args: {
     staffs: [],
     onAddClick: () => {},
+    onEdit: () => {},
+    onDelete: () => {},
   },
 };
