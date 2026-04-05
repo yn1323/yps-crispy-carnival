@@ -15,6 +15,7 @@ jobs:
     environment: Preview
     env:
       REPORT_DIR: yps-crispy-carnival
+      CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
     steps:
       - uses: actions/checkout@v6
       - name: Setup
@@ -24,8 +25,7 @@ jobs:
       - name: Deploy Preview
         id: preview
         run: |
-          PREVIEW_NAME="pr-${{ github.event.pull_request.number }}"
-          npx convex deploy --preview-create "$PREVIEW_NAME" \
+          npx convex deploy --preview-create "$CONVEX_PREVIEW_NAME" \
             --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
             --cmd-url-env-var-name CONVEX_URL
         env:
@@ -33,7 +33,7 @@ jobs:
       - name: Seed Database
         run: |
           npx convex import --replace-all convex-seeds/seeds/db.zip --yes \
-            --preview-name "pr-${{ github.event.pull_request.number }}"
+            --preview-name "${{ env.CONVEX_PREVIEW_NAME }}"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Run Playwright tests
@@ -41,7 +41,7 @@ jobs:
         run: pnpm e2e
         env:
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
-          CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}
+          CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
           E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
           E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
