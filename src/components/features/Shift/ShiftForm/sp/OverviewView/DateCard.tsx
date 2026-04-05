@@ -1,10 +1,9 @@
 import { Box, Flex, IconButton, Text, VStack } from "@chakra-ui/react";
-import dayjs from "dayjs";
 import { useMemo } from "react";
 import { LuPlus } from "react-icons/lu";
 import type { ShiftData, StaffType } from "../../types";
 import { getDailyShiftTime } from "../../utils/calculations";
-import { isSaturday, isSunday } from "../../utils/dateUtils";
+import { formatDateWithWeekday, isSaturday, isSunday } from "../../utils/dateUtils";
 
 type DateCardProps = {
   date: string;
@@ -33,7 +32,7 @@ export const DateCard = ({
   onAddStaffClick,
   isReadOnly = false,
 }: DateCardProps) => {
-  const dateLabel = dayjs(date).format("M/D(ddd)");
+  const dateLabel = formatDateWithWeekday(date);
   const dateColor = getDateColor(date, holiday);
 
   const workingStaffs = useMemo(
