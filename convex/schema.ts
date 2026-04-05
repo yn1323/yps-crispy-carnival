@@ -1,7 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { rateLimitTables } from "convex-helpers/server/rateLimit";
 
 const schema = defineSchema({
+  ...rateLimitTables,
   // ========================================
   // 店舗情報
   // ========================================
