@@ -82,7 +82,8 @@
                           "fill": "$5:fg/muted",
                           "content": "戻る",
                           "fontFamily": "Inter",
-                          "fontSize": "$5:fontSize/sm"
+                          "fontSize": "$5:fontSize/sm",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -397,7 +398,8 @@
                           "fill": "$5:fg/muted",
                           "content": "戻る",
                           "fontFamily": "Inter",
-                          "fontSize": "$5:fontSize/sm"
+                          "fontSize": "$5:fontSize/sm",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -1042,7 +1044,8 @@
                   "fill": "$5:fg/muted",
                   "content": "戻る",
                   "fontFamily": "Inter",
-                  "fontSize": "$5:fontSize/xs"
+                  "fontSize": "$5:fontSize/xs",
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -1343,7 +1346,8 @@
                   "fill": "$5:fg/muted",
                   "content": "戻る",
                   "fontFamily": "Inter",
-                  "fontSize": "$5:fontSize/xs"
+                  "fontSize": "$5:fontSize/xs",
+                  "fontWeight": "normal"
                 }
               ]
             },

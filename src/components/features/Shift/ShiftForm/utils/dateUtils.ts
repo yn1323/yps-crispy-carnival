@@ -53,6 +53,11 @@ export const formatDateShort = (date: string): string => {
   return dayjs(date).format("M/D");
 };
 
+// 日付を曜日付きで表示用にフォーマット（"2026-01-27" → "1/27(月)"）
+export const formatDateWithWeekday = (date: string): string => {
+  return `${formatDateShort(date)}(${getWeekdayLabel(date)})`;
+};
+
 // 曜日を表示用に取得（"2026-01-27" → "月"）
 export const getWeekdayLabel = (date: string): string => {
   const weekdays = ["日", "月", "火", "水", "木", "金", "土"];

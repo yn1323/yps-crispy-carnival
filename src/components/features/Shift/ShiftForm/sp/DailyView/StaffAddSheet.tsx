@@ -1,8 +1,8 @@
 import { Flex, Icon, Text, VStack } from "@chakra-ui/react";
-import dayjs from "dayjs";
 import { LuChevronRight, LuTriangleAlert } from "react-icons/lu";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import type { ShiftData, StaffType } from "../../types";
+import { formatDateWithWeekday } from "../../utils/dateUtils";
 
 type StaffAddSheetProps = {
   staffs: StaffType[];
@@ -21,7 +21,7 @@ export const StaffAddSheet = ({
   onOpenChange,
   onSelectStaff,
 }: StaffAddSheetProps) => {
-  const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
+  const dateLabel = formatDateWithWeekday(selectedDate);
 
   return (
     <BottomSheet title={`${dateLabel} シフトなしスタッフ一覧`} isOpen={isOpen} onOpenChange={onOpenChange}>

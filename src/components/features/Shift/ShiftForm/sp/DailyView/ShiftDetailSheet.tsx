@@ -1,8 +1,8 @@
 import { Box, Text, VStack } from "@chakra-ui/react";
-import dayjs from "dayjs";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { BREAK_POSITION } from "../../constants";
 import type { ShiftData, StaffType } from "../../types";
+import { formatDateWithWeekday } from "../../utils/dateUtils";
 
 type ShiftDetailSheetProps = {
   staff: StaffType;
@@ -13,7 +13,7 @@ type ShiftDetailSheetProps = {
 };
 
 export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenChange }: ShiftDetailSheetProps) => {
-  const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
+  const dateLabel = formatDateWithWeekday(selectedDate);
 
   const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
 
