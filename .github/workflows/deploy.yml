@@ -45,7 +45,7 @@ jobs:
         id: deploy
         run: |
           DEPLOY_OUTPUT=$(npx wrangler pages deploy dist \
-            --project-name yps-crispy-carnival \
+            --project-name dev-yps-crispy-carnival \
             --branch "pr-${{ github.event.pull_request.number }}" 2>&1)
           echo "$DEPLOY_OUTPUT"
           DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'https://[^\s]+\.pages\.dev' | tail -1)
@@ -75,13 +75,13 @@ jobs:
         run: |
           DEPLOYMENTS=$(curl -s \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/yps-crispy-carnival/deployments" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/dev-yps-crispy-carnival/deployments" \
             | jq -r ".result[] | select(.deployment_trigger.metadata.branch == \"pr-${{ github.event.pull_request.number }}\") | .id")
           for ID in $DEPLOYMENTS; do
             echo "Deleting deployment $ID"
             curl -s -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/yps-crispy-carnival/deployments/$ID?force=true"
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/dev-yps-crispy-carnival/deployments/$ID?force=true"
           done
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -95,6 +95,10 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup
         uses: ./.github/actions/setup
+      - name: Deploy Convex
+        run: npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Build
         run: pnpm build
         env:
@@ -103,8 +107,8 @@ jobs:
       - name: Deploy to Cloudflare Pages
         run: |
           npx wrangler pages deploy dist \
-            --project-name yps-crispy-carnival \
-            --branch develop
+            --project-name dev-yps-crispy-carnival \
+            --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -117,6 +121,10 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup
         uses: ./.github/actions/setup
+      - name: Deploy Convex
+        run: npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Build
         run: pnpm build
         env:
