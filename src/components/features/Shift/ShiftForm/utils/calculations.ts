@@ -1,3 +1,4 @@
+import { BREAK_POSITION } from "../constants";
 import type { DailyShift, ShiftData, StaffRowData, StaffType } from "../types";
 import { getMonthKey } from "./dateUtils";
 import { timeToMinutes } from "./timeConversion";
@@ -11,7 +12,7 @@ export const calculateDailyMinutes = (shift: ShiftData): number => {
 
   // 休憩セグメントを除外して時間を合計
   return shift.positions
-    .filter((segment) => segment.positionName !== "休憩")
+    .filter((segment) => segment.positionName !== BREAK_POSITION.name)
     .reduce((total, segment) => {
       const start = timeToMinutes(segment.start);
       const end = timeToMinutes(segment.end);

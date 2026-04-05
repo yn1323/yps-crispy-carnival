@@ -9,6 +9,7 @@ type ShiftBarProps = {
   onHover: (shiftId: string | null) => void;
   onClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
   isDragging?: boolean;
+  isReadOnly?: boolean;
   // リサイズ中のリアルタイム更新用
   currentMinutes?: number;
   // 連結リサイズ対応
@@ -21,6 +22,7 @@ export const ShiftBar = ({
   onHover,
   onClick,
   isDragging = false,
+  isReadOnly = false,
   currentMinutes,
   linkedTarget,
 }: ShiftBarProps) => {
@@ -64,8 +66,8 @@ export const ShiftBar = ({
       top={0}
       pointerEvents={isDragging ? "none" : "auto"}
     >
-      {/* 希望シフトバー（グレー点線、太い） - 編集不可、希望時間がある場合のみ表示 */}
-      {hasRequestedTime && (
+      {/* 希望シフトバー（グレー点線、太い） - 編集不可、希望時間がある場合のみ表示（readonly時は非表示） */}
+      {!isReadOnly && hasRequestedTime && (
         <Box
           position="absolute"
           left={0}

@@ -58,7 +58,7 @@ export const Select = ({
   };
 
   const content = (
-    <SelectContent>
+    <SelectContent maxH="200px" overflowY="auto">
       {collection.items.map((item) => (
         <SelectItem key={item.value} item={item.value}>
           {item.label}

@@ -1,5 +1,6 @@
 import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuTriangleAlert } from "react-icons/lu";
+import { BREAK_POSITION } from "../../constants";
 import type { ShiftData, StaffType, TimeRange } from "../../types";
 import { MiniShiftBar } from "./MiniShiftBar";
 
@@ -9,9 +10,17 @@ type StaffCardProps = {
   timeRange: TimeRange;
   onCardTap: () => void;
   isHighlighted?: boolean;
+  isReadOnly?: boolean;
 };
 
-export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = false }: StaffCardProps) => {
+export const StaffCard = ({
+  staff,
+  shift,
+  timeRange,
+  onCardTap,
+  isHighlighted = false,
+  isReadOnly = false,
+}: StaffCardProps) => {
   const isUnsubmitted = !staff.isSubmitted;
   const hasPositions = shift && shift.positions.length > 0;
   const hasRequest = shift?.requestedTime !== null && shift?.requestedTime !== undefined;
@@ -24,7 +33,7 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = 
   })();
 
   // 休憩を除いたポジションセグメント
-  const visibleSegments = shift?.positions.filter((p) => p.positionName !== "休憩") ?? [];
+  const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
 
   // ハイライト優先、次に未提出
   const cardBg = isHighlighted ? "blue.50" : isUnsubmitted ? "red.50" : "white";
@@ -52,31 +61,30 @@ export const StaffCard = ({ staff, shift, timeRange, onCardTap, isHighlighted = 
             {staff.name}
           </Text>
         </Flex>
-        <Text fontSize="xs" color={isUnsubmitted ? "red.500" : "gray.500"}>
-          {requestLabel}
-        </Text>
+        {!isReadOnly && (
+          <Text fontSize="xs" color={isUnsubmitted ? "red.500" : "gray.500"}>
+            {requestLabel}
+          </Text>
+        )}
       </Flex>
 
       {/* 下段: ミニバー + ポジションテキスト or メッセージ */}
       {hasPositions ? (
         <VStack gap={1} align="stretch">
           <MiniShiftBar positions={shift?.positions ?? []} timeRange={timeRange} />
-          {/* ポジション名+時間テキスト */}
+          {/* 時間テキスト */}
           <Flex gap={3} flexWrap="wrap">
             {visibleSegments.map((seg) => (
-              <Flex key={seg.id} align="center" gap={1}>
-                <Box w="8px" h="8px" borderRadius="full" bg={seg.color} flexShrink={0} />
-                <Text fontSize="2xs" color="gray.600">
-                  {seg.positionName} {seg.start}-{seg.end}
-                </Text>
-              </Flex>
+              <Text key={seg.id} fontSize="2xs" color="gray.600">
+                {seg.start}-{seg.end}
+              </Text>
             ))}
           </Flex>
         </VStack>
       ) : (
         <Box h="20px" display="flex" alignItems="center" justifyContent="center">
           <Text fontSize="xs" color="gray.400">
-            {isUnsubmitted ? "シフト希望なし" : hasRequest ? "ポジション未割当" : "希望なし"}
+            {isUnsubmitted ? "シフト希望なし" : hasRequest ? "シフト未設定" : "希望なし"}
           </Text>
         </Box>
       )}

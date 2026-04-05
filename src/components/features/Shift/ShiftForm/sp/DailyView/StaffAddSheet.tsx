@@ -24,7 +24,7 @@ export const StaffAddSheet = ({
   const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
 
   return (
-    <BottomSheet title={`スタッフを追加  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange}>
+    <BottomSheet title={`${dateLabel} シフトなしスタッフ一覧`} isOpen={isOpen} onOpenChange={onOpenChange}>
       <VStack gap={0} align="stretch">
         {staffs.map((staff) => {
           const shift = shifts.find((s) => s.staffId === staff.id);

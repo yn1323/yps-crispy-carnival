@@ -15,7 +15,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Build
         run: |
-          npx convex dev &        
+          npx convex dev &
           sleep 5
           pnpm run build
           kill %1
@@ -23,4 +23,3 @@ jobs:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          

@@ -12,6 +12,7 @@ import { StaffAddSheet } from "./StaffAddSheet";
 import { StaffCard } from "./StaffCard";
 
 const SWIPE_THRESHOLD = 50;
+const SHEET_TRANSITION_DELAY = 150;
 
 export const SPDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
@@ -27,6 +28,7 @@ export const SPDailyView = () => {
   const detailSheet = useBottomSheet();
   const addSheet = useBottomSheet();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [openedFromAddSheet, setOpenedFromAddSheet] = useState(false);
   const touchStartX = useRef(0);
 
   // 当日分のシフトを抽出
@@ -58,6 +60,7 @@ export const SPDailyView = () => {
   const handleCardTap = useCallback(
     (staffId: string) => {
       setSelectedStaffId(staffId);
+      setOpenedFromAddSheet(false);
       if (isReadOnly) {
         detailSheet.open();
       } else {
@@ -72,11 +75,17 @@ export const SPDailyView = () => {
     (staffId: string) => {
       addSheet.onOpenChange({ open: false });
       setSelectedStaffId(staffId);
-      // 少し遅延させて前のシートが閉じてから開く
-      setTimeout(() => editSheet.open(), 150);
+      setOpenedFromAddSheet(true);
+      setTimeout(() => editSheet.open(), SHEET_TRANSITION_DELAY);
     },
     [addSheet, editSheet],
   );
+
+  const handleBackToAddSheet = useCallback(() => {
+    editSheet.close();
+    setOpenedFromAddSheet(false);
+    setTimeout(() => addSheet.open(), SHEET_TRANSITION_DELAY);
+  }, [editSheet, addSheet]);
 
   // シフト更新（BottomSheetから）
   const handleShiftUpdate = useCallback(
@@ -141,6 +150,7 @@ export const SPDailyView = () => {
               timeRange={timeRange}
               onCardTap={() => handleCardTap(staff.id)}
               isHighlighted={staff.id === currentStaffId}
+              isReadOnly={isReadOnly}
             />
           );
         })}
@@ -199,6 +209,7 @@ export const SPDailyView = () => {
               selectedDate={selectedDate}
               isOpen={editSheet.isOpen}
               onOpenChange={editSheet.onOpenChange}
+              onBack={openedFromAddSheet ? handleBackToAddSheet : undefined}
               onShiftUpdate={handleShiftUpdate}
               onShiftDelete={handleShiftDelete}
             />

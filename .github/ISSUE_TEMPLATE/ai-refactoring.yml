@@ -12,7 +12,7 @@ body:
       placeholder: "例: UserFormコンポーネントの複雑なロジックを分割"
     validations:
       required: true
-      
+
   - type: textarea
     id: current_problems
     attributes:
@@ -24,7 +24,7 @@ body:
         - パフォーマンスの問題
     validations:
       required: true
-      
+
   - type: textarea
     id: target_files
     attributes:
@@ -35,7 +35,7 @@ body:
         - src/hooks/useUserData.ts
     validations:
       required: true
-      
+
   - type: dropdown
     id: priority
     attributes:
@@ -46,7 +46,7 @@ body:
         - 🟡 低 (改善)
     validations:
       required: true
-      
+
   - type: textarea
     id: additional_context
     attributes:
@@ -55,7 +55,7 @@ body:
       placeholder: "例: 既存のAPIとの互換性を保つ"
     validations:
       required: false
-      
+
   - type: markdown
     attributes:
       value: |

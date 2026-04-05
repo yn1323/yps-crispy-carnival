@@ -38,6 +38,7 @@ export const SPOverviewView = () => {
   const editSheet = useBottomSheet();
   const [addTargetDate, setAddTargetDate] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [openedFromAddSheet, setOpenedFromAddSheet] = useState(false);
 
   const dateData = useMemo(
     () =>
@@ -109,10 +110,17 @@ export const SPOverviewView = () => {
     (staffId: string) => {
       addSheet.onOpenChange({ open: false });
       setSelectedStaffId(staffId);
+      setOpenedFromAddSheet(true);
       setTimeout(() => editSheet.open(), 150);
     },
     [addSheet, editSheet],
   );
+
+  const handleBackToAddSheet = useCallback(() => {
+    editSheet.close();
+    setOpenedFromAddSheet(false);
+    setTimeout(() => addSheet.open(), 150);
+  }, [editSheet, addSheet]);
 
   // シフト更新
   const handleShiftUpdate = useCallback(
@@ -195,6 +203,7 @@ export const SPOverviewView = () => {
               selectedDate={addTargetDate}
               isOpen={editSheet.isOpen}
               onOpenChange={editSheet.onOpenChange}
+              onBack={openedFromAddSheet ? handleBackToAddSheet : undefined}
               onShiftUpdate={handleShiftUpdate}
               onShiftDelete={handleShiftDelete}
             />

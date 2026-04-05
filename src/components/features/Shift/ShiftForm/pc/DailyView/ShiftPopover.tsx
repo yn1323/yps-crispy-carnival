@@ -1,6 +1,7 @@
-import { Badge, Box, Button, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, IconButton, Popover, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
-import { LuMinus, LuTrash2, LuX } from "react-icons/lu";
+import { LuTrash2, LuX } from "react-icons/lu";
+import { BREAK_POSITION } from "../../constants";
 import type { ShiftData } from "../../types";
 import { timeToMinutes } from "../../utils/timeConversion";
 
@@ -11,7 +12,6 @@ type ShiftPopoverProps = {
   isStaffSubmitted: boolean;
   onClose: () => void;
   onDeletePosition: (positionId: string) => void;
-  onDeleteShift: () => void;
   isReadOnly?: boolean;
 };
 
@@ -22,7 +22,6 @@ export const ShiftPopover = ({
   isStaffSubmitted,
   onClose,
   onDeletePosition,
-  onDeleteShift,
   isReadOnly = false,
 }: ShiftPopoverProps) => {
   // スクロール時に自動で閉じる
@@ -42,6 +41,11 @@ export const ShiftPopover = ({
   }, [isOpen, onClose]);
 
   if (!shift) return null;
+
+  // 休憩を除いた表示用セグメント（休憩は自動挿入のため非表示）
+  const visibleSegments = [...shift.positions]
+    .filter((p) => p.positionName !== BREAK_POSITION.name)
+    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
 
   return (
     <Popover.Root open={isOpen} onOpenChange={(details) => !details.open && onClose()}>
@@ -89,76 +93,46 @@ export const ShiftPopover = ({
         >
           <Popover.Content width="280px" boxShadow="lg" borderRadius="lg">
             <Popover.Body p={0}>
-              {/* 希望時間 */}
-              <Box p={3} borderBottom="1px solid" borderColor="gray.100">
-                <Flex align="center" gap={2}>
-                  <Text fontWeight="bold" fontSize="md" color="gray.700">
-                    {shift.requestedTime
-                      ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
-                      : "希望: なし"}
-                  </Text>
-                  {!isStaffSubmitted && (
-                    <Badge colorPalette="orange" size="sm">
-                      未提出
-                    </Badge>
-                  )}
-                </Flex>
-              </Box>
-
-              {/* ポジション一覧 */}
-              {shift.positions.length > 0 && (
-                <Box
-                  p={3}
-                  borderBottom={isReadOnly ? undefined : "1px solid"}
-                  borderColor="gray.100"
-                  maxH="200px"
-                  overflowY="auto"
-                >
-                  {[...shift.positions]
-                    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
-                    .map((pos) => (
-                      <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
-                        <Flex align="center" gap={2}>
-                          <Box w="12px" h="12px" borderRadius="sm" bg={pos.color} />
-                          <Text fontSize="sm" color="gray.700">
-                            {pos.positionName}
-                          </Text>
-                          <Text fontSize="xs" color="gray.500">
-                            {pos.start}-{pos.end}
-                          </Text>
-                        </Flex>
-                        {!isReadOnly && (
-                          <IconButton
-                            size="xs"
-                            variant="ghost"
-                            colorPalette="gray"
-                            aria-label={`${pos.positionName}を削除`}
-                            onClick={() => onDeletePosition(pos.id)}
-                            _hover={{ color: "red.500" }}
-                          >
-                            <LuMinus />
-                          </IconButton>
-                        )}
-                      </Flex>
-                    ))}
+              {/* 希望時間（readonly時は非表示） */}
+              {!isReadOnly && (
+                <Box p={3} borderBottom="1px solid" borderColor="gray.100">
+                  <Flex align="center" gap={2}>
+                    <Text fontWeight="bold" fontSize="md" color="gray.700">
+                      {shift.requestedTime
+                        ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
+                        : "希望: なし"}
+                    </Text>
+                    {!isStaffSubmitted && (
+                      <Badge colorPalette="orange" size="sm">
+                        未提出
+                      </Badge>
+                    )}
+                  </Flex>
                 </Box>
               )}
 
-              {/* 全ポジションを削除ボタン（閲覧専用時は非表示） */}
-              {!isReadOnly && (
-                <Box p={3}>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    colorPalette="red"
-                    width="100%"
-                    onClick={onDeleteShift}
-                    justifyContent="flex-start"
-                    disabled={shift.positions.length === 0}
-                  >
-                    <LuTrash2 />
-                    <Text ml={2}>全ポジションを削除</Text>
-                  </Button>
+              {/* ポジション一覧（休憩は自動挿入のため非表示） */}
+              {visibleSegments.length > 0 && (
+                <Box p={3} maxH="200px" overflowY="auto">
+                  {visibleSegments.map((pos) => (
+                    <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
+                      <Text fontSize="sm" color="gray.700">
+                        {pos.start}-{pos.end}
+                      </Text>
+                      {!isReadOnly && (
+                        <IconButton
+                          size="xs"
+                          variant="ghost"
+                          colorPalette="gray"
+                          aria-label="時間帯を削除"
+                          onClick={() => onDeletePosition(pos.id)}
+                          _hover={{ color: "red.500" }}
+                        >
+                          <LuTrash2 />
+                        </IconButton>
+                      )}
+                    </Flex>
+                  ))}
                 </Box>
               )}
             </Popover.Body>

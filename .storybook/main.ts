@@ -27,14 +27,15 @@ const config: StorybookConfig = {
       "@/src": path.resolve(__dirname, "../src"),
       "@/e2e": path.resolve(__dirname, "../e2e"),
       "@/convex": path.resolve(__dirname, "../convex"),
+      "convex/react": path.resolve(__dirname, "mocks/convex-react.ts"),
+      "convex/react-clerk": path.resolve(__dirname, "mocks/convex-react.ts"),
+      "@clerk/clerk-react": path.resolve(__dirname, "mocks/clerk-react.tsx"),
     };
 
     return config;
   },
   env: (config) => ({
     ...config,
-    STORYBOOK_CONVEX_URL: process.env.VITE_CONVEX_URL ?? "",
-    STORYBOOK_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY ?? "",
   }),
 };
 export default config;

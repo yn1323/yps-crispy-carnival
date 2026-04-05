@@ -9,41 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ShiftSubmitRouteImport } from './routes/shift-submit'
-import { Route as InviteRouteImport } from './routes/invite'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
-import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
-import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
-import { Route as AuthShopsIndexRouteImport } from './routes/_auth/shops/index'
-import { Route as AuthSettingsIndexRouteImport } from './routes/_auth/settings/index'
-import { Route as AuthShopsNewIndexRouteImport } from './routes/_auth/shops/new/index'
-import { Route as AuthShopsShopIdIndexRouteImport } from './routes/_auth/shops/$shopId/index'
-import { Route as AuthSettingsShiftTemplateIndexRouteImport } from './routes/_auth/settings/shift-template/index'
-import { Route as AuthSettingsShiftTemplateEditRouteImport } from './routes/_auth/settings/shift-template/edit'
-import { Route as AuthSettingsShiftTemplateAddRouteImport } from './routes/_auth/settings/shift-template/add'
-import { Route as AuthShopsShopIdStaffsIndexRouteImport } from './routes/_auth/shops/$shopId/staffs/index'
-import { Route as AuthShopsShopIdShiftsIndexRouteImport } from './routes/_auth/shops/$shopId/shifts/index'
-import { Route as AuthShopsShopIdEditIndexRouteImport } from './routes/_auth/shops/$shopId/edit/index'
-import { Route as AuthShopsShopIdShiftsSettingsRouteImport } from './routes/_auth/shops/$shopId/shifts/settings'
-import { Route as AuthShopsShopIdStaffsStaffIdIndexRouteImport } from './routes/_auth/shops/$shopId/staffs/$staffId/index'
-import { Route as AuthShopsShopIdStaffsStaffIdEditRouteImport } from './routes/_auth/shops/$shopId/staffs/$staffId/edit'
-import { Route as AuthShopsShopIdShiftsRecruitmentsNewRouteImport } from './routes/_auth/shops/$shopId/shifts/recruitments/new'
-import { Route as AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRouteImport } from './routes/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/index'
-import { Route as AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRouteImport } from './routes/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
+import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
+import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
+import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 
-const ShiftSubmitRoute = ShiftSubmitRouteImport.update({
-  id: '/shift-submit',
-  path: '/shift-submit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InviteRoute = InviteRouteImport.update({
-  id: '/invite',
-  path: '/invite',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const UnregisteredRoute = UnregisteredRouteImport.update({
   id: '/_unregistered',
   getParentRoute: () => rootRouteImport,
@@ -62,285 +36,93 @@ const UnregisteredWelcomeRoute = UnregisteredWelcomeRouteImport.update({
   path: '/welcome',
   getParentRoute: () => UnregisteredRoute,
 } as any)
-const AuthShiftsRoute = AuthShiftsRouteImport.update({
-  id: '/shifts',
-  path: '/shifts',
+const AuthDashboardRoute = AuthDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthMypageRoute = AuthMypageRouteImport.update({
-  id: '/mypage',
-  path: '/mypage',
-  getParentRoute: () => AuthRoute,
+const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
+  id: '/shifts/view',
+  path: '/shifts/view',
+  getParentRoute: () => UnregisteredRoute,
 } as any)
-const AuthShopsIndexRoute = AuthShopsIndexRouteImport.update({
-  id: '/shops/',
-  path: '/shops/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthSettingsIndexRoute = AuthSettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthShopsNewIndexRoute = AuthShopsNewIndexRouteImport.update({
-  id: '/shops/new/',
-  path: '/shops/new/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthShopsShopIdIndexRoute = AuthShopsShopIdIndexRouteImport.update({
-  id: '/shops/$shopId/',
-  path: '/shops/$shopId/',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthSettingsShiftTemplateIndexRoute =
-  AuthSettingsShiftTemplateIndexRouteImport.update({
-    id: '/settings/shift-template/',
-    path: '/settings/shift-template/',
-    getParentRoute: () => AuthRoute,
+const UnregisteredShiftsReissueRoute =
+  UnregisteredShiftsReissueRouteImport.update({
+    id: '/shifts/reissue',
+    path: '/shifts/reissue',
+    getParentRoute: () => UnregisteredRoute,
   } as any)
-const AuthSettingsShiftTemplateEditRoute =
-  AuthSettingsShiftTemplateEditRouteImport.update({
-    id: '/settings/shift-template/edit',
-    path: '/settings/shift-template/edit',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthSettingsShiftTemplateAddRoute =
-  AuthSettingsShiftTemplateAddRouteImport.update({
-    id: '/settings/shift-template/add',
-    path: '/settings/shift-template/add',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdStaffsIndexRoute =
-  AuthShopsShopIdStaffsIndexRouteImport.update({
-    id: '/shops/$shopId/staffs/',
-    path: '/shops/$shopId/staffs/',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdShiftsIndexRoute =
-  AuthShopsShopIdShiftsIndexRouteImport.update({
-    id: '/shops/$shopId/shifts/',
-    path: '/shops/$shopId/shifts/',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdEditIndexRoute =
-  AuthShopsShopIdEditIndexRouteImport.update({
-    id: '/shops/$shopId/edit/',
-    path: '/shops/$shopId/edit/',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdShiftsSettingsRoute =
-  AuthShopsShopIdShiftsSettingsRouteImport.update({
-    id: '/shops/$shopId/shifts/settings',
-    path: '/shops/$shopId/shifts/settings',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdStaffsStaffIdIndexRoute =
-  AuthShopsShopIdStaffsStaffIdIndexRouteImport.update({
-    id: '/shops/$shopId/staffs/$staffId/',
-    path: '/shops/$shopId/staffs/$staffId/',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdStaffsStaffIdEditRoute =
-  AuthShopsShopIdStaffsStaffIdEditRouteImport.update({
-    id: '/shops/$shopId/staffs/$staffId/edit',
-    path: '/shops/$shopId/staffs/$staffId/edit',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdShiftsRecruitmentsNewRoute =
-  AuthShopsShopIdShiftsRecruitmentsNewRouteImport.update({
-    id: '/shops/$shopId/shifts/recruitments/new',
-    path: '/shops/$shopId/shifts/recruitments/new',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute =
-  AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRouteImport.update({
-    id: '/shops/$shopId/shifts/recruitments/$recruitmentId/',
-    path: '/shops/$shopId/shifts/recruitments/$recruitmentId/',
-    getParentRoute: () => AuthRoute,
-  } as any)
-const AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute =
-  AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRouteImport.update({
-    id: '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm',
-    path: '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm',
+const AuthShiftboardRecruitmentIdRoute =
+  AuthShiftboardRecruitmentIdRouteImport.update({
+    id: '/shiftboard/$recruitmentId',
+    path: '/shiftboard/$recruitmentId',
     getParentRoute: () => AuthRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/invite': typeof InviteRoute
-  '/shift-submit': typeof ShiftSubmitRoute
-  '/mypage': typeof AuthMypageRoute
-  '/shifts': typeof AuthShiftsRoute
+  '/dashboard': typeof AuthDashboardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
-  '/settings': typeof AuthSettingsIndexRoute
-  '/shops': typeof AuthShopsIndexRoute
-  '/settings/shift-template/add': typeof AuthSettingsShiftTemplateAddRoute
-  '/settings/shift-template/edit': typeof AuthSettingsShiftTemplateEditRoute
-  '/settings/shift-template': typeof AuthSettingsShiftTemplateIndexRoute
-  '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
-  '/shops/new': typeof AuthShopsNewIndexRoute
-  '/shops/$shopId/shifts/settings': typeof AuthShopsShopIdShiftsSettingsRoute
-  '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
-  '/shops/$shopId/shifts': typeof AuthShopsShopIdShiftsIndexRoute
-  '/shops/$shopId/staffs': typeof AuthShopsShopIdStaffsIndexRoute
-  '/shops/$shopId/shifts/recruitments/new': typeof AuthShopsShopIdShiftsRecruitmentsNewRoute
-  '/shops/$shopId/staffs/$staffId/edit': typeof AuthShopsShopIdStaffsStaffIdEditRoute
-  '/shops/$shopId/staffs/$staffId': typeof AuthShopsShopIdStaffsStaffIdIndexRoute
-  '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm': typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute
-  '/shops/$shopId/shifts/recruitments/$recruitmentId': typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute
+  '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/invite': typeof InviteRoute
-  '/shift-submit': typeof ShiftSubmitRoute
-  '/mypage': typeof AuthMypageRoute
-  '/shifts': typeof AuthShiftsRoute
+  '/dashboard': typeof AuthDashboardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
-  '/settings': typeof AuthSettingsIndexRoute
-  '/shops': typeof AuthShopsIndexRoute
-  '/settings/shift-template/add': typeof AuthSettingsShiftTemplateAddRoute
-  '/settings/shift-template/edit': typeof AuthSettingsShiftTemplateEditRoute
-  '/settings/shift-template': typeof AuthSettingsShiftTemplateIndexRoute
-  '/shops/$shopId': typeof AuthShopsShopIdIndexRoute
-  '/shops/new': typeof AuthShopsNewIndexRoute
-  '/shops/$shopId/shifts/settings': typeof AuthShopsShopIdShiftsSettingsRoute
-  '/shops/$shopId/edit': typeof AuthShopsShopIdEditIndexRoute
-  '/shops/$shopId/shifts': typeof AuthShopsShopIdShiftsIndexRoute
-  '/shops/$shopId/staffs': typeof AuthShopsShopIdStaffsIndexRoute
-  '/shops/$shopId/shifts/recruitments/new': typeof AuthShopsShopIdShiftsRecruitmentsNewRoute
-  '/shops/$shopId/staffs/$staffId/edit': typeof AuthShopsShopIdStaffsStaffIdEditRoute
-  '/shops/$shopId/staffs/$staffId': typeof AuthShopsShopIdStaffsStaffIdIndexRoute
-  '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm': typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute
-  '/shops/$shopId/shifts/recruitments/$recruitmentId': typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute
+  '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
-  '/invite': typeof InviteRoute
-  '/shift-submit': typeof ShiftSubmitRoute
-  '/_auth/mypage': typeof AuthMypageRoute
-  '/_auth/shifts': typeof AuthShiftsRoute
+  '/_auth/dashboard': typeof AuthDashboardRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
-  '/_auth/settings/': typeof AuthSettingsIndexRoute
-  '/_auth/shops/': typeof AuthShopsIndexRoute
-  '/_auth/settings/shift-template/add': typeof AuthSettingsShiftTemplateAddRoute
-  '/_auth/settings/shift-template/edit': typeof AuthSettingsShiftTemplateEditRoute
-  '/_auth/settings/shift-template/': typeof AuthSettingsShiftTemplateIndexRoute
-  '/_auth/shops/$shopId/': typeof AuthShopsShopIdIndexRoute
-  '/_auth/shops/new/': typeof AuthShopsNewIndexRoute
-  '/_auth/shops/$shopId/shifts/settings': typeof AuthShopsShopIdShiftsSettingsRoute
-  '/_auth/shops/$shopId/edit/': typeof AuthShopsShopIdEditIndexRoute
-  '/_auth/shops/$shopId/shifts/': typeof AuthShopsShopIdShiftsIndexRoute
-  '/_auth/shops/$shopId/staffs/': typeof AuthShopsShopIdStaffsIndexRoute
-  '/_auth/shops/$shopId/shifts/recruitments/new': typeof AuthShopsShopIdShiftsRecruitmentsNewRoute
-  '/_auth/shops/$shopId/staffs/$staffId/edit': typeof AuthShopsShopIdStaffsStaffIdEditRoute
-  '/_auth/shops/$shopId/staffs/$staffId/': typeof AuthShopsShopIdStaffsStaffIdIndexRoute
-  '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/confirm': typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute
-  '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/': typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute
+  '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/invite'
-    | '/shift-submit'
-    | '/mypage'
-    | '/shifts'
+    | '/dashboard'
     | '/welcome'
-    | '/settings'
-    | '/shops'
-    | '/settings/shift-template/add'
-    | '/settings/shift-template/edit'
-    | '/settings/shift-template'
-    | '/shops/$shopId'
-    | '/shops/new'
-    | '/shops/$shopId/shifts/settings'
-    | '/shops/$shopId/edit'
-    | '/shops/$shopId/shifts'
-    | '/shops/$shopId/staffs'
-    | '/shops/$shopId/shifts/recruitments/new'
-    | '/shops/$shopId/staffs/$staffId/edit'
-    | '/shops/$shopId/staffs/$staffId'
-    | '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
-    | '/shops/$shopId/shifts/recruitments/$recruitmentId'
+    | '/shiftboard/$recruitmentId'
+    | '/shifts/reissue'
+    | '/shifts/view'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/invite'
-    | '/shift-submit'
-    | '/mypage'
-    | '/shifts'
+    | '/dashboard'
     | '/welcome'
-    | '/settings'
-    | '/shops'
-    | '/settings/shift-template/add'
-    | '/settings/shift-template/edit'
-    | '/settings/shift-template'
-    | '/shops/$shopId'
-    | '/shops/new'
-    | '/shops/$shopId/shifts/settings'
-    | '/shops/$shopId/edit'
-    | '/shops/$shopId/shifts'
-    | '/shops/$shopId/staffs'
-    | '/shops/$shopId/shifts/recruitments/new'
-    | '/shops/$shopId/staffs/$staffId/edit'
-    | '/shops/$shopId/staffs/$staffId'
-    | '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
-    | '/shops/$shopId/shifts/recruitments/$recruitmentId'
+    | '/shiftboard/$recruitmentId'
+    | '/shifts/reissue'
+    | '/shifts/view'
   id:
     | '__root__'
     | '/'
     | '/_auth'
     | '/_unregistered'
-    | '/invite'
-    | '/shift-submit'
-    | '/_auth/mypage'
-    | '/_auth/shifts'
+    | '/_auth/dashboard'
     | '/_unregistered/welcome'
-    | '/_auth/settings/'
-    | '/_auth/shops/'
-    | '/_auth/settings/shift-template/add'
-    | '/_auth/settings/shift-template/edit'
-    | '/_auth/settings/shift-template/'
-    | '/_auth/shops/$shopId/'
-    | '/_auth/shops/new/'
-    | '/_auth/shops/$shopId/shifts/settings'
-    | '/_auth/shops/$shopId/edit/'
-    | '/_auth/shops/$shopId/shifts/'
-    | '/_auth/shops/$shopId/staffs/'
-    | '/_auth/shops/$shopId/shifts/recruitments/new'
-    | '/_auth/shops/$shopId/staffs/$staffId/edit'
-    | '/_auth/shops/$shopId/staffs/$staffId/'
-    | '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
-    | '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/'
+    | '/_auth/shiftboard/$recruitmentId'
+    | '/_unregistered/shifts/reissue'
+    | '/_unregistered/shifts/view'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
-  InviteRoute: typeof InviteRoute
-  ShiftSubmitRoute: typeof ShiftSubmitRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/shift-submit': {
-      id: '/shift-submit'
-      path: '/shift-submit'
-      fullPath: '/shift-submit'
-      preLoaderRoute: typeof ShiftSubmitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/invite': {
-      id: '/invite'
-      path: '/invite'
-      fullPath: '/invite'
-      preLoaderRoute: typeof InviteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_unregistered': {
       id: '/_unregistered'
       path: ''
@@ -369,189 +151,59 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredWelcomeRouteImport
       parentRoute: typeof UnregisteredRoute
     }
-    '/_auth/shifts': {
-      id: '/_auth/shifts'
-      path: '/shifts'
-      fullPath: '/shifts'
-      preLoaderRoute: typeof AuthShiftsRouteImport
+    '/_auth/dashboard': {
+      id: '/_auth/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/mypage': {
-      id: '/_auth/mypage'
-      path: '/mypage'
-      fullPath: '/mypage'
-      preLoaderRoute: typeof AuthMypageRouteImport
-      parentRoute: typeof AuthRoute
+    '/_unregistered/shifts/view': {
+      id: '/_unregistered/shifts/view'
+      path: '/shifts/view'
+      fullPath: '/shifts/view'
+      preLoaderRoute: typeof UnregisteredShiftsViewRouteImport
+      parentRoute: typeof UnregisteredRoute
     }
-    '/_auth/shops/': {
-      id: '/_auth/shops/'
-      path: '/shops'
-      fullPath: '/shops'
-      preLoaderRoute: typeof AuthShopsIndexRouteImport
-      parentRoute: typeof AuthRoute
+    '/_unregistered/shifts/reissue': {
+      id: '/_unregistered/shifts/reissue'
+      path: '/shifts/reissue'
+      fullPath: '/shifts/reissue'
+      preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
+      parentRoute: typeof UnregisteredRoute
     }
-    '/_auth/settings/': {
-      id: '/_auth/settings/'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/new/': {
-      id: '/_auth/shops/new/'
-      path: '/shops/new'
-      fullPath: '/shops/new'
-      preLoaderRoute: typeof AuthShopsNewIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/': {
-      id: '/_auth/shops/$shopId/'
-      path: '/shops/$shopId'
-      fullPath: '/shops/$shopId'
-      preLoaderRoute: typeof AuthShopsShopIdIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/settings/shift-template/': {
-      id: '/_auth/settings/shift-template/'
-      path: '/settings/shift-template'
-      fullPath: '/settings/shift-template'
-      preLoaderRoute: typeof AuthSettingsShiftTemplateIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/settings/shift-template/edit': {
-      id: '/_auth/settings/shift-template/edit'
-      path: '/settings/shift-template/edit'
-      fullPath: '/settings/shift-template/edit'
-      preLoaderRoute: typeof AuthSettingsShiftTemplateEditRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/settings/shift-template/add': {
-      id: '/_auth/settings/shift-template/add'
-      path: '/settings/shift-template/add'
-      fullPath: '/settings/shift-template/add'
-      preLoaderRoute: typeof AuthSettingsShiftTemplateAddRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/staffs/': {
-      id: '/_auth/shops/$shopId/staffs/'
-      path: '/shops/$shopId/staffs'
-      fullPath: '/shops/$shopId/staffs'
-      preLoaderRoute: typeof AuthShopsShopIdStaffsIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/shifts/': {
-      id: '/_auth/shops/$shopId/shifts/'
-      path: '/shops/$shopId/shifts'
-      fullPath: '/shops/$shopId/shifts'
-      preLoaderRoute: typeof AuthShopsShopIdShiftsIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/edit/': {
-      id: '/_auth/shops/$shopId/edit/'
-      path: '/shops/$shopId/edit'
-      fullPath: '/shops/$shopId/edit'
-      preLoaderRoute: typeof AuthShopsShopIdEditIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/shifts/settings': {
-      id: '/_auth/shops/$shopId/shifts/settings'
-      path: '/shops/$shopId/shifts/settings'
-      fullPath: '/shops/$shopId/shifts/settings'
-      preLoaderRoute: typeof AuthShopsShopIdShiftsSettingsRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/staffs/$staffId/': {
-      id: '/_auth/shops/$shopId/staffs/$staffId/'
-      path: '/shops/$shopId/staffs/$staffId'
-      fullPath: '/shops/$shopId/staffs/$staffId'
-      preLoaderRoute: typeof AuthShopsShopIdStaffsStaffIdIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/staffs/$staffId/edit': {
-      id: '/_auth/shops/$shopId/staffs/$staffId/edit'
-      path: '/shops/$shopId/staffs/$staffId/edit'
-      fullPath: '/shops/$shopId/staffs/$staffId/edit'
-      preLoaderRoute: typeof AuthShopsShopIdStaffsStaffIdEditRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/shifts/recruitments/new': {
-      id: '/_auth/shops/$shopId/shifts/recruitments/new'
-      path: '/shops/$shopId/shifts/recruitments/new'
-      fullPath: '/shops/$shopId/shifts/recruitments/new'
-      preLoaderRoute: typeof AuthShopsShopIdShiftsRecruitmentsNewRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/': {
-      id: '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/'
-      path: '/shops/$shopId/shifts/recruitments/$recruitmentId'
-      fullPath: '/shops/$shopId/shifts/recruitments/$recruitmentId'
-      preLoaderRoute: typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/confirm': {
-      id: '/_auth/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
-      path: '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
-      fullPath: '/shops/$shopId/shifts/recruitments/$recruitmentId/confirm'
-      preLoaderRoute: typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRouteImport
+    '/_auth/shiftboard/$recruitmentId': {
+      id: '/_auth/shiftboard/$recruitmentId'
+      path: '/shiftboard/$recruitmentId'
+      fullPath: '/shiftboard/$recruitmentId'
+      preLoaderRoute: typeof AuthShiftboardRecruitmentIdRouteImport
       parentRoute: typeof AuthRoute
     }
   }
 }
 
 interface AuthRouteChildren {
-  AuthMypageRoute: typeof AuthMypageRoute
-  AuthShiftsRoute: typeof AuthShiftsRoute
-  AuthSettingsIndexRoute: typeof AuthSettingsIndexRoute
-  AuthShopsIndexRoute: typeof AuthShopsIndexRoute
-  AuthSettingsShiftTemplateAddRoute: typeof AuthSettingsShiftTemplateAddRoute
-  AuthSettingsShiftTemplateEditRoute: typeof AuthSettingsShiftTemplateEditRoute
-  AuthSettingsShiftTemplateIndexRoute: typeof AuthSettingsShiftTemplateIndexRoute
-  AuthShopsShopIdIndexRoute: typeof AuthShopsShopIdIndexRoute
-  AuthShopsNewIndexRoute: typeof AuthShopsNewIndexRoute
-  AuthShopsShopIdShiftsSettingsRoute: typeof AuthShopsShopIdShiftsSettingsRoute
-  AuthShopsShopIdEditIndexRoute: typeof AuthShopsShopIdEditIndexRoute
-  AuthShopsShopIdShiftsIndexRoute: typeof AuthShopsShopIdShiftsIndexRoute
-  AuthShopsShopIdStaffsIndexRoute: typeof AuthShopsShopIdStaffsIndexRoute
-  AuthShopsShopIdShiftsRecruitmentsNewRoute: typeof AuthShopsShopIdShiftsRecruitmentsNewRoute
-  AuthShopsShopIdStaffsStaffIdEditRoute: typeof AuthShopsShopIdStaffsStaffIdEditRoute
-  AuthShopsShopIdStaffsStaffIdIndexRoute: typeof AuthShopsShopIdStaffsStaffIdIndexRoute
-  AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute: typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute
-  AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute: typeof AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute
+  AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthMypageRoute: AuthMypageRoute,
-  AuthShiftsRoute: AuthShiftsRoute,
-  AuthSettingsIndexRoute: AuthSettingsIndexRoute,
-  AuthShopsIndexRoute: AuthShopsIndexRoute,
-  AuthSettingsShiftTemplateAddRoute: AuthSettingsShiftTemplateAddRoute,
-  AuthSettingsShiftTemplateEditRoute: AuthSettingsShiftTemplateEditRoute,
-  AuthSettingsShiftTemplateIndexRoute: AuthSettingsShiftTemplateIndexRoute,
-  AuthShopsShopIdIndexRoute: AuthShopsShopIdIndexRoute,
-  AuthShopsNewIndexRoute: AuthShopsNewIndexRoute,
-  AuthShopsShopIdShiftsSettingsRoute: AuthShopsShopIdShiftsSettingsRoute,
-  AuthShopsShopIdEditIndexRoute: AuthShopsShopIdEditIndexRoute,
-  AuthShopsShopIdShiftsIndexRoute: AuthShopsShopIdShiftsIndexRoute,
-  AuthShopsShopIdStaffsIndexRoute: AuthShopsShopIdStaffsIndexRoute,
-  AuthShopsShopIdShiftsRecruitmentsNewRoute:
-    AuthShopsShopIdShiftsRecruitmentsNewRoute,
-  AuthShopsShopIdStaffsStaffIdEditRoute: AuthShopsShopIdStaffsStaffIdEditRoute,
-  AuthShopsShopIdStaffsStaffIdIndexRoute:
-    AuthShopsShopIdStaffsStaffIdIndexRoute,
-  AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute:
-    AuthShopsShopIdShiftsRecruitmentsRecruitmentIdConfirmRoute,
-  AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute:
-    AuthShopsShopIdShiftsRecruitmentsRecruitmentIdIndexRoute,
+  AuthDashboardRoute: AuthDashboardRoute,
+  AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface UnregisteredRouteChildren {
   UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
+  UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
+  UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
 }
 
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
   UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
+  UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
+  UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
 }
 
 const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
@@ -562,8 +214,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
-  InviteRoute: InviteRoute,
-  ShiftSubmitRoute: ShiftSubmitRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

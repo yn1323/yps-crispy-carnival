@@ -8,29 +8,29 @@
  * @module
  */
 
-import type * as constants from "../constants.js";
+import type * as _lib_dateFormat from "../_lib/dateFormat.js";
+import type * as _lib_functions from "../_lib/functions.js";
+import type * as _lib_resend from "../_lib/resend.js";
+import type * as _lib_time from "../_lib/time.js";
+import type * as _lib_uuid from "../_lib/uuid.js";
+import type * as _lib_validation from "../_lib/validation.js";
+import type * as dashboard_queries from "../dashboard/queries.js";
 import type * as email_actions from "../email/actions.js";
-import type * as helpers from "../helpers.js";
-import type * as invite_mutations from "../invite/mutations.js";
-import type * as invite_queries from "../invite/queries.js";
-import type * as position_mutations from "../position/mutations.js";
-import type * as position_queries from "../position/queries.js";
+import type * as email_mutations from "../email/mutations.js";
+import type * as email_queries from "../email/queries.js";
+import type * as email_templates from "../email/templates.js";
 import type * as recruitment_mutations from "../recruitment/mutations.js";
-import type * as recruitment_queries from "../recruitment/queries.js";
-import type * as requiredStaffing_mutations from "../requiredStaffing/mutations.js";
-import type * as requiredStaffing_queries from "../requiredStaffing/queries.js";
-import type * as shiftAssignment_mutations from "../shiftAssignment/mutations.js";
-import type * as shiftAssignment_queries from "../shiftAssignment/queries.js";
-import type * as shiftRequest_mutations from "../shiftRequest/mutations.js";
-import type * as shiftRequest_queries from "../shiftRequest/queries.js";
-import type * as shop_mutations from "../shop/mutations.js";
-import type * as shop_queries from "../shop/queries.js";
+import type * as recruitment_schemas from "../recruitment/schemas.js";
+import type * as setup_mutations from "../setup/mutations.js";
+import type * as setup_schemas from "../setup/schemas.js";
+import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
+import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as staff_mutations from "../staff/mutations.js";
-import type * as staffSkill_mutations from "../staffSkill/mutations.js";
-import type * as staffSkill_queries from "../staffSkill/queries.js";
+import type * as staff_schemas from "../staff/schemas.js";
+import type * as staffAuth_mutations from "../staffAuth/mutations.js";
+import type * as staffAuth_queries from "../staffAuth/queries.js";
+import type * as staffAuth_schemas from "../staffAuth/schemas.js";
 import type * as testing from "../testing.js";
-import type * as user_mutations from "../user/mutations.js";
-import type * as user_queries from "../user/queries.js";
 
 import type {
   ApiFromModules,
@@ -39,29 +39,29 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  constants: typeof constants;
+  "_lib/dateFormat": typeof _lib_dateFormat;
+  "_lib/functions": typeof _lib_functions;
+  "_lib/resend": typeof _lib_resend;
+  "_lib/time": typeof _lib_time;
+  "_lib/uuid": typeof _lib_uuid;
+  "_lib/validation": typeof _lib_validation;
+  "dashboard/queries": typeof dashboard_queries;
   "email/actions": typeof email_actions;
-  helpers: typeof helpers;
-  "invite/mutations": typeof invite_mutations;
-  "invite/queries": typeof invite_queries;
-  "position/mutations": typeof position_mutations;
-  "position/queries": typeof position_queries;
+  "email/mutations": typeof email_mutations;
+  "email/queries": typeof email_queries;
+  "email/templates": typeof email_templates;
   "recruitment/mutations": typeof recruitment_mutations;
-  "recruitment/queries": typeof recruitment_queries;
-  "requiredStaffing/mutations": typeof requiredStaffing_mutations;
-  "requiredStaffing/queries": typeof requiredStaffing_queries;
-  "shiftAssignment/mutations": typeof shiftAssignment_mutations;
-  "shiftAssignment/queries": typeof shiftAssignment_queries;
-  "shiftRequest/mutations": typeof shiftRequest_mutations;
-  "shiftRequest/queries": typeof shiftRequest_queries;
-  "shop/mutations": typeof shop_mutations;
-  "shop/queries": typeof shop_queries;
+  "recruitment/schemas": typeof recruitment_schemas;
+  "setup/mutations": typeof setup_mutations;
+  "setup/schemas": typeof setup_schemas;
+  "shiftBoard/mutations": typeof shiftBoard_mutations;
+  "shiftBoard/queries": typeof shiftBoard_queries;
   "staff/mutations": typeof staff_mutations;
-  "staffSkill/mutations": typeof staffSkill_mutations;
-  "staffSkill/queries": typeof staffSkill_queries;
+  "staff/schemas": typeof staff_schemas;
+  "staffAuth/mutations": typeof staffAuth_mutations;
+  "staffAuth/queries": typeof staffAuth_queries;
+  "staffAuth/schemas": typeof staffAuth_schemas;
   testing: typeof testing;
-  "user/mutations": typeof user_mutations;
-  "user/queries": typeof user_queries;
 }>;
 
 /**

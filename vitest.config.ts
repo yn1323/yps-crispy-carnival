@@ -51,8 +51,17 @@ const uiProject = defineConfig({
   },
 });
 
+const convexProject = defineConfig({
+  test: {
+    name: "convex",
+    environment: "edge-runtime",
+    include: ["./convex/**/*.test.ts"],
+    exclude: ["node_modules", "./convex/_generated/**"],
+  },
+});
+
 export default defineProject({
   test: {
-    projects: [logicProject, uiProject],
+    projects: [logicProject, uiProject, convexProject],
   },
 });

@@ -1,8 +1,6 @@
 import { Flex } from "@chakra-ui/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
-import { StaffEditModal } from "@/src/components/features/Staff/StaffEditModal";
-import { useDialog } from "@/src/components/ui/Dialog";
 import { useDateStatuses } from "../../hooks/useDateStatuses";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
 import type { ShiftData } from "../../types";
@@ -17,20 +15,8 @@ export const DailyView = () => {
   const setShifts = useSetAtom(shiftsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
 
-  const { dates, isReadOnly, shopId, holidays } = config;
+  const { dates, isReadOnly, holidays } = config;
   const dateStatuses = useDateStatuses();
-
-  // === スタッフ編集モーダル ===
-  const staffEditModal = useDialog();
-  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-
-  const handleStaffNameClick = useCallback(
-    (staffId: string) => {
-      setSelectedStaffId(staffId);
-      staffEditModal.open();
-    },
-    [staffEditModal],
-  );
 
   // === ポップオーバー状態 ===
   const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
@@ -69,15 +55,6 @@ export const DailyView = () => {
     [popoverShift, shifts, setShifts, handlePopoverClose],
   );
 
-  // 全ポジション削除
-  const handleClearAllPositions = useCallback(() => {
-    if (!popoverShift) return;
-    const updatedShift = { ...popoverShift, positions: [] };
-    const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
-    setShifts(newShifts);
-    handlePopoverClose();
-  }, [popoverShift, shifts, setShifts, handlePopoverClose]);
-
   // paintクリック時のポップオーバー表示
   const handlePaintClickPopover = useCallback((shift: ShiftData, anchorRect: DOMRect) => {
     setPopoverShift(shift);
@@ -105,7 +82,7 @@ export const DailyView = () => {
         />
         <ShiftGrid
           onShiftClick={handleShiftClick}
-          onStaffNameClick={handleStaffNameClick}
+          onStaffNameClick={() => {}}
           onPaintClickPopover={handlePaintClickPopover}
         />
       </Flex>
@@ -120,21 +97,8 @@ export const DailyView = () => {
         }
         onClose={handlePopoverClose}
         onDeletePosition={handleDeletePosition}
-        onDeleteShift={handleClearAllPositions}
         isReadOnly={isReadOnly}
       />
-
-      {/* スタッフ編集モーダル（閲覧専用時は非表示） */}
-      {!isReadOnly && selectedStaffId && (
-        <StaffEditModal
-          staffId={selectedStaffId}
-          shopId={shopId}
-          isOpen={staffEditModal.isOpen}
-          onOpenChange={staffEditModal.onOpenChange}
-          onClose={staffEditModal.close}
-          viewOnly
-        />
-      )}
     </Flex>
   );
 };
