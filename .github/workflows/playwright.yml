@@ -32,7 +32,8 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Seed Database
         run: |
-          npx convex import --replace-all convex-seeds/seeds/db.zip --yes --url "${{ steps.preview.outputs.PREVIEW_URL }}"
+          npx convex import --replace-all convex-seeds/seeds/db.zip --yes \
+            --preview-name "pr-${{ github.event.pull_request.number }}"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Run Playwright tests
