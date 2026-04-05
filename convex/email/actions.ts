@@ -1,28 +1,24 @@
 "use node";
 
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { action, internalAction } from "../_generated/server";
+import { internalAction } from "../_generated/server";
 import { getResendClient } from "../_lib/resend";
 import { buildConfirmationEmailHtml, buildReissueEmailHtml } from "./templates";
 
+const APP_URL = process.env.APP_URL ?? "https://yps.app";
+
 /**
  * シフト確定メールを全スタッフに送信
- * フロントから useAction 経由で直接呼ばれる
+ * confirmRecruitment mutation から ctx.scheduler 経由で呼ばれる
  */
-export const sendShiftConfirmationEmails = action({
+export const sendShiftConfirmationEmails = internalAction({
   args: { recruitmentId: v.id("recruitments"), isResend: v.boolean() },
   handler: async (ctx, { recruitmentId, isResend }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError("Unauthenticated");
-    }
-
     const data = await ctx.runQuery(internal.email.queries.getConfirmationEmailData, { recruitmentId });
     if (!data) return;
 
     const resend = getResendClient();
-    const appUrl = process.env.APP_URL ?? "https://yps.app";
 
     for (const staffData of data.staffEntries) {
       const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
@@ -31,8 +27,8 @@ export const sendShiftConfirmationEmails = action({
         recruitmentId,
       });
 
-      const magicLinkUrl = `${appUrl}/shifts/view?token=${token}`;
-      const reissueUrl = `${appUrl}/shifts/reissue?recruitmentId=${recruitmentId}`;
+      const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
+      const reissueUrl = `${APP_URL}/shifts/reissue?recruitmentId=${recruitmentId}`;
 
       await resend.emails.send({
         from: `${data.shopName} <onboarding@resend.dev>`,
