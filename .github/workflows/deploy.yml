@@ -3,8 +3,9 @@ name: Deploy to Cloudflare Pages
 on:
   pull_request:
     branches: [develop]
+    types: [opened, synchronize, reopened, closed]
   push:
-    branches: [develop]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -12,7 +13,7 @@ permissions:
 
 jobs:
   deploy-preview:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     environment: Preview
     env:
@@ -65,8 +66,51 @@ jobs:
               body: `## 🚀 Preview Deploy\n\n**App:** ${deployUrl}\n**Convex:** ${convexUrl}`
             });
 
+  cleanup-preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - name: Delete Cloudflare Pages preview
+        run: |
+          DEPLOYMENTS=$(curl -s \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/yps-crispy-carnival/deployments" \
+            | jq -r ".result[] | select(.deployment_trigger.metadata.branch == \"pr-${{ github.event.pull_request.number }}\") | .id")
+          for ID in $DEPLOYMENTS; do
+            echo "Deleting deployment $ID"
+            curl -s -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/yps-crispy-carnival/deployments/$ID?force=true"
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-develop:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Build
+        run: pnpm build
+        env:
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+      - name: Deploy to Cloudflare Pages
+        run: |
+          npx wrangler pages deploy dist \
+            --project-name yps-crispy-carnival \
+            --branch develop
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
   deploy-production:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: Production
     steps:
