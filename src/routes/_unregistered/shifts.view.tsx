@@ -90,7 +90,9 @@ function ShiftViewRoute() {
       <StaffLayout shopName="シフト閲覧">
         <Flex flex={1} align="center" justify="center" px={8}>
           <VStack gap={4}>
-            <Icon as={LuTriangleAlert} boxSize={12} color="orange.500" />
+            <Icon boxSize={12} color="orange.500">
+              <LuTriangleAlert />
+            </Icon>
             <Text fontSize="lg" fontWeight="semibold" textAlign="center">
               アクセス制限中
             </Text>
