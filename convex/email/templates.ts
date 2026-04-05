@@ -35,7 +35,7 @@ function shiftRow(shift: ShiftEntry): string {
 export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): string {
   const shiftRows = params.shifts.map(shiftRow).join("");
   const bodyMessage = params.isResend
-    ? `${params.periodLabel} のシフトに変更がありました。最新のシフトをご確認ください。`
+    ? `${params.periodLabel} のシフトに変更がありました。<br/>最新のシフトをご確認ください。`
     : `${params.periodLabel} のシフトが確定しました。`;
 
   return `<!DOCTYPE html>

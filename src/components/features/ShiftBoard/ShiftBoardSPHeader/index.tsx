@@ -9,9 +9,7 @@ import type { ShiftBoardHeaderProps } from "../types";
 export const ShiftBoardSPHeader = ({
   periodLabel,
   confirmedAt,
-  onSave,
   onConfirm,
-  isSaving = false,
   viewMode,
   onViewModeChange,
 }: ShiftBoardHeaderProps) => {
@@ -40,16 +38,13 @@ export const ShiftBoardSPHeader = ({
         </SegmentGroup.Root>
 
         <Flex align="center" gap={2}>
-          <Button variant="outline" size="xs" onClick={onSave} loading={isSaving}>
-            保存
-          </Button>
           {isConfirmed ? (
             <Button variant="outline" size="xs" borderColor="teal.600" color="teal.600" onClick={onConfirm}>
-              再送信
+              再通知
             </Button>
           ) : (
             <Button size="xs" colorPalette="teal" onClick={onConfirm}>
-              送信
+              確定して通知
             </Button>
           )}
           {isConfirmed && (

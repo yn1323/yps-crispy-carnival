@@ -9,7 +9,7 @@ export const ConfirmShiftContent = ({ staffCount, periodLabel }: Props) => {
   return (
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
-        全スタッフにメールでシフトが送信されます。
+        全スタッフにメールでシフトが通知されます。
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
         <Text fontSize="sm">対象: {staffCount}名</Text>

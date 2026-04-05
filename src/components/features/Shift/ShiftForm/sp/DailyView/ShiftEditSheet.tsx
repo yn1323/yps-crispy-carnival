@@ -1,6 +1,5 @@
 import { Badge, Field, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuTrash2 } from "react-icons/lu";
@@ -9,6 +8,7 @@ import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "../../types";
+import { formatDateWithWeekday } from "../../utils/dateUtils";
 import { normalizePositions, paintPosition } from "../../utils/shiftOperations";
 import { minutesToTime, timeToMinutes } from "../../utils/timeConversion";
 import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
@@ -90,7 +90,7 @@ export const ShiftEditSheet = ({
   const startTime = watch("startTime");
   const endTime = watch("endTime");
 
-  const dateLabel = dayjs(selectedDate).format("M/D(ddd)");
+  const dateLabel = formatDateWithWeekday(selectedDate);
 
   const requestLabel = shift?.requestedTime
     ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`

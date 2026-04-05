@@ -1,8 +1,7 @@
 import { Flex, IconButton, Text } from "@chakra-ui/react";
-import dayjs from "dayjs";
 import { useMemo } from "react";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
-import { isHoliday as checkHoliday } from "../../utils/dateUtils";
+import { isHoliday as checkHoliday, formatDateWithWeekday, getDayOfWeek } from "../../utils/dateUtils";
 
 type DateNavigatorProps = {
   dates: string[];
@@ -13,7 +12,7 @@ type DateNavigatorProps = {
 
 const getDayColor = (date: string, holidays: string[]): string => {
   if (checkHoliday(date, holidays)) return "red.500";
-  const dow = dayjs(date).day();
+  const dow = getDayOfWeek(date);
   if (dow === 0) return "red.500";
   if (dow === 6) return "blue.500";
   return "gray.800";
@@ -24,7 +23,7 @@ export const DateNavigator = ({ dates, selectedDate, onDateChange, holidays = []
   const isFirst = currentIndex <= 0;
   const isLast = currentIndex >= dates.length - 1;
 
-  const label = dayjs(selectedDate).format("M/D(ddd)");
+  const label = formatDateWithWeekday(selectedDate);
   const color = getDayColor(selectedDate, holidays);
 
   const handlePrev = () => {

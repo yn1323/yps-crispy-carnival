@@ -84,7 +84,6 @@ type Props = {
 export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const isMobile = useBreakpointValue({ base: true, lg: false });
 
-  const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
 
   const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
@@ -127,31 +126,18 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       }));
   }, []);
 
-  const handleSave = useCallback(async () => {
-    if (isSaving) return;
-    setIsSaving(true);
-    try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
-      toaster.create({ title: "保存しました", type: "success" });
-    } catch (error) {
-      showErrorToast(error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [isSaving, saveShiftAssignments, recruitmentId, buildAssignments]);
-
   const handleConfirm = useCallback(async () => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
       await confirmRecruitmentMutation({ recruitmentId });
       confirmModal.close();
-      toaster.create({ title: "送信しました", type: "success" });
+      toaster.create({ title: "確定しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
   }, [saveShiftAssignments, confirmRecruitmentMutation, recruitmentId, buildAssignments, confirmModal]);
 
-  const confirmTitle = isConfirmed ? "スタッフにシフトを再送信しますか？" : "スタッフにシフトを送信しますか？";
+  const confirmTitle = isConfirmed ? "シフトを再通知しますか？" : "シフトを確定して通知しますか？";
 
   return (
     <Box>
@@ -159,9 +145,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         <ShiftBoardHeader
           periodLabel={periodLabel}
           confirmedAt={confirmedAt}
-          onSave={handleSave}
           onConfirm={confirmModal.open}
-          isSaving={isSaving}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
@@ -171,9 +155,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         <ShiftBoardSPHeader
           periodLabel={periodLabel}
           confirmedAt={confirmedAt}
-          onSave={handleSave}
           onConfirm={confirmModal.open}
-          isSaving={isSaving}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
@@ -199,7 +181,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
         onSubmit={handleConfirm}
-        submitLabel="送信する"
+        submitLabel="確定して通知する"
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />

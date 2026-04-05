@@ -1,6 +1,6 @@
 import { Button, Flex, Icon, SegmentGroup, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuChevronLeft, LuCircleCheck, LuSave } from "react-icons/lu";
+import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import type { ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
 import { VIEW_OPTIONS } from "@/src/components/features/Shift/ShiftForm/types";
 import { formatDateTime } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
@@ -9,9 +9,7 @@ import type { ShiftBoardHeaderProps } from "../types";
 export const ShiftBoardHeader = ({
   periodLabel,
   confirmedAt,
-  onSave,
   onConfirm,
-  isSaving = false,
   viewMode,
   onViewModeChange,
 }: ShiftBoardHeaderProps) => {
@@ -39,18 +37,13 @@ export const ShiftBoardHeader = ({
           <SegmentGroup.Items items={VIEW_OPTIONS} cursor="pointer" />
         </SegmentGroup.Root>
 
-        <Button variant="outline" size="sm" onClick={onSave} loading={isSaving}>
-          <LuSave />
-          保存
-        </Button>
-
         {isConfirmed ? (
           <Button variant="outline" size="sm" borderColor="teal.600" color="teal.600" onClick={onConfirm}>
-            再送信する
+            再通知する
           </Button>
         ) : (
           <Button size="sm" colorPalette="teal" onClick={onConfirm}>
-            スタッフに送信する
+            確定して通知する
           </Button>
         )}
 
@@ -60,7 +53,7 @@ export const ShiftBoardHeader = ({
               <LuCircleCheck />
             </Icon>
             <Text fontSize="xs" color="green.600">
-              送信済み（{formatDateTime(confirmedAt)}）
+              確定済み（{formatDateTime(confirmedAt)}）
             </Text>
           </Flex>
         )}
