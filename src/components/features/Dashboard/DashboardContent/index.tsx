@@ -56,7 +56,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
     try {
       await createRecruitment(data);
       recruitmentModal.close();
-      toaster.create({ title: "募集を作成しました", type: "success" });
+      toaster.create({ title: "シフトを作成しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -84,7 +84,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
       </ContentWrapper>
 
       <Modal
-        title="新しい募集を作成"
+        title="シフト希望を集める"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
         formId="create-recruitment-form"

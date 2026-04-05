@@ -63,7 +63,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectStaffVisible("佐藤次郎");
     });
 
-    await test.step("Step 3: シフト募集を作成する", async () => {
+    await test.step("Step 3: シフト希望収集を作成する", async () => {
       await dashboard.createRecruitment({
         periodStart: dates.periodStart,
         periodEnd: dates.periodEnd,
@@ -96,11 +96,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await shiftBoard.expectStaffVisible("佐藤次郎");
     });
 
-    await test.step("Step 7: 保存する", async () => {
-      await shiftBoard.save();
-    });
-
-    await test.step("Step 8: 一覧ビューで最終確認する", async () => {
+    await test.step("Step 7: 一覧ビューで最終確認する", async () => {
       await shiftBoard.switchToOverview();
       // daily/overviewのテーブルが両方DOMにあるため、visible なテーブルを対象
       const table = page.locator("table").filter({ has: page.getByRole("button", { name: /田中太郎/ }) });
@@ -108,7 +104,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await expect(table.getByText(/\d{1,2}:\d{2}-\d{1,2}:\d{2}/).first()).toBeVisible();
     });
 
-    await test.step("Step 9: シフトを確定して通知する", async () => {
+    await test.step("Step 8: シフトを確定して通知する", async () => {
       await shiftBoard.confirm(3);
       await shiftBoard.expectConfirmedStatus();
       await shiftBoard.expectResendButton();

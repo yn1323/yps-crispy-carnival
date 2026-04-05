@@ -52,8 +52,8 @@ export class DashboardPage {
   }
 
   async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
-    await this.page.getByRole("button", { name: "新しい募集を作成" }).click();
-    await expect(this.page.getByRole("dialog", { name: "新しい募集を作成" })).toBeVisible();
+    await this.page.getByRole("button", { name: "シフト希望を集める" }).click();
+    await expect(this.page.getByRole("dialog", { name: "シフト希望を集める" })).toBeVisible();
 
     const form = this.page.locator("[id='create-recruitment-form']");
     const dateInputs = form.locator("input[type='date']");
@@ -62,11 +62,11 @@ export class DashboardPage {
     await dateInputs.nth(2).fill(data.deadline);
 
     await this.page.getByRole("dialog").getByRole("button", { name: "作成する" }).click();
-    await expect(this.page.getByText("募集を作成しました")).toBeVisible();
+    await expect(this.page.getByText("シフトを作成しました")).toBeVisible();
   }
 
   async openShiftBoard() {
-    await this.page.getByRole("button", { name: "シフトボードを開く" }).click();
+    await this.page.getByRole("button", { name: "シフトを編集する" }).click();
     await this.page.waitForURL(/\/shiftboard\//);
   }
 
@@ -79,7 +79,7 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardVisible() {
-    await expect(this.page.getByRole("button", { name: "シフトボードを開く" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toBeVisible();
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択
