@@ -34,7 +34,18 @@ CI/CDパイプラインの構成と運用ルール。
 
 シークレットはGitHub Environmentsで環境別に管理する。同じキー名で環境ごとに異なる値を設定。
 
-### Preview 環境（develop + PRプレビューで使用）
+### Preview 環境（PRプレビュー、CI品質チェックで使用）
+
+| シークレット | 用途 |
+|---|---|
+| `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
+| `VITE_CONVEX_URL` | dev Convexの永続URL |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
+| `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
+| `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
+| `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
+
+### Develop 環境（developブランチのデプロイで使用）
 
 | シークレット | 用途 |
 |---|---|
