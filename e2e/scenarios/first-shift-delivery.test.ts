@@ -34,7 +34,11 @@ test.describe("田中さんの初めてのシフト確定", () => {
   });
 
   test("初回セットアップからシフト確定まで", async ({ page }) => {
-    execSync("npx convex run --no-push testing:clearAllTables", { encoding: "utf-8", cwd: process.cwd() });
+    const previewFlag = process.env.CONVEX_PREVIEW_NAME ? `--preview-name ${process.env.CONVEX_PREVIEW_NAME}` : "";
+    execSync(`npx convex run --no-push testing:clearAllTables ${previewFlag}`, {
+      encoding: "utf-8",
+      cwd: process.cwd(),
+    });
 
     await test.step("Step 1: 初回セットアップを完了する", async () => {
       await dashboard.goto();
@@ -69,7 +73,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
     });
 
     const seedArgs = JSON.stringify({ staffAssignments: STAFF_ASSIGNMENTS, dates: dates.dates });
-    execSync(`npx convex run --no-push testing:seedShiftData '${seedArgs}'`, {
+    execSync(`npx convex run --no-push testing:seedShiftData '${seedArgs}' ${previewFlag}`, {
       encoding: "utf-8",
       cwd: process.cwd(),
     });

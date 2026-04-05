@@ -41,6 +41,7 @@ jobs:
         run: pnpm e2e
         env:
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
+          CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}
           E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
           E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
           E2E_CLERK_USER_B: ${{ vars.E2E_CLERK_USER_B }}
