@@ -7,9 +7,11 @@ import type { Staff } from "../types";
 type Props = {
   staffs: Staff[];
   onAddClick: () => void;
+  onEdit: (staff: Staff) => void;
+  onDelete: (staff: Staff) => void;
 };
 
-export const StaffSection = ({ staffs, onAddClick }: Props) => {
+export const StaffSection = ({ staffs, onAddClick, onEdit, onDelete }: Props) => {
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
@@ -31,7 +33,7 @@ export const StaffSection = ({ staffs, onAddClick }: Props) => {
       ) : (
         <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
           {staffs.map((staff) => (
-            <StaffListItem key={staff._id} staff={staff} />
+            <StaffListItem key={staff._id} staff={staff} onEdit={onEdit} onDelete={onDelete} />
           ))}
         </Box>
       )}

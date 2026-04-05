@@ -78,8 +78,44 @@ export class DashboardPage {
     await expect(this.page.getByText(name)).toBeVisible();
   }
 
+  async editStaff(staffName: string, newData: { name: string; email: string }) {
+    await this.openStaffMenu(staffName);
+    await this.page.getByRole("menuitem", { name: "編集" }).click();
+
+    await expect(this.page.getByRole("dialog", { name: "スタッフを編集" })).toBeVisible();
+    const form = this.page.locator("[id='edit-staff-form']");
+    const nameInput = form.getByPlaceholder("例: 田中 花子");
+    const emailInput = form.getByPlaceholder("例: hanako@example.com");
+
+    await nameInput.clear();
+    await nameInput.fill(newData.name);
+    await emailInput.clear();
+    await emailInput.fill(newData.email);
+
+    await this.page.getByRole("dialog").getByRole("button", { name: "更新する" }).click();
+    await expect(this.page.getByText("スタッフ情報を更新しました")).toBeVisible();
+  }
+
+  async deleteStaff(staffName: string) {
+    await this.openStaffMenu(staffName);
+    await this.page.getByRole("menuitem", { name: "削除" }).click();
+
+    await expect(this.page.getByRole("alertdialog", { name: "スタッフを削除" })).toBeVisible();
+    await this.page.getByRole("alertdialog").getByRole("button", { name: "削除する" }).click();
+    await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
+  }
+
+  async expectStaffNotVisible(name: string) {
+    await expect(this.page.getByText(name)).not.toBeVisible();
+  }
+
   async expectRecruitmentCardVisible() {
     await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toBeVisible();
+  }
+
+  private async openStaffMenu(staffName: string) {
+    const row = this.page.getByText(staffName).locator("xpath=ancestor::div[.//button[@aria-label='メニュー']][1]");
+    await row.getByRole("button", { name: "メニュー" }).click();
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択

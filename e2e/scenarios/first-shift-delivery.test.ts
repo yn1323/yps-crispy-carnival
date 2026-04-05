@@ -13,7 +13,7 @@ const STAFF_ASSIGNMENTS = [
     shifts: [0, 1, 2, 3, 4].map((i) => ({ dateIndex: i, startTime: "10:00", endTime: "18:00" })),
   },
   {
-    staffName: "鈴木花子",
+    staffName: "鈴木花子（編集済）",
     shifts: [0, 2, 4].map((i) => ({ dateIndex: i, startTime: "11:00", endTime: "19:00" })),
   },
   {
@@ -63,6 +63,24 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectStaffVisible("佐藤次郎");
     });
 
+    await test.step("Step 2.5: スタッフを編集する", async () => {
+      await dashboard.editStaff("鈴木花子", {
+        name: "鈴木花子（編集済）",
+        email: "suzuki-edited@example.com",
+      });
+      await dashboard.expectStaffVisible("鈴木花子（編集済）");
+    });
+
+    await test.step("Step 2.6: スタッフを削除する", async () => {
+      await dashboard.addStaffs([{ name: "削除テスト", email: "delete-test@example.com" }]);
+      await dashboard.expectStaffVisible("削除テスト");
+      await dashboard.deleteStaff("削除テスト");
+      await dashboard.expectStaffNotVisible("削除テスト");
+      await dashboard.expectStaffVisible("田中太郎");
+      await dashboard.expectStaffVisible("鈴木花子（編集済）");
+      await dashboard.expectStaffVisible("佐藤次郎");
+    });
+
     await test.step("Step 3: シフト希望収集を作成する", async () => {
       await dashboard.createRecruitment({
         periodStart: dates.periodStart,
@@ -82,7 +100,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.openShiftBoard();
       await shiftBoard.expectOnShiftBoard();
       await shiftBoard.expectStaffVisible("田中太郎");
-      await shiftBoard.expectStaffVisible("鈴木花子");
+      await shiftBoard.expectStaffVisible("鈴木花子（編集済）");
       await shiftBoard.expectStaffVisible("佐藤次郎");
       await shiftBoard.expectShiftBarVisible();
     });
