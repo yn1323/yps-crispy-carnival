@@ -6,6 +6,8 @@ import { internalAction } from "../_generated/server";
 import { getResendClient } from "../_lib/resend";
 import { buildConfirmationEmailHtml, buildReissueEmailHtml } from "./templates";
 
+const APP_URL = process.env.APP_URL ?? "https://yps.app";
+
 /**
  * シフト確定メールを全スタッフに送信
  * confirmRecruitment mutation から ctx.scheduler 経由で呼ばれる
@@ -17,7 +19,6 @@ export const sendShiftConfirmationEmails = internalAction({
     if (!data) return;
 
     const resend = getResendClient();
-    const appUrl = process.env.APP_URL ?? "https://yps.app";
 
     for (const staffData of data.staffEntries) {
       const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
@@ -26,8 +27,8 @@ export const sendShiftConfirmationEmails = internalAction({
         recruitmentId,
       });
 
-      const magicLinkUrl = `${appUrl}/shifts/view?token=${token}`;
-      const reissueUrl = `${appUrl}/shifts/reissue?recruitmentId=${recruitmentId}`;
+      const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
+      const reissueUrl = `${APP_URL}/shifts/reissue?recruitmentId=${recruitmentId}`;
 
       await resend.emails.send({
         from: `${data.shopName} <onboarding@resend.dev>`,

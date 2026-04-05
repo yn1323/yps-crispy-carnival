@@ -24,11 +24,15 @@ type Story = StoryObj<typeof meta>;
 export const Admin: Story = {
   args: {
     staff: mockStaffs[0],
+    onEdit: () => {},
+    onDelete: () => {},
   },
 };
 
 export const Staff: Story = {
   args: {
     staff: mockStaffs[1],
+    onEdit: () => {},
+    onDelete: () => {},
   },
 };

@@ -56,7 +56,7 @@ export const getDashboardData = authenticatedQuery({
     return {
       shop: { name: shop.name },
       recruitments: recruitmentsWithCounts,
-      staffs: staffs.map((s) => ({ _id: s._id, name: s.name, email: s.email })),
+      staffs: staffs.map((s) => ({ _id: s._id, name: s.name, email: s.email, isOwner: s.userId === ctx.user?._id })),
     };
   },
 });

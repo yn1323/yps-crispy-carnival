@@ -1,6 +1,7 @@
 import { Flex, Tabs, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import type { DayStatus } from "../../types";
+import { getWeekdayLabel } from "../../utils/dateUtils";
 
 type DateTabsProps = {
   dates: string[];
@@ -12,7 +13,7 @@ type DateTabsProps = {
 
 // 日付をフォーマット (M/D(曜日))
 const formatDate = (dateStr: string) => {
-  return dayjs(dateStr).format("M/D(ddd)");
+  return `${dayjs(dateStr).format("M/D")}(${getWeekdayLabel(dateStr)})`;
 };
 
 // 曜日に応じた色を返す

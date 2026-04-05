@@ -1,6 +1,6 @@
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -138,7 +138,74 @@ describe("staffAuth/mutations", () => {
     });
   });
 
+  describe("verifyToken レートリミット", () => {
+    it("同じキーで6回連続呼び出すと rate_limited が返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken } = await setupTestData(t);
+
+      // capacity 5 なので5回目までは通る（status は ok or expired）
+      for (let i = 0; i < 5; i++) {
+        const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+          token: magicLinkToken,
+        });
+        expect(result.status).not.toBe("rate_limited");
+      }
+
+      // 6回目でレートリミット
+      const result6 = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+      });
+      expect(result6.status).toBe("rate_limited");
+      if (result6.status === "rate_limited") {
+        expect(result6.retryAfter).toBeGreaterThan(Date.now() - 1000);
+        expect(result6.recruitmentId).toBeNull();
+      }
+    });
+
+    it("異なるトークンプレフィックスは独立してカウントされる", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, staffId } = await setupTestData(t);
+
+      // 先頭8文字が異なるトークンを2つ作成
+      await t.run(async (ctx) => {
+        await ctx.db.insert("magicLinks", {
+          token: "aaaaaaaa-token-1",
+          staffId,
+          shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("magicLinks", {
+          token: "bbbbbbbb-token-2",
+          staffId,
+          shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+      });
+
+      // 各トークンで5回ずつ呼んでもレートリミットされない
+      for (let i = 0; i < 5; i++) {
+        const resultA = await t.mutation(api.staffAuth.mutations.verifyToken, {
+          token: "aaaaaaaa-token-1",
+        });
+        expect(resultA.status).not.toBe("rate_limited");
+      }
+      for (let i = 0; i < 5; i++) {
+        const resultB = await t.mutation(api.staffAuth.mutations.verifyToken, {
+          token: "bbbbbbbb-token-2",
+        });
+        expect(resultB.status).not.toBe("rate_limited");
+      }
+    });
+  });
+
   describe("requestReissue", () => {
+    // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
+    // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未登録メールでもエラーを投げない", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
@@ -161,6 +228,25 @@ describe("staffAuth/mutations", () => {
           recruitmentId,
         }),
       ).resolves.not.toThrow();
+    });
+  });
+
+  describe("requestReissue レートリミット", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("4回連続呼び出しでもエラーにならない（レートリミット時もvoid）", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+
+      for (let i = 0; i < 4; i++) {
+        await expect(
+          t.mutation(api.staffAuth.mutations.requestReissue, {
+            email: "suzuki@example.com",
+            recruitmentId,
+          }),
+        ).resolves.not.toThrow();
+      }
     });
   });
 });
