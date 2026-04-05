@@ -137,7 +137,7 @@ export const ShiftPopover = ({
               )}
             </Popover.Body>
 
-            <Popover.CloseTrigger position="absolute" top="2" right="2">
+            <Popover.CloseTrigger asChild position="absolute" top="2" right="2">
               <IconButton size="xs" variant="ghost" colorPalette="gray" opacity={0.6} aria-label="閉じる">
                 <LuX />
               </IconButton>
