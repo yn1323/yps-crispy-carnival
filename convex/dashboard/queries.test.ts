@@ -206,7 +206,7 @@ describe("dashboard/queries", () => {
       // shop に shiftStartTime 等が漏れていないこと
       expect(Object.keys(result?.shop ?? {})).toEqual(["name"]);
       // staffs に shopId, isDeleted が漏れていないこと
-      expect(Object.keys(result?.staffs[0] ?? {}).sort()).toEqual(["_id", "email", "name"]);
+      expect(Object.keys(result?.staffs[0] ?? {}).sort()).toEqual(["_id", "email", "isOwner", "name"]);
     });
   });
 
