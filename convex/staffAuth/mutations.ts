@@ -38,7 +38,7 @@ export const verifyToken = mutation({
       };
     }
 
-    // 既存の有効なセッションがあればそれを返す（usedAtは設定しない）
+    // 既存の有効なセッションがあればそれを返す
     const existingSessions = await ctx.db
       .query("sessions")
       .withIndex("by_staffId_recruitmentId", (q) =>
@@ -49,6 +49,7 @@ export const verifyToken = mutation({
     const validSession = existingSessions.find((s) => s.expiresAt > Date.now());
 
     if (validSession) {
+      await ctx.db.patch(magicLink._id, { usedAt: Date.now() });
       return {
         status: "ok" as const,
         sessionToken: validSession.sessionToken,

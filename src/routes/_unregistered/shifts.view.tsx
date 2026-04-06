@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ExpiredView } from "@/src/components/features/StaffView/ExpiredView";
 import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 
 type SessionInfo = {
@@ -36,6 +37,10 @@ function getStoredSession(recruitmentId?: string): SessionInfo | null {
 
 function storeSession(recruitmentId: string, sessionToken: string): void {
   localStorage.setItem(`yps_session_${recruitmentId}`, JSON.stringify({ sessionToken, recruitmentId }));
+}
+
+function clearSession(recruitmentId: string): void {
+  localStorage.removeItem(`yps_session_${recruitmentId}`);
 }
 
 export const Route = createFileRoute("/_unregistered/shifts/view")({
@@ -117,7 +122,22 @@ function ShiftViewRoute() {
     return <FullPageSpinner />;
   }
 
-  return <ShiftViewContent session={session} />;
+  return (
+    <ErrorBoundary
+      fallback={
+        <StaffLayout shopName="シフト閲覧">
+          <ExpiredView recruitmentId={session.recruitmentId} />
+        </StaffLayout>
+      }
+      onError={(error) => {
+        if (error.message?.includes("ArgumentValidationError")) {
+          clearSession(session.recruitmentId);
+        }
+      }}
+    >
+      <ShiftViewContent session={session} />
+    </ErrorBoundary>
+  );
 }
 
 function ShiftViewContent({ session }: { session: SessionInfo }) {
