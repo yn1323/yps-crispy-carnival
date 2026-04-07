@@ -1,8 +1,9 @@
+import { Flex, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ReissueForm } from "./index";
 
 const meta = {
-  title: "features/StaffView/ReissueForm",
+  title: "Features/StaffView/ReissueForm",
   component: ReissueForm,
   decorators: [
     (Story) => (
@@ -16,16 +17,24 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Basic: Story = {
+const AllVariants = () => (
+  <Flex direction="column" gap={4}>
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+      通常
+    </Text>
+    <ReissueForm onSubmit={() => {}} isSubmitting={false} />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      送信中
+    </Text>
+    <ReissueForm onSubmit={() => {}} isSubmitting={true} />
+  </Flex>
+);
+
+export const Variants: Story = {
+  render: () => <AllVariants />,
   args: {
     onSubmit: () => {},
     isSubmitting: false,
-  },
-};
-
-export const Submitting: Story = {
-  args: {
-    onSubmit: () => {},
-    isSubmitting: true,
   },
 };

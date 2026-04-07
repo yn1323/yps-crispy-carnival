@@ -1,3 +1,4 @@
+import { Flex, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { Select, type SelectItemType } from ".";
@@ -17,54 +18,56 @@ const items = [
   { value: "1", label: "選択肢1" },
   { value: "2", label: "選択肢2" },
   { value: "3", label: "選択肢3" },
-] as SelectItemType[];
+] satisfies SelectItemType[];
 
-export const Basic: Story = {
+const AllVariants = () => (
+  <Flex direction="column" gap={3} p={4} minW="240px">
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+      選択済み
+    </Text>
+    <Select items={items} value="1" onChange={() => {}} />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      未選択（プレースホルダー）
+    </Text>
+    <Select items={items} value={undefined} onChange={() => {}} placeholder="選択してください" />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      エラー状態
+    </Text>
+    <Select items={items} value={undefined} onChange={() => {}} invalid placeholder="必須項目です" />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      Portal あり
+    </Text>
+    <Select items={items} value="1" onChange={() => {}} usePortal={true} />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      Portal なし
+    </Text>
+    <Select items={items} value="1" onChange={() => {}} usePortal={false} />
+  </Flex>
+);
+
+const InteractiveDemo = () => {
+  const [value, setValue] = useState<string | undefined>(undefined);
+  return (
+    <div style={{ padding: 16, minWidth: 240 }}>
+      <Select items={items} value={value} onChange={setValue} placeholder="選択してください" />
+    </div>
+  );
+};
+
+export const Variants: Story = {
+  render: () => <AllVariants />,
   args: {
     onChange: () => {},
-  },
-  render: () => {
-    const [value, setValue] = useState<string>("1");
-    return <Select items={items} value={value} onChange={setValue} />;
   },
 };
 
-export const Unselected: Story = {
+export const Interactive: Story = {
+  render: () => <InteractiveDemo />,
   args: {
     onChange: () => {},
-  },
-  render: () => {
-    const [value, setValue] = useState<string | undefined>(undefined);
-    return <Select items={items} value={value} onChange={setValue} placeholder="選択してください" />;
-  },
-};
-
-export const WithError: Story = {
-  args: {
-    onChange: () => {},
-  },
-  render: () => {
-    const [value, setValue] = useState<string | undefined>(undefined);
-    return <Select items={items} value={value} onChange={setValue} invalid={!value} placeholder="必須項目です" />;
-  },
-};
-
-export const WithPortal: Story = {
-  args: {
-    onChange: () => {},
-  },
-  render: () => {
-    const [value, setValue] = useState<string>("1");
-    return <Select items={items} value={value} onChange={setValue} usePortal={true} />;
-  },
-};
-
-export const WithoutPortal: Story = {
-  args: {
-    onChange: () => {},
-  },
-  render: () => {
-    const [value, setValue] = useState<string>("1");
-    return <Select items={items} value={value} onChange={setValue} usePortal={false} />;
   },
 };
