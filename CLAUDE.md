@@ -158,7 +158,11 @@ import { bar } from "@/convex/...";
 
 ## デザイン
 
-デザイン関連のファイル・ルールは `design/` ディレクトリを参照（`design/CLAUDE.md`）。
+- デザイン関連のファイル・ルールは `design/` ディレクトリを参照（`design/CLAUDE.md`）。
+- デザインをもとにモックを作成する場合、実装後にpencil MCP, Storybook MCP, Playwright MCPでスクショを取ってPencilのデザイン通り実装できているか確認すること（フォント差については許容）
+- VRTは無料枠で毎月のキャプチャ数に限りがあります。小さなコンポーネントはVariants Storyを作成し、1つのStoryにまとめたいです。
+  大きいコンポーネントはそのままでOK。
+  操作用のStoryが必要なら、Interactive Storyを別途作成すること。（小さいコンポーネントのみ）
 
 ## コーディング
 

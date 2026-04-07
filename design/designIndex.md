@@ -34,6 +34,16 @@
 | ~~`K5zai`~~ | ShiftBoard/Confirmed/SP | SP確定済み |
 | ~~`0sBBB`~~ | ShiftBoard/ConfirmDialog/SP | SP確定ダイアログ表示 |
 
+## shift-submit.pen — スタッフシフト提出画面
+
+| ID | Name | Description |
+|---|---|---|
+| `tuyCK` | ShiftSubmit/Unsubmitted | SP未提出＋締切前（状態A） |
+| `AnaaY` | ShiftSubmit/Submitted | SP提出済み＋締切前（状態B） |
+| `8rGfg` | ShiftSubmit/SubmittedExpired | SP提出済み＋締切後（状態C） |
+| `ZNB1Z` | ShiftSubmit/Expired | SP未提出＋締切後（状態D） |
+| `W9WOE` | ShiftSubmit/Complete | SP提出完了画面 |
+
 ## design.pen
 （画面デザイン）
 
