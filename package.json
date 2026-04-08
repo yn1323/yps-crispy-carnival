@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.8",
-    "@clerk/testing": "1.13.26",
+    "@clerk/testing": "1.14.4",
     "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "1.57.0",
     "@storybook/addon-docs": "9.1.17",
