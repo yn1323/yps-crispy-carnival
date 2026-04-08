@@ -19,7 +19,7 @@ function IndexPage() {
     <Box display="flex" justifyContent="center" alignItems="center" minH="100vh" bg="gray.50">
       <VStack gap={4}>
         <Text fontSize="2xl" fontWeight="bold" color="teal.600">
-          シフト管理
+          シフトリ
         </Text>
         <SignInButton mode="modal">
           <Button colorPalette="teal">ログイン</Button>

@@ -21,4 +21,13 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     period: HOUR,
     capacity: 3,
   },
+
+  // シフト希望提出: staffId をキーに
+  // 5回/分 — 連打防止
+  submitShiftRequests: {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 5,
+  },
 });

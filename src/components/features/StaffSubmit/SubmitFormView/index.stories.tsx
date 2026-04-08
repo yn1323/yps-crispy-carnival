@@ -41,13 +41,13 @@ type Story = StoryObj<typeof meta>;
 export const Unsubmitted: Story = {
   args: {
     data: baseData,
-    onSubmit: () => {},
+    onSubmit: async () => {},
   },
 };
 
 export const Submitted: Story = {
   args: {
     data: submittedData,
-    onSubmit: () => {},
+    onSubmit: async () => {},
   },
 };

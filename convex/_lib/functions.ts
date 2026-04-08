@@ -147,3 +147,32 @@ export const staffSessionQuery = customQuery(query, {
     return { ctx: { staff, shop, session }, args: {} };
   },
 });
+
+type StaffSessionMutationCtx = {
+  staff: Doc<"staffs">;
+  shop: Doc<"shops">;
+  session: Doc<"sessions">;
+};
+
+/**
+ * staffSessionMutation
+ * - sessionToken でスタッフセッションを検証（mutation版）
+ * - 無効/期限切れの場合は ConvexError を throw する
+ */
+export const staffSessionMutation = customMutation(mutation, {
+  args: { sessionToken: v.string() },
+  input: async (ctx, { sessionToken }): Promise<{ ctx: StaffSessionMutationCtx; args: Record<string, never> }> => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+      .first();
+    if (!session || session.expiresAt < Date.now()) {
+      throw new ConvexError("Session expired");
+    }
+    const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
+    if (!staff || staff.isDeleted || !shop || shop.isDeleted) {
+      throw new ConvexError("Not found");
+    }
+    return { ctx: { staff, shop, session }, args: {} };
+  },
+});

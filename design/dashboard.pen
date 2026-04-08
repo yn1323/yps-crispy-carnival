@@ -1,5 +1,5 @@
 {
-  "version": "2.9",
+  "version": "2.10",
   "children": [
     {
       "type": "frame",
@@ -444,7 +444,7 @@
                               "type": "frame",
                               "id": "kGSto",
                               "name": "Badge",
-                              "fill": "$teal/solid",
+                              "fill": "$i:teal/subtle",
                               "cornerRadius": "$radii/full",
                               "padding": [
                                 2,
@@ -455,7 +455,7 @@
                                   "type": "text",
                                   "id": "5F4k8",
                                   "name": "card1BadgeText",
-                                  "fill": "$teal/contrast",
+                                  "fill": "$i:teal/fg",
                                   "content": "収集・編集中",
                                   "fontFamily": "Inter",
                                   "fontSize": "$fontSize/xs",
@@ -1506,7 +1506,7 @@
                           "type": "frame",
                           "id": "WHSRo",
                           "name": "Badge",
-                          "fill": "$teal/solid",
+                          "fill": "$i:teal/subtle",
                           "cornerRadius": "$radii/full",
                           "padding": [
                             2,
@@ -1517,7 +1517,7 @@
                               "type": "text",
                               "id": "JMphA",
                               "name": "spCard1BadgeText",
-                              "fill": "$teal/contrast",
+                              "fill": "$i:teal/fg",
                               "content": "収集・編集中",
                               "fontFamily": "Inter",
                               "fontSize": 14,

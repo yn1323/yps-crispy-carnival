@@ -84,6 +84,17 @@ const schema = defineSchema({
     .index("by_recruitmentId_date", ["recruitmentId", "date"]),
 
   // ========================================
+  // シフト提出記録（全休み提出と未提出の区別用）
+  // ========================================
+  shiftSubmissions: defineTable({
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    submittedAt: v.number(), // Unix ms（最終提出日時）
+  })
+    .index("by_recruitmentId", ["recruitmentId"])
+    .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"]),
+
+  // ========================================
   // ポジション定義（Phase 5、スキーマのみ）
   // ========================================
   positions: defineTable({

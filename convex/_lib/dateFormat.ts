@@ -19,6 +19,19 @@ export function formatPeriodLabel(start: string, end: string): string {
   return `${formatDateLabel(start)}〜${formatDateLabel(end)}`;
 }
 
+/** deadline の翌日 0:00 の Unix ms を返す（締切日当日はまだ有効）
+ * Convex環境はUTCで動作するため T00:00:00 = UTC midnight */
+export function getDeadlineCutoff(deadline: string): number {
+  const date = new Date(`${deadline}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+  return date.getTime();
+}
+
+/** JST基準の今日の日付を "YYYY-MM-DD" で返す */
+export function todayJST(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+}
+
 /** "2026-01-20", "2026-01-26" → ["2026-01-20", "2026-01-21", ...] */
 export function generateDateRange(start: string, end: string): string[] {
   const dates: string[] = [];

@@ -28,14 +28,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const noop = async () => {};
+
 export const StateA_Unsubmitted: Story = {
   args: {
     data: baseData,
+    onSubmit: noop,
   },
 };
 
 export const StateB_Submitted: Story = {
   args: {
+    onSubmit: noop,
     data: {
       ...baseData,
       hasSubmitted: true,
@@ -50,6 +54,7 @@ export const StateB_Submitted: Story = {
 
 export const StateC_SubmittedExpired: Story = {
   args: {
+    onSubmit: noop,
     data: {
       ...baseData,
       isBeforeDeadline: false,
@@ -66,6 +71,7 @@ export const StateC_SubmittedExpired: Story = {
 
 export const StateD_Expired: Story = {
   args: {
+    onSubmit: noop,
     data: {
       ...baseData,
       isBeforeDeadline: false,

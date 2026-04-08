@@ -18,9 +18,18 @@ type Props = {
   onTimeChange: (field: "startTime" | "endTime", value: string) => void;
   onClear: () => void;
   isReadOnly?: boolean;
+  error?: string;
 };
 
-export const DayCard = ({ entry, timeOptions, onToggleWorking, onTimeChange, onClear, isReadOnly = false }: Props) => {
+export const DayCard = ({
+  entry,
+  timeOptions,
+  onToggleWorking,
+  onTimeChange,
+  onClear,
+  isReadOnly = false,
+  error,
+}: Props) => {
   const dateColor = getDateColor(entry.date);
   const dateLabel = formatDateWithWeekday(entry.date);
 
@@ -82,52 +91,59 @@ export const DayCard = ({ entry, timeOptions, onToggleWorking, onTimeChange, onC
   }
 
   return (
-    <Flex
-      w="full"
-      h="48px"
-      px={2}
-      pl={4}
-      align="center"
-      gap={2}
-      bg="#f0fdfa"
-      borderRadius="lg"
-      borderWidth={1}
-      borderColor="teal.600"
-    >
-      <Text fontSize="sm" fontWeight="medium" color={dateColor} flexShrink={0}>
-        {dateLabel}
-      </Text>
-      <Box flex={1} />
-      <Select
-        items={timeOptions}
-        value={entry.startTime}
-        onChange={(v) => onTimeChange("startTime", v)}
-        placeholder=""
-        size="xs"
-        w="80px"
-      />
-      <Text fontSize="xs" color="fg.muted">
-        〜
-      </Text>
-      <Select
-        items={timeOptions}
-        value={entry.endTime}
-        onChange={(v) => onTimeChange("endTime", v)}
-        placeholder=""
-        size="xs"
-        w="80px"
-      />
-      <IconButton
-        aria-label="休みに戻す"
-        size="xs"
-        variant="outline"
-        borderRadius="full"
-        onClick={onClear}
-        colorPalette="gray"
-        bg="white"
+    <Box w="full">
+      <Flex
+        w="full"
+        h="48px"
+        px={2}
+        pl={4}
+        align="center"
+        gap={2}
+        bg={error ? "#fff5f5" : "#f0fdfa"}
+        borderRadius="lg"
+        borderWidth={1}
+        borderColor={error ? "red.500" : "teal.600"}
       >
-        <LuX />
-      </IconButton>
-    </Flex>
+        <Text fontSize="sm" fontWeight="medium" color={dateColor} flexShrink={0}>
+          {dateLabel}
+        </Text>
+        <Box flex={1} />
+        <Select
+          items={timeOptions}
+          value={entry.startTime}
+          onChange={(v) => onTimeChange("startTime", v)}
+          placeholder=""
+          size="xs"
+          w="80px"
+        />
+        <Text fontSize="xs" color="fg.muted">
+          〜
+        </Text>
+        <Select
+          items={timeOptions}
+          value={entry.endTime}
+          onChange={(v) => onTimeChange("endTime", v)}
+          placeholder=""
+          size="xs"
+          w="80px"
+        />
+        <IconButton
+          aria-label="休みに戻す"
+          size="xs"
+          variant="outline"
+          borderRadius="full"
+          onClick={onClear}
+          colorPalette="gray"
+          bg="white"
+        >
+          <LuX />
+        </IconButton>
+      </Flex>
+      {error && (
+        <Text fontSize="xs" color="red.500" mt={1} pl={1}>
+          {error}
+        </Text>
+      )}
+    </Box>
   );
 };

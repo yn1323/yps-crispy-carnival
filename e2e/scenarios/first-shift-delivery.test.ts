@@ -1,6 +1,6 @@
-import { execSync } from "node:child_process";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
+import { convexRun } from "../helpers/convex";
 import { getNextWeekDates } from "../helpers/date";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
@@ -34,11 +34,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
   });
 
   test("初回セットアップからシフト確定まで", async ({ page }) => {
-    const previewFlag = process.env.CONVEX_PREVIEW_NAME ? `--preview-name ${process.env.CONVEX_PREVIEW_NAME}` : "";
-    execSync(`npx convex run --no-push testing:clearAllTables ${previewFlag}`, {
-      encoding: "utf-8",
-      cwd: process.cwd(),
-    });
+    convexRun("testing:clearAllTables");
 
     await test.step("Step 1: 初回セットアップを完了する", async () => {
       await dashboard.goto();
@@ -90,11 +86,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectRecruitmentCardVisible();
     });
 
-    const seedArgs = JSON.stringify({ staffAssignments: STAFF_ASSIGNMENTS, dates: dates.dates });
-    execSync(`npx convex run --no-push testing:seedShiftData '${seedArgs}' ${previewFlag}`, {
-      encoding: "utf-8",
-      cwd: process.cwd(),
-    });
+    convexRun("testing:seedShiftData", { staffAssignments: STAFF_ASSIGNMENTS, dates: dates.dates });
 
     await test.step("Step 4: シフトボードを開いて全体を確認する", async () => {
       await dashboard.openShiftBoard();
