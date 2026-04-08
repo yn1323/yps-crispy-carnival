@@ -77,3 +77,72 @@ export const seedShiftData = internalMutation({
     return { inserted };
   },
 });
+
+/**
+ * 探索的テスト用：シフト提出画面のテストデータを一括セットアップ
+ * shop + staff + recruitment + magicLink + session を作成し、sessionTokenを返す
+ */
+export const seedSubmitTestData = internalMutation({
+  args: {
+    deadlinePassed: v.optional(v.boolean()),
+    hasExistingSubmission: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const shopId = await ctx.db.insert("shops", {
+      name: "テスト居酒屋さくら",
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
+      ownerId: "test_owner",
+      isDeleted: false,
+    });
+    const staffId = await ctx.db.insert("staffs", {
+      shopId,
+      name: "田中太郎",
+      email: "tanaka@example.com",
+      isDeleted: false,
+    });
+    const recruitmentId = await ctx.db.insert("recruitments", {
+      shopId,
+      periodStart: "2026-04-07",
+      periodEnd: "2026-04-13",
+      deadline: args.deadlinePassed ? "2026-01-01" : "2026-12-31",
+      status: "open",
+      isDeleted: false,
+    });
+
+    // magic link token
+    const token = `test-token-${Date.now()}`;
+    await ctx.db.insert("magicLinks", {
+      token,
+      staffId,
+      shopId,
+      recruitmentId,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+    });
+
+    // 既存提出がある場合
+    if (args.hasExistingSubmission) {
+      await ctx.db.insert("shiftRequests", {
+        recruitmentId,
+        staffId,
+        date: "2026-04-07",
+        startTime: "09:00",
+        endTime: "18:00",
+      });
+      await ctx.db.insert("shiftRequests", {
+        recruitmentId,
+        staffId,
+        date: "2026-04-09",
+        startTime: "10:00",
+        endTime: "15:00",
+      });
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId,
+        submittedAt: Date.now(),
+      });
+    }
+
+    return { token, shopId, staffId, recruitmentId };
+  },
+});
