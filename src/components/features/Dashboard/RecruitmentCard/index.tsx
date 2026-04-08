@@ -23,13 +23,18 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
           </Text>
         </Flex>
         <Flex justify="space-between" align="center" flexWrap="wrap" gap={{ base: 2.5, lg: 0 }}>
-          <Flex gap={3} align="center" width={{ base: "full", lg: "auto" }}>
+          <Flex
+            gap={3}
+            align="center"
+            justify={{ base: "space-between", lg: "start" }}
+            width={{ base: "full", lg: "auto" }}
+          >
             <Text color="gray.600" fontSize="sm" whiteSpace="nowrap">
               提出状況: {responseCount}/{totalStaffCount}人
             </Text>
             <Badge
               colorPalette={status === "open" ? "teal" : "gray"}
-              variant={status === "open" ? "solid" : "subtle"}
+              variant="subtle"
               borderRadius="full"
               px={2.5}
               fontSize="xs"
