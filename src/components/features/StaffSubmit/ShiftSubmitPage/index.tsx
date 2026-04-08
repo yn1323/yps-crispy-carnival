@@ -7,9 +7,10 @@ import { type SubmissionData, SubmitFormView } from "../SubmitFormView";
 
 type Props = {
   data: SubmissionData;
+  onSubmit?: (entries: DayEntry[]) => Promise<void>;
 };
 
-export const ShiftSubmitPage = ({ data }: Props) => {
+export const ShiftSubmitPage = ({ data, onSubmit }: Props) => {
   const [showCompletion, setShowCompletion] = useState(false);
   const [submittedEntries, setSubmittedEntries] = useState<DayEntry[] | null>(null);
 
@@ -34,7 +35,8 @@ export const ShiftSubmitPage = ({ data }: Props) => {
   return (
     <SubmitFormView
       data={data}
-      onSubmit={(entries) => {
+      onSubmit={async (entries) => {
+        await onSubmit?.(entries);
         setSubmittedEntries(entries);
         setShowCompletion(true);
       }}

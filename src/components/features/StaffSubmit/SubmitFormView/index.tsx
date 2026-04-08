@@ -1,9 +1,12 @@
 import { Box, Button, Flex, Icon, Text, VStack } from "@chakra-ui/react";
-import { useMemo, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMemo } from "react";
+import { useForm } from "react-hook-form";
 import { LuPointer } from "react-icons/lu";
 import { formatDateWithWeekday, getDateRange } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { DayCard, type DayEntry } from "../DayCard";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
+import { type SubmitFormData, submitFormSchema } from "./schema";
 
 export type SubmissionData = {
   shopName: string;
@@ -19,7 +22,7 @@ export type SubmissionData = {
 
 type Props = {
   data: SubmissionData;
-  onSubmit: (entries: DayEntry[]) => void;
+  onSubmit: (entries: DayEntry[]) => Promise<void>;
 };
 
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
@@ -29,33 +32,40 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
     [data.timeRange.startTime, data.timeRange.endTime],
   );
 
-  const [entries, setEntries] = useState<DayEntry[]>(() => buildEntries(dates, data.existingRequests, data.timeRange));
+  const {
+    watch,
+    setValue,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SubmitFormData>({
+    resolver: zodResolver(submitFormSchema),
+    defaultValues: {
+      entries: buildEntries(dates, data.existingRequests, data.timeRange),
+    },
+  });
 
-  const handleToggleWorking = (date: string) => {
-    setEntries((prev) => prev.map((e) => (e.date === date ? { ...e, isWorking: true } : e)));
+  const entries = watch("entries");
+
+  const handleToggleWorking = (index: number) => {
+    setValue(`entries.${index}.isWorking`, true, { shouldValidate: true });
   };
 
-  const handleTimeChange = (date: string, field: "startTime" | "endTime", value: string) => {
-    setEntries((prev) => prev.map((e) => (e.date === date ? { ...e, [field]: value } : e)));
+  const handleTimeChange = (index: number, field: "startTime" | "endTime", value: string) => {
+    setValue(`entries.${index}.${field}`, value, { shouldValidate: true });
   };
 
-  const handleClear = (date: string) => {
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.date === date
-          ? { ...e, isWorking: false, startTime: data.timeRange.startTime, endTime: data.timeRange.endTime }
-          : e,
-      ),
-    );
+  const handleClear = (index: number) => {
+    setValue(`entries.${index}.isWorking`, false, { shouldValidate: true });
+    setValue(`entries.${index}.startTime`, data.timeRange.startTime);
+    setValue(`entries.${index}.endTime`, data.timeRange.endTime);
   };
 
-  const handleSubmit = () => {
-    onSubmit(entries);
-  };
+  const onFormSubmit = handleSubmit(async (formData) => {
+    await onSubmit(formData.entries);
+  });
 
   return (
     <Flex direction="column" minH="100dvh" bg="gray.50">
-      {/* Header */}
       <Box bg="teal.600" px={4} pt={3} pb={4}>
         <Text fontSize="xs" color="white" opacity={0.8}>
           {data.shopName}
@@ -65,7 +75,6 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
         </Text>
       </Box>
 
-      {/* InfoBar */}
       <Flex
         bg="white"
         px={4}
@@ -98,7 +107,6 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
         )}
       </Flex>
 
-      {/* Helper */}
       <Flex px={4} pt={3} gap={1.5} align="center">
         <Icon color="fg.subtle" boxSize={3.5}>
           <LuPointer />
@@ -108,23 +116,30 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
         </Text>
       </Flex>
 
-      {/* Card List */}
       <VStack px={4} py={3} gap={2}>
-        {entries.map((entry) => (
+        {entries.map((entry, index) => (
           <DayCard
             key={entry.date}
             entry={entry}
             timeOptions={timeOptions}
-            onToggleWorking={() => handleToggleWorking(entry.date)}
-            onTimeChange={(field, value) => handleTimeChange(entry.date, field, value)}
-            onClear={() => handleClear(entry.date)}
+            onToggleWorking={() => handleToggleWorking(index)}
+            onTimeChange={(field, value) => handleTimeChange(index, field, value)}
+            onClear={() => handleClear(index)}
+            error={errors.entries?.[index]?.endTime?.message}
           />
         ))}
       </VStack>
 
-      {/* Submit Button */}
       <Box px={4} pt={2} pb={6}>
-        <Button w="full" h="48px" colorPalette="teal" borderRadius="lg" fontWeight="semibold" onClick={handleSubmit}>
+        <Button
+          w="full"
+          h="48px"
+          colorPalette="teal"
+          borderRadius="lg"
+          fontWeight="semibold"
+          onClick={onFormSubmit}
+          loading={isSubmitting}
+        >
           {data.hasSubmitted ? "修正して提出する" : "提出する"}
         </Button>
       </Box>

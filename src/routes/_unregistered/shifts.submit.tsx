@@ -5,25 +5,25 @@ import { useEffect, useRef, useState } from "react";
 import { LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ExpiredView } from "@/src/components/features/StaffView/ExpiredView";
-import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage";
+import type { DayEntry } from "@/src/components/features/StaffSubmit/DayCard";
+import { ExpiredSubmitView } from "@/src/components/features/StaffSubmit/ExpiredSubmitView";
+import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { clearSession, getStoredSession, type SessionInfo, storeSession } from "@/src/utils/staffSession";
 
-export const Route = createFileRoute("/_unregistered/shifts/view")({
+export const Route = createFileRoute("/_unregistered/shifts/submit")({
   validateSearch: (search: Record<string, unknown>) => ({
     token: (search.token as string) || undefined,
   }),
-  component: ShiftViewRoute,
+  component: ShiftSubmitRoute,
 });
 
-function ShiftViewRoute() {
+function ShiftSubmitRoute() {
   const { token } = Route.useSearch();
   const verifyToken = useMutation(api.staffAuth.mutations.verifyToken);
 
-  // LSにセッションがあればそちらを優先（トークンはワンタイムのため再検証しない）
   const initialSession = getStoredSession();
   const [session, setSession] = useState<SessionInfo | null>(initialSession);
   const [expired, setExpired] = useState<{ recruitmentId: string | null } | null>(
@@ -61,7 +61,7 @@ function ShiftViewRoute() {
 
   if (rateLimited) {
     return (
-      <StaffLayout shopName="シフト閲覧">
+      <StaffLayout shopName="シフト提出">
         <Flex flex={1} align="center" justify="center" px={8}>
           <VStack gap={4}>
             <Icon boxSize={12} color="orange.500">
@@ -80,11 +80,7 @@ function ShiftViewRoute() {
   }
 
   if (expired) {
-    return (
-      <StaffLayout shopName="シフト閲覧">
-        <ExpiredView recruitmentId={expired.recruitmentId} />
-      </StaffLayout>
-    );
+    return <ExpiredSubmitView shopName="シフト提出" />;
   }
 
   if (!session || verifying) {
@@ -93,50 +89,43 @@ function ShiftViewRoute() {
 
   return (
     <ErrorBoundary
-      fallback={
-        <StaffLayout shopName="シフト閲覧">
-          <ExpiredView recruitmentId={session.recruitmentId} />
-        </StaffLayout>
-      }
+      fallback={<ExpiredSubmitView shopName="シフト提出" />}
       onError={(error) => {
         if (error.message?.includes("ArgumentValidationError")) {
           clearSession(session.recruitmentId);
         }
       }}
     >
-      <ShiftViewContent session={session} />
+      <ShiftSubmitContent session={session} />
     </ErrorBoundary>
   );
 }
 
-function ShiftViewContent({ session }: { session: SessionInfo }) {
-  const data = useQuery(api.staffAuth.queries.getShiftViewData, {
+function ShiftSubmitContent({ session }: { session: SessionInfo }) {
+  const data = useQuery(api.shiftSubmission.queries.getSubmissionPageData, {
     sessionToken: session.sessionToken,
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
+  const submitMutation = useMutation(api.shiftSubmission.mutations.submitShiftRequests);
 
   if (data === undefined) {
     return <FullPageSpinner />;
   }
 
   if (data === null) {
-    return (
-      <StaffLayout shopName="シフト閲覧">
-        <ExpiredView recruitmentId={session.recruitmentId} />
-      </StaffLayout>
-    );
+    return <ExpiredSubmitView shopName="シフト提出" />;
   }
 
-  return (
-    <StaffLayout shopName={data.shopName}>
-      <ShiftViewPage
-        periodLabel={data.periodLabel}
-        periodStart={data.periodStart}
-        periodEnd={data.periodEnd}
-        staffs={data.staffs}
-        assignments={data.assignments}
-        timeRange={data.timeRange}
-      />
-    </StaffLayout>
-  );
+  const handleSubmit = async (entries: DayEntry[]) => {
+    const requests = entries
+      .filter((e) => e.isWorking)
+      .map((e) => ({ date: e.date, startTime: e.startTime, endTime: e.endTime }));
+    await submitMutation({
+      sessionToken: session.sessionToken,
+      recruitmentId: session.recruitmentId as Id<"recruitments">,
+      requests,
+    });
+  };
+
+  return <ShiftSubmitPage data={data} onSubmit={handleSubmit} />;
 }

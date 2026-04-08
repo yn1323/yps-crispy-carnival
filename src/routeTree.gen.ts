@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
+import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 
@@ -46,6 +47,12 @@ const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
   path: '/shifts/view',
   getParentRoute: () => UnregisteredRoute,
 } as any)
+const UnregisteredShiftsSubmitRoute =
+  UnregisteredShiftsSubmitRouteImport.update({
+    id: '/shifts/submit',
+    path: '/shifts/submit',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
 const UnregisteredShiftsReissueRoute =
   UnregisteredShiftsReissueRouteImport.update({
     id: '/shifts/reissue',
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesByTo {
@@ -73,6 +81,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesById {
@@ -84,6 +93,7 @@ export interface FileRoutesById {
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRouteTypes {
@@ -94,6 +104,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/shiftboard/$recruitmentId'
     | '/shifts/reissue'
+    | '/shifts/submit'
     | '/shifts/view'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -102,6 +113,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/shiftboard/$recruitmentId'
     | '/shifts/reissue'
+    | '/shifts/submit'
     | '/shifts/view'
   id:
     | '__root__'
@@ -112,6 +124,7 @@ export interface FileRouteTypes {
     | '/_unregistered/welcome'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_unregistered/shifts/reissue'
+    | '/_unregistered/shifts/submit'
     | '/_unregistered/shifts/view'
   fileRoutesById: FileRoutesById
 }
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredShiftsViewRouteImport
       parentRoute: typeof UnregisteredRoute
     }
+    '/_unregistered/shifts/submit': {
+      id: '/_unregistered/shifts/submit'
+      path: '/shifts/submit'
+      fullPath: '/shifts/submit'
+      preLoaderRoute: typeof UnregisteredShiftsSubmitRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
     '/_unregistered/shifts/reissue': {
       id: '/_unregistered/shifts/reissue'
       path: '/shifts/reissue'
@@ -197,12 +217,14 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 interface UnregisteredRouteChildren {
   UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
   UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
+  UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
   UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
 }
 
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
   UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
   UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
+  UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
   UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
 }
 
