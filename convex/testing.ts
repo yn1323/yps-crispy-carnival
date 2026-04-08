@@ -122,25 +122,27 @@ export const seedSubmitTestData = internalMutation({
 
     // 既存提出がある場合
     if (args.hasExistingSubmission) {
-      await ctx.db.insert("shiftRequests", {
-        recruitmentId,
-        staffId,
-        date: "2026-04-07",
-        startTime: "09:00",
-        endTime: "18:00",
-      });
-      await ctx.db.insert("shiftRequests", {
-        recruitmentId,
-        staffId,
-        date: "2026-04-09",
-        startTime: "10:00",
-        endTime: "15:00",
-      });
-      await ctx.db.insert("shiftSubmissions", {
-        recruitmentId,
-        staffId,
-        submittedAt: Date.now(),
-      });
+      await Promise.all([
+        ctx.db.insert("shiftRequests", {
+          recruitmentId,
+          staffId,
+          date: "2026-04-07",
+          startTime: "09:00",
+          endTime: "18:00",
+        }),
+        ctx.db.insert("shiftRequests", {
+          recruitmentId,
+          staffId,
+          date: "2026-04-09",
+          startTime: "10:00",
+          endTime: "15:00",
+        }),
+        ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId,
+          submittedAt: Date.now(),
+        }),
+      ]);
     }
 
     return { token, shopId, staffId, recruitmentId };
