@@ -13,6 +13,7 @@ export const createMagicLink = internalMutation({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
+    expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const token = generateUUID();
@@ -22,7 +23,7 @@ export const createMagicLink = internalMutation({
       staffId: args.staffId,
       shopId: args.shopId,
       recruitmentId: args.recruitmentId,
-      expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+      expiresAt: args.expiresAt ?? Date.now() + TWENTY_FOUR_HOURS_MS,
     });
 
     return { token };

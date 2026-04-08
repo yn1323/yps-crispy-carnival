@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import { managerMutation } from "../_lib/functions";
 
 export const createRecruitment = managerMutation({
@@ -16,6 +17,11 @@ export const createRecruitment = managerMutation({
       status: "open",
       isDeleted: false,
     });
+    // 全スタッフに募集開始メールを送信
+    await ctx.scheduler.runAfter(0, internal.email.actions.sendRecruitmentNotificationEmails, {
+      recruitmentId,
+    });
+
     return recruitmentId;
   },
 });

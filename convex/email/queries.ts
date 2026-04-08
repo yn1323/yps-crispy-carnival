@@ -62,6 +62,38 @@ export const getConfirmationEmailData = internalQuery({
 });
 
 /**
+ * 募集開始メール送信に必要なデータを取得
+ */
+export const getRecruitmentEmailData = internalQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  handler: async (ctx, { recruitmentId }) => {
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (!recruitment || recruitment.isDeleted) return null;
+
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted) return null;
+
+    const staffs = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId", (q) => q.eq("shopId", recruitment.shopId))
+      .collect();
+    const activeStaffs = staffs.filter((s) => !s.isDeleted && s.email);
+
+    return {
+      shopId: recruitment.shopId,
+      shopName: shop.name,
+      periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      deadline: recruitment.deadline,
+      staffEntries: activeStaffs.map((s) => ({
+        staffId: s._id,
+        name: s.name,
+        email: s.email,
+      })),
+    };
+  },
+});
+
+/**
  * 再発行メール送信に必要なデータを取得
  */
 export const getReissueEmailData = internalQuery({
