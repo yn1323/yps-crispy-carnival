@@ -46,7 +46,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
 
   const entries = watch("entries");
 
-  const handleToggleWorking = (index: number) => {
+  const handleSetWorking = (index: number) => {
     setValue(`entries.${index}.isWorking`, true, { shouldValidate: true });
   };
 
@@ -122,7 +122,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             key={entry.date}
             entry={entry}
             timeOptions={timeOptions}
-            onToggleWorking={() => handleToggleWorking(index)}
+            onToggleWorking={() => handleSetWorking(index)}
             onTimeChange={(field, value) => handleTimeChange(index, field, value)}
             onClear={() => handleClear(index)}
             error={errors.entries?.[index]?.endTime?.message}

@@ -25,7 +25,7 @@ export const getConfirmationEmailData = internalQuery({
         .collect(),
     ]);
 
-    const activeStaffs = staffs.filter((s) => !s.isDeleted && s.email);
+    const activeStaffs = staffs.filter((s) => !s.isDeleted);
 
     // 期間内の全日付を生成
     const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
@@ -77,7 +77,7 @@ export const getRecruitmentEmailData = internalQuery({
       .query("staffs")
       .withIndex("by_shopId", (q) => q.eq("shopId", recruitment.shopId))
       .collect();
-    const activeStaffs = staffs.filter((s) => !s.isDeleted && s.email);
+    const activeStaffs = staffs.filter((s) => !s.isDeleted);
 
     return {
       shopId: recruitment.shopId,

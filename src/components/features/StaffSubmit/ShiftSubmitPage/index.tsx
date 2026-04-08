@@ -7,7 +7,7 @@ import { type SubmissionData, SubmitFormView } from "../SubmitFormView";
 
 type Props = {
   data: SubmissionData;
-  onSubmit?: (entries: DayEntry[]) => Promise<void>;
+  onSubmit: (entries: DayEntry[]) => Promise<void>;
 };
 
 export const ShiftSubmitPage = ({ data, onSubmit }: Props) => {
@@ -36,7 +36,7 @@ export const ShiftSubmitPage = ({ data, onSubmit }: Props) => {
     <SubmitFormView
       data={data}
       onSubmit={async (entries) => {
-        await onSubmit?.(entries);
+        await onSubmit(entries);
         setSubmittedEntries(entries);
         setShowCompletion(true);
       }}

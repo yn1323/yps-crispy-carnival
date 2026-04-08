@@ -1,11 +1,9 @@
 import { z } from "zod";
+import { shiftRequestSchema } from "@/convex/shiftSubmission/schemas";
 import { timeToMinutes } from "@/src/components/features/Shift/ShiftForm/utils/timeConversion";
 
-const dayEntrySchema = z.object({
-  date: z.string(),
+const dayEntrySchema = shiftRequestSchema.extend({
   isWorking: z.boolean(),
-  startTime: z.string(),
-  endTime: z.string(),
 });
 
 const workingDaySchema = dayEntrySchema.refine(
