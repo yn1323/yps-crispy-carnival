@@ -139,14 +139,14 @@ declare module '@tanstack/react-router' {
     '/_unregistered': {
       id: '/_unregistered'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof UnregisteredRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
       id: '/_auth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
