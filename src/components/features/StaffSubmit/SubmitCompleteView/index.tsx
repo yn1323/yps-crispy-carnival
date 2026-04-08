@@ -70,7 +70,16 @@ export const SubmitCompleteView = ({ shopName, entries, onEdit }: Props) => {
 
       {/* Edit Button */}
       <Box px={4} pt={4} pb={6}>
-        <Button w="full" h="48px" variant="outline" borderRadius="lg" fontWeight="semibold" bg="white" onClick={onEdit}>
+        <Button
+          w="full"
+          h="48px"
+          variant="outline"
+          borderRadius="lg"
+          fontWeight="semibold"
+          bg="white"
+          _hover={{ bg: "gray.100" }}
+          onClick={onEdit}
+        >
           内容を修正する
         </Button>
       </Box>

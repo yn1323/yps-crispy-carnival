@@ -1,5 +1,8 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "@storybook/react-vite";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const config: StorybookConfig = {
   refs: {
@@ -18,19 +21,34 @@ const config: StorybookConfig = {
   },
   staticDirs: ["../public"],
   viteFinal: async (config) => {
-    if (!config.resolve) {
-      return config;
-    }
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      "@/app": path.resolve(__dirname, "../app"),
-      "@/src": path.resolve(__dirname, "../src"),
-      "@/e2e": path.resolve(__dirname, "../e2e"),
-      "@/convex": path.resolve(__dirname, "../convex"),
-      "convex/react": path.resolve(__dirname, "mocks/convex-react.ts"),
-      "convex/react-clerk": path.resolve(__dirname, "mocks/convex-react.ts"),
-      "@clerk/clerk-react": path.resolve(__dirname, "mocks/clerk-react.tsx"),
+    config.resolve = {
+      ...config.resolve,
+      alias: {
+        ...config.resolve?.alias,
+        "@/app": path.resolve(__dirname, "../app"),
+        "@/src": path.resolve(__dirname, "../src"),
+        "@/e2e": path.resolve(__dirname, "../e2e"),
+        "@/convex": path.resolve(__dirname, "../convex"),
+      },
     };
+
+    // resolve.alias は Storybook の dep optimizer より後に評価されるため、
+    // convex/react 等のモック差し替えには resolveId フックを使う
+    config.plugins = [
+      ...(config.plugins ?? []),
+      {
+        name: "storybook-mock-modules",
+        enforce: "pre" as const,
+        resolveId(id: string) {
+          if (id === "convex/react" || id === "convex/react-clerk") {
+            return path.resolve(__dirname, "mocks/convex-react.ts");
+          }
+          if (id === "@clerk/clerk-react") {
+            return path.resolve(__dirname, "mocks/clerk-react.tsx");
+          }
+        },
+      },
+    ];
 
     return config;
   },

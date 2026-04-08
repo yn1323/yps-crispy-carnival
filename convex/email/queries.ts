@@ -25,7 +25,7 @@ export const getConfirmationEmailData = internalQuery({
         .collect(),
     ]);
 
-    const activeStaffs = staffs.filter((s) => !s.isDeleted && s.email);
+    const activeStaffs = staffs.filter((s) => !s.isDeleted);
 
     // 期間内の全日付を生成
     const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
@@ -57,6 +57,38 @@ export const getConfirmationEmailData = internalQuery({
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       staffEntries,
+    };
+  },
+});
+
+/**
+ * 募集開始メール送信に必要なデータを取得
+ */
+export const getRecruitmentEmailData = internalQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  handler: async (ctx, { recruitmentId }) => {
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (!recruitment || recruitment.isDeleted) return null;
+
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted) return null;
+
+    const staffs = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId", (q) => q.eq("shopId", recruitment.shopId))
+      .collect();
+    const activeStaffs = staffs.filter((s) => !s.isDeleted);
+
+    return {
+      shopId: recruitment.shopId,
+      shopName: shop.name,
+      periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      deadline: recruitment.deadline,
+      staffEntries: activeStaffs.map((s) => ({
+        staffId: s._id,
+        name: s.name,
+        email: s.email,
+      })),
     };
   },
 });

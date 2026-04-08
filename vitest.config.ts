@@ -37,6 +37,13 @@ const uiProject = defineConfig({
       storybookScript: "pnpm storybook",
     }),
   ],
+  resolve: {
+    alias: {
+      "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
+      "convex/react-clerk": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
+      "@clerk/clerk-react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
+    },
+  },
   test: {
     name: "ui",
     // Enable browser mode
