@@ -9,7 +9,7 @@ export const Header = () => {
       <Flex maxW="1024px" mx="auto" h="full" px={4} align="center" justify="space-between">
         <Link to="/dashboard">
           <Text color="white" fontWeight="semibold" _hover={{ opacity: 0.8 }} cursor="pointer">
-            シフト管理
+            シフトリ
           </Text>
         </Link>
 

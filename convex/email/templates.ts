@@ -47,7 +47,7 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
         <!-- Header -->
         <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">YPS</span>
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
@@ -100,7 +100,7 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
         <!-- Header -->
         <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">YPS</span>
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
@@ -146,7 +146,7 @@ export function buildReissueEmailHtml(params: ReissueEmailParams): string {
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
         <!-- Header -->
         <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">YPS</span>
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
