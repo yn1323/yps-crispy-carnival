@@ -27,6 +27,11 @@ export function getDeadlineCutoff(deadline: string): number {
   return date.getTime();
 }
 
+/** JST基準の今日の日付を "YYYY-MM-DD" で返す */
+export function todayJST(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+}
+
 /** "2026-01-20", "2026-01-26" → ["2026-01-20", "2026-01-21", ...] */
 export function generateDateRange(start: string, end: string): string[] {
   const dates: string[] = [];

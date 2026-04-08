@@ -1,7 +1,8 @@
 import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import dayjs from "dayjs";
 import { useForm } from "react-hook-form";
-import { type CreateRecruitmentData, createRecruitmentSchema } from "./index";
+import { type CreateRecruitmentData, createRecruitmentFormSchema } from "./index";
 
 type Props = {
   defaultValues?: CreateRecruitmentData;
@@ -15,6 +16,9 @@ const DatePlaceholder = ({ children, visible }: { children: string; visible: boo
     </Text>
   ) : null;
 
+const today = dayjs().format("YYYY-MM-DD");
+const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
+
 export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
   const {
     register,
@@ -22,7 +26,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
     watch,
     formState: { errors },
   } = useForm<CreateRecruitmentData>({
-    resolver: zodResolver(createRecruitmentSchema),
+    resolver: zodResolver(createRecruitmentFormSchema),
     defaultValues: defaultValues ?? {
       periodStart: "",
       periodEnd: "",
@@ -52,6 +56,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
                 <Input
                   type="date"
                   {...register("periodStart")}
+                  min={tomorrow}
                   max={periodEnd || undefined}
                   color={periodStart ? undefined : "transparent"}
                 />
@@ -82,6 +87,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
             <Input
               type="date"
               {...register("deadline")}
+              min={today}
               max={deadlineMax}
               color={deadline ? undefined : "transparent"}
             />

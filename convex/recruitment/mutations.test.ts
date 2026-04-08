@@ -1,19 +1,26 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { todayJST } from "../_lib/dateFormat";
 import { modules, schema } from "../_test/setup.test-helper";
+
+function futureDate(daysFromNow: number): string {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  d.setDate(d.getDate() + daysFromNow);
+  return d.toISOString().split("T")[0];
+}
 
 describe("recruitment/mutations", () => {
   describe("createRecruitment", () => {
+    const validArgs = () => ({
+      periodStart: futureDate(7),
+      periodEnd: futureDate(14),
+      deadline: futureDate(3),
+    });
+
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
-      await expect(
-        t.mutation(api.recruitment.mutations.createRecruitment, {
-          periodStart: "2026-04-01",
-          periodEnd: "2026-04-07",
-          deadline: "2026-03-28",
-        }),
-      ).rejects.toThrow();
+      await expect(t.mutation(api.recruitment.mutations.createRecruitment, validArgs())).rejects.toThrow();
     });
 
     it("店舗未登録の場合エラーをthrow", async () => {
@@ -29,18 +36,13 @@ describe("recruitment/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "user_no_shop" }).mutation(api.recruitment.mutations.createRecruitment, {
-          periodStart: "2026-04-01",
-          periodEnd: "2026-04-07",
-          deadline: "2026-03-28",
-        }),
+        t.withIdentity({ subject: "user_no_shop" }).mutation(api.recruitment.mutations.createRecruitment, validArgs()),
       ).rejects.toThrow();
     });
 
-    it("募集を作成できる", async () => {
+    function setupShop() {
       const t = convexTest(schema, modules);
-
-      const shopId = await t.run(async (ctx) => {
+      const shopId = t.run(async (ctx) => {
         await ctx.db.insert("users", {
           clerkId: "user_mgr",
           name: "管理者",
@@ -56,14 +58,22 @@ describe("recruitment/mutations", () => {
           isDeleted: false,
         });
       });
+      return { t, shopId };
+    }
+
+    // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
+    // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("募集を作成できる", async () => {
+      const { t, shopId: shopIdPromise } = setupShop();
+      const shopId = await shopIdPromise;
+      const args = validArgs();
 
       const recruitmentId = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.recruitment.mutations.createRecruitment, {
-          periodStart: "2026-04-01",
-          periodEnd: "2026-04-07",
-          deadline: "2026-03-28",
-        });
+        .mutation(api.recruitment.mutations.createRecruitment, args);
 
       expect(recruitmentId).toBeDefined();
 
@@ -71,7 +81,30 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.shopId).toBe(shopId);
       expect(recruitment?.status).toBe("open");
       expect(recruitment?.isDeleted).toBe(false);
-      expect(recruitment?.periodStart).toBe("2026-04-01");
+      expect(recruitment?.periodStart).toBe(args.periodStart);
+    });
+
+    it("締切日が過去の場合エラーをthrow", async () => {
+      const { t } = setupShop();
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          deadline: futureDate(-1),
+        }),
+      ).rejects.toThrow("締切日は今日以降にしてください");
+    });
+
+    it("開始日が今日以前の場合エラーをthrow", async () => {
+      const { t } = setupShop();
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          periodStart: todayJST(),
+          periodEnd: futureDate(14),
+          deadline: futureDate(3),
+        }),
+      ).rejects.toThrow("開始日は明日以降にしてください");
     });
   });
 });
