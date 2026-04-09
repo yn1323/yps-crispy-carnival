@@ -1,4 +1,5 @@
 import { ClerkProvider } from "@clerk/clerk-react";
+import { jaJP } from "@clerk/localizations";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
@@ -36,7 +37,7 @@ if (rootElement && !rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <ChakraProvider>
-        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} localization={jaJP}>
           <ConvexClientProvider env={CONVEX_URL}>
             <RouterProvider router={router} />
           </ConvexClientProvider>
