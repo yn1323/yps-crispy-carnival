@@ -34,6 +34,14 @@
 | ~~`K5zai`~~ | ShiftBoard/Confirmed/SP | SP確定済み |
 | ~~`0sBBB`~~ | ShiftBoard/ConfirmDialog/SP | SP確定ダイアログ表示 |
 
+## lp.pen — ランディングページ（未ログイン向けトップページ）
+
+| ID | Name | Description |
+|---|---|---|
+| `TzEz5` | LandingPage/SP | SPランディングページ全体（390px、ナビ→ヒーロー→ポイント→使い方→FAQ→フッター） |
+| `QLGoQ` | LandingPage/PC | PCランディングページ全体（1440px、コンテンツ幅768〜1024px、Point/Stepは3カラム横並び） |
+| `iHFKX` | LandingPage/SP/FirstView | iPhone SE First View 制約検証用（375×667、ヒーロー領域が収まることを確認） |
+
 ## shift-submit.pen — スタッフシフト提出画面
 
 | ID | Name | Description |

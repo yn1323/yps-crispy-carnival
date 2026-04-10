@@ -1,0 +1,2178 @@
+{
+  "version": "2.10",
+  "children": [
+    {
+      "type": "frame",
+      "id": "TzEz5",
+      "x": -1,
+      "y": 0,
+      "name": "LandingPage/SP",
+      "width": 390,
+      "fill": "$6:white",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "N16Jb",
+          "name": "Nav",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "padding": [
+            12,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "Furjh",
+              "name": "navLogo",
+              "fill": "$6:fg/default",
+              "content": "シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "jytWq",
+              "name": "navLoginBtn",
+              "cornerRadius": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$6:fg/muted"
+              },
+              "padding": [
+                8,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "WAcMj",
+                  "name": "navLoginText",
+                  "fill": "$6:fg/default",
+                  "content": "ログイン",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "pPLLH",
+          "name": "HeroSection",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "layout": "vertical",
+          "gap": 20,
+          "padding": [
+            48,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "4oAl8",
+              "name": "heroH1",
+              "fill": "$6:fg/default",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "シフト作り\nもっとラクにできる",
+              "lineHeight": 1.3,
+              "fontFamily": "Inter",
+              "fontSize": 26,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "sPAaD",
+              "name": "heroSub",
+              "fill": "$6:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "少人数のお店のシフト収集 ぜんぶおまかせ",
+              "lineHeight": 1.7,
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "atDUW",
+              "name": "heroCtaGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "17r7S",
+                  "name": "PrimaryCTA",
+                  "width": "fill_container",
+                  "height": 56,
+                  "fill": "$6:colors/teal/500",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "McrSL",
+                      "name": "heroCtaPrimaryText",
+                      "fill": "$6:white",
+                      "content": "ためしてみる",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "UuzWM",
+                  "name": "SecondaryCTA",
+                  "width": "fill_container",
+                  "height": 48,
+                  "fill": "$6:transparent",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$6:colors/teal/600"
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "sv5kg",
+                      "name": "heroCtaSecondaryText",
+                      "fill": "$6:colors/teal/600",
+                      "content": "ログイン",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "IbMcP",
+              "x": 16,
+              "y": 320,
+              "name": "heroSupport",
+              "enabled": false,
+              "fill": "$6:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container(358)",
+              "content": "クレジットカード登録なし。スタッフへの説明なし。アプリ配布なし。",
+              "lineHeight": 1.6,
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "uNVl5",
+          "name": "PointSection",
+          "width": "fill_container",
+          "fill": "$6:colors/gray/50",
+          "layout": "vertical",
+          "gap": 32,
+          "padding": [
+            48,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "nyjJX",
+              "x": 16,
+              "y": 48,
+              "name": "pointHead",
+              "enabled": false,
+              "fill": "$6:fg/default",
+              "textGrowth": "fixed-width",
+              "width": "fill_container(358)",
+              "content": "なにが変わる？",
+              "lineHeight": 1.3,
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "gGl9t",
+              "name": "pointList",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "0SDgN",
+                  "name": "Point1",
+                  "width": "fill_container",
+                  "fill": "$6:colors/teal/50",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "L6EN3",
+                      "name": "p1IconBg",
+                      "width": 56,
+                      "height": 56,
+                      "fill": "$6:colors/teal/50",
+                      "cornerRadius": 9999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "Nenve",
+                          "name": "p1Icon",
+                          "width": 32,
+                          "height": 32,
+                          "iconFontName": "sunrise",
+                          "iconFontFamily": "lucide",
+                          "fill": "$6:colors/gray/700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "NLKkg",
+                      "name": "p1Title",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "募集も確定も ワンクリック",
+                      "lineHeight": 1.4,
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "5qMJH",
+                      "name": "p1Body",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "期間を決めて一斉送信 確定もボタンひとつで全員に届く",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FMOAM",
+                  "name": "Point2",
+                  "width": "fill_container",
+                  "fill": "$6:white",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "uXX2M",
+                      "name": "p2IconBg",
+                      "width": 56,
+                      "height": 56,
+                      "fill": "$6:colors/teal/50",
+                      "cornerRadius": 9999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "GtCw9",
+                          "name": "p2Icon",
+                          "width": 32,
+                          "height": 32,
+                          "iconFontName": "user-check",
+                          "iconFontFamily": "lucide",
+                          "fill": "$6:colors/gray/700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "71HSa",
+                      "name": "p2Title",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "スタッフの登録は不要",
+                      "lineHeight": 1.4,
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "8gXHm",
+                      "name": "p2Body",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "アプリもアカウントもいらない リンクを開くだけで希望シフトを提出",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "JPFxH",
+                  "name": "Point3",
+                  "width": "fill_container",
+                  "fill": "$6:white",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "wWASX",
+                      "name": "p3IconBg",
+                      "width": 56,
+                      "height": 56,
+                      "fill": "$6:colors/teal/50",
+                      "cornerRadius": 9999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "LDQfa",
+                          "name": "p3Icon",
+                          "width": 32,
+                          "height": 32,
+                          "iconFontName": "bell",
+                          "iconFontFamily": "lucide",
+                          "fill": "$6:colors/gray/700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Eq6RU",
+                      "name": "p3Title",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "希望はそのままシフト表に",
+                      "lineHeight": 1.4,
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "nMmPs",
+                      "name": "p3Body",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "希望シフトがそのままシフト表に あとは微調整するだけ",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "RkNvS",
+          "x": 0,
+          "y": 1153,
+          "name": "StepSection",
+          "enabled": false,
+          "width": "fill_container(390)",
+          "fill": "$6:white",
+          "layout": "vertical",
+          "gap": 32,
+          "padding": [
+            48,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "TMsH1",
+              "name": "stepHead",
+              "fill": "$6:fg/default",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "始め方は3ステップ",
+              "lineHeight": 1.3,
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "FW4zN",
+              "name": "stepList",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 20,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "0tO68",
+                  "name": "Step1",
+                  "width": "fill_container",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "fTCo1",
+                      "name": "s1IconBg",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "$6:colors/gray/100",
+                      "cornerRadius": 9999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "cVtqo",
+                          "name": "s1Icon",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "store",
+                          "iconFontFamily": "lucide",
+                          "fill": "$6:colors/gray/700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "jIytg",
+                      "name": "s1Body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "KaZpj",
+                          "name": "s1Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Step 1　お店を登録",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "g3Xdu",
+                          "name": "s1Note",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "店舗名と営業時間を入れるだけ",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "SVRGW",
+                  "name": "Step2",
+                  "width": "fill_container",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JRSdb",
+                      "name": "s2IconBg",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "$6:colors/gray/100",
+                      "cornerRadius": 9999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "qGy4p",
+                          "name": "s2Icon",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "user-plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$6:colors/gray/700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GF1zT",
+                      "name": "s2Body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "EK2Cv",
+                          "name": "s2Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Step 2　スタッフの連絡先を追加",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "EmNWh",
+                          "name": "s2Note",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "名前とメールアドレスを、1人ずつ。あとで追加もできます",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "C5gyB",
+                  "name": "Step3",
+                  "width": "fill_container",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "QxDcd",
+                      "name": "s3IconBg",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "$6:colors/gray/100",
+                      "cornerRadius": 9999,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "eX0zK",
+                          "name": "s3Icon",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "calendar-plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$6:colors/gray/700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BaONu",
+                      "name": "s3Body",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Q0JJR",
+                          "name": "s3Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Step 3　シフト募集をスタート",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "45MtK",
+                          "name": "s3Note",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "期間を決めて全員に一斉送信",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "c6lsX",
+          "name": "FaqSection",
+          "width": "fill_container",
+          "fill": "$6:colors/gray/50",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [
+            48,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "xiioj",
+              "name": "faqHead",
+              "fill": "$6:fg/default",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "よくある質問",
+              "lineHeight": 1.3,
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "4zrUT",
+              "name": "faqList",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "suvB6",
+                  "name": "Faq1",
+                  "width": "fill_container",
+                  "fill": "$6:white",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "trjyQ",
+                      "name": "q1Q",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "料金はかかりますか？",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zkSul",
+                      "name": "q1A",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "無料です",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Gazti",
+                  "name": "Faq2",
+                  "width": "fill_container",
+                  "fill": "$6:white",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "7N1mE",
+                      "name": "q2Q",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "スタッフがメールアドレスを持っていない場合は？",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ylVMO",
+                      "name": "q2A",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "現在はメールアドレスが必須です 将来的にほかの方法にも対応予定です",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "dKCEU",
+                  "x": 0,
+                  "y": 281,
+                  "name": "Faq3",
+                  "enabled": false,
+                  "width": "fill_container(358)",
+                  "fill": "$6:white",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Fd6be",
+                      "name": "q3Q",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Q. スタッフがメールアドレスを持っていません。",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RnZBE",
+                      "name": "q3A",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "現在はメールアドレスが必須です。SMS対応は今後検討中です。",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "iRKaI",
+                  "x": 0,
+                  "y": 281,
+                  "name": "Faq4",
+                  "enabled": false,
+                  "width": "fill_container(358)",
+                  "fill": "$6:white",
+                  "cornerRadius": 12,
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "WC2mj",
+                      "name": "q4Q",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Q. データはどこに保存されますか？",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "A5iAa",
+                      "name": "q4A",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "信頼できるクラウドサービス上で、暗号化して保管しています。詳しくはプライバシーポリシーをご覧ください。",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "mexfz",
+          "name": "spCtaSection",
+          "width": "fill_container",
+          "fill": "#FFFFFF",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [
+            48,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "IDw75",
+              "name": "spCtaText",
+              "fill": "#09090B",
+              "content": "シフト作り もっとラクにできる",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "rvfBu",
+              "name": "spCtaBtn",
+              "width": "fill_container",
+              "height": 56,
+              "fill": "$6:colors/teal/500",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "gd32e",
+                  "name": "spCtaBtnText",
+                  "fill": "$6:white",
+                  "content": "ためしてみる",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "LZaeg",
+          "name": "FooterSection",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            32,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "5sDcb",
+              "name": "footerLinks",
+              "gap": 24,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "3sdc3",
+                  "name": "footerPrivacy",
+                  "fill": "$6:fg/muted",
+                  "content": "プライバシーポリシー",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "1LKKF",
+                  "name": "footerTerms",
+                  "fill": "$6:fg/muted",
+                  "content": "利用規約",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "9O0xn",
+              "name": "footerCopy",
+              "fill": "$6:fg/subtle",
+              "content": "© 2026 シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "QLGoQ",
+      "x": 600,
+      "y": 0,
+      "name": "LandingPage/PC",
+      "width": 1440,
+      "fill": "$6:white",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "dI7oF",
+          "name": "Nav",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "padding": [
+            20,
+            48
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "OUlND",
+              "name": "pcNavLogo",
+              "fill": "$6:fg/default",
+              "content": "シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "n0TtQ",
+              "name": "pcNavLoginBtn",
+              "cornerRadius": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$6:fg/muted"
+              },
+              "padding": [
+                10,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GM7qU",
+                  "name": "pcNavLoginText",
+                  "fill": "$6:fg/default",
+                  "content": "ログイン",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "brqX2",
+          "name": "HeroSection",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "padding": [
+            96,
+            48
+          ],
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "y843F",
+              "name": "pcHeroInner",
+              "layout": "vertical",
+              "gap": 28,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "GfrAr",
+                  "name": "pcHeroH1Wrap",
+                  "width": 768,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "PMN2w",
+                      "name": "pcHeroH1",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "シフト作り\nもっとラクにできる",
+                      "lineHeight": 1.3,
+                      "fontFamily": "Inter",
+                      "fontSize": 38,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "4oK58",
+                  "name": "pcHeroSubWrap",
+                  "width": 768,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "mU6SB",
+                      "name": "pcHeroSub",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "少人数のお店のシフト収集 ぜんぶおまかせ",
+                      "lineHeight": 1.7,
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MbbCe",
+                  "name": "pcHeroCtaRow",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "YFU0d",
+                      "name": "PrimaryCTA",
+                      "height": 56,
+                      "fill": "$6:colors/teal/500",
+                      "cornerRadius": 6,
+                      "padding": [
+                        0,
+                        32
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YnYmo",
+                          "name": "pcHeroCtaPrimaryText",
+                          "fill": "$6:white",
+                          "content": "ためしてみる",
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XEBuM",
+                      "name": "SecondaryCTA",
+                      "height": 56,
+                      "fill": "$6:transparent",
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$6:colors/teal/600"
+                      },
+                      "padding": [
+                        0,
+                        20
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "e3t5K",
+                          "name": "pcHeroCtaSecondaryText",
+                          "fill": "$6:colors/teal/600",
+                          "content": "ログイン",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "f1ZKx",
+                  "x": 0,
+                  "y": 270,
+                  "name": "pcHeroSupportWrap",
+                  "enabled": false,
+                  "width": 768,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GUoyo",
+                      "name": "pcHeroSupport",
+                      "fill": "$6:fg/muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "クレジットカード登録なし。スタッフへの説明なし。アプリ配布なし。",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "GBbHx",
+          "name": "PointSection",
+          "width": "fill_container",
+          "fill": "$6:colors/gray/50",
+          "padding": [
+            96,
+            48
+          ],
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "L7zRj",
+              "name": "pcPointInner",
+              "layout": "vertical",
+              "gap": 48,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "RfWYL",
+                  "x": 0,
+                  "y": 0,
+                  "name": "pcPointHeadWrap",
+                  "enabled": false,
+                  "width": 1024,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aVI06",
+                      "name": "pcPointHead",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "なにが変わる？",
+                      "lineHeight": 1.3,
+                      "fontFamily": "Inter",
+                      "fontSize": 30,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MJBwg",
+                  "name": "pcPointRow",
+                  "width": 1024,
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tNcAN",
+                      "name": "Point1",
+                      "width": "fill_container",
+                      "fill": "$6:colors/teal/50",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "fXmGw",
+                          "name": "pcP1IconBg",
+                          "width": 64,
+                          "height": 64,
+                          "fill": "$6:colors/teal/50",
+                          "cornerRadius": 9999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "wJdLH",
+                              "name": "pcP1Icon",
+                              "width": 32,
+                              "height": 32,
+                              "iconFontName": "sunrise",
+                              "iconFontFamily": "lucide",
+                              "fill": "$6:colors/gray/700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "e7Zal",
+                          "name": "pcP1Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "募集も確定も ワンクリック",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "thYxo",
+                          "name": "pcP1Body",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "期間を決めて一斉送信 確定もボタンひとつで全員に届く",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "E5Zgf",
+                      "name": "Point2",
+                      "width": "fill_container",
+                      "fill": "$6:white",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "UwzKy",
+                          "name": "pcP2IconBg",
+                          "width": 64,
+                          "height": 64,
+                          "fill": "$6:colors/teal/50",
+                          "cornerRadius": 9999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "IMNfT",
+                              "name": "pcP2Icon",
+                              "width": 32,
+                              "height": 32,
+                              "iconFontName": "user-check",
+                              "iconFontFamily": "lucide",
+                              "fill": "$6:colors/gray/700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "MF5Fb",
+                          "name": "pcP2Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "スタッフの登録は不要",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "RXSeB",
+                          "name": "pcP2Body",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "アプリもアカウントもいらない リンクを開くだけで希望シフトを提出",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "eeNvF",
+                      "name": "Point3",
+                      "width": "fill_container",
+                      "fill": "$6:white",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "jDAbW",
+                          "name": "pcP3IconBg",
+                          "width": 64,
+                          "height": 64,
+                          "fill": "$6:colors/teal/50",
+                          "cornerRadius": 9999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "lLLvV",
+                              "name": "pcP3Icon",
+                              "width": 32,
+                              "height": 32,
+                              "iconFontName": "bell",
+                              "iconFontFamily": "lucide",
+                              "fill": "$6:colors/gray/700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "iQ9J5",
+                          "name": "pcP3Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "希望はそのままシフト表に",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "OoWZb",
+                          "name": "pcP3Body",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "希望シフトがそのままシフト表に あとは微調整するだけ",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "N9s9R",
+          "x": 0,
+          "y": 945,
+          "name": "StepSection",
+          "enabled": false,
+          "width": "fill_container(1440)",
+          "fill": "$6:white",
+          "padding": [
+            96,
+            48
+          ],
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "dNilq",
+              "name": "pcStepInner",
+              "layout": "vertical",
+              "gap": 48,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "rrBMC",
+                  "name": "pcStepHeadWrap",
+                  "width": 1024,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CSFz0",
+                      "name": "pcStepHead",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "始め方は3ステップ",
+                      "lineHeight": 1.3,
+                      "fontFamily": "Inter",
+                      "fontSize": 30,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bH6Mw",
+                  "name": "pcStepRow",
+                  "width": 1024,
+                  "gap": 32,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "XBezj",
+                      "name": "Step1",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "fyDR2",
+                          "name": "pcS1IconBg",
+                          "width": 56,
+                          "height": 56,
+                          "fill": "$6:colors/gray/100",
+                          "cornerRadius": 9999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "AkKPy",
+                              "name": "pcS1Icon",
+                              "width": 28,
+                              "height": 28,
+                              "iconFontName": "store",
+                              "iconFontFamily": "lucide",
+                              "fill": "$6:colors/gray/700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "rSV5C",
+                          "name": "pcS1Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Step 1　お店を登録",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "5iVcw",
+                          "name": "pcS1Note",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "店舗名と営業時間を入れるだけ",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "x4u25",
+                      "name": "Step2",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "xowsA",
+                          "name": "pcS2IconBg",
+                          "width": 56,
+                          "height": 56,
+                          "fill": "$6:colors/gray/100",
+                          "cornerRadius": 9999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "9VRxD",
+                              "name": "pcS2Icon",
+                              "width": 28,
+                              "height": 28,
+                              "iconFontName": "user-plus",
+                              "iconFontFamily": "lucide",
+                              "fill": "$6:colors/gray/700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "7GloG",
+                          "name": "pcS2Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Step 2　スタッフの連絡先を追加",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "pQxSI",
+                          "name": "pcS2Note",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "名前とメールアドレスを、1人ずつ。あとで追加もできます",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ryAPB",
+                      "name": "Step3",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "BZIsl",
+                          "name": "pcS3IconBg",
+                          "width": 56,
+                          "height": 56,
+                          "fill": "$6:colors/gray/100",
+                          "cornerRadius": 9999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "JT4sL",
+                              "name": "pcS3Icon",
+                              "width": 28,
+                              "height": 28,
+                              "iconFontName": "calendar-plus",
+                              "iconFontFamily": "lucide",
+                              "fill": "$6:colors/gray/700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "0YHkK",
+                          "name": "pcS3Title",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Step 3　シフト募集をスタート",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 20,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "XfpkQ",
+                          "name": "pcS3Note",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "期間を決めて全員に一斉送信",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "wYyRm",
+          "name": "FaqSection",
+          "width": "fill_container",
+          "fill": "$6:colors/gray/50",
+          "padding": [
+            96,
+            48
+          ],
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ZNgIG",
+              "name": "pcFaqInner",
+              "layout": "vertical",
+              "gap": 32,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "4hViG",
+                  "name": "pcFaqHeadWrap",
+                  "width": 768,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oX2eK",
+                      "name": "pcFaqHead",
+                      "fill": "$6:fg/default",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "よくある質問",
+                      "lineHeight": 1.3,
+                      "fontFamily": "Inter",
+                      "fontSize": 30,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XTHV8",
+                  "name": "pcFaqList",
+                  "width": 768,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JQGpA",
+                      "name": "Faq1",
+                      "width": "fill_container",
+                      "fill": "$6:white",
+                      "cornerRadius": 12,
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "cqwWO",
+                          "name": "pcQ1Q",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "料金はかかりますか？",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "i7OHe",
+                          "name": "pcQ1A",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "無料です",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Em9RF",
+                      "name": "Faq2",
+                      "width": "fill_container",
+                      "fill": "$6:white",
+                      "cornerRadius": 12,
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "1xh2S",
+                          "name": "pcQ2Q",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "スタッフがメールアドレスを持っていない場合は？",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "gYbCb",
+                          "name": "pcQ2A",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "現在はメールアドレスが必須です 将来的にほかの方法にも対応予定です",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TKMG9",
+                      "x": 0,
+                      "y": 281,
+                      "name": "Faq3",
+                      "enabled": false,
+                      "width": "fill_container(768)",
+                      "fill": "$6:white",
+                      "cornerRadius": 12,
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "aJKYU",
+                          "name": "pcQ3Q",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Q. スタッフがメールアドレスを持っていません。",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "qR0iM",
+                          "name": "pcQ3A",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "現在はメールアドレスが必須です。SMS対応は今後検討中です。",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "I6Tn0",
+                      "x": 0,
+                      "y": 281,
+                      "name": "Faq4",
+                      "enabled": false,
+                      "width": "fill_container(768)",
+                      "fill": "$6:white",
+                      "cornerRadius": 12,
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": 28,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "C6ll0",
+                          "name": "pcQ4Q",
+                          "fill": "$6:fg/default",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Q. データはどこに保存されますか？",
+                          "lineHeight": 1.6,
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "p60Pq",
+                          "name": "pcQ4A",
+                          "fill": "$6:fg/muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "信頼できるクラウドサービス上で、暗号化して保管しています。詳しくはプライバシーポリシーをご覧ください。",
+                          "lineHeight": 1.7,
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "SwcLp",
+          "name": "ctaSection",
+          "width": "fill_container",
+          "fill": "#FFFFFF",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [
+            96,
+            48
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "fmWu6",
+              "name": "ctaText",
+              "fill": "#09090B",
+              "content": "シフト作り もっとラクにできる",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "dYofc",
+              "name": "ctaBtn",
+              "height": 56,
+              "fill": "$6:colors/teal/500",
+              "cornerRadius": 6,
+              "padding": [
+                0,
+                32
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "bj38j",
+                  "name": "ctaBtnText",
+                  "fill": "$6:white",
+                  "content": "ためしてみる",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hO8XR",
+          "name": "FooterSection",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 48,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "eBv7N",
+              "name": "pcFooterLinks",
+              "gap": 32,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "uI697",
+                  "name": "pcFooterPrivacy",
+                  "fill": "$6:fg/muted",
+                  "content": "プライバシーポリシー",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "b6Lqc",
+                  "name": "pcFooterTerms",
+                  "fill": "$6:fg/muted",
+                  "content": "利用規約",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "oyZ5t",
+              "name": "pcFooterCopy",
+              "fill": "$6:fg/subtle",
+              "content": "© 2026 シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "iHFKX",
+      "x": 2200,
+      "y": 0,
+      "name": "LandingPage/SP/FirstView",
+      "clip": true,
+      "width": 375,
+      "height": 667,
+      "fill": "$6:white",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "4fIgW",
+          "name": "Nav",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "padding": [
+            12,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "WQDYl",
+              "name": "fvNavLogo",
+              "fill": "$6:fg/default",
+              "content": "シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "OeA9V",
+              "name": "fvNavLoginBtn",
+              "cornerRadius": 6,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$6:fg/muted"
+              },
+              "padding": [
+                8,
+                16
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZLx5q",
+                  "name": "fvNavLoginText",
+                  "fill": "$6:fg/default",
+                  "content": "ログイン",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "6CG4V",
+          "name": "HeroSection",
+          "width": "fill_container",
+          "fill": "$6:white",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            32,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "DtcmF",
+              "name": "fvHeroH1",
+              "fill": "$6:fg/default",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "シフト作り\nもっとラクにできる",
+              "lineHeight": 1.3,
+              "fontFamily": "Inter",
+              "fontSize": 26,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "7r2iY",
+              "name": "fvHeroSub",
+              "fill": "$6:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "少人数のお店のシフト収集 ぜんぶおまかせ",
+              "lineHeight": 1.7,
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "3cH7w",
+              "name": "fvHeroCtaGroup",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 10,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "OaSdu",
+                  "name": "PrimaryCTA",
+                  "width": "fill_container",
+                  "height": 56,
+                  "fill": "$6:colors/teal/500",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gCDp0",
+                      "name": "fvHeroCtaPrimaryText",
+                      "fill": "$6:white",
+                      "content": "ためしてみる",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "KD2g1",
+                  "name": "SecondaryCTA",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "$6:transparent",
+                  "cornerRadius": 6,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$6:colors/teal/600"
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "yCBDE",
+                      "name": "fvHeroCtaSecondaryText",
+                      "fill": "$6:colors/teal/600",
+                      "content": "ログイン",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "0HE86",
+              "x": 16,
+              "y": 285,
+              "name": "fvHeroSupport",
+              "enabled": false,
+              "fill": "$6:fg/muted",
+              "textGrowth": "fixed-width",
+              "width": "fill_container(343)",
+              "content": "クレジットカード登録なし。スタッフへの説明なし。アプリ配布なし。",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "6": "common/system.lib.pen"
+  }
+}
