@@ -1082,35 +1082,6 @@
               "fontFamily": "Inter",
               "fontSize": 24,
               "fontWeight": "700"
-            },
-            {
-              "type": "frame",
-              "id": "n0TtQ",
-              "name": "pcNavLoginBtn",
-              "cornerRadius": 6,
-              "stroke": {
-                "align": "inside",
-                "thickness": 1,
-                "fill": "$6:colors/teal/600"
-              },
-              "padding": [
-                10,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "GM7qU",
-                  "name": "pcNavLoginText",
-                  "fill": "$6:colors/teal/600",
-                  "content": "ログイン",
-                  "fontFamily": "Inter",
-                  "fontSize": 16,
-                  "fontWeight": "500"
-                }
-              ]
             }
           ]
         },
