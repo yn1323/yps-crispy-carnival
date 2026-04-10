@@ -10,7 +10,7 @@ export function getNextWeekDates() {
   return {
     periodStart: nextMonday.format("YYYY-MM-DD"),
     periodEnd: nextMonday.add(6, "day").format("YYYY-MM-DD"),
-    deadline: nextMonday.subtract(3, "day").format("YYYY-MM-DD"),
+    deadline: nextMonday.subtract(1, "day").format("YYYY-MM-DD"),
     dates: Array.from({ length: 7 }, (_, i) => nextMonday.add(i, "day").format("YYYY-MM-DD")),
   };
 }
