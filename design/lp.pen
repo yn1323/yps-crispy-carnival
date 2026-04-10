@@ -37,12 +37,15 @@
             {
               "type": "frame",
               "id": "jytWq",
+              "x": 286,
+              "y": 12,
               "name": "navLoginBtn",
+              "enabled": false,
               "cornerRadius": 6,
               "stroke": {
                 "align": "inside",
                 "thickness": 1,
-                "fill": "$6:fg/muted"
+                "fill": "$6:colors/teal/600"
               },
               "padding": [
                 8,
@@ -55,7 +58,7 @@
                   "type": "text",
                   "id": "WAcMj",
                   "name": "navLoginText",
-                  "fill": "$6:fg/default",
+                  "fill": "$6:colors/teal/600",
                   "content": "ログイン",
                   "fontFamily": "Inter",
                   "fontSize": 14,
@@ -70,11 +73,29 @@
           "id": "pPLLH",
           "name": "HeroSection",
           "width": "fill_container",
-          "fill": "$6:white",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#99f6e4",
+                "position": 0
+              },
+              {
+                "color": "#ffffff",
+                "position": 1
+              }
+            ]
+          },
           "layout": "vertical",
           "gap": 20,
           "padding": [
-            48,
+            64,
             16
           ],
           "children": [
@@ -98,7 +119,7 @@
               "fill": "$6:fg/muted",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "少人数のお店のシフト収集 ぜんぶおまかせ",
+              "content": "少人数のお店のシフト作成 ぜんぶおまかせ",
               "lineHeight": 1.7,
               "fontFamily": "Inter",
               "fontSize": 16,
@@ -141,7 +162,7 @@
                   "name": "SecondaryCTA",
                   "width": "fill_container",
                   "height": 48,
-                  "fill": "$6:transparent",
+                  "fill": "$6:white",
                   "cornerRadius": 6,
                   "stroke": {
                     "align": "inside",
@@ -225,8 +246,13 @@
                   "id": "0SDgN",
                   "name": "Point1",
                   "width": "fill_container",
-                  "fill": "$6:colors/teal/50",
+                  "fill": "$6:white",
                   "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#14b8a6"
+                  },
                   "layout": "vertical",
                   "gap": 12,
                   "padding": 20,
@@ -237,7 +263,7 @@
                       "name": "p1IconBg",
                       "width": 56,
                       "height": 56,
-                      "fill": "$6:colors/teal/50",
+                      "fill": "#14b8a6",
                       "cornerRadius": 9999,
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -248,9 +274,9 @@
                           "name": "p1Icon",
                           "width": 32,
                           "height": 32,
-                          "iconFontName": "sunrise",
+                          "iconFontName": "send",
                           "iconFontFamily": "lucide",
-                          "fill": "$6:colors/gray/700"
+                          "fill": "$6:white"
                         }
                       ]
                     },
@@ -289,6 +315,11 @@
                   "width": "fill_container",
                   "fill": "$6:white",
                   "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#14b8a6"
+                  },
                   "layout": "vertical",
                   "gap": 12,
                   "padding": 20,
@@ -299,7 +330,7 @@
                       "name": "p2IconBg",
                       "width": 56,
                       "height": 56,
-                      "fill": "$6:colors/teal/50",
+                      "fill": "#14b8a6",
                       "cornerRadius": 9999,
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -310,9 +341,9 @@
                           "name": "p2Icon",
                           "width": 32,
                           "height": 32,
-                          "iconFontName": "user-check",
+                          "iconFontName": "link",
                           "iconFontFamily": "lucide",
-                          "fill": "$6:colors/gray/700"
+                          "fill": "$6:white"
                         }
                       ]
                     },
@@ -351,6 +382,11 @@
                   "width": "fill_container",
                   "fill": "$6:white",
                   "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#14b8a6"
+                  },
                   "layout": "vertical",
                   "gap": 12,
                   "padding": 20,
@@ -361,7 +397,7 @@
                       "name": "p3IconBg",
                       "width": 56,
                       "height": 56,
-                      "fill": "$6:colors/teal/50",
+                      "fill": "#14b8a6",
                       "cornerRadius": 9999,
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -372,9 +408,9 @@
                           "name": "p3Icon",
                           "width": 32,
                           "height": 32,
-                          "iconFontName": "bell",
+                          "iconFontName": "calendar-check",
                           "iconFontFamily": "lucide",
-                          "fill": "$6:colors/gray/700"
+                          "fill": "$6:white"
                         }
                       ]
                     },
@@ -672,7 +708,7 @@
               "type": "text",
               "id": "xiioj",
               "name": "faqHead",
-              "fill": "$6:fg/default",
+              "fill": "#0f766e",
               "textGrowth": "fixed-width",
               "width": "fill_container",
               "content": "よくある質問",
@@ -696,6 +732,13 @@
                   "width": "fill_container",
                   "fill": "$6:white",
                   "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": {
+                      "left": 3
+                    },
+                    "fill": "#14b8a6"
+                  },
                   "layout": "vertical",
                   "gap": 10,
                   "padding": 20,
@@ -735,6 +778,13 @@
                   "width": "fill_container",
                   "fill": "$6:white",
                   "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": {
+                      "left": 3
+                    },
+                    "fill": "#14b8a6"
+                  },
                   "layout": "vertical",
                   "gap": 10,
                   "padding": 20,
@@ -860,7 +910,25 @@
           "id": "mexfz",
           "name": "spCtaSection",
           "width": "fill_container",
-          "fill": "#FFFFFF",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#f0fdfa",
+                "position": 0
+              },
+              {
+                "color": "#ffffff",
+                "position": 1
+              }
+            ]
+          },
           "layout": "vertical",
           "gap": 24,
           "padding": [
@@ -878,6 +946,16 @@
               "fontFamily": "Inter",
               "fontSize": 20,
               "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "vUlUH",
+              "name": "spCtaSub",
+              "fill": "$6:fg/muted",
+              "content": "少人数のお店のシフト管理を もっとかんたんに",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "normal"
             },
             {
               "type": "frame",
@@ -918,6 +996,16 @@
           ],
           "alignItems": "center",
           "children": [
+            {
+              "type": "text",
+              "id": "75JIL",
+              "name": "footerLogo",
+              "fill": "$6:fg/default",
+              "content": "シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "700"
+            },
             {
               "type": "frame",
               "id": "5sDcb",
@@ -1003,7 +1091,7 @@
               "stroke": {
                 "align": "inside",
                 "thickness": 1,
-                "fill": "$6:fg/muted"
+                "fill": "$6:colors/teal/600"
               },
               "padding": [
                 10,
@@ -1016,7 +1104,7 @@
                   "type": "text",
                   "id": "GM7qU",
                   "name": "pcNavLoginText",
-                  "fill": "$6:fg/default",
+                  "fill": "$6:colors/teal/600",
                   "content": "ログイン",
                   "fontFamily": "Inter",
                   "fontSize": 16,
@@ -1031,9 +1119,27 @@
           "id": "brqX2",
           "name": "HeroSection",
           "width": "fill_container",
-          "fill": "$6:white",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#99f6e4",
+                "position": 0
+              },
+              {
+                "color": "#ffffff",
+                "position": 1
+              }
+            ]
+          },
           "padding": [
-            96,
+            120,
             48
           ],
           "justifyContent": "center",
@@ -1081,7 +1187,7 @@
                       "fill": "$6:fg/muted",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "少人数のお店のシフト収集 ぜんぶおまかせ",
+                      "content": "少人数のお店のシフト作成 ぜんぶおまかせ",
                       "lineHeight": 1.7,
                       "fontFamily": "Inter",
                       "fontSize": 18,
@@ -1127,7 +1233,7 @@
                       "id": "XEBuM",
                       "name": "SecondaryCTA",
                       "height": 56,
-                      "fill": "$6:transparent",
+                      "fill": "$6:white",
                       "cornerRadius": 6,
                       "stroke": {
                         "align": "inside",
@@ -1181,6 +1287,25 @@
                   ]
                 }
               ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qMJkl",
+          "name": "accentWrap",
+          "width": "fill_container",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "rectangle",
+              "cornerRadius": 2,
+              "id": "uWeJH",
+              "name": "accentLine",
+              "fill": "#14b8a6",
+              "width": 120,
+              "height": 4
             }
           ]
         },
@@ -1240,8 +1365,13 @@
                       "id": "tNcAN",
                       "name": "Point1",
                       "width": "fill_container",
-                      "fill": "$6:colors/teal/50",
+                      "fill": "$6:white",
                       "cornerRadius": 16,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#14b8a6"
+                      },
                       "layout": "vertical",
                       "gap": 16,
                       "padding": 28,
@@ -1252,7 +1382,7 @@
                           "name": "pcP1IconBg",
                           "width": 64,
                           "height": 64,
-                          "fill": "$6:colors/teal/50",
+                          "fill": "#14b8a6",
                           "cornerRadius": 9999,
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -1263,9 +1393,9 @@
                               "name": "pcP1Icon",
                               "width": 32,
                               "height": 32,
-                              "iconFontName": "sunrise",
+                              "iconFontName": "send",
                               "iconFontFamily": "lucide",
-                              "fill": "$6:colors/gray/700"
+                              "fill": "$6:white"
                             }
                           ]
                         },
@@ -1304,6 +1434,11 @@
                       "width": "fill_container",
                       "fill": "$6:white",
                       "cornerRadius": 16,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#14b8a6"
+                      },
                       "layout": "vertical",
                       "gap": 16,
                       "padding": 28,
@@ -1314,7 +1449,7 @@
                           "name": "pcP2IconBg",
                           "width": 64,
                           "height": 64,
-                          "fill": "$6:colors/teal/50",
+                          "fill": "#14b8a6",
                           "cornerRadius": 9999,
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -1325,9 +1460,9 @@
                               "name": "pcP2Icon",
                               "width": 32,
                               "height": 32,
-                              "iconFontName": "user-check",
+                              "iconFontName": "link",
                               "iconFontFamily": "lucide",
-                              "fill": "$6:colors/gray/700"
+                              "fill": "$6:white"
                             }
                           ]
                         },
@@ -1366,6 +1501,11 @@
                       "width": "fill_container",
                       "fill": "$6:white",
                       "cornerRadius": 16,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#14b8a6"
+                      },
                       "layout": "vertical",
                       "gap": 16,
                       "padding": 28,
@@ -1376,7 +1516,7 @@
                           "name": "pcP3IconBg",
                           "width": 64,
                           "height": 64,
-                          "fill": "$6:colors/teal/50",
+                          "fill": "#14b8a6",
                           "cornerRadius": 9999,
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -1387,9 +1527,9 @@
                               "name": "pcP3Icon",
                               "width": 32,
                               "height": 32,
-                              "iconFontName": "bell",
+                              "iconFontName": "calendar-check",
                               "iconFontFamily": "lucide",
-                              "fill": "$6:colors/gray/700"
+                              "fill": "$6:white"
                             }
                           ]
                         },
@@ -1691,7 +1831,7 @@
                       "type": "text",
                       "id": "oX2eK",
                       "name": "pcFaqHead",
-                      "fill": "$6:fg/default",
+                      "fill": "#0f766e",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
                       "content": "よくある質問",
@@ -1717,6 +1857,13 @@
                       "width": "fill_container",
                       "fill": "$6:white",
                       "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": {
+                          "left": 3
+                        },
+                        "fill": "#14b8a6"
+                      },
                       "layout": "vertical",
                       "gap": 12,
                       "padding": 28,
@@ -1756,6 +1903,13 @@
                       "width": "fill_container",
                       "fill": "$6:white",
                       "cornerRadius": 12,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": {
+                          "left": 3
+                        },
+                        "fill": "#14b8a6"
+                      },
                       "layout": "vertical",
                       "gap": 12,
                       "padding": 28,
@@ -1883,7 +2037,25 @@
           "id": "SwcLp",
           "name": "ctaSection",
           "width": "fill_container",
-          "fill": "#FFFFFF",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#f0fdfa",
+                "position": 0
+              },
+              {
+                "color": "#ffffff",
+                "position": 1
+              }
+            ]
+          },
           "layout": "vertical",
           "gap": 24,
           "padding": [
@@ -1901,6 +2073,16 @@
               "fontFamily": "Inter",
               "fontSize": 24,
               "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "L3dxR",
+              "name": "subCopy",
+              "fill": "$6:fg/muted",
+              "content": "少人数のお店のシフト管理を もっとかんたんに",
+              "fontFamily": "Inter",
+              "fontSize": 16,
+              "fontWeight": "normal"
             },
             {
               "type": "frame",
@@ -1942,6 +2124,16 @@
           "alignItems": "center",
           "children": [
             {
+              "type": "text",
+              "id": "lXNBH",
+              "name": "pcFooterLogo",
+              "fill": "$6:fg/default",
+              "content": "シフトリ",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
               "type": "frame",
               "id": "eBv7N",
               "name": "pcFooterLinks",
@@ -1979,192 +2171,6 @@
               "content": "© 2026 シフトリ",
               "fontFamily": "Inter",
               "fontSize": 12,
-              "fontWeight": "normal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "iHFKX",
-      "x": 2200,
-      "y": 0,
-      "name": "LandingPage/SP/FirstView",
-      "clip": true,
-      "width": 375,
-      "height": 667,
-      "fill": "$6:white",
-      "layout": "vertical",
-      "children": [
-        {
-          "type": "frame",
-          "id": "4fIgW",
-          "name": "Nav",
-          "width": "fill_container",
-          "fill": "$6:white",
-          "padding": [
-            12,
-            16
-          ],
-          "justifyContent": "space_between",
-          "alignItems": "center",
-          "children": [
-            {
-              "type": "text",
-              "id": "WQDYl",
-              "name": "fvNavLogo",
-              "fill": "$6:fg/default",
-              "content": "シフトリ",
-              "fontFamily": "Inter",
-              "fontSize": 20,
-              "fontWeight": "700"
-            },
-            {
-              "type": "frame",
-              "id": "OeA9V",
-              "name": "fvNavLoginBtn",
-              "cornerRadius": 6,
-              "stroke": {
-                "align": "inside",
-                "thickness": 1,
-                "fill": "$6:fg/muted"
-              },
-              "padding": [
-                8,
-                16
-              ],
-              "justifyContent": "center",
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "text",
-                  "id": "ZLx5q",
-                  "name": "fvNavLoginText",
-                  "fill": "$6:fg/default",
-                  "content": "ログイン",
-                  "fontFamily": "Inter",
-                  "fontSize": 14,
-                  "fontWeight": "500"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "6CG4V",
-          "name": "HeroSection",
-          "width": "fill_container",
-          "fill": "$6:white",
-          "layout": "vertical",
-          "gap": 16,
-          "padding": [
-            32,
-            16
-          ],
-          "children": [
-            {
-              "type": "text",
-              "id": "DtcmF",
-              "name": "fvHeroH1",
-              "fill": "$6:fg/default",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "シフト作り\nもっとラクにできる",
-              "lineHeight": 1.3,
-              "fontFamily": "Inter",
-              "fontSize": 26,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "7r2iY",
-              "name": "fvHeroSub",
-              "fill": "$6:fg/muted",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "少人数のお店のシフト収集 ぜんぶおまかせ",
-              "lineHeight": 1.7,
-              "fontFamily": "Inter",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "3cH7w",
-              "name": "fvHeroCtaGroup",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 10,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "OaSdu",
-                  "name": "PrimaryCTA",
-                  "width": "fill_container",
-                  "height": 56,
-                  "fill": "$6:colors/teal/500",
-                  "cornerRadius": 6,
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "gCDp0",
-                      "name": "fvHeroCtaPrimaryText",
-                      "fill": "$6:white",
-                      "content": "ためしてみる",
-                      "fontFamily": "Inter",
-                      "fontSize": 18,
-                      "fontWeight": "700"
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "KD2g1",
-                  "name": "SecondaryCTA",
-                  "width": "fill_container",
-                  "height": 44,
-                  "fill": "$6:transparent",
-                  "cornerRadius": 6,
-                  "stroke": {
-                    "align": "inside",
-                    "thickness": 1,
-                    "fill": "$6:colors/teal/600"
-                  },
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "yCBDE",
-                      "name": "fvHeroCtaSecondaryText",
-                      "fill": "$6:colors/teal/600",
-                      "content": "ログイン",
-                      "fontFamily": "Inter",
-                      "fontSize": 16,
-                      "fontWeight": "600"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "type": "text",
-              "id": "0HE86",
-              "x": 16,
-              "y": 285,
-              "name": "fvHeroSupport",
-              "enabled": false,
-              "fill": "$6:fg/muted",
-              "textGrowth": "fixed-width",
-              "width": "fill_container(343)",
-              "content": "クレジットカード登録なし。スタッフへの説明なし。アプリ配布なし。",
-              "lineHeight": 1.5,
-              "fontFamily": "Inter",
-              "fontSize": 13,
               "fontWeight": "normal"
             }
           ]
