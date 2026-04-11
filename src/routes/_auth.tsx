@@ -1,34 +1,25 @@
-import { Box, Spinner } from "@chakra-ui/react";
-import { useAuth } from "@clerk/clerk-react";
-import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
-import { SideMenu } from "@/src/components/layout/SideMenu";
+import { Box } from "@chakra-ui/react";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { AuthGuard } from "@/src/components/features/auths/AuthGuard";
+import { Header } from "@/src/components/templates/Header";
 
 export const Route = createFileRoute("/_auth")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { isLoaded, isSignedIn } = useAuth();
-
-  // ローディング中
-  if (!isLoaded) {
-    // TODO: いい感じにしたい
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <Spinner />
-      </Box>
-    );
-  }
-
-  // 未認証の場合、TOPにリダイレクト
-  if (!isSignedIn) {
-    return <Navigate to="/" />;
-  }
-
   return (
-    <Box display="flex">
-      <SideMenu />
-      <Box ml="250px" mt={4} mr={4} flex={1}>
+    <AuthGuard>
+      <AuthenticatedLayout />
+    </AuthGuard>
+  );
+}
+
+function AuthenticatedLayout() {
+  return (
+    <Box w="100%" minH="100vh">
+      <Header />
+      <Box pt="56px">
         <Outlet />
       </Box>
     </Box>

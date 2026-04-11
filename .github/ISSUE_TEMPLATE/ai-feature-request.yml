@@ -12,7 +12,7 @@ body:
       placeholder: "例: ユーザープロフィール画像のアップロード機能"
     validations:
       required: true
-      
+
   - type: textarea
     id: feature_description
     attributes:
@@ -24,7 +24,7 @@ body:
         - どのような価値を提供するか
     validations:
       required: true
-      
+
   - type: textarea
     id: acceptance_criteria
     attributes:
@@ -36,7 +36,7 @@ body:
         - [ ] 不正なファイル形式は拒否される
     validations:
       required: true
-      
+
   - type: textarea
     id: affected_files
     attributes:
@@ -47,7 +47,7 @@ body:
         - app/api/upload/route.ts
     validations:
       required: false
-      
+
   - type: dropdown
     id: priority
     attributes:
@@ -58,7 +58,7 @@ body:
         - 🟡 低 (将来)
     validations:
       required: true
-      
+
   - type: textarea
     id: additional_context
     attributes:
@@ -67,7 +67,7 @@ body:
       placeholder: "例: 参考デザイン、技術制約など"
     validations:
       required: false
-      
+
   - type: markdown
     attributes:
       value: |

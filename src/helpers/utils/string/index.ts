@@ -6,8 +6,8 @@ export const makeQueryParamsString = (obj: Record<string, string>) => {
   return params.join("&");
 };
 
-export const isNumber = (string: string) => {
+export const isDigitString = (value: string) => {
   const regex = /[^0-9]/;
 
-  return !regex.test(string);
+  return !regex.test(value);
 };

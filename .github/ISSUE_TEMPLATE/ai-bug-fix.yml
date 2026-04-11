@@ -12,7 +12,7 @@ body:
       placeholder: "例: ユーザー登録時にバリデーションエラーが発生する"
     validations:
       required: true
-      
+
   - type: textarea
     id: bug_description
     attributes:
@@ -24,7 +24,7 @@ body:
         エラーメッセージ: ...
     validations:
       required: true
-      
+
   - type: textarea
     id: reproduction_steps
     attributes:
@@ -36,7 +36,7 @@ body:
         3. ...
     validations:
       required: true
-      
+
   - type: textarea
     id: affected_files
     attributes:
@@ -47,7 +47,7 @@ body:
         - app/api/auth/route.ts
     validations:
       required: false
-      
+
   - type: dropdown
     id: priority
     attributes:
@@ -58,7 +58,7 @@ body:
         - 🟡 低 (軽微な問題)
     validations:
       required: true
-      
+
   - type: textarea
     id: additional_context
     attributes:
@@ -67,7 +67,7 @@ body:
       placeholder: "例: Chrome 120.0, macOS 14.0, 開発環境"
     validations:
       required: false
-      
+
   - type: markdown
     attributes:
       value: |
