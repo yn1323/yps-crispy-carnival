@@ -1,9 +1,7 @@
 #!/usr/bin/env tsx
 
 import { execSync } from "node:child_process";
-import { createReadStream, promises as fs } from "node:fs";
-import path from "node:path";
-import unzipper from "unzipper";
+import { promises as fs } from "node:fs";
 
 const main = async () => {
   try {
@@ -19,7 +17,7 @@ const main = async () => {
       const files = await fs.readdir(backupDir);
       for (const file of files) {
         if (file !== ".gitkeep") {
-          const filePath = path.join(backupDir, file);
+          const filePath = `${backupDir}/${file}`;
           const stat = await fs.lstat(filePath);
           if (stat.isDirectory()) {
             await fs.rm(filePath, { recursive: true, force: true });
@@ -47,22 +45,13 @@ const main = async () => {
       cwd: process.cwd(),
     });
 
-    // zip展開
-    console.log("\nzipファイルを展開中...");
-    const extractDir = `convex-seeds/backup/${timestamp}`;
-    await fs.mkdir(extractDir, { recursive: true });
-
-    try {
-      await new Promise((resolve, reject) => {
-        createReadStream(zipFile)
-          .pipe(unzipper.Extract({ path: extractDir }))
-          .on("finish", resolve)
-          .on("error", reject);
-      });
-    } catch (e) {
-      console.log("⚠️ zipファイルの展開に失敗しました。zipファイルのみ保存されました。");
-      console.error(e);
-    }
+    // seedsフォルダにzipファイルをコピー
+    console.log("\nzipファイルをseedsフォルダにコピー中...");
+    const seedsDir = "convex-seeds/seeds";
+    await fs.mkdir(seedsDir, { recursive: true });
+    const seedsZipFile = `${seedsDir}/db.zip`;
+    await fs.copyFile(zipFile, seedsZipFile);
+    console.log(`✅ ${zipFile} → ${seedsZipFile}`);
 
     console.log("\n==========================================");
     console.log("✅ エクスポートが完了しました！");

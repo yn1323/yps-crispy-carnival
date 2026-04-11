@@ -6,6 +6,86 @@
       "command": "pnpm scaffdog",
       "label": "Scaffolding",
       "detail": "pnpm scaffdog"
+    },
+    {
+      "label": "dev",
+      "type": "shell",
+      "command": "pnpm dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "convex:dev",
+      "type": "shell",
+      "command": "pnpm convex:dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "storybook",
+      "type": "shell",
+      "command": "pnpm storybook",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "DBをエクスポート",
+      "type": "shell",
+      "command": "pnpm convex:export",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "DBリセット（Seed）",
+      "type": "shell",
+      "command": "pnpm convex:import",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "dev:all",
+      "dependsOn": ["dev", "convex:dev", "storybook"],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Convex環境変数セットアップ",
+      "type": "shell",
+      "command": "pnpm convex:env:setup",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "difit",
+      "type": "shell",
+      "command": "npx difit .",
+      "isBackground": true
     }
   ]
 }

@@ -1,10 +1,26 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
-import { E2EAuthJsonFile } from "@/e2e/constants";
 
-dotenv.config();
+dotenv.config({ debug: false, quiet: true });
 
 /**
+ * E2Eテスト実行順序と依存関係:
+ *
+ * 1. setup
+ *    ├── 全ユーザーのログイン認証を実行
+ *    └── 認証状態をファイルに保存
+ *
+ * 2. 認証済みテスト (User A / 管理者)
+ *    ├── auth/login.test.ts - 認証確認
+ *    ├── shop/register.test.ts - 店舗登録
+ *    ├── shop/list.test.ts - 店舗一覧
+ *    ├── shop/detail.test.ts - 店舗詳細
+ *    ├── shop/edit.test.ts - 店舗編集
+ *    └── staff/list.test.ts - スタッフ一覧（StaffTab操作）
+ *
+ * 3. 認証済みテストB (User B / 新規店長)
+ *    └── userB/new-owner.test.ts - 新規店長の初回ログイン〜店舗登録
+ *
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
@@ -16,9 +32,9 @@ export default defineConfig({
   /* Retry on CI only */
   retries: process.env.CI ? 1 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: "html",
+  reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
@@ -34,20 +50,34 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    // Step 1: 認証セットアップ（全プロジェクトの前提条件）
     {
       name: "setup",
-      testMatch: /fixtures\/setup\/.*\.setup\.ts/,
+      testMatch: /fixtures\/.*\.setup\.ts/,
     },
+
+    // Step 2: メインユーザー（管理者）のテスト
     {
-      name: "認証済みテスト",
-      testMatch: /scenarios\/.*\.test\.ts/,
+      name: "シナリオテスト",
+      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
       use: {
         ...devices["Desktop Chrome"],
-        // 保存した認証状態を使用
-        storageState: E2EAuthJsonFile,
+        storageState: "e2e/.clerk/user.json",
       },
       dependencies: ["setup"],
     },
+
+    // Step 3: サブユーザー（新規店長）のテスト
+    // DB未登録状態での初回ログインをテスト
+    // {
+    //   name: "認証済みテストB",
+    //   testMatch: /scenarios\/userB\/.*\.test\.ts/,
+    //   use: {
+    //     ...devices["Desktop Chrome"],
+    //     storageState: "e2e/.clerk/user-b.json",
+    //   },
+    //   dependencies: ["setup"],
+    // },
   ],
 
   webServer: {

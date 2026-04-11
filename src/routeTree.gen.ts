@@ -9,18 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthTimecardRouteImport } from './routes/_auth/timecard'
-import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
-import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
-import { Route as AuthMypageRouteImport } from './routes/_auth/mypage'
-import { Route as AuthAttendanceRouteImport } from './routes/_auth/attendance'
-import { Route as UnregisteredJoinUserRouteImport } from './routes/_unregistered/join/user'
-import { Route as AuthShopsNewRouteImport } from './routes/_auth/shops/new'
-import { Route as AuthShopsInviteRouteImport } from './routes/_auth/shops/invite'
-import { Route as AuthShopsIdRouteImport } from './routes/_auth/shops/$id'
+import { Route as UnregisteredWelcomeRouteImport } from './routes/_unregistered/welcome'
+import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
+import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
+import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
+import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnregisteredRoute = UnregisteredRouteImport.update({
+  id: '/_unregistered',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -30,142 +44,149 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthTimecardRoute = AuthTimecardRouteImport.update({
-  id: '/timecard',
-  path: '/timecard',
+const UnregisteredWelcomeRoute = UnregisteredWelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => UnregisteredRoute,
+} as any)
+const AuthDashboardRoute = AuthDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthShiftsRoute = AuthShiftsRouteImport.update({
-  id: '/shifts',
-  path: '/shifts',
-  getParentRoute: () => AuthRoute,
+const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
+  id: '/shifts/view',
+  path: '/shifts/view',
+  getParentRoute: () => UnregisteredRoute,
 } as any)
-const AuthSettingsRoute = AuthSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthMypageRoute = AuthMypageRouteImport.update({
-  id: '/mypage',
-  path: '/mypage',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthAttendanceRoute = AuthAttendanceRouteImport.update({
-  id: '/attendance',
-  path: '/attendance',
-  getParentRoute: () => AuthRoute,
-} as any)
-const UnregisteredJoinUserRoute = UnregisteredJoinUserRouteImport.update({
-  id: '/_unregistered/join/user',
-  path: '/join/user',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthShopsNewRoute = AuthShopsNewRouteImport.update({
-  id: '/shops/new',
-  path: '/shops/new',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthShopsInviteRoute = AuthShopsInviteRouteImport.update({
-  id: '/shops/invite',
-  path: '/shops/invite',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthShopsIdRoute = AuthShopsIdRouteImport.update({
-  id: '/shops/$id',
-  path: '/shops/$id',
-  getParentRoute: () => AuthRoute,
-} as any)
+const UnregisteredShiftsSubmitRoute =
+  UnregisteredShiftsSubmitRouteImport.update({
+    id: '/shifts/submit',
+    path: '/shifts/submit',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
+const UnregisteredShiftsReissueRoute =
+  UnregisteredShiftsReissueRouteImport.update({
+    id: '/shifts/reissue',
+    path: '/shifts/reissue',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
+const AuthShiftboardRecruitmentIdRoute =
+  AuthShiftboardRecruitmentIdRouteImport.update({
+    id: '/shiftboard/$recruitmentId',
+    path: '/shiftboard/$recruitmentId',
+    getParentRoute: () => AuthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/attendance': typeof AuthAttendanceRoute
-  '/mypage': typeof AuthMypageRoute
-  '/settings': typeof AuthSettingsRoute
-  '/shifts': typeof AuthShiftsRoute
-  '/timecard': typeof AuthTimecardRoute
-  '/shops/$id': typeof AuthShopsIdRoute
-  '/shops/invite': typeof AuthShopsInviteRoute
-  '/shops/new': typeof AuthShopsNewRoute
-  '/join/user': typeof UnregisteredJoinUserRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/dashboard': typeof AuthDashboardRoute
+  '/welcome': typeof UnregisteredWelcomeRoute
+  '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
+  '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/attendance': typeof AuthAttendanceRoute
-  '/mypage': typeof AuthMypageRoute
-  '/settings': typeof AuthSettingsRoute
-  '/shifts': typeof AuthShiftsRoute
-  '/timecard': typeof AuthTimecardRoute
-  '/shops/$id': typeof AuthShopsIdRoute
-  '/shops/invite': typeof AuthShopsInviteRoute
-  '/shops/new': typeof AuthShopsNewRoute
-  '/join/user': typeof UnregisteredJoinUserRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/dashboard': typeof AuthDashboardRoute
+  '/welcome': typeof UnregisteredWelcomeRoute
+  '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
+  '/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
-  '/_auth/attendance': typeof AuthAttendanceRoute
-  '/_auth/mypage': typeof AuthMypageRoute
-  '/_auth/settings': typeof AuthSettingsRoute
-  '/_auth/shifts': typeof AuthShiftsRoute
-  '/_auth/timecard': typeof AuthTimecardRoute
-  '/_auth/shops/$id': typeof AuthShopsIdRoute
-  '/_auth/shops/invite': typeof AuthShopsInviteRoute
-  '/_auth/shops/new': typeof AuthShopsNewRoute
-  '/_unregistered/join/user': typeof UnregisteredJoinUserRoute
+  '/_unregistered': typeof UnregisteredRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/_auth/dashboard': typeof AuthDashboardRoute
+  '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
+  '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
+  '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
+  '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/attendance'
-    | '/mypage'
-    | '/settings'
-    | '/shifts'
-    | '/timecard'
-    | '/shops/$id'
-    | '/shops/invite'
-    | '/shops/new'
-    | '/join/user'
+    | '/privacy'
+    | '/terms'
+    | '/dashboard'
+    | '/welcome'
+    | '/shiftboard/$recruitmentId'
+    | '/shifts/reissue'
+    | '/shifts/submit'
+    | '/shifts/view'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/attendance'
-    | '/mypage'
-    | '/settings'
-    | '/shifts'
-    | '/timecard'
-    | '/shops/$id'
-    | '/shops/invite'
-    | '/shops/new'
-    | '/join/user'
+    | '/privacy'
+    | '/terms'
+    | '/dashboard'
+    | '/welcome'
+    | '/shiftboard/$recruitmentId'
+    | '/shifts/reissue'
+    | '/shifts/submit'
+    | '/shifts/view'
   id:
     | '__root__'
     | '/'
     | '/_auth'
-    | '/_auth/attendance'
-    | '/_auth/mypage'
-    | '/_auth/settings'
-    | '/_auth/shifts'
-    | '/_auth/timecard'
-    | '/_auth/shops/$id'
-    | '/_auth/shops/invite'
-    | '/_auth/shops/new'
-    | '/_unregistered/join/user'
+    | '/_unregistered'
+    | '/privacy'
+    | '/terms'
+    | '/_auth/dashboard'
+    | '/_unregistered/welcome'
+    | '/_auth/shiftboard/$recruitmentId'
+    | '/_unregistered/shifts/reissue'
+    | '/_unregistered/shifts/submit'
+    | '/_unregistered/shifts/view'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
-  UnregisteredJoinUserRoute: typeof UnregisteredJoinUserRoute
+  UnregisteredRoute: typeof UnregisteredRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_unregistered': {
+      id: '/_unregistered'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof UnregisteredRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_auth': {
       id: '/_auth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -176,100 +197,87 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/timecard': {
-      id: '/_auth/timecard'
-      path: '/timecard'
-      fullPath: '/timecard'
-      preLoaderRoute: typeof AuthTimecardRouteImport
+    '/_unregistered/welcome': {
+      id: '/_unregistered/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof UnregisteredWelcomeRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_auth/dashboard': {
+      id: '/_auth/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/shifts': {
-      id: '/_auth/shifts'
-      path: '/shifts'
-      fullPath: '/shifts'
-      preLoaderRoute: typeof AuthShiftsRouteImport
-      parentRoute: typeof AuthRoute
+    '/_unregistered/shifts/view': {
+      id: '/_unregistered/shifts/view'
+      path: '/shifts/view'
+      fullPath: '/shifts/view'
+      preLoaderRoute: typeof UnregisteredShiftsViewRouteImport
+      parentRoute: typeof UnregisteredRoute
     }
-    '/_auth/settings': {
-      id: '/_auth/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsRouteImport
-      parentRoute: typeof AuthRoute
+    '/_unregistered/shifts/submit': {
+      id: '/_unregistered/shifts/submit'
+      path: '/shifts/submit'
+      fullPath: '/shifts/submit'
+      preLoaderRoute: typeof UnregisteredShiftsSubmitRouteImport
+      parentRoute: typeof UnregisteredRoute
     }
-    '/_auth/mypage': {
-      id: '/_auth/mypage'
-      path: '/mypage'
-      fullPath: '/mypage'
-      preLoaderRoute: typeof AuthMypageRouteImport
-      parentRoute: typeof AuthRoute
+    '/_unregistered/shifts/reissue': {
+      id: '/_unregistered/shifts/reissue'
+      path: '/shifts/reissue'
+      fullPath: '/shifts/reissue'
+      preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
+      parentRoute: typeof UnregisteredRoute
     }
-    '/_auth/attendance': {
-      id: '/_auth/attendance'
-      path: '/attendance'
-      fullPath: '/attendance'
-      preLoaderRoute: typeof AuthAttendanceRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_unregistered/join/user': {
-      id: '/_unregistered/join/user'
-      path: '/join/user'
-      fullPath: '/join/user'
-      preLoaderRoute: typeof UnregisteredJoinUserRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_auth/shops/new': {
-      id: '/_auth/shops/new'
-      path: '/shops/new'
-      fullPath: '/shops/new'
-      preLoaderRoute: typeof AuthShopsNewRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/invite': {
-      id: '/_auth/shops/invite'
-      path: '/shops/invite'
-      fullPath: '/shops/invite'
-      preLoaderRoute: typeof AuthShopsInviteRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/shops/$id': {
-      id: '/_auth/shops/$id'
-      path: '/shops/$id'
-      fullPath: '/shops/$id'
-      preLoaderRoute: typeof AuthShopsIdRouteImport
+    '/_auth/shiftboard/$recruitmentId': {
+      id: '/_auth/shiftboard/$recruitmentId'
+      path: '/shiftboard/$recruitmentId'
+      fullPath: '/shiftboard/$recruitmentId'
+      preLoaderRoute: typeof AuthShiftboardRecruitmentIdRouteImport
       parentRoute: typeof AuthRoute
     }
   }
 }
 
 interface AuthRouteChildren {
-  AuthAttendanceRoute: typeof AuthAttendanceRoute
-  AuthMypageRoute: typeof AuthMypageRoute
-  AuthSettingsRoute: typeof AuthSettingsRoute
-  AuthShiftsRoute: typeof AuthShiftsRoute
-  AuthTimecardRoute: typeof AuthTimecardRoute
-  AuthShopsIdRoute: typeof AuthShopsIdRoute
-  AuthShopsInviteRoute: typeof AuthShopsInviteRoute
-  AuthShopsNewRoute: typeof AuthShopsNewRoute
+  AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthAttendanceRoute: AuthAttendanceRoute,
-  AuthMypageRoute: AuthMypageRoute,
-  AuthSettingsRoute: AuthSettingsRoute,
-  AuthShiftsRoute: AuthShiftsRoute,
-  AuthTimecardRoute: AuthTimecardRoute,
-  AuthShopsIdRoute: AuthShopsIdRoute,
-  AuthShopsInviteRoute: AuthShopsInviteRoute,
-  AuthShopsNewRoute: AuthShopsNewRoute,
+  AuthDashboardRoute: AuthDashboardRoute,
+  AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface UnregisteredRouteChildren {
+  UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
+  UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
+  UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
+  UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
+}
+
+const UnregisteredRouteChildren: UnregisteredRouteChildren = {
+  UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
+  UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
+  UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
+  UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
+}
+
+const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
+  UnregisteredRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
-  UnregisteredJoinUserRoute: UnregisteredJoinUserRoute,
+  UnregisteredRoute: UnregisteredRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

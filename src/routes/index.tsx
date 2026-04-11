@@ -1,23 +1,19 @@
 import { useAuth } from "@clerk/clerk-react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Top } from "@/src/components/features/Top";
-import { Animation } from "@/src/components/templates/Animation";
+import { LandingPage } from "@/src/components/features/LandingPage";
 
 export const Route = createFileRoute("/")({
-  component: App,
+  component: IndexPage,
 });
 
-function App() {
-  const { isSignedIn } = useAuth();
+function IndexPage() {
+  const { isSignedIn, isLoaded } = useAuth();
 
-  // 認証済みの場合、mypageにリダイレクト
+  if (!isLoaded) return null;
+
   if (isSignedIn) {
-    return <Navigate to="/mypage" />;
+    return <Navigate to="/dashboard" />;
   }
 
-  return (
-    <Animation>
-      <Top />
-    </Animation>
-  );
+  return <LandingPage />;
 }

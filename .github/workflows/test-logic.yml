@@ -6,19 +6,15 @@ on:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
-    environment: Preview
     strategy:
-      
       fail-fast: false
       matrix:
         shard: [1/2, 2/2]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Setup Playwright
-        uses: ./.github/actions/playwright
       - name: Run Test
         run: pnpm vitest run --shard=${{ matrix.shard }} --project=logic

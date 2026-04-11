@@ -44,7 +44,12 @@
   "editor.insertSpaces": true,
   "editor.tabSize": 2,
   "typescript.preferences.importModuleSpecifier": "non-relative",
-  "favorites.resources": [],
+  "favorites.resources": [
+    {
+      "filePath": "convex-seeds\\backup",
+      "group": "Default"
+    }
+  ],
   "files.associations": {
     "wrangler.json": "jsonc"
   },

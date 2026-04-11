@@ -19,6 +19,7 @@ storybook-static
 node_modules/
 /test-results/
 /playwright-report/
+test-results.json
 /blob-report/
 /playwright/.cache/
 
@@ -30,3 +31,11 @@ e2e/.clerk
 
 # convex
 convex-seeds/backup
+
+.serena
+
+settings.local.json
+CLAUDE.local.md
+
+character.md
+.cognac/

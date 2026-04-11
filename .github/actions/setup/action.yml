@@ -2,15 +2,15 @@ name: Setup
 description: Setup
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: pnpm
-        shell: bash
-        run: corepack enable
-      - name: Install dependencies
-        shell: bash
-        run: pnpm i --frozen-lockfile
+    - name: Install Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: 24
+    - name: pnpm
+      shell: bash
+      run: corepack enable
+    - name: Install dependencies
+      shell: bash
+      run: pnpm i --frozen-lockfile

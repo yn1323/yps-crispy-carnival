@@ -1,9 +1,12 @@
 import { ClerkProvider } from "@clerk/clerk-react";
+import { jaJP } from "@clerk/localizations";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
+import z from "zod";
 import { ChakraProvider } from "@/src/components/config/ChakraProvider.tsx";
 import { ConvexClientProvider } from "@/src/components/config/ConvexProvider.tsx";
+import { customErrorMap } from "@/src/configs/zod/zop-setup.ts";
 import { CLERK_PUBLISHABLE_KEY, CONVEX_URL } from "@/src/constants/env";
 import reportWebVitals from "./reportWebVitals.ts";
 import { routeTree } from "./routeTree.gen.ts";
@@ -25,6 +28,8 @@ declare module "@tanstack/react-router" {
   }
 }
 
+z.config({ customError: customErrorMap });
+
 // Render the app
 const rootElement = document.getElementById("app");
 if (rootElement && !rootElement.innerHTML) {
@@ -32,7 +37,7 @@ if (rootElement && !rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <ChakraProvider>
-        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} localization={jaJP}>
           <ConvexClientProvider env={CONVEX_URL}>
             <RouterProvider router={router} />
           </ConvexClientProvider>
