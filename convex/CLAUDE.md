@@ -231,9 +231,40 @@ convex/
 1. スキーマに `v.optional()` で新フィールドを追加（Widen）
 2. コード側はフォールバック付きで読み取り（新旧両方を許容）
 3. `convex/migrations/mXXX_xxx.ts` でマイグレーションを定義し `index.ts` の runner 配列に追加
-4. PR マージ → CI が develop 環境に自動適用 → 全件完了を `lib:getStatus` で確認
-5. 別 PR でスキーマ Narrow（`v.optional` を外す）
-6. `release:*` 付きで main マージ → 本番に順次適用
+4. **Narrow 忘れ防止のために `TODO[narrow]: ...` コメントを入れる**（下記ルール参照）
+5. PR マージ → CI が develop 環境に自動適用 → 全件完了を `lib:getStatus` で確認
+6. 別 PR でスキーマ Narrow（`v.optional` を外す、TODO コメントも削除）
+7. `release:*` 付きで main マージ → 本番に順次適用
+
+**`TODO[narrow]` コメント運用ルール**:
+
+Widen PR で「マイグレ完走後に戻す必要がある箇所」を Narrow PR まで確実に追跡するため、以下 2 箇所に `TODO[narrow]:` で始まるコメントを必ず残す：
+
+- `convex/schema.ts` の該当 `v.optional()` フィールド直上
+- フォールバック読み取りをしている query / mutation の該当行直上（例: `?? shop.xxx`）
+
+コメントには以下を含める：
+- **前提**: どのマイグレーション（`m0XX_xxx`）が完走していれば Narrow できるか
+- **確認コマンド**: `pnpm convex:migrate:status`（state: done を確認）
+- **対応内容**: 「この行の `v.optional()` を外す」「`?? shop.xxx` を削除する」など具体的な差分
+
+例:
+
+```ts
+// convex/schema.ts
+// TODO[narrow]: Widen → Migrate → Narrow の 2 段階目。
+//   前提: develop/prod で m001_xxx が完走していること（確認: pnpm convex:migrate:status）
+//   対応: v.optional() を外して v.string() にする
+shiftStartTime: v.optional(v.string()),
+```
+
+```ts
+// convex/shiftBoard/queries.ts
+// TODO[narrow]: m001_xxx 完走後に `?? shop.xxx` を削除（schema の narrow と同じ PR で対応）
+const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
+```
+
+Narrow PR 作成時は `grep -r "TODO\[narrow\]" convex/ src/` で残タスクを網羅的に拾う。Narrow PR マージ時に対応コメントも同時削除する。
 
 ### デプロイ前チェック
 
