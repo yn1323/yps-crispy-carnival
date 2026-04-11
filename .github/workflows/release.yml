@@ -1,0 +1,85 @@
+name: Release to Production
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    if: |
+      github.event.pull_request.merged == true &&
+      (contains(github.event.pull_request.labels.*.name, 'release:major') ||
+       contains(github.event.pull_request.labels.*.name, 'release:minor') ||
+       contains(github.event.pull_request.labels.*.name, 'release:patch'))
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Determine release type
+        id: release-type
+        run: |
+          if ${{ contains(github.event.pull_request.labels.*.name, 'release:major') }}; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif ${{ contains(github.event.pull_request.labels.*.name, 'release:minor') }}; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          NEW_TAG=$(npm version ${{ steps.release-type.outputs.type }} --no-git-tag-version)
+          echo "tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${NEW_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag and push
+        run: |
+          git add package.json
+          git commit -m "chore: release ${{ steps.bump.outputs.tag }}"
+          git tag ${{ steps.bump.outputs.tag }}
+          git push origin main --follow-tags
+
+      - name: Deploy Convex
+        run: npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
+      - name: Build
+        run: pnpm build
+        env:
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+
+      - name: Deploy to Cloudflare Pages
+        run: |
+          npx wrangler pages deploy dist \
+            --project-name yps-crispy-carnival \
+            --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: ${{ steps.bump.outputs.tag }}
+          generate_release_notes: true

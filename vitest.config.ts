@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
+import pkg from "./package.json" with { type: "json" };
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,9 @@ const uiProject = defineConfig({
       storybookScript: "pnpm storybook",
     }),
   ],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   resolve: {
     alias: {
       "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
