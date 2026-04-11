@@ -247,7 +247,7 @@ export const Footer = () => (
         <FooterLink to="/terms">利用規約</FooterLink>
       </HStack>
       <Text fontSize="xs" color="fg.subtle">
-        © {new Date().getFullYear()} シフトリ
+        © {new Date().getFullYear()} シフトリ v{__APP_VERSION__}
       </Text>
     </VStack>
   </Box>
