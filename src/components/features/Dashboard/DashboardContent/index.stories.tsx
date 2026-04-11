@@ -15,7 +15,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Normal: Story = {
   args: {
-    shop: { name: "居酒屋たなか" },
+    shop: { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" },
     recruitments: mockRecruitments,
     staffs: mockStaffs,
   },
@@ -23,7 +23,7 @@ export const Normal: Story = {
 
 export const Empty: Story = {
   args: {
-    shop: { name: "居酒屋たなか" },
+    shop: { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" },
     recruitments: [],
     staffs: [],
   },

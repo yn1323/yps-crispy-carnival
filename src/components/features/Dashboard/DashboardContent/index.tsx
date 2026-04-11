@@ -9,16 +9,19 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
+import type { EditShopFormData } from "../EditShopForm/index";
+import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
 import { RecruitmentSection } from "../RecruitmentSection";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
+import { ShopInfoBar } from "../ShopInfoBar";
 import { StaffSection } from "../StaffSection";
 import type { Recruitment, Staff } from "../types";
 
 type Props = {
-  shop: { name: string } | null;
+  shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
   recruitments: Recruitment[];
   staffs: Staff[];
 };
@@ -28,6 +31,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
   const editStaffModal = useDialog();
+  const editShopModal = useDialog();
   const deleteStaffDialog = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
@@ -39,6 +43,7 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
   const addStaffs = useMutation(api.staff.mutations.addStaffs);
   const editStaffMut = useMutation(api.staff.mutations.editStaff);
   const deleteStaffMut = useMutation(api.staff.mutations.deleteStaff);
+  const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
 
   const Modal = isMobile ? BottomSheet : Dialog;
 
@@ -102,6 +107,16 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
     }
   };
 
+  const handleUpdateShop = async (data: EditShopFormData) => {
+    try {
+      await updateShopSettings(data);
+      editShopModal.close();
+      toaster.create({ title: "店舗設定を更新しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
   const handleDeleteStaff = async () => {
     if (!deleteTarget) return;
     try {
@@ -116,6 +131,14 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
   return (
     <>
       <ContentWrapper>
+        {shop && (
+          <ShopInfoBar
+            name={shop.name}
+            shiftStartTime={shop.shiftStartTime}
+            shiftEndTime={shop.shiftEndTime}
+            onEditClick={editShopModal.open}
+          />
+        )}
         <RecruitmentSection
           recruitments={recruitments}
           onCreateClick={recruitmentModal.open}
@@ -162,6 +185,26 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
         onClose={editStaffModal.close}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
+      </Modal>
+
+      <Modal
+        title="店舗設定"
+        isOpen={editShopModal.isOpen}
+        onOpenChange={editShopModal.onOpenChange}
+        formId="edit-shop-form"
+        submitLabel="保存する"
+        onClose={editShopModal.close}
+      >
+        {shop && (
+          <EditShopForm
+            defaultValues={{
+              shopName: shop.name,
+              shiftStartTime: shop.shiftStartTime,
+              shiftEndTime: shop.shiftEndTime,
+            }}
+            onSubmit={handleUpdateShop}
+          />
+        )}
       </Modal>
 
       <Dialog
