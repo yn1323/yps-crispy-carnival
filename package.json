@@ -31,7 +31,9 @@
     "convex:clear": "npx convex run testing:clearAllTables",
     "convex:restore": "tsx convex-seeds/scripts/import.ts",
     "convex:save": "tsx convex-seeds/scripts/export.ts",
-    "convex:env-setup": "tsx scripts/setupEnv.ts"
+    "convex:env-setup": "tsx scripts/setupEnv.ts",
+    "convex:migrate": "npx convex run migrations/index:run",
+    "convex:migrate:status": "npx convex run --component migrations lib:getStatus --watch"
   },
   "dependencies": {
     "@chakra-ui/react": "3.30.0",

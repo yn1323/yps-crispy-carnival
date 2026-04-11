@@ -222,9 +222,9 @@ convex/
 5. `release:*` ラベル付き PR を main マージ → 本番にも自動適用
 
 **手動実行**（ローカル dev 等）:
-- 全実行: `npx convex run migrations/index:run`
+- 全実行: `pnpm convex:migrate`（= `npx convex run migrations/index:run`）
+- 進捗確認: `pnpm convex:migrate:status`（= `npx convex run --component migrations lib:getStatus --watch`）
 - 特定マイグレーション単発: `npx convex run migrations/index:run '{"fn": "migrations/m001_xxx:migration"}'`
-- 進捗確認: `npx convex run --component migrations lib:getStatus --watch`
 - キャンセル: `npx convex run --component migrations lib:cancel '{name: "migrations/m001_xxx:migration"}'`
 
 **Widen → Migrate → Narrow の進め方**:
