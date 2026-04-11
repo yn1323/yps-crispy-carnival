@@ -50,6 +50,14 @@ const schema = defineSchema({
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),
+    // 募集作成時点の店舗シフト時間帯スナップショット
+    // TODO[narrow]: Widen → Migrate → Narrow の 2 段階目。
+    //   前提: develop/prod で m001_recruitments_add_shift_times が完走していること
+    //   （確認: `pnpm convex:migrate:status` で state: done）
+    //   対応: この 2 行の v.optional() を外して v.string() にし、
+    //         convex/shiftBoard/queries.ts の `?? shop.xxx` フォールバックも削除する
+    shiftStartTime: v.optional(v.string()), // "14:00"
+    shiftEndTime: v.optional(v.string()), // "25:00" = 翌1:00
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_status", ["shopId", "status"]),

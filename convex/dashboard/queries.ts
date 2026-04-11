@@ -54,7 +54,11 @@ export const getDashboardData = authenticatedQuery({
     );
 
     return {
-      shop: { name: shop.name },
+      shop: {
+        name: shop.name,
+        shiftStartTime: shop.shiftStartTime,
+        shiftEndTime: shop.shiftEndTime,
+      },
       recruitments: recruitmentsWithCounts,
       staffs: staffs.map((s) => ({ _id: s._id, name: s.name, email: s.email, isOwner: s.userId === ctx.user?._id })),
     };

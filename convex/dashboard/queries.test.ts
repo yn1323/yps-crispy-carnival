@@ -72,7 +72,7 @@ describe("dashboard/queries", () => {
 
       const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardData, {});
 
-      expect(result?.shop).toEqual({ name: "テスト店舗" });
+      expect(result?.shop).toEqual({ name: "テスト店舗", shiftStartTime: "09:00", shiftEndTime: "22:00" });
       expect(result?.recruitments).toHaveLength(1);
       expect(result?.recruitments[0].status).toBe("open");
       expect(result?.recruitments[0].responseCount).toBe(0);
@@ -203,8 +203,8 @@ describe("dashboard/queries", () => {
 
       const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardData, {});
       expect(result).not.toBeNull();
-      // shop に shiftStartTime 等が漏れていないこと
-      expect(Object.keys(result?.shop ?? {})).toEqual(["name"]);
+      // shop に ownerId, isDeleted 等の内部フィールドが漏れていないこと
+      expect(Object.keys(result?.shop ?? {}).sort()).toEqual(["name", "shiftEndTime", "shiftStartTime"]);
       // staffs に shopId, isDeleted が漏れていないこと
       expect(Object.keys(result?.staffs[0] ?? {}).sort()).toEqual(["_id", "email", "isOwner", "name"]);
     });
