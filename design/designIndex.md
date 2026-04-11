@@ -16,6 +16,8 @@
 | `aF4J8` | Dashboard/EditStaffSheet | SPスタッフ編集BottomSheet |
 | `m5Svv` | Dashboard/DeleteStaffDialog | PCスタッフ削除確認ダイアログ |
 | `66Jwd` | Dashboard/DeleteStaffSheet | SPスタッフ削除確認BottomSheet |
+| `8CXP7` | Dashboard/EditShopModal | PC店舗設定編集モーダル |
+| `k9Mmy` | Dashboard/EditShopSheet | SP店舗設定編集BottomSheet |
 | `s9hbW` | Dashboard/SetupModal/Step1 | 初回セットアップモーダル Step1（店舗情報・入力済み） |
 | `xoJw8` | Dashboard/SetupModal/Step2 | 初回セットアップモーダル Step2（シフト募集作成・初期状態） |
 | `VLWsg` | Dashboard/SetupSheet/Step1 | SP初回セットアップSheet Step1（店舗情報・入力済み） |
