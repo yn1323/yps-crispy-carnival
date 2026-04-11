@@ -79,6 +79,7 @@ const Hero = () => (
             fontSize="md"
             fontWeight="semibold"
             bg="white"
+            _hover={{ bg: "gray.100" }}
           >
             ログイン
           </Button>
