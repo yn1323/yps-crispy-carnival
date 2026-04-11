@@ -113,6 +113,34 @@ export class DashboardPage {
     await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toBeVisible();
   }
 
+  async editShopSettings(data: { shopName?: string; shiftStartTime?: string; shiftEndTime?: string }) {
+    await this.page.getByRole("button", { name: "店舗設定を編集" }).click();
+    await expect(this.page.getByRole("dialog", { name: "店舗設定" })).toBeVisible();
+
+    if (data.shopName !== undefined) {
+      const nameInput = this.page.getByLabel("店舗名");
+      await nameInput.clear();
+      await nameInput.fill(data.shopName);
+    }
+    if (data.shiftStartTime !== undefined) {
+      await this.selectTime("シフト開始時間", data.shiftStartTime);
+    }
+    if (data.shiftEndTime !== undefined) {
+      await this.selectTime("シフト終了時間", data.shiftEndTime);
+    }
+
+    await this.page.getByRole("dialog").getByRole("button", { name: "保存する" }).click();
+    await expect(this.page.getByText("店舗設定を更新しました")).toBeVisible();
+  }
+
+  async expectShopName(name: string) {
+    await expect(this.page.getByText(name)).toBeVisible();
+  }
+
+  async expectShopTimeRange(timeRange: string) {
+    await expect(this.page.getByText(timeRange)).toBeVisible();
+  }
+
   private async openStaffMenu(staffName: string) {
     const row = this.page.getByText(staffName).locator("xpath=ancestor::div[.//button[@aria-label='メニュー']][1]");
     await row.getByRole("button", { name: "メニュー" }).click();

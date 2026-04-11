@@ -48,6 +48,12 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectSetupComplete();
     });
 
+    await test.step("Step 1.5: 店舗名を変更する", async () => {
+      await dashboard.editShopSettings({ shopName: "テスト居酒屋（変更済）" });
+      await dashboard.expectShopName("テスト居酒屋（変更済）");
+      await dashboard.expectShopTimeRange("10:00〜23:00");
+    });
+
     await test.step("Step 2: スタッフを追加する", async () => {
       await dashboard.addStaffs([
         { name: "鈴木花子", email: "suzuki@example.com" },
@@ -83,6 +89,12 @@ test.describe("田中さんの初めてのシフト確定", () => {
         periodEnd: dates.periodEnd,
         deadline: dates.deadline,
       });
+      await dashboard.expectRecruitmentCardVisible();
+    });
+
+    await test.step("Step 3.5: 募集作成後にシフト時間帯を変更する（既存募集はスナップショットを保持）", async () => {
+      await dashboard.editShopSettings({ shiftStartTime: "09:00", shiftEndTime: "22:00" });
+      await dashboard.expectShopTimeRange("09:00〜22:00");
       await dashboard.expectRecruitmentCardVisible();
     });
 
