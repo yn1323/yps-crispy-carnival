@@ -141,7 +141,7 @@ import { bar } from "@/convex/...";
 
 ### 日付操作
 
-- フロントの日付操作は `src/components/features/Shift/ShiftForm/utils/dateUtils.ts`（dayjs）を使用する
+- フロントの日付操作は `src/components/features/Shift/ShiftForm/utils/dateUtils.ts`（dayjs）を使用
 - `new Date()` + `toISOString()` による日付文字列生成はTZずれの原因になるため禁止
 - Convexバックエンド（`convex/`）ではdayjsを使えないため、文字列比較（"YYYY-MM-DD"）で対応
 
