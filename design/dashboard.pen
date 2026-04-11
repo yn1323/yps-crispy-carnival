@@ -208,7 +208,7 @@
                           "id": "JM0Tw",
                           "name": "emptyStaffBtnLabel",
                           "fill": "$fg/default",
-                          "content": "追加",
+                          "content": "スタッフを追加",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/sm",
                           "fontWeight": "500"
@@ -762,7 +762,7 @@
                           "id": "OP4ZV",
                           "name": "staffBtnLabel",
                           "fill": "$fg/default",
-                          "content": "追加",
+                          "content": "スタッフを追加",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/sm",
                           "fontWeight": "500"
@@ -1543,7 +1543,7 @@
                           "id": "0khKH",
                           "name": "spRecruitBtnLabel",
                           "fill": "$teal/contrast",
-                          "content": "新規作成",
+                          "content": "シフト希望を集める",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "500"
@@ -1866,7 +1866,7 @@
                           "id": "HGhCu",
                           "name": "spStaffBtnLabel",
                           "fill": "$fg/default",
-                          "content": "追加",
+                          "content": "スタッフを追加",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "500"
@@ -2291,7 +2291,7 @@
                           "id": "wNhFs",
                           "name": "seRecruitBtnLabel",
                           "fill": "$teal/contrast",
-                          "content": "新規作成",
+                          "content": "シフト希望を集める",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "500"
@@ -2399,7 +2399,7 @@
                           "id": "uoikI",
                           "name": "seStaffBtnLabel",
                           "fill": "$fg/default",
-                          "content": "追加",
+                          "content": "スタッフを追加",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "500"
