@@ -5,7 +5,7 @@
   "labels": ["renovate"],
   "baseBranches": ["develop"],
   "automerge": true,
-  "minimumReleaseAge": "14 days",
+  "minimumReleaseAge": "2 days",
   "schedule": ["every weekend"],
   "packageRules": [
     {

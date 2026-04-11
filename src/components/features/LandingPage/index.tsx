@@ -1,5 +1,6 @@
 import { Box, Button, Flex, Heading, HStack, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import { SignInButton, SignUpButton } from "@clerk/clerk-react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuCalendarCheck, LuLink, LuSend } from "react-icons/lu";
@@ -9,7 +10,6 @@ export const LandingPage = () => {
     <Box bg="white" minH="100vh" color="fg">
       <Nav />
       <Hero />
-      <AccentLine />
       <PointSection />
       <FaqSection />
       <BottomCta />
@@ -18,18 +18,24 @@ export const LandingPage = () => {
   );
 };
 
-const Nav = () => (
+export const Nav = () => (
   <Box as="nav" bg="white" w="full">
     <Flex align="center" justify="space-between" px={{ base: 4, lg: 12 }} py={{ base: 3, lg: 5 }}>
-      <Text fontWeight="bold" fontSize={{ base: "xl", lg: "2xl" }} color="fg">
-        シフトリ
-      </Text>
+      <Link
+        asChild
+        fontWeight="bold"
+        fontSize={{ base: "xl", lg: "2xl" }}
+        color="fg"
+        _hover={{ textDecoration: "none" }}
+      >
+        <RouterLink to="/">シフトリ</RouterLink>
+      </Link>
     </Flex>
   </Box>
 );
 
 const Hero = () => (
-  <Box bgImage="linear-gradient(180deg, #99f6e4 0%, #ffffff 100%)" px={{ base: 4, lg: 12 }} py={{ base: 16, lg: 30 }}>
+  <Box bgImage="linear-gradient(180deg, #99f6e4 0%, #fafafa 100%)" px={{ base: 4, lg: 12 }} py={{ base: 16, lg: 28 }}>
     <VStack
       mx="auto"
       w="full"
@@ -80,6 +86,7 @@ const Hero = () => (
             fontSize="md"
             fontWeight="semibold"
             bg="white"
+            _hover={{ bg: "gray.100" }}
           >
             ログイン
           </Button>
@@ -87,12 +94,6 @@ const Hero = () => (
       </Stack>
     </VStack>
   </Box>
-);
-
-const AccentLine = () => (
-  <Flex justify="center" display={{ base: "none", lg: "flex" }} bg="white" py={4}>
-    <Box w="120px" h="4px" bg="teal.500" borderRadius="2px" />
-  </Flex>
 );
 
 type Point = {
@@ -235,25 +236,25 @@ const BottomCta = () => (
   </Box>
 );
 
-const Footer = () => (
+export const Footer = () => (
   <Box as="footer" bg="white" px={{ base: 4, lg: 12 }} py={{ base: 8, lg: 12 }}>
     <VStack mx="auto" w="full" maxW="1024px" gap={4} align="center">
       <Text fontWeight="bold" fontSize={{ base: "18px", lg: "20px" }} color="fg">
         シフトリ
       </Text>
       <HStack gap={{ base: 6, lg: 8 }}>
-        <FooterLink href="#">プライバシーポリシー</FooterLink>
-        <FooterLink href="#">利用規約</FooterLink>
+        <FooterLink to="/privacy">プライバシーポリシー</FooterLink>
+        <FooterLink to="/terms">利用規約</FooterLink>
       </HStack>
       <Text fontSize="xs" color="fg.subtle">
-        © {new Date().getFullYear()} シフトリ
+        © {new Date().getFullYear()} シフトリ v{__APP_VERSION__}
       </Text>
     </VStack>
   </Box>
 );
 
-const FooterLink = ({ href, children }: { href: string; children: ReactNode }) => (
-  <Link href={href} fontSize="sm" fontWeight="medium" color="fg.muted" _hover={{ color: "fg", textDecoration: "none" }}>
-    {children}
+const FooterLink = ({ to, children }: { to: string; children: ReactNode }) => (
+  <Link asChild fontSize="sm" fontWeight="medium" color="fg.muted" _hover={{ color: "fg", textDecoration: "none" }}>
+    <RouterLink to={to}>{children}</RouterLink>
   </Link>
 );

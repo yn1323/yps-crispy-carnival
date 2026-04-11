@@ -4,11 +4,23 @@ CI/CDパイプラインの構成と運用ルール。
 
 ## ブランチ戦略
 
-| ブランチ | 用途 | デプロイ先 |
-|---|---|---|
-| `main` | 本番環境 | CF `yps-crispy-carnival` + Convex `yps-crispy-carnival` |
-| `develop` | ステージング環境 | CF `dev-yps-crispy-carnival` + Convex `dev-yps-crispy-carnival` |
-| PR → develop | プレビュー環境 | CF `dev-yps-crispy-carnival` (branch: pr-{N}) + Convex preview（一時的） |
+| ブランチ | 用途 | デプロイ先 | トリガー |
+|---|---|---|---|
+| `main` | 本番環境 | CF `yps-crispy-carnival` + Convex `yps-crispy-carnival` | `release:*` ラベル付き PR のマージ時のみ |
+| `develop` | ステージング環境 | CF `dev-yps-crispy-carnival` + Convex `dev-yps-crispy-carnival` | push 毎 |
+| PR → develop | プレビュー環境 | CF `dev-yps-crispy-carnival` (branch: pr-{N}) + Convex preview（一時的） | PR open/sync |
+
+### リリースラベル
+
+`main` への本番デプロイは PR に以下のいずれかのラベルを付けてマージしたときのみ実行される。
+
+| ラベル | 挙動 |
+|---|---|
+| `release:major` | `npm version major`（例: 1.2.3 → 2.0.0） |
+| `release:minor` | `npm version minor`（例: 1.2.3 → 1.3.0） |
+| `release:patch` | `npm version patch`（例: 1.2.3 → 1.2.4） |
+
+ラベルなしでマージした場合はデプロイされない（`release.yml` が skip される）。
 
 ## 外部サービス構成
 
@@ -76,7 +88,14 @@ CI/CDパイプラインの構成と運用ルール。
 | `deploy-preview` | PR to develop (open/sync) | Convex preview作成 → seed → ビルド → CF dev プレビューデプロイ |
 | `cleanup-preview` | PR to develop (close) | CF dev プレビュー削除 |
 | `deploy-develop` | push to develop | Convex devデプロイ → ビルド → CF dev メインデプロイ |
-| `deploy-production` | push to main | Convex prodデプロイ → ビルド → CF prod メインデプロイ |
+
+### リリース (`release.yml`)
+
+| ジョブ | トリガー | 処理 |
+|---|---|---|
+| `release` | PR merged to main w/ `release:*` ラベル | version bump → commit + tag push → Convex prodデプロイ → ビルド → CF prodデプロイ → GitHub Release作成 |
+
+バージョン bump コミットは `github-actions[bot]` が `main` に直 push する。`main` に branch protection がある場合は bot を bypass 許可するか PAT を用意する必要がある。
 
 ### テスト・品質チェック
 
