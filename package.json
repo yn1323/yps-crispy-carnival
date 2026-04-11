@@ -57,7 +57,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.10",
+    "@biomejs/biome": "2.4.11",
     "@clerk/testing": "1.14.4",
     "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "1.57.0",
