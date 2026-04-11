@@ -309,6 +309,62 @@
           "children": [
             {
               "type": "frame",
+              "id": "tbMPA",
+              "name": "ShopInfoBar",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "stroke": {
+                "align": "inside",
+                "thickness": 0,
+                "fill": "#00000000"
+              },
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "LKK4L",
+                  "name": "ShopInfo",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "4xHlK",
+                      "name": "ShopName",
+                      "fill": "$fg/default",
+                      "content": "居酒屋たなか",
+                      "fontFamily": "Inter",
+                      "fontSize": 20,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "o6lyN",
+                      "name": "ShiftTime",
+                      "fill": "$fg/muted",
+                      "content": "14:00〜翌1:00",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon_font",
+                  "id": "w2pM4",
+                  "name": "GearIcon",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "settings",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
               "id": "cl2Dy",
               "name": "RecruitmentSection",
               "width": "fill_container",
@@ -1379,6 +1435,62 @@
           "children": [
             {
               "type": "frame",
+              "id": "xKIHK",
+              "name": "ShopInfoBar",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "stroke": {
+                "align": "inside",
+                "thickness": 0,
+                "fill": "$i:transparent"
+              },
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XZaeX",
+                  "name": "ShopInfo",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "bs23z",
+                      "name": "ShopName",
+                      "fill": "$fg/default",
+                      "content": "居酒屋たなか",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "eTPpX",
+                      "name": "ShiftTime",
+                      "fill": "$fg/muted",
+                      "content": "14:00〜翌1:00",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon_font",
+                  "id": "pPWqo",
+                  "name": "GearIcon",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "settings",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
               "id": "dIPU1",
               "name": "RecruitmentSection",
               "width": "fill_container",
@@ -1520,7 +1632,7 @@
                               "fill": "$i:teal/fg",
                               "content": "収集・編集中",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
+                              "fontSize": 12,
                               "fontWeight": "500"
                             }
                           ]
@@ -1647,7 +1759,7 @@
                               "fill": "$fg/muted",
                               "content": "確定済み",
                               "fontFamily": "Inter",
-                              "fontSize": 14,
+                              "fontSize": 12,
                               "fontWeight": "500"
                             }
                           ]
@@ -7364,6 +7476,668 @@
                       "id": "7RzKU",
                       "fill": "$i:red/contrast",
                       "content": "削除する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "8CXP7",
+      "x": -12,
+      "y": 3550,
+      "name": "Dashboard/EditShopModal",
+      "width": 1440,
+      "height": 520,
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "iQfII",
+          "x": 520,
+          "y": 40,
+          "name": "ModalPanel",
+          "width": 400,
+          "fill": "$i:bg/default",
+          "cornerRadius": "$i:radii/xl",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "BuDyM",
+              "name": "Header",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$i:border/default"
+              },
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "96Llm",
+                  "fill": "$i:fg/default",
+                  "content": "店舗設定",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/lg",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "m4RKr",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "x",
+                  "iconFontFamily": "lucide",
+                  "fill": "$i:fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "KrEUR",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "OsRm5",
+                  "name": "ShopNameField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "j0dOk",
+                      "name": "Label",
+                      "fill": "$i:fg/default",
+                      "content": "店舗名",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "s2BAp",
+                      "name": "Input",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$i:border/default"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "61XGD",
+                          "name": "Value",
+                          "fill": "$i:fg/default",
+                          "content": "居酒屋たなか",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Cj6SK",
+                  "name": "TimeRow",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "KjbUk",
+                      "name": "StartField",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "4dihs",
+                          "name": "Label",
+                          "fill": "$i:fg/default",
+                          "content": "シフト開始時間",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ZB3O2",
+                          "name": "Select",
+                          "width": "fill_container",
+                          "height": 40,
+                          "cornerRadius": "$i:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$i:border/default"
+                          },
+                          "padding": [
+                            8,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Xidfs",
+                              "name": "Value",
+                              "fill": "$i:fg/default",
+                              "content": "14:00",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "DJwrz",
+                              "name": "Chevron",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "chevron-down",
+                              "iconFontFamily": "lucide",
+                              "fill": "$i:fg/muted"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "I7nTd",
+                      "name": "EndField",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "vZGlS",
+                          "name": "Label",
+                          "fill": "$i:fg/default",
+                          "content": "シフト終了時間",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "WCwy9",
+                          "name": "Select",
+                          "width": "fill_container",
+                          "height": 40,
+                          "cornerRadius": "$i:radii/md",
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "$i:border/default"
+                          },
+                          "padding": [
+                            8,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "QQq0R",
+                              "name": "Value",
+                              "fill": "$i:fg/default",
+                              "content": "翌 1:00",
+                              "fontFamily": "Inter",
+                              "fontSize": "$i:fontSize/sm",
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "xVRxq",
+                              "name": "Chevron",
+                              "width": 16,
+                              "height": 16,
+                              "iconFontName": "chevron-down",
+                              "iconFontFamily": "lucide",
+                              "fill": "$i:fg/muted"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "SrKDJ",
+                  "name": "HelpText",
+                  "fill": "$i:fg/muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "営業時間ではなく、仕込み・片付けを含めたスタッフが勤務する可能性のある時間帯を入力してください",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uzy5p",
+              "name": "Footer",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "top": 1
+                },
+                "fill": "$i:border/default"
+              },
+              "gap": 12,
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "8grUb",
+                  "name": "CancelButton",
+                  "cornerRadius": "$i:radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$i:border/default"
+                  },
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FqGdX",
+                      "fill": "$i:fg/default",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "taTnu",
+                  "name": "SubmitButton",
+                  "fill": "$i:teal/solid",
+                  "cornerRadius": "$i:radii/md",
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nbxZp",
+                      "fill": "$i:teal/contrast",
+                      "content": "保存する",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "k9Mmy",
+      "x": 1990,
+      "y": 3550,
+      "name": "Dashboard/EditShopSheet",
+      "width": 390,
+      "height": 597,
+      "fill": "#00000040",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "lth8Y",
+          "x": 0,
+          "y": 160,
+          "name": "Panel",
+          "width": 390,
+          "fill": "$i:bg/default",
+          "cornerRadius": [
+            "$i:radii/xl",
+            "$i:radii/xl",
+            0,
+            0
+          ],
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "NKG42",
+              "name": "Header",
+              "width": "fill_container",
+              "padding": 16,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GGQV5",
+                  "fill": "$i:fg/default",
+                  "content": "店舗設定",
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/md",
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "rYTJw",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "x",
+                  "iconFontFamily": "lucide",
+                  "fill": "$i:fg/muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "2XR6g",
+              "name": "Content",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "66p74",
+                  "name": "ShopNameField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wanxv",
+                      "name": "Label",
+                      "fill": "$i:fg/default",
+                      "content": "店舗名",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "IaYFp",
+                      "name": "Input",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$i:border/default"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "9myAj",
+                          "name": "Value",
+                          "fill": "$i:fg/default",
+                          "content": "居酒屋たなか",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "oVFXh",
+                  "name": "StartField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lECSb",
+                      "name": "Label",
+                      "fill": "$i:fg/default",
+                      "content": "シフト開始時間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "IY8su",
+                      "name": "Select",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$i:border/default"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "k59lR",
+                          "name": "Value",
+                          "fill": "$i:fg/default",
+                          "content": "14:00",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "RErSI",
+                          "name": "Chevron",
+                          "width": 16,
+                          "height": 16,
+                          "iconFontName": "chevron-down",
+                          "iconFontFamily": "lucide",
+                          "fill": "$i:fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jeaz2",
+                  "name": "EndField",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "7ZD0w",
+                      "name": "Label",
+                      "fill": "$i:fg/default",
+                      "content": "シフト終了時間",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BrXm7",
+                      "name": "Select",
+                      "width": "fill_container",
+                      "height": 40,
+                      "cornerRadius": "$i:radii/md",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$i:border/default"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ViVdb",
+                          "name": "Value",
+                          "fill": "$i:fg/default",
+                          "content": "翌 1:00",
+                          "fontFamily": "Inter",
+                          "fontSize": "$i:fontSize/sm",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "RUshl",
+                          "name": "Chevron",
+                          "width": 16,
+                          "height": 16,
+                          "iconFontName": "chevron-down",
+                          "iconFontFamily": "lucide",
+                          "fill": "$i:fg/muted"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "5QWMA",
+                  "name": "HelpText",
+                  "fill": "$i:fg/muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "営業時間ではなく、仕込み・片付けを含めたスタッフが勤務する可能性のある時間帯を入力してください",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": "$i:fontSize/xs",
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "K2odL",
+              "name": "Footer",
+              "width": "fill_container",
+              "gap": 8,
+              "padding": 16,
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "hocSs",
+                  "name": "CancelButton",
+                  "cornerRadius": "$i:radii/md",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$i:border/default"
+                  },
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wFMKl",
+                      "fill": "$i:fg/default",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": "$i:fontSize/sm",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bC4PS",
+                  "name": "SubmitButton",
+                  "fill": "$i:teal/solid",
+                  "cornerRadius": "$i:radii/md",
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "3A3lb",
+                      "fill": "$i:teal/contrast",
+                      "content": "保存する",
                       "fontFamily": "Inter",
                       "fontSize": "$i:fontSize/sm",
                       "fontWeight": "normal"
