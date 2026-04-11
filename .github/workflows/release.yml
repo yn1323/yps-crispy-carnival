@@ -71,7 +71,7 @@ jobs:
       - name: Deploy to Cloudflare Pages
         run: |
           npx wrangler pages deploy dist \
-            --project-name yps-crispy-carnival \
+            --project-name shiftori \
             --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
