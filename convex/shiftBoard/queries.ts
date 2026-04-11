@@ -40,8 +40,13 @@ export const getShiftBoardData = managerQuery({
     const submittedStaffIds = new Set(shiftRequests.map((r) => r.staffId));
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
-    const startHour = Math.floor(timeToMinutes(shop.shiftStartTime) / 60);
-    const endHour = Math.ceil(timeToMinutes(shop.shiftEndTime) / 60);
+    // 募集時点のスナップショットを優先し、マイグレーション未適用時のみ店舗の現在値にフォールバック
+    // TODO[narrow]: m001_recruitments_add_shift_times が完走したら `?? shop.xxx` を削除。
+    //   schema.ts 側で recruitments.shiftStartTime/shiftEndTime を v.string() に narrow するのと同じ PR で対応。
+    const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
+    const endTimeStr = recruitment.shiftEndTime ?? shop.shiftEndTime;
+    const startHour = Math.floor(timeToMinutes(startTimeStr) / 60);
+    const endHour = Math.ceil(timeToMinutes(endTimeStr) / 60);
 
     return {
       shopId: shop._id,
