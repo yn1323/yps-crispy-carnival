@@ -7,7 +7,8 @@ import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { getResendClient } from "../_lib/resend";
 import { buildConfirmationEmailHtml, buildRecruitmentEmailHtml, buildReissueEmailHtml } from "./templates";
 
-const APP_URL = process.env.APP_URL ?? "https://yps.app";
+const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
+const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@shiftori.app";
 
 /**
  * シフト確定メールを全スタッフに送信
@@ -32,7 +33,7 @@ export const sendShiftConfirmationEmails = internalAction({
       const reissueUrl = `${APP_URL}/shifts/reissue?recruitmentId=${recruitmentId}`;
 
       await resend.emails.send({
-        from: `${data.shopName} <onboarding@resend.dev>`,
+        from: `${data.shopName} <${RESEND_FROM}>`,
         to: staffData.email,
         subject: isResend
           ? `【シフト変更】【${data.shopName}】${data.periodLabel} シフト変更のお知らせ`
@@ -70,11 +71,10 @@ export const sendReissueEmail = internalAction({
     });
 
     const resend = getResendClient();
-    const appUrl = process.env.APP_URL ?? "https://yps.app";
-    const magicLinkUrl = `${appUrl}/shifts/view?token=${token}`;
+    const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
 
     await resend.emails.send({
-      from: `${data.shopName} <onboarding@resend.dev>`,
+      from: `${data.shopName} <${RESEND_FROM}>`,
       to: data.staffEmail,
       subject: `【${data.shopName}】${data.periodLabel} シフト閲覧リンク`,
       html: buildReissueEmailHtml({
@@ -111,7 +111,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
       await resend.emails.send({
-        from: `${data.shopName} <onboarding@resend.dev>`,
+        from: `${data.shopName} <${RESEND_FROM}>`,
         to: staff.email,
         subject: `【${data.shopName}】${data.periodLabel} シフト希望の提出をお願いします`,
         html: buildRecruitmentEmailHtml({
