@@ -9,7 +9,6 @@ export const LandingPage = () => {
     <Box bg="white" minH="100vh" color="fg">
       <Nav />
       <Hero />
-      <AccentLine />
       <PointSection />
       <FaqSection />
       <BottomCta />
@@ -29,7 +28,7 @@ const Nav = () => (
 );
 
 const Hero = () => (
-  <Box bgImage="linear-gradient(180deg, #99f6e4 0%, #ffffff 100%)" px={{ base: 4, lg: 12 }} py={{ base: 16, lg: 30 }}>
+  <Box bgImage="linear-gradient(180deg, #99f6e4 0%, #fafafa 100%)" px={{ base: 4, lg: 12 }} py={{ base: 16, lg: 30 }}>
     <VStack
       mx="auto"
       w="full"
@@ -87,12 +86,6 @@ const Hero = () => (
       </Stack>
     </VStack>
   </Box>
-);
-
-const AccentLine = () => (
-  <Flex justify="center" display={{ base: "none", lg: "flex" }} bg="white" py={4}>
-    <Box w="120px" h="4px" bg="teal.500" borderRadius="2px" />
-  </Flex>
 );
 
 type Point = {
