@@ -118,8 +118,10 @@ CI/CDパイプラインの構成と運用ルール。
 
 ## デプロイ順序
 
-Convex → ビルド → CloudFlare の順で実行する。
-- Convexを先にデプロイすることで、スキーマ変更がビルド時に反映される
+Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行する。
+- Convex を先にデプロイすることで、スキーマ変更がビルド時に反映される
+- `convex deploy` 直後に `npx convex run migrations/index:run` を実行し、データのバックフィルを完了させてからビルドに進む（develop / release のみ、preview は実行しない）
+- マイグレーションは `@convex-dev/migrations` で冪等に管理されるため、変更のない PR でも毎回走る（完了済みはスキップされる）
 - ビルド時に `VITE_CONVEX_URL` を環境変数として埋め込む
 
 ## 注意事項
