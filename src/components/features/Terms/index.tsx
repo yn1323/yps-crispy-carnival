@@ -48,8 +48,13 @@ export function Terms(): ReactNode {
 
       <Section title="8. お問い合わせ">
         <Body>本規約に関するお問い合わせは、以下のフォームからご連絡ください。</Body>
-        {/* TODO: Google Form URL に差し替え */}
-        <Link href="#" color="teal.700" fontSize={{ base: "14px", lg: "15px" }}>
+        <Link
+          href="https://forms.gle/wBHKJtD6YAHmAWP9A"
+          target="_blank"
+          rel="noopener noreferrer"
+          color="teal.700"
+          fontSize={{ base: "14px", lg: "15px" }}
+        >
           お問い合わせフォーム
         </Link>
       </Section>
