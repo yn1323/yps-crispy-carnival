@@ -1,5 +1,4 @@
 import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
-import { useMemo } from "react";
 import { LuEllipsisVertical, LuUserPlus, LuUsers } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
 import { InfoGuide } from "@/src/components/ui/InfoGuide";
@@ -14,7 +13,7 @@ type Props = {
 };
 
 export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
-  const sortedStaffs = useMemo(() => [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner)), [staffs]);
+  const sortedStaffs = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
 
   return (
     <Stack gap={4}>
@@ -56,7 +55,7 @@ export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
           スタッフを追加
         </Button>
       </Flex>
-      {staffs.length === 0 ? (
+      {sortedStaffs.length === 0 ? (
         <Box border="1px solid" borderColor="gray.200" borderRadius="lg">
           <Empty
             icon={LuUsers}
