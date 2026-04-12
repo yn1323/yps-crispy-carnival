@@ -10,7 +10,7 @@ type Props = {
 
 const displayStatusConfig = {
   collecting: { label: "収集中", colorPalette: "teal" },
-  "past-deadline": { label: "締切済み（要調整）", colorPalette: "yellow" },
+  "past-deadline": { label: "締切済み", colorPalette: "yellow" },
   confirmed: { label: "確定済み", colorPalette: "gray" },
 } as const;
 
