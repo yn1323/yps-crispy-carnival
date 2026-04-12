@@ -512,7 +512,7 @@
                                   "id": "5F4k8",
                                   "name": "card1BadgeText",
                                   "fill": "$i:teal/fg",
-                                  "content": "収集・編集中",
+                                  "content": "収集中",
                                   "fontFamily": "Inter",
                                   "fontSize": "$fontSize/xs",
                                   "fontWeight": "500"
