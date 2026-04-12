@@ -32,6 +32,10 @@ export const createRecruitment = managerMutation({
       deadline: args.deadline,
       status: "open",
       isDeleted: false,
+      // 作成時点の店舗シフト時間帯をスナップショットとして保存
+      // 以降の店舗設定変更があっても、この募集の時間軸は固定される
+      shiftStartTime: ctx.shop.shiftStartTime,
+      shiftEndTime: ctx.shop.shiftEndTime,
     });
     // 全スタッフに募集開始メールを送信
     await ctx.scheduler.runAfter(0, internal.email.actions.sendRecruitmentNotificationEmails, {

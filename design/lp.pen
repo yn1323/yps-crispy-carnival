@@ -87,7 +87,7 @@
                 "position": 0
               },
               {
-                "color": "#ffffff",
+                "color": "#fafafa",
                 "position": 1
               }
             ]
@@ -1104,7 +1104,7 @@
                 "position": 0
               },
               {
-                "color": "#ffffff",
+                "color": "#fafafa",
                 "position": 1
               }
             ]
@@ -1258,25 +1258,6 @@
                   ]
                 }
               ]
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "qMJkl",
-          "name": "accentWrap",
-          "width": "fill_container",
-          "justifyContent": "center",
-          "alignItems": "center",
-          "children": [
-            {
-              "type": "rectangle",
-              "cornerRadius": 2,
-              "id": "uWeJH",
-              "name": "accentLine",
-              "fill": "#14b8a6",
-              "width": 120,
-              "height": 4
             }
           ]
         },
