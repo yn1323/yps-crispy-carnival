@@ -1,4 +1,5 @@
 import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { useMemo } from "react";
 import { LuEllipsisVertical, LuUserPlus, LuUsers } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
 import { InfoGuide } from "@/src/components/ui/InfoGuide";
@@ -13,6 +14,8 @@ type Props = {
 };
 
 export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
+  const sortedStaffs = useMemo(() => [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner)), [staffs]);
+
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
@@ -64,7 +67,7 @@ export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
         </Box>
       ) : (
         <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
-          {staffs.map((staff) => (
+          {sortedStaffs.map((staff) => (
             <StaffListItem key={staff._id} staff={staff} onEdit={onEdit} onDelete={onDelete} />
           ))}
         </Box>
