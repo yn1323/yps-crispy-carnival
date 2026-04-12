@@ -10,7 +10,7 @@ type Props = {
 };
 
 export function RecruitmentCard({ recruitment, onOpenShiftBoard }: Props) {
-  const { _id, periodStart, periodEnd, deadline, responseCount, totalStaffCount } = recruitment;
+  const { _id, periodStart, periodEnd, deadline, responseCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
 
   return (
@@ -32,7 +32,7 @@ export function RecruitmentCard({ recruitment, onOpenShiftBoard }: Props) {
             width={{ base: "full", lg: "auto" }}
           >
             <Text color="gray.600" fontSize="sm" whiteSpace="nowrap">
-              提出状況: {responseCount}/{totalStaffCount}人
+              提出済み: {responseCount}人
             </Text>
             <RecruitmentStatusBadge status={displayStatus} />
           </Flex>

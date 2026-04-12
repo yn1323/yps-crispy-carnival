@@ -1,18 +1,21 @@
 import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
-import { LuEllipsisVertical, LuUserPlus, LuUsers } from "react-icons/lu";
+import { LuChevronsDown, LuEllipsisVertical, LuUserPlus, LuUsers } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
 import { InfoGuide } from "@/src/components/ui/InfoGuide";
+import { LoadMoreButton } from "../LoadMoreButton";
 import { StaffListItem } from "../StaffListItem";
-import type { Staff } from "../types";
+import type { PaginationStatus, Staff } from "../types";
 
 type Props = {
   staffs: Staff[];
   onAddClick: () => void;
   onEdit: (staff: Staff) => void;
   onDelete: (staff: Staff) => void;
+  status: PaginationStatus;
+  onLoadMore: () => void;
 };
 
-export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
+export function StaffSection({ staffs, onAddClick, onEdit, onDelete, status, onLoadMore }: Props) {
   const sortedStaffs = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
 
   return (
@@ -65,11 +68,14 @@ export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
           />
         </Box>
       ) : (
-        <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
-          {sortedStaffs.map((staff) => (
-            <StaffListItem key={staff._id} staff={staff} onEdit={onEdit} onDelete={onDelete} />
-          ))}
-        </Box>
+        <Stack gap={3}>
+          <Box border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+            {sortedStaffs.map((staff) => (
+              <StaffListItem key={staff._id} staff={staff} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </Box>
+          <LoadMoreButton status={status} onLoadMore={onLoadMore} icon={<LuChevronsDown />} label="すべて表示" />
+        </Stack>
       )}
     </Stack>
   );

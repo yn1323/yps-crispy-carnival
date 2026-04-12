@@ -1,18 +1,21 @@
 import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
-import { LuArrowRight, LuCalendarPlus, LuClipboardList } from "react-icons/lu";
+import { LuArrowRight, LuCalendarPlus, LuChevronDown, LuClipboardList } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
 import { InfoGuide } from "@/src/components/ui/InfoGuide";
+import { LoadMoreButton } from "../LoadMoreButton";
 import { RecruitmentCard } from "../RecruitmentCard";
 import { RecruitmentStatusBadge } from "../RecruitmentStatusBadge";
-import type { Recruitment } from "../types";
+import type { PaginationStatus, Recruitment } from "../types";
 
 type Props = {
   recruitments: Recruitment[];
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
+  status: PaginationStatus;
+  onLoadMore: () => void;
 };
 
-export function RecruitmentSection({ recruitments, onCreateClick, onOpenShiftBoard }: Props) {
+export function RecruitmentSection({ recruitments, onCreateClick, onOpenShiftBoard, status, onLoadMore }: Props) {
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
@@ -103,6 +106,7 @@ export function RecruitmentSection({ recruitments, onCreateClick, onOpenShiftBoa
           {recruitments.map((recruitment) => (
             <RecruitmentCard key={recruitment._id} recruitment={recruitment} onOpenShiftBoard={onOpenShiftBoard} />
           ))}
+          <LoadMoreButton status={status} onLoadMore={onLoadMore} icon={<LuChevronDown />} label="もっと見る" />
         </Stack>
       )}
     </Stack>

@@ -8,7 +8,6 @@ export type Recruitment = {
   deadline: string;
   status: "open" | "confirmed";
   responseCount: number;
-  totalStaffCount: number;
 };
 
 export type RecruitmentDisplayStatus = "collecting" | "past-deadline" | "confirmed";
@@ -25,3 +24,5 @@ export type Staff = {
   email: string;
   isOwner: boolean;
 };
+
+export type { PaginationStatus } from "convex/browser";

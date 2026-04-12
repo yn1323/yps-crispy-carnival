@@ -18,15 +18,27 @@ import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { ShopInfoBar } from "../ShopInfoBar";
 import { StaffSection } from "../StaffSection";
-import { getDisplayStatus, type Recruitment, type Staff } from "../types";
+import { getDisplayStatus, type PaginationStatus, type Recruitment, type Staff } from "../types";
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
   recruitments: Recruitment[];
+  recruitmentStatus: PaginationStatus;
+  loadMoreRecruitments: () => void;
   staffs: Staff[];
+  staffStatus: PaginationStatus;
+  loadMoreStaffs: () => void;
 };
 
-export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
+export const DashboardContent = ({
+  shop,
+  recruitments,
+  recruitmentStatus,
+  loadMoreRecruitments,
+  staffs,
+  staffStatus,
+  loadMoreStaffs,
+}: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
@@ -162,12 +174,16 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
           recruitments={recruitments}
           onCreateClick={recruitmentModal.open}
           onOpenShiftBoard={handleOpenShiftBoard}
+          status={recruitmentStatus}
+          onLoadMore={loadMoreRecruitments}
         />
         <StaffSection
           staffs={staffs}
           onAddClick={staffModal.open}
           onEdit={handleEditClick}
           onDelete={handleDeleteClick}
+          status={staffStatus}
+          onLoadMore={loadMoreStaffs}
         />
       </ContentWrapper>
 
