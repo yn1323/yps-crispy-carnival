@@ -1,41 +1,57 @@
+import type { GenericDatabaseReader } from "convex/server";
+import { paginationOptsValidator } from "convex/server";
+import { ConvexError } from "convex/values";
+import type { DataModel } from "../_generated/dataModel";
 import { authenticatedQuery } from "../_lib/functions";
 
-const MAX_RECRUITMENTS = 50;
-const MAX_STAFFS = 200;
 const MAX_SHIFT_REQUESTS = 1000;
 
-export const getDashboardData = authenticatedQuery({
+// shop未登録のsetup中に paginated query が走ってもエラーログを出さないための空結果
+const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
+  page: never[];
+  isDone: boolean;
+  continueCursor: string;
+};
+
+async function getOwnerShop(ctx: { db: GenericDatabaseReader<DataModel>; identity: { subject: string } | null }) {
+  if (!ctx.identity) return null;
+  const subject = ctx.identity.subject;
+  const shop = await ctx.db
+    .query("shops")
+    .withIndex("by_ownerId", (q) => q.eq("ownerId", subject))
+    .first();
+  return shop && !shop.isDeleted ? shop : null;
+}
+
+export const getDashboardShop = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    const { identity } = ctx;
-    if (!identity) return null;
+    const shop = await getOwnerShop(ctx);
+    if (!shop) return null;
 
-    const shop = await ctx.db
-      .query("shops")
-      .withIndex("by_ownerId", (q) => q.eq("ownerId", identity.subject))
-      .first();
+    return {
+      name: shop.name,
+      shiftStartTime: shop.shiftStartTime,
+      shiftEndTime: shop.shiftEndTime,
+    };
+  },
+});
 
-    if (!shop || shop.isDeleted) {
-      return { shop: null, recruitments: [], staffs: [] };
-    }
+export const getDashboardRecruitments = authenticatedQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    if (!ctx.identity) throw new ConvexError("Unauthenticated");
+    const shop = await getOwnerShop(ctx);
+    if (!shop) return EMPTY_PAGE;
 
-    const [allRecruitments, allStaffs] = await Promise.all([
-      ctx.db
-        .query("recruitments")
-        .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
-        .order("desc")
-        .take(MAX_RECRUITMENTS),
-      ctx.db
-        .query("staffs")
-        .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
-        .take(MAX_STAFFS),
-    ]);
-    const recruitments = allRecruitments.filter((r) => !r.isDeleted);
-    const staffs = allStaffs.filter((s) => !s.isDeleted);
-    const totalStaffCount = staffs.length;
+    const paginatedResult = await ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
+      .order("desc")
+      .paginate(args.paginationOpts);
 
-    const recruitmentsWithCounts = await Promise.all(
-      recruitments.map(async (r) => {
+    const page = await Promise.all(
+      paginatedResult.page.map(async (r) => {
         const requests = await ctx.db
           .query("shiftRequests")
           .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))
@@ -48,19 +64,39 @@ export const getDashboardData = authenticatedQuery({
           deadline: r.deadline,
           status: r.status,
           responseCount: uniqueStaffIds.size,
-          totalStaffCount,
         };
       }),
     );
 
     return {
-      shop: {
-        name: shop.name,
-        shiftStartTime: shop.shiftStartTime,
-        shiftEndTime: shop.shiftEndTime,
-      },
-      recruitments: recruitmentsWithCounts,
-      staffs: staffs.map((s) => ({ _id: s._id, name: s.name, email: s.email, isOwner: s.userId === ctx.user?._id })),
+      ...paginatedResult,
+      page,
+    };
+  },
+});
+
+export const getDashboardStaffs = authenticatedQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    if (!ctx.identity) throw new ConvexError("Unauthenticated");
+    const shop = await getOwnerShop(ctx);
+    if (!shop) return EMPTY_PAGE;
+
+    const paginatedResult = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .paginate(args.paginationOpts);
+
+    const page = paginatedResult.page.map((s) => ({
+      _id: s._id,
+      name: s.name,
+      email: s.email,
+      isOwner: s.userId === ctx.user?._id,
+    }));
+
+    return {
+      ...paginatedResult,
+      page,
     };
   },
 });

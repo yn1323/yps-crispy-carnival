@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockStaffs } from "../storyMocks";
+import { mockStaffs, mockStaffsMany } from "../storyMocks";
 import { StaffSection } from "./index";
 
 const meta = {
@@ -19,6 +19,19 @@ export const Normal: Story = {
     onAddClick: () => {},
     onEdit: () => {},
     onDelete: () => {},
+    status: "Exhausted",
+    onLoadMore: () => {},
+  },
+};
+
+export const CanLoadMore: Story = {
+  args: {
+    staffs: mockStaffsMany,
+    onAddClick: () => {},
+    onEdit: () => {},
+    onDelete: () => {},
+    status: "CanLoadMore",
+    onLoadMore: () => {},
   },
 };
 
@@ -28,5 +41,7 @@ export const EmptyState: Story = {
     onAddClick: () => {},
     onEdit: () => {},
     onDelete: () => {},
+    status: "Exhausted",
+    onLoadMore: () => {},
   },
 };

@@ -1,15 +1,17 @@
-import { Badge, Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 import { LuArrowRight } from "react-icons/lu";
 import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import type { Recruitment } from "../types";
+import { RecruitmentStatusBadge } from "../RecruitmentStatusBadge";
+import { getDisplayStatus, type Recruitment } from "../types";
 
 type Props = {
   recruitment: Recruitment;
   onOpenShiftBoard: (recruitmentId: string) => void;
 };
 
-export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
-  const { _id, periodStart, periodEnd, deadline, status, responseCount, totalStaffCount } = recruitment;
+export function RecruitmentCard({ recruitment, onOpenShiftBoard }: Props) {
+  const { _id, periodStart, periodEnd, deadline, responseCount } = recruitment;
+  const displayStatus = getDisplayStatus(recruitment);
 
   return (
     <Box border="1px solid" borderColor="gray.200" borderRadius="lg" p={{ base: 4, lg: 5 }}>
@@ -30,17 +32,9 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
             width={{ base: "full", lg: "auto" }}
           >
             <Text color="gray.600" fontSize="sm" whiteSpace="nowrap">
-              提出状況: {responseCount}/{totalStaffCount}人
+              提出済み: {responseCount}人
             </Text>
-            <Badge
-              colorPalette={status === "open" ? "teal" : "gray"}
-              variant="subtle"
-              borderRadius="full"
-              px={2.5}
-              fontSize="xs"
-            >
-              {status === "open" ? "収集・編集中" : "確定済み"}
-            </Badge>
+            <RecruitmentStatusBadge status={displayStatus} />
           </Flex>
           <Button
             variant="outline"
@@ -56,4 +50,4 @@ export const RecruitmentCard = ({ recruitment, onOpenShiftBoard }: Props) => {
       </Stack>
     </Box>
   );
-};
+}

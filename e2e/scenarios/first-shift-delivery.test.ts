@@ -73,6 +73,14 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectStaffVisible("鈴木花子（編集済）");
     });
 
+    await test.step("Step 2.55: 自分のスタッフ情報を編集するとアバターに反映される", async () => {
+      await dashboard.editStaff("田中太郎", {
+        name: "田中太郎",
+        email: "tanaka-changed@example.com",
+      });
+      await dashboard.expectUserMenuInfo("田中太郎", "tanaka-changed@example.com");
+    });
+
     await test.step("Step 2.6: スタッフを削除する", async () => {
       await dashboard.addStaffs([{ name: "削除テスト", email: "delete-test@example.com" }]);
       await dashboard.expectStaffVisible("削除テスト");

@@ -40,6 +40,7 @@ jobs:
         id: playwright
         run: pnpm e2e
         env:
+          TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
           CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
           E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}

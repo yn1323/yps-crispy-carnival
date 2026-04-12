@@ -7,3 +7,5 @@ export const CONVEX_URL = import.meta.env.VITE_CONVEX_URL ?? "";
 if (!CONVEX_URL) {
   throw new Error("Add your Convex URL to the .env file");
 }
+
+export const GTM_ID = import.meta.env.VITE_GTM_ID ?? "";

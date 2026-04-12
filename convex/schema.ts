@@ -37,6 +37,7 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
+    .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
     .index("by_email", ["email"]),
 
   // ========================================
