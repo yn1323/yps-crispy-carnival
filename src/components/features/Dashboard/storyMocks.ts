@@ -4,15 +4,24 @@ import type { Recruitment, Staff } from "./types";
 export const mockRecruitments = [
   {
     _id: "rec-1",
-    periodStart: "2026-03-31",
-    periodEnd: "2026-04-06",
-    deadline: "2026-03-28",
+    periodStart: "2026-04-20",
+    periodEnd: "2026-04-26",
+    deadline: "2026-04-18",
     status: "open",
     responseCount: 8,
     totalStaffCount: 10,
   },
   {
     _id: "rec-2",
+    periodStart: "2026-03-31",
+    periodEnd: "2026-04-06",
+    deadline: "2026-03-28",
+    status: "open",
+    responseCount: 10,
+    totalStaffCount: 10,
+  },
+  {
+    _id: "rec-3",
     periodStart: "2026-03-24",
     periodEnd: "2026-03-30",
     deadline: "2026-03-21",
