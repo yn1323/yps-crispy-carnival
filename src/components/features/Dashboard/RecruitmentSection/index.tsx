@@ -55,9 +55,14 @@ export function RecruitmentSection({ recruitments, onCreateClick, onOpenShiftBoa
                   </Flex>
                   <Flex align="center" gap={2}>
                     <RecruitmentStatusBadge status="confirmed" />
-                    <Text fontSize="xs" color="fg.muted">
-                      シフトが確定した状態
-                    </Text>
+                    <Stack gap={0.5}>
+                      <Text fontSize="xs" color="fg.muted">
+                        シフトを確定し スタッフに通知済みの状態
+                      </Text>
+                      <Text fontSize="xs" color="fg.muted">
+                        確定後も編集やシフトの再送ができます
+                      </Text>
+                    </Stack>
                   </Flex>
                 </Stack>
               </Stack>,
@@ -71,6 +76,9 @@ export function RecruitmentSection({ recruitments, onCreateClick, onOpenShiftBoa
                 </Flex>
                 <Text fontSize="xs" color="fg.muted">
                   スタッフの希望を見ながらシフトを組める画面に移動します
+                </Text>
+                <Text fontSize="xs" color="fg.muted">
+                  確定したあとも編集や再通知ができます
                 </Text>
               </Stack>,
             ]}
