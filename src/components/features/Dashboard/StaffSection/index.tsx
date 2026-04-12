@@ -1,6 +1,7 @@
-import { Box, Button, Flex, Heading, Stack } from "@chakra-ui/react";
-import { LuUserPlus, LuUsers } from "react-icons/lu";
+import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { LuEllipsisVertical, LuUserPlus, LuUsers } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
+import { InfoGuide } from "@/src/components/ui/InfoGuide";
 import { StaffListItem } from "../StaffListItem";
 import type { Staff } from "../types";
 
@@ -11,11 +12,42 @@ type Props = {
   onDelete: (staff: Staff) => void;
 };
 
-export const StaffSection = ({ staffs, onAddClick, onEdit, onDelete }: Props) => {
+export function StaffSection({ staffs, onAddClick, onEdit, onDelete }: Props) {
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
-        <Heading size={{ base: "md", lg: "lg" }}>スタッフ</Heading>
+        <Flex align="center" gap={0.5}>
+          <Heading size={{ base: "md", lg: "lg" }}>スタッフ</Heading>
+          <InfoGuide
+            title="スタッフについて"
+            pages={[
+              <Stack key="1" gap={3}>
+                <Text fontSize="sm">シフト希望を出してもらうメンバーを管理します</Text>
+                <Flex align="center" gap={2}>
+                  <Button size="sm" colorPalette="teal" pointerEvents="none">
+                    <LuUserPlus />
+                    スタッフを追加
+                  </Button>
+                </Flex>
+                <Stack gap={0.5}>
+                  <Text fontSize="xs" color="fg.muted">
+                    スタッフ側のアカウント登録は不要です
+                  </Text>
+                  <Text fontSize="xs" color="fg.muted">
+                    このメールアドレスにシフト希望の依頼が届きます
+                  </Text>
+                </Stack>
+              </Stack>,
+              <Stack key="2" gap={3}>
+                <Text fontSize="sm">登録したスタッフの編集・削除ができます</Text>
+                <Flex align="center" gap={2} color="fg.muted">
+                  <LuEllipsisVertical />
+                  <Text fontSize="xs">← このメニューから操作できます</Text>
+                </Flex>
+              </Stack>,
+            ]}
+          />
+        </Flex>
         <Button size="sm" colorPalette="teal" onClick={onAddClick}>
           <LuUserPlus />
           スタッフを追加
@@ -39,4 +71,4 @@ export const StaffSection = ({ staffs, onAddClick, onEdit, onDelete }: Props) =>
       )}
     </Stack>
   );
-};
+}
