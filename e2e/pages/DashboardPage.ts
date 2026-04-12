@@ -67,7 +67,13 @@ export class DashboardPage {
 
   async openShiftBoard() {
     await this.page.getByRole("button", { name: "シフトを編集する" }).click();
-    await this.page.waitForURL(/\/shiftboard\//);
+    const warningDialog = this.page.getByRole("alertdialog", { name: "シフト希望がまだ変わるかも" });
+    const navigated = this.page.waitForURL(/\/shiftboard\//);
+    const dialogAppeared = warningDialog.waitFor({ state: "visible" }).then(() => true);
+    if (await Promise.race([dialogAppeared, navigated.then(() => false)])) {
+      await warningDialog.getByRole("button", { name: "編集画面へ進む" }).click();
+      await navigated;
+    }
   }
 
   async expectStaffSectionVisible() {
@@ -107,6 +113,19 @@ export class DashboardPage {
 
   async expectStaffNotVisible(name: string) {
     await expect(this.page.getByText(name)).not.toBeVisible();
+  }
+
+  async openUserMenu() {
+    await this.page.getByRole("button", { name: "ユーザーメニュー" }).click();
+  }
+
+  async expectUserMenuInfo(name: string, email: string) {
+    await this.openUserMenu();
+    const menu = this.page.getByRole("menu");
+    await expect(menu.getByText(name)).toBeVisible();
+    await expect(menu.getByText(email)).toBeVisible();
+    // メニューを閉じる
+    await this.page.keyboard.press("Escape");
   }
 
   async expectRecruitmentCardVisible() {
