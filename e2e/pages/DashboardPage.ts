@@ -48,7 +48,8 @@ export class DashboardPage {
     }
 
     await this.page.getByRole("dialog").getByRole("button", { name: "登録する" }).click();
-    await expect(this.page.getByText("スタッフを追加しました")).toBeVisible();
+    await expect(this.page.getByText("スタッフを追加しました").first()).toBeVisible();
+    await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
   }
 
   async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
@@ -62,12 +63,19 @@ export class DashboardPage {
     await dateInputs.nth(2).fill(data.deadline);
 
     await this.page.getByRole("dialog").getByRole("button", { name: "作成する" }).click();
-    await expect(this.page.getByText("シフトを作成しました")).toBeVisible();
+    await expect(this.page.getByText("シフトを作成しました").first()).toBeVisible();
+    await expect(this.page.getByText("シフトを作成しました").first()).not.toBeVisible();
   }
 
   async openShiftBoard() {
     await this.page.getByRole("button", { name: "シフトを編集する" }).click();
-    await this.page.waitForURL(/\/shiftboard\//);
+    const warningDialog = this.page.getByRole("alertdialog", { name: "シフト希望がまだ変わるかも" });
+    const navigated = this.page.waitForURL(/\/shiftboard\//);
+    const dialogAppeared = warningDialog.waitFor({ state: "visible" }).then(() => true);
+    if (await Promise.race([dialogAppeared, navigated.then(() => false)])) {
+      await warningDialog.getByRole("button", { name: "編集画面へ進む" }).click();
+      await navigated;
+    }
   }
 
   async expectStaffSectionVisible() {
@@ -109,8 +117,85 @@ export class DashboardPage {
     await expect(this.page.getByText(name)).not.toBeVisible();
   }
 
+  async openUserMenu() {
+    await this.page.getByRole("button", { name: "ユーザーメニュー" }).click();
+  }
+
+  async expectUserMenuInfo(name: string, email: string) {
+    await this.openUserMenu();
+    const menu = this.page.getByRole("menu");
+    await expect(menu.getByText(name)).toBeVisible();
+    await expect(menu.getByText(email)).toBeVisible();
+    // メニューを閉じる
+    await this.page.keyboard.press("Escape");
+  }
+
   async expectRecruitmentCardVisible() {
     await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toBeVisible();
+  }
+
+  async editShopSettings(data: { shopName?: string; shiftStartTime?: string; shiftEndTime?: string }) {
+    await this.page.getByRole("button", { name: "店舗設定を編集" }).click();
+    await expect(this.page.getByRole("dialog", { name: "店舗設定" })).toBeVisible();
+
+    if (data.shopName !== undefined) {
+      const nameInput = this.page.getByLabel("店舗名");
+      await nameInput.clear();
+      await nameInput.fill(data.shopName);
+    }
+    if (data.shiftStartTime !== undefined) {
+      await this.selectTime("シフト開始時間", data.shiftStartTime);
+    }
+    if (data.shiftEndTime !== undefined) {
+      await this.selectTime("シフト終了時間", data.shiftEndTime);
+    }
+
+    await this.page.getByRole("dialog").getByRole("button", { name: "保存する" }).click();
+    await expect(this.page.getByText("店舗設定を更新しました")).toBeVisible();
+  }
+
+  async expectShopName(name: string) {
+    await expect(this.page.getByText(name)).toBeVisible();
+  }
+
+  async expectShopTimeRange(timeRange: string) {
+    await expect(this.page.getByText(timeRange)).toBeVisible();
+  }
+
+  // ページネーション関連
+  async clickLoadMoreRecruitments() {
+    await this.page.getByRole("button", { name: "もっと見る" }).click();
+  }
+
+  async clickShowAllStaffs() {
+    await this.page.getByRole("button", { name: "すべて表示" }).click();
+  }
+
+  async expectRecruitmentCardCount(count: number) {
+    await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toHaveCount(count);
+  }
+
+  async expectStaffRowCount(count: number) {
+    const staffSection = this.page
+      .getByRole("heading", { name: "スタッフ", exact: true })
+      .locator("xpath=ancestor::*[4]");
+    await expect(staffSection.getByRole("button", { name: "メニュー" })).toHaveCount(count);
+  }
+
+  async expectLoadMoreRecruitmentVisible() {
+    await expect(this.page.getByRole("button", { name: "もっと見る" })).toBeVisible();
+  }
+
+  async expectLoadMoreRecruitmentNotVisible() {
+    await expect(this.page.getByRole("button", { name: "もっと見る" })).not.toBeVisible();
+  }
+
+  async expectShowAllStaffsVisible() {
+    await expect(this.page.getByRole("button", { name: "すべて表示" })).toBeVisible();
+  }
+
+  async expectShowAllStaffsNotVisible() {
+    await expect(this.page.getByRole("button", { name: "すべて表示" })).not.toBeVisible();
   }
 
   private async openStaffMenu(staffName: string) {

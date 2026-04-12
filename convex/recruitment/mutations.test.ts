@@ -82,6 +82,9 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.status).toBe("open");
       expect(recruitment?.isDeleted).toBe(false);
       expect(recruitment?.periodStart).toBe(args.periodStart);
+      // 店舗設定が後から変わっても過去の募集が歪まないよう、作成時点のシフト時間をスナップショットする
+      expect(recruitment?.shiftStartTime).toBe("09:00");
+      expect(recruitment?.shiftEndTime).toBe("22:00");
     });
 
     it("締切日が過去の場合エラーをthrow", async () => {

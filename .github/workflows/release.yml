@@ -62,6 +62,11 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
+      - name: Run Convex migrations
+        run: npx convex run migrations/index:run
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
       - name: Build
         run: pnpm build
         env:

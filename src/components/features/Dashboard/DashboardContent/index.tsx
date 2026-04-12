@@ -1,4 +1,4 @@
-import { Text, useBreakpointValue } from "@chakra-ui/react";
+import { Stack, Text, useBreakpointValue } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
@@ -9,41 +9,77 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
+import type { EditShopFormData } from "../EditShopForm/index";
+import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
 import { RecruitmentSection } from "../RecruitmentSection";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
+import { ShopInfoBar } from "../ShopInfoBar";
 import { StaffSection } from "../StaffSection";
-import type { Recruitment, Staff } from "../types";
+import { getDisplayStatus, type PaginationStatus, type Recruitment, type Staff } from "../types";
 
 type Props = {
-  shop: { name: string } | null;
+  shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
   recruitments: Recruitment[];
+  recruitmentStatus: PaginationStatus;
+  loadMoreRecruitments: () => void;
   staffs: Staff[];
+  staffStatus: PaginationStatus;
+  loadMoreStaffs: () => void;
 };
 
-export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
+export const DashboardContent = ({
+  shop,
+  recruitments,
+  recruitmentStatus,
+  loadMoreRecruitments,
+  staffs,
+  staffStatus,
+  loadMoreStaffs,
+}: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
   const editStaffModal = useDialog();
+  const editShopModal = useDialog();
   const deleteStaffDialog = useDialog();
+  const shiftBoardWarning = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
+  const [pendingRecruitmentId, setPendingRecruitmentId] = useState<string | null>(null);
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
   const addStaffs = useMutation(api.staff.mutations.addStaffs);
   const editStaffMut = useMutation(api.staff.mutations.editStaff);
   const deleteStaffMut = useMutation(api.staff.mutations.deleteStaff);
+  const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
 
   const Modal = isMobile ? BottomSheet : Dialog;
 
-  const handleOpenShiftBoard = (recruitmentId: string) => {
+  const navigateToShiftBoard = (recruitmentId: string) => {
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
+  };
+
+  const handleOpenShiftBoard = (recruitmentId: string) => {
+    const recruitment = recruitments.find((r) => r._id === recruitmentId);
+    if (recruitment && getDisplayStatus(recruitment) === "collecting") {
+      setPendingRecruitmentId(recruitmentId);
+      shiftBoardWarning.open();
+      return;
+    }
+    navigateToShiftBoard(recruitmentId);
+  };
+
+  const handleConfirmNavigation = () => {
+    if (pendingRecruitmentId) {
+      navigateToShiftBoard(pendingRecruitmentId);
+    }
+    shiftBoardWarning.close();
   };
 
   const handleSetupComplete = async (data: SetupData) => {
@@ -102,6 +138,16 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
     }
   };
 
+  const handleUpdateShop = async (data: EditShopFormData) => {
+    try {
+      await updateShopSettings(data);
+      editShopModal.close();
+      toaster.create({ title: "店舗設定を更新しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
   const handleDeleteStaff = async () => {
     if (!deleteTarget) return;
     try {
@@ -116,16 +162,28 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
   return (
     <>
       <ContentWrapper>
+        {shop && (
+          <ShopInfoBar
+            name={shop.name}
+            shiftStartTime={shop.shiftStartTime}
+            shiftEndTime={shop.shiftEndTime}
+            onEditClick={editShopModal.open}
+          />
+        )}
         <RecruitmentSection
           recruitments={recruitments}
           onCreateClick={recruitmentModal.open}
           onOpenShiftBoard={handleOpenShiftBoard}
+          status={recruitmentStatus}
+          onLoadMore={loadMoreRecruitments}
         />
         <StaffSection
           staffs={staffs}
           onAddClick={staffModal.open}
           onEdit={handleEditClick}
           onDelete={handleDeleteClick}
+          status={staffStatus}
+          onLoadMore={loadMoreStaffs}
         />
       </ContentWrapper>
 
@@ -164,6 +222,26 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
       </Modal>
 
+      <Modal
+        title="店舗設定"
+        isOpen={editShopModal.isOpen}
+        onOpenChange={editShopModal.onOpenChange}
+        formId="edit-shop-form"
+        submitLabel="保存する"
+        onClose={editShopModal.close}
+      >
+        {shop && (
+          <EditShopForm
+            defaultValues={{
+              shopName: shop.name,
+              shiftStartTime: shop.shiftStartTime,
+              shiftEndTime: shop.shiftEndTime,
+            }}
+            onSubmit={handleUpdateShop}
+          />
+        )}
+      </Modal>
+
       <Dialog
         title="スタッフを削除"
         isOpen={deleteStaffDialog.isOpen}
@@ -178,6 +256,21 @@ export const DashboardContent = ({ shop, recruitments, staffs }: Props) => {
         <Text fontSize="sm" color="gray.600">
           この操作は取り消せません。
         </Text>
+      </Dialog>
+
+      <Dialog
+        title="シフト希望がまだ変わるかも"
+        isOpen={shiftBoardWarning.isOpen}
+        onOpenChange={shiftBoardWarning.onOpenChange}
+        onClose={shiftBoardWarning.close}
+        onSubmit={handleConfirmNavigation}
+        submitLabel="編集画面へ進む"
+        role="alertdialog"
+      >
+        <Stack gap={1}>
+          <Text>全員分の希望がそろっていません</Text>
+          <Text>編集中にも変更される場合があります</Text>
+        </Stack>
       </Dialog>
 
       {isSetupRequired && <SetupModal isOpen={true} onOpenChange={() => {}} onComplete={handleSetupComplete} />}

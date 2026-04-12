@@ -48,6 +48,12 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectSetupComplete();
     });
 
+    await test.step("Step 1.5: 店舗名を変更する", async () => {
+      await dashboard.editShopSettings({ shopName: "テスト居酒屋（変更済）" });
+      await dashboard.expectShopName("テスト居酒屋（変更済）");
+      await dashboard.expectShopTimeRange("10:00〜23:00");
+    });
+
     await test.step("Step 2: スタッフを追加する", async () => {
       await dashboard.addStaffs([
         { name: "鈴木花子", email: "suzuki@example.com" },
@@ -67,6 +73,14 @@ test.describe("田中さんの初めてのシフト確定", () => {
       await dashboard.expectStaffVisible("鈴木花子（編集済）");
     });
 
+    await test.step("Step 2.55: 自分のスタッフ情報を編集するとアバターに反映される", async () => {
+      await dashboard.editStaff("田中太郎", {
+        name: "田中太郎",
+        email: "tanaka-changed@example.com",
+      });
+      await dashboard.expectUserMenuInfo("田中太郎", "tanaka-changed@example.com");
+    });
+
     await test.step("Step 2.6: スタッフを削除する", async () => {
       await dashboard.addStaffs([{ name: "削除テスト", email: "delete-test@example.com" }]);
       await dashboard.expectStaffVisible("削除テスト");
@@ -83,6 +97,12 @@ test.describe("田中さんの初めてのシフト確定", () => {
         periodEnd: dates.periodEnd,
         deadline: dates.deadline,
       });
+      await dashboard.expectRecruitmentCardVisible();
+    });
+
+    await test.step("Step 3.5: 募集作成後にシフト時間帯を変更する（既存募集はスナップショットを保持）", async () => {
+      await dashboard.editShopSettings({ shiftStartTime: "09:00", shiftEndTime: "22:00" });
+      await dashboard.expectShopTimeRange("09:00〜22:00");
       await dashboard.expectRecruitmentCardVisible();
     });
 

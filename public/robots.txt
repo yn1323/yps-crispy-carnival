@@ -1,3 +1,6 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Disallow: /dashboard
+Disallow: /shiftboard
+Allow: /
+
+Sitemap: https://shiftori.app/sitemap.xml

@@ -52,10 +52,12 @@ export const editStaff = managerMutation({
       }
     }
 
-    await ctx.db.patch(args.staffId, {
-      name: args.name.trim(),
-      email: trimmedEmail,
-    });
+    const trimmedName = args.name.trim();
+    const patches = [ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail })];
+    if (staff.userId === ctx.user._id) {
+      patches.push(ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail }));
+    }
+    await Promise.all(patches);
   },
 });
 

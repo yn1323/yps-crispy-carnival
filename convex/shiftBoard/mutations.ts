@@ -23,8 +23,12 @@ export const saveShiftAssignments = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    const shopStartMinutes = timeToMinutes(ctx.shop.shiftStartTime);
-    const shopEndMinutes = timeToMinutes(ctx.shop.shiftEndTime);
+    // 募集時点のスナップショットを優先し、マイグレーション未適用時のみ店舗の現在値にフォールバック
+    // TODO[narrow]: m001_recruitments_add_shift_times 完走後に `?? ctx.shop.xxx` を削除（schema の narrow と同じ PR で対応）
+    const startTimeStr = recruitment.shiftStartTime ?? ctx.shop.shiftStartTime;
+    const endTimeStr = recruitment.shiftEndTime ?? ctx.shop.shiftEndTime;
+    const shopStartMinutes = timeToMinutes(startTimeStr);
+    const shopEndMinutes = timeToMinutes(endTimeStr);
 
     const seen = new Set<string>();
     for (const a of args.assignments) {
