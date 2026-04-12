@@ -1,7 +1,6 @@
-import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import { SignOutButton } from "@clerk/clerk-react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuLogOut } from "react-icons/lu";
+import { UserMenu } from "./UserMenu";
 
 export const Header = () => {
   return (
@@ -13,12 +12,7 @@ export const Header = () => {
           </Text>
         </Link>
 
-        <SignOutButton>
-          <Button variant="ghost" size="sm" color="white" _hover={{ bg: "teal.500" }}>
-            <LuLogOut />
-            ログアウト
-          </Button>
-        </SignOutButton>
+        <UserMenu />
       </Flex>
     </Box>
   );

@@ -79,6 +79,50 @@ export const seedShiftData = internalMutation({
 });
 
 /**
+ * E2Eテスト用：ページネーション検証データをセットアップ
+ * completeSetup でshop/user作成済み前提。staffs 12人 + recruitments 8件を投入
+ */
+export const seedPaginationTestData = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const shop = await ctx.db.query("shops").order("desc").first();
+    if (!shop) throw new Error("No shop found. Run completeSetup first.");
+
+    // スタッフ12人を追加
+    for (let i = 1; i <= 12; i++) {
+      await ctx.db.insert("staffs", {
+        shopId: shop._id,
+        name: `スタッフ${String(i).padStart(2, "0")}`,
+        email: `staff${i}@example.com`,
+        isDeleted: false,
+      });
+    }
+
+    // シフト募集8件を作成（1週間ずつずらす）
+    const baseDate = new Date("2026-05-04"); // 日曜始まり
+    for (let i = 0; i < 8; i++) {
+      const start = new Date(baseDate);
+      start.setDate(start.getDate() + i * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const deadline = new Date(start);
+      deadline.setDate(deadline.getDate() - 1);
+
+      await ctx.db.insert("recruitments", {
+        shopId: shop._id,
+        periodStart: start.toISOString().slice(0, 10),
+        periodEnd: end.toISOString().slice(0, 10),
+        deadline: deadline.toISOString().slice(0, 10),
+        status: "open",
+        isDeleted: false,
+      });
+    }
+
+    return { staffsInserted: 12, recruitmentsInserted: 8 };
+  },
+});
+
+/**
  * 探索的テスト用：シフト提出画面のテストデータを一括セットアップ
  * shop + staff + recruitment + magicLink + session を作成し、sessionTokenを返す
  */

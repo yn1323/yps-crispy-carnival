@@ -16,8 +16,22 @@ type Story = StoryObj<typeof meta>;
 export const Normal: Story = {
   args: {
     recruitments: mockRecruitments,
+
     onCreateClick: () => {},
     onOpenShiftBoard: () => {},
+    status: "Exhausted",
+    onLoadMore: () => {},
+  },
+};
+
+export const CanLoadMore: Story = {
+  args: {
+    recruitments: mockRecruitments.slice(0, 3),
+
+    onCreateClick: () => {},
+    onOpenShiftBoard: () => {},
+    status: "CanLoadMore",
+    onLoadMore: () => {},
   },
 };
 
@@ -26,5 +40,7 @@ export const EmptyState: Story = {
     recruitments: [],
     onCreateClick: () => {},
     onOpenShiftBoard: () => {},
+    status: "Exhausted",
+    onLoadMore: () => {},
   },
 };

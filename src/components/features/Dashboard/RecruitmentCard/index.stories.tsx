@@ -17,14 +17,19 @@ type Story = StoryObj<typeof meta>;
 const AllVariants = () => (
   <Flex direction="column" gap={4} p={4}>
     <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-      募集中
+      収集中（締切前）
     </Text>
     <RecruitmentCard recruitment={mockRecruitments[0]} onOpenShiftBoard={() => {}} />
 
     <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
-      完了
+      締切済み
     </Text>
     <RecruitmentCard recruitment={mockRecruitments[1]} onOpenShiftBoard={() => {}} />
+
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" mt={2}>
+      確定済み
+    </Text>
+    <RecruitmentCard recruitment={mockRecruitments[2]} onOpenShiftBoard={() => {}} />
   </Flex>
 );
 
