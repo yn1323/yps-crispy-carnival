@@ -45,6 +45,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - 実装完了後、SubAgentで`pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること（Context消費したくない）
 - `lint`はwarningでも修正すること
 - 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
+- 次に`/review`を実行して、レビュー結果を要修正、不要で分けて提示してください。最終的にどこまで修正するかはこちらで決めます。
 
 ### フロントエンド（UIあり）
 
