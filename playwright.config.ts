@@ -40,6 +40,9 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: "http://localhost:3000",
 
+    /* ローカルはサーバー起動済みで速いため短く（CIはPlaywrightデフォルト30sを使用） */
+    ...(process.env.CI ? {} : { timeout: 5_000 }),
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
 
