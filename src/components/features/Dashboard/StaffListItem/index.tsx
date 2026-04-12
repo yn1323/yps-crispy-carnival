@@ -20,7 +20,15 @@ export const StaffListItem = ({ staff, onEdit, onDelete }: Props) => {
       _notLast={{ borderBottom: "1px solid", borderColor: "gray.200" }}
     >
       <Flex align="center" gap={4}>
-        <Text fontWeight="500" fontSize="sm">
+        <Text
+          fontWeight="500"
+          fontSize="sm"
+          w="160px"
+          flexShrink={0}
+          overflow="hidden"
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
+        >
           {staff.name}
         </Text>
         <Text color="gray.500" fontSize="sm" display={{ base: "none", lg: "block" }}>
