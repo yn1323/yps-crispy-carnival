@@ -10,6 +10,7 @@ export const ShiftBoardSPHeader = ({
   periodLabel,
   confirmedAt,
   onConfirm,
+  onSaveDraft,
   viewMode,
   onViewModeChange,
 }: ShiftBoardHeaderProps) => {
@@ -38,6 +39,10 @@ export const ShiftBoardSPHeader = ({
         </SegmentGroup.Root>
 
         <Flex align="center" gap={2}>
+          <Button variant="outline" size="xs" onClick={onSaveDraft}>
+            一時保存
+          </Button>
+
           {isConfirmed ? (
             <Button variant="outline" size="xs" borderColor="teal.600" color="teal.600" onClick={onConfirm}>
               再通知

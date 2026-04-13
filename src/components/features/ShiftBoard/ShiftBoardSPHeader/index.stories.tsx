@@ -25,6 +25,7 @@ const AllVariants = () => (
       periodLabel="1/20(月)〜1/26(日) のシフト"
       confirmedAt={null}
       onConfirm={() => {}}
+      onSaveDraft={() => {}}
       viewMode="daily"
       onViewModeChange={() => {}}
     />
@@ -36,6 +37,7 @@ const AllVariants = () => (
       periodLabel="1/20(月)〜1/26(日) のシフト"
       confirmedAt={new Date("2026-03-28T23:15:00")}
       onConfirm={() => {}}
+      onSaveDraft={() => {}}
       viewMode="overview"
       onViewModeChange={() => {}}
     />
@@ -48,6 +50,7 @@ export const Variants: Story = {
     periodLabel: "1/20(月)〜1/26(日) のシフト",
     confirmedAt: null,
     onConfirm: () => {},
+    onSaveDraft: () => {},
     viewMode: "daily",
     onViewModeChange: () => {},
   },
