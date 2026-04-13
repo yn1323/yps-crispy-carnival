@@ -17,9 +17,9 @@ function RouteComponent() {
 
 function AuthenticatedLayout() {
   return (
-    <Box w="100%" minH="100vh">
+    <Box w="100%">
       <Header />
-      <Box pt="56px">
+      <Box pt="56px" minH="100dvh">
         <Outlet />
       </Box>
     </Box>
