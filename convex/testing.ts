@@ -123,6 +123,174 @@ export const seedPaginationTestData = internalMutation({
 });
 
 /**
+ * 探索的テスト用：最新shop/recruitmentにスタッフ15人と現実的な希望シフトを投入
+ */
+export const seedRealisticStaffRequests = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const shop = await ctx.db.query("shops").order("desc").first();
+    if (!shop) throw new Error("No shop found");
+
+    const recruitment = await ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
+      .order("desc")
+      .first();
+    if (!recruitment) throw new Error("No recruitment found");
+
+    const start = new Date(recruitment.periodStart);
+    const dates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    const isWeekend = (i: number) => {
+      const dow = new Date(dates[i]).getDay();
+      return dow === 0 || dow === 6;
+    };
+
+    type Pattern = {
+      name: string;
+      email: string;
+      mode: "requests" | "allOff" | "unsubmitted";
+      pick: (i: number) => { startTime: string; endTime: string } | null;
+    };
+    const patterns: Pattern[] = [
+      {
+        name: "田中 健太",
+        email: "tanaka.kenta@example.com",
+        mode: "requests",
+        pick: (i) =>
+          isWeekend(i) ? { startTime: "17:00", endTime: "25:00" } : { startTime: "19:00", endTime: "23:00" },
+      },
+      {
+        name: "佐藤 美咲",
+        email: "sato.misaki@example.com",
+        mode: "requests",
+        pick: (i) => (i === 3 ? null : { startTime: "17:00", endTime: "24:00" }),
+      },
+      {
+        name: "鈴木 翔太",
+        email: "suzuki.shota@example.com",
+        mode: "requests",
+        pick: (i) => ([1, 3, 4].includes(i) ? { startTime: "18:00", endTime: "23:00" } : null),
+      },
+      {
+        name: "高橋 由美",
+        email: "takahashi.yumi@example.com",
+        mode: "requests",
+        pick: (i) => ([4, 5].includes(i) ? { startTime: "17:00", endTime: "22:00" } : null),
+      },
+      {
+        name: "伊藤 直樹",
+        email: "ito.naoki@example.com",
+        mode: "requests",
+        pick: (i) => (isWeekend(i) ? { startTime: "17:00", endTime: "21:00" } : null),
+      },
+      {
+        name: "渡辺 彩香",
+        email: "watanabe.ayaka@example.com",
+        mode: "requests",
+        pick: (i) => ([0, 2, 5].includes(i) ? { startTime: "18:30", endTime: "23:00" } : null),
+      },
+      {
+        name: "山本 隆",
+        email: "yamamoto.takashi@example.com",
+        mode: "requests",
+        pick: (i) => (i === 2 ? null : { startTime: "17:00", endTime: "25:00" }),
+      },
+      {
+        name: "中村 愛",
+        email: "nakamura.ai@example.com",
+        mode: "unsubmitted",
+        pick: () => null,
+      },
+      {
+        name: "小林 陽介",
+        email: "kobayashi.yosuke@example.com",
+        mode: "requests",
+        pick: (i) => (isWeekend(i) ? { startTime: "17:00", endTime: "24:00" } : null),
+      },
+      {
+        name: "加藤 真理",
+        email: "kato.mari@example.com",
+        mode: "requests",
+        pick: (i) => (!isWeekend(i) ? { startTime: "18:00", endTime: "22:00" } : null),
+      },
+      {
+        name: "吉田 亮",
+        email: "yoshida.ryo@example.com",
+        mode: "requests",
+        pick: (i) => (i === 6 ? null : { startTime: "17:00", endTime: "24:30" }),
+      },
+      {
+        name: "山田 美穂",
+        email: "yamada.miho@example.com",
+        mode: "requests",
+        pick: (i) => ([0, 2, 4].includes(i) ? { startTime: "18:00", endTime: "23:00" } : null),
+      },
+      {
+        name: "佐々木 翔",
+        email: "sasaki.sho@example.com",
+        mode: "requests",
+        pick: (i) => ([1, 4, 5, 6].includes(i) ? { startTime: "17:30", endTime: "22:30" } : null),
+      },
+      {
+        name: "松本 涼子",
+        email: "matsumoto.ryoko@example.com",
+        mode: "allOff",
+        pick: () => null,
+      },
+      {
+        name: "井上 大樹",
+        email: "inoue.daiki@example.com",
+        mode: "requests",
+        pick: (i) => ([2, 5].includes(i) ? { startTime: "19:00", endTime: "23:00" } : null),
+      },
+    ];
+
+    let staffInserted = 0;
+    let requestsInserted = 0;
+    let submissionsInserted = 0;
+
+    for (const p of patterns) {
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: shop._id,
+        name: p.name,
+        email: p.email,
+        isDeleted: false,
+      });
+      staffInserted++;
+
+      if (p.mode === "unsubmitted") continue;
+
+      for (let i = 0; i < 7; i++) {
+        const slot = p.pick(i);
+        if (!slot) continue;
+        await ctx.db.insert("shiftRequests", {
+          recruitmentId: recruitment._id,
+          staffId,
+          date: dates[i],
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+        });
+        requestsInserted++;
+      }
+
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId: recruitment._id,
+        staffId,
+        submittedAt: Date.now(),
+      });
+      submissionsInserted++;
+    }
+
+    return { staffInserted, requestsInserted, submissionsInserted, dates };
+  },
+});
+
+/**
  * 探索的テスト用：シフト提出画面のテストデータを一括セットアップ
  * shop + staff + recruitment + magicLink + session を作成し、sessionTokenを返す
  */
