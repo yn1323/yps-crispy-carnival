@@ -2,6 +2,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
 import pkg from "./package.json" with { type: "json" };
@@ -54,7 +55,7 @@ const uiProject = defineConfig({
     browser: {
       enabled: true,
       // Make sure to install Playwright
-      provider: "playwright",
+      provider: playwright(),
       headless: true,
       instances: [{ browser: "chromium" }],
     },
