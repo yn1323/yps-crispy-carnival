@@ -211,7 +211,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       </Modal>
 
       <Modal
-        title="一時保存すると 自動配置は止まります"
+        title="締切前のシフト自動適用がオフになります"
         isOpen={saveDraftWarningModal.isOpen}
         onOpenChange={saveDraftWarningModal.onOpenChange}
         onSubmit={performSaveDraft}
