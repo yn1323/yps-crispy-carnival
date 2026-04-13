@@ -72,6 +72,7 @@ jobs:
         env:
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
 
       - name: Deploy to Cloudflare Pages
         run: |

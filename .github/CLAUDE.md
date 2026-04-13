@@ -56,6 +56,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
+| `VITE_GTM_ID` | Google Tag Manager ID |
 
 ### Develop 環境（developブランチのデプロイで使用）
 
@@ -67,6 +68,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
+| `VITE_GTM_ID` | Google Tag Manager ID |
 
 ### Production 環境（mainで使用）
 
@@ -78,6 +80,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `CLERK_SECRET_KEY` | Clerk本番用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
+| `VITE_GTM_ID` | Google Tag Manager ID |
 
 ## ワークフロー一覧
 
