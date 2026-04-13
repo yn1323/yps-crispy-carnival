@@ -11,9 +11,9 @@ type Props = {
 
 export function StaffLayout({ shopName, children }: Props) {
   return (
-    <Flex direction="column" minH="100vh">
+    <Flex direction="column">
       <StaffHeader shopName={shopName} />
-      <Box pt={HEADER_PT} flex={1} display="flex" flexDirection="column">
+      <Box pt={HEADER_PT} flex={1} display="flex" flexDirection="column" minH="100dvh">
         {children}
       </Box>
     </Flex>
