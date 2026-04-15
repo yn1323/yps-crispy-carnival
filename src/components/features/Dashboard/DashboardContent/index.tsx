@@ -269,7 +269,7 @@ export const DashboardContent = ({
       >
         <Stack gap={1}>
           <Text>全員分の希望がそろっていません</Text>
-          <Text>編集中にも変更される場合があります</Text>
+          <Text>編集中にも希望シフトが追加される場合があります</Text>
         </Stack>
       </Dialog>
 

@@ -491,7 +491,7 @@
                               "id": "15olP",
                               "name": "card1Submitted",
                               "fill": "$fg/muted",
-                              "content": "提出状況: 8/10人",
+                              "content": "提出済み: 8人",
                               "fontFamily": "Inter",
                               "fontSize": "$fontSize/sm",
                               "fontWeight": "normal"
@@ -629,7 +629,7 @@
                               "id": "6UZso",
                               "name": "card2Submitted",
                               "fill": "$fg/muted",
-                              "content": "提出状況: 10/10人",
+                              "content": "提出済み: 10人",
                               "fontFamily": "Inter",
                               "fontSize": "$fontSize/sm",
                               "fontWeight": "normal"
@@ -1691,7 +1691,7 @@
                           "id": "d3W9W",
                           "name": "spCard1Submitted",
                           "fill": "$fg/muted",
-                          "content": "提出: 8/10人",
+                          "content": "提出済み: 10人",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "normal"
@@ -1818,7 +1818,7 @@
                           "id": "EeqAj",
                           "name": "spCard2Submitted",
                           "fill": "$fg/muted",
-                          "content": "提出: 10/10人",
+                          "content": "提出済み: 10人",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "normal"

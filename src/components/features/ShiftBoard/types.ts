@@ -5,6 +5,7 @@ export type ShiftBoardHeaderProps = {
   periodLabel: string;
   confirmedAt: Date | null;
   onConfirm: () => void;
+  onSaveDraft: () => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 };
