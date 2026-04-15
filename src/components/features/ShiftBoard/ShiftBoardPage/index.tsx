@@ -15,6 +15,7 @@ import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
+import { SaveDraftWarningContent } from "../SaveDraftWarningContent";
 import { ShiftBoardHeader } from "../ShiftBoardHeader";
 import { ShiftBoardSPHeader } from "../ShiftBoardSPHeader";
 import type { ShiftBoardData } from "../types";
@@ -112,6 +113,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, []);
 
   const confirmModal = useDialog();
+  const saveDraftWarningModal = useDialog();
   const Modal = isMobile ? BottomSheet : Dialog;
 
   /** 現在のシフトデータからmutation用のassignment配列を構築 */
@@ -137,6 +139,25 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     }
   }, [saveShiftAssignments, confirmRecruitmentMutation, recruitmentId, buildAssignments, confirmModal]);
 
+  const performSaveDraft = useCallback(async () => {
+    try {
+      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
+      saveDraftWarningModal.close();
+      toaster.create({ title: "保存しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  }, [saveShiftAssignments, recruitmentId, buildAssignments, saveDraftWarningModal]);
+
+  const handleSaveDraft = useCallback(() => {
+    const isFirstSave = data.shiftAssignments.length === 0 && !isConfirmed;
+    if (isFirstSave) {
+      saveDraftWarningModal.open();
+    } else {
+      void performSaveDraft();
+    }
+  }, [data.shiftAssignments.length, isConfirmed, saveDraftWarningModal, performSaveDraft]);
+
   const confirmTitle = isConfirmed ? "シフトを再通知しますか？" : "シフトを確定して通知しますか？";
 
   return (
@@ -146,6 +167,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           periodLabel={periodLabel}
           confirmedAt={confirmedAt}
           onConfirm={confirmModal.open}
+          onSaveDraft={handleSaveDraft}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
@@ -156,6 +178,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           periodLabel={periodLabel}
           confirmedAt={confirmedAt}
           onConfirm={confirmModal.open}
+          onSaveDraft={handleSaveDraft}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
@@ -185,6 +208,17 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
+      </Modal>
+
+      <Modal
+        title="締切前のシフト自動適用がオフになります"
+        isOpen={saveDraftWarningModal.isOpen}
+        onOpenChange={saveDraftWarningModal.onOpenChange}
+        onSubmit={performSaveDraft}
+        submitLabel="保存する"
+        onClose={saveDraftWarningModal.close}
+      >
+        <SaveDraftWarningContent />
       </Modal>
     </Box>
   );

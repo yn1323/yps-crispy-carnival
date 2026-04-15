@@ -1,5 +1,6 @@
 import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuCalendarX } from "react-icons/lu";
+import { SubmitPageLayout } from "../SubmitPageLayout";
 
 type Props = {
   shopName: string;
@@ -7,15 +8,17 @@ type Props = {
 
 export const ExpiredSubmitView = ({ shopName }: Props) => {
   return (
-    <Flex direction="column" minH="100dvh" bg="gray.50">
-      {/* Header */}
-      <Box bg="teal.600" px={4} pt={3} pb={4}>
-        <Text fontSize="xs" color="white" opacity={0.8}>
-          {shopName}
-        </Text>
-        <Text fontSize="xl" fontWeight="bold" color="white">
-          シフト希望を提出
-        </Text>
+    <SubmitPageLayout>
+      {/* Header (full-width bg) */}
+      <Box bg="teal.600" w="full">
+        <Box maxW="1024px" mx="auto" px={4} pt={3} pb={4}>
+          <Text fontSize="xs" color="white" opacity={0.8}>
+            {shopName}
+          </Text>
+          <Text fontSize="xl" fontWeight="bold" color="white">
+            シフト希望を提出
+          </Text>
+        </Box>
       </Box>
 
       {/* Content */}
@@ -32,6 +35,6 @@ export const ExpiredSubmitView = ({ shopName }: Props) => {
           </Text>
         </VStack>
       </Flex>
-    </Flex>
+    </SubmitPageLayout>
   );
 };
