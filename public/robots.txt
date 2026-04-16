@@ -1,6 +1,8 @@
 User-agent: *
 Disallow: /dashboard
 Disallow: /shiftboard
+Disallow: /shifts
+Disallow: /welcome
 Allow: /
 
 Sitemap: https://shiftori.app/sitemap.xml

@@ -4,6 +4,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuCalendarCheck, LuLink, LuSend } from "react-icons/lu";
+import { type Faq, faqs } from "./faqs";
 
 export const LandingPage = () => {
   return (
@@ -159,22 +160,6 @@ const PointCard = ({ icon: Icon, title, body }: Point) => (
     </Text>
   </VStack>
 );
-
-type Faq = {
-  q: string;
-  a: string;
-};
-
-const faqs: Faq[] = [
-  {
-    q: "料金はかかりますか？",
-    a: "無料です",
-  },
-  {
-    q: "スタッフがメールアドレスを持っていない場合は？",
-    a: "現在はメールアドレスが必須です 将来的にほかの方法にも対応予定です",
-  },
-];
 
 const FaqSection = () => (
   <Box bg="gray.50" px={{ base: 4, lg: 12 }} py={{ base: 12, lg: 24 }}>

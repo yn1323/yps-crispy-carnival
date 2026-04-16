@@ -5,8 +5,12 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftBoardPage } from "@/src/components/features/ShiftBoard/ShiftBoardPage";
 import { Animation } from "@/src/components/templates/Animation";
+import { buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/_auth/shiftboard/$recruitmentId")({
+  head: () => ({
+    meta: buildMeta({ title: "シフト表", noindex: true }),
+  }),
   component: ShiftBoardRoute,
 });
 
