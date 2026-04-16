@@ -30,6 +30,12 @@ export const Route = createFileRoute("/")({
 function IndexPage() {
   const { isSignedIn, isLoaded } = useAuth();
 
+  // ビルド時 prerender 中は Clerk の初期化を待たず LP を描画する
+  // (scripts/prerender.ts が addInitScript で window.__PRERENDER__ を注入する)
+  if (typeof window !== "undefined" && (window as unknown as { __PRERENDER__?: boolean }).__PRERENDER__) {
+    return <LandingPage />;
+  }
+
   if (!isLoaded) return null;
 
   if (isSignedIn) {
