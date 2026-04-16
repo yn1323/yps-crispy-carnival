@@ -8,11 +8,15 @@ import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubm
 import { RateLimitedView } from "@/src/components/features/StaffView/RateLimitedView";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { buildMeta } from "@/src/helpers/seo";
 import { useStaffSession } from "@/src/hooks/useStaffSession";
 
 export const Route = createFileRoute("/_unregistered/shifts/submit")({
   validateSearch: (search: Record<string, unknown>) => ({
     token: (search.token as string) || undefined,
+  }),
+  head: () => ({
+    meta: buildMeta({ title: "希望シフト提出", noindex: true }),
   }),
   component: ShiftSubmitRoute,
 });
