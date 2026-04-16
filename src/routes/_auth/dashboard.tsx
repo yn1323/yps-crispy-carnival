@@ -5,8 +5,12 @@ import { api } from "@/convex/_generated/api";
 import { DashboardContent } from "@/src/components/features/Dashboard/DashboardContent";
 import { Animation } from "@/src/components/templates/Animation";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
+import { buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/_auth/dashboard")({
+  head: () => ({
+    meta: buildMeta({ title: "ダッシュボード", noindex: true }),
+  }),
   component: DashboardPage,
 });
 
