@@ -74,11 +74,11 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
 
-      - name: Setup Playwright
-        uses: ./.github/actions/playwright
+      # - name: Setup Playwright
+      #   uses: ./.github/actions/playwright
 
-      - name: Prerender static routes
-        run: pnpm prerender
+      # - name: Prerender static routes
+      #   run: pnpm prerender
 
       - name: Deploy to Cloudflare Pages
         run: |
