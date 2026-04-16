@@ -9,10 +9,14 @@ import { ReissueDone } from "@/src/components/features/StaffView/ReissueDone";
 import { ReissueForm } from "@/src/components/features/StaffView/ReissueForm";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/_unregistered/shifts/reissue")({
   validateSearch: (search: Record<string, unknown>) => ({
     recruitmentId: search.recruitmentId as string,
+  }),
+  head: () => ({
+    meta: buildMeta({ title: "シフト閲覧リンクの再発行", noindex: true }),
   }),
   component: ReissueRoute,
 });

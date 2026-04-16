@@ -8,11 +8,15 @@ import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { buildMeta } from "@/src/helpers/seo";
 import { useStaffSession } from "@/src/hooks/useStaffSession";
 
 export const Route = createFileRoute("/_unregistered/shifts/view")({
   validateSearch: (search: Record<string, unknown>) => ({
     token: (search.token as string) || undefined,
+  }),
+  head: () => ({
+    meta: buildMeta({ title: "シフト確認", noindex: true }),
   }),
   component: ShiftViewRoute,
 });
