@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Heading, HStack, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Flex, Heading, HStack, Image, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -20,16 +20,12 @@ export const LandingPage = () => {
 };
 
 export const Nav = () => (
-  <Box as="nav" bg="white" w="full">
+  <Box as="nav" bgGradient="to-b" gradientFrom="teal.600" gradientTo="#99f6e4" w="full">
     <Flex align="center" justify="space-between" px={{ base: 4, lg: 12 }} py={{ base: 3, lg: 5 }}>
-      <Link
-        asChild
-        fontWeight="bold"
-        fontSize={{ base: "xl", lg: "2xl" }}
-        color="fg"
-        _hover={{ textDecoration: "none" }}
-      >
-        <RouterLink to="/">シフトリ</RouterLink>
+      <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
+        <RouterLink to="/">
+          <Image src="/textlogo.png" alt="シフトリ" h={{ base: "36px", lg: "44px" }} w="auto" loading="eager" />
+        </RouterLink>
       </Link>
     </Flex>
   </Box>
@@ -222,16 +218,14 @@ const BottomCta = () => (
 );
 
 export const Footer = () => (
-  <Box as="footer" bg="white" px={{ base: 4, lg: 12 }} py={{ base: 8, lg: 12 }}>
+  <Box as="footer" bg="teal.600" px={{ base: 4, lg: 12 }} py={{ base: 8, lg: 12 }}>
     <VStack mx="auto" w="full" maxW="1024px" gap={4} align="center">
-      <Text fontWeight="bold" fontSize={{ base: "18px", lg: "20px" }} color="fg">
-        シフトリ
-      </Text>
+      <Image src="/textlogo.png" alt="シフトリ" h={{ base: "40px", lg: "48px" }} w="auto" />
       <HStack gap={{ base: 6, lg: 8 }}>
         <FooterLink to="/privacy">プライバシーポリシー</FooterLink>
         <FooterLink to="/terms">利用規約</FooterLink>
       </HStack>
-      <Text fontSize="xs" color="fg.subtle">
+      <Text fontSize="xs" color="whiteAlpha.700">
         © {new Date().getFullYear()} シフトリ v{__APP_VERSION__}
       </Text>
     </VStack>
@@ -239,7 +233,13 @@ export const Footer = () => (
 );
 
 const FooterLink = ({ to, children }: { to: string; children: ReactNode }) => (
-  <Link asChild fontSize="sm" fontWeight="medium" color="fg.muted" _hover={{ color: "fg", textDecoration: "none" }}>
+  <Link
+    asChild
+    fontSize="sm"
+    fontWeight="medium"
+    color="whiteAlpha.800"
+    _hover={{ color: "white", textDecoration: "none" }}
+  >
     <RouterLink to={to}>{children}</RouterLink>
   </Link>
 );
