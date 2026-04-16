@@ -266,7 +266,7 @@
       "type": "frame",
       "id": "RokyI",
       "x": 0,
-      "y": 0,
+      "y": -63,
       "name": "Dashboard/Normal",
       "width": 1440,
       "fill": "$bg/default",
@@ -491,7 +491,7 @@
                               "id": "15olP",
                               "name": "card1Submitted",
                               "fill": "$fg/muted",
-                              "content": "提出済み: 8人",
+                              "content": "提出状況: 8/10人",
                               "fontFamily": "Inter",
                               "fontSize": "$fontSize/sm",
                               "fontWeight": "normal"
@@ -629,7 +629,7 @@
                               "id": "6UZso",
                               "name": "card2Submitted",
                               "fill": "$fg/muted",
-                              "content": "提出済み: 10人",
+                              "content": "提出状況: 10/10人",
                               "fontFamily": "Inter",
                               "fontSize": "$fontSize/sm",
                               "fontWeight": "normal"
@@ -699,47 +699,6 @@
                           ]
                         }
                       ]
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "WnPm5",
-                  "name": "LoadMoreButton",
-                  "width": "fill_container",
-                  "cornerRadius": "$radii/md",
-                  "stroke": {
-                    "align": "inside",
-                    "thickness": 1,
-                    "fill": "$border/default"
-                  },
-                  "gap": 6,
-                  "padding": [
-                    10,
-                    0
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon_font",
-                      "id": "1FVzd",
-                      "name": "pcLoadMoreIcon",
-                      "width": 16,
-                      "height": 16,
-                      "iconFontName": "chevron-down",
-                      "iconFontFamily": "lucide",
-                      "fill": "$fg/muted"
-                    },
-                    {
-                      "type": "text",
-                      "id": "TLcfJ",
-                      "name": "pcLoadMoreText",
-                      "fill": "$fg/muted",
-                      "content": "もっと見る",
-                      "fontFamily": "Inter",
-                      "fontSize": "$fontSize/sm",
-                      "fontWeight": "500"
                     }
                   ]
                 }
@@ -1122,47 +1081,6 @@
                       ]
                     }
                   ]
-                },
-                {
-                  "type": "frame",
-                  "id": "AUacf",
-                  "name": "ShowAllButton",
-                  "width": "fill_container",
-                  "cornerRadius": "$radii/md",
-                  "stroke": {
-                    "align": "inside",
-                    "thickness": 1,
-                    "fill": "$border/default"
-                  },
-                  "gap": 6,
-                  "padding": [
-                    10,
-                    0
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon_font",
-                      "id": "OkznT",
-                      "name": "pcShowAllIcon",
-                      "width": 16,
-                      "height": 16,
-                      "iconFontName": "chevrons-down",
-                      "iconFontFamily": "lucide",
-                      "fill": "$fg/muted"
-                    },
-                    {
-                      "type": "text",
-                      "id": "XEnZ6",
-                      "name": "pcShowAllText",
-                      "fill": "$fg/muted",
-                      "content": "すべて表示",
-                      "fontFamily": "Inter",
-                      "fontSize": "$fontSize/sm",
-                      "fontWeight": "500"
-                    }
-                  ]
                 }
               ]
             }
@@ -1174,7 +1092,7 @@
       "type": "frame",
       "id": "IdakJ",
       "x": -12,
-      "y": 1035,
+      "y": 781,
       "name": "Dashboard/CreateRecruitmentModal",
       "width": 480,
       "height": 360,
@@ -1691,7 +1609,7 @@
                           "id": "d3W9W",
                           "name": "spCard1Submitted",
                           "fill": "$fg/muted",
-                          "content": "提出済み: 10人",
+                          "content": "提出: 8/10人",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "normal"
@@ -1818,7 +1736,7 @@
                           "id": "EeqAj",
                           "name": "spCard2Submitted",
                           "fill": "$fg/muted",
-                          "content": "提出済み: 10人",
+                          "content": "提出: 10/10人",
                           "fontFamily": "Inter",
                           "fontSize": "$fontSize/xs",
                           "fontWeight": "normal"
@@ -1885,47 +1803,6 @@
                           "fill": "$fg/muted"
                         }
                       ]
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "JOUpM",
-                  "name": "LoadMoreButton",
-                  "width": "fill_container",
-                  "cornerRadius": "$radii/md",
-                  "stroke": {
-                    "align": "inside",
-                    "thickness": 1,
-                    "fill": "$border/default"
-                  },
-                  "gap": 6,
-                  "padding": [
-                    10,
-                    0
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon_font",
-                      "id": "u5Zm5",
-                      "name": "spLoadMoreIcon",
-                      "width": 14,
-                      "height": 14,
-                      "iconFontName": "chevron-down",
-                      "iconFontFamily": "lucide",
-                      "fill": "$fg/muted"
-                    },
-                    {
-                      "type": "text",
-                      "id": "w9WP4",
-                      "name": "spLoadMoreText",
-                      "fill": "$fg/muted",
-                      "content": "もっと見る",
-                      "fontFamily": "Inter",
-                      "fontSize": "$fontSize/xs",
-                      "fontWeight": "500"
                     }
                   ]
                 }
@@ -2309,47 +2186,6 @@
                       ]
                     }
                   ]
-                },
-                {
-                  "type": "frame",
-                  "id": "wIG6I",
-                  "name": "ShowAllButton",
-                  "width": "fill_container",
-                  "cornerRadius": "$radii/md",
-                  "stroke": {
-                    "align": "inside",
-                    "thickness": 1,
-                    "fill": "$border/default"
-                  },
-                  "gap": 6,
-                  "padding": [
-                    10,
-                    0
-                  ],
-                  "justifyContent": "center",
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon_font",
-                      "id": "ZiLR5",
-                      "name": "spShowAllIcon",
-                      "width": 14,
-                      "height": 14,
-                      "iconFontName": "chevrons-down",
-                      "iconFontFamily": "lucide",
-                      "fill": "$fg/muted"
-                    },
-                    {
-                      "type": "text",
-                      "id": "9ldt6",
-                      "name": "spShowAllText",
-                      "fill": "$fg/muted",
-                      "content": "すべて表示",
-                      "fontFamily": "Inter",
-                      "fontSize": "$fontSize/xs",
-                      "fontWeight": "500"
-                    }
-                  ]
                 }
               ]
             }
@@ -2621,7 +2457,7 @@
       "type": "frame",
       "id": "3iRDC",
       "x": 3085,
-      "y": 1084,
+      "y": 900,
       "name": "Dashboard/CreateRecruitmentSheet",
       "width": 390,
       "height": 500,
