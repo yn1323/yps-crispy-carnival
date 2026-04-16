@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster } from "@/src/components/ui/toaster";
 import { sendPageView } from "@/src/helpers/gtm";
@@ -16,6 +16,7 @@ const PageViewTracker = () => {
 export const Route = createRootRoute({
   component: () => (
     <>
+      <HeadContent />
       <PageViewTracker />
       <Outlet />
       <Toaster />
