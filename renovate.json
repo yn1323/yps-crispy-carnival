@@ -6,7 +6,7 @@
   "baseBranches": ["develop"],
   "automerge": true,
   "minimumReleaseAge": "2 days",
-  "schedule": ["every weekend"],
+  "schedule": ["before 6am on saturday"],
   "packageRules": [
     {
       "addLabels": ["react"],
