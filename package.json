@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build && tsc",
+    "prerender": "tsx scripts/prerender.ts",
     "dev": "vite --port 3000",
     "dev:all": "concurrently -n dev,convex,storybook -c blue,green,magenta \"pnpm dev\" \"pnpm convex:dev\" \"pnpm storybook\"",
     "format": "biome check --write",
