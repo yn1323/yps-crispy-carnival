@@ -20,7 +20,7 @@ export const LandingPage = () => {
 };
 
 export const Nav = () => (
-  <Box as="nav" bgGradient="to-b" gradientFrom="teal.600" gradientTo="teal.400" w="full">
+  <Box as="nav" bgGradient="to-b" gradientFrom="teal.600" gradientTo="#99f6e4" w="full">
     <Flex align="center" justify="space-between" px={{ base: 4, lg: 12 }} py={{ base: 3, lg: 5 }}>
       <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
         <RouterLink to="/">
