@@ -42,10 +42,10 @@ jobs:
           VITE_CONVEX_URL: ${{ steps.convex.outputs.PREVIEW_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
-      # - name: Setup Playwright
-      #   uses: ./.github/actions/playwright
-      # - name: Prerender static routes
-      #   run: pnpm prerender
+      - name: Setup Playwright
+        uses: ./.github/actions/playwright
+      - name: Prerender static routes
+        run: pnpm prerender
       - name: Deploy to Cloudflare Pages
         id: deploy
         run: |

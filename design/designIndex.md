@@ -40,8 +40,10 @@
 
 | ID | Name | Description |
 |---|---|---|
-| `TzEz5` | LandingPage/SP | SPランディングページ全体（390px、ナビ→ヒーロー→ポイント→使い方→FAQ→フッター） |
+| `TzEz5` | LandingPage/SP | SPランディングページ全体（390px、ナビ→ヒーロー→道具集約→ポイント→使い方→FAQ→フッター） |
 | `QLGoQ` | LandingPage/PC | PCランディングページ全体（1440px、コンテンツ幅768〜1024px、Point/Stepは3カラム横並び） |
+| `r7bf4` | 道具集約セクション/PC | PC道具集約セクション（1440px、散らかりアイコン→矢印→ロゴ円） |
+| `SrMKh` | 道具集約セクション/SP | SP道具集約セクション（390px、縦積みレイアウト） |
 
 ## shift-submit.pen — スタッフシフト提出画面
 

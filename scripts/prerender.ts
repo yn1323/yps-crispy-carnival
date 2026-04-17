@@ -29,6 +29,9 @@ const ROUTES = ["/", "/privacy", "/terms"] as const;
 const GOTO_TIMEOUT_MS = 30_000;
 const RENDER_WAIT_TIMEOUT_MS = 15_000;
 const MIN_HTML_BYTES = 2_000;
+// Emotion (Chakra UI) は本番ビルドで CSSStyleSheet.insertRule を使うため、
+// ダンプ後のインライン <style> は最低でもこの程度のサイズになるはず
+const MIN_INLINE_STYLE_BYTES = 5_000;
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -114,6 +117,13 @@ function assertRenderedHtml(route: string, html: string): void {
       `[prerender] ${route} produced HTML with only ${titleCount} <title> tag(s) — TanStack Router head() likely did not run`,
     );
   }
+  // Emotion (Chakra UI) の動的注入スタイルが textContent にダンプされているか確認
+  const styleBytes = (html.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) ?? []).reduce((sum, s) => sum + s.length, 0);
+  if (styleBytes < MIN_INLINE_STYLE_BYTES) {
+    throw new Error(
+      `[prerender] ${route} produced HTML with only ${styleBytes} bytes of inline <style> — Emotion CSS likely missing (CSSOM dump failed?)`,
+    );
+  }
 }
 
 async function main(): Promise<void> {
@@ -178,6 +188,25 @@ async function main(): Promise<void> {
         },
         { timeout: RENDER_WAIT_TIMEOUT_MS },
       );
+
+      // Emotion の speedy mode は CSSStyleSheet.insertRule で CSSOM に直接ルールを挿入するため、
+      // <style> 要素の textContent は空のまま page.content() でシリアライズすると CSS が消える。
+      // HTML 取得前に CSSOM の中身を textContent に書き戻す。
+      await page.evaluate(() => {
+        for (const sheet of Array.from(document.styleSheets)) {
+          const node = sheet.ownerNode as HTMLStyleElement | null;
+          if (!node || node.tagName !== "STYLE") continue;
+          if (node.textContent && node.textContent.length > 0) continue;
+          try {
+            const css = Array.from(sheet.cssRules)
+              .map((r) => r.cssText)
+              .join("");
+            node.textContent = css;
+          } catch {
+            // クロスオリジンシートには触れない
+          }
+        }
+      });
 
       const html = await page.content();
       await page.close();
