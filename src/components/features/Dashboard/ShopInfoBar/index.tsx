@@ -11,9 +11,9 @@ type Props = {
 
 export const ShopInfoBar = ({ name, shiftStartTime, shiftEndTime, onEditClick }: Props) => {
   return (
-    <HStack justify="space-between" align="flex-start" w="full" py={3}>
+    <HStack justify="space-between" align="flex-start" w="full">
       <Stack gap={0}>
-        <Text fontSize={{ base: "xl", lg: "lg" }} fontWeight="bold" lineHeight="short">
+        <Text fontSize={{ base: "xl", lg: "2xl" }} fontWeight="bold" lineHeight="short">
           {name}
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="short">
