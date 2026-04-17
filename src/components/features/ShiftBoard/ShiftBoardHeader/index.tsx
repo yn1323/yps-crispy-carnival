@@ -7,7 +7,6 @@ import { formatDateTime } from "@/src/components/features/Shift/ShiftForm/utils/
 import type { ShiftBoardHeaderProps } from "../types";
 
 export const ShiftBoardHeader = ({
-  periodLabel,
   confirmedAt,
   onConfirm,
   onSaveDraft,
@@ -27,9 +26,6 @@ export const ShiftBoardHeader = ({
             <Text fontSize="sm">戻る</Text>
           </Flex>
         </Link>
-        <Text fontSize="md" fontWeight="600" color="gray.900">
-          {periodLabel}
-        </Text>
       </Flex>
 
       <Flex align="center" gap={3}>
