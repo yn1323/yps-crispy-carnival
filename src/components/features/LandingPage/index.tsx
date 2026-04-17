@@ -24,7 +24,7 @@ export const Nav = () => (
     <Flex align="center" justify="space-between" px={{ base: 4, lg: 12 }} py={{ base: 3, lg: 5 }}>
       <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
         <RouterLink to="/">
-          <Image src="/textlogo.png" alt="シフトリ" h={{ base: "36px", lg: "44px" }} w="auto" loading="eager" />
+          <Image src="/textlogo.webp" alt="シフトリ" h={{ base: "36px", lg: "44px" }} w="auto" loading="eager" />
         </RouterLink>
       </Link>
     </Flex>
@@ -220,7 +220,7 @@ const BottomCta = () => (
 export const Footer = () => (
   <Box as="footer" bg="teal.600" px={{ base: 4, lg: 12 }} py={{ base: 8, lg: 12 }}>
     <VStack mx="auto" w="full" maxW="1024px" gap={4} align="center">
-      <Image src="/textlogo.png" alt="シフトリ" h={{ base: "40px", lg: "48px" }} w="auto" />
+      <Image src="/textlogo.webp" alt="シフトリ" h={{ base: "40px", lg: "48px" }} w="auto" />
       <HStack gap={{ base: 6, lg: 8 }}>
         <FooterLink to="/privacy">プライバシーポリシー</FooterLink>
         <FooterLink to="/terms">利用規約</FooterLink>
