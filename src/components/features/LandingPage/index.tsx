@@ -4,6 +4,16 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuCalendarCheck, LuLink, LuSend } from "react-icons/lu";
+import {
+  PiArrowDown,
+  PiArrowRight,
+  PiCalculator,
+  PiCalendarBlank,
+  PiChatsCircle,
+  PiNotebook,
+  PiPencilSimple,
+} from "react-icons/pi";
+import { BrowserMockup } from "@/src/components/ui/BrowserMockup";
 import { type Faq, faqs } from "./faqs";
 
 export const LandingPage = () => {
@@ -11,6 +21,8 @@ export const LandingPage = () => {
     <Box bg="white" minH="100vh" color="fg">
       <Nav />
       <Hero />
+      <ToolsSection />
+      <ScreenPreviewSection />
       <PointSection />
       <FaqSection />
       <BottomCta />
@@ -18,6 +30,113 @@ export const LandingPage = () => {
     </Box>
   );
 };
+
+type Badge = {
+  icon: IconType;
+  x: number;
+  y: number;
+  size: number;
+  rot: number;
+};
+
+const BADGES_SP: Badge[] = [
+  { icon: PiChatsCircle, x: 20, y: 15, size: 54, rot: -12 },
+  { icon: PiNotebook, x: 170, y: 3, size: 50, rot: 14 },
+  { icon: PiCalculator, x: 10, y: 125, size: 48, rot: 8 },
+  { icon: PiCalendarBlank, x: 160, y: 140, size: 52, rot: -10 },
+  { icon: PiPencilSimple, x: 93, y: 73, size: 50, rot: -5 },
+];
+
+const BADGES_PC: Badge[] = [
+  { icon: PiChatsCircle, x: 25, y: 20, size: 60, rot: -12 },
+  { icon: PiNotebook, x: 189, y: 5, size: 56, rot: 14 },
+  { icon: PiCalculator, x: 15, y: 138, size: 52, rot: 8 },
+  { icon: PiCalendarBlank, x: 172, y: 152, size: 58, rot: -10 },
+  { icon: PiPencilSimple, x: 102, y: 82, size: 56, rot: -5 },
+];
+
+const ToolsSection = () => (
+  <Box bg="gray.50" px={{ base: 4, lg: 12 }} py={{ base: 12, lg: 24 }}>
+    <VStack mx="auto" w="full" maxW="1024px" gap={{ base: 5, lg: 14 }} align="center">
+      <VStack gap={{ base: 2.5, lg: 3 }} align="center">
+        <Heading
+          as="h2"
+          fontWeight="medium"
+          fontSize={{ base: "28px", lg: "36px" }}
+          lineHeight={1.35}
+          textAlign="center"
+          color="fg"
+          whiteSpace={{ base: "pre-line", lg: "normal" }}
+        >
+          {"シフト作りの道具\nひとつにしよう"}
+        </Heading>
+        <Text fontSize={{ base: "15px", lg: "18px" }} color="fg.muted" lineHeight={1.5} textAlign="center">
+          LINE Excel メモ ぜんぶここで
+        </Text>
+      </VStack>
+      <Stack direction={{ base: "column", lg: "row" }} align="center" justify="center" gap={{ base: 10, lg: 8 }}>
+        <BadgeCluster />
+        <Box color="#888780" display={{ base: "block", lg: "none" }}>
+          <PiArrowDown size={36} />
+        </Box>
+        <Box color="#888780" display={{ base: "none", lg: "block" }}>
+          <PiArrowRight size={40} />
+        </Box>
+        <Box
+          bg="teal.600"
+          borderRadius="8px"
+          px={{ base: 3, lg: 4 }}
+          py={{ base: 2, lg: 3 }}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Image src="/textlogo.webp" alt="シフトリ" h={{ base: "44px", lg: "64px" }} w="auto" />
+        </Box>
+      </Stack>
+    </VStack>
+  </Box>
+);
+
+const BadgeCluster = () => (
+  <>
+    <Box position="relative" w="240px" h="200px" display={{ base: "block", lg: "none" }}>
+      {BADGES_SP.map((b) => (
+        <BadgeItem key={`sp-${b.icon.name}`} {...b} />
+      ))}
+    </Box>
+    <Box position="relative" w="260px" h="220px" display={{ base: "none", lg: "block" }}>
+      {BADGES_PC.map((b) => (
+        <BadgeItem key={`pc-${b.icon.name}`} {...b} />
+      ))}
+    </Box>
+  </>
+);
+
+const BadgeItem = ({ icon: Icon, x, y, size, rot }: Badge) => (
+  <Flex
+    position="absolute"
+    left={`${x}px`}
+    top={`${y}px`}
+    boxSize={`${size}px`}
+    align="center"
+    justify="center"
+    bg="#FCEBEB"
+    borderRadius="12px"
+    color="#D85A30"
+    transform={`rotate(${rot}deg)`}
+  >
+    <Icon size={size * 0.58} />
+  </Flex>
+);
+
+const ScreenPreviewSection = () => (
+  <Box bg="gray.50" px={{ base: 4, lg: 12 }} py={{ base: 12, lg: 24 }}>
+    <Flex mx="auto" w="full" maxW="1024px" justify="center">
+      <BrowserMockup src="/lp/shiftForm.webp" alt="シフトリの画面サンプル" maxW={{ base: "full", lg: "1000px" }} />
+    </Flex>
+  </Box>
+);
 
 export const Nav = () => (
   <Box as="nav" bgGradient="to-b" gradientFrom="teal.600" gradientTo="#99f6e4" w="full">
