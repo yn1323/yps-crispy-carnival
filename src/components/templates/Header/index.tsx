@@ -8,7 +8,7 @@ export const Header = () => {
       <Flex w="full" h="full" px={4} align="center" justify="space-between">
         <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
           <RouterLink to="/dashboard">
-            <Image src="/textlogo.png" alt="シフトリ" h="40px" w="auto" loading="eager" />
+            <Image src="/textlogo.webp" alt="シフトリ" h="40px" w="auto" loading="eager" />
           </RouterLink>
         </Link>
 
