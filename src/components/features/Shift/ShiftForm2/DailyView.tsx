@@ -28,11 +28,9 @@ export const DailyViewPC = ({ period }: ViewProps) => {
         <Box flex={1} overflow="auto" px={5} py={3} bg="gray.50">
           <TimelineHeader />
           <Box bg="white" borderRadius="lg" borderWidth="1px" borderColor="gray.200" mt={2} p={3}>
-            {rows
-              .filter((r) => r.staff.status !== "not_submitted")
-              .map(({ staff, shift }) => (
-                <StaffRow key={staff.id} staff={staff} shift={shift} />
-              ))}
+            {rows.map(({ staff, shift }) => (
+              <StaffRow key={staff.id} staff={staff} shift={shift} />
+            ))}
           </Box>
         </Box>
       </Flex>
@@ -96,7 +94,7 @@ const DayTitle = ({ selected }: { selected: DateInfo }) => (
 );
 
 const TimelineHeader = () => (
-  <Flex pl="140px" pr={3} fontSize="10px" color="gray.500" borderBottomWidth="1px" borderColor="gray.200" pb={1}>
+  <Flex pl="148px" pr={3} fontSize="10px" color="gray.500" borderBottomWidth="1px" borderColor="gray.200" pb={1}>
     {hours.map((h) => (
       <Box key={h} flex={1} textAlign="left" style={{ fontVariantNumeric: "tabular-nums" }}>
         {h}:00
@@ -113,13 +111,19 @@ type RowProps = {
 const StaffRow = ({ staff, shift }: RowProps) => {
   const hasReq = !!shift.req;
   const hasAsn = !!shift.asn;
+  const isUnsub = staff.status === "not_submitted";
   return (
     <Flex align="center" h="40px" borderBottomWidth="1px" borderColor="gray.100" _last={{ borderBottom: "none" }}>
       <Flex align="center" gap={2} w="136px" pr={2} flexShrink={0}>
         <Avatar staff={staff} size={24} />
-        <Box fontSize="13px" color="gray.800" fontWeight={500} truncate>
+        <Box fontSize="13px" color={isUnsub ? "gray.500" : "gray.800"} fontWeight={500} truncate>
           {staff.name}
         </Box>
+        {isUnsub && (
+          <Box fontSize="10px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+            未提出
+          </Box>
+        )}
         {!hasReq && staff.status === "submitted" && (
           <Box fontSize="10px" color="gray.400">
             休み
@@ -175,6 +179,8 @@ const StaffRow = ({ staff, shift }: RowProps) => {
 export const DailyViewSP = ({ period }: ViewProps) => {
   const { dates, selected, setSelectedOffset } = useDailyState(period);
   const rows = rowsFor(selected.dayOffset);
+  const workRows = rows.filter((r) => r.shift.req);
+  const offRows = rows.filter((r) => !r.shift.req);
 
   return (
     <Flex direction="column" flex={1} minH={0}>
@@ -226,15 +232,81 @@ export const DailyViewSP = ({ period }: ViewProps) => {
       </Box>
 
       <Box flex={1} overflow="auto" bg="gray.50" px={3} py={3}>
-        <Stack gap={2}>
-          {rows
-            .filter((r) => r.staff.status !== "not_submitted")
-            .map(({ staff, shift }) => (
-              <SPDailyCard key={staff.id} staff={staff} shift={shift} />
-            ))}
+        <Stack gap={4}>
+          {workRows.length > 0 && (
+            <Box>
+              <SectionHeader label="出勤あり" count={workRows.length} />
+              <Stack gap={2}>
+                {workRows.map(({ staff, shift }) => (
+                  <SPDailyCard key={staff.id} staff={staff} shift={shift} />
+                ))}
+              </Stack>
+            </Box>
+          )}
+          {offRows.length > 0 && (
+            <Box>
+              <SectionHeader label="希望なし・未提出" count={offRows.length} hint="店長判断で追加可" />
+              <Stack gap="6px">
+                {offRows.map(({ staff }) => (
+                  <SPOffCard key={staff.id} staff={staff} />
+                ))}
+              </Stack>
+            </Box>
+          )}
         </Stack>
       </Box>
     </Flex>
+  );
+};
+
+const SectionHeader = ({ label, count, hint }: { label: string; count: number; hint?: string }) => (
+  <Flex align="baseline" gap={2} mb={2} px={1}>
+    <Box fontSize="11px" fontWeight={700} color="gray.600" letterSpacing="0.04em">
+      {label}
+    </Box>
+    <Box fontSize="11px" color="gray.400" fontWeight={600}>
+      {count}
+    </Box>
+    {hint && (
+      <Box fontSize="10px" color="gray.400" ml="auto">
+        {hint}
+      </Box>
+    )}
+  </Flex>
+);
+
+const SPOffCard = ({ staff }: { staff: (typeof STAFFS)[number] }) => {
+  const isUnsub = staff.status === "not_submitted";
+  return (
+    <button
+      type="button"
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 12px",
+        background: "white",
+        border: "1px solid #e4e4e7",
+        borderRadius: 8,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left",
+      }}
+    >
+      <Avatar staff={staff} size={24} />
+      <span style={{ fontSize: 13, fontWeight: 600, color: "#52525b", flex: 1 }}>{staff.name}</span>
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: isUnsub ? "#b45309" : "#a1a1aa",
+        }}
+      >
+        {isUnsub ? "未提出" : "休み希望"}
+      </span>
+      <span style={{ fontSize: 18, color: "#a1a1aa", lineHeight: 1, marginLeft: 4 }}>＋</span>
+    </button>
   );
 };
 

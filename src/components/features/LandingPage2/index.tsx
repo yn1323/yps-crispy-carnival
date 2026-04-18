@@ -29,7 +29,6 @@ export const LandingPage2 = () => (
     <PointsSection />
     <ToolsSection />
     <HowSection />
-    <PricingSection />
     <FaqSection />
     <BottomCta />
     <Footer />
@@ -103,9 +102,6 @@ const Nav = () => (
         </Link>
         <Link href="#how" color="white" opacity={0.9} _hover={{ opacity: 0.7, textDecoration: "none" }}>
           使い方
-        </Link>
-        <Link href="#pricing" color="white" opacity={0.9} _hover={{ opacity: 0.7, textDecoration: "none" }}>
-          料金
         </Link>
         <Link href="#faq" color="white" opacity={0.9} _hover={{ opacity: 0.7, textDecoration: "none" }}>
           よくある質問
@@ -383,26 +379,29 @@ const FloatingTag = ({ children, top, bottom, left, right, delay, color, showDot
   </HStack>
 );
 
-type Point = { num: string; icon: IconType; title: string; body: string };
+type Point = { num: string; icon: IconType; title: string; lead: string; body: string };
 
 const POINTS: Point[] = [
   {
     num: "01",
     icon: LuSend,
     title: "募集は ワンクリック",
-    body: "期間を決めて一斉送信 スタッフは受け取ったリンクを開くだけ 登録もアプリのインストールもいらない",
+    lead: "期間を決めて一斉送信",
+    body: "スタッフは受け取ったリンクを開くだけ\n登録もアプリのインストールもいらない",
   },
   {
     num: "02",
     icon: LuCalendarCheck,
-    title: "提出は 日ごとにタップ",
-    body: "休みか 時間帯か 指でタップするだけ 外出先でもスキマ時間で終わる スタッフにやさしい提出フォーム",
+    title: "スマホで提出",
+    lead: "時間帯も選ぶだけ",
+    body: "外出先でもスキマ時間で終わる\nスタッフにやさしい提出フォーム",
   },
   {
     num: "03",
     icon: LuCheck,
     title: "確定も ワンクリック",
-    body: "集まった希望を見ながら調整 ボタンひとつで全員に届く あとは微調整するだけ",
+    lead: "集まった希望を見ながら調整",
+    body: "調整シフトがボタンで\nひとつで全員に届く",
   },
 ];
 
@@ -423,7 +422,7 @@ const PointsSection = () => (
   </Box>
 );
 
-const PointCard = ({ num, icon: Icon, title, body }: Point) => (
+const PointCard = ({ num, icon: Icon, title, lead, body }: Point) => (
   <Box
     position="relative"
     bg="white"
@@ -453,7 +452,10 @@ const PointCard = ({ num, icon: Icon, title, body }: Point) => (
     <Text fontSize="22px" fontWeight="bold" lineHeight={1.4} mb={3}>
       {title}
     </Text>
-    <Text fontSize="15px" color="fg.muted" lineHeight={1.75}>
+    <Text fontSize="15px" fontWeight="semibold" color="fg" lineHeight={1.6} mb={2}>
+      {lead}
+    </Text>
+    <Text fontSize="14px" color="fg.muted" lineHeight={1.8} whiteSpace="pre-line">
       {body}
     </Text>
   </Box>
@@ -559,9 +561,9 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
 );
 
 const STEPS: { title: string; body: string }[] = [
-  { title: "募集をつくる", body: "期間を決めて スタッフ全員にリンクを配る" },
-  { title: "希望が集まる", body: "それぞれが都合のいいときに 休み or 時間帯をタップ" },
-  { title: "確定して通知", body: "微調整したらボタンひとつで全員に反映" },
+  { title: "募集期間を決める", body: "期間を決めて スタッフ全員にリンクを配る" },
+  { title: "希望シフトを集める", body: "スタッフが希望を入力" },
+  { title: "確定シフトを通知", body: "調整結果をボタンひとつで全員に反映" },
 ];
 
 const HowSection = () => (
@@ -623,104 +625,6 @@ const StepItem = ({ index, total, title, body }: { index: number; total: number;
     <Text fontSize="14px" color="fg.muted" lineHeight={1.7}>
       {body}
     </Text>
-  </Box>
-);
-
-const PRICING_FEATURES = [
-  "スタッフ数 無制限",
-  "募集回数 無制限",
-  "シフト確定 通知機能",
-  "過去のシフトの一覧 振り返り",
-  "LINEのかわりに使える 連絡不要の提出",
-];
-
-const PricingSection = () => (
-  <Box
-    as="section"
-    id="pricing"
-    bgGradient="to-b"
-    gradientFrom="white"
-    gradientTo="teal.50"
-    px={{ base: 5, lg: 6 }}
-    py={{ base: 12, lg: 24 }}
-  >
-    <Box mx="auto" w="full" maxW="1024px">
-      <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
-        <Eyebrow>料金</Eyebrow>
-        <SectionHeading>{"まずは 無料で\nためしてみる"}</SectionHeading>
-        <SectionSub>いまは全機能を無料で使える 気に入ったらそのまま</SectionSub>
-      </VStack>
-      <Box
-        position="relative"
-        maxW="560px"
-        mx="auto"
-        mt={12}
-        bg="white"
-        borderRadius="24px"
-        p={{ base: 8, lg: 12 }}
-        borderWidth="1px"
-        borderColor="gray.200"
-        textAlign="center"
-        boxShadow="0 20px 50px -20px rgba(0,0,0,0.1)"
-      >
-        <Box
-          position="absolute"
-          top="-12px"
-          left="50%"
-          transform="translateX(-50%)"
-          bg="teal.600"
-          color="white"
-          px={5}
-          py={1.5}
-          borderRadius="full"
-          fontSize="12px"
-          fontWeight="bold"
-          letterSpacing="0.06em"
-        >
-          EARLY ACCESS
-        </Box>
-        <Text fontSize="15px" fontWeight="semibold" color="fg.muted" mt={2}>
-          シフトリ
-        </Text>
-        <HStack justify="center" align="baseline" mt={4} mb={2}>
-          <Heading as="span" fontSize="72px" fontWeight="bold" lineHeight={1} color="teal.700" letterSpacing="-0.02em">
-            ¥0
-          </Heading>
-          <Text fontSize="20px" color="fg.muted" fontWeight="medium">
-            / 月
-          </Text>
-        </HStack>
-        <Text fontSize="14px" color="fg.muted" mb={8}>
-          期間中は全機能 クレジットカード不要
-        </Text>
-        <VStack maxW="360px" mx="auto" gap={3.5} align="stretch" mb={8}>
-          {PRICING_FEATURES.map((f) => (
-            <HStack key={f} gap={2.5} align="flex-start">
-              <Flex
-                boxSize="22px"
-                borderRadius="full"
-                bg="teal.50"
-                color="teal.600"
-                align="center"
-                justify="center"
-                flexShrink={0}
-                mt="2px"
-              >
-                <LuCheck size={14} strokeWidth={3} />
-              </Flex>
-              <Text fontSize="15px" textAlign="left">
-                {f}
-              </Text>
-            </HStack>
-          ))}
-        </VStack>
-        <SignUpButton mode="modal">
-          <Button colorPalette="teal" w="full" h="56px" fontSize="18px" fontWeight="bold" borderRadius="full">
-            ためしてみる <PiArrowRight />
-          </Button>
-        </SignUpButton>
-      </Box>
-    </Box>
   </Box>
 );
 
@@ -866,7 +770,6 @@ const Footer = () => (
         links={[
           ["できること", "#features"],
           ["使い方", "#how"],
-          ["料金", "#pricing"],
         ]}
       />
       <FooterCol

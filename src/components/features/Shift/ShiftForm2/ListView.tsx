@@ -11,7 +11,7 @@ const useWeeks = (period: Period) => {
   const weekCount = Math.ceil(dates.length / 7);
   const initialOpen = useMemo(() => {
     const o: Record<number, boolean> = {};
-    for (let i = 0; i < weekCount; i++) o[i] = i < 2;
+    for (let i = 0; i < weekCount; i++) o[i] = true;
     return o;
   }, [weekCount]);
   const [open, setOpen] = useState(initialOpen);
@@ -20,36 +20,19 @@ const useWeeks = (period: Period) => {
 
 export const ListViewPC = ({ period }: ViewProps) => {
   const { dates, weekCount, open, setOpen } = useWeeks(period);
-  const toggleAll = (v: boolean) => {
-    const o: Record<number, boolean> = {};
-    for (let i = 0; i < weekCount; i++) o[i] = v;
-    setOpen(o);
-  };
 
   return (
     <Box bg="gray.50" flex={1} overflow="auto" px={5} py={5}>
-      {weekCount > 1 && (
-        <Flex align="center" gap={2} mb={3} fontSize="12px" color="gray.500">
-          <span>{weekCount}週間</span>
-          <Flex ml="auto" gap={2}>
-            <MiniButton onClick={() => toggleAll(true)}>すべて展開</MiniButton>
-            <MiniButton onClick={() => toggleAll(false)}>すべて畳む</MiniButton>
-          </Flex>
-        </Flex>
-      )}
-
       <Stack gap={3}>
         {Array.from({ length: weekCount }).map((_, wi) => {
           const wkDates = dates.filter((d) => d.weekIdx === wi);
           const isOpen = !!open[wi];
-          const isCurrent = wi === 0;
           return (
             <WeekCard
               key={wi}
               wi={wi}
               wkDates={wkDates}
               isOpen={isOpen}
-              isCurrent={isCurrent}
               onToggle={() => setOpen({ ...open, [wi]: !isOpen })}
             />
           );
@@ -59,37 +42,15 @@ export const ListViewPC = ({ period }: ViewProps) => {
   );
 };
 
-const MiniButton = ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    style={{
-      height: 26,
-      padding: "0 10px",
-      border: "1px solid #d4d4d8",
-      background: "white",
-      borderRadius: 6,
-      cursor: "pointer",
-      color: "#3f3f46",
-      fontSize: 11,
-      fontFamily: "inherit",
-    }}
-  >
-    {children}
-  </button>
-);
-
 const WeekCard = ({
   wi,
   wkDates,
   isOpen,
-  isCurrent,
   onToggle,
 }: {
   wi: number;
   wkDates: DateInfo[];
   isOpen: boolean;
-  isCurrent: boolean;
   onToggle: () => void;
 }) => (
   <Box
@@ -130,21 +91,6 @@ const WeekCard = ({
       <Box fontSize="12px" color="gray.500">
         ({wkDates.length}日)
       </Box>
-      {isCurrent && (
-        <Box
-          fontSize="10px"
-          px="8px"
-          py="2px"
-          bg="teal.600"
-          color="white"
-          borderRadius="full"
-          fontWeight={700}
-          letterSpacing="0.02em"
-          ml={1}
-        >
-          今週
-        </Box>
-      )}
     </Flex>
 
     {isOpen && <WeekTable wi={wi} wkDates={wkDates} />}
@@ -203,16 +149,14 @@ const WeekTable = ({ wi, wkDates }: { wi: number; wkDates: DateInfo[] }) => (
               <Box as="td" style={{ padding: "10px 18px" }}>
                 <Flex align="center" gap="10px">
                   <Avatar staff={s} size={28} />
-                  <Box minW={0}>
-                    <Box fontSize="13px" fontWeight={600} color={isUnsub ? "gray.400" : "gray.800"}>
-                      {s.name}
-                    </Box>
-                    {isUnsub && (
-                      <Box fontSize="10px" fontWeight={600} style={{ color: "#d97706" }}>
-                        未提出
-                      </Box>
-                    )}
+                  <Box fontSize="13px" fontWeight={600} color={isUnsub ? "gray.500" : "gray.800"} truncate>
+                    {s.name}
                   </Box>
+                  {isUnsub && (
+                    <Box fontSize="10px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+                      未提出
+                    </Box>
+                  )}
                 </Flex>
               </Box>
               {wkDates.map((d, i) => {
@@ -268,7 +212,6 @@ export const ListViewSP = ({ period }: ViewProps) => {
         {Array.from({ length: weekCount }).map((_, wi) => {
           const wkDates = dates.filter((d) => d.weekIdx === wi);
           const isOpen = !!open[wi];
-          const isCurrent = wi === 0;
           return (
             <Box
               key={wi}
@@ -304,19 +247,6 @@ export const ListViewSP = ({ period }: ViewProps) => {
                 <Box fontSize="14px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {wkDates[0].label} – {wkDates[wkDates.length - 1].label}
                 </Box>
-                {isCurrent && (
-                  <Box
-                    fontSize="9px"
-                    px="6px"
-                    py="1px"
-                    bg="teal.600"
-                    color="white"
-                    borderRadius="full"
-                    fontWeight={600}
-                  >
-                    今週
-                  </Box>
-                )}
               </Flex>
 
               {isOpen && (
