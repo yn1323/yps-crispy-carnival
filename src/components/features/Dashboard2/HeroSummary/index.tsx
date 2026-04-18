@@ -1,6 +1,10 @@
 import { Box, Button, Flex, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
-import { LuArrowRight, LuSettings } from "react-icons/lu";
+import type { IconType } from "react-icons";
+import { LuArrowRight, LuCalendarClock, LuCircleAlert, LuSettings, LuSparkles } from "react-icons/lu";
 import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
+import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {
   name: string;
@@ -10,38 +14,24 @@ type Shop = {
 
 type Props = {
   shop: Shop | null;
-  collectingCount: number;
-  pastDeadlineCount: number;
-  confirmedCount: number;
-  staffCount: number;
+  recruitments: Recruitment[];
   onEditClick: () => void;
   onSetupClick: () => void;
+  onOpenShiftBoard: (recruitmentId: string) => void;
+  onCreateRecruitment: () => void;
 };
 
 export const HeroSummary = ({
   shop,
-  collectingCount,
-  pastDeadlineCount,
-  confirmedCount,
-  staffCount,
+  recruitments,
   onEditClick,
   onSetupClick,
+  onOpenShiftBoard,
+  onCreateRecruitment,
 }: Props) => {
   if (!shop) {
     return (
-      <Box
-        position="relative"
-        overflow="hidden"
-        borderRadius="2xl"
-        bgGradient="to-br"
-        gradientFrom="teal.50"
-        gradientVia="white"
-        gradientTo="white"
-        borderWidth="1px"
-        borderColor="teal.100"
-        p={{ base: 6, lg: 8 }}
-      >
-        <Decoration />
+      <Shell padding={{ base: 6, lg: 8 }}>
         <Stack gap={5} maxW="520px" position="relative">
           <EyebrowPill>はじめに</EyebrowPill>
           <Stack gap={2}>
@@ -61,24 +51,14 @@ export const HeroSummary = ({
             </Button>
           </Flex>
         </Stack>
-      </Box>
+      </Shell>
     );
   }
 
+  const action = pickNextAction(recruitments);
+
   return (
-    <Box
-      position="relative"
-      overflow="hidden"
-      borderRadius="2xl"
-      bgGradient="to-br"
-      gradientFrom="teal.50"
-      gradientVia="white"
-      gradientTo="white"
-      borderWidth="1px"
-      borderColor="teal.100"
-      p={{ base: 5, lg: 7 }}
-    >
-      <Decoration />
+    <Shell padding={{ base: 5, lg: 7 }}>
       <Stack gap={{ base: 5, lg: 6 }} position="relative">
         <Flex justify="space-between" align="flex-start" gap={3}>
           <Stack gap={1.5} minW={0}>
@@ -109,37 +89,162 @@ export const HeroSummary = ({
           </IconButton>
         </Flex>
 
-        <Box
-          borderRadius="xl"
-          bg="white"
-          borderWidth="1px"
-          borderColor="blackAlpha.50"
-          boxShadow="xs"
-          px={{ base: 4, lg: 5 }}
-          py={{ base: 3.5, lg: 4 }}
-        >
-          <Flex
-            gap={{ base: 4, lg: 6 }}
-            align={{ base: "flex-start", lg: "center" }}
-            justify="space-between"
-            wrap="wrap"
-            direction={{ base: "column", sm: "row" }}
-          >
-            <HStack gap={{ base: 3, lg: 5 }} wrap="wrap">
-              <StatChip dotColor="teal.500" label="募集中" value={collectingCount} />
-              <StatChip dotColor="yellow.500" label="締切済み" value={pastDeadlineCount} />
-              <StatChip dotColor="gray.400" label="確定" value={confirmedCount} />
-            </HStack>
-            <HStack gap={2.5}>
-              <Box h="24px" w="1px" bg="blackAlpha.100" display={{ base: "none", sm: "block" }} />
-              <StatChip dotColor="teal.300" label="スタッフ" value={staffCount} unit="名" />
-            </HStack>
-          </Flex>
-        </Box>
+        <ActionPanel action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
       </Stack>
+    </Shell>
+  );
+};
+
+const Shell = ({ children, padding }: { children: React.ReactNode; padding: { base: number; lg: number } }) => (
+  <Box
+    position="relative"
+    overflow="hidden"
+    borderRadius="2xl"
+    bgGradient="to-br"
+    gradientFrom="teal.50"
+    gradientVia="white"
+    gradientTo="white"
+    borderWidth="1px"
+    borderColor="teal.100"
+    p={padding}
+  >
+    <Decoration />
+    {children}
+  </Box>
+);
+
+type ActionPanelProps = {
+  action: NextAction;
+  onOpenShiftBoard: (recruitmentId: string) => void;
+  onCreateRecruitment: () => void;
+};
+
+const ActionPanel = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionPanelProps) => {
+  const view = describeAction(action);
+
+  return (
+    <Box
+      borderRadius="xl"
+      bg="white"
+      borderWidth="1px"
+      borderColor={view.borderColor}
+      boxShadow="xs"
+      px={{ base: 4, lg: 5 }}
+      py={{ base: 4, lg: 4 }}
+    >
+      <Flex
+        gap={{ base: 3, lg: 4 }}
+        align={{ base: "flex-start", lg: "center" }}
+        direction={{ base: "column", sm: "row" }}
+      >
+        <HStack gap={3} flex={1} align="flex-start" minW={0}>
+          <Flex
+            boxSize="40px"
+            borderRadius="full"
+            bg={view.iconBg}
+            color={view.iconColor}
+            align="center"
+            justify="center"
+            flexShrink={0}
+          >
+            <view.icon size={20} />
+          </Flex>
+          <Stack gap={0.5} minW={0}>
+            <Text fontSize={{ base: "md", lg: "md" }} fontWeight="bold" color="gray.900" lineHeight="short">
+              {view.title}
+            </Text>
+            <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+              {view.subtitle}
+            </Text>
+          </Stack>
+        </HStack>
+        <Button
+          colorPalette={view.ctaPalette}
+          variant={view.ctaVariant}
+          size="sm"
+          gap={1.5}
+          onClick={view.onClick(onOpenShiftBoard, onCreateRecruitment)}
+          fontWeight="semibold"
+          alignSelf={{ base: "stretch", sm: "center" }}
+          flexShrink={0}
+        >
+          {view.ctaLabel}
+          <LuArrowRight />
+        </Button>
+      </Flex>
     </Box>
   );
 };
+
+type ActionView = {
+  icon: IconType;
+  iconBg: string;
+  iconColor: string;
+  borderColor: string;
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  ctaPalette: "teal" | "orange";
+  ctaVariant: "solid" | "outline";
+  onClick: (onOpenShiftBoard: (id: string) => void, onCreateRecruitment: () => void) => () => void;
+};
+
+function describeAction(action: NextAction): ActionView {
+  switch (action.kind) {
+    case "past-deadline":
+      return {
+        icon: LuCircleAlert,
+        iconBg: "orange.100",
+        iconColor: "orange.600",
+        borderColor: "orange.200",
+        title: `${formatDateShort(action.recruitment.periodStart)}〜${formatDateShort(action.recruitment.periodEnd)} の シフト調整がまだ`,
+        subtitle: `締切は ${formatDateShort(action.recruitment.deadline)} 提出 ${action.recruitment.responseCount}人`,
+        ctaLabel: "シフトを見る",
+        ctaPalette: "orange",
+        ctaVariant: "solid",
+        onClick: (open) => () => open(action.recruitment._id),
+      };
+    case "deadline-today":
+      return {
+        icon: LuCalendarClock,
+        iconBg: "orange.100",
+        iconColor: "orange.600",
+        borderColor: "orange.200",
+        title: `${formatDateShort(action.recruitment.periodStart)}〜${formatDateShort(action.recruitment.periodEnd)} は 今日が締切`,
+        subtitle: `提出 ${action.recruitment.responseCount}人`,
+        ctaLabel: "シフトを見る",
+        ctaPalette: "orange",
+        ctaVariant: "solid",
+        onClick: (open) => () => open(action.recruitment._id),
+      };
+    case "deadline-soon":
+      return {
+        icon: LuCalendarClock,
+        iconBg: "teal.100",
+        iconColor: "teal.700",
+        borderColor: "teal.200",
+        title: `${formatDateShort(action.recruitment.periodStart)}〜${formatDateShort(action.recruitment.periodEnd)} は あと${action.daysLeft}日で締切`,
+        subtitle: `提出 ${action.recruitment.responseCount}人`,
+        ctaLabel: "シフトを見る",
+        ctaPalette: "teal",
+        ctaVariant: "outline",
+        onClick: (open) => () => open(action.recruitment._id),
+      };
+    case "idle":
+      return {
+        icon: LuSparkles,
+        iconBg: "teal.100",
+        iconColor: "teal.700",
+        borderColor: "teal.100",
+        title: "今日 やることはありません",
+        subtitle: "次の募集を作って シフト希望を集めよう",
+        ctaLabel: "募集を作る",
+        ctaPalette: "teal",
+        ctaVariant: "solid",
+        onClick: (_open, create) => create,
+      };
+  }
+}
 
 const Decoration = () => (
   <>
@@ -184,29 +289,5 @@ const EyebrowPill = ({ children }: { children: string }) => (
   >
     <Box boxSize="5px" borderRadius="full" bg="teal.500" />
     <Box as="span">{children}</Box>
-  </HStack>
-);
-
-type StatChipProps = {
-  dotColor: string;
-  label: string;
-  value: number;
-  unit?: string;
-};
-
-const StatChip = ({ dotColor, label, value, unit = "件" }: StatChipProps) => (
-  <HStack gap={2} align="baseline">
-    <Box boxSize="8px" borderRadius="full" bg={dotColor} alignSelf="center" />
-    <Text fontSize="xs" color="fg.muted" fontWeight="medium">
-      {label}
-    </Text>
-    <HStack gap={0.5} align="baseline">
-      <Text fontSize="xl" fontWeight="bold" color="gray.900" lineHeight="1">
-        {value}
-      </Text>
-      <Text fontSize="xs" color="fg.muted">
-        {unit}
-      </Text>
-    </HStack>
   </HStack>
 );
