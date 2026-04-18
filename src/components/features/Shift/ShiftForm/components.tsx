@@ -29,12 +29,14 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
     { k: "overview", label: "一覧" },
   ];
   return (
-    <Flex gap={0}>
+    <Flex gap={0} role="tablist" aria-label="ビュー切替">
       {tabs.map((t) => {
         const active = value === t.k;
         return (
           <Box
             key={t.k}
+            role="tab"
+            aria-selected={active}
             onClick={() => onChange(t.k)}
             cursor="pointer"
             py="10px"
@@ -168,7 +170,7 @@ type ConfirmButtonProps = {
 };
 
 export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }: ConfirmButtonProps) => {
-  const label = compact ? (isConfirmed ? "再通知" : "確定") : isConfirmed ? "再通知する" : "確定して通知";
+  const label = compact ? (isConfirmed ? "再通知" : "確定") : isConfirmed ? "再通知する" : "確定して通知する";
   return (
     <button
       type="button"

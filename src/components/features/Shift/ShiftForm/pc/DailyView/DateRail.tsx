@@ -17,7 +17,18 @@ const dayColor = (dateStr: string, holidays: string[]): string => {
 };
 
 export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props) => (
-  <Box w="80px" h="100%" borderRightWidth="1px" borderColor="gray.200" bg="white" py={2} flexShrink={0} overflow="auto">
+  <Box
+    w="80px"
+    h="100%"
+    borderRightWidth="1px"
+    borderColor="gray.200"
+    bg="white"
+    py={2}
+    flexShrink={0}
+    overflow="auto"
+    role="tablist"
+    aria-label="日付選択"
+  >
     <Stack gap={1} px={2}>
       {dates.map((iso) => {
         const d = dayjs(iso);
@@ -25,6 +36,8 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
         return (
           <Box
             key={iso}
+            role="tab"
+            aria-selected={active}
             onClick={() => onSelect(iso)}
             cursor="pointer"
             py="6px"
