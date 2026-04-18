@@ -218,19 +218,20 @@ const Hero = () => (
               ためしてみる <PiArrowRight />
             </Button>
           </SignUpButton>
-          <Button
-            asChild
-            variant="outline"
-            colorPalette="teal"
-            h="56px"
-            px={8}
-            fontSize="18px"
-            fontWeight="bold"
-            borderRadius="full"
-            bg="white"
-          >
-            <a href="#how">使い方を見る</a>
-          </Button>
+          <SignInButton mode="modal">
+            <Button
+              variant="outline"
+              colorPalette="teal"
+              h="56px"
+              px={8}
+              fontSize="18px"
+              fontWeight="bold"
+              borderRadius="full"
+              bg="white"
+            >
+              ログイン
+            </Button>
+          </SignInButton>
         </Stack>
         <HStack mt={7} gap={6} fontSize="13px" color="fg.muted" flexWrap="wrap">
           <HeroMeta>登録30秒</HeroMeta>
