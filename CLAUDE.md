@@ -46,7 +46,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `lint`はwarningでも修正すること
 - 次に`/review`を実行して、レビュー結果を要修正、不要で分けて提示してください。
 - 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
-- SubAgentのモデルはOpus4.6にしてください
+- SubAgentのModelは絶対にOpusにしてください！！
 
 ### フロントエンド（UIあり）
 
