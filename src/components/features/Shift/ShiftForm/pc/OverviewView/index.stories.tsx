@@ -8,6 +8,13 @@ const meta = {
   parameters: {
     layout: "fullscreen",
   },
+  decorators: [
+    (Story) => (
+      <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
+        <Story />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof OverviewView>;
 
 export default meta;

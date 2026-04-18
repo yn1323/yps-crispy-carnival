@@ -38,6 +38,14 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
   const periodEnd = watch("periodEnd");
   const deadline = watch("deadline");
 
+  const openPicker = (e: React.MouseEvent<HTMLInputElement>) => {
+    try {
+      e.currentTarget.showPicker();
+    } catch {
+      // showPicker が未対応、もしくは既に開いている場合は無視
+    }
+  };
+
   const deadlineMax = (() => {
     if (!periodStart) return undefined;
     const date = new Date(periodStart);
@@ -58,7 +66,8 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
                   {...register("periodStart")}
                   min={tomorrow}
                   max={periodEnd || undefined}
-                  color={periodStart ? undefined : "transparent"}
+                  onClick={openPicker}
+                  css={periodStart ? undefined : { "&::-webkit-datetime-edit": { opacity: 0 } }}
                 />
                 <DatePlaceholder visible={!periodStart}>2026/04/01</DatePlaceholder>
               </Box>
@@ -73,7 +82,8 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
                   type="date"
                   {...register("periodEnd")}
                   min={periodStart || undefined}
-                  color={periodEnd ? undefined : "transparent"}
+                  onClick={openPicker}
+                  css={periodEnd ? undefined : { "&::-webkit-datetime-edit": { opacity: 0 } }}
                 />
                 <DatePlaceholder visible={!periodEnd}>2026/04/30</DatePlaceholder>
               </Box>
@@ -89,7 +99,8 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
               {...register("deadline")}
               min={today}
               max={deadlineMax}
-              color={deadline ? undefined : "transparent"}
+              onClick={openPicker}
+              css={deadline ? undefined : { "&::-webkit-datetime-edit": { opacity: 0 } }}
             />
             <DatePlaceholder visible={!deadline}>2026/03/25</DatePlaceholder>
           </Box>

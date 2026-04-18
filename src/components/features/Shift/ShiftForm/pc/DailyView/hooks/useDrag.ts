@@ -1,7 +1,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useRef, useState } from "react";
 import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
-import { selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
+import { hourWidthAtom, selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "../../../types";
 import {
   detectLinkedResizeEdge,
@@ -52,6 +52,7 @@ export const useDrag = (): UseDragReturn => {
   const selectedPosition = useAtomValue(selectedPositionAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const config = useAtomValue(shiftConfigAtom);
+  const hourWidth = useAtomValue(hourWidthAtom);
   const timeRange = config.timeRange;
   const getStaffName = useCallback(
     (staffId: string) => config.staffs.find((s) => s.id === staffId)?.name ?? "",
@@ -78,6 +79,7 @@ export const useDrag = (): UseDragReturn => {
         x,
         timeRange,
         threshold: RESIZE_EDGE_THRESHOLD,
+        hourWidth,
       });
 
       if (linkedResizeInfo) {
@@ -103,14 +105,14 @@ export const useDrag = (): UseDragReturn => {
       }
       return false;
     },
-    [shifts, selectedDate, timeRange],
+    [shifts, selectedDate, timeRange, hourWidth],
   );
 
   // === ドラッグ開始（戻り値: ドラッグ開始したか） ===
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, staffId: string, containerRect: DOMRect): boolean => {
       const x = e.clientX - containerRect.left;
-      const minutes = pixelToMinutes({ x, timeRange });
+      const minutes = pixelToMinutes({ x, timeRange, hourWidth });
 
       // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
       if (tryDetectResize(staffId, x, minutes)) return true;
@@ -153,7 +155,17 @@ export const useDrag = (): UseDragReturn => {
       });
       return true;
     },
-    [shifts, setShifts, selectedPosition, selectedDate, timeRange, generateId, getStaffName, tryDetectResize],
+    [
+      shifts,
+      setShifts,
+      selectedPosition,
+      selectedDate,
+      timeRange,
+      hourWidth,
+      generateId,
+      getStaffName,
+      tryDetectResize,
+    ],
   );
 
   // === ドラッグ中 ===
@@ -162,14 +174,14 @@ export const useDrag = (): UseDragReturn => {
       if (!dragState.mode) return;
 
       const x = e.clientX - containerRect.left;
-      const minutes = pixelToMinutes({ x, timeRange });
+      const minutes = pixelToMinutes({ x, timeRange, hourWidth });
 
       setDragState((prev) => ({
         ...prev,
         currentMinutes: minutes,
       }));
     },
-    [dragState.mode, timeRange],
+    [dragState.mode, timeRange, hourWidth],
   );
 
   // === ドラッグ終了 ===
@@ -253,6 +265,7 @@ export const useDrag = (): UseDragReturn => {
         x,
         timeRange,
         threshold: RESIZE_EDGE_THRESHOLD,
+        hourWidth,
       });
       if (linkedResizeInfo) {
         return "ew-resize";
@@ -265,7 +278,7 @@ export const useDrag = (): UseDragReturn => {
 
       return "default";
     },
-    [isDragging, dragState.mode, shifts, selectedDate, timeRange, selectedPosition],
+    [isDragging, dragState.mode, shifts, selectedDate, timeRange, hourWidth, selectedPosition],
   );
 
   return {
