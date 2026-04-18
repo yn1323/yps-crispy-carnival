@@ -212,7 +212,7 @@ Convex agent skills for common tasks can be installed by running `npx convex ai-
 - ドヤ感NG（「すごいでしょ？」より「ふつうにラクだよ」）
 - 力の抜けた自然体（寄り添う > 売り込む）
 
-#### 文体
+#### 文体(タイトル、サブタイトルなどの時のみ)
 
 - 句読点なし 改行でリズムを作る
 - です/ます不要 でもタメ口すぎない中間トーン
