@@ -46,7 +46,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `lint`はwarningでも修正すること
 - 次に`/review`を実行して、レビュー結果を要修正、不要で分けて提示してください。
 - 上記完了後、SubAgentで`/simplify`を実行してリファクタを行うこと（Context消費したくない）
-- SubAgentのモデルはOpus4.6にしてください
+- SubAgentのModelは絶対にOpusにしてください！！
 
 ### フロントエンド（UIあり）
 
@@ -212,7 +212,7 @@ Convex agent skills for common tasks can be installed by running `npx convex ai-
 - ドヤ感NG（「すごいでしょ？」より「ふつうにラクだよ」）
 - 力の抜けた自然体（寄り添う > 売り込む）
 
-#### 文体
+#### 文体(タイトル、サブタイトルなどの時のみ)
 
 - 句読点なし 改行でリズムを作る
 - です/ます不要 でもタメ口すぎない中間トーン

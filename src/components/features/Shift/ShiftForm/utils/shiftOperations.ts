@@ -23,8 +23,9 @@ export const detectPositionResizeEdge = (params: {
   x: number;
   timeRange: TimeRange;
   threshold: number;
+  hourWidth?: number;
 }): { shiftId: string; positionId: string; positionColor: string; edge: "start" | "end" } | null => {
-  const { shifts, staffId, date, x, timeRange, threshold } = params;
+  const { shifts, staffId, date, x, timeRange, threshold, hourWidth } = params;
 
   for (const shift of shifts) {
     if (shift.staffId !== staffId || shift.date !== date) {
@@ -32,9 +33,8 @@ export const detectPositionResizeEdge = (params: {
     }
 
     for (const pos of shift.positions) {
-      // 固定幅ベースでピクセル位置を計算
-      const startX = minutesToPixel(timeToMinutes(pos.start), timeRange);
-      const endX = minutesToPixel(timeToMinutes(pos.end), timeRange);
+      const startX = minutesToPixel(timeToMinutes(pos.start), timeRange, hourWidth);
+      const endX = minutesToPixel(timeToMinutes(pos.end), timeRange, hourWidth);
 
       if (Math.abs(x - startX) <= threshold) {
         return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "start" };
@@ -56,24 +56,22 @@ export const detectLinkedResizeEdge = (params: {
   x: number;
   timeRange: TimeRange;
   threshold: number;
+  hourWidth?: number;
 }): { shiftId: string; linkedTarget: LinkedResizeTarget } | null => {
-  const { shifts, staffId, date, x, timeRange, threshold } = params;
+  const { shifts, staffId, date, x, timeRange, threshold, hourWidth } = params;
 
   const targetShift = shifts.find((shift) => shift.staffId === staffId && shift.date === date);
   if (!targetShift) return null;
 
-  // ポジションを時間順にソート
   const sortedPositions = [...targetShift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
 
-  // 各ポジションの端を走査
   for (let i = 0; i < sortedPositions.length; i++) {
     const pos = sortedPositions[i];
     const prevPos = i > 0 ? sortedPositions[i - 1] : null;
     const nextPos = i < sortedPositions.length - 1 ? sortedPositions[i + 1] : null;
 
-    // 固定幅ベースでピクセル位置を計算
-    const startX = minutesToPixel(timeToMinutes(pos.start), timeRange);
-    const endX = minutesToPixel(timeToMinutes(pos.end), timeRange);
+    const startX = minutesToPixel(timeToMinutes(pos.start), timeRange, hourWidth);
+    const endX = minutesToPixel(timeToMinutes(pos.end), timeRange, hourWidth);
 
     // start側の判定（連結 or 単独）
     if (Math.abs(x - startX) <= threshold) {

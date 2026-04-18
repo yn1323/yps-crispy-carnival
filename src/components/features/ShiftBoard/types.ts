@@ -1,14 +1,4 @@
 import type { Id } from "@/convex/_generated/dataModel";
-import type { ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
-
-export type ShiftBoardHeaderProps = {
-  periodLabel: string;
-  confirmedAt: Date | null;
-  onConfirm: () => void;
-  onSaveDraft: () => void;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
-};
 
 export type ShiftBoardData = {
   shopId: Id<"shops">;

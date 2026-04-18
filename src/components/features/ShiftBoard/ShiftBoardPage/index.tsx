@@ -1,13 +1,16 @@
-import { Box, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
+import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData, StaffType, ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
+import type { ShiftData, StaffType } from "@/src/components/features/Shift/ShiftForm/types";
 import {
   formatDateShort,
+  formatDateTime,
   getDateRange,
   getWeekdayLabel,
 } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
@@ -16,8 +19,6 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { SaveDraftWarningContent } from "../SaveDraftWarningContent";
-import { ShiftBoardHeader } from "../ShiftBoardHeader";
-import { ShiftBoardSPHeader } from "../ShiftBoardSPHeader";
 import type { ShiftBoardData } from "../types";
 
 const POSITIONS = [DEFAULT_POSITION];
@@ -37,7 +38,6 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
     requestMap.set(`${r.staffId}-${r.date}`, { startTime: r.startTime, endTime: r.endTime });
   }
 
-  // assignmentsがあればassignments、なければrequestsを初期値として展開
   const source = data.shiftAssignments.length > 0 ? data.shiftAssignments : data.shiftRequests;
   const sourceMap = new Map<string, { startTime: string; endTime: string }>();
   for (const item of source) {
@@ -85,8 +85,6 @@ type Props = {
 export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const isMobile = useBreakpointValue({ base: true, lg: false });
 
-  const [viewMode, setViewMode] = useState<ViewMode>("daily");
-
   const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useMutation(api.shiftBoard.mutations.confirmRecruitment);
 
@@ -116,7 +114,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const saveDraftWarningModal = useDialog();
   const Modal = isMobile ? BottomSheet : Dialog;
 
-  /** 現在のシフトデータからmutation用のassignment配列を構築 */
   const buildAssignments = useCallback(() => {
     return shiftsRef.current
       .filter((s) => s.positions.length > 0)
@@ -161,30 +158,37 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const confirmTitle = isConfirmed ? "シフトを再通知しますか？" : "シフトを確定して通知しますか？";
 
   return (
-    <Box>
-      <Box display={{ base: "none", lg: "block" }}>
-        <ShiftBoardHeader
-          periodLabel={periodLabel}
-          confirmedAt={confirmedAt}
-          onConfirm={confirmModal.open}
-          onSaveDraft={handleSaveDraft}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-      </Box>
+    <Flex direction="column" h="calc(100dvh - 56px)" minH={0}>
+      <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
+        <Link to="/dashboard">
+          <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
+            <Icon boxSize={4}>
+              <LuChevronLeft />
+            </Icon>
+            <Text fontSize="sm">戻る</Text>
+          </Flex>
+        </Link>
+        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
+          {periodLabel}
+        </Text>
+        {isConfirmed && confirmedAt ? (
+          <Flex align="center" gap={1}>
+            <Icon color="green.600" boxSize={3.5}>
+              <LuCircleCheck />
+            </Icon>
+            <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
+              確定済み（{formatDateTime(confirmedAt)}）
+            </Text>
+            <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
+              確定済み
+            </Text>
+          </Flex>
+        ) : (
+          <Box w={{ base: "40px", lg: "80px" }} />
+        )}
+      </Flex>
 
-      <Box display={{ base: "block", lg: "none" }}>
-        <ShiftBoardSPHeader
-          periodLabel={periodLabel}
-          confirmedAt={confirmedAt}
-          onConfirm={confirmModal.open}
-          onSaveDraft={handleSaveDraft}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
-      </Box>
-
-      <Box px={{ base: 0, lg: 4 }}>
+      <Box flex={1} minH={0}>
         <ShiftForm
           shopId={data.shopId}
           staffs={staffs}
@@ -193,9 +197,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           dates={dates}
           timeRange={data.timeRange}
           onShiftsChange={handleShiftsChange}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          hideViewSwitcher
+          isConfirmed={isConfirmed}
+          onSaveDraft={handleSaveDraft}
+          onConfirm={confirmModal.open}
         />
       </Box>
 
@@ -220,6 +224,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       >
         <SaveDraftWarningContent />
       </Modal>
-    </Box>
+    </Flex>
   );
 };
