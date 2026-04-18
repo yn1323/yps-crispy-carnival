@@ -14,6 +14,8 @@ export class DashboardPage {
     ownerName: string;
     ownerEmail: string;
   }) {
+    await this.page.getByRole("button", { name: "店舗を登録する" }).click();
+    await expect(this.page.getByRole("dialog", { name: "店舗情報を登録" })).toBeVisible();
     await this.page.getByLabel("店舗名").fill(data.shopName);
     await this.selectTime("シフト開始時間", data.shiftStartTime);
     await this.selectTime("シフト終了時間", data.shiftEndTime);

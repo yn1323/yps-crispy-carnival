@@ -13,7 +13,7 @@ import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
-import { HeroSummary } from "../HeroSummary";
+import { HeroSummary, WelcomeHero } from "../HeroSummary";
 import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
@@ -46,6 +46,7 @@ export const DashboardContent = ({
   const editShopModal = useDialog();
   const deleteStaffDialog = useDialog();
   const shiftBoardWarning = useDialog();
+  const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
@@ -161,32 +162,36 @@ export const DashboardContent = ({
 
   return (
     <>
-      {shop && (
-        <ContentWrapper>
-          <HeroSummary
-            shop={shop}
-            recruitments={recruitments}
-            onEditClick={editShopModal.open}
-            onOpenShiftBoard={handleOpenShiftBoard}
-            onCreateRecruitment={recruitmentModal.open}
-          />
-          <RecruitmentBoard
-            recruitments={recruitments}
-            status={recruitmentStatus}
-            onCreateClick={recruitmentModal.open}
-            onOpenShiftBoard={handleOpenShiftBoard}
-            onLoadMore={loadMoreRecruitments}
-          />
-          <StaffRoster
-            staffs={staffs}
-            status={staffStatus}
-            onAddClick={staffModal.open}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteClick}
-            onLoadMore={loadMoreStaffs}
-          />
-        </ContentWrapper>
-      )}
+      <ContentWrapper>
+        {shop ? (
+          <>
+            <HeroSummary
+              shop={shop}
+              recruitments={recruitments}
+              onEditClick={editShopModal.open}
+              onOpenShiftBoard={handleOpenShiftBoard}
+              onCreateRecruitment={recruitmentModal.open}
+            />
+            <RecruitmentBoard
+              recruitments={recruitments}
+              status={recruitmentStatus}
+              onCreateClick={recruitmentModal.open}
+              onOpenShiftBoard={handleOpenShiftBoard}
+              onLoadMore={loadMoreRecruitments}
+            />
+            <StaffRoster
+              staffs={staffs}
+              status={staffStatus}
+              onAddClick={staffModal.open}
+              onEdit={handleEditClick}
+              onDelete={handleDeleteClick}
+              onLoadMore={loadMoreStaffs}
+            />
+          </>
+        ) : (
+          <WelcomeHero onSetupClick={setupModal.open} />
+        )}
+      </ContentWrapper>
 
       <Modal
         title="シフト希望を集める"
@@ -274,7 +279,13 @@ export const DashboardContent = ({
         </Stack>
       </Dialog>
 
-      {isSetupRequired && <SetupModal isOpen={true} onOpenChange={() => {}} onComplete={handleSetupComplete} />}
+      {isSetupRequired && (
+        <SetupModal
+          isOpen={setupModal.isOpen}
+          onOpenChange={setupModal.onOpenChange}
+          onComplete={handleSetupComplete}
+        />
+      )}
     </>
   );
 };
