@@ -72,12 +72,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
       <EyebrowPill>はじめに</EyebrowPill>
       <Stack gap={2}>
         <Text fontSize={{ base: "2xl", lg: "3xl" }} fontWeight="bold" lineHeight="short" letterSpacing="-0.01em">
-          まずは お店のことを
-          <br />
-          教えてください
-        </Text>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          シフトの時間帯を登録すると ここがあなたのダッシュボードになります
+          まずは お店のことを 教えてください
         </Text>
       </Stack>
       <Flex>
