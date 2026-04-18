@@ -35,9 +35,9 @@ z.config({ customError: customErrorMap });
 
 // Render the app
 const rootElement = document.getElementById("app");
-if (rootElement && !rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(
+const isPrerendering = (window as unknown as { __PRERENDER__?: boolean }).__PRERENDER__ === true;
+if (rootElement) {
+  const tree = (
     <StrictMode>
       <ChakraProvider>
         <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} localization={jaJP}>
@@ -46,8 +46,16 @@ if (rootElement && !rootElement.innerHTML) {
           </ConvexClientProvider>
         </ClerkProvider>
       </ChakraProvider>
-    </StrictMode>,
+    </StrictMode>
   );
+  if (!isPrerendering && rootElement.innerHTML) {
+    // Prerender で生成された DOM の上にクライアントで hydrate する。
+    // hydrate は既存 DOM をそのまま活かしつつイベントハンドラをアタッチするため FOUC もない。
+    ReactDOM.hydrateRoot(rootElement, tree);
+  } else {
+    // 初回 prerender 実行時、または通常 SPA ルート(#app が空シェル) はそのまま mount。
+    ReactDOM.createRoot(rootElement).render(tree);
+  }
 }
 
 // If you want to start measuring performance in your app, pass a function
