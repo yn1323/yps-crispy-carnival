@@ -53,7 +53,7 @@ export class DashboardPage {
   }
 
   async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
-    await this.page.getByRole("button", { name: "シフト希望を集める" }).click();
+    await this.page.getByRole("button", { name: "新しく募集する" }).click();
     await expect(this.page.getByRole("dialog", { name: "シフト希望を集める" })).toBeVisible();
 
     const form = this.page.locator("[id='create-recruitment-form']");
@@ -68,7 +68,7 @@ export class DashboardPage {
   }
 
   async openShiftBoard() {
-    await this.page.getByRole("button", { name: "シフトを編集する" }).click();
+    await this.page.getByRole("button", { name: "シフトを見る" }).first().click();
     const warningDialog = this.page.getByRole("alertdialog", { name: "シフト希望がまだ変わるかも" });
     const navigated = this.page.waitForURL(/\/shiftboard\//);
     const dialogAppeared = warningDialog.waitFor({ state: "visible" }).then(() => true);
@@ -131,7 +131,7 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardVisible() {
-    await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "シフトを見る" }).first()).toBeVisible();
   }
 
   async editShopSettings(data: { shopName?: string; shiftStartTime?: string; shiftEndTime?: string }) {
@@ -164,38 +164,43 @@ export class DashboardPage {
 
   // ページネーション関連
   async clickLoadMoreRecruitments() {
-    await this.page.getByRole("button", { name: "もっと見る" }).click();
+    await this.recruitmentSection().getByRole("button", { name: "もっと見る" }).click();
   }
 
   async clickShowAllStaffs() {
-    await this.page.getByRole("button", { name: "すべて表示" }).click();
+    await this.staffSection().getByRole("button", { name: "もっと見る" }).click();
   }
 
   async expectRecruitmentCardCount(count: number) {
-    await expect(this.page.getByRole("button", { name: "シフトを編集する" })).toHaveCount(count);
+    await expect(this.page.getByRole("button", { name: "シフトを見る" })).toHaveCount(count);
   }
 
   async expectStaffRowCount(count: number) {
-    const staffSection = this.page
-      .getByRole("heading", { name: "スタッフ", exact: true })
-      .locator("xpath=ancestor::*[4]");
-    await expect(staffSection.getByRole("button", { name: "メニュー" })).toHaveCount(count);
+    await expect(this.staffSection().getByRole("button", { name: "メニュー" })).toHaveCount(count);
   }
 
   async expectLoadMoreRecruitmentVisible() {
-    await expect(this.page.getByRole("button", { name: "もっと見る" })).toBeVisible();
+    await expect(this.recruitmentSection().getByRole("button", { name: "もっと見る" })).toBeVisible();
   }
 
   async expectLoadMoreRecruitmentNotVisible() {
-    await expect(this.page.getByRole("button", { name: "もっと見る" })).not.toBeVisible();
+    await expect(this.recruitmentSection().getByRole("button", { name: "もっと見る" })).not.toBeVisible();
   }
 
   async expectShowAllStaffsVisible() {
-    await expect(this.page.getByRole("button", { name: "すべて表示" })).toBeVisible();
+    await expect(this.staffSection().getByRole("button", { name: "もっと見る" })).toBeVisible();
   }
 
   async expectShowAllStaffsNotVisible() {
-    await expect(this.page.getByRole("button", { name: "すべて表示" })).not.toBeVisible();
+    await expect(this.staffSection().getByRole("button", { name: "もっと見る" })).not.toBeVisible();
+  }
+
+  private recruitmentSection() {
+    return this.page.getByRole("heading", { name: "シフト募集" }).locator("xpath=ancestor::*[3]");
+  }
+
+  private staffSection() {
+    return this.page.getByRole("heading", { name: "スタッフ", exact: true }).locator("xpath=ancestor::*[3]");
   }
 
   private async openStaffMenu(staffName: string) {

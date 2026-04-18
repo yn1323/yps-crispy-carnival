@@ -1,25 +1,26 @@
 import { Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockRecruitments } from "@/src/components/features/Dashboard/storyMocks";
-import { RecruitmentBoard } from ".";
+import { mockStaffs, mockStaffsMany } from "@/src/components/features/Dashboard/storyMocks";
+import { StaffRoster } from ".";
 
 const meta = {
-  title: "Features/Dashboard2/RecruitmentBoard",
-  component: RecruitmentBoard,
+  title: "Features/Dashboard/StaffRoster",
+  component: StaffRoster,
   parameters: {
     layout: "padded",
   },
-} satisfies Meta<typeof RecruitmentBoard>;
+} satisfies Meta<typeof StaffRoster>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Variants: Story = {
   args: {
-    recruitments: mockRecruitments,
+    staffs: mockStaffs,
     status: "Exhausted",
-    onCreateClick: () => {},
-    onOpenShiftBoard: () => {},
+    onAddClick: () => {},
+    onEdit: () => {},
+    onDelete: () => {},
     onLoadMore: () => {},
   },
   render: () => (
@@ -28,11 +29,12 @@ export const Variants: Story = {
         <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
           データあり
         </Text>
-        <RecruitmentBoard
-          recruitments={mockRecruitments}
+        <StaffRoster
+          staffs={mockStaffs}
           status="Exhausted"
-          onCreateClick={() => {}}
-          onOpenShiftBoard={() => {}}
+          onAddClick={() => {}}
+          onEdit={() => {}}
+          onDelete={() => {}}
           onLoadMore={() => {}}
         />
       </Stack>
@@ -40,11 +42,12 @@ export const Variants: Story = {
         <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
           もっと見る ありの状態
         </Text>
-        <RecruitmentBoard
-          recruitments={mockRecruitments.slice(0, 2)}
+        <StaffRoster
+          staffs={mockStaffsMany}
           status="CanLoadMore"
-          onCreateClick={() => {}}
-          onOpenShiftBoard={() => {}}
+          onAddClick={() => {}}
+          onEdit={() => {}}
+          onDelete={() => {}}
           onLoadMore={() => {}}
         />
       </Stack>
@@ -52,11 +55,12 @@ export const Variants: Story = {
         <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
           空の状態
         </Text>
-        <RecruitmentBoard
-          recruitments={[]}
+        <StaffRoster
+          staffs={[]}
           status="Exhausted"
-          onCreateClick={() => {}}
-          onOpenShiftBoard={() => {}}
+          onAddClick={() => {}}
+          onEdit={() => {}}
+          onDelete={() => {}}
           onLoadMore={() => {}}
         />
       </Stack>

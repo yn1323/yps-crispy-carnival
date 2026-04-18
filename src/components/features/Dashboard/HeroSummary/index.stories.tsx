@@ -3,10 +3,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
-import { HeroSummary } from ".";
+import { HeroSummary, WelcomeHero } from ".";
 
 const meta = {
-  title: "Features/Dashboard2/HeroSummary",
+  title: "Features/Dashboard/HeroSummary",
   component: HeroSummary,
   parameters: {
     layout: "padded",
@@ -40,7 +40,6 @@ const confirmed = make({ _id: id("conf"), status: "confirmed", deadline: inDays(
 
 const NOOP = {
   onEditClick: () => {},
-  onSetupClick: () => {},
   onOpenShiftBoard: () => {},
   onCreateRecruitment: () => {},
 };
@@ -65,8 +64,8 @@ export const Variants: Story = {
       <Section label="やることなし">
         <HeroSummary shop={SHOP} recruitments={[calm, confirmed]} {...NOOP} />
       </Section>
-      <Section label="店舗未登録">
-        <HeroSummary shop={null} recruitments={[]} {...NOOP} />
+      <Section label="初回ログイン時">
+        <WelcomeHero onSetupClick={() => {}} />
       </Section>
     </Stack>
   ),

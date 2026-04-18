@@ -8,11 +8,12 @@ type Props = {
   staffs: Staff[];
   status: PaginationStatus;
   onAddClick: () => void;
-  onMenuClick: (staffId: string) => void;
+  onEdit: (staff: Staff) => void;
+  onDelete: (staff: Staff) => void;
   onLoadMore: () => void;
 };
 
-export const StaffRoster = ({ staffs, status, onAddClick, onMenuClick, onLoadMore }: Props) => {
+export const StaffRoster = ({ staffs, status, onAddClick, onEdit, onDelete, onLoadMore }: Props) => {
   const canLoadMore = status !== "Exhausted" && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
 
@@ -52,7 +53,7 @@ export const StaffRoster = ({ staffs, status, onAddClick, onMenuClick, onLoadMor
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
             {sorted.map((s) => (
-              <StaffRow key={s._id} staff={s} onMenuClick={onMenuClick} />
+              <StaffRow key={s._id} staff={s} onEdit={onEdit} onDelete={onDelete} />
             ))}
           </Stack>
         </Box>

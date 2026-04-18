@@ -100,11 +100,8 @@ export function RecruitmentRow({ recruitment, onOpenShiftBoard }: Props) {
 
 function relativeDeadline(deadline: string, status: RecruitmentDisplayStatus): string {
   if (status === "confirmed") return `${formatDateShort(deadline)} 確定済み`;
+  if (status === "past-deadline") return `${formatDateShort(deadline)} 締切済み`;
   const days = dayjs(deadline).startOf("day").diff(dayjs().startOf("day"), "day");
-  if (status === "past-deadline") {
-    return `${formatDateShort(deadline)} 締切済み`;
-  }
   if (days === 0) return "今日が締切";
-  if (days === 1) return "あと1日で締切";
   return `あと${days}日で締切`;
 }

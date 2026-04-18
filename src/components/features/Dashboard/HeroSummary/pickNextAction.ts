@@ -1,5 +1,5 @@
 import dayjs, { type Dayjs } from "dayjs";
-import { getDisplayStatus, type Recruitment } from "@/src/components/features/Dashboard/types";
+import type { Recruitment } from "@/src/components/features/Dashboard/types";
 
 export type NextAction =
   | { kind: "past-deadline"; recruitment: Recruitment }
@@ -11,14 +11,14 @@ const SOON_THRESHOLD_DAYS = 3;
 
 export function pickNextAction(recruitments: Recruitment[], now: Dayjs = dayjs()): NextAction {
   const today = now.startOf("day");
+  const todayStr = today.format("YYYY-MM-DD");
 
-  const past = recruitments
-    .filter((r) => getDisplayStatus(r) === "past-deadline")
-    .sort((a, b) => a.deadline.localeCompare(b.deadline));
+  const open = recruitments.filter((r) => r.status === "open");
+
+  const past = open.filter((r) => r.deadline < todayStr).sort((a, b) => a.deadline.localeCompare(b.deadline));
   if (past.length > 0) return { kind: "past-deadline", recruitment: past[0] };
 
-  const upcoming = recruitments
-    .filter((r) => getDisplayStatus(r) === "collecting")
+  const upcoming = open
     .map((r) => ({ r, daysLeft: dayjs(r.deadline).startOf("day").diff(today, "day") }))
     .filter((x) => x.daysLeft >= 0 && x.daysLeft <= SOON_THRESHOLD_DAYS)
     .sort((a, b) => a.daysLeft - b.daysLeft);

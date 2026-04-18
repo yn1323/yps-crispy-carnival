@@ -13,11 +13,11 @@ import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
-import { RecruitmentSection } from "../RecruitmentSection";
+import { HeroSummary } from "../HeroSummary";
+import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
-import { ShopInfoBar } from "../ShopInfoBar";
-import { StaffSection } from "../StaffSection";
+import { StaffRoster } from "../StaffRoster";
 import { getDisplayStatus, type PaginationStatus, type Recruitment, type Staff } from "../types";
 
 type Props = {
@@ -161,31 +161,32 @@ export const DashboardContent = ({
 
   return (
     <>
-      <ContentWrapper>
-        {shop && (
-          <ShopInfoBar
-            name={shop.name}
-            shiftStartTime={shop.shiftStartTime}
-            shiftEndTime={shop.shiftEndTime}
+      {shop && (
+        <ContentWrapper>
+          <HeroSummary
+            shop={shop}
+            recruitments={recruitments}
             onEditClick={editShopModal.open}
+            onOpenShiftBoard={handleOpenShiftBoard}
+            onCreateRecruitment={recruitmentModal.open}
           />
-        )}
-        <RecruitmentSection
-          recruitments={recruitments}
-          onCreateClick={recruitmentModal.open}
-          onOpenShiftBoard={handleOpenShiftBoard}
-          status={recruitmentStatus}
-          onLoadMore={loadMoreRecruitments}
-        />
-        <StaffSection
-          staffs={staffs}
-          onAddClick={staffModal.open}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-          status={staffStatus}
-          onLoadMore={loadMoreStaffs}
-        />
-      </ContentWrapper>
+          <RecruitmentBoard
+            recruitments={recruitments}
+            status={recruitmentStatus}
+            onCreateClick={recruitmentModal.open}
+            onOpenShiftBoard={handleOpenShiftBoard}
+            onLoadMore={loadMoreRecruitments}
+          />
+          <StaffRoster
+            staffs={staffs}
+            status={staffStatus}
+            onAddClick={staffModal.open}
+            onEdit={handleEditClick}
+            onDelete={handleDeleteClick}
+            onLoadMore={loadMoreStaffs}
+          />
+        </ContentWrapper>
+      )}
 
       <Modal
         title="シフト希望を集める"
