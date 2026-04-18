@@ -1,4 +1,6 @@
-import { Box, Table, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
+import type { MutableRefObject } from "react";
+import { Avatar } from "../../../components";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "../../../types";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
@@ -18,8 +20,7 @@ type StaffRowProps = {
   staff: StaffType;
   staffShifts: ShiftData[];
   timeRange: TimeRange;
-  timeAxisWidth: number;
-  timeSlotsCount: number;
+  staffColWidth: number;
   isCurrentStaff: boolean;
   isReadOnly: boolean;
   onRowMouseDown: (e: React.MouseEvent<HTMLDivElement>, staffId: string) => void;
@@ -30,7 +31,7 @@ type StaffRowProps = {
   isDragging: boolean;
   cursorStyle: string;
   rowRef: (el: HTMLDivElement | null) => void;
-  paintClickAnchorRef: React.MutableRefObject<DOMRect | null>;
+  paintClickAnchorRef: MutableRefObject<DOMRect | null>;
   onMouseUpOnRow: (staffId: string) => void;
 };
 
@@ -38,8 +39,7 @@ export const StaffRow = ({
   staff,
   staffShifts,
   timeRange,
-  timeAxisWidth,
-  timeSlotsCount,
+  staffColWidth,
   isCurrentStaff,
   isReadOnly,
   onRowMouseDown,
@@ -53,107 +53,116 @@ export const StaffRow = ({
   paintClickAnchorRef,
   onMouseUpOnRow,
 }: StaffRowProps) => {
-  // スタッフの提出状態を判定
-  const getSubmissionStatus = () => {
+  const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
     const hasRequest = staffShifts.some((s) => s.requestedTime !== null);
     if (hasRequest) return "has_request" as const;
     return "no_request" as const;
   };
 
-  const status = getSubmissionStatus();
+  const status = getStatus();
+
+  const bg = isCurrentStaff ? "blue.50" : "white";
 
   return (
-    <Table.Row
-      _hover={{ bg: "gray.50" }}
-      bg={isCurrentStaff ? "blue.50" : undefined}
-      borderLeft={isCurrentStaff ? "3px solid" : undefined}
-      borderLeftColor={isCurrentStaff ? "blue.400" : undefined}
+    <Flex
+      borderBottomWidth="1px"
+      borderColor="gray.100"
+      _last={{ borderBottomWidth: 0 }}
+      _hover={{ bg: isCurrentStaff ? "blue.50" : "gray.50" }}
     >
-      <Table.Cell
+      <Flex
+        w={`${staffColWidth}px`}
+        flexShrink={0}
         position="sticky"
         left={0}
-        bg={isCurrentStaff ? "blue.50" : "white"}
+        bg={bg}
         zIndex={5}
-        borderRight="1px solid"
+        borderRightWidth="1px"
         borderColor="gray.100"
+        borderLeftWidth={isCurrentStaff ? "3px" : 0}
+        borderLeftColor="blue.400"
+        px={3}
+        py={2}
+        align="center"
+        gap={2}
         whiteSpace="nowrap"
       >
-        <Box
+        <Avatar staff={staff} size={24} />
+        <Flex
+          align="center"
+          gap={2}
+          minW={0}
+          flex={1}
           cursor={isReadOnly ? "default" : "pointer"}
           _hover={isReadOnly ? undefined : { color: "teal.600" }}
           onClick={isReadOnly ? undefined : () => onStaffNameClick(staff.id)}
         >
-          <Text fontWeight="medium">{staff.name}</Text>
+          <Text fontSize="13px" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
+            {staff.name}
+          </Text>
           {!isReadOnly && status === "no_request" && (
-            <Text color="gray.400" fontSize="xs">
-              希望なし
+            <Text color="gray.400" fontSize="10px" fontWeight={600} flexShrink={0}>
+              休み希望
             </Text>
           )}
           {!isReadOnly && status === "not_submitted" && (
-            <Text color="orange.400" fontSize="xs">
+            <Text fontSize="10px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
               未提出
             </Text>
           )}
-        </Box>
-      </Table.Cell>
-      <Table.Cell colSpan={timeSlotsCount} p={0} w={`${timeAxisWidth}px`}>
-        <Box
-          ref={rowRef}
-          position="relative"
-          height="50px"
-          width={`${timeAxisWidth}px`}
-          bg="transparent"
-          overflow="hidden"
-          onMouseDown={
-            isReadOnly
-              ? undefined
-              : (e) => {
-                  paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
-                  onRowMouseDown(e, staff.id);
-                }
-          }
-          onMouseMove={isReadOnly ? undefined : (e) => onRowMouseMoveForCursor(e, staff.id)}
-          onMouseUp={isReadOnly ? undefined : () => onMouseUpOnRow(staff.id)}
-          onMouseLeave={() => {
-            // カーソルスタイルのリセットは親で処理
-          }}
-          cursor={cursorStyle}
-          userSelect="none"
-        >
-          {/* グリッドライン（最背面） */}
-          <GridLines timeRange={timeRange} />
+        </Flex>
+      </Flex>
+      <Box
+        ref={rowRef}
+        position="relative"
+        height="40px"
+        flex={1}
+        minW={0}
+        bg="transparent"
+        overflow="hidden"
+        onMouseDown={
+          isReadOnly
+            ? undefined
+            : (e) => {
+                paintClickAnchorRef.current = (e.target as HTMLElement).getBoundingClientRect();
+                onRowMouseDown(e, staff.id);
+              }
+        }
+        onMouseMove={isReadOnly ? undefined : (e) => onRowMouseMoveForCursor(e, staff.id)}
+        onMouseUp={isReadOnly ? undefined : () => onMouseUpOnRow(staff.id)}
+        cursor={cursorStyle}
+        userSelect="none"
+      >
+        <GridLines timeRange={timeRange} />
 
-          {/* シフトバー */}
-          {staffShifts.map((shift) => (
-            <ShiftBar
-              key={shift.id}
-              shift={shift}
-              timeRange={timeRange}
-              onHover={() => {}}
-              onClick={onShiftClick}
-              isDragging={isDragging}
-              isReadOnly={isReadOnly}
+        {staffShifts.map((shift) => (
+          <ShiftBar
+            key={shift.id}
+            shift={shift}
+            timeRange={timeRange}
+            onHover={() => {}}
+            onClick={onShiftClick}
+            isDragging={isDragging}
+            isReadOnly={isReadOnly}
+            currentMinutes={dragState.currentMinutes}
+            linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
+          />
+        ))}
+
+        {isDragging &&
+          dragState.staffId === staff.id &&
+          dragState.mode !== "position-resize-start" &&
+          dragState.mode !== "position-resize-end" && (
+            <DragPreview
+              mode={dragState.mode}
+              startMinutes={dragState.startMinutes}
               currentMinutes={dragState.currentMinutes}
-              linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
+              timeRange={timeRange}
+              positionColor={dragState.positionColor}
             />
-          ))}
-
-          {/* ドラッグプレビュー */}
-          {isDragging &&
-            dragState.staffId === staff.id &&
-            dragState.mode !== "position-resize-start" &&
-            dragState.mode !== "position-resize-end" && (
-              <DragPreview
-                mode={dragState.mode}
-                startMinutes={dragState.startMinutes}
-                currentMinutes={dragState.currentMinutes}
-                timeRange={timeRange}
-                positionColor={dragState.positionColor}
-              />
-            )}
-        </Box>
-      </Table.Cell>
-    </Table.Row>
+          )}
+      </Box>
+    </Flex>
   );
 };

@@ -1,5 +1,7 @@
 import { Box } from "@chakra-ui/react";
-import { HOUR_WIDTH_PX, TIME_AXIS_PADDING_PX } from "../../../constants";
+import { useAtomValue } from "jotai";
+import { TIME_AXIS_PADDING_PX } from "../../../constants";
+import { hourWidthAtom } from "../../../stores";
 import type { TimeRange } from "../../../types";
 
 type GridLinesProps = {
@@ -7,12 +9,12 @@ type GridLinesProps = {
 };
 
 export const GridLines = ({ timeRange }: GridLinesProps) => {
+  const hourWidth = useAtomValue(hourWidthAtom);
   const totalMinutes = (timeRange.end - timeRange.start) * 60;
 
-  // timeRange.unit刻みで境界線を生成（固定幅ベース）
   const lines: { x: number; isHourBoundary: boolean }[] = [];
   for (let minute = 0; minute <= totalMinutes; minute += timeRange.unit) {
-    const x = TIME_AXIS_PADDING_PX + (minute / 60) * HOUR_WIDTH_PX;
+    const x = TIME_AXIS_PADDING_PX + (minute / 60) * hourWidth;
     const isHourBoundary = minute % 60 === 0;
     lines.push({ x, isHourBoundary });
   }
