@@ -61,8 +61,11 @@ export const Variants: Story = {
       <Section label="締切が近い (3日以内)">
         <HeroSummary shop={SHOP} recruitments={[dueSoon, confirmed]} {...NOOP} />
       </Section>
-      <Section label="やることなし">
+      <Section label="提出待ち (締切まで余裕あり)">
         <HeroSummary shop={SHOP} recruitments={[calm, confirmed]} {...NOOP} />
+      </Section>
+      <Section label="やることなし (open募集ゼロ)">
+        <HeroSummary shop={SHOP} recruitments={[confirmed]} {...NOOP} />
       </Section>
       <Section label="初回ログイン時">
         <WelcomeHero onSetupClick={() => {}} />

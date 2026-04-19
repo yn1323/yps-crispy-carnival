@@ -27,8 +27,9 @@ describe("pickNextAction", () => {
     expect(pickNextAction([make({ status: "confirmed", deadline: "2026-04-15" })], NOW)).toEqual({ kind: "idle" });
   });
 
-  it("returns idle when collecting deadline is more than 3 days away", () => {
-    expect(pickNextAction([make({ deadline: "2026-04-25" })], NOW)).toEqual({ kind: "idle" });
+  it("returns collecting when open recruitment deadline is more than 3 days away", () => {
+    const r = make({ deadline: "2026-04-25" });
+    expect(pickNextAction([r], NOW)).toEqual({ kind: "collecting", recruitment: r, daysLeft: 7 });
   });
 
   it("prioritizes past-deadline over collecting", () => {
