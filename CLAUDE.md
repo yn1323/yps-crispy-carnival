@@ -226,6 +226,7 @@ Convex agent skills for common tasks can be installed by running `npx convex ai-
 - プロセスの説明より体験を伝える
 - 上から目線NG（「小さなお店」→「少人数のお店」）
 - 短く 1行で複数の役割を持たせる（「誰向け」+「何をしてくれる」を合体）
+- 日本語の文章は不用意に半角スペースをいれない
 
 #### 構造
 

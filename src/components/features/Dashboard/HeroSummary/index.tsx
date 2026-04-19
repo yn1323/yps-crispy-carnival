@@ -1,7 +1,6 @@
-import { Box, Button, Flex, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import { Box, Button, Flex, Heading, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuArrowRight, LuCalendarClock, LuCircleAlert, LuSettings, LuSparkles } from "react-icons/lu";
+import { LuArrowRight, LuCalendarClock, LuCircleAlert, LuPlus, LuSettings, LuSparkles } from "react-icons/lu";
 import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
@@ -25,40 +24,31 @@ export const HeroSummary = ({ shop, recruitments, onEditClick, onOpenShiftBoard,
   const action = pickNextAction(recruitments);
 
   return (
-    <HeroShell padding={{ base: 5, lg: 7 }}>
-      <Stack gap={{ base: 5, lg: 6 }} position="relative">
-        <Flex justify="space-between" align="flex-start" gap={3}>
-          <Stack gap={1.5} minW={0}>
-            <EyebrowPill>ダッシュボード</EyebrowPill>
-            <Text
-              fontSize={{ base: "2xl", lg: "3xl" }}
-              fontWeight="bold"
-              lineHeight="short"
-              letterSpacing="-0.01em"
-              color="gray.900"
-              truncate
-            >
-              {shop.name}
-            </Text>
-            <Text fontSize="sm" color="fg.muted" lineHeight="short">
-              シフト時間帯 {formatShiftTimeRange(shop.shiftStartTime, shop.shiftEndTime)}
-            </Text>
-          </Stack>
-          <IconButton
-            aria-label="店舗設定を編集"
-            variant="ghost"
-            size="sm"
-            color="fg.muted"
-            onClick={onEditClick}
-            borderRadius="full"
-          >
-            <LuSettings />
-          </IconButton>
-        </Flex>
+    <Stack gap={3}>
+      <Flex justify="space-between" align="center" gap={3}>
+        <HStack gap={2.5} align="baseline" minW={0}>
+          <Heading as="h1" fontSize={{ base: "xl", lg: "2xl" }} color="gray.900" letterSpacing="-0.01em" truncate>
+            {shop.name}
+          </Heading>
+          <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
+            {formatShiftTimeRange(shop.shiftStartTime, shop.shiftEndTime)}
+          </Text>
+        </HStack>
+        <IconButton
+          aria-label="店舗設定を編集"
+          variant="ghost"
+          size="sm"
+          color="fg.muted"
+          borderRadius="full"
+          onClick={onEditClick}
+          _hover={{ bg: "blackAlpha.50" }}
+        >
+          <LuSettings />
+        </IconButton>
+      </Flex>
 
-        <ActionPanel action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
-      </Stack>
-    </HeroShell>
+      <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
+    </Stack>
   );
 };
 
@@ -67,13 +57,22 @@ type WelcomeHeroProps = {
 };
 
 export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
-  <HeroShell padding={{ base: 6, lg: 8 }}>
-    <Stack gap={5} maxW="520px" position="relative">
-      <EyebrowPill>はじめに</EyebrowPill>
-      <Stack gap={2}>
-        <Text fontSize={{ base: "2xl", lg: "3xl" }} fontWeight="bold" lineHeight="short" letterSpacing="-0.01em">
-          まずは お店のことを 教えてください
+  <Box
+    bg="white"
+    borderRadius="xl"
+    borderWidth="1px"
+    borderColor="teal.100"
+    px={{ base: 5, lg: 7 }}
+    py={{ base: 5, lg: 6 }}
+  >
+    <Stack gap={4} maxW="520px">
+      <Stack gap={1.5}>
+        <Text fontSize="10px" fontWeight="bold" color="teal.700" letterSpacing="0.1em" textTransform="uppercase">
+          はじめに
         </Text>
+        <Heading as="h1" fontSize={{ base: "xl", lg: "2xl" }} color="gray.900" letterSpacing="-0.01em">
+          まずはお店のことを教えてください
+        </Heading>
       </Stack>
       <Flex>
         <Button colorPalette="teal" size="md" onClick={onSetupClick} gap={1.5}>
@@ -82,131 +81,144 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
         </Button>
       </Flex>
     </Stack>
-  </HeroShell>
-);
-
-const HeroShell = ({ padding, children }: { padding: { base: number; lg: number }; children: ReactNode }) => (
-  <Box
-    position="relative"
-    overflow="hidden"
-    borderRadius="2xl"
-    bgGradient="to-br"
-    gradientFrom="teal.50"
-    gradientVia="white"
-    gradientTo="white"
-    borderWidth="1px"
-    borderColor="teal.100"
-    p={padding}
-  >
-    <Decoration />
-    {children}
   </Box>
 );
 
-type ActionPanelProps = {
+// ---------- ActionCard ----------
+
+type ActionCardProps = {
   action: NextAction;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
 };
 
-const ActionPanel = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionPanelProps) => {
+const ActionCard = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionCardProps) => {
+  if (action.kind === "idle") {
+    return (
+      <SlimCard
+        icon={LuSparkles}
+        iconBg="teal.100"
+        iconFg="teal.700"
+        border="teal.100"
+        title="今やることはありません"
+        sub="次の募集を作ろう"
+        cta={{ label: "募集を作る", icon: LuPlus, palette: "teal", variant: "solid" }}
+        onClick={onCreateRecruitment}
+      />
+    );
+  }
   const view = describeAction(action);
-  const onClick = action.kind === "idle" ? onCreateRecruitment : () => onOpenShiftBoard(action.recruitment._id);
-
   return (
-    <Box
-      borderRadius="xl"
-      bg="white"
-      borderWidth="1px"
-      borderColor={view.borderColor}
-      boxShadow="xs"
-      px={{ base: 4, lg: 5 }}
-      py={4}
-    >
-      <Flex
-        gap={{ base: 3, lg: 4 }}
-        align={{ base: "flex-start", lg: "center" }}
-        direction={{ base: "column", sm: "row" }}
-      >
-        <HStack gap={3} flex={1} align="flex-start" minW={0}>
-          <Flex
-            boxSize="40px"
-            borderRadius="full"
-            bg={view.iconBg}
-            color={view.iconColor}
-            align="center"
-            justify="center"
-            flexShrink={0}
-          >
-            <view.icon size={20} />
-          </Flex>
-          <Stack gap={0.5} minW={0}>
-            <Text fontSize="md" fontWeight="bold" color="gray.900" lineHeight="short">
-              {view.title}
-            </Text>
-            <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-              {view.subtitle}
-            </Text>
-          </Stack>
-        </HStack>
-        <Button
-          colorPalette={view.ctaPalette}
-          variant={view.ctaVariant}
-          size="sm"
-          gap={1.5}
-          onClick={onClick}
-          fontWeight="semibold"
-          alignSelf={{ base: "stretch", sm: "center" }}
-          flexShrink={0}
-        >
-          {view.ctaLabel}
-          <LuArrowRight />
-        </Button>
-      </Flex>
-    </Box>
+    <SlimCard
+      icon={view.icon}
+      iconBg={view.iconBg}
+      iconFg={view.iconFg}
+      border={view.border}
+      title={view.title}
+      sub={view.sub}
+      cta={view.cta}
+      onClick={() => onOpenShiftBoard(getRecruitmentId(action))}
+    />
   );
 };
+
+const getRecruitmentId = (action: Exclude<NextAction, { kind: "idle" }>) => action.recruitment._id;
+
+type SlimCardProps = {
+  icon: IconType;
+  iconBg: string;
+  iconFg: string;
+  border: string;
+  title: string;
+  sub: string;
+  cta: { label: string; icon?: IconType; palette: "teal" | "orange"; variant: "solid" | "outline" };
+  onClick: () => void;
+};
+
+const SlimCard = ({ icon: Icon, iconBg, iconFg, border, title, sub, cta, onClick }: SlimCardProps) => (
+  <Flex
+    bg="white"
+    borderRadius="xl"
+    borderWidth="1px"
+    borderColor={border}
+    px={{ base: 4, lg: 5 }}
+    py={4}
+    gap={3}
+    align={{ base: "stretch", sm: "center" }}
+    direction={{ base: "column", sm: "row" }}
+  >
+    <HStack gap={3} flex={1} minW={0}>
+      <Flex
+        boxSize="40px"
+        borderRadius="full"
+        bg={iconBg}
+        color={iconFg}
+        align="center"
+        justify="center"
+        flexShrink={0}
+      >
+        <Icon size={20} />
+      </Flex>
+      <Stack gap={0.5} minW={0}>
+        <Text fontSize="md" fontWeight="bold" color="gray.900" lineHeight="short">
+          {title}
+        </Text>
+        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+          {sub}
+        </Text>
+      </Stack>
+    </HStack>
+    <Button
+      colorPalette={cta.palette}
+      variant={cta.variant}
+      size="sm"
+      gap={1.5}
+      fontWeight="semibold"
+      alignSelf={{ base: "stretch", sm: "center" }}
+      flexShrink={0}
+      onClick={onClick}
+    >
+      {cta.icon && <cta.icon />}
+      {cta.label}
+      {!cta.icon && <LuArrowRight />}
+    </Button>
+  </Flex>
+);
 
 type ActionView = {
   icon: IconType;
   iconBg: string;
-  iconColor: string;
-  borderColor: string;
+  iconFg: string;
+  border: string;
   title: string;
-  subtitle: string;
-  ctaLabel: string;
-  ctaPalette: "teal" | "orange";
-  ctaVariant: "solid" | "outline";
+  sub: string;
+  cta: { label: string; palette: "teal" | "orange"; variant: "solid" | "outline" };
 };
 
-function describeAction(action: NextAction): ActionView {
+function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionView {
   switch (action.kind) {
     case "past-deadline": {
       const { periodStart, periodEnd, deadline, responseCount } = action.recruitment;
       return {
         icon: LuCircleAlert,
         iconBg: "orange.100",
-        iconColor: "orange.600",
-        borderColor: "orange.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} の シフト調整がまだ`,
-        subtitle: `締切は ${formatDateShort(deadline)} 提出 ${responseCount}人`,
-        ctaLabel: "シフトを見る",
-        ctaPalette: "orange",
-        ctaVariant: "solid",
+        iconFg: "orange.600",
+        border: "orange.200",
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}のシフトを組もう`,
+        sub: `提出${responseCount}人・締切${formatDateShort(deadline)}超過`,
+        cta: { label: "シフトを見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-today": {
       const { periodStart, periodEnd, responseCount } = action.recruitment;
       return {
-        icon: LuCalendarClock,
+        icon: LuCircleAlert,
         iconBg: "orange.100",
-        iconColor: "orange.600",
-        borderColor: "orange.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} は 今日が締切`,
-        subtitle: `提出 ${responseCount}人`,
-        ctaLabel: "シフトを見る",
-        ctaPalette: "orange",
-        ctaVariant: "solid",
+        iconFg: "orange.600",
+        border: "orange.200",
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}は今日が締切`,
+        sub: `提出${responseCount}人・もうすぐシフトを組めます`,
+        cta: { label: "シフトを見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-soon": {
@@ -214,72 +226,24 @@ function describeAction(action: NextAction): ActionView {
       return {
         icon: LuCalendarClock,
         iconBg: "teal.100",
-        iconColor: "teal.700",
-        borderColor: "teal.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} は あと${action.daysLeft}日で締切`,
-        subtitle: `提出 ${responseCount}人`,
-        ctaLabel: "シフトを見る",
-        ctaPalette: "teal",
-        ctaVariant: "outline",
+        iconFg: "teal.700",
+        border: "teal.200",
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}はあと${action.daysLeft}日で締切`,
+        sub: `提出${responseCount}人・もうすぐ締まります`,
+        cta: { label: "シフトを見る", palette: "teal", variant: "outline" },
       };
     }
-    case "idle":
+    case "collecting": {
+      const { periodStart, periodEnd, deadline, responseCount } = action.recruitment;
       return {
-        icon: LuSparkles,
-        iconBg: "teal.100",
-        iconColor: "teal.700",
-        borderColor: "teal.100",
-        title: "今日 やることはありません",
-        subtitle: "次の募集を作って シフト希望を集めよう",
-        ctaLabel: "募集を作る",
-        ctaPalette: "teal",
-        ctaVariant: "solid",
+        icon: LuCalendarClock,
+        iconBg: "teal.50",
+        iconFg: "teal.700",
+        border: "teal.100",
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}の提出待ち`,
+        sub: `提出${responseCount}人・締切${formatDateShort(deadline)}まであと${action.daysLeft}日`,
+        cta: { label: "募集を見る", palette: "teal", variant: "outline" },
       };
+    }
   }
 }
-
-const Decoration = () => (
-  <>
-    <Box
-      aria-hidden
-      position="absolute"
-      top="-60px"
-      right="-40px"
-      boxSize="180px"
-      borderRadius="full"
-      bg="teal.100"
-      opacity={0.45}
-      filter="blur(40px)"
-    />
-    <Box
-      aria-hidden
-      position="absolute"
-      bottom="-80px"
-      left="30%"
-      boxSize="220px"
-      borderRadius="full"
-      bg="teal.50"
-      opacity={0.6}
-      filter="blur(60px)"
-    />
-  </>
-);
-
-const EyebrowPill = ({ children }: { children: string }) => (
-  <HStack
-    alignSelf="flex-start"
-    gap={1.5}
-    fontSize="11px"
-    fontWeight="semibold"
-    color="teal.700"
-    bg="teal.100"
-    px={2.5}
-    py={1}
-    borderRadius="full"
-    letterSpacing="0.08em"
-    textTransform="uppercase"
-  >
-    <Box boxSize="5px" borderRadius="full" bg="teal.500" />
-    {children}
-  </HStack>
-);
