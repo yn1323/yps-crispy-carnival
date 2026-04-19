@@ -10,7 +10,7 @@ describe("formatShiftTimeRange", () => {
     expect(formatShiftTimeRange("14:00", "25:00")).toBe("14:00〜翌1:00");
   });
 
-  it("24:00 ちょうどは 翌0:00 になる", () => {
+  it("24:00ちょうどは翌0:00になる", () => {
     expect(formatShiftTimeRange("09:00", "24:00")).toBe("09:00〜翌0:00");
   });
 

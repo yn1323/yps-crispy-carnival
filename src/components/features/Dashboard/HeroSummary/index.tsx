@@ -71,7 +71,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
           はじめに
         </Text>
         <Heading as="h1" fontSize={{ base: "xl", lg: "2xl" }} color="gray.900" letterSpacing="-0.01em">
-          まずは お店のことを 教えてください
+          まずはお店のことを教えてください
         </Heading>
       </Stack>
       <Flex>
@@ -100,8 +100,8 @@ const ActionCard = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionCar
         iconBg="teal.100"
         iconFg="teal.700"
         border="teal.100"
-        title="今 やること はありません"
-        sub="次の 募集を 作ろう"
+        title="今やることはありません"
+        sub="次の募集を作ろう"
         cta={{ label: "募集を作る", icon: LuPlus, palette: "teal", variant: "solid" }}
         onClick={onCreateRecruitment}
       />
@@ -204,9 +204,9 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} の シフトを 組もう`,
-        sub: `提出 ${responseCount}人 ・ 締切 ${formatDateShort(deadline)} 超過`,
-        cta: { label: "シフトを 見る", palette: "orange", variant: "solid" },
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}のシフトを組もう`,
+        sub: `提出${responseCount}人・締切${formatDateShort(deadline)}超過`,
+        cta: { label: "シフトを見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-today": {
@@ -216,9 +216,9 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} は 今日が締切`,
-        sub: `提出 ${responseCount}人 ・ もうすぐ シフトを 組めます`,
-        cta: { label: "シフトを 見る", palette: "orange", variant: "solid" },
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}は今日が締切`,
+        sub: `提出${responseCount}人・もうすぐシフトを組めます`,
+        cta: { label: "シフトを見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-soon": {
@@ -228,9 +228,9 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.100",
         iconFg: "teal.700",
         border: "teal.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} は あと${action.daysLeft}日で 締切`,
-        sub: `提出 ${responseCount}人 ・ もうすぐ 締まります`,
-        cta: { label: "シフトを 見る", palette: "teal", variant: "outline" },
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}はあと${action.daysLeft}日で締切`,
+        sub: `提出${responseCount}人・もうすぐ締まります`,
+        cta: { label: "シフトを見る", palette: "teal", variant: "outline" },
       };
     }
     case "collecting": {
@@ -240,9 +240,9 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.50",
         iconFg: "teal.700",
         border: "teal.100",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)} の 提出待ち`,
-        sub: `提出 ${responseCount}人 ・ 締切 ${formatDateShort(deadline)} まで あと${action.daysLeft}日`,
-        cta: { label: "募集を 見る", palette: "teal", variant: "outline" },
+        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}の提出待ち`,
+        sub: `提出${responseCount}人・締切${formatDateShort(deadline)}まであと${action.daysLeft}日`,
+        cta: { label: "募集を見る", palette: "teal", variant: "outline" },
       };
     }
   }
