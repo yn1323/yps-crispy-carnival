@@ -40,7 +40,7 @@ export const Variants: Story = {
       </Stack>
       <Stack gap={3}>
         <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          もっと見る ありの状態
+          もっと見るありの状態
         </Text>
         <StaffRoster
           staffs={mockStaffsMany}

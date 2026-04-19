@@ -99,7 +99,7 @@ const EmptyState = () => (
         まだスタッフはいません
       </Text>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        名前とメールアドレスで スタッフを登録できます
+        名前とメールアドレスでスタッフを登録できます
       </Text>
     </Stack>
   </Stack>
