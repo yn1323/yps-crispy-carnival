@@ -4,7 +4,7 @@ import { Body, BulletList, LegalPage, Section, SubHeading } from "@/src/componen
 
 export function PrivacyPolicy(): ReactNode {
   return (
-    <LegalPage title="プライバシーポリシー" lastUpdated="2026年4月11日">
+    <LegalPage title="プライバシーポリシー" lastUpdated="2026年4月19日">
       <Body>
         シフトリ（以下「本サービス」）は、個人情報の保護を重視しています。本ポリシーでは、本サービスが取得する情報とその取り扱いについて説明します。
       </Body>
@@ -50,17 +50,69 @@ export function PrivacyPolicy(): ReactNode {
         <Body>各サービスのプライバシーポリシーについては、各サービスのWebサイトをご確認ください。</Body>
       </Section>
 
-      <Section title="4. 第三者提供">
+      <Section title="4. アクセス解析ツールの利用">
         <Body>
-          法令に基づく場合を除き、本人の同意なく個人情報を第三者に提供することはありません。前項の外部サービスは、本サービスの運営に必要な業務委託先として利用しています。
+          本サービスでは、サイトの利用状況を把握し、サービスの改善に役立てるため、以下のアクセス解析ツールを利用しています。これらのツールはCookieを使用して情報を収集し、収集された情報は各提供元のサーバー（日本国外を含む）に送信されます。
+        </Body>
+
+        <SubHeading>Google Analytics（Google Tag Manager経由）：</SubHeading>
+        <BulletList
+          items={[
+            "提供元：Google LLC",
+            "利用目的：サイト利用状況の分析およびサービスの改善",
+            "取得する情報：ページ閲覧状況、参照元、デバイス情報、ブラウザ情報、IPアドレス（Google側で匿名化処理が行われます）",
+            "使用するCookie：_ga、_ga_* など",
+            "データの保存先：Googleのサーバー（海外への移転を含みます）",
+            "保存期間：最大14か月",
+            "オプトアウト方法：ブラウザのCookie削除、またはGoogle Analyticsオプトアウトアドオンの利用",
+          ]}
+        />
+        <Body>
+          Googleのプライバシーポリシーの詳細は
+          <Link href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" color="teal.700">
+            https://policies.google.com/privacy
+          </Link>
+          をご確認ください。
+        </Body>
+
+        <SubHeading>Microsoft Clarity：</SubHeading>
+        <BulletList
+          items={[
+            "提供元：Microsoft Corporation",
+            "利用目的：ユーザー体験の分析および改善",
+            "取得する情報：ページ閲覧状況、クリック、スクロール、マウス移動、デバイス情報、ブラウザ情報、IPアドレス（国判定の用途で利用され、Microsoftによれば保存はされません）",
+            "入力値の扱い：マスクレベルStrictにより、氏名・メールアドレスなどフォームに入力された内容は記録されません",
+            "使用するCookie：_clck、_clsk",
+            "データの保存先：Microsoftのサーバー（海外への移転を含みます）",
+            "保存期間：最大1年（ローリングで自動削除されます）",
+            "オプトアウト方法：ブラウザのCookie削除、またはトラッキング防止機能の利用",
+          ]}
+        />
+        <Body>
+          Microsoftのプライバシーポリシーの詳細は
+          <Link
+            href="https://privacy.microsoft.com/privacystatement"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="teal.700"
+          >
+            https://privacy.microsoft.com/privacystatement
+          </Link>
+          をご確認ください。
         </Body>
       </Section>
 
-      <Section title="5. データの保管">
+      <Section title="5. 第三者提供">
+        <Body>
+          法令に基づく場合を除き、本人の同意なく個人情報を第三者に提供することはありません。前各項の外部サービスおよびアクセス解析ツールは、本サービスの運営に必要な業務委託先として利用しています。
+        </Body>
+      </Section>
+
+      <Section title="6. データの保管">
         <Body>データはConvexのクラウドサーバーに保管されます。不要になったデータは管理者が削除できます。</Body>
       </Section>
 
-      <Section title="6. お問い合わせ">
+      <Section title="7. お問い合わせ">
         <Body>個人情報の取り扱いに関するお問い合わせは、以下のフォームからご連絡ください。</Body>
         <Link
           href="https://forms.gle/wBHKJtD6YAHmAWP9A"
