@@ -5,6 +5,7 @@ export type NextAction =
   | { kind: "past-deadline"; recruitment: Recruitment }
   | { kind: "deadline-today"; recruitment: Recruitment }
   | { kind: "deadline-soon"; recruitment: Recruitment; daysLeft: number }
+  | { kind: "collecting"; recruitment: Recruitment; daysLeft: number }
   | { kind: "idle" };
 
 const SOON_THRESHOLD_DAYS = 3;
@@ -20,13 +21,15 @@ export function pickNextAction(recruitments: Recruitment[], now: Dayjs = dayjs()
 
   const upcoming = open
     .map((r) => ({ r, daysLeft: dayjs(r.deadline).startOf("day").diff(today, "day") }))
-    .filter((x) => x.daysLeft >= 0 && x.daysLeft <= SOON_THRESHOLD_DAYS)
+    .filter((x) => x.daysLeft >= 0)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
   const top = upcoming[0];
   if (top) {
     if (top.daysLeft === 0) return { kind: "deadline-today", recruitment: top.r };
-    return { kind: "deadline-soon", recruitment: top.r, daysLeft: top.daysLeft };
+    if (top.daysLeft <= SOON_THRESHOLD_DAYS)
+      return { kind: "deadline-soon", recruitment: top.r, daysLeft: top.daysLeft };
+    return { kind: "collecting", recruitment: top.r, daysLeft: top.daysLeft };
   }
 
   return { kind: "idle" };
