@@ -42,7 +42,7 @@ test.describe("スタッフのシフト希望提出", () => {
     });
 
     await test.step("Step 3: 修正して再提出する", async () => {
-      await submitPage.clickEdit();
+      await submitPage.goto(token);
       await submitPage.expectFormVisible();
       await submitPage.expectSubmittedBadge();
 
