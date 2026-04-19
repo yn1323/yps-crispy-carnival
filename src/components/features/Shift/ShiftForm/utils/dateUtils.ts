@@ -78,3 +78,40 @@ export const getMonthKey = (date: string): string => {
 export const formatDateTime = (date: Date): string => {
   return dayjs(date).format("YYYY/M/D HH:mm");
 };
+
+// 週開始曜日
+export type WeekStart = "mon" | "sun";
+
+// 週開始曜日から見たオフセット（0=週頭）を返す
+const weekdayOffset = (date: string, weekStart: WeekStart): number => {
+  const day = dayjs(date).day(); // 0=日, 1=月, ..., 6=土
+  return weekStart === "mon" ? (day + 6) % 7 : day;
+};
+
+// 指定日を含む週の「週開始日」ISO を返す
+export const getWeekStartDate = (date: string, weekStart: WeekStart = "mon"): string => {
+  return dayjs(date).subtract(weekdayOffset(date, weekStart), "day").format("YYYY-MM-DD");
+};
+
+// 期間 dates を 7 × N の週グリッドに変換
+// 返値: 各要素は { iso: "YYYY-MM-DD", inRange: boolean }。期間外セルも日付を持つ
+export const buildWeeklyGrid = (
+  dates: string[],
+  weekStart: WeekStart = "mon",
+): Array<Array<{ iso: string; inRange: boolean }>> => {
+  if (dates.length === 0) return [];
+  const inRangeSet = new Set(dates);
+  const gridStart = dayjs(getWeekStartDate(dates[0], weekStart));
+  const lastDate = dates[dates.length - 1];
+  const gridEnd = dayjs(getWeekStartDate(lastDate, weekStart)).add(6, "day");
+  const totalDays = gridEnd.diff(gridStart, "day") + 1;
+  const weeks: Array<Array<{ iso: string; inRange: boolean }>> = [];
+  for (let i = 0; i < totalDays; i += 7) {
+    const week = Array.from({ length: 7 }, (_, j) => {
+      const iso = gridStart.add(i + j, "day").format("YYYY-MM-DD");
+      return { iso, inRange: inRangeSet.has(iso) };
+    });
+    weeks.push(week);
+  }
+  return weeks;
+};
