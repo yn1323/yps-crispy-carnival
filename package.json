@@ -37,7 +37,7 @@
     "convex:migrate:status": "npx convex run --component migrations lib:getStatus --watch"
   },
   "dependencies": {
-    "@chakra-ui/react": "3.30.0",
+    "@chakra-ui/react": "3.34.0",
     "@clerk/clerk-react": "5.61.3",
     "@clerk/localizations": "3.37.3",
     "@convex-dev/migrations": "^0.3.3",
@@ -46,8 +46,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/react": "11.14.0",
     "@hookform/resolvers": "5.2.2",
-    "@tanstack/react-router": "1.168.13",
-    "@tanstack/router-plugin": "1.167.12",
+    "@tanstack/react-router": "1.168.23",
+    "@tanstack/router-plugin": "1.167.22",
     "convex": "1.35.1",
     "convex-helpers": "^0.1.114",
     "dayjs": "^1.11.19",
@@ -61,8 +61,8 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.11",
-    "@clerk/testing": "1.14.4",
+    "@biomejs/biome": "2.4.12",
+    "@clerk/testing": "1.14.5",
     "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "1.57.0",
     "@storybook/addon-docs": "10.3.3",
@@ -70,7 +70,7 @@
     "@storybook/addon-vitest": "10.3.3",
     "@storybook/react-vite": "10.3.3",
     "@tanstack/react-devtools": "0.10.2",
-    "@tanstack/react-router-devtools": "1.166.11",
+    "@tanstack/react-router-devtools": "1.166.13",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.1",
     "@types/node": "24.12.2",
