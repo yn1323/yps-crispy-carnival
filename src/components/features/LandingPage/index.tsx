@@ -204,7 +204,7 @@ const Hero = () => (
           できる
         </Heading>
         <Text mt={7} fontSize={{ base: "16px", lg: "20px" }} color="gray.700" lineHeight={1.7} whiteSpace="pre-line">
-          少人数のお店のシフト作成 ぜんぶおまかせ
+          少人数のお店のシフト作成ぜんぶおまかせ
         </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
@@ -398,7 +398,7 @@ const POINTS: Point[] = [
   {
     num: "01",
     icon: LuSend,
-    title: "募集は ワンクリック",
+    title: "募集はワンクリック",
     lead: "期間を決めて一斉送信",
     body: "スタッフは受け取ったリンクを開くだけ\n登録もアプリのインストールもいらない",
   },
@@ -412,7 +412,7 @@ const POINTS: Point[] = [
   {
     num: "03",
     icon: LuCheck,
-    title: "確定も ワンクリック",
+    title: "確定もワンクリック",
     lead: "集まった希望を見ながら調整",
     body: "調整シフトがボタンで\nひとつで全員に届く",
   },
@@ -423,8 +423,8 @@ const PointsSection = () => (
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
         <Eyebrow>できること</Eyebrow>
-        <SectionHeading>{"小さなお店のシフトづくり\nぜんぶ ここで"}</SectionHeading>
-        <SectionSub>募集から確定まで ワンクリックで進む シンプルな流れ</SectionSub>
+        <SectionHeading>{"小さなお店のシフトづくり\nぜんぶここで"}</SectionHeading>
+        <SectionSub>募集から確定までワンクリックで進むシンプルな流れ</SectionSub>
       </VStack>
       <SimpleGrid columns={{ base: 1, lg: 3 }} gap={{ base: 4, lg: 6 }} mt={{ base: 10, lg: 14 }}>
         {POINTS.map((p) => (
@@ -500,7 +500,7 @@ const ToolsSection = () => (
     <VStack maxW="720px" mx="auto" gap={0} textAlign="center" mb={{ base: 10, lg: 16 }}>
       <Eyebrow>ツールの統合</Eyebrow>
       <SectionHeading>{"シフト作りの道具\nひとつにしよう"}</SectionHeading>
-      <SectionSub>LINE Excel メモ ぜんぶここで</SectionSub>
+      <SectionSub>LINE・Excel・メモ、ぜんぶここで</SectionSub>
     </VStack>
     <Box
       mx="auto"
@@ -533,7 +533,7 @@ const ToolsSection = () => (
           シフトリ
         </Text>
         <Text fontSize="13px" opacity={0.85}>
-          ひとつの画面で 全部の情報が集まる
+          ひとつの画面で全部の情報が集まる
         </Text>
       </VStack>
     </Box>
@@ -574,7 +574,7 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
 );
 
 const STEPS: { title: string; body: string }[] = [
-  { title: "募集期間を決める", body: "期間を決めて スタッフ全員にリンクを配る" },
+  { title: "募集期間を決める", body: "期間を決めてスタッフ全員にリンクを配る" },
   { title: "希望シフトを集める", body: "スタッフが希望を入力" },
   { title: "確定シフトを通知", body: "調整結果をボタンひとつで全員に反映" },
 ];
@@ -584,7 +584,7 @@ const HowSection = () => (
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
         <Eyebrow>3ステップ</Eyebrow>
-        <SectionHeading>使い方は かんたん</SectionHeading>
+        <SectionHeading>使い方はかんたん</SectionHeading>
       </VStack>
       <Box
         mt={{ base: 10, lg: 14 }}
@@ -648,7 +648,7 @@ const FaqSection = () => {
       <Box mx="auto" w="full" maxW="720px">
         <VStack gap={0} textAlign="center">
           <Eyebrow>よくある質問</Eyebrow>
-          <SectionHeading>聞きたいこと ぜんぶ</SectionHeading>
+          <SectionHeading>聞きたいことぜんぶ</SectionHeading>
         </VStack>
         <VStack gap={3} align="stretch" mt={12}>
           {faqs.map((f, i) => (
@@ -733,7 +733,7 @@ const BottomCta = () => (
         {"今日のシフトから\nラクにしよう"}
       </Heading>
       <Text fontSize="16px" color="fg.muted" mt={4} mb={8}>
-        登録は30秒 スタッフへの案内もワンクリック
+        登録は30秒スタッフへの案内もワンクリック
       </Text>
       <Stack direction={{ base: "column", sm: "row" }} gap={4} justify="center" flexWrap="wrap">
         <SignUpButton mode="modal">
@@ -777,7 +777,7 @@ export const Footer = () => (
           <Box as="span">シフトリ</Box>
         </HStack>
         <Text fontSize="14px" opacity={0.85} lineHeight={1.7} maxW="260px">
-          少人数のお店のシフトづくりを もっとラクに
+          少人数のお店のシフトづくりをもっとラクに
         </Text>
       </VStack>
       <FooterCol

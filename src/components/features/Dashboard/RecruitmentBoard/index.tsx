@@ -29,7 +29,7 @@ export const RecruitmentBoard = ({ recruitments, status, onCreateClick, onOpenSh
             シフト募集
           </Heading>
           <Text fontSize="sm" color="fg.muted">
-            募集の進み具合を まとめて確認
+            募集の進み具合をまとめて確認
           </Text>
         </Stack>
         <Button colorPalette="teal" size="sm" onClick={onCreateClick} gap={1.5} fontWeight="semibold">
@@ -88,7 +88,7 @@ const EmptyState = () => (
         まだ募集はありません
       </Text>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        期間を決めて 最初の募集をつくってみましょう
+        期間を決めて最初の募集をつくってみましょう
       </Text>
     </Stack>
   </Stack>

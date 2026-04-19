@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -44,6 +44,7 @@ function ShiftSubmitRoute() {
 }
 
 function ShiftSubmitContent({ session }: { session: { sessionToken: string; recruitmentId: string } }) {
+  const navigate = useNavigate();
   const data = useQuery(api.shiftSubmission.queries.getSubmissionPageData, {
     sessionToken: session.sessionToken,
     recruitmentId: session.recruitmentId as Id<"recruitments">,
@@ -62,6 +63,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
       recruitmentId: session.recruitmentId as Id<"recruitments">,
       requests,
     });
+    await navigate({ to: "/shifts/submit/completed" });
   };
 
   return <ShiftSubmitPage data={data} onSubmit={handleSubmit} />;
