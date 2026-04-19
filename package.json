@@ -46,7 +46,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/react": "11.14.0",
     "@hookform/resolvers": "5.2.2",
-    "@tanstack/react-router": "1.168.22",
+    "@tanstack/react-router": "1.168.23",
     "@tanstack/router-plugin": "1.167.22",
     "convex": "1.35.1",
     "convex-helpers": "^0.1.114",
