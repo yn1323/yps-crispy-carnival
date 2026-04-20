@@ -17,8 +17,8 @@ const STEPS: TourStep[] = [
   {
     target: `[data-tour="shift-row-${STAFF_ID.add}"]`,
     placement: "bottom",
-    title: "朝9時が薄いです",
-    content: "田中さんの行を 9時から13時まで 横にドラッグして追加しましょう。",
+    title: "朝9時が手薄です",
+    content: "田中さんの行を 9時から13時まで ドラッグ&ドロップして追加しましょう。",
   },
   {
     target: `[data-tour="shift-row-${STAFF_ID.edit}"]`,
@@ -30,13 +30,13 @@ const STEPS: TourStep[] = [
     target: `[data-tour="shift-row-${STAFF_ID.delete}"]`,
     placement: "bottom",
     title: "伊藤さんから連絡",
-    content: "月曜は都合が悪いそうです。バーをクリックして 削除を選びましょう。",
+    content: "月曜は都合が悪いそうです。バーをクリックして 削除（ゴミ箱アイコン）を選びましょう。",
   },
   {
     target: '[data-tour="confirm-button"]',
     placement: "top-end",
-    title: "いい感じになりました",
-    content: "確定ボタンでスタッフ全員にメールが届きます。やったのは 追加 編集 削除 だけ。",
+    title: "いい感じになりました！",
+    content: "確定ボタンでスタッフ全員にメールが届きます。（デモではメールは飛びません）",
   },
 ];
 
