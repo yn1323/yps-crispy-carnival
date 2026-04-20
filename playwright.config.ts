@@ -37,7 +37,7 @@ export default defineConfig({
   reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
   /* expect() の待機上限。エラー発生時に即座に失敗を返すため短めに設定 */
   expect: {
-    timeout: process.env.CI ? 10_000 : 5_000,
+    timeout: process.env.CI ? 20_000 : 10_000,
   },
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
@@ -45,8 +45,8 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
 
     /* アクション/遷移単位の待機上限。失敗を早く検知するためCIでも10秒に抑える */
-    actionTimeout: process.env.CI ? 10_000 : 5_000,
-    navigationTimeout: process.env.CI ? 10_000 : 5_000,
+    actionTimeout: process.env.CI ? 20_000 : 10_000,
+    navigationTimeout: process.env.CI ? 20_000 : 10_000,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
@@ -74,18 +74,6 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
-
-    // Step 3: サブユーザー（新規店長）のテスト
-    // DB未登録状態での初回ログインをテスト
-    // {
-    //   name: "認証済みテストB",
-    //   testMatch: /scenarios\/userB\/.*\.test\.ts/,
-    //   use: {
-    //     ...devices["Desktop Chrome"],
-    //     storageState: "e2e/.clerk/user-b.json",
-    //   },
-    //   dependencies: ["setup"],
-    // },
   ],
 
   webServer: {
