@@ -1,21 +1,12 @@
-import { Box, Button, Flex, Icon, IconButton, Text } from "@chakra-ui/react";
-import { LuX } from "react-icons/lu";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import type { TooltipRenderProps } from "react-joyride";
 
 /**
  * react-joyride の tooltipComponent として渡す Chakra 製ツールチップ。
- * 色・角丸・影は Chakra のトークン（teal系ブランドカラー）に揃えている。
+ * イベント駆動ツアー用途のため「戻る」「次へ」「×」は置かない
+ * （進行はユーザーの自然操作で行い、終了はツアー完走か呼び出し側の制御に委ねる）。
  */
-export const TourTooltip = ({
-  index,
-  size,
-  step,
-  backProps,
-  primaryProps,
-  closeProps,
-  tooltipProps,
-  isLastStep,
-}: TooltipRenderProps) => (
+export const TourTooltip = ({ index, size, step, tooltipProps }: TooltipRenderProps) => (
   <Box
     {...tooltipProps}
     bg="white"
@@ -29,25 +20,8 @@ export const TourTooltip = ({
     position="relative"
     fontFamily="inherit"
   >
-    <IconButton
-      {...closeProps}
-      aria-label="閉じる"
-      variant="ghost"
-      size="xs"
-      color="gray.400"
-      position="absolute"
-      top={2.5}
-      right={2.5}
-      minW="24px"
-      h="24px"
-    >
-      <Icon boxSize={3.5}>
-        <LuX />
-      </Icon>
-    </IconButton>
-
     {step.title && (
-      <Text fontSize="15px" fontWeight={700} color="gray.900" lineHeight="1.45" pr={6}>
+      <Text fontSize="15px" fontWeight={700} color="gray.900" lineHeight="1.45">
         {step.title}
       </Text>
     )}
@@ -58,20 +32,10 @@ export const TourTooltip = ({
       </Text>
     )}
 
-    <Flex mt={4} align="center" justify="space-between" gap={2}>
+    <Flex mt={3} align="center" justify="flex-end">
       <Text fontSize="11px" fontWeight={600} color="gray.400" style={{ fontVariantNumeric: "tabular-nums" }}>
         {index + 1} / {size}
       </Text>
-      <Flex gap={2}>
-        {index > 0 && (
-          <Button {...backProps} variant="outline" size="xs" colorPalette="gray" h="30px" px={3.5} fontSize="12px">
-            戻る
-          </Button>
-        )}
-        <Button {...primaryProps} colorPalette="teal" size="xs" h="30px" px={3.5} fontSize="12px">
-          {isLastStep ? "触ってみる" : "次へ"}
-        </Button>
-      </Flex>
     </Flex>
   </Box>
 );

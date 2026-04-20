@@ -145,12 +145,12 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             </Box>
           </Flex>
           {/* Rows */}
-          {sortedStaffs.map((staff: StaffType, index: number) => {
+          {sortedStaffs.map((staff: StaffType) => {
             const staffShifts = getShiftsForStaff(staff.id);
             return (
               <StaffRow
                 key={staff.id}
-                dataTour={index === 0 ? "shift-row" : undefined}
+                dataTour={`shift-row-${staff.id}`}
                 staff={staff}
                 staffShifts={staffShifts}
                 timeRange={timeRange}

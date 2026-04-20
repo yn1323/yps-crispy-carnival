@@ -1,6 +1,6 @@
 import { Box, Flex, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
 import dayjs from "dayjs";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
@@ -12,10 +12,14 @@ import {
 } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import type { TourHandle } from "@/src/components/ui/Tour";
 import { toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../mocks";
 import { DemoIntroTour } from "./DemoIntroTour";
+import { DemoLauncherFab } from "./DemoLauncherFab";
+
+type TourPhase = "idle" | "running" | "done";
 
 const POSITIONS = [DEFAULT_POSITION];
 const DEMO_SHOP_ID = "demo-shop";
@@ -72,15 +76,28 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
 
   const { dates, shifts: initialShifts } = useMemo(() => buildDemoShifts(baseDate ?? getNextMonday()), [baseDate]);
   const periodLabel = useMemo(() => generatePeriodLabel(dates), [dates]);
+  const day1 = dates[0];
+
+  const [shifts, setShifts] = useState<ShiftData[]>(initialShifts);
+  const [tourPhase, setTourPhase] = useState<TourPhase>("idle");
+  const tourRef = useRef<TourHandle>(null);
 
   const confirmModal = useDialog();
   const Modal = isMobile ? BottomSheet : Dialog;
 
   const handleConfirm = useCallback(() => {
+    // 公式推奨: 先に skip() を呼んで joyride に portal を片付けさせてから done に倒す
+    tourRef.current?.skip();
     setConfirmedAt(Date.now());
+    setTourPhase("done");
     confirmModal.close();
     toaster.create({ title: "確定しました", type: "success" });
   }, [confirmModal]);
+
+  const handleTourCloseRequest = useCallback(() => {
+    tourRef.current?.skip();
+    setTourPhase("idle");
+  }, []);
 
   const handleSaveDraft = useCallback(() => {
     toaster.create({ title: "保存しました", type: "success" });
@@ -95,7 +112,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
         <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
           {periodLabel}
         </Text>
-        {isConfirmed && confirmedAt !== null ? (
+        {isConfirmed ? (
           <Flex align="center" gap={1}>
             <Icon color="green.600" boxSize={3.5}>
               <LuCircleCheck />
@@ -123,6 +140,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
           isConfirmed={isConfirmed}
           onSaveDraft={handleSaveDraft}
           onConfirm={confirmModal.open}
+          onShiftsChange={setShifts}
         />
       </Box>
 
@@ -137,7 +155,21 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
         <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />
       </Modal>
 
-      <DemoIntroTour />
+      {tourPhase === "idle" && (
+        <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
+      )}
+
+      {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
+          ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
+      {tourPhase !== "done" && (
+        <DemoIntroTour
+          ref={tourRef}
+          run={tourPhase === "running"}
+          shifts={shifts}
+          day1={day1}
+          onClose={handleTourCloseRequest}
+        />
+      )}
     </Flex>
   );
 };

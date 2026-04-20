@@ -124,8 +124,9 @@ export const Default: Story = {
 };
 
 /**
- * 起動→1ステップ目のタイトル表示→「次へ」で2ステップ目へ進む、の最低限を自動検証する Story。
- * react-joyride のツールチップは document.body に描画されるため、canvas ではなく document から探す。
+ * 起動→1ステップ目のタイトル表示を検証する Story。
+ * react-joyride のツールチップは document.body に描画されるため canvas ではなく document から探す。
+ * イベント駆動ツアー前提のため TourTooltip には「戻る」「次へ」「×」を置かない方針。
  */
 export const Interactive: Story = {
   render: () => <DemoLayout />,
@@ -149,11 +150,5 @@ export const Interactive: Story = {
 
     const firstTitle = await findByText("*", "ツアーをはじめます");
     if (!firstTitle) throw new Error("1ステップ目のタイトルが表示されなかった");
-
-    const nextButton = await findByText<HTMLButtonElement>("button", "次へ");
-    nextButton?.click();
-
-    const secondTitle = await findByText("*", "最初のカード");
-    if (!secondTitle) throw new Error("「次へ」で2ステップ目に遷移しなかった");
   },
 };
