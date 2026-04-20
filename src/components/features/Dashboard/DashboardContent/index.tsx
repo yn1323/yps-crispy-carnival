@@ -1,4 +1,4 @@
-import { Stack, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Text, useBreakpointValue } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
@@ -13,11 +13,11 @@ import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
-import { RecruitmentSection } from "../RecruitmentSection";
+import { HeroSummary, WelcomeHero } from "../HeroSummary";
+import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
-import { ShopInfoBar } from "../ShopInfoBar";
-import { StaffSection } from "../StaffSection";
+import { StaffRoster } from "../StaffRoster";
 import { getDisplayStatus, type PaginationStatus, type Recruitment, type Staff } from "../types";
 
 type Props = {
@@ -46,6 +46,7 @@ export const DashboardContent = ({
   const editShopModal = useDialog();
   const deleteStaffDialog = useDialog();
   const shiftBoardWarning = useDialog();
+  const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
@@ -101,7 +102,7 @@ export const DashboardContent = ({
     try {
       await createRecruitment(data);
       recruitmentModal.close();
-      toaster.create({ title: "シフトを作成しました", type: "success" });
+      toaster.create({ title: "募集をつくりました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -162,37 +163,42 @@ export const DashboardContent = ({
   return (
     <>
       <ContentWrapper>
-        {shop && (
-          <ShopInfoBar
-            name={shop.name}
-            shiftStartTime={shop.shiftStartTime}
-            shiftEndTime={shop.shiftEndTime}
-            onEditClick={editShopModal.open}
-          />
+        {shop ? (
+          <>
+            <HeroSummary
+              shop={shop}
+              recruitments={recruitments}
+              onEditClick={editShopModal.open}
+              onOpenShiftBoard={handleOpenShiftBoard}
+              onCreateRecruitment={recruitmentModal.open}
+            />
+            <RecruitmentBoard
+              recruitments={recruitments}
+              status={recruitmentStatus}
+              onCreateClick={recruitmentModal.open}
+              onOpenShiftBoard={handleOpenShiftBoard}
+              onLoadMore={loadMoreRecruitments}
+            />
+            <StaffRoster
+              staffs={staffs}
+              status={staffStatus}
+              onAddClick={staffModal.open}
+              onEdit={handleEditClick}
+              onDelete={handleDeleteClick}
+              onLoadMore={loadMoreStaffs}
+            />
+          </>
+        ) : (
+          <WelcomeHero onSetupClick={setupModal.open} />
         )}
-        <RecruitmentSection
-          recruitments={recruitments}
-          onCreateClick={recruitmentModal.open}
-          onOpenShiftBoard={handleOpenShiftBoard}
-          status={recruitmentStatus}
-          onLoadMore={loadMoreRecruitments}
-        />
-        <StaffSection
-          staffs={staffs}
-          onAddClick={staffModal.open}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-          status={staffStatus}
-          onLoadMore={loadMoreStaffs}
-        />
       </ContentWrapper>
 
       <Modal
-        title="シフト希望を集める"
+        title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
         formId="create-recruitment-form"
-        submitLabel="作成する"
+        submitLabel="募集をつくる"
         onClose={recruitmentModal.close}
       >
         <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
@@ -203,7 +209,7 @@ export const DashboardContent = ({
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
         formId="add-staff-form"
-        submitLabel="登録する"
+        submitLabel="スタッフを追加する"
         onClose={staffModal.close}
         maxW="640px"
         maxH="85dvh"
@@ -216,7 +222,7 @@ export const DashboardContent = ({
         isOpen={editStaffModal.isOpen}
         onOpenChange={editStaffModal.onOpenChange}
         formId="edit-staff-form"
-        submitLabel="更新する"
+        submitLabel="保存する"
         onClose={editStaffModal.close}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
@@ -259,21 +265,24 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
-        title="シフト希望がまだ変わるかも"
+        title="まだ希望がそろっていません"
         isOpen={shiftBoardWarning.isOpen}
         onOpenChange={shiftBoardWarning.onOpenChange}
         onClose={shiftBoardWarning.close}
         onSubmit={handleConfirmNavigation}
-        submitLabel="編集画面へ進む"
+        submitLabel="このまま進む"
         role="alertdialog"
       >
-        <Stack gap={1}>
-          <Text>全員分の希望がそろっていません</Text>
-          <Text>編集中にも希望シフトが追加される場合があります</Text>
-        </Stack>
+        <Text>締切前のため、編集中に新しい希望が届くと、組んだシフトに反映されないことがあります。</Text>
       </Dialog>
 
-      {isSetupRequired && <SetupModal isOpen={true} onOpenChange={() => {}} onComplete={handleSetupComplete} />}
+      {isSetupRequired && (
+        <SetupModal
+          isOpen={setupModal.isOpen}
+          onOpenChange={setupModal.onOpenChange}
+          onComplete={handleSetupComplete}
+        />
+      )}
     </>
   );
 };

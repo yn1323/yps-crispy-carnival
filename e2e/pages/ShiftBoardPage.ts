@@ -17,13 +17,11 @@ export class ShiftBoardPage {
   }
 
   async switchDateTab(index: number) {
-    const tabs = this.page.getByRole("tab");
-    await tabs.nth(index).click();
+    await this.page.getByRole("tablist", { name: "日付選択" }).getByRole("tab").nth(index).click();
   }
 
   async switchToOverview() {
-    // PC/SPで2つのSegmentGroupが存在するためlabelテキストをクリック
-    await this.page.locator("[data-scope='segment-group'] [data-part='item-text']").getByText("一覧").first().click();
+    await this.page.getByRole("tablist", { name: "ビュー切替" }).getByRole("tab", { name: "一覧" }).first().click();
   }
 
   async confirm(staffCount: number) {
@@ -39,7 +37,7 @@ export class ShiftBoardPage {
   }
 
   async expectConfirmedStatus() {
-    await expect(this.page.getByText(/確定済み/)).toBeVisible();
+    await expect(this.page.getByText(/確定済み/).first()).toBeVisible();
   }
 
   async expectResendButton() {

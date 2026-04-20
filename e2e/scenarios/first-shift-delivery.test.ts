@@ -128,10 +128,9 @@ test.describe("田中さんの初めてのシフト確定", () => {
 
     await test.step("Step 7: 一覧ビューで最終確認する", async () => {
       await shiftBoard.switchToOverview();
-      // daily/overviewのテーブルが両方DOMにあるため、visible なテーブルを対象
-      const table = page.locator("table").filter({ has: page.getByRole("button", { name: /田中太郎/ }) });
+      const table = page.locator("table").filter({ hasText: "田中太郎" }).first();
       await expect(table).toBeVisible();
-      await expect(table.getByText(/\d{1,2}:\d{2}-\d{1,2}:\d{2}/).first()).toBeVisible();
+      await expect(table.getByText(/\d{1,2}:\d{2}.\d{1,2}:\d{2}/).first()).toBeVisible();
     });
 
     await test.step("Step 8: シフトを確定して通知する", async () => {

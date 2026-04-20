@@ -97,8 +97,9 @@ export const mockShifts: ShiftData[] = [
   ]),
 
   // 高橋翔太 - 月火木金出勤（午前短め）
+  // Day 1 (月) はチュートリアル誘導用にあえて長時間（9-20時=11h）の状態にしておく
   createShift("s5", "高橋翔太", "2026-01-20", "10:00", "15:00", [
-    { positionId: "pos-3", positionName: "レジ", color: "#10b981", start: "10:00", end: "15:00" },
+    { positionId: "pos-3", positionName: "レジ", color: "#10b981", start: "09:00", end: "20:00" },
   ]),
   createShift("s5", "高橋翔太", "2026-01-21", "10:00", "15:00", [
     { positionId: "pos-3", positionName: "レジ", color: "#10b981", start: "10:00", end: "15:00" },
@@ -122,6 +123,10 @@ export const mockShifts: ShiftData[] = [
   ]),
 
   // 伊藤健一 - 火木土出勤
+  // Day 1 (月) はチュートリアル誘導用にイレギュラー出勤を入れておく（NG連絡を受けて削除する想定）
+  createShift("s7", "伊藤健一", "2026-01-20", "12:00", "20:00", [
+    { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "12:00", end: "20:00" },
+  ]),
   createShift("s7", "伊藤健一", "2026-01-21", "12:00", "20:00", [
     { positionId: "pos-1", positionName: "ホール", color: "#3b82f6", start: "12:00", end: "20:00" },
   ]),

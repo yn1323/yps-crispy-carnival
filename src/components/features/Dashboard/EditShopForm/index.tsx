@@ -92,7 +92,7 @@ export const EditShopForm = ({ defaultValues, onSubmit }: Props) => {
             </Field.Root>
           </Stack>
           <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-            営業時間ではなく、仕込み・片付けを含めたスタッフが勤務する可能性のある時間帯を入力してください
+            仕込みや片付けも含めて、スタッフが働きうる時間帯を選びます。営業時間より広めでOKです。
           </Text>
         </Stack>
       </Stack>

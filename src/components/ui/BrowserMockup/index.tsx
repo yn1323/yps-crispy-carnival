@@ -1,14 +1,16 @@
 import { Box, type BoxProps, Flex, HStack, Image, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import { LuLock } from "react-icons/lu";
 
 type Props = {
-  src: string;
-  alt: string;
+  src?: string;
+  alt?: string;
   url?: string;
   maxW?: BoxProps["maxW"];
+  children?: ReactNode;
 };
 
-export const BrowserMockup = ({ src, alt, url = "shiftori.app", maxW }: Props) => (
+export const BrowserMockup = ({ src, alt, url = "shiftori.app", maxW, children }: Props) => (
   <Box
     w="full"
     maxW={maxW}
@@ -46,6 +48,6 @@ export const BrowserMockup = ({ src, alt, url = "shiftori.app", maxW }: Props) =
         </Flex>
       </Flex>
     </Box>
-    <Image src={src} alt={alt} w="full" h="auto" display="block" />
+    {src ? <Image src={src} alt={alt ?? ""} w="full" h="auto" display="block" /> : children}
   </Box>
 );

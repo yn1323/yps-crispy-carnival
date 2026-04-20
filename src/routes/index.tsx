@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
       ...buildMeta({
         title: "シフトリ",
         description:
-          "少人数のお店のシフト作成をもっとラクに リンクを送るだけで希望シフトを収集 スタッフのアカウント登録も不要 無料ではじめられるシフト管理ツール",
+          "少人数のお店のシフト作成をもっとラクに。リンクを送るだけで希望シフトを収集、スタッフのアカウント登録も不要、無料ではじめられるシフト管理ツール",
         canonical: "/",
       }),
       ...jsonLdMeta({
@@ -30,15 +30,10 @@ export const Route = createFileRoute("/")({
 function IndexPage() {
   const { isSignedIn, isLoaded } = useAuth();
 
-  // ビルド時 prerender 中は Clerk の初期化を待たず LP を描画する
-  // (scripts/prerender.ts が addInitScript で window.__PRERENDER__ を注入する)
-  if (typeof window !== "undefined" && (window as unknown as { __PRERENDER__?: boolean }).__PRERENDER__) {
-    return <LandingPage />;
-  }
-
-  if (!isLoaded) return null;
-
-  if (isSignedIn) {
+  // Clerk のロード完了を待たず LP を返す。
+  // - prerender 時も、初回 hydrate 時も、同じ <LandingPage /> を返すので hydration mismatch しない
+  // - ログイン済み判定が取れた瞬間にだけ /dashboard へリダイレクト
+  if (isLoaded && isSignedIn) {
     return <Navigate to="/dashboard" />;
   }
 
