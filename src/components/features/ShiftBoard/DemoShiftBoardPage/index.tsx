@@ -85,11 +85,16 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
   const confirmModal = useDialog();
   const Modal = isMobile ? BottomSheet : Dialog;
 
-  const handleConfirm = useCallback(() => {
-    // 公式推奨: 先に skip() を呼んで joyride に portal を片付けさせてから done に倒す
+  const handleOpenConfirm = useCallback(() => {
+    // モーダルを開く前に tour を止めて overlay を片付けさせる（unmount はしない）
     tourRef.current?.skip();
+    setTourPhase("idle");
+    confirmModal.open();
+  }, [confirmModal]);
+
+  const handleConfirm = useCallback(() => {
+    // tour は handleOpenConfirm 時点で skip + idle 済み。確定後も FAB を出しておきたいので idle のまま
     setConfirmedAt(Date.now());
-    setTourPhase("done");
     confirmModal.close();
     toaster.create({ title: "確定しました", type: "success" });
   }, [confirmModal]);
@@ -139,7 +144,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
           timeRange={mockTimeRange}
           isConfirmed={isConfirmed}
           onSaveDraft={handleSaveDraft}
-          onConfirm={confirmModal.open}
+          onConfirm={handleOpenConfirm}
           onShiftsChange={setShifts}
         />
       </Box>
