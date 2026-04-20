@@ -5,26 +5,25 @@ import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
 import type { ShiftData, StaffType } from "../../types";
-import { getWeekdayLabel } from "../../utils/dateUtils";
+import { buildWeeklyGrid, getWeekdayLabel, type WeekStart } from "../../utils/dateUtils";
 import { timeToMinutes } from "../../utils/timeConversion";
 
 type DateInfo = {
   iso: string;
   label: string;
   wk: string;
-  weekIdx: number;
+  inRange: boolean;
 };
 
-const buildDateInfos = (dates: string[]): DateInfo[] =>
-  dates.map((iso, i) => {
-    const d = dayjs(iso);
-    return {
-      iso,
-      label: `${d.month() + 1}/${d.date()}`,
-      wk: getWeekdayLabel(iso),
-      weekIdx: Math.floor(i / 7),
-    };
-  });
+const toDateInfo = (cell: { iso: string; inRange: boolean }): DateInfo => {
+  const d = dayjs(cell.iso);
+  return {
+    iso: cell.iso,
+    label: `${d.month() + 1}/${d.date()}`,
+    wk: getWeekdayLabel(cell.iso),
+    inRange: cell.inRange,
+  };
+};
 
 const dayColor = (iso: string, holidays: string[]): string => {
   const day = dayjs(iso).day();
@@ -45,22 +44,23 @@ const shiftHours = (range: [string, string] | null): number => {
   return minutes / 60;
 };
 
-export const OverviewView = () => {
+type OverviewViewProps = {
+  weekStart?: WeekStart;
+};
+
+export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, isReadOnly, staffs } = config;
 
-  const dateInfos = useMemo(() => buildDateInfos(dates), [dates]);
-  const weekCount = Math.max(1, Math.ceil(dateInfos.length / 7));
+  const weeks = useMemo<DateInfo[][]>(
+    () => buildWeeklyGrid(dates, weekStart).map((week) => week.map(toDateInfo)),
+    [dates, weekStart],
+  );
 
-  const initialOpen = useMemo(() => {
-    const o: Record<number, boolean> = {};
-    for (let i = 0; i < weekCount; i++) o[i] = true;
-    return o;
-  }, [weekCount]);
-  const [open, setOpen] = useState(initialOpen);
+  const [open, setOpen] = useState<Record<number, boolean>>({});
 
   const lookup = useMemo(() => {
     const map = new Map<string, [string, string]>();
@@ -83,13 +83,12 @@ export const OverviewView = () => {
   return (
     <Box bg="gray.50" h="100%" overflow="auto" px={5} py={5}>
       <Stack gap={3}>
-        {Array.from({ length: weekCount }).map((_, wi) => {
-          const wkDates = dateInfos.filter((d) => d.weekIdx === wi);
+        {weeks.map((wkDates, wi) => {
           if (wkDates.length === 0) return null;
-          const isOpen = !!open[wi];
+          const isOpen = open[wi] !== false;
           return (
             <WeekCard
-              key={wi}
+              key={wkDates[0].iso}
               wkDates={wkDates}
               staffs={staffs}
               lookup={lookup}
@@ -117,59 +116,64 @@ type WeekCardProps = {
   isReadOnly: boolean;
 };
 
-const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateClick, isReadOnly }: WeekCardProps) => (
-  <Box
-    bg="white"
-    borderRadius="xl"
-    borderWidth="1px"
-    borderColor={isOpen ? "teal.200" : "gray.200"}
-    overflow="hidden"
-    boxShadow="0 1px 2px rgba(0,0,0,0.03)"
-    transition="all 120ms"
-  >
-    <Flex
-      align="center"
-      gap={3}
-      px={5}
-      py={3}
-      bg={isOpen ? "teal.50" : "white"}
-      cursor="pointer"
-      onClick={onToggle}
-      borderBottomWidth={isOpen ? "1px" : "0"}
-      borderColor="teal.200"
+const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateClick, isReadOnly }: WeekCardProps) => {
+  const inRangeDates = wkDates.filter((d) => d.inRange);
+  const rangeLabel =
+    inRangeDates.length > 0 ? `${inRangeDates[0].label} – ${inRangeDates[inRangeDates.length - 1].label}` : "";
+  return (
+    <Box
+      bg="white"
+      borderRadius="xl"
+      borderWidth="1px"
+      borderColor={isOpen ? "teal.200" : "gray.200"}
+      overflow="hidden"
+      boxShadow="0 1px 2px rgba(0,0,0,0.03)"
+      transition="all 120ms"
     >
       <Flex
-        w="28px"
-        h="28px"
-        borderRadius="md"
-        bg={isOpen ? "teal.600" : "gray.100"}
-        color={isOpen ? "white" : "gray.500"}
         align="center"
-        justify="center"
-        flexShrink={0}
+        gap={3}
+        px={5}
+        py={3}
+        bg={isOpen ? "teal.50" : "white"}
+        cursor="pointer"
+        onClick={onToggle}
+        borderBottomWidth={isOpen ? "1px" : "0"}
+        borderColor="teal.200"
       >
-        {isOpen ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
+        <Flex
+          w="28px"
+          h="28px"
+          borderRadius="md"
+          bg={isOpen ? "teal.600" : "gray.100"}
+          color={isOpen ? "white" : "gray.500"}
+          align="center"
+          justify="center"
+          flexShrink={0}
+        >
+          {isOpen ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
+        </Flex>
+        <Box fontSize="15px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
+          {rangeLabel}
+        </Box>
+        <Box fontSize="12px" color="gray.500">
+          ({inRangeDates.length}日)
+        </Box>
       </Flex>
-      <Box fontSize="15px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
-        {wkDates[0].label} – {wkDates[wkDates.length - 1].label}
-      </Box>
-      <Box fontSize="12px" color="gray.500">
-        ({wkDates.length}日)
-      </Box>
-    </Flex>
 
-    {isOpen && (
-      <WeekTable
-        staffs={staffs}
-        wkDates={wkDates}
-        lookup={lookup}
-        holidays={holidays}
-        onDateClick={onDateClick}
-        isReadOnly={isReadOnly}
-      />
-    )}
-  </Box>
-);
+      {isOpen && (
+        <WeekTable
+          staffs={staffs}
+          wkDates={wkDates}
+          lookup={lookup}
+          holidays={holidays}
+          onDateClick={onDateClick}
+          isReadOnly={isReadOnly}
+        />
+      )}
+    </Box>
+  );
+};
 
 type WeekTableProps = {
   staffs: StaffType[];
@@ -204,26 +208,30 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
           >
             スタッフ
           </Box>
-          {wkDates.map((d) => (
-            <Box
-              as="th"
-              key={d.iso}
-              onClick={isReadOnly ? undefined : () => onDateClick(d.iso)}
-              style={{
-                padding: "10px 4px",
-                fontWeight: 600,
-                textAlign: "center",
-                cursor: isReadOnly ? "default" : "pointer",
-              }}
-            >
-              <Box fontSize="12px" color="gray.700" fontWeight={600} style={{ fontVariantNumeric: "tabular-nums" }}>
-                {d.label}
+          {wkDates.map((d) => {
+            const isClickable = !isReadOnly && d.inRange;
+            return (
+              <Box
+                as="th"
+                key={d.iso}
+                onClick={isClickable ? () => onDateClick(d.iso) : undefined}
+                style={{
+                  padding: "10px 4px",
+                  fontWeight: 600,
+                  textAlign: "center",
+                  cursor: isClickable ? "pointer" : "default",
+                  opacity: d.inRange ? 1 : 0.35,
+                }}
+              >
+                <Box fontSize="12px" color="gray.700" fontWeight={600} style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {d.label}
+                </Box>
+                <Box fontSize="10px" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
+                  {d.wk}
+                </Box>
               </Box>
-              <Box fontSize="10px" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
-                {d.wk}
-              </Box>
-            </Box>
-          ))}
+            );
+          })}
           <Box
             as="th"
             style={{
@@ -257,7 +265,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                 </Flex>
               </Box>
               {wkDates.map((d) => {
-                const asn = lookup.get(`${s.id}-${d.iso}`) ?? null;
+                const asn = d.inRange ? (lookup.get(`${s.id}-${d.iso}`) ?? null) : null;
                 if (asn) total += shiftHours(asn);
                 return (
                   <Box as="td" key={d.iso} style={{ padding: "8px 4px", textAlign: "center", verticalAlign: "middle" }}>
@@ -272,7 +280,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                         {asn[0]}–{asn[1]}
                       </Box>
                     ) : (
-                      <Box as="span" color="gray.300" fontSize="12px">
+                      <Box as="span" color={d.inRange ? "gray.300" : "gray.200"} fontSize="12px">
                         —
                       </Box>
                     )}
