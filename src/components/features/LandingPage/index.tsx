@@ -156,7 +156,15 @@ const PREVIEW_ROWS: PreviewRow[] = [
 ];
 
 const DemoSection = () => (
-  <Box as="section" id="demo" bg="white" px={{ base: 5, lg: 6 }} pt={{ base: 14, lg: 20 }} pb={{ base: 14, lg: 22 }}>
+  <Box
+    as="section"
+    id="demo"
+    bg="white"
+    px={{ base: 5, lg: 6 }}
+    pt={{ base: 14, lg: 20 }}
+    pb={{ base: 14, lg: 22 }}
+    display={{ base: "none", lg: "block" }}
+  >
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center" mb={{ base: 10, lg: 14 }}>
         <Eyebrow>おためし</Eyebrow>
@@ -165,13 +173,13 @@ const DemoSection = () => (
       </VStack>
 
       <Box mx="auto" w="full" maxW="680px">
-        <BrowserMockup url="shiftori.app/demo">
+        <BrowserMockup url="shiftori.app/demo/shiftboard">
           <DemoPreviewContent />
         </BrowserMockup>
       </Box>
 
       <VStack mt={{ base: 10, lg: 12 }} gap={3}>
-        <Link href="/demo" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
+        <Link href="/demo/shiftboard" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
           <Button colorPalette="teal" h="56px" px={10} fontSize="18px" fontWeight="bold" borderRadius="full">
             デモを開く <PiArrowSquareOut />
           </Button>
