@@ -141,7 +141,7 @@ export const Nav = () => (
         fontSize="14px"
         _hover={{ opacity: 0.85, textDecoration: "none" }}
       >
-        ためしてみる
+        はじめてみる
       </Link>
     </Flex>
   </Box>
@@ -273,7 +273,7 @@ const Hero = () => (
           whiteSpace="pre-line"
           color="gray.900"
         >
-          {"シフト作り\nもっと"}
+          {"シフトづくり\nもっと"}
           <Box as="em" display="inline-block" position="relative" fontStyle="normal" color="teal.600" zIndex={1}>
             ラクに
             <Box
@@ -290,7 +290,7 @@ const Hero = () => (
           できる
         </Heading>
         <Text mt={7} fontSize={{ base: "16px", lg: "20px" }} color="gray.700" lineHeight={1.7} whiteSpace="pre-line">
-          少人数のお店のシフト作成ぜんぶおまかせ
+          シフトづくりのめんどう、ぜんぶおまかせ
         </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
@@ -301,7 +301,7 @@ const Hero = () => (
         >
           <SignUpButton mode="modal">
             <Button colorPalette="teal" h="56px" px={8} fontSize="18px" fontWeight="bold" borderRadius="full">
-              ためしてみる <PiArrowRight />
+              はじめてみる <PiArrowRight />
             </Button>
           </SignUpButton>
           <SignInButton mode="modal">
@@ -321,8 +321,7 @@ const Hero = () => (
         </Stack>
         <HStack mt={7} gap={6} fontSize="13px" color="fg.muted" flexWrap="wrap">
           <HeroMeta>登録30秒</HeroMeta>
-          <HeroMeta>アプリ不要</HeroMeta>
-          <HeroMeta>いま無料</HeroMeta>
+          <HeroMeta>専用アプリ不要</HeroMeta>
         </HStack>
       </VStack>
       <ScheduleCanvas />
@@ -486,21 +485,21 @@ const POINTS: Point[] = [
     icon: LuSend,
     title: "募集はワンクリック",
     lead: "期間を決めて一斉送信",
-    body: "スタッフは受け取ったリンクを開くだけ\n登録もアプリのインストールもいらない",
+    body: "スタッフはメールで届くリンクを開くだけです。\n登録も専用アプリのインストールもいりません。",
   },
   {
     num: "02",
     icon: LuCalendarCheck,
     title: "スマホで提出",
     lead: "時間帯も選ぶだけ",
-    body: "外出先でもスキマ時間で終わる\nスタッフにやさしい提出フォーム",
+    body: "外出先でもスキマ時間で提出できます。\n日付をタップするだけのフォームです。",
   },
   {
     num: "03",
     icon: LuCheck,
     title: "確定もワンクリック",
     lead: "集まった希望を見ながら調整",
-    body: "調整シフトがボタンで\nひとつで全員に届く",
+    body: "確定したシフトはメールで届きます。\n「何時から何時？」のLINEがなくなります。",
   },
 ];
 
@@ -509,8 +508,8 @@ const PointsSection = () => (
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
         <Eyebrow>できること</Eyebrow>
-        <SectionHeading>{"小さなお店のシフトづくり\nぜんぶここで"}</SectionHeading>
-        <SectionSub>募集から確定までワンクリックで進むシンプルな流れ</SectionSub>
+        <SectionHeading>{"少人数のお店のシフトづくり\nぜんぶここで"}</SectionHeading>
+        <SectionSub>募集から確定まで、ステップは3つだけ</SectionSub>
       </VStack>
       <SimpleGrid columns={{ base: 1, lg: 3 }} gap={{ base: 4, lg: 6 }} mt={{ base: 10, lg: 14 }}>
         {POINTS.map((p) => (
@@ -584,9 +583,9 @@ const ToolsSection = () => (
     py={{ base: 20, lg: 30 }}
   >
     <VStack maxW="720px" mx="auto" gap={0} textAlign="center" mb={{ base: 10, lg: 16 }}>
-      <Eyebrow>ツールの統合</Eyebrow>
-      <SectionHeading>{"シフト作りの道具\nひとつにしよう"}</SectionHeading>
-      <SectionSub>LINE・Excel・メモ、ぜんぶここで</SectionSub>
+      <Eyebrow>道具をひとつに</Eyebrow>
+      <SectionHeading>日曜の夜、またシフトづくり</SectionHeading>
+      <SectionSub>LINEを遡って、Excelに転記して、気づけば2時間</SectionSub>
     </VStack>
     <Box
       mx="auto"
@@ -619,7 +618,7 @@ const ToolsSection = () => (
           シフトリ
         </Text>
         <Text fontSize="13px" opacity={0.85}>
-          ひとつの画面で全部の情報が集まる
+          ひとつの画面に、ぜんぶ集まります。
         </Text>
       </VStack>
     </Box>
@@ -660,9 +659,9 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
 );
 
 const STEPS: { title: string; body: string }[] = [
-  { title: "募集期間を決める", body: "期間を決めてスタッフ全員にリンクを配る" },
-  { title: "希望シフトを集める", body: "スタッフが希望を入力" },
-  { title: "確定シフトを通知", body: "調整結果をボタンひとつで全員に反映" },
+  { title: "募集期間を決める", body: "期間を決めて、スタッフ全員にメールでリンクを送ります。" },
+  { title: "希望シフトを集める", body: "スタッフがスマホから希望を入力します。" },
+  { title: "確定シフトを通知", body: "調整したシフトをボタンひとつで全員に届けます。" },
 ];
 
 const HowSection = () => (
@@ -670,7 +669,7 @@ const HowSection = () => (
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
         <Eyebrow>3ステップ</Eyebrow>
-        <SectionHeading>使い方はかんたん</SectionHeading>
+        <SectionHeading>今週のシフトから、使える</SectionHeading>
       </VStack>
       <Box
         mt={{ base: 10, lg: 14 }}
@@ -826,12 +825,12 @@ const BottomCta = () => (
         {"今日のシフトから\nラクにしよう"}
       </Heading>
       <Text fontSize="16px" color="fg.muted" mt={4} mb={8}>
-        登録は30秒スタッフへの案内もワンクリック
+        メールだけで、30秒ではじめられます
       </Text>
       <Stack direction={{ base: "column", sm: "row" }} gap={4} justify="center" flexWrap="wrap">
         <SignUpButton mode="modal">
           <Button colorPalette="teal" h="56px" px={8} fontSize="18px" fontWeight="bold" borderRadius="full">
-            ためしてみる <PiArrowRight />
+            はじめてみる <PiArrowRight />
           </Button>
         </SignUpButton>
         <SignInButton mode="modal">
