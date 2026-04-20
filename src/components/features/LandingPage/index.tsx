@@ -720,7 +720,14 @@ const StepItem = ({ index, total, title, body }: { index: number; total: number;
 );
 
 const FaqSection = () => {
-  const [open, setOpen] = useState(0);
+  const [openSet, setOpenSet] = useState<Set<number>>(() => new Set([0]));
+  const toggle = (i: number) =>
+    setOpenSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
   return (
     <Box as="section" id="faq" px={{ base: 5, lg: 6 }} py={{ base: 12, lg: 24 }}>
       <Box mx="auto" w="full" maxW="720px">
@@ -730,7 +737,7 @@ const FaqSection = () => {
         </VStack>
         <VStack gap={3} align="stretch" mt={12}>
           {faqs.map((f, i) => (
-            <FaqItem key={f.q} item={f} isOpen={open === i} onToggle={() => setOpen(open === i ? -1 : i)} />
+            <FaqItem key={f.q} item={f} isOpen={openSet.has(i)} onToggle={() => toggle(i)} />
           ))}
         </VStack>
       </Box>
