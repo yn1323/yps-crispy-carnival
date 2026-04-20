@@ -126,7 +126,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (
-    <Flex direction="column" h="100%" minH={0} bg="gray.50">
+    <Flex direction="column" h="100%" minH={0} bg="gray.50" data-tour="shift-grid">
       <Box flex={1} minH={0} overflowY="auto" overflowX="hidden">
         <Box w="100%">
           {/* Sticky header */}
@@ -145,11 +145,12 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             </Box>
           </Flex>
           {/* Rows */}
-          {sortedStaffs.map((staff: StaffType) => {
+          {sortedStaffs.map((staff: StaffType, index: number) => {
             const staffShifts = getShiftsForStaff(staff.id);
             return (
               <StaffRow
                 key={staff.id}
+                dataTour={index === 0 ? "shift-row" : undefined}
                 staff={staff}
                 staffShifts={staffShifts}
                 timeRange={timeRange}

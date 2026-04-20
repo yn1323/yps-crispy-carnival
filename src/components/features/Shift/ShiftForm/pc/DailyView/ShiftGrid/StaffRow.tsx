@@ -33,6 +33,7 @@ type StaffRowProps = {
   rowRef: (el: HTMLDivElement | null) => void;
   paintClickAnchorRef: MutableRefObject<DOMRect | null>;
   onMouseUpOnRow: (staffId: string) => void;
+  dataTour?: string;
 };
 
 export const StaffRow = ({
@@ -52,6 +53,7 @@ export const StaffRow = ({
   rowRef,
   paintClickAnchorRef,
   onMouseUpOnRow,
+  dataTour,
 }: StaffRowProps) => {
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
@@ -70,6 +72,7 @@ export const StaffRow = ({
       borderColor="gray.100"
       _last={{ borderBottomWidth: 0 }}
       _hover={{ bg: isCurrentStaff ? "blue.50" : "gray.50" }}
+      data-tour={dataTour}
     >
       <Flex
         w={`${staffColWidth}px`}

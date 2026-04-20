@@ -15,6 +15,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../mocks";
+import { DemoIntroTour } from "./DemoIntroTour";
 
 const POSITIONS = [DEFAULT_POSITION];
 const DEMO_SHOP_ID = "demo-shop";
@@ -135,6 +136,8 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
       >
         <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />
       </Modal>
+
+      <DemoIntroTour />
     </Flex>
   );
 };

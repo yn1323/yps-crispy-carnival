@@ -143,7 +143,16 @@ export const SPDailyView = () => {
   return (
     <Flex direction="column" flex={1} minH={0} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* 日付ピッカー（横スクロール） */}
-      <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100" flexShrink={0}>
+      <Box
+        px={3}
+        pt={3}
+        pb={2}
+        bg="white"
+        borderBottomWidth="1px"
+        borderColor="gray.100"
+        flexShrink={0}
+        data-tour="date-rail"
+      >
         <Flex gap={2} overflow="auto" pb={1}>
           {dates.map((iso) => {
             const d = dayjs(iso);
@@ -200,7 +209,7 @@ export const SPDailyView = () => {
       )}
 
       {/* セクション */}
-      <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
+      <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
         <Stack gap={4}>
           {workRows.length > 0 && (
             <Box>
