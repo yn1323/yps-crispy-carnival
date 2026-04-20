@@ -31,7 +31,7 @@ export const StaffRoster = ({ staffs, status, onAddClick, onEdit, onDelete, onLo
             スタッフ
           </Heading>
           <Text fontSize="sm" color="fg.muted">
-            シフトを組むメンバーの一覧
+            シフトを組むメンバーです。
           </Text>
         </Stack>
         <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">

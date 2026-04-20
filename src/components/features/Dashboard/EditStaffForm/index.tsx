@@ -27,13 +27,13 @@ export const EditStaffForm = ({ staff, onSubmit }: Props) => {
       <Stack gap={4}>
         <Field.Root invalid={!!nameError}>
           <Field.Label>名前</Field.Label>
-          <Input placeholder="例: 田中 花子" {...register("name")} />
+          <Input placeholder="例：田中 花子" {...register("name")} />
           {nameError && <Field.ErrorText>{nameError.message}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!emailError}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input placeholder="例: hanako@example.com" {...register("email")} />
+          <Input placeholder="例：hanako@example.com" {...register("email")} />
           {emailError && <Field.ErrorText>{emailError.message}</Field.ErrorText>}
         </Field.Root>
       </Stack>

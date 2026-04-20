@@ -53,7 +53,7 @@ export function StaffRow({ staff, onEdit, onDelete }: Props) {
       </Stack>
       <Menu.Root positioning={{ placement: "bottom-end" }}>
         <Menu.Trigger asChild>
-          <IconButton aria-label="メニュー" variant="ghost" size="sm" color="fg.muted">
+          <IconButton aria-label="スタッフの操作メニュー" variant="ghost" size="sm" color="fg.muted">
             <LuEllipsisVertical />
           </IconButton>
         </Menu.Trigger>

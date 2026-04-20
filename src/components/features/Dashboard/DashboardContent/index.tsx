@@ -1,4 +1,4 @@
-import { Stack, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Text, useBreakpointValue } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
@@ -102,7 +102,7 @@ export const DashboardContent = ({
     try {
       await createRecruitment(data);
       recruitmentModal.close();
-      toaster.create({ title: "シフトを作成しました", type: "success" });
+      toaster.create({ title: "募集をつくりました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -194,11 +194,11 @@ export const DashboardContent = ({
       </ContentWrapper>
 
       <Modal
-        title="シフト希望を集める"
+        title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
         formId="create-recruitment-form"
-        submitLabel="作成する"
+        submitLabel="募集をつくる"
         onClose={recruitmentModal.close}
       >
         <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
@@ -209,7 +209,7 @@ export const DashboardContent = ({
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
         formId="add-staff-form"
-        submitLabel="登録する"
+        submitLabel="スタッフを追加する"
         onClose={staffModal.close}
         maxW="640px"
         maxH="85dvh"
@@ -222,7 +222,7 @@ export const DashboardContent = ({
         isOpen={editStaffModal.isOpen}
         onOpenChange={editStaffModal.onOpenChange}
         formId="edit-staff-form"
-        submitLabel="更新する"
+        submitLabel="保存する"
         onClose={editStaffModal.close}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
@@ -265,18 +265,15 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
-        title="シフト希望がまだ変わるかも"
+        title="まだ希望がそろっていません"
         isOpen={shiftBoardWarning.isOpen}
         onOpenChange={shiftBoardWarning.onOpenChange}
         onClose={shiftBoardWarning.close}
         onSubmit={handleConfirmNavigation}
-        submitLabel="編集画面へ進む"
+        submitLabel="このまま進む"
         role="alertdialog"
       >
-        <Stack gap={1}>
-          <Text>全員分の希望がそろっていません</Text>
-          <Text>編集中にも希望シフトが追加される場合があります</Text>
-        </Stack>
+        <Text>締切前のため、編集中に新しい希望が届くと、組んだシフトに反映されないことがあります。</Text>
       </Dialog>
 
       {isSetupRequired && (

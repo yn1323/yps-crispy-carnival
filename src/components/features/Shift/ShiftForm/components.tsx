@@ -29,7 +29,7 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
     { k: "overview", label: "一覧" },
   ];
   return (
-    <Flex gap={0} role="tablist" aria-label="ビュー切替">
+    <Flex gap={0} role="tablist" aria-label="ビュー切替" data-tour="view-tabs">
       {tabs.map((t) => {
         const active = value === t.k;
         return (
@@ -37,6 +37,7 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
             key={t.k}
             role="tab"
             aria-selected={active}
+            data-tour={`view-tab-${t.k}`}
             onClick={() => onChange(t.k)}
             cursor="pointer"
             py="10px"
@@ -174,6 +175,7 @@ export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }:
   return (
     <button
       type="button"
+      data-tour="confirm-button"
       onClick={onClick}
       style={{
         height: compact ? 28 : 32,

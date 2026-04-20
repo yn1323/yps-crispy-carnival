@@ -28,6 +28,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
     overflow="auto"
     role="tablist"
     aria-label="日付選択"
+    data-tour="date-rail"
   >
     <Stack gap={1} px={2}>
       {dates.map((iso) => {

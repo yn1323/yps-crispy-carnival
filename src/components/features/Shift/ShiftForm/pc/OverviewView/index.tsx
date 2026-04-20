@@ -156,9 +156,6 @@ const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateC
         <Box fontSize="15px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
           {rangeLabel}
         </Box>
-        <Box fontSize="12px" color="gray.500">
-          ({inRangeDates.length}日)
-        </Box>
       </Flex>
 
       {isOpen && (

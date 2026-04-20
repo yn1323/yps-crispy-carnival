@@ -8,7 +8,7 @@ import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
 
-const STAFF_COL_WIDTH = 140;
+const STAFF_COL_WIDTH = 200;
 
 type ShiftGridProps = {
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
@@ -126,7 +126,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (
-    <Flex direction="column" h="100%" minH={0} bg="gray.50">
+    <Flex direction="column" h="100%" minH={0} bg="gray.50" data-tour="shift-grid">
       <Box flex={1} minH={0} overflowY="auto" overflowX="hidden">
         <Box w="100%">
           {/* Sticky header */}
@@ -150,6 +150,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
             return (
               <StaffRow
                 key={staff.id}
+                dataTour={`shift-row-${staff.id}`}
                 staff={staff}
                 staffShifts={staffShifts}
                 timeRange={timeRange}

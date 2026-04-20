@@ -72,7 +72,7 @@ export const ShiftPopover = ({
   return (
     <Portal>
       {/* オーバーレイ: クリックで閉じる */}
-      <Box position="fixed" inset={0} zIndex={1499} onClick={onClose} style={{ background: "transparent" }} />
+      <Box position="fixed" inset={0} zIndex={10099} onClick={onClose} style={{ background: "transparent" }} />
       <Box
         position="fixed"
         left={`${adjustedLeft}px`}
@@ -83,7 +83,7 @@ export const ShiftPopover = ({
         border="1px solid"
         borderColor="gray.200"
         boxShadow="lg"
-        zIndex={1500}
+        zIndex={10100}
         style={{ transform }}
         onClick={(e) => e.stopPropagation()}
       >
