@@ -23,16 +23,16 @@ export const SetupStep2 = ({ onSubmit, formId = "setup-step2" }: Props) => {
       <Stack gap={5}>
         <Field.Root invalid={!!errors.name}>
           <Field.Label>あなたの名前</Field.Label>
-          <Input {...register("name")} placeholder="山田 太郎" />
+          <Input {...register("name")} placeholder="例：山田 太郎" />
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" {...register("email")} placeholder="yamada@example.com" />
+          <Input type="email" {...register("email")} placeholder="例：yamada@example.com" />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
         <Text fontSize="xs" color="fg.muted">
-          ほかのスタッフはセットアップ完了後にいつでも追加・編集できます
+          ほかのスタッフは登録後にいつでも追加できます。
         </Text>
       </Stack>
     </form>

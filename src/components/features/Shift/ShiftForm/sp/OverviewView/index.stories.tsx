@@ -11,6 +11,13 @@ const meta = {
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },
+  decorators: [
+    (Story) => (
+      <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
+        <Story />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof SPOverviewView>;
 
 export default meta;

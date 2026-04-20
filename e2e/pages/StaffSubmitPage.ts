@@ -20,7 +20,8 @@ export class StaffSubmitPage {
   }
 
   async expectCompletionVisible() {
-    await expect(this.page.getByText("提出しました")).toBeVisible();
+    await expect(this.page).toHaveURL(/\/shifts\/submit\/completed$/);
+    await expect(this.page.getByText("提出が完了しました")).toBeVisible();
   }
 
   async expectReadOnlyVisible() {
@@ -50,10 +51,6 @@ export class StaffSubmitPage {
 
   async submit() {
     await this.page.getByRole("button", { name: /提出する/ }).click();
-  }
-
-  async clickEdit() {
-    await this.page.getByRole("button", { name: "内容を修正する" }).click();
   }
 
   async expectDayWorking(dateText: string) {

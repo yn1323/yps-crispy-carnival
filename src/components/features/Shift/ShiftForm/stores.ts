@@ -48,6 +48,11 @@ export const sortModeAtom = atom<SortMode>("default");
 export const shiftsAtom = atom<ShiftData[]>([]);
 
 // ==========================================
+// PC 日別ビューの動的 hourWidth（コンテナ幅に応じて可変）
+// ==========================================
+export const hourWidthAtom = atom<number>(120);
+
+// ==========================================
 // ポジション選択（ドラッグロジック内部で使用）
 // ==========================================
 export const selectedPositionIdAtom = atom<string | null>(null);

@@ -19,7 +19,9 @@ import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
+import { Route as UnregisteredDemoShiftboardRouteImport } from './routes/_unregistered/demo.shiftboard'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
+import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -71,11 +73,23 @@ const UnregisteredShiftsReissueRoute =
     path: '/shifts/reissue',
     getParentRoute: () => UnregisteredRoute,
   } as any)
+const UnregisteredDemoShiftboardRoute =
+  UnregisteredDemoShiftboardRouteImport.update({
+    id: '/demo/shiftboard',
+    path: '/demo/shiftboard',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
     path: '/shiftboard/$recruitmentId',
     getParentRoute: () => AuthRoute,
+  } as any)
+const UnregisteredShiftsSubmitCompletedRoute =
+  UnregisteredShiftsSubmitCompletedRouteImport.update({
+    id: '/shifts/submit_/completed',
+    path: '/shifts/submit/completed',
+    getParentRoute: () => UnregisteredRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -85,9 +99,11 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthDashboardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -96,9 +112,11 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthDashboardRoute
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -110,9 +128,11 @@ export interface FileRoutesById {
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/_unregistered/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -123,9 +143,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/welcome'
     | '/shiftboard/$recruitmentId'
+    | '/demo/shiftboard'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
+    | '/shifts/submit/completed'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -134,9 +156,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/welcome'
     | '/shiftboard/$recruitmentId'
+    | '/demo/shiftboard'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
+    | '/shifts/submit/completed'
   id:
     | '__root__'
     | '/'
@@ -147,9 +171,11 @@ export interface FileRouteTypes {
     | '/_auth/dashboard'
     | '/_unregistered/welcome'
     | '/_auth/shiftboard/$recruitmentId'
+    | '/_unregistered/demo/shiftboard'
     | '/_unregistered/shifts/reissue'
     | '/_unregistered/shifts/submit'
     | '/_unregistered/shifts/view'
+    | '/_unregistered/shifts/submit_/completed'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -232,12 +258,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
       parentRoute: typeof UnregisteredRoute
     }
+    '/_unregistered/demo/shiftboard': {
+      id: '/_unregistered/demo/shiftboard'
+      path: '/demo/shiftboard'
+      fullPath: '/demo/shiftboard'
+      preLoaderRoute: typeof UnregisteredDemoShiftboardRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
       path: '/shiftboard/$recruitmentId'
       fullPath: '/shiftboard/$recruitmentId'
       preLoaderRoute: typeof AuthShiftboardRecruitmentIdRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_unregistered/shifts/submit_/completed': {
+      id: '/_unregistered/shifts/submit_/completed'
+      path: '/shifts/submit/completed'
+      fullPath: '/shifts/submit/completed'
+      preLoaderRoute: typeof UnregisteredShiftsSubmitCompletedRouteImport
+      parentRoute: typeof UnregisteredRoute
     }
   }
 }
@@ -256,16 +296,21 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface UnregisteredRouteChildren {
   UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
+  UnregisteredDemoShiftboardRoute: typeof UnregisteredDemoShiftboardRoute
   UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
   UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
   UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
+  UnregisteredShiftsSubmitCompletedRoute: typeof UnregisteredShiftsSubmitCompletedRoute
 }
 
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
   UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
+  UnregisteredDemoShiftboardRoute: UnregisteredDemoShiftboardRoute,
   UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
   UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
   UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
+  UnregisteredShiftsSubmitCompletedRoute:
+    UnregisteredShiftsSubmitCompletedRoute,
 }
 
 const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(

@@ -1,5 +1,8 @@
 import { Box, Text } from "@chakra-ui/react";
-import type { LinkedResizeTarget, ShiftData, TimeRange } from "../../../types";
+import { useAtomValue } from "jotai";
+import { BREAK_POSITION } from "../../../constants";
+import { hourWidthAtom } from "../../../stores";
+import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "../../../types";
 import { computeVisualBreaks } from "../../../utils/shiftOperations";
 import { minutesToPixel, timeToMinutes } from "../../../utils/timeConversion";
 
@@ -10,11 +13,18 @@ type ShiftBarProps = {
   onClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
   isDragging?: boolean;
   isReadOnly?: boolean;
-  // リサイズ中のリアルタイム更新用
   currentMinutes?: number;
-  // 連結リサイズ対応
   linkedTarget?: LinkedResizeTarget | null;
 };
+
+const BAR_BG = "#0d9488"; // teal.600
+const BAR_SHADOW = "0 1px 2px rgba(13,148,136,0.3)";
+const STRIPE_STYLE = {
+  backgroundImage: "repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 4px, transparent 4px, transparent 8px)",
+};
+
+const isBreakSegment = (pos: PositionSegment) =>
+  pos.positionName === BREAK_POSITION.name || pos.positionId === BREAK_POSITION.id;
 
 export const ShiftBar = ({
   shift,
@@ -26,36 +36,32 @@ export const ShiftBar = ({
   currentMinutes,
   linkedTarget,
 }: ShiftBarProps) => {
+  const hourWidth = useAtomValue(hourWidthAtom);
   const hasRequestedTime = shift.requestedTime !== null;
 
-  // ポジションがなくて希望時間もない場合は何も表示しない
   if (!hasRequestedTime && shift.positions.length === 0) return null;
 
-  // 希望時間がある場合のバー位置計算（固定幅ベース）
   let barLeft = 0;
   let barWidth = 0;
   if (shift.requestedTime) {
     const startMinutes = timeToMinutes(shift.requestedTime.start);
     const endMinutes = timeToMinutes(shift.requestedTime.end);
-    barLeft = minutesToPixel(startMinutes, timeRange);
-    const barRight = minutesToPixel(endMinutes, timeRange);
-    barWidth = barRight - barLeft;
+    barLeft = minutesToPixel(startMinutes, timeRange, hourWidth);
+    barWidth = minutesToPixel(endMinutes, timeRange, hourWidth) - barLeft;
   } else {
-    // 希望時間がない場合は時間軸全体
     const startMinutes = timeRange.start * 60;
     const endMinutes = timeRange.end * 60;
-    barLeft = minutesToPixel(startMinutes, timeRange);
-    const barRight = minutesToPixel(endMinutes, timeRange);
-    barWidth = barRight - barLeft;
+    barLeft = minutesToPixel(startMinutes, timeRange, hourWidth);
+    barWidth = minutesToPixel(endMinutes, timeRange, hourWidth) - barLeft;
   }
 
-  const handleMouseEnter = () => {
-    onHover(shift.id);
-  };
+  const handleMouseEnter = () => onHover(shift.id);
+  const handleMouseLeave = () => onHover(null);
 
-  const handleMouseLeave = () => {
-    onHover(null);
-  };
+  const sortedAllPositions = [...shift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+  const workPositions = sortedAllPositions.filter((p) => !isBreakSegment(p));
+  const breakGaps = computeVisualBreaks(workPositions);
+  const hasWork = workPositions.length > 0;
 
   return (
     <Box
@@ -66,119 +72,109 @@ export const ShiftBar = ({
       top={0}
       pointerEvents={isDragging ? "none" : "auto"}
     >
-      {/* 希望シフトバー（グレー点線、太い） - 編集不可、希望時間がある場合のみ表示（readonly時は非表示） */}
-      {!isReadOnly && hasRequestedTime && (
+      {/* 希望シフトバー（灰色の点線、「希望: HH:MM-HH:MM」ラベルを左寄せで表示） */}
+      {!isReadOnly && hasRequestedTime && shift.requestedTime && (
         <Box
           position="absolute"
           left={0}
           right={0}
           height="28px"
-          bg="transparent"
-          border="2px dashed"
+          bg="gray.50"
+          border="1.5px dashed"
           borderColor="gray.400"
           borderRadius="md"
           top="50%"
           transform="translateY(-50%)"
           pointerEvents="none"
+          display="flex"
+          alignItems="center"
+          px="10px"
           zIndex={1}
-        />
+        >
+          <Text
+            fontSize="10px"
+            fontWeight={600}
+            color="gray.500"
+            whiteSpace="nowrap"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            希望: {shift.requestedTime.start}-{shift.requestedTime.end}
+          </Text>
+        </Box>
       )}
 
-      {/* ポジション色バー（細い、希望シフトの上に重なる） */}
-      {(() => {
-        // ポジションを時間順にソート
-        const sortedPositions = [...shift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+      {/* 勤務ポジション（teal） */}
+      {workPositions.map((pos, index) => {
+        const isResizingPrev = linkedTarget?.prevPosition?.positionId === pos.id && currentMinutes !== undefined;
+        const isResizingNext = linkedTarget?.nextPosition?.positionId === pos.id && currentMinutes !== undefined;
+        const isResizing = isResizingPrev || isResizingNext;
 
-        return sortedPositions.map((pos, index) => {
-          // リサイズ中の対象ポジションは動的に位置を計算（連結リサイズ対応）
-          const isResizingPrev = linkedTarget?.prevPosition?.positionId === pos.id && currentMinutes !== undefined;
-          const isResizingNext = linkedTarget?.nextPosition?.positionId === pos.id && currentMinutes !== undefined;
-          const isResizing = isResizingPrev || isResizingNext;
+        let posStartMinutes = timeToMinutes(pos.start);
+        let posEndMinutes = timeToMinutes(pos.end);
 
-          let posStartMinutes = timeToMinutes(pos.start);
-          let posEndMinutes = timeToMinutes(pos.end);
+        if (isResizingPrev && currentMinutes !== undefined) posEndMinutes = currentMinutes;
+        if (isResizingNext && currentMinutes !== undefined) posStartMinutes = currentMinutes;
 
-          // prevPosition（前のバー）のendを更新
-          if (isResizingPrev && currentMinutes !== undefined) {
-            posEndMinutes = currentMinutes;
+        if (isResizing && posEndMinutes - posStartMinutes < timeRange.unit) return null;
+
+        const posLeftPx = minutesToPixel(posStartMinutes, timeRange, hourWidth);
+        const posRightPx = minutesToPixel(posEndMinutes, timeRange, hourWidth);
+        const relativeLeft = posLeftPx - barLeft;
+        const relativeWidth = posRightPx - posLeftPx;
+
+        const isAdjacentToPrev = index > 0 && workPositions[index - 1].end === pos.start;
+        const isAdjacentToNext = index < workPositions.length - 1 && pos.end === workPositions[index + 1].start;
+
+        const getBorderRadiusProps = () => {
+          if (!isAdjacentToPrev && !isAdjacentToNext) return { borderRadius: "md" };
+          if (!isAdjacentToPrev) {
+            return {
+              borderTopLeftRadius: "md",
+              borderBottomLeftRadius: "md",
+              borderTopRightRadius: "0",
+              borderBottomRightRadius: "0",
+            };
           }
-          // nextPosition（後のバー）のstartを更新
-          if (isResizingNext && currentMinutes !== undefined) {
-            posStartMinutes = currentMinutes;
+          if (!isAdjacentToNext) {
+            return {
+              borderTopLeftRadius: "0",
+              borderBottomLeftRadius: "0",
+              borderTopRightRadius: "md",
+              borderBottomRightRadius: "md",
+            };
           }
+          return { borderRadius: "0" };
+        };
 
-          // UNIT未満になったバーは非表示（上書きプレビュー）
-          if (isResizing && posEndMinutes - posStartMinutes < timeRange.unit) {
-            return null;
-          }
+        return (
+          <Box
+            key={pos.id}
+            position="absolute"
+            left={`${relativeLeft}px`}
+            width={`${relativeWidth}px`}
+            height="22px"
+            bg={BAR_BG}
+            boxShadow={BAR_SHADOW}
+            {...getBorderRadiusProps()}
+            top="50%"
+            transform="translateY(-50%)"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            onClick={(e) => onClick(shift.id, pos.id, e)}
+            cursor="inherit"
+            transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
+            _hover={{ filter: "brightness(1.05)" }}
+            zIndex={2}
+          />
+        );
+      })}
 
-          // 固定幅ベースでピクセル位置を計算
-          const posLeftPx = minutesToPixel(posStartMinutes, timeRange);
-          const posRightPx = minutesToPixel(posEndMinutes, timeRange);
-          // バー全体に対する相対位置を計算
-          const relativeLeft = posLeftPx - barLeft;
-          const relativeWidth = posRightPx - posLeftPx;
-
-          // 隣接判定: 前後のバーと連続しているか
-          const isAdjacentToPrev = index > 0 && sortedPositions[index - 1].end === pos.start;
-          const isAdjacentToNext = index < sortedPositions.length - 1 && pos.end === sortedPositions[index + 1].start;
-
-          // Chakra UI用の角丸プロパティを返す関数
-          const getBorderRadiusProps = () => {
-            if (!isAdjacentToPrev && !isAdjacentToNext) {
-              return { borderRadius: "md" }; // 孤立: 両端丸
-            }
-            if (!isAdjacentToPrev) {
-              // 左端: 左のみ丸
-              return {
-                borderTopLeftRadius: "md",
-                borderBottomLeftRadius: "md",
-                borderTopRightRadius: "0",
-                borderBottomRightRadius: "0",
-              };
-            }
-            if (!isAdjacentToNext) {
-              // 右端: 右のみ丸
-              return {
-                borderTopLeftRadius: "0",
-                borderBottomLeftRadius: "0",
-                borderTopRightRadius: "md",
-                borderBottomRightRadius: "md",
-              };
-            }
-            return { borderRadius: "0" }; // 中間: 角なし
-          };
-
-          return (
-            <Box
-              key={pos.id}
-              position="absolute"
-              left={`${relativeLeft}px`}
-              width={`${relativeWidth}px`}
-              height="20px"
-              bg={pos.color}
-              {...getBorderRadiusProps()}
-              top="50%"
-              transform="translateY(-50%)"
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
-              onClick={(e) => onClick(shift.id, pos.id, e)}
-              cursor="inherit"
-              transition={isResizing ? "width 0.05s ease-out, left 0.05s ease-out" : "all 0.15s"}
-              opacity={0.9}
-              _hover={{ opacity: 1, boxShadow: "0 0 0 2px rgba(0,0,0,0.15)" }}
-              zIndex={2}
-            />
-          );
-        });
-      })()}
-
-      {/* ビジュアル休憩バー（ポジション間のギャップをストライプ表示） */}
-      {shift.positions.length >= 2 &&
+      {/* 休憩ストライプ（勤務ポジション間のギャップ、または break 位置セグメント） */}
+      {hasWork &&
         !linkedTarget &&
-        computeVisualBreaks(shift.positions).map((gap) => {
-          const gapStartPx = minutesToPixel(timeToMinutes(gap.start), timeRange);
-          const gapEndPx = minutesToPixel(timeToMinutes(gap.end), timeRange);
+        breakGaps.map((gap) => {
+          const gapStartPx = minutesToPixel(timeToMinutes(gap.start), timeRange, hourWidth);
+          const gapEndPx = minutesToPixel(timeToMinutes(gap.end), timeRange, hourWidth);
           const relativeLeft = gapStartPx - barLeft;
           const relativeWidth = gapEndPx - gapStartPx;
 
@@ -188,69 +184,51 @@ export const ShiftBar = ({
               position="absolute"
               left={`${relativeLeft}px`}
               width={`${relativeWidth}px`}
-              height="20px"
-              backgroundImage="repeating-linear-gradient(45deg, #9CA3AF, #9CA3AF 4px, transparent 4px, transparent 8px)"
+              height="22px"
               borderRadius="0"
               top="50%"
               transform="translateY(-50%)"
-              opacity={0.5}
+              opacity={0.6}
               pointerEvents="none"
-              zIndex={2}
+              zIndex={3}
+              style={STRIPE_STYLE}
             />
           );
         })}
 
-      {/* 時刻ラベル（ポジションがある場合のみ表示、リサイズ中は非表示） */}
-      {shift.positions.length > 0 &&
+      {/* 勤務時刻ラベル（バーの左側に白文字、リサイズ中は非表示） */}
+      {hasWork &&
         !linkedTarget &&
         (() => {
-          // ポジション群の最小開始時刻・最大終了時刻を計算
-          const positionTimes = shift.positions.map((pos) => ({
-            start: pos.start,
-            end: pos.end,
-          }));
-          const earliestStart = positionTimes.reduce(
-            (min, t) => (t.start < min ? t.start : min),
-            positionTimes[0].start,
-          );
-          const latestEnd = positionTimes.reduce((max, t) => (t.end > max ? t.end : max), positionTimes[0].end);
-          // ポジション全体の位置を計算（固定幅ベース）
-          const posStartPx = minutesToPixel(timeToMinutes(earliestStart), timeRange);
-          const posEndPx = minutesToPixel(timeToMinutes(latestEnd), timeRange);
-          const relativeStartLeft = posStartPx - barLeft;
-          const relativeEndLeft = posEndPx - barLeft;
-
+          const earliestStart = workPositions[0].start;
+          const latestEnd = workPositions[workPositions.length - 1].end;
+          const leftPx = minutesToPixel(timeToMinutes(earliestStart), timeRange, hourWidth) - barLeft;
+          const rightPx = minutesToPixel(timeToMinutes(latestEnd), timeRange, hourWidth) - barLeft;
           return (
-            <>
+            <Box
+              position="absolute"
+              left={`${leftPx}px`}
+              width={`${rightPx - leftPx}px`}
+              top="50%"
+              transform="translateY(-50%)"
+              height="22px"
+              display="flex"
+              alignItems="center"
+              justifyContent="flex-start"
+              px="8px"
+              pointerEvents="none"
+              zIndex={4}
+            >
               <Text
-                position="absolute"
-                left={`${relativeStartLeft + 4}px`}
-                top="50%"
-                transform="translateY(-50%)"
-                fontSize="xs"
-                color="gray.700"
-                fontWeight="semibold"
-                zIndex={3}
-                pointerEvents="none"
-                textShadow="0 0 3px white, 0 0 3px white, 0 0 6px white"
+                fontSize="11px"
+                fontWeight={600}
+                color="white"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+                whiteSpace="nowrap"
               >
-                {earliestStart}
+                {earliestStart}–{latestEnd}
               </Text>
-              <Text
-                position="absolute"
-                left={`${relativeEndLeft - 4}px`}
-                top="50%"
-                transform="translate(-100%, -50%)"
-                fontSize="xs"
-                color="gray.700"
-                fontWeight="semibold"
-                zIndex={3}
-                pointerEvents="none"
-                textShadow="0 0 3px white, 0 0 3px white, 0 0 6px white"
-              >
-                {latestEnd}
-              </Text>
-            </>
+            </Box>
           );
         })()}
     </Box>

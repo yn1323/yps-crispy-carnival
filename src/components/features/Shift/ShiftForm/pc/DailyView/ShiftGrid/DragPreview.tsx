@@ -1,4 +1,6 @@
 import { Box } from "@chakra-ui/react";
+import { useAtomValue } from "jotai";
+import { hourWidthAtom } from "../../../stores";
 import type { DragMode, TimeRange } from "../../../types";
 import { minutesToPixel } from "../../../utils/timeConversion";
 
@@ -11,29 +13,26 @@ type DragPreviewProps = {
 };
 
 export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, positionColor }: DragPreviewProps) => {
+  const hourWidth = useAtomValue(hourWidthAtom);
   if (!mode) return null;
 
-  // 開始と終了を正規化
   const [minMinutes, maxMinutes] =
     startMinutes < currentMinutes ? [startMinutes, currentMinutes] : [currentMinutes, startMinutes];
 
-  // 固定幅ベースでピクセル位置を計算
-  const leftPx = minutesToPixel(minMinutes, timeRange);
-  const rightPx = minutesToPixel(maxMinutes, timeRange);
+  const leftPx = minutesToPixel(minMinutes, timeRange, hourWidth);
+  const rightPx = minutesToPixel(maxMinutes, timeRange, hourWidth);
   const widthPx = rightPx - leftPx;
 
-  // ドラッグ範囲が小さすぎる場合は表示しない（5px未満）
   if (widthPx < 5) return null;
 
-  // モードに応じた色とスタイル（希望シフトバーは編集不可のため、ポジション関連のみ）
   const getPreviewStyle = () => {
     switch (mode) {
       case "position-resize-start":
       case "position-resize-end":
         return {
-          bg: positionColor ?? "blue.400",
+          bg: positionColor ?? "#0d9488",
           opacity: 0.6,
-          height: "20px",
+          height: "22px",
           borderRadius: "md",
           border: "2px dashed",
           borderColor: "gray.600",
@@ -41,9 +40,9 @@ export const DragPreview = ({ mode, startMinutes, currentMinutes, timeRange, pos
 
       case "paint":
         return {
-          bg: positionColor ?? "blue.400",
+          bg: "#0d9488",
           opacity: 0.5,
-          height: "20px",
+          height: "22px",
           borderRadius: "md",
         };
 
