@@ -66,12 +66,12 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
 
               <Flex gap={3} direction={{ base: "column", lg: "row" }} align={{ lg: "flex-start" }}>
                 <Field.Root w={{ lg: "200px" }} flexShrink={0} invalid={!!nameError} minH={{ lg: "60px" }}>
-                  <Input placeholder="例: 田中 花子" {...register(`entries.${index}.name`)} />
+                  <Input placeholder="例：田中 花子" {...register(`entries.${index}.name`)} />
                   {nameError && <Field.ErrorText>{nameError.message}</Field.ErrorText>}
                 </Field.Root>
 
                 <Field.Root invalid={!!emailError} flex={1} minH={{ lg: "60px" }}>
-                  <Input placeholder="例: hanako@example.com" {...register(`entries.${index}.email`)} />
+                  <Input placeholder="例：hanako@example.com" {...register(`entries.${index}.email`)} />
                   {emailError && <Field.ErrorText>{emailError.message}</Field.ErrorText>}
                 </Field.Root>
 
@@ -91,7 +91,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
           onClick={() => append(EMPTY_ENTRY)}
         >
           <LuPlus />
-          追加
+          もう1人追加
         </Button>
       </Stack>
     </form>
