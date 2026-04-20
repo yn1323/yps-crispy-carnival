@@ -102,12 +102,12 @@ export const StaffRow = ({
             {staff.name}
           </Text>
           {!isReadOnly && status === "no_request" && (
-            <Text color="gray.400" fontSize="10px" fontWeight={600} flexShrink={0}>
+            <Text color="gray.400" fontSize="10px" fontWeight={600} flexShrink={0} ml="auto">
               休み希望
             </Text>
           )}
           {!isReadOnly && status === "not_submitted" && (
-            <Text fontSize="10px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+            <Text fontSize="10px" fontWeight={600} flexShrink={0} ml="auto" style={{ color: "#b45309" }}>
               未提出
             </Text>
           )}

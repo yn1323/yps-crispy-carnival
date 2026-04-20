@@ -8,7 +8,7 @@ import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
 
-const STAFF_COL_WIDTH = 140;
+const STAFF_COL_WIDTH = 200;
 
 type ShiftGridProps = {
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
