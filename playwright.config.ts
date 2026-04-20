@@ -35,13 +35,18 @@ export default defineConfig({
   workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
+  /* expect() の待機上限。エラー発生時に即座に失敗を返すため短めに設定 */
+  expect: {
+    timeout: process.env.CI ? 20_000 : 10_000,
+  },
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: "http://localhost:3000",
 
-    /* ローカルはサーバー起動済みで速いため短く（CIはPlaywrightデフォルト30sを使用） */
-    ...(process.env.CI ? {} : { timeout: 5_000 }),
+    /* アクション/遷移単位の待機上限。失敗を早く検知するためCIでも10秒に抑える */
+    actionTimeout: process.env.CI ? 20_000 : 10_000,
+    navigationTimeout: process.env.CI ? 20_000 : 10_000,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
@@ -69,18 +74,6 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
-
-    // Step 3: サブユーザー（新規店長）のテスト
-    // DB未登録状態での初回ログインをテスト
-    // {
-    //   name: "認証済みテストB",
-    //   testMatch: /scenarios\/userB\/.*\.test\.ts/,
-    //   use: {
-    //     ...devices["Desktop Chrome"],
-    //     storageState: "e2e/.clerk/user-b.json",
-    //   },
-    //   dependencies: ["setup"],
-    // },
   ],
 
   webServer: {

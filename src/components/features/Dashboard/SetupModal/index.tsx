@@ -138,7 +138,7 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete }: Props) => {
                 </Button>
               ) : (
                 <Button type="submit" form="setup-step2" colorPalette="teal">
-                  登録する
+                  お店を登録する
                 </Button>
               )}
             </Flex>

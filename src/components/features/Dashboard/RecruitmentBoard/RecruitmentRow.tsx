@@ -15,17 +15,17 @@ type Props = {
 
 const statusConfig: Record<
   RecruitmentDisplayStatus,
-  { label: string; colorPalette: "teal" | "orange" | "gray"; accent: string }
+  { label: string; colorPalette: "teal" | "orange" | "gray"; accent: string; cta: string }
 > = {
-  collecting: { label: "収集中", colorPalette: "teal", accent: "teal.400" },
-  "past-deadline": { label: "締切済み", colorPalette: "orange", accent: "orange.400" },
-  confirmed: { label: "確定済み", colorPalette: "gray", accent: "gray.400" },
+  collecting: { label: "募集中", colorPalette: "teal", accent: "teal.400", cta: "希望を見る" },
+  "past-deadline": { label: "締切済み", colorPalette: "orange", accent: "orange.400", cta: "シフトを組む" },
+  confirmed: { label: "確定済み", colorPalette: "gray", accent: "gray.400", cta: "シフトを見る" },
 };
 
 export function RecruitmentRow({ recruitment, onOpenShiftBoard }: Props) {
   const { _id, periodStart, periodEnd, deadline, responseCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
-  const { label, colorPalette, accent } = statusConfig[displayStatus];
+  const { label, colorPalette, accent, cta } = statusConfig[displayStatus];
   const relativeText = relativeDeadline(deadline, displayStatus);
 
   return (
@@ -56,7 +56,7 @@ export function RecruitmentRow({ recruitment, onOpenShiftBoard }: Props) {
             variant="ghost"
             colorPalette="teal"
             size="xs"
-            aria-label="シフトを見る"
+            aria-label={cta}
             onClick={() => onOpenShiftBoard(_id)}
             display={{ base: "inline-flex", lg: "none" }}
             flexShrink={0}
@@ -90,7 +90,7 @@ export function RecruitmentRow({ recruitment, onOpenShiftBoard }: Props) {
           display={{ base: "none", lg: "inline-flex" }}
           flexShrink={0}
         >
-          シフトを見る
+          {cta}
           <LuArrowRight />
         </Button>
       </Flex>
