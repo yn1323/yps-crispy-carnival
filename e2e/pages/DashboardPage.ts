@@ -23,7 +23,7 @@ export class DashboardPage {
 
     await this.page.getByLabel("あなたの名前").fill(data.ownerName);
     await this.page.getByLabel("メールアドレス").fill(data.ownerEmail);
-    await this.page.getByRole("button", { name: "登録する" }).click();
+    await this.page.getByRole("button", { name: "お店を登録する" }).click();
   }
 
   async expectSetupComplete() {
@@ -35,8 +35,8 @@ export class DashboardPage {
     await expect(this.page.getByRole("dialog", { name: "スタッフを追加" })).toBeVisible();
 
     const form = this.page.locator("[id='add-staff-form']");
-    const nameInputs = form.getByPlaceholder("例: 田中 花子");
-    const emailInputs = form.getByPlaceholder("例: hanako@example.com");
+    const nameInputs = form.getByPlaceholder("例：田中 花子");
+    const emailInputs = form.getByPlaceholder("例：hanako@example.com");
 
     for (let i = 0; i < entries.length; i++) {
       await nameInputs.nth(i).fill(entries[i].name);
@@ -49,14 +49,14 @@ export class DashboardPage {
       await deleteButtons.last().click();
     }
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "登録する" }).click();
+    await this.page.getByRole("dialog").getByRole("button", { name: "スタッフを追加する" }).click();
     await expect(this.page.getByText("スタッフを追加しました").first()).toBeVisible();
     await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
   }
 
   async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
-    await this.page.getByRole("button", { name: "新しく募集する" }).click();
-    await expect(this.page.getByRole("dialog", { name: "シフト希望を集める" })).toBeVisible();
+    await this.page.getByRole("button", { name: "新しい募集をつくる" }).click();
+    await expect(this.page.getByRole("dialog", { name: "新しい募集をつくる" })).toBeVisible();
 
     const form = this.page.locator("[id='create-recruitment-form']");
     const dateInputs = form.locator("input[type='date']");
@@ -64,18 +64,18 @@ export class DashboardPage {
     await dateInputs.nth(1).fill(data.periodEnd);
     await dateInputs.nth(2).fill(data.deadline);
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "作成する" }).click();
-    await expect(this.page.getByText("シフトを作成しました").first()).toBeVisible();
-    await expect(this.page.getByText("シフトを作成しました").first()).not.toBeVisible();
+    await this.page.getByRole("dialog").getByRole("button", { name: "募集をつくる" }).click();
+    await expect(this.page.getByText("募集をつくりました").first()).toBeVisible();
+    await expect(this.page.getByText("募集をつくりました").first()).not.toBeVisible();
   }
 
   async openShiftBoard() {
-    await this.page.getByRole("button", { name: "シフトを見る" }).first().click();
-    const warningDialog = this.page.getByRole("alertdialog", { name: "シフト希望がまだ変わるかも" });
+    await this.recruitmentOpenButton().first().click();
+    const warningDialog = this.page.getByRole("alertdialog", { name: "まだ希望がそろっていません" });
     const navigated = this.page.waitForURL(/\/shiftboard\//);
     const dialogAppeared = warningDialog.waitFor({ state: "visible" }).then(() => true);
     if (await Promise.race([dialogAppeared, navigated.then(() => false)])) {
-      await warningDialog.getByRole("button", { name: "編集画面へ進む" }).click();
+      await warningDialog.getByRole("button", { name: "このまま進む" }).click();
       await navigated;
     }
   }
@@ -94,15 +94,15 @@ export class DashboardPage {
 
     await expect(this.page.getByRole("dialog", { name: "スタッフを編集" })).toBeVisible();
     const form = this.page.locator("[id='edit-staff-form']");
-    const nameInput = form.getByPlaceholder("例: 田中 花子");
-    const emailInput = form.getByPlaceholder("例: hanako@example.com");
+    const nameInput = form.getByPlaceholder("例：田中 花子");
+    const emailInput = form.getByPlaceholder("例：hanako@example.com");
 
     await nameInput.clear();
     await nameInput.fill(newData.name);
     await emailInput.clear();
     await emailInput.fill(newData.email);
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "更新する" }).click();
+    await this.page.getByRole("dialog").getByRole("button", { name: "保存する" }).click();
     await expect(this.page.getByText("スタッフ情報を更新しました")).toBeVisible();
   }
 
@@ -133,7 +133,11 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardVisible() {
-    await expect(this.page.getByRole("button", { name: "シフトを見る" }).first()).toBeVisible();
+    await expect(this.recruitmentOpenButton().first()).toBeVisible();
+  }
+
+  private recruitmentOpenButton() {
+    return this.recruitmentSection().getByRole("button", { name: /希望を見る|シフトを組む|シフトを見る/ });
   }
 
   async editShopSettings(data: { shopName?: string; shiftStartTime?: string; shiftEndTime?: string }) {
@@ -174,11 +178,11 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardCount(count: number) {
-    await expect(this.page.getByRole("button", { name: "シフトを見る" })).toHaveCount(count);
+    await expect(this.recruitmentOpenButton()).toHaveCount(count);
   }
 
   async expectStaffRowCount(count: number) {
-    await expect(this.staffSection().getByRole("button", { name: "メニュー" })).toHaveCount(count);
+    await expect(this.staffSection().getByRole("button", { name: "スタッフの操作メニュー" })).toHaveCount(count);
   }
 
   async expectLoadMoreRecruitmentVisible() {
@@ -206,8 +210,10 @@ export class DashboardPage {
   }
 
   private async openStaffMenu(staffName: string) {
-    const row = this.page.getByText(staffName).locator("xpath=ancestor::div[.//button[@aria-label='メニュー']][1]");
-    await row.getByRole("button", { name: "メニュー" }).click();
+    const row = this.page
+      .getByText(staffName)
+      .locator("xpath=ancestor::div[.//button[@aria-label='スタッフの操作メニュー']][1]");
+    await row.getByRole("button", { name: "スタッフの操作メニュー" }).click();
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択

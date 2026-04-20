@@ -29,7 +29,7 @@ export const InDialog: Story = {
       isOpen={true}
       onOpenChange={() => {}}
       formId="edit-staff-form"
-      submitLabel="更新する"
+      submitLabel="保存する"
       onClose={() => {}}
     >
       <EditStaffForm staff={mockStaffs[0]} onSubmit={() => {}} />

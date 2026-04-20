@@ -37,7 +37,7 @@ export const InDialog: Story = {
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
-      submitLabel="登録する"
+      submitLabel="スタッフを追加する"
       onClose={() => {}}
       maxW="640px"
       maxH="85dvh"
