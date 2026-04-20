@@ -60,12 +60,7 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
     [dates, weekStart],
   );
 
-  const initialOpen = useMemo(() => {
-    const o: Record<number, boolean> = {};
-    for (let i = 0; i < weeks.length; i++) o[i] = true;
-    return o;
-  }, [weeks.length]);
-  const [open, setOpen] = useState(initialOpen);
+  const [open, setOpen] = useState<Record<number, boolean>>({});
 
   const lookup = useMemo(() => {
     const map = new Map<string, [string, string]>();
@@ -90,7 +85,7 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
       <Stack gap={3}>
         {weeks.map((wkDates, wi) => {
           if (wkDates.length === 0) return null;
-          const isOpen = !!open[wi];
+          const isOpen = open[wi] !== false;
           return (
             <WeekCard
               key={wkDates[0].iso}
