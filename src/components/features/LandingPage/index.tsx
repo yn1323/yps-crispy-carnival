@@ -4,7 +4,17 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
 import type { IconType } from "react-icons";
 import { LuCalendarCheck, LuCheck, LuSend } from "react-icons/lu";
-import { PiArrowRight, PiChatsCircle, PiClock, PiEnvelopeSimple, PiNote, PiNotebook, PiTable } from "react-icons/pi";
+import {
+  PiArrowRight,
+  PiArrowSquareOut,
+  PiChatsCircle,
+  PiClock,
+  PiEnvelopeSimple,
+  PiNote,
+  PiNotebook,
+  PiTable,
+} from "react-icons/pi";
+import { BrowserMockup } from "@/src/components/ui/BrowserMockup";
 import { type Faq, faqs } from "./faqs";
 
 const ANIMATIONS = `
@@ -27,6 +37,7 @@ export const LandingPage = () => (
     <style>{ANIMATIONS}</style>
     <Nav />
     <Hero />
+    <DemoSection />
     <PointsSection />
     <ToolsSection />
     <HowSection />
@@ -133,6 +144,73 @@ export const Nav = () => (
         ためしてみる
       </Link>
     </Flex>
+  </Box>
+);
+
+type PreviewRow = { name: string; start: number; width: number };
+
+const PREVIEW_ROWS: PreviewRow[] = [
+  { name: "田中", start: 14, width: 38 },
+  { name: "山田", start: 32, width: 42 },
+  { name: "佐藤", start: 8, width: 28 },
+];
+
+const DemoSection = () => (
+  <Box as="section" id="demo" bg="white" px={{ base: 5, lg: 6 }} pt={{ base: 14, lg: 20 }} pb={{ base: 14, lg: 22 }}>
+    <Box mx="auto" w="full" maxW="1024px">
+      <VStack maxW="720px" mx="auto" gap={0} textAlign="center" mb={{ base: 10, lg: 14 }}>
+        <Eyebrow>おためし</Eyebrow>
+        <SectionHeading>まずはさわってみる</SectionHeading>
+        <SectionSub>デモは登録なしで使えます</SectionSub>
+      </VStack>
+
+      <Box mx="auto" w="full" maxW="680px">
+        <BrowserMockup url="shiftori.app/demo">
+          <DemoPreviewContent />
+        </BrowserMockup>
+      </Box>
+
+      <VStack mt={{ base: 10, lg: 12 }} gap={3}>
+        <Link href="/demo" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
+          <Button colorPalette="teal" h="56px" px={10} fontSize="18px" fontWeight="bold" borderRadius="full">
+            デモを開く <PiArrowSquareOut />
+          </Button>
+        </Link>
+      </VStack>
+    </Box>
+  </Box>
+);
+
+const DemoPreviewContent = () => (
+  <Box px={{ base: 5, lg: 8 }} py={{ base: 6, lg: 8 }}>
+    <Flex align="center" justify="space-between" mb={5}>
+      <Text fontSize={{ base: "14px", lg: "16px" }} fontWeight="bold">
+        カフェ シフトリ · 5/2 (土)
+      </Text>
+      <Text fontSize="12px" color="fg.muted">
+        提出 3/3人
+      </Text>
+    </Flex>
+    <VStack align="stretch" gap={3}>
+      {PREVIEW_ROWS.map((r) => (
+        <Box key={r.name} display="grid" gridTemplateColumns="64px 1fr" alignItems="center" h="32px">
+          <Text fontSize="13px" fontWeight="medium">
+            {r.name}
+          </Text>
+          <Box position="relative" h="22px" bg="gray.100" borderRadius="4px" overflow="hidden">
+            <Box
+              position="absolute"
+              top="3px"
+              bottom="3px"
+              left={`${r.start}%`}
+              w={`${r.width}%`}
+              bg="teal.500"
+              borderRadius="3px"
+            />
+          </Box>
+        </Box>
+      ))}
+    </VStack>
   </Box>
 );
 
