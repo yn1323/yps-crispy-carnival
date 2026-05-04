@@ -70,7 +70,6 @@ export const StaffRow = ({
     <Flex
       borderBottomWidth="1px"
       borderColor="gray.100"
-      _last={{ borderBottomWidth: 0 }}
       _hover={{ bg: isCurrentStaff ? "blue.50" : "gray.50" }}
       data-tour={dataTour}
     >

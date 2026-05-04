@@ -8,6 +8,7 @@ export const Route = createFileRoute("/privacy")({
       title: "プライバシーポリシー",
       description: "シフトリのプライバシーポリシー",
       canonical: "/privacy",
+      noindex: true,
     }),
   }),
   component: PrivacyPolicy,

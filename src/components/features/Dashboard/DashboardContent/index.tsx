@@ -18,7 +18,7 @@ import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffRoster } from "../StaffRoster";
-import { getDisplayStatus, type PaginationStatus, type Recruitment, type Staff } from "../types";
+import type { PaginationStatus, Recruitment, Staff } from "../types";
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
@@ -45,13 +45,11 @@ export const DashboardContent = ({
   const editStaffModal = useDialog();
   const editShopModal = useDialog();
   const deleteStaffDialog = useDialog();
-  const shiftBoardWarning = useDialog();
   const setupModal = useDialog();
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
-  const [pendingRecruitmentId, setPendingRecruitmentId] = useState<string | null>(null);
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
@@ -62,25 +60,8 @@ export const DashboardContent = ({
 
   const Modal = isMobile ? BottomSheet : Dialog;
 
-  const navigateToShiftBoard = (recruitmentId: string) => {
-    navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
-  };
-
   const handleOpenShiftBoard = (recruitmentId: string) => {
-    const recruitment = recruitments.find((r) => r._id === recruitmentId);
-    if (recruitment && getDisplayStatus(recruitment) === "collecting") {
-      setPendingRecruitmentId(recruitmentId);
-      shiftBoardWarning.open();
-      return;
-    }
-    navigateToShiftBoard(recruitmentId);
-  };
-
-  const handleConfirmNavigation = () => {
-    if (pendingRecruitmentId) {
-      navigateToShiftBoard(pendingRecruitmentId);
-    }
-    shiftBoardWarning.close();
+    navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
   };
 
   const handleSetupComplete = async (data: SetupData) => {
@@ -262,18 +243,6 @@ export const DashboardContent = ({
         <Text fontSize="sm" color="gray.600">
           この操作は取り消せません。
         </Text>
-      </Dialog>
-
-      <Dialog
-        title="まだ希望がそろっていません"
-        isOpen={shiftBoardWarning.isOpen}
-        onOpenChange={shiftBoardWarning.onOpenChange}
-        onClose={shiftBoardWarning.close}
-        onSubmit={handleConfirmNavigation}
-        submitLabel="このまま進む"
-        role="alertdialog"
-      >
-        <Text>締切前のため、編集中に新しい希望が届くと、組んだシフトに反映されないことがあります。</Text>
       </Dialog>
 
       {isSetupRequired && (

@@ -87,7 +87,7 @@ export const SPOverviewView = () => {
               bg="white"
               borderRadius="lg"
               borderWidth="1px"
-              borderColor={isOpen ? "teal.300" : "gray.200"}
+              borderColor="gray.200"
               overflow="hidden"
               boxShadow={isOpen ? "0 1px 3px rgba(0,0,0,0.04)" : "none"}
             >
@@ -96,11 +96,10 @@ export const SPOverviewView = () => {
                 gap={2}
                 px={3}
                 py={3}
-                bg={isOpen ? "teal.50" : "white"}
                 cursor="pointer"
                 onClick={() => setOpen({ ...open, [wi]: !isOpen })}
                 borderBottomWidth={isOpen ? "1px" : "0"}
-                borderColor="teal.200"
+                borderColor="gray.100"
               >
                 <Flex
                   w="24px"

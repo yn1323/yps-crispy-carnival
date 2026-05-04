@@ -26,9 +26,12 @@ type ShiftFormProps = {
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
   onShiftsChange?: (shifts: ShiftData[]) => void;
+  onViewModeChange?: (mode: ViewMode) => void;
   onSaveDraft?: () => void;
   onConfirm?: () => void;
   isConfirmed?: boolean;
+  onRemind?: () => void;
+  lastSentAtLabel?: string;
 };
 
 const ShiftFormInner = ({
@@ -46,9 +49,12 @@ const ShiftFormInner = ({
   initialViewMode,
   initialSortMode,
   onShiftsChange,
+  onViewModeChange,
   onSaveDraft,
   onConfirm,
   isConfirmed = false,
+  onRemind,
+  lastSentAtLabel,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -75,11 +81,16 @@ const ShiftFormInner = ({
   }, [shifts]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
+  const onViewModeChangeRef = useRef(onViewModeChange);
+  onViewModeChangeRef.current = onViewModeChange;
+
+  useEffect(() => {
+    onViewModeChangeRef.current?.(viewMode);
+  }, [viewMode]);
   const unsubmittedNames = useMemo(() => staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [staffs]);
 
   return (
     <>
-      {/* PC */}
       <Box
         display={{ base: "none", lg: "flex" }}
         flexDirection="column"
@@ -97,6 +108,8 @@ const ShiftFormInner = ({
           onSaveDraft={onSaveDraft}
           onConfirm={onConfirm}
           unsubmittedNames={unsubmittedNames}
+          onRemind={onRemind}
+          lastSentAtLabel={lastSentAtLabel}
         >
           <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
             <DailyView />
@@ -106,7 +119,6 @@ const ShiftFormInner = ({
           </Box>
         </Shell>
       </Box>
-      {/* SP */}
       <Box
         display={{ base: "flex", lg: "none" }}
         flexDirection="column"
@@ -124,6 +136,8 @@ const ShiftFormInner = ({
           onSaveDraft={onSaveDraft}
           onConfirm={onConfirm}
           unsubmittedNames={unsubmittedNames}
+          onRemind={onRemind}
+          lastSentAtLabel={lastSentAtLabel}
         >
           <Box display={viewMode === "daily" ? "block" : "none"} flex={1} overflow="auto">
             <SPDailyView />
@@ -146,6 +160,8 @@ type ShellProps = {
   onSaveDraft?: () => void;
   onConfirm?: () => void;
   unsubmittedNames: string[];
+  onRemind?: () => void;
+  lastSentAtLabel?: string;
   children: ReactNode;
 };
 
@@ -158,6 +174,8 @@ const Shell = ({
   onSaveDraft,
   onConfirm,
   unsubmittedNames,
+  onRemind,
+  lastSentAtLabel,
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
@@ -183,7 +201,9 @@ const Shell = ({
     <Flex flex={1} minH={0} direction="column">
       {children}
     </Flex>
-    {!isReadOnly && unsubmittedNames.length > 0 && <UnsubmittedStrip names={unsubmittedNames} />}
+    {!isReadOnly && unsubmittedNames.length > 0 && (
+      <UnsubmittedStrip names={unsubmittedNames} onRemind={onRemind} lastSentAtLabel={lastSentAtLabel} />
+    )}
   </Flex>
 );
 

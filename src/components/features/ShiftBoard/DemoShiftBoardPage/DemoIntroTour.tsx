@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import type { ShiftData } from "@/src/components/features/Shift/ShiftForm/types";
 import { type EventData, Tour, type TourHandle, type TourStep } from "@/src/components/ui/Tour";
+import { isPrerendering } from "@/src/helpers/seo";
 
 const PC_BREAKPOINT = 1024;
 
@@ -86,6 +87,9 @@ export const DemoIntroTour = forwardRef<TourHandle, Props>(({ run, shifts, day1,
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
   }, []);
+
+  // prerender 時はツアーUIを焼き込まない（初回訪問者にツアーが「2回目」のように見えるのを防ぐ）
+  if (isPrerendering()) return null;
 
   if (!isPcViewport) return null;
 

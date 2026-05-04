@@ -32,6 +32,17 @@ export function todayJST(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
 }
 
+/** Unix ms → "M/D(曜) HH:mm"（JST） */
+export function formatDateTimeLabel(ms: number): string {
+  const jst = new Date(ms + 9 * 60 * 60 * 1000);
+  const month = jst.getUTCMonth() + 1;
+  const day = jst.getUTCDate();
+  const dayName = DAY_NAMES[jst.getUTCDay()];
+  const hours = String(jst.getUTCHours()).padStart(2, "0");
+  const minutes = String(jst.getUTCMinutes()).padStart(2, "0");
+  return `${month}/${day}(${dayName}) ${hours}:${minutes}`;
+}
+
 /** "2026-01-20", "2026-01-26" → ["2026-01-20", "2026-01-21", ...] */
 export function generateDateRange(start: string, end: string): string[] {
   const dates: string[] = [];
