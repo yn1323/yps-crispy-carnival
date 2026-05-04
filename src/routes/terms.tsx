@@ -8,6 +8,7 @@ export const Route = createFileRoute("/terms")({
       title: "利用規約",
       description: "シフトリの利用規約",
       canonical: "/terms",
+      noindex: true,
     }),
   }),
   component: Terms,

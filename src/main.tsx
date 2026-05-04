@@ -9,6 +9,7 @@ import { ConvexClientProvider } from "@/src/components/config/ConvexProvider.tsx
 import { customErrorMap } from "@/src/configs/zod/zop-setup.ts";
 import { CLERK_PUBLISHABLE_KEY, CONVEX_URL, GTM_ID } from "@/src/constants/env";
 import { initGTM } from "@/src/helpers/gtm";
+import { isPrerendering } from "@/src/helpers/seo";
 import reportWebVitals from "./reportWebVitals.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
@@ -35,7 +36,6 @@ z.config({ customError: customErrorMap });
 
 // Render the app
 const rootElement = document.getElementById("app");
-const isPrerendering = (window as unknown as { __PRERENDER__?: boolean }).__PRERENDER__ === true;
 if (rootElement) {
   const tree = (
     <StrictMode>
@@ -48,7 +48,7 @@ if (rootElement) {
       </ChakraProvider>
     </StrictMode>
   );
-  if (!isPrerendering && rootElement.innerHTML) {
+  if (!isPrerendering() && rootElement.innerHTML) {
     // Prerender で生成された DOM の上にクライアントで hydrate する。
     // hydrate は既存 DOM をそのまま活かしつつイベントハンドラをアタッチするため FOUC もない。
     ReactDOM.hydrateRoot(rootElement, tree);

@@ -6,8 +6,10 @@ export type ShiftBoardData = {
     _id: Id<"recruitments">;
     periodStart: string;
     periodEnd: string;
+    deadline: string;
     status: "open" | "confirmed";
     confirmedAt: number | null;
+    lastReminderSentAt: number | null;
   };
   staffs: Array<{
     _id: Id<"staffs">;

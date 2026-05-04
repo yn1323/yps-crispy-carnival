@@ -80,12 +80,6 @@ const SectionHeading = ({ children }: { children: string }) => (
   </Heading>
 );
 
-const SectionSub = ({ children }: { children: string }) => (
-  <Text mt={4} fontSize="17px" color="fg.muted" lineHeight={1.75} textAlign="center">
-    {children}
-  </Text>
-);
-
 export const Nav = () => (
   <Box
     as="nav"
@@ -169,11 +163,10 @@ const DemoSection = () => (
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center" mb={{ base: 10, lg: 14 }}>
         <Eyebrow>おためし</Eyebrow>
         <SectionHeading>まずはさわってみる</SectionHeading>
-        <SectionSub>デモは登録なしで使えます</SectionSub>
       </VStack>
 
       <Box mx="auto" w="full" maxW="680px">
-        <BrowserMockup url="shiftori.app/demo/shiftboard">
+        <BrowserMockup url="shiftori.app">
           <DemoPreviewContent />
         </BrowserMockup>
       </Box>
@@ -181,7 +174,8 @@ const DemoSection = () => (
       <VStack mt={{ base: 10, lg: 12 }} gap={3}>
         <Link href="/demo/shiftboard" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
           <Button colorPalette="teal" h="56px" px={10} fontSize="18px" fontWeight="bold" borderRadius="full">
-            デモを開く <PiArrowSquareOut />
+            デモを開く
+            <PiArrowSquareOut />
           </Button>
         </Link>
       </VStack>
@@ -273,7 +267,7 @@ const Hero = () => (
           whiteSpace="pre-line"
           color="gray.900"
         >
-          {"シフトづくり\nもっと"}
+          {"シフトづくりを\nもっと"}
           <Box as="em" display="inline-block" position="relative" fontStyle="normal" color="teal.600" zIndex={1}>
             ラクに
             <Box
@@ -287,10 +281,9 @@ const Hero = () => (
               zIndex={-1}
             />
           </Box>
-          できる
         </Heading>
         <Text mt={7} fontSize={{ base: "16px", lg: "20px" }} color="gray.700" lineHeight={1.7} whiteSpace="pre-line">
-          シフトづくりのめんどう、ぜんぶおまかせ
+          シフトづくり ぜんぶおまかせ
         </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
@@ -320,7 +313,7 @@ const Hero = () => (
           </SignInButton>
         </Stack>
         <HStack mt={7} gap={6} fontSize="13px" color="fg.muted" flexWrap="wrap">
-          <HeroMeta>登録30秒</HeroMeta>
+          <HeroMeta>登録無料</HeroMeta>
           <HeroMeta>専用アプリ不要</HeroMeta>
         </HStack>
       </VStack>
@@ -345,10 +338,7 @@ const SHIFT_DATA: ShiftRow[] = [
   { name: "田中 拓也", bars: [{ start: 22, width: 46 }] },
   {
     name: "佐藤 美咲",
-    bars: [
-      { start: 6, width: 28 },
-      { start: 52, width: 28 },
-    ],
+    bars: [{ start: 6, width: 28 }],
   },
   { name: "鈴木 健太", bars: [{ start: 40, width: 38 }] },
   { name: "山本 優子", bars: [{ start: 56, width: 32 }] },
@@ -483,23 +473,23 @@ const POINTS: Point[] = [
   {
     num: "01",
     icon: LuSend,
-    title: "募集はワンクリック",
+    title: "シフト募集",
     lead: "期間を決めて一斉送信",
-    body: "スタッフはメールで届くリンクを開くだけです。\n登録も専用アプリのインストールもいりません。",
+    body: "スタッフはメールで届くリンクから申請\n専用アプリのインストールも不要",
   },
   {
     num: "02",
     icon: LuCalendarCheck,
     title: "スマホで提出",
-    lead: "時間帯も選ぶだけ",
-    body: "外出先でもスキマ時間で提出できます。\n日付をタップするだけのフォームです。",
+    lead: "希望シフトを選ぶだけ",
+    body: "スキマ時間ですぐに提出できます。\n日付、時間を選ぶ操作も簡単！",
   },
   {
     num: "03",
     icon: LuCheck,
-    title: "確定もワンクリック",
-    lead: "集まった希望を見ながら調整",
-    body: "確定したシフトはメールで届きます。\n「何時から何時？」のLINEがなくなります。",
+    title: "シフトの微調整",
+    lead: "集めた希望を見ながら調整",
+    body: "修正完了でメールを一斉送信。\nみんな手元ですぐに確認可能！",
   },
 ];
 
@@ -508,8 +498,7 @@ const PointsSection = () => (
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
         <Eyebrow>できること</Eyebrow>
-        <SectionHeading>{"少人数のお店のシフトづくり\nぜんぶここで"}</SectionHeading>
-        <SectionSub>募集から確定まで、ステップは3つだけ</SectionSub>
+        <SectionHeading>{"お店のシフトづくり\nぜんぶここで"}</SectionHeading>
       </VStack>
       <SimpleGrid columns={{ base: 1, lg: 3 }} gap={{ base: 4, lg: 6 }} mt={{ base: 10, lg: 14 }}>
         {POINTS.map((p) => (
@@ -584,8 +573,7 @@ const ToolsSection = () => (
   >
     <VStack maxW="720px" mx="auto" gap={0} textAlign="center" mb={{ base: 10, lg: 16 }}>
       <Eyebrow>道具をひとつに</Eyebrow>
-      <SectionHeading>日曜の夜、またシフトづくり</SectionHeading>
-      <SectionSub>LINEを遡って、Excelに転記して、気づけば2時間</SectionSub>
+      <SectionHeading>シフトリ1つで解決</SectionHeading>
     </VStack>
     <Box
       mx="auto"
@@ -659,9 +647,9 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
 );
 
 const STEPS: { title: string; body: string }[] = [
-  { title: "募集期間を決める", body: "期間を決めて、スタッフ全員にメールでリンクを送ります。" },
-  { title: "希望シフトを集める", body: "スタッフがスマホから希望を入力します。" },
-  { title: "確定シフトを通知", body: "調整したシフトをボタンひとつで全員に届けます。" },
+  { title: "募集期間を決める", body: "期間を決めてスタッフ全員に募集開始メールを一斉送信" },
+  { title: "希望シフトを集める", body: "スタッフがスマホから希望を入力" },
+  { title: "確定シフトを通知", body: "微調整したシフトを全員に一斉送信" },
 ];
 
 const HowSection = () => (
@@ -669,7 +657,7 @@ const HowSection = () => (
     <Box mx="auto" w="full" maxW="1024px">
       <VStack maxW="720px" mx="auto" gap={0} textAlign="center">
         <Eyebrow>3ステップ</Eyebrow>
-        <SectionHeading>今週のシフトから、使える</SectionHeading>
+        <SectionHeading>すぐに使えます</SectionHeading>
       </VStack>
       <Box
         mt={{ base: 10, lg: 14 }}
@@ -740,7 +728,6 @@ const FaqSection = () => {
       <Box mx="auto" w="full" maxW="720px">
         <VStack gap={0} textAlign="center">
           <Eyebrow>よくある質問</Eyebrow>
-          <SectionHeading>聞きたいことぜんぶ</SectionHeading>
         </VStack>
         <VStack gap={3} align="stretch" mt={12}>
           {faqs.map((f, i) => (
@@ -824,10 +811,7 @@ const BottomCta = () => (
       >
         {"今日のシフトから\nラクにしよう"}
       </Heading>
-      <Text fontSize="16px" color="fg.muted" mt={4} mb={8}>
-        メールだけで、30秒ではじめられます
-      </Text>
-      <Stack direction={{ base: "column", sm: "row" }} gap={4} justify="center" flexWrap="wrap">
+      <Stack direction={{ base: "column", sm: "row" }} gap={4} justify="center" flexWrap="wrap" mt={4}>
         <SignUpButton mode="modal">
           <Button colorPalette="teal" h="56px" px={8} fontSize="18px" fontWeight="bold" borderRadius="full">
             はじめてみる <PiArrowRight />
@@ -869,7 +853,9 @@ export const Footer = () => (
           <Box as="span">シフトリ</Box>
         </HStack>
         <Text fontSize="14px" opacity={0.85} lineHeight={1.7} maxW="260px">
-          少人数のお店のシフトづくりをもっとラクに
+          少人数のお店のシフトづくりを
+          <br />
+          もっとラクに
         </Text>
       </VStack>
       <FooterCol
@@ -897,14 +883,13 @@ export const Footer = () => (
       borderColor="whiteAlpha.300"
       fontSize="12px"
       opacity={0.7}
-      justify="space-between"
+      justify="center"
       flexWrap="wrap"
       gap={2}
     >
       <Box as="span">
         © {new Date().getFullYear()} シフトリ v{__APP_VERSION__}
       </Box>
-      <Box as="span">Made for 少人数のお店</Box>
     </Flex>
   </Box>
 );
