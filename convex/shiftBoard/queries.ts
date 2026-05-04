@@ -54,8 +54,10 @@ export const getShiftBoardData = managerQuery({
         _id: recruitment._id,
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
+        deadline: recruitment.deadline,
         status: recruitment.status,
         confirmedAt: recruitment.confirmedAt ?? null,
+        lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
       },
       staffs: staffs.map((s) => ({
         _id: s._id,

@@ -102,6 +102,6 @@ function relativeDeadline(deadline: string, status: RecruitmentDisplayStatus): s
   if (status === "confirmed") return `${formatDateShort(deadline)} 確定済み`;
   if (status === "past-deadline") return `${formatDateShort(deadline)} 締切済み`;
   const days = dayjs(deadline).startOf("day").diff(dayjs().startOf("day"), "day");
-  if (days === 0) return "今日が締切";
-  return `あと${days}日で締切`;
+  if (days === 0) return "今日が締切！";
+  return `締切まで${days}日`;
 }
