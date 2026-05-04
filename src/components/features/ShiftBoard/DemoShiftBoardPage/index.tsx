@@ -1,4 +1,4 @@
-import { Box, Flex, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Heading, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
@@ -113,7 +113,9 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
   return (
     <Flex direction="column" h="100dvh" minH={0}>
       <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
-        <Box w={{ base: "40px", lg: "80px" }} />
+        <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={600} color="gray.700" whiteSpace="nowrap">
+          シフトリ デモ
+        </Heading>
         <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
           {periodLabel}
         </Text>

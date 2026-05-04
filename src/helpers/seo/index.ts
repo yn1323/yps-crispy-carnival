@@ -62,3 +62,12 @@ export const buildMeta = ({ title, description, noindex, canonical }: BuildMetaO
  */
 export const jsonLdMeta = (payload: Record<string, unknown>): MetaList =>
   [{ "script:ld+json": payload }] as unknown as MetaList;
+
+/**
+ * `scripts/prerender.ts` が `addInitScript` で `window.__PRERENDER__ = true` を
+ * 注入する。コンポーネントから「これは prerender 中か」を判定する共通ヘルパ。
+ * SSR/Node 実行時にも安全に false を返すため `typeof window` ガード込み。
+ */
+export function isPrerendering(): boolean {
+  return typeof window !== "undefined" && (window as unknown as { __PRERENDER__?: boolean }).__PRERENDER__ === true;
+}
