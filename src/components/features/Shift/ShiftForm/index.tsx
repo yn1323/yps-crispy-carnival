@@ -1,5 +1,5 @@
 import { Box, Flex } from "@chakra-ui/react";
-import { Provider, useAtom, useAtomValue } from "jotai";
+import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { ConfirmButton, ExportButton, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
@@ -8,7 +8,7 @@ import { DailyView } from "./pc/DailyView";
 import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
-import { shiftsAtom, viewModeAtom } from "./stores";
+import { shiftsAtom, viewModeAtom, viewModeCallbackAtom } from "./stores";
 import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
 
 type ShiftFormProps = {
@@ -26,6 +26,7 @@ type ShiftFormProps = {
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
   onShiftsChange?: (shifts: ShiftData[]) => void;
+  onViewModeChange?: (mode: ViewMode) => void;
   onSaveDraft?: () => void;
   onConfirm?: () => void;
   isConfirmed?: boolean;
@@ -46,6 +47,7 @@ const ShiftFormInner = ({
   initialViewMode,
   initialSortMode,
   onShiftsChange,
+  onViewModeChange,
   onSaveDraft,
   onConfirm,
   isConfirmed = false,
@@ -73,6 +75,12 @@ const ShiftFormInner = ({
   useEffect(() => {
     onShiftsChangeRef.current?.(shifts);
   }, [shifts]);
+
+  const setViewModeCallback = useSetAtom(viewModeCallbackAtom);
+  useEffect(() => {
+    setViewModeCallback(() => onViewModeChange);
+    return () => setViewModeCallback(undefined);
+  }, [onViewModeChange, setViewModeCallback]);
 
   const [viewMode, setViewMode] = useAtom(viewModeAtom);
   const unsubmittedNames = useMemo(() => staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [staffs]);
