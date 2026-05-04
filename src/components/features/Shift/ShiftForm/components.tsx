@@ -57,85 +57,108 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
   );
 };
 
-export const UnsubmittedStrip = ({ names }: { names: string[] }) => (
-  <>
-    <Flex
-      display={{ base: "none", lg: "flex" }}
-      align="center"
-      gap={3}
-      px={5}
-      py="10px"
-      flexShrink={0}
-      style={{ background: "#fffbeb", borderTop: "1px solid #fde68a" }}
-    >
-      <Box fontSize="12px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
-        未提出 {names.length}人
-      </Box>
-      <Flex gap={2} overflow="auto" flex={1}>
-        {names.map((n) => (
-          <Box
-            key={n}
-            fontSize="11px"
-            flexShrink={0}
-            px={2}
-            py="2px"
-            style={{
-              color: "#b45309",
-              background: "white",
-              border: "1px solid #fde68a",
-              borderRadius: 999,
-            }}
-          >
-            {n}
+type UnsubmittedStripProps = {
+  names: string[];
+  onRemind?: () => void;
+  lastSentAtLabel?: string;
+};
+
+export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: UnsubmittedStripProps) => {
+  const isDisabled = !onRemind;
+  const handleClick = () => onRemind?.();
+
+  return (
+    <>
+      <Flex
+        display={{ base: "none", lg: "flex" }}
+        align="center"
+        gap={3}
+        px={5}
+        py="10px"
+        flexShrink={0}
+        style={{ background: "#fffbeb", borderTop: "1px solid #fde68a" }}
+      >
+        <Box fontSize="12px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+          未提出 {names.length}人
+        </Box>
+        <Flex gap={2} overflow="auto" flex={1}>
+          {names.map((n) => (
+            <Box
+              key={n}
+              fontSize="11px"
+              flexShrink={0}
+              px={2}
+              py="2px"
+              style={{
+                color: "#b45309",
+                background: "white",
+                border: "1px solid #fde68a",
+                borderRadius: 999,
+              }}
+            >
+              {n}
+            </Box>
+          ))}
+        </Flex>
+        {lastSentAtLabel && (
+          <Box fontSize="11px" flexShrink={0} style={{ color: "#92400e" }}>
+            前回送信: {lastSentAtLabel}
           </Box>
-        ))}
+        )}
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={isDisabled}
+          style={{
+            height: 26,
+            padding: "0 10px",
+            background: "white",
+            color: isDisabled ? "#a8a29e" : "#b45309",
+            border: `1px solid ${isDisabled ? "#e7e5e4" : "#fcd34d"}`,
+            borderRadius: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: isDisabled ? "not-allowed" : "pointer",
+            flexShrink: 0,
+            fontFamily: "inherit",
+          }}
+        >
+          催促
+        </button>
       </Flex>
-      <button
-        type="button"
-        style={{
-          height: 26,
-          padding: "0 10px",
-          background: "white",
-          color: "#b45309",
-          border: "1px solid #fcd34d",
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 600,
-          cursor: "pointer",
-          flexShrink: 0,
-          fontFamily: "inherit",
-        }}
-      >
-        催促
-      </button>
-    </Flex>
-    <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
-      <button
-        type="button"
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "12px 16px",
-          textAlign: "left",
-          background: "#fffbeb",
-          borderTop: "1px solid #fde68a",
-          borderLeft: "none",
-          borderRight: "none",
-          borderBottom: "none",
-          cursor: "pointer",
-          fontFamily: "inherit",
-        }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#b45309" }}>未提出 {names.length}人</span>
-        <span style={{ fontSize: 11, color: "#b45309", opacity: 0.8 }}>タップで催促</span>
-        <span style={{ marginLeft: "auto", fontSize: 16, color: "#b45309", flexShrink: 0 }}>›</span>
-      </button>
-    </Box>
-  </>
-);
+      <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={isDisabled}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "12px 16px",
+            textAlign: "left",
+            background: "#fffbeb",
+            borderTop: "1px solid #fde68a",
+            borderLeft: "none",
+            borderRight: "none",
+            borderBottom: "none",
+            cursor: isDisabled ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            opacity: isDisabled ? 0.65 : 1,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b45309" }}>未提出 {names.length}人</span>
+          <span style={{ fontSize: 11, color: "#b45309", opacity: 0.8 }}>
+            {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップで催促"}
+          </span>
+          {!isDisabled && <span style={{ marginLeft: "auto", fontSize: 16, color: "#b45309", flexShrink: 0 }}>›</span>}
+        </button>
+      </Box>
+    </>
+  );
+};
 
 type SaveButtonProps = { compact?: boolean; onClick?: () => void };
 

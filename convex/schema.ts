@@ -59,6 +59,8 @@ const schema = defineSchema({
     //         convex/shiftBoard/queries.ts の `?? shop.xxx` フォールバックも削除する
     shiftStartTime: v.optional(v.string()), // "14:00"
     shiftEndTime: v.optional(v.string()), // "25:00" = 翌1:00
+    // 未提出者への催促メール最終送信時刻（24時間クールダウン判定用）
+    lastReminderSentAt: v.optional(v.number()),
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_status", ["shopId", "status"]),

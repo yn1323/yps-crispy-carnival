@@ -1,10 +1,10 @@
-import { Box, Flex, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Heading, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData } from "@/src/components/features/Shift/ShiftForm/types";
+import type { ShiftData, ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
 import {
   formatDateShort,
   formatDateTime,
@@ -79,6 +79,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
   const day1 = dates[0];
 
   const [shifts, setShifts] = useState<ShiftData[]>(initialShifts);
+  const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [tourPhase, setTourPhase] = useState<TourPhase>("idle");
   const tourRef = useRef<TourHandle>(null);
 
@@ -113,7 +114,9 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
   return (
     <Flex direction="column" h="100dvh" minH={0}>
       <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
-        <Box w={{ base: "40px", lg: "80px" }} />
+        <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={600} color="gray.700" whiteSpace="nowrap">
+          シフトリ デモ
+        </Heading>
         <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
           {periodLabel}
         </Text>
@@ -146,6 +149,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
           onSaveDraft={handleSaveDraft}
           onConfirm={handleOpenConfirm}
           onShiftsChange={setShifts}
+          onViewModeChange={setViewMode}
         />
       </Box>
 
@@ -160,7 +164,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
         <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />
       </Modal>
 
-      {tourPhase === "idle" && (
+      {tourPhase === "idle" && viewMode === "daily" && (
         <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
       )}
 

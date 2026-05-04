@@ -24,7 +24,7 @@ import { chromium } from "playwright";
 
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
-const ROUTES = ["/", "/privacy", "/terms"] as const;
+const ROUTES = ["/", "/privacy", "/terms", "/demo/shiftboard"] as const;
 
 const GOTO_TIMEOUT_MS = 30_000;
 const RENDER_WAIT_TIMEOUT_MS = 15_000;

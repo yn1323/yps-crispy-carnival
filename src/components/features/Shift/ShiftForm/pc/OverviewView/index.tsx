@@ -125,7 +125,7 @@ const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateC
       bg="white"
       borderRadius="xl"
       borderWidth="1px"
-      borderColor={isOpen ? "teal.200" : "gray.200"}
+      borderColor="gray.200"
       overflow="hidden"
       boxShadow="0 1px 2px rgba(0,0,0,0.03)"
       transition="all 120ms"
@@ -135,11 +135,10 @@ const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateC
         gap={3}
         px={5}
         py={3}
-        bg={isOpen ? "teal.50" : "white"}
         cursor="pointer"
         onClick={onToggle}
         borderBottomWidth={isOpen ? "1px" : "0"}
-        borderColor="teal.200"
+        borderColor="gray.100"
       >
         <Flex
           w="28px"

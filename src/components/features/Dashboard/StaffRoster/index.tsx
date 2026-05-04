@@ -28,11 +28,8 @@ export const StaffRoster = ({ staffs, status, onAddClick, onEdit, onDelete, onLo
             letterSpacing="-0.01em"
             color="gray.900"
           >
-            スタッフ
+            スタッフ一覧
           </Heading>
-          <Text fontSize="sm" color="fg.muted">
-            シフトを組むメンバーです。
-          </Text>
         </Stack>
         <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
           <LuUserPlus />
