@@ -1,6 +1,7 @@
 import { Box, Flex, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
+import dayjs from "dayjs";
 import { useCallback, useMemo, useRef } from "react";
 import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -148,12 +149,14 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const handleSaveDraft = useCallback(() => {
     const isFirstSave = data.shiftAssignments.length === 0 && !isConfirmed;
-    if (isFirstSave) {
+    // 締切日当日はまだ新規希望が届く可能性があるので警告対象に含める（strict less-than）
+    const isPastDeadline = data.recruitment.deadline < dayjs().format("YYYY-MM-DD");
+    if (isFirstSave && !isPastDeadline) {
       saveDraftWarningModal.open();
     } else {
       void performSaveDraft();
     }
-  }, [data.shiftAssignments.length, isConfirmed, saveDraftWarningModal, performSaveDraft]);
+  }, [data.shiftAssignments.length, data.recruitment.deadline, isConfirmed, saveDraftWarningModal, performSaveDraft]);
 
   const confirmTitle = isConfirmed ? "シフトを再通知しますか？" : "シフトを確定して通知しますか？";
 
@@ -215,7 +218,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       </Modal>
 
       <Modal
-        title="締切前のシフト自動適用がオフになります"
+        title="一時保存時の注意"
         isOpen={saveDraftWarningModal.isOpen}
         onOpenChange={saveDraftWarningModal.onOpenChange}
         onSubmit={performSaveDraft}
