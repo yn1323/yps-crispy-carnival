@@ -28,9 +28,6 @@ export const RecruitmentBoard = ({ recruitments, status, onCreateClick, onOpenSh
           >
             シフト募集
           </Heading>
-          <Text fontSize="sm" color="fg.muted">
-            募集の進み具合をまとめて確認できます。
-          </Text>
         </Stack>
         <Button colorPalette="teal" size="sm" onClick={onCreateClick} gap={1.5} fontWeight="semibold">
           <LuCalendarPlus />
