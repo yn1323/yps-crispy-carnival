@@ -79,6 +79,12 @@ export const formatDateTime = (date: Date): string => {
   return dayjs(date).format("YYYY/M/D HH:mm");
 };
 
+// 日時を曜日付きで表示用にフォーマット（ms → "5/6(水) 02:28"）
+export const formatDateTimeWithWeekday = (ms: number): string => {
+  const d = dayjs(ms);
+  return `${d.format("M/D")}(${getWeekdayLabel(d.format("YYYY-MM-DD"))}) ${d.format("HH:mm")}`;
+};
+
 // 週開始曜日
 export type WeekStart = "mon" | "sun";
 

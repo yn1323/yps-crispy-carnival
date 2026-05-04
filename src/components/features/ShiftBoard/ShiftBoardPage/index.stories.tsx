@@ -12,6 +12,7 @@ const mockData: ShiftBoardData = {
     deadline: "2026-01-17",
     status: "open",
     confirmedAt: null,
+    lastReminderSentAt: null,
   },
   staffs: [
     { _id: "s1" as Id<"staffs">, name: "鈴木太郎", isSubmitted: true },

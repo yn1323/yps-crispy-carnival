@@ -10,26 +10,24 @@ import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
 import type { ShiftData, StaffType } from "@/src/components/features/Shift/ShiftForm/types";
 import {
-  formatDateShort,
   formatDateTime,
+  formatDateTimeWithWeekday,
+  formatDateWithWeekday,
   getDateRange,
-  getWeekdayLabel,
 } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
+import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import { SaveDraftWarningContent } from "../SaveDraftWarningContent";
 import type { ShiftBoardData } from "../types";
 
 const POSITIONS = [DEFAULT_POSITION];
 
-/** dates配列から "M/D(曜)〜M/D(曜) のシフト" を生成 */
 function generatePeriodLabel(dates: string[]): string {
   if (dates.length === 0) return "";
-  const first = dates[0];
-  const last = dates[dates.length - 1];
-  return `${formatDateShort(first)}(${getWeekdayLabel(first)})〜${formatDateShort(last)}(${getWeekdayLabel(last)}) のシフト`;
+  return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])} のシフト`;
 }
 
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
@@ -88,6 +86,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useMutation(api.shiftBoard.mutations.confirmRecruitment);
+  const sendReminderEmailsMutation = useMutation(api.shiftReminder.mutations.sendReminderEmails);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = confirmedAt !== null;
@@ -113,7 +112,20 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const confirmModal = useDialog();
   const saveDraftWarningModal = useDialog();
+  const reminderModal = useDialog();
   const Modal = isMobile ? BottomSheet : Dialog;
+
+  const unsubmittedNames = useMemo(() => data.staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [data.staffs]);
+
+  const handleSendReminders = useCallback(async () => {
+    try {
+      await sendReminderEmailsMutation({ recruitmentId });
+      reminderModal.close();
+      toaster.create({ title: "催促メールを送信しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  }, [sendReminderEmailsMutation, recruitmentId, reminderModal]);
 
   const buildAssignments = useCallback(() => {
     return shiftsRef.current
@@ -203,6 +215,12 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           isConfirmed={isConfirmed}
           onSaveDraft={handleSaveDraft}
           onConfirm={confirmModal.open}
+          onRemind={isConfirmed ? undefined : reminderModal.open}
+          lastSentAtLabel={
+            data.recruitment.lastReminderSentAt
+              ? formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)
+              : undefined
+          }
         />
       </Box>
 
@@ -226,6 +244,21 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onClose={saveDraftWarningModal.close}
       >
         <SaveDraftWarningContent />
+      </Modal>
+
+      <Modal
+        title="未提出者に催促メールを送信"
+        isOpen={reminderModal.isOpen}
+        onOpenChange={reminderModal.onOpenChange}
+        onSubmit={handleSendReminders}
+        submitLabel="送信する"
+        onClose={reminderModal.close}
+      >
+        <RemindUnsubmittedContent
+          unsubmittedNames={unsubmittedNames}
+          deadline={formatDateWithWeekday(data.recruitment.deadline)}
+          linkExpiresAtLabel={formatDateTimeWithWeekday(Date.now() + 24 * 60 * 60 * 1000)}
+        />
       </Modal>
     </Flex>
   );
