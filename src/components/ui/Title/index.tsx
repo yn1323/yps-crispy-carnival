@@ -1,6 +1,7 @@
-import { Box, Button, Flex, Icon, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronLeft } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   children: string | React.ReactNode;

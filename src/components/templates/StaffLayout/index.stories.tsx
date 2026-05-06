@@ -1,5 +1,6 @@
-import { Box, Button, Text, VStack } from "@chakra-ui/react";
+import { Box, Text, VStack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Button } from "@/src/components/ui/Button";
 import { StaffCenteredContent, StaffLayout, StaffNarrowContent, StaffPageContent } from "./index";
 
 const meta = {

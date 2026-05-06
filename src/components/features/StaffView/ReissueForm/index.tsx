@@ -1,7 +1,8 @@
-import { Button, Field, Input, Separator, Text, VStack } from "@chakra-ui/react";
+import { Field, Input, Separator, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type ReissueFormValues, reissueSchema } from "@/convex/staffAuth/schemas";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   onSubmit: (values: ReissueFormValues) => void;

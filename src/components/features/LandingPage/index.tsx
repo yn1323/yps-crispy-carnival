@@ -300,7 +300,7 @@ const Hero = () => (
           </SignUpButton>
           <SignInButton mode="modal">
             <Button
-              variant="outlineOnTint"
+              variant="outline"
               colorPalette="teal"
               h="56px"
               px={8}
@@ -819,7 +819,7 @@ const BottomCta = () => (
         </SignUpButton>
         <SignInButton mode="modal">
           <Button
-            variant="outlineOnTint"
+            variant="outline"
             colorPalette="teal"
             h="56px"
             px={8}

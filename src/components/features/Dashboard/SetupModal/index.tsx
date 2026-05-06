@@ -1,6 +1,5 @@
 import {
   Box,
-  Button,
   Dialog as ChakraDialog,
   Circle,
   Flex,
@@ -12,6 +11,7 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useState } from "react";
 import { LuArrowRight, LuCheck } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 import type { Step1Data } from "./SetupStep1";
 import { SetupStep1 } from "./SetupStep1/index.tsx";
 import type { Step2Data } from "./SetupStep2";

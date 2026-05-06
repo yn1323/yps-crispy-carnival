@@ -6,14 +6,12 @@ import {
 } from "@chakra-ui/react";
 import { forwardRef } from "react";
 
-type AppButtonVariant = NonNullable<ChakraButtonProps["variant"]> | "outlineOnTint";
-
 export interface ButtonProps extends Omit<ChakraButtonProps, "variant"> {
-  variant?: AppButtonVariant;
+  variant?: ChakraButtonProps["variant"];
 }
 
 export interface IconButtonProps extends Omit<ChakraIconButtonProps, "variant"> {
-  variant?: AppButtonVariant;
+  variant?: ChakraIconButtonProps["variant"];
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ variant, ...props }, ref) => (
