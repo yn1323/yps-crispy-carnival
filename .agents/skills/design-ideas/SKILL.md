@@ -189,5 +189,5 @@ Err on the side of more questions for ambiguous briefs. Skip questions only for 
 ## Not in scope
 
 - Whole-screen mocks → use `create-design`
-- Design-tool briefs (pencil / Figma) → use `design-prompt`
+- Whole-screen design briefs → use `create-design`
 - Decoration that wasn't asked for
