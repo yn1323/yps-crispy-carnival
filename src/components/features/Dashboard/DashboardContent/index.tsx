@@ -1,10 +1,12 @@
-import { Text, useBreakpointValue } from "@chakra-ui/react";
+import { Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
+import { LineBulkInviteContent } from "@/src/components/features/Line/LineBulkInviteContent";
+import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
+import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
@@ -24,20 +26,26 @@ type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
   recruitments: Recruitment[];
   recruitmentStatus: PaginationStatus;
+  canLoadMoreRecruitments: boolean;
   loadMoreRecruitments: () => void;
   staffs: Staff[];
   staffStatus: PaginationStatus;
+  canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
+  lineBulkInviteTargetCount?: number;
 };
 
 export const DashboardContent = ({
   shop,
   recruitments,
   recruitmentStatus,
+  canLoadMoreRecruitments,
   loadMoreRecruitments,
   staffs,
   staffStatus,
+  canLoadMoreStaffs,
   loadMoreStaffs,
+  lineBulkInviteTargetCount,
 }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
@@ -45,11 +53,17 @@ export const DashboardContent = ({
   const editStaffModal = useDialog();
   const editShopModal = useDialog();
   const deleteStaffDialog = useDialog();
+  const lineQrDialog = useDialog();
+  const lineInviteDialog = useDialog();
+  const lineBulkInviteDialog = useDialog();
   const setupModal = useDialog();
-  const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
+  const [lineQrTarget, setLineQrTarget] = useState<Staff | null>(null);
+  const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
+  const [lineQrLoading, setLineQrLoading] = useState(false);
+  const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
@@ -57,8 +71,9 @@ export const DashboardContent = ({
   const editStaffMut = useMutation(api.staff.mutations.editStaff);
   const deleteStaffMut = useMutation(api.staff.mutations.deleteStaff);
   const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
-
-  const Modal = isMobile ? BottomSheet : Dialog;
+  const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
+  const sendLineInvite = useMutation(api.line.mutations.sendInvite);
+  const sendLineInviteBulk = useMutation(api.line.mutations.sendInviteBulk);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
@@ -141,6 +156,56 @@ export const DashboardContent = ({
     }
   };
 
+  const handleShowLineQr = async (staff: Staff) => {
+    setLineQrTarget(staff);
+    setLineQrAuthorizeUrl(null);
+    setLineQrLoading(true);
+    lineQrDialog.open();
+    try {
+      const r = await generateLineLinkToken({ staffId: staff._id });
+      setLineQrAuthorizeUrl(r.authorizeUrl);
+    } catch (error) {
+      showErrorToast(error);
+      lineQrDialog.close();
+    } finally {
+      setLineQrLoading(false);
+    }
+  };
+
+  const handleSendLineInviteClick = (staff: Staff) => {
+    setLineInviteTarget(staff);
+    lineInviteDialog.open();
+  };
+
+  const handleSendLineInviteConfirm = async () => {
+    if (!lineInviteTarget) return;
+    try {
+      await sendLineInvite({ staffId: lineInviteTarget._id });
+      lineInviteDialog.close();
+      toaster.create({ title: "LINE連携リンクをメールで送信しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleSendLineInviteBulkClick = () => {
+    lineBulkInviteDialog.open();
+  };
+
+  const handleSendLineInviteBulkConfirm = async () => {
+    try {
+      const r = await sendLineInviteBulk({});
+      lineBulkInviteDialog.close();
+      toaster.create({
+        title:
+          r.sentCount > 0 ? `${r.sentCount}名にLINE連携リンクをメールで送信しました` : "送信対象のスタッフがいません",
+        type: "success",
+      });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
   return (
     <>
       <ContentWrapper>
@@ -156,6 +221,7 @@ export const DashboardContent = ({
             <RecruitmentBoard
               recruitments={recruitments}
               status={recruitmentStatus}
+              canLoadMore={canLoadMoreRecruitments}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onLoadMore={loadMoreRecruitments}
@@ -163,9 +229,14 @@ export const DashboardContent = ({
             <StaffRoster
               staffs={staffs}
               status={staffStatus}
+              canLoadMore={canLoadMoreStaffs}
               onAddClick={staffModal.open}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}
+              onShowLineQr={handleShowLineQr}
+              onSendLineInvite={handleSendLineInviteClick}
+              onSendLineInviteBulk={handleSendLineInviteBulkClick}
+              lineBulkInviteTargetCount={lineBulkInviteTargetCount}
               onLoadMore={loadMoreStaffs}
             />
           </>
@@ -174,7 +245,7 @@ export const DashboardContent = ({
         )}
       </ContentWrapper>
 
-      <Modal
+      <Dialog
         title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
@@ -183,9 +254,9 @@ export const DashboardContent = ({
         onClose={recruitmentModal.close}
       >
         <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="スタッフを追加"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
@@ -196,25 +267,25 @@ export const DashboardContent = ({
         maxH="85dvh"
       >
         <AddStaffForm onSubmit={handleAddStaffs} />
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="スタッフを編集"
         isOpen={editStaffModal.isOpen}
         onOpenChange={editStaffModal.onOpenChange}
         formId="edit-staff-form"
-        submitLabel="保存する"
+        submitLabel="変更を保存"
         onClose={editStaffModal.close}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="店舗設定"
         isOpen={editShopModal.isOpen}
         onOpenChange={editShopModal.onOpenChange}
         formId="edit-shop-form"
-        submitLabel="保存する"
+        submitLabel="変更を保存"
         onClose={editShopModal.close}
       >
         {shop && (
@@ -227,7 +298,7 @@ export const DashboardContent = ({
             onSubmit={handleUpdateShop}
           />
         )}
-      </Modal>
+      </Dialog>
 
       <Dialog
         title="スタッフを削除"
@@ -235,14 +306,52 @@ export const DashboardContent = ({
         onOpenChange={deleteStaffDialog.onOpenChange}
         onClose={deleteStaffDialog.close}
         onSubmit={handleDeleteStaff}
-        submitLabel="削除する"
+        submitLabel="このスタッフを削除"
         role="alertdialog"
         submitColorPalette="red"
       >
         <Text>「{deleteTarget?.name}」を削除しますか？</Text>
         <Text fontSize="sm" color="gray.600">
-          この操作は取り消せません。
+          削除すると元に戻せません。
         </Text>
+      </Dialog>
+
+      <Dialog
+        title="LINE連携リンク"
+        isOpen={lineQrDialog.isOpen}
+        onOpenChange={lineQrDialog.onOpenChange}
+        onClose={lineQrDialog.close}
+        hideFooter
+      >
+        <LineLinkQrDialog
+          authorizeUrl={lineQrAuthorizeUrl}
+          isLoading={lineQrLoading}
+          staffName={lineQrTarget?.name ?? ""}
+        />
+      </Dialog>
+
+      <Dialog
+        title="LINE連携リンクをメールで送る"
+        isOpen={lineInviteDialog.isOpen}
+        onOpenChange={lineInviteDialog.onOpenChange}
+        onClose={lineInviteDialog.close}
+        onSubmit={handleSendLineInviteConfirm}
+        submitLabel="送信"
+      >
+        {lineInviteTarget && (
+          <LineInviteConfirmContent staffName={lineInviteTarget.name} staffEmail={lineInviteTarget.email} />
+        )}
+      </Dialog>
+
+      <Dialog
+        title="未連携のスタッフにまとめて送る"
+        isOpen={lineBulkInviteDialog.isOpen}
+        onOpenChange={lineBulkInviteDialog.onOpenChange}
+        onClose={lineBulkInviteDialog.close}
+        onSubmit={handleSendLineInviteBulkConfirm}
+        submitLabel="送信"
+      >
+        <LineBulkInviteContent unlinkedCount={lineBulkInviteTargetCount ?? 0} />
       </Dialog>
 
       {isSetupRequired && (

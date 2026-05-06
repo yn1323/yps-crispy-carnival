@@ -48,6 +48,8 @@ export const getConfirmationEmailData = internalQuery({
         staffId: staff._id,
         name: staff.name,
         email: staff.email,
+        lineUserId: staff.lineUserId,
+        lineFollowing: staff.lineFollowing,
         shifts,
       };
     });
@@ -88,6 +90,8 @@ export const getRecruitmentEmailData = internalQuery({
         staffId: s._id,
         name: s.name,
         email: s.email,
+        lineUserId: s.lineUserId,
+        lineFollowing: s.lineFollowing,
       })),
     };
   },
@@ -113,6 +117,8 @@ export const getReissueEmailData = internalQuery({
       shopName: shop.name,
       staffName: staff.name,
       staffEmail: staff.email,
+      lineUserId: staff.lineUserId,
+      lineFollowing: staff.lineFollowing,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
     };
   },

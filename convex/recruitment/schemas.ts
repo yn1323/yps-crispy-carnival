@@ -2,9 +2,9 @@ import { z } from "zod";
 
 export const createRecruitmentSchema = z
   .object({
-    periodStart: z.string().min(1, "必須項目です"),
-    periodEnd: z.string().min(1, "必須項目です"),
-    deadline: z.string().min(1, "必須項目です"),
+    periodStart: z.string().min(1, "入力してください"),
+    periodEnd: z.string().min(1, "入力してください"),
+    deadline: z.string().min(1, "入力してください"),
   })
   .refine((data) => data.periodEnd >= data.periodStart, {
     message: "終了日は開始日以降にしてください",

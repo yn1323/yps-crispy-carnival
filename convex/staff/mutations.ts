@@ -72,7 +72,7 @@ export const deleteStaff = managerMutation({
     }
 
     if (staff.userId === ctx.user._id) {
-      throw new ConvexError("管理者自身は削除できません");
+      throw new ConvexError("自分のアカウントは削除できません");
     }
 
     await ctx.db.patch(args.staffId, { isDeleted: true });

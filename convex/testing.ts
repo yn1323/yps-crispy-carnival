@@ -1,8 +1,278 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { buildLineAuthorizeUrl } from "./_lib/lineClient";
+import { generateUUID } from "./_lib/uuid";
 import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
+const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
+const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
+const scenarioDatesValidator = v.object({
+  periodStart: v.string(),
+  periodEnd: v.string(),
+  deadline: v.string(),
+  dates: v.array(v.string()),
+});
+
+const DEFAULT_MANAGER = {
+  name: "田中太郎",
+  email: "tanaka@example.com",
+};
+
+type MagicLinkPurpose = "submit" | "view";
+type TestCtx = QueryCtx | MutationCtx;
+type ScenarioDates = {
+  periodStart: string;
+  periodEnd: string;
+  deadline: string;
+  dates: string[];
+};
+
+function assertE2EHelpersEnabled() {
+  if (process.env.E2E_TESTING_ENABLED !== "true") {
+    throw new Error("E2E testing helpers are disabled. Set E2E_TESTING_ENABLED=true in the Convex deployment.");
+  }
+}
+
+async function findActiveStaffByEmail(ctx: TestCtx, staffEmail: string) {
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_email", (q) => q.eq("email", staffEmail))
+    .order("desc")
+    .take(10);
+  return staffs.find((staff) => !staff.isDeleted) ?? null;
+}
+
+function matchesPurpose(status: "open" | "confirmed", purpose: MagicLinkPurpose) {
+  return purpose === "submit" ? status === "open" : status === "confirmed";
+}
+
+async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
+  const [requests, submissions, assignments] = await Promise.all([
+    ctx.db
+      .query("shiftRequests")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
+      .query("shiftSubmissions")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+    ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
+  ]);
+
+  for (const doc of [...requests, ...submissions, ...assignments]) {
+    await ctx.db.delete(doc._id);
+  }
+}
+
+async function deleteStaffAuthGraph(ctx: MutationCtx, staffId: Id<"staffs">) {
+  const [magicLinks, lineLinkTokens, sessions] = await Promise.all([
+    ctx.db
+      .query("magicLinks")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+      .collect(),
+    ctx.db
+      .query("lineLinkTokens")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+      .collect(),
+    ctx.db
+      .query("sessions")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+      .collect(),
+  ]);
+
+  for (const doc of [...magicLinks, ...lineLinkTokens, ...sessions]) {
+    await ctx.db.delete(doc._id);
+  }
+}
+
+async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const recruitment of recruitments) {
+    await deleteRecruitmentGraph(ctx, recruitment._id);
+    await ctx.db.delete(recruitment._id);
+  }
+
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const staff of staffs) {
+    await deleteStaffAuthGraph(ctx, staff._id);
+    await ctx.db.delete(staff._id);
+  }
+
+  const positions = await ctx.db
+    .query("positions")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const position of positions) {
+    await ctx.db.delete(position._id);
+  }
+
+  const invites = await ctx.db.query("invites").collect();
+  for (const invite of invites) {
+    if (invite.shopId === shopId) await ctx.db.delete(invite._id);
+  }
+
+  await ctx.db.delete(shopId);
+}
+
+async function resetOwnerScenarioData(ctx: MutationCtx, ownerId: string) {
+  const shops = await ctx.db
+    .query("shops")
+    .withIndex("by_ownerId", (q) => q.eq("ownerId", ownerId))
+    .collect();
+  for (const shop of shops) {
+    await deleteShopGraph(ctx, shop._id);
+  }
+
+  const users = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", ownerId))
+    .collect();
+  for (const user of users) {
+    await ctx.db.delete(user._id);
+  }
+}
+
+async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; shopName: string }) {
+  assertE2EHelpersEnabled();
+  if (!args.ownerId) throw new Error("ownerId is required");
+  await resetOwnerScenarioData(ctx, args.ownerId);
+
+  const userId = await ctx.db.insert("users", {
+    clerkId: args.ownerId,
+    name: DEFAULT_MANAGER.name,
+    email: DEFAULT_MANAGER.email,
+    role: "manager",
+    isDeleted: false,
+  });
+  const shopId = await ctx.db.insert("shops", {
+    name: args.shopName,
+    shiftStartTime: "09:00",
+    shiftEndTime: "22:00",
+    ownerId: args.ownerId,
+    isDeleted: false,
+  });
+  const managerStaffId = await ctx.db.insert("staffs", {
+    shopId,
+    name: DEFAULT_MANAGER.name,
+    email: DEFAULT_MANAGER.email,
+    userId,
+    isDeleted: false,
+  });
+
+  return { shopId, userId, managerStaffId };
+}
+
+async function createStaff(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    name: string;
+    email: string;
+    lineUserId?: string;
+    lineFollowing?: boolean;
+  },
+) {
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    name: args.name,
+    email: args.email,
+    lineUserId: args.lineUserId,
+    lineFollowing: args.lineFollowing,
+    isDeleted: false,
+  });
+}
+
+async function createRecruitment(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    dates: ScenarioDates;
+    status: "open" | "confirmed";
+  },
+) {
+  return await ctx.db.insert("recruitments", {
+    shopId: args.shopId,
+    periodStart: args.dates.periodStart,
+    periodEnd: args.dates.periodEnd,
+    deadline: args.dates.deadline,
+    status: args.status,
+    confirmedAt: args.status === "confirmed" ? Date.now() : undefined,
+    isDeleted: false,
+    shiftStartTime: "09:00",
+    shiftEndTime: "22:00",
+  });
+}
+
+async function createMagicLink(
+  ctx: MutationCtx,
+  args: {
+    staffId: Id<"staffs">;
+    shopId: Id<"shops">;
+    recruitmentId: Id<"recruitments">;
+  },
+) {
+  const token = generateUUID();
+  await ctx.db.insert("magicLinks", {
+    token,
+    staffId: args.staffId,
+    shopId: args.shopId,
+    recruitmentId: args.recruitmentId,
+    expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+  });
+  return token;
+}
+
+async function createLineLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; shopId: Id<"shops"> }) {
+  const token = generateUUID();
+  await ctx.db.insert("lineLinkTokens", {
+    staffId: args.staffId,
+    shopId: args.shopId,
+    token,
+    expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+  });
+  return token;
+}
+
+async function findRecruitmentForPurpose(
+  ctx: TestCtx,
+  staff: { shopId: Id<"shops"> },
+  purpose: MagicLinkPurpose,
+  recruitmentId?: Id<"recruitments">,
+) {
+  if (recruitmentId) {
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (
+      recruitment &&
+      !recruitment.isDeleted &&
+      recruitment.shopId === staff.shopId &&
+      matchesPurpose(recruitment.status, purpose)
+    ) {
+      return recruitment;
+    }
+    return null;
+  }
+
+  const status = purpose === "submit" ? "open" : "confirmed";
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", status))
+    .order("desc")
+    .take(10);
+  return recruitments.find((recruitment) => !recruitment.isDeleted) ?? null;
+}
 
 /**
  * E2Eテスト用：全テーブルのデータをクリア
@@ -358,5 +628,252 @@ export const seedSubmitTestData = internalMutation({
     }
 
     return { token, shopId, staffId, recruitmentId };
+  },
+});
+
+export const seedDashboardPaginationScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { shopId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      shopName: "ページネーションテスト店舗",
+    });
+
+    for (let i = 1; i <= 12; i++) {
+      await createStaff(ctx, {
+        shopId,
+        name: `スタッフ${String(i).padStart(2, "0")}`,
+        email: `staff${i}@example.com`,
+      });
+    }
+
+    const baseDate = new Date("2026-05-04");
+    for (let i = 0; i < 8; i++) {
+      const start = new Date(baseDate);
+      start.setDate(start.getDate() + i * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      const deadline = new Date(start);
+      deadline.setDate(deadline.getDate() - 1);
+
+      await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: start.toISOString().slice(0, 10),
+        periodEnd: end.toISOString().slice(0, 10),
+        deadline: deadline.toISOString().slice(0, 10),
+        status: "open",
+        isDeleted: false,
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+      });
+    }
+
+    return { shopId, staffsInserted: 12, recruitmentsInserted: 8 };
+  },
+});
+
+export const seedNotificationSubmitScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+    dates: scenarioDatesValidator,
+  },
+  handler: async (ctx, args) => {
+    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      shopName: "通知募集テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+    const token = await createMagicLink(ctx, { staffId: managerStaffId, shopId, recruitmentId });
+
+    return { shopId, recruitmentId, token, staffId: managerStaffId };
+  },
+});
+
+export const seedNotificationReminderScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+    dates: scenarioDatesValidator,
+  },
+  handler: async (ctx, args) => {
+    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      shopName: "通知催促テスト店舗",
+    });
+    const remindedStaffId = await createStaff(ctx, {
+      shopId,
+      name: "佐藤花子",
+      email: "sato@example.com",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+
+    await ctx.db.insert("shiftRequests", {
+      recruitmentId,
+      staffId: managerStaffId,
+      date: args.dates.dates[0],
+      startTime: "09:00",
+      endTime: "18:00",
+    });
+    await ctx.db.insert("shiftSubmissions", {
+      recruitmentId,
+      staffId: managerStaffId,
+      submittedAt: Date.now(),
+    });
+    const reminderToken = await createMagicLink(ctx, { staffId: remindedStaffId, shopId, recruitmentId });
+
+    return { shopId, recruitmentId, reminderToken, managerStaffId, remindedStaffId };
+  },
+});
+
+export const seedNotificationConfirmationViewScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+    dates: scenarioDatesValidator,
+  },
+  handler: async (ctx, args) => {
+    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      shopName: "確定シフト閲覧テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "confirmed" });
+    await ctx.db.insert("shiftAssignments", {
+      recruitmentId,
+      staffId: managerStaffId,
+      date: args.dates.dates[0],
+      startTime: "10:00",
+      endTime: "18:00",
+    });
+    const viewToken = await createMagicLink(ctx, { staffId: managerStaffId, shopId, recruitmentId });
+
+    return { shopId, recruitmentId, viewToken, staffId: managerStaffId };
+  },
+});
+
+export const seedLineLinkScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      shopName: "LINE連携テスト店舗",
+    });
+
+    return { shopId, staffId: managerStaffId };
+  },
+});
+
+export const getLatestMagicLinkToken = internalQuery({
+  args: {
+    recruitmentId: v.optional(v.id("recruitments")),
+    staffEmail: v.string(),
+    purpose: magicLinkPurposeValidator,
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) return { token: null };
+
+    const links = await ctx.db
+      .query("magicLinks")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
+      .order("desc")
+      .take(50);
+
+    for (const link of links) {
+      if (args.recruitmentId && link.recruitmentId !== args.recruitmentId) continue;
+      const recruitment = await ctx.db.get(link.recruitmentId);
+      if (!recruitment || recruitment.isDeleted || !matchesPurpose(recruitment.status, args.purpose)) continue;
+      return {
+        token: link.token,
+        staffId: staff._id,
+        recruitmentId: link.recruitmentId,
+        expiresAt: link.expiresAt,
+        usedAt: link.usedAt ?? null,
+      };
+    }
+
+    return { token: null };
+  },
+});
+
+export const createMagicLinkTokenForLatestRecruitment = internalMutation({
+  args: {
+    recruitmentId: v.optional(v.id("recruitments")),
+    staffEmail: v.string(),
+    purpose: magicLinkPurposeValidator,
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
+
+    const recruitment = await findRecruitmentForPurpose(ctx, staff, args.purpose, args.recruitmentId);
+    if (!recruitment) throw new Error(`Recruitment not found for ${args.purpose}: ${args.staffEmail}`);
+
+    const token = generateUUID();
+    await ctx.db.insert("magicLinks", {
+      token,
+      staffId: staff._id,
+      shopId: staff.shopId,
+      recruitmentId: recruitment._id,
+      expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+    });
+
+    return { token, staffId: staff._id, recruitmentId: recruitment._id };
+  },
+});
+
+export const getLatestLineLinkToken = internalQuery({
+  args: {
+    staffEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) return { token: null };
+
+    const links = await ctx.db
+      .query("lineLinkTokens")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
+      .order("desc")
+      .take(10);
+    const link = links[0];
+    if (!link) return { token: null };
+
+    const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
+    return {
+      token: link.token,
+      staffId: staff._id,
+      expiresAt: link.expiresAt,
+      usedAt: link.usedAt ?? null,
+      authorizeUrl: channelId
+        ? buildLineAuthorizeUrl({
+            channelId,
+            redirectUri: `${APP_URL}/line/callback`,
+            state: link.token,
+          })
+        : null,
+    };
+  },
+});
+
+export const createLineLinkTokenForStaff = internalMutation({
+  args: {
+    staffEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
+
+    const token = await createLineLinkToken(ctx, { staffId: staff._id, shopId: staff.shopId });
+
+    return { token, staffId: staff._id };
   },
 });

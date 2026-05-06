@@ -2,7 +2,7 @@ import { Box, Flex, Stack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useBottomSheet } from "@/src/components/ui/BottomSheet";
+import { useDialog } from "@/src/components/ui/Dialog";
 import { BREAK_POSITION } from "../../constants";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "../../types";
@@ -52,8 +52,8 @@ export const SPDailyView = () => {
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
 
-  const editSheet = useBottomSheet();
-  const detailSheet = useBottomSheet();
+  const editDialog = useDialog();
+  const detailDialog = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const touchStartX = useRef(0);
 
@@ -90,12 +90,12 @@ export const SPDailyView = () => {
     (staffId: string) => {
       setSelectedStaffId(staffId);
       if (isReadOnly) {
-        detailSheet.open();
+        detailDialog.open();
       } else {
-        editSheet.open();
+        editDialog.open();
       }
     },
-    [isReadOnly, detailSheet, editSheet],
+    [isReadOnly, detailDialog, editDialog],
   );
 
   const handleShiftUpdate = useCallback(
@@ -249,14 +249,14 @@ export const SPDailyView = () => {
         </Stack>
       </Box>
 
-      {/* Sheets */}
+      {/* Dialogs */}
       {isReadOnly && selectedStaff && (
         <ShiftDetailSheet
           staff={selectedStaff}
           shift={selectedShift}
           selectedDate={selectedDate}
-          isOpen={detailSheet.isOpen}
-          onOpenChange={detailSheet.onOpenChange}
+          isOpen={detailDialog.isOpen}
+          onOpenChange={detailDialog.onOpenChange}
         />
       )}
 
@@ -267,8 +267,8 @@ export const SPDailyView = () => {
           positions={positions}
           timeRange={timeRange}
           selectedDate={selectedDate}
-          isOpen={editSheet.isOpen}
-          onOpenChange={editSheet.onOpenChange}
+          isOpen={editDialog.isOpen}
+          onOpenChange={editDialog.onOpenChange}
           onShiftUpdate={handleShiftUpdate}
           onShiftDelete={handleShiftDelete}
         />
@@ -426,6 +426,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
 
 const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () => void; isReadOnly: boolean }) => {
   const isUnsub = !staff.isSubmitted;
+  const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
   return (
     <Box
       as="button"
@@ -448,7 +449,7 @@ const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () =
         {staff.name}
       </Box>
       <Box fontSize="10px" fontWeight={600} style={{ color: isUnsub ? "#b45309" : "#a1a1aa" }}>
-        {isUnsub ? "未提出" : "休み希望"}
+        {offLabel}
       </Box>
       {!isReadOnly && (
         <Box fontSize="18px" color="gray.400" lineHeight={1} ml="4px">

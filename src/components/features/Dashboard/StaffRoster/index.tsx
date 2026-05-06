@@ -1,21 +1,40 @@
-import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
-import { LuChevronDown, LuUserPlus, LuUsers } from "react-icons/lu";
+import { LuChevronDown, LuMail, LuUserPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
+import { Button } from "@/src/components/ui/Button";
 import { StaffRow } from "./StaffRow";
 
 type Props = {
   staffs: Staff[];
   status: PaginationStatus;
+  canLoadMore: boolean;
   onAddClick: () => void;
   onEdit: (staff: Staff) => void;
   onDelete: (staff: Staff) => void;
+  onShowLineQr: (staff: Staff) => void;
+  onSendLineInvite: (staff: Staff) => void;
+  onSendLineInviteBulk: () => void;
+  lineBulkInviteTargetCount?: number;
   onLoadMore: () => void;
 };
 
-export const StaffRoster = ({ staffs, status, onAddClick, onEdit, onDelete, onLoadMore }: Props) => {
-  const canLoadMore = status !== "Exhausted" && status !== "LoadingFirstPage";
+export const StaffRoster = ({
+  staffs,
+  status,
+  canLoadMore,
+  onAddClick,
+  onEdit,
+  onDelete,
+  onShowLineQr,
+  onSendLineInvite,
+  onSendLineInviteBulk,
+  lineBulkInviteTargetCount,
+  onLoadMore,
+}: Props) => {
+  const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
+  const unlinkedCount = lineBulkInviteTargetCount ?? 0;
 
   return (
     <Stack gap={{ base: 4, lg: 5 }}>
@@ -31,10 +50,25 @@ export const StaffRoster = ({ staffs, status, onAddClick, onEdit, onDelete, onLo
             スタッフ一覧
           </Heading>
         </Stack>
-        <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
-          <LuUserPlus />
-          スタッフを追加
-        </Button>
+        <Flex gap={2} wrap="wrap">
+          {unlinkedCount > 0 && (
+            <Button
+              variant="outline"
+              colorPalette="green"
+              size="sm"
+              onClick={onSendLineInviteBulk}
+              gap={1.5}
+              fontWeight="semibold"
+            >
+              <LuMail />
+              LINE連携リンクをメールで送る ({unlinkedCount})
+            </Button>
+          )}
+          <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
+            <LuUserPlus />
+            スタッフを追加
+          </Button>
+        </Flex>
       </Flex>
 
       {sorted.length === 0 ? (
@@ -50,13 +84,20 @@ export const StaffRoster = ({ staffs, status, onAddClick, onEdit, onDelete, onLo
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
             {sorted.map((s) => (
-              <StaffRow key={s._id} staff={s} onEdit={onEdit} onDelete={onDelete} />
+              <StaffRow
+                key={s._id}
+                staff={s}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onShowLineQr={onShowLineQr}
+                onSendLineInvite={onSendLineInvite}
+              />
             ))}
           </Stack>
         </Box>
       )}
 
-      {canLoadMore && (
+      {showLoadMore && (
         <Flex justify="center">
           <Button
             variant="ghost"
@@ -96,7 +137,7 @@ const EmptyState = () => (
         まだスタッフはいません
       </Text>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        名前とメールアドレスでスタッフを登録できます
+        名前とメールアドレスだけでスタッフを登録できます。
       </Text>
     </Stack>
   </Stack>

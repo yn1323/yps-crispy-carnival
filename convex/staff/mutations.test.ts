@@ -331,7 +331,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { staffId: adminStaffId }),
-      ).rejects.toThrow("管理者自身は削除できません");
+      ).rejects.toThrow("自分のアカウントは削除できません");
     });
   });
 });

@@ -40,7 +40,7 @@ describe("Validations", () => {
     expect(zodSchema.safeParse("1").success).toBeTruthy();
     expect(zodSchema.safeParse("2").success).toBeTruthy();
     expect(zodSchema.safeParse("3").success).toBeTruthy();
-    expect(zodSchema.safeParse("").error?.issues[0].message).toStrictEqual("必須項目です");
-    expect(zodSchema.safeParse("4").error?.issues[0].message).toStrictEqual("必須選択です");
+    expect(zodSchema.safeParse("").error?.issues[0].message).toStrictEqual("入力してください");
+    expect(zodSchema.safeParse("4").error?.issues[0].message).toStrictEqual("選択してください");
   });
 });

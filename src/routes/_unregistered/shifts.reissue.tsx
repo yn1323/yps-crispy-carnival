@@ -7,7 +7,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { ReissueFormValues } from "@/convex/staffAuth/schemas";
 import { ReissueDone } from "@/src/components/features/StaffView/ReissueDone";
 import { ReissueForm } from "@/src/components/features/StaffView/ReissueForm";
-import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { StaffLayout, StaffNarrowContent } from "@/src/components/templates/StaffLayout";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { buildMeta } from "@/src/helpers/seo";
 
@@ -52,18 +52,15 @@ function ReissueRoute() {
 
   return (
     <StaffLayout shopName={shopName}>
-      <Box px={{ base: 4, lg: 6 }} py={3}>
-        <Box fontSize="md" fontWeight="semibold">
-          シフト閲覧リンクの再発行
-        </Box>
-      </Box>
-
       {isDone ? (
         <ReissueDone />
       ) : (
-        <Box px={{ base: 4, lg: 6 }} maxW="480px" mx={{ lg: "auto" }}>
+        <StaffNarrowContent py={{ base: 4, lg: 6 }}>
+          <Box as="h1" fontSize="md" fontWeight="semibold" mb={4}>
+            シフト閲覧リンクの再発行
+          </Box>
           <ReissueForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
-        </Box>
+        </StaffNarrowContent>
       )}
     </StaffLayout>
   );

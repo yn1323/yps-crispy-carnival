@@ -1,7 +1,8 @@
-import { Box, Breadcrumb, Flex, Heading, IconButton, Stack } from "@chakra-ui/react";
+import { Box, Breadcrumb, Flex, Heading, Stack } from "@chakra-ui/react";
 import { type FileRouteTypes, Link } from "@tanstack/react-router";
 import { Fragment } from "react";
 import { HiArrowLeft } from "react-icons/hi";
+import { IconButton } from "@/src/components/ui/Button";
 
 type BreadCrumb = {
   label: string;

@@ -284,7 +284,14 @@ describe("dashboard/queries", () => {
       const result = await t
         .withIdentity({ subject: "user_sf" })
         .query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE);
-      expect(Object.keys(result.page[0]).sort()).toEqual(["_id", "email", "isOwner", "name"]);
+      expect(Object.keys(result.page[0]).sort()).toEqual([
+        "_id",
+        "email",
+        "isLineFollowing",
+        "isLineLinked",
+        "isOwner",
+        "name",
+      ]);
     });
   });
 

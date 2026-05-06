@@ -1,11 +1,9 @@
 import { test } from "@playwright/test";
-import { convexRun } from "../helpers/convex";
+import { convexRunJson } from "../helpers/convex";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
 
 function seedAndGetToken(args: Record<string, unknown> = {}): string {
-  convexRun("testing:clearAllTables");
-  const result = convexRun("testing:seedSubmitTestData", args);
-  return JSON.parse(result).token as string;
+  return convexRunJson<{ token: string }>("testing:seedSubmitTestData", args).token;
 }
 
 test.describe("スタッフのシフト希望提出", () => {

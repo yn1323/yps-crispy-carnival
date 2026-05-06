@@ -29,8 +29,8 @@ export function PrivacyPolicy(): ReactNode {
         <Body>取得した情報は以下の目的で利用します。</Body>
         <BulletList
           items={[
-            "シフト募集の通知メール送信",
-            "シフト確定の通知メール送信",
+            "シフト募集の通知送信",
+            "シフト確定の通知送信",
             "マジックリンクによるシフト提出画面へのアクセス提供",
             "サービスの提供・運営・改善",
           ]}
@@ -44,6 +44,7 @@ export function PrivacyPolicy(): ReactNode {
             "Clerk（認証基盤）：管理者のメールアドレス・認証情報",
             "Convex（データベース）：店舗情報・スタッフ情報・シフトデータ",
             "Resend（メール配信）：スタッフのメールアドレス・氏名",
+            "LINEヤフー（LINE通知連携）：LINEユーザー識別子・連携状態",
             "Vercel（ホスティング）：アクセスログ",
           ]}
         />

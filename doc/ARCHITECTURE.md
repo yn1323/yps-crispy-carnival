@@ -114,7 +114,7 @@ convex/
 - `TitleTemplate`等の共通レイアウト
 
 ### ui/ （UI基盤層）
-- `Select`, `FormCard`, `Title`, `Dialog`, `BottomSheet`等
+- `Select`, `FormCard`, `Title`, `Dialog`等
 - 再利用可能な汎用コンポーネント
 
 ---

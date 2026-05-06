@@ -37,6 +37,8 @@ export const getReminderEmailData = internalQuery({
         staffId: s._id,
         name: s.name,
         email: s.email,
+        lineUserId: s.lineUserId,
+        lineFollowing: s.lineFollowing,
       })),
     };
   },

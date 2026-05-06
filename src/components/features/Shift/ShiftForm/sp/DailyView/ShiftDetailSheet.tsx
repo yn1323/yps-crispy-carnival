@@ -1,5 +1,5 @@
 import { Box, Text, VStack } from "@chakra-ui/react";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
+import { Dialog } from "@/src/components/ui/Dialog";
 import { BREAK_POSITION } from "../../constants";
 import type { ShiftData, StaffType } from "../../types";
 import { formatDateWithWeekday } from "../../utils/dateUtils";
@@ -18,7 +18,7 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
   const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
 
   return (
-    <BottomSheet title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Dialog title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange} hideFooter>
       <VStack gap={4} align="stretch">
         {visibleSegments.length > 0 && (
           <Box>
@@ -41,6 +41,6 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
           </Text>
         )}
       </VStack>
-    </BottomSheet>
+    </Dialog>
   );
 };

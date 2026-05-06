@@ -20,7 +20,7 @@ export const sendReminderEmails = managerMutation({
     }
 
     if (recruitment.status !== "open") {
-      throw new ConvexError("募集中の状態でのみ催促できます");
+      throw new ConvexError("募集中のシフトだけ、提出のお願いを送れます");
     }
 
     await ctx.db.patch(args.recruitmentId, {

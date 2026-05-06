@@ -1,19 +1,28 @@
-import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuCalendarPlus, LuChevronDown, LuInbox } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import { Button } from "@/src/components/ui/Button";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
   recruitments: Recruitment[];
   status: PaginationStatus;
+  canLoadMore: boolean;
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onLoadMore: () => void;
 };
 
-export const RecruitmentBoard = ({ recruitments, status, onCreateClick, onOpenShiftBoard, onLoadMore }: Props) => {
-  const canLoadMore = status !== "Exhausted" && status !== "LoadingFirstPage";
+export const RecruitmentBoard = ({
+  recruitments,
+  status,
+  canLoadMore,
+  onCreateClick,
+  onOpenShiftBoard,
+  onLoadMore,
+}: Props) => {
+  const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
 
   return (
     <Stack gap={{ base: 4, lg: 5 }}>
@@ -45,7 +54,7 @@ export const RecruitmentBoard = ({ recruitments, status, onCreateClick, onOpenSh
         </Stack>
       )}
 
-      {canLoadMore && (
+      {showLoadMore && (
         <Flex justify="center">
           <Button
             variant="ghost"
@@ -82,10 +91,10 @@ const EmptyState = () => (
     </Box>
     <Stack gap={1}>
       <Text fontWeight="semibold" color="gray.800">
-        まだ募集はありません
+        シフト募集はまだありません
       </Text>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        期間を決めて最初の募集をつくりましょう。
+        期間と締切を決めて、スタッフに希望を聞きましょう。
       </Text>
     </Stack>
   </Stack>

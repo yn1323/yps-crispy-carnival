@@ -15,7 +15,7 @@
 **スキーマに `staffs.userId` を追加し、管理者 = スタッフの紐付けを実現。**
 **初回セットアップを1トランザクションで実行する専用 mutation を作成。**
 
-### デザイン（確定済み: `design/dashboard.pen`）
+### UI仕様
 
 | フレーム | Stepper | タイトル | 内容 |
 |---------|---------|---------|------|
@@ -165,7 +165,6 @@ export const setupShopSchema = createShopSchema.and(ownerProfileSchema.transform
 - `convex/setup/schemas.ts` — createShopSchema + ownerProfileSchema
 - `convex/setup/mutations.ts` — setupShopAndOwner mutation
 - `convex/_lib/functions.ts` — authenticatedMutation（setupShopAndOwner で使用）
-- `design/dashboard.pen` — デザインファイル（修正済み）
 
 ## 議論で出た懸念点・注意事項
 

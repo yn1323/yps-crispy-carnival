@@ -1,6 +1,7 @@
-import { Badge, Box, Flex, IconButton, Portal, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
 import { LuTrash2, LuX } from "react-icons/lu";
+import { IconButton } from "@/src/components/ui/Button";
 import { BREAK_POSITION } from "../../constants";
 import type { ShiftData } from "../../types";
 import { timeToMinutes } from "../../utils/timeConversion";

@@ -5,7 +5,7 @@ type Props = {
   minH?: string;
 };
 
-export const LoadingState = ({ message = "読み込み中...", minH = "400px" }: Props) => {
+export const LoadingState = ({ message = "読み込んでいます", minH = "400px" }: Props) => {
   return (
     <Box display="flex" justifyContent="center" alignItems="center" minH={minH}>
       <VStack gap="4">

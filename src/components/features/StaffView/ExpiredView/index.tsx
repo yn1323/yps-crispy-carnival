@@ -1,6 +1,8 @@
-import { Button, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Icon, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuTriangleAlert } from "react-icons/lu";
+import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   recruitmentId: string | null;
@@ -8,7 +10,7 @@ type Props = {
 
 export const ExpiredView = ({ recruitmentId }: Props) => {
   return (
-    <Flex flex={1} align="center" justify="center" px={8}>
+    <StaffCenteredContent>
       <VStack gap={4}>
         <Icon as={LuTriangleAlert} boxSize={12} color="orange.500" />
         <Text fontSize="lg" fontWeight="semibold" textAlign="center">
@@ -25,6 +27,6 @@ export const ExpiredView = ({ recruitmentId }: Props) => {
           </Link>
         )}
       </VStack>
-    </Flex>
+    </StaffCenteredContent>
   );
 };
