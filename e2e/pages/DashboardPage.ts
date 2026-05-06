@@ -104,7 +104,10 @@ export class DashboardPage {
     await emailInput.clear();
     await emailInput.fill(newData.email);
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "保存する" }).click();
+    await this.page
+      .getByRole("dialog")
+      .getByRole("button", { name: /保存する|変更を保存/ })
+      .click();
     await expect(this.page.getByText("スタッフ情報を更新しました")).toBeVisible();
   }
 
@@ -113,7 +116,10 @@ export class DashboardPage {
     await this.page.getByRole("menuitem", { name: "削除" }).click();
 
     await expect(this.page.getByRole("alertdialog", { name: "スタッフを削除" })).toBeVisible();
-    await this.page.getByRole("alertdialog").getByRole("button", { name: "削除する" }).click();
+    await this.page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: /削除する|このスタッフを削除/ })
+      .click();
     await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
   }
 
@@ -176,7 +182,10 @@ export class DashboardPage {
       await this.selectTime("シフト終了時間", data.shiftEndTime);
     }
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "保存する" }).click();
+    await this.page
+      .getByRole("dialog")
+      .getByRole("button", { name: /保存する|変更を保存/ })
+      .click();
     await expect(this.page.getByText("店舗設定を更新しました")).toBeVisible();
   }
 
