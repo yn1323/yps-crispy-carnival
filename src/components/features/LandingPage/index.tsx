@@ -40,6 +40,7 @@ export const LandingPage = () => (
     <Hero />
     <DemoSection />
     <PointsSection />
+    <LineSection />
     <ToolsSection />
     <HowSection />
     <FaqSection />
@@ -287,7 +288,7 @@ const Hero = () => (
           </Box>
         </Heading>
         <Text mt={7} fontSize={{ base: "16px", lg: "20px" }} color="gray.700" lineHeight={1.7} whiteSpace="pre-line">
-          シフトづくり ぜんぶおまかせ
+          {"スタッフはいつものLINEで通知を受け取れます。\nβ期間中はLINE連携も追加料金なし。"}
         </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
@@ -318,6 +319,7 @@ const Hero = () => (
         <HStack mt={7} gap={6} fontSize="13px" color="fg.muted" flexWrap="wrap">
           <HeroMeta>登録無料</HeroMeta>
           <HeroMeta>専用アプリ不要</HeroMeta>
+          <HeroMeta>LINE連携も追加料金なし</HeroMeta>
         </HStack>
       </VStack>
       <ScheduleCanvas />
@@ -478,7 +480,7 @@ const POINTS: Point[] = [
     icon: LuSend,
     title: "シフト募集",
     lead: "期間を決めて一斉送信",
-    body: "スタッフはLINEやメールで届くリンクから申請\n専用アプリのインストールも不要",
+    body: "スタッフはLINEやメールで届くリンクから申請。\n専用アプリのインストールも不要",
   },
   {
     num: "02",
@@ -492,7 +494,7 @@ const POINTS: Point[] = [
     icon: LuCheck,
     title: "シフトの微調整",
     lead: "集めた希望を見ながら調整",
-    body: "修正完了で通知を一斉送信。\nLINEでもメールでもすぐに確認可能！",
+    body: "修正完了で通知を一斉送信。\nLINE連携済みのスタッフにはLINEで届きます。",
   },
 ];
 
@@ -549,6 +551,120 @@ const PointCard = ({ num, icon: Icon, title, lead, body }: Point) => (
       {body}
     </Text>
   </Box>
+);
+
+type LineFeature = { icon: IconType; title: string; body: string };
+
+const LINE_FEATURES: LineFeature[] = [
+  {
+    icon: PiChatsCircle,
+    title: "スタッフはいつものLINEで確認",
+    body: "シフト提出のお願いや確定後のお知らせを、普段使っているLINEに届けられます。",
+  },
+  {
+    icon: LuSend,
+    title: "お店から一斉にお知らせ",
+    body: "募集開始、提出リマインド、確定シフトの通知をスタッフごとにLINEかメールへ送れます。",
+  },
+  {
+    icon: LuCheck,
+    title: "β期間中は追加料金なし",
+    body: "LINE連携の費用はシフトリ側で負担します。β終了後も無料で使える範囲を用意する予定です。",
+  },
+];
+
+const LineSection = () => (
+  <Box
+    as="section"
+    id="line"
+    bg="#f7fff9"
+    borderYWidth="1px"
+    borderColor="green.100"
+    px={{ base: 5, lg: 6 }}
+    py={{ base: 14, lg: 24 }}
+  >
+    <Box mx="auto" w="full" maxW="1024px">
+      <SimpleGrid columns={{ base: 1, lg: 2 }} gap={{ base: 10, lg: 16 }} alignItems="center">
+        <VStack align="start" gap={0}>
+          <HStack
+            display="inline-flex"
+            gap={2}
+            fontSize="13px"
+            fontWeight="bold"
+            color="#047857"
+            bg="white"
+            px="14px"
+            py="6px"
+            borderRadius="full"
+            borderWidth="1px"
+            borderColor="green.200"
+          >
+            <Flex boxSize="20px" borderRadius="full" bg="#06c755" color="white" align="center" justify="center">
+              <PiChatsCircle size={14} />
+            </Flex>
+            <Box as="span">LINE連携</Box>
+          </HStack>
+          <Heading
+            as="h2"
+            mt={5}
+            fontSize={{ base: "30px", lg: "46px" }}
+            lineHeight={1.3}
+            fontWeight="bold"
+            color="gray.900"
+            whiteSpace="pre-line"
+          >
+            {"スタッフ連絡は\nいつものLINEへ"}
+          </Heading>
+          <Text mt={5} fontSize={{ base: "15px", lg: "17px" }} color="gray.700" lineHeight={1.9}>
+            新しいアプリを入れてもらわず、シフト提出や確定のお知らせを届けられます。
+          </Text>
+          <Text mt={4} fontSize="12px" color="gray.500" lineHeight={1.8}>
+            β期間中は追加料金なし。β終了後も、無料で使える範囲を用意する予定です。
+          </Text>
+        </VStack>
+
+        <VStack align="stretch" gap={3}>
+          {LINE_FEATURES.map((feature) => (
+            <LineFeatureItem key={feature.title} {...feature} />
+          ))}
+        </VStack>
+      </SimpleGrid>
+    </Box>
+  </Box>
+);
+
+const LineFeatureItem = ({ icon: Icon, title, body }: LineFeature) => (
+  <HStack
+    align="start"
+    gap={4}
+    bg="white"
+    borderWidth="1px"
+    borderColor="green.100"
+    borderRadius="8px"
+    px={{ base: 4, lg: 5 }}
+    py={{ base: 4, lg: 5 }}
+    boxShadow="0 14px 32px -24px rgba(5,150,105,0.45)"
+  >
+    <Flex
+      boxSize="42px"
+      borderRadius="full"
+      bg="#ecfdf5"
+      color="#059669"
+      align="center"
+      justify="center"
+      flexShrink={0}
+    >
+      <Icon size={22} />
+    </Flex>
+    <Box minW={0}>
+      <Text fontSize="16px" fontWeight="bold" lineHeight={1.5}>
+        {title}
+      </Text>
+      <Text mt={1} fontSize="13px" color="fg.muted" lineHeight={1.8}>
+        {body}
+      </Text>
+    </Box>
+  </HStack>
 );
 
 type Tool = { icon: IconType; name: string; meta: string; iconBg: string; iconColor: string };
