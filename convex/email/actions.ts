@@ -137,11 +137,21 @@ export const sendReissueEmail = internalAction({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { staffId, recruitmentId }) => {
+    const log = (level: "log" | "warn" | "error", event: string, extra: Record<string, unknown> = {}) =>
+      console[level](`[sendReissueEmail] ${event}`, { staffId, recruitmentId, ...extra });
+
     const data = await ctx.runQuery(internal.email.queries.getReissueEmailData, { staffId, recruitmentId });
-    if (!data) return;
+    if (!data) return log("warn", "data_not_found");
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const channel = selectChannel({ lineUserId: data.lineUserId, lineFollowing: data.lineFollowing }, quota);
+    log("log", "channel_selected", {
+      channel,
+      hasLineUserId: Boolean(data.lineUserId),
+      lineFollowing: Boolean(data.lineFollowing),
+      hasEmail: Boolean(data.staffEmail),
+      quotaStatus: quota?.status,
+    });
 
     const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
       staffId,
@@ -161,26 +171,38 @@ export const sendReissueEmail = internalAction({
             magicLinkUrl,
           }),
         );
-        return;
+        return log("log", "line_sent");
       } catch (e) {
-        console.error("LINE push failed; falling back to email", e);
+        log("error", "line_push_failed; falling back to email", { error: errorMessage(e) });
       }
     }
 
-    if (!data.staffEmail) return;
-    const resend = getResendClient();
-    await resend.emails.send({
-      from: `${data.shopName} <${RESEND_FROM}>`,
-      to: data.staffEmail,
-      subject: `【${data.shopName}】${data.periodLabel} シフト閲覧リンク`,
-      html: buildReissueEmailHtml({
-        staffName: data.staffName,
-        periodLabel: data.periodLabel,
-        magicLinkUrl,
-      }),
-    });
+    if (!data.staffEmail) return log("log", "no_email_no_line_skip");
+
+    try {
+      const resend = getResendClient();
+      await resend.emails.send({
+        from: `${data.shopName} <${RESEND_FROM}>`,
+        to: data.staffEmail,
+        subject: `【${data.shopName}】${data.periodLabel} シフト閲覧リンク`,
+        html: buildReissueEmailHtml({
+          staffName: data.staffName,
+          periodLabel: data.periodLabel,
+          magicLinkUrl,
+        }),
+      });
+      log("log", "email_sent");
+    } catch (e) {
+      // Resend API のエラー（API key 無効 / domain 未認証 / 4xx / 5xx）が action 全体を
+      // 落とすとフロントには成功扱いで返ってしまうため、ここで握ってログだけ残す。
+      log("error", "email_send_failed", { error: errorMessage(e) });
+    }
   },
 });
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 /**
  * 募集開始通知の配信（LINE 振り分け対応）
