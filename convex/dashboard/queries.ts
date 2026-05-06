@@ -92,6 +92,8 @@ export const getDashboardStaffs = authenticatedQuery({
       name: s.name,
       email: s.email,
       isOwner: s.userId === ctx.user?._id,
+      isLineLinked: Boolean(s.lineUserId),
+      isLineFollowing: Boolean(s.lineFollowing),
     }));
 
     return {

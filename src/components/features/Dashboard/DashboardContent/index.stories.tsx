@@ -22,6 +22,7 @@ export const Normal: Story = {
     staffs: mockStaffs,
     staffStatus: "CanLoadMore",
     loadMoreStaffs: () => {},
+    lineBulkInviteTargetCount: 2,
   },
 };
 
@@ -34,6 +35,7 @@ export const Empty: Story = {
     staffs: [],
     staffStatus: "Exhausted",
     loadMoreStaffs: () => {},
+    lineBulkInviteTargetCount: 0,
   },
 };
 
@@ -46,5 +48,6 @@ export const Setup: Story = {
     staffs: [],
     staffStatus: "Exhausted",
     loadMoreStaffs: () => {},
+    lineBulkInviteTargetCount: 0,
   },
 };

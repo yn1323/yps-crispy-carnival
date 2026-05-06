@@ -3,6 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockStaffs, mockStaffsMany } from "@/src/components/features/Dashboard/storyMocks";
 import { StaffRoster } from ".";
 
+const noop = () => {};
+
 const meta = {
   title: "Features/Dashboard/StaffRoster",
   component: StaffRoster,
@@ -18,10 +20,14 @@ export const Variants: Story = {
   args: {
     staffs: mockStaffs,
     status: "Exhausted",
-    onAddClick: () => {},
-    onEdit: () => {},
-    onDelete: () => {},
-    onLoadMore: () => {},
+    onAddClick: noop,
+    onEdit: noop,
+    onDelete: noop,
+    onShowLineQr: noop,
+    onSendLineInvite: noop,
+    onSendLineInviteBulk: noop,
+    lineBulkInviteTargetCount: 2,
+    onLoadMore: noop,
   },
   render: () => (
     <Stack gap={10} maxW="720px" mx="auto" w="full">
@@ -32,10 +38,14 @@ export const Variants: Story = {
         <StaffRoster
           staffs={mockStaffs}
           status="Exhausted"
-          onAddClick={() => {}}
-          onEdit={() => {}}
-          onDelete={() => {}}
-          onLoadMore={() => {}}
+          onAddClick={noop}
+          onEdit={noop}
+          onDelete={noop}
+          onShowLineQr={noop}
+          onSendLineInvite={noop}
+          onSendLineInviteBulk={noop}
+          lineBulkInviteTargetCount={2}
+          onLoadMore={noop}
         />
       </Stack>
       <Stack gap={3}>
@@ -45,10 +55,14 @@ export const Variants: Story = {
         <StaffRoster
           staffs={mockStaffsMany}
           status="CanLoadMore"
-          onAddClick={() => {}}
-          onEdit={() => {}}
-          onDelete={() => {}}
-          onLoadMore={() => {}}
+          onAddClick={noop}
+          onEdit={noop}
+          onDelete={noop}
+          onShowLineQr={noop}
+          onSendLineInvite={noop}
+          onSendLineInviteBulk={noop}
+          lineBulkInviteTargetCount={12}
+          onLoadMore={noop}
         />
       </Stack>
       <Stack gap={3}>
@@ -58,10 +72,14 @@ export const Variants: Story = {
         <StaffRoster
           staffs={[]}
           status="Exhausted"
-          onAddClick={() => {}}
-          onEdit={() => {}}
-          onDelete={() => {}}
-          onLoadMore={() => {}}
+          onAddClick={noop}
+          onEdit={noop}
+          onDelete={noop}
+          onShowLineQr={noop}
+          onSendLineInvite={noop}
+          onSendLineInviteBulk={noop}
+          lineBulkInviteTargetCount={0}
+          onLoadMore={noop}
         />
       </Stack>
     </Stack>
