@@ -182,7 +182,7 @@ export const DashboardContent = ({
     try {
       await sendLineInvite({ staffId: lineInviteTarget._id });
       lineInviteDialog.close();
-      toaster.create({ title: "LINE連携依頼を送信しました", type: "success" });
+      toaster.create({ title: "LINE連携URLをメールで送信しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -197,7 +197,7 @@ export const DashboardContent = ({
       const r = await sendLineInviteBulk({});
       lineBulkInviteDialog.close();
       toaster.create({
-        title: r.sentCount > 0 ? `${r.sentCount}名にLINE連携依頼を送信しました` : "送信対象のスタッフがいません",
+        title: r.sentCount > 0 ? `${r.sentCount}名にLINE連携URLをメールで送信しました` : "送信対象のスタッフがいません",
         type: "success",
       });
     } catch (error) {
@@ -314,7 +314,7 @@ export const DashboardContent = ({
       </Dialog>
 
       <Modal
-        title="LINE連携用QR / URL"
+        title="LINE連携QR / URL"
         isOpen={lineQrDialog.isOpen}
         onOpenChange={lineQrDialog.onOpenChange}
         onClose={lineQrDialog.close}
@@ -328,7 +328,7 @@ export const DashboardContent = ({
       </Modal>
 
       <Dialog
-        title="LINE連携依頼を送る"
+        title="メールでLINE連携URLを送る"
         isOpen={lineInviteDialog.isOpen}
         onOpenChange={lineInviteDialog.onOpenChange}
         onClose={lineInviteDialog.close}

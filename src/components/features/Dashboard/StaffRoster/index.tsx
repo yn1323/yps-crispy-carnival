@@ -58,7 +58,7 @@ export const StaffRoster = ({
               fontWeight="semibold"
             >
               <LuMail />
-              LINE連携依頼を送る ({unlinkedCount})
+              メールでLINE連携URLを送る ({unlinkedCount})
             </Button>
           )}
           <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
