@@ -117,7 +117,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       await sendReminderEmailsMutation({ recruitmentId });
       reminderModal.close();
-      toaster.create({ title: "催促メールを送信しました", type: "success" });
+      toaster.create({ title: "催促通知を送信しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -243,7 +243,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       </Dialog>
 
       <Dialog
-        title="未提出者に催促メールを送信"
+        title="未提出者に催促通知を送信"
         isOpen={reminderModal.isOpen}
         onOpenChange={reminderModal.onOpenChange}
         onSubmit={handleSendReminders}

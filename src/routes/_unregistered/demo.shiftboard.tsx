@@ -51,7 +51,7 @@ function DemoShiftBoardRoute() {
               シフトリでできること
             </Heading>
             <List.Root gap={2} color="fg.muted">
-              <List.Item>スタッフへのシフト希望募集をメール一通で完結</List.Item>
+              <List.Item>スタッフへのシフト希望募集をLINEやメールで完結</List.Item>
               <List.Item>スタッフはアプリのインストールもアカウント登録も不要</List.Item>
               <List.Item>集まった希望をガントチャートで一覧確認・調整</List.Item>
               <List.Item>確定したシフトをワンクリックで全員に通知</List.Item>

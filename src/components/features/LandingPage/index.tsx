@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Heading, HStack, Image, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Image, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
@@ -15,6 +15,7 @@ import {
   PiTable,
 } from "react-icons/pi";
 import { BrowserMockup } from "@/src/components/ui/BrowserMockup";
+import { Button } from "@/src/components/ui/Button";
 import { type Faq, faqs } from "./faqs";
 
 const ANIMATIONS = `
@@ -299,14 +300,13 @@ const Hero = () => (
           </SignUpButton>
           <SignInButton mode="modal">
             <Button
-              variant="outline"
+              variant="outlineOnTint"
               colorPalette="teal"
               h="56px"
               px={8}
               fontSize="18px"
               fontWeight="bold"
               borderRadius="full"
-              bg="white"
             >
               ログイン
             </Button>
@@ -475,7 +475,7 @@ const POINTS: Point[] = [
     icon: LuSend,
     title: "シフト募集",
     lead: "期間を決めて一斉送信",
-    body: "スタッフはメールで届くリンクから申請\n専用アプリのインストールも不要",
+    body: "スタッフはLINEやメールで届くリンクから申請\n専用アプリのインストールも不要",
   },
   {
     num: "02",
@@ -489,7 +489,7 @@ const POINTS: Point[] = [
     icon: LuCheck,
     title: "シフトの微調整",
     lead: "集めた希望を見ながら調整",
-    body: "修正完了でメールを一斉送信。\nみんな手元ですぐに確認可能！",
+    body: "修正完了で通知を一斉送信。\nLINEでもメールでもすぐに確認可能！",
   },
 ];
 
@@ -555,7 +555,7 @@ const TOOLS: Tool[] = [
   { icon: PiTable, name: "Excel", meta: "シフト表", iconBg: "#217346", iconColor: "#fff" },
   { icon: PiNote, name: "付箋メモ", meta: "厨房の壁", iconBg: "#fef3c7", iconColor: "#b45309" },
   { icon: PiNotebook, name: "手書きノート", meta: "バックヤード", iconBg: "#dbeafe", iconColor: "#1e40af" },
-  { icon: PiEnvelopeSimple, name: "SMS/メール", meta: "シフト催促", iconBg: "#fce7f3", iconColor: "#be185d" },
+  { icon: PiEnvelopeSimple, name: "LINE/メール", meta: "シフト通知", iconBg: "#fce7f3", iconColor: "#be185d" },
   { icon: PiClock, name: "頭の中", meta: "記憶だより", iconBg: "#f4f4f5", iconColor: "#3f3f46" },
 ];
 
@@ -647,7 +647,7 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
 );
 
 const STEPS: { title: string; body: string }[] = [
-  { title: "募集期間を決める", body: "期間を決めてスタッフ全員に募集開始メールを一斉送信" },
+  { title: "募集期間を決める", body: "期間を決めてスタッフ全員に募集開始通知を一斉送信" },
   { title: "希望シフトを集める", body: "スタッフがスマホから希望を入力" },
   { title: "確定シフトを通知", body: "微調整したシフトを全員に一斉送信" },
 ];
@@ -819,14 +819,13 @@ const BottomCta = () => (
         </SignUpButton>
         <SignInButton mode="modal">
           <Button
-            variant="outline"
+            variant="outlineOnTint"
             colorPalette="teal"
             h="56px"
             px={8}
             fontSize="18px"
             fontWeight="bold"
             borderRadius="full"
-            bg="white"
           >
             ログイン
           </Button>
