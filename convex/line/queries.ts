@@ -46,6 +46,22 @@ export const getQuotaStatus = managerQuery({
 });
 
 /**
+ * 店舗内で一括連携依頼の対象になるスタッフ数（店長UI用）
+ */
+export const getBulkInviteTargetCount = managerQuery({
+  args: {},
+  handler: async (ctx) => {
+    const shop = ctx.shop;
+    if (!shop) return 0;
+    const staffs = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .take(1000);
+    return staffs.filter((s) => s.email && (!s.lineUserId || s.lineFollowing === false)).length;
+  },
+});
+
+/**
  * lineUserId からスタッフを引く（Webhook で使う）
  */
 export const findStaffByLineUserId = internalQuery({
