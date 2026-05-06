@@ -1,4 +1,4 @@
-import { Text, useBreakpointValue } from "@chakra-ui/react";
+import { Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
@@ -7,7 +7,6 @@ import { LineBulkInviteContent } from "@/src/components/features/Line/LineBulkIn
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
@@ -54,7 +53,6 @@ export const DashboardContent = ({
   const lineInviteDialog = useDialog();
   const lineBulkInviteDialog = useDialog();
   const setupModal = useDialog();
-  const isMobile = useBreakpointValue({ base: true, lg: false });
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
@@ -72,8 +70,6 @@ export const DashboardContent = ({
   const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
   const sendLineInviteBulk = useMutation(api.line.mutations.sendInviteBulk);
-
-  const Modal = isMobile ? BottomSheet : Dialog;
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
@@ -242,7 +238,7 @@ export const DashboardContent = ({
         )}
       </ContentWrapper>
 
-      <Modal
+      <Dialog
         title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
@@ -251,9 +247,9 @@ export const DashboardContent = ({
         onClose={recruitmentModal.close}
       >
         <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="スタッフを追加"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
@@ -264,9 +260,9 @@ export const DashboardContent = ({
         maxH="85dvh"
       >
         <AddStaffForm onSubmit={handleAddStaffs} />
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="スタッフを編集"
         isOpen={editStaffModal.isOpen}
         onOpenChange={editStaffModal.onOpenChange}
@@ -275,9 +271,9 @@ export const DashboardContent = ({
         onClose={editStaffModal.close}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="店舗設定"
         isOpen={editShopModal.isOpen}
         onOpenChange={editShopModal.onOpenChange}
@@ -295,7 +291,7 @@ export const DashboardContent = ({
             onSubmit={handleUpdateShop}
           />
         )}
-      </Modal>
+      </Dialog>
 
       <Dialog
         title="スタッフを削除"
@@ -313,7 +309,7 @@ export const DashboardContent = ({
         </Text>
       </Dialog>
 
-      <Modal
+      <Dialog
         title="LINE連携QR / URL"
         isOpen={lineQrDialog.isOpen}
         onOpenChange={lineQrDialog.onOpenChange}
@@ -325,7 +321,7 @@ export const DashboardContent = ({
           isLoading={lineQrLoading}
           staffName={lineQrTarget?.name ?? ""}
         />
-      </Modal>
+      </Dialog>
 
       <Dialog
         title="メールでLINE連携URLを送る"
