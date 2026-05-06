@@ -101,8 +101,14 @@ export const finalizeLinking = internalMutation({
     staffId: v.id("staffs"),
     tokenDocId: v.id("lineLinkTokens"),
     lineUserId: v.string(),
+    lineFollowing: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const link = await ctx.db.get(args.tokenDocId);
+    if (!link || link.staffId !== args.staffId || link.expiresAt < Date.now() || link.usedAt) {
+      return { status: "expired" as const };
+    }
+
     // 既に他スタッフに紐づいている lineUserId の場合は上書きせず置き換え
     // （同じLINEアカウントを別スタッフが連携し直したケース）
     const existing = await ctx.db
@@ -122,9 +128,10 @@ export const finalizeLinking = internalMutation({
     await ctx.db.patch(args.staffId, {
       lineUserId: args.lineUserId,
       lineLinkedAt: Date.now(),
-      lineFollowing: true, // bot_prompt=aggressive 想定。follow Webhook で再確認される
+      lineFollowing: args.lineFollowing,
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
+    return { status: "ok" as const };
   },
 });
 
@@ -191,11 +198,12 @@ export const upsertQuotaStatus = internalMutation({
   args: {
     totalQuota: v.number(),
     consumed: v.number(),
+    status: v.optional(v.union(v.literal("normal"), v.literal("exceeded"))),
     plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
   },
   handler: async (ctx, args) => {
     const remaining = Math.max(args.totalQuota - args.consumed, 0);
-    const status = remaining <= 0 ? ("exceeded" as const) : ("normal" as const);
+    const status = args.status ?? (remaining <= 0 ? ("exceeded" as const) : ("normal" as const));
     const existing = await ctx.db.query("lineQuotaStatus").first();
     const payload = {
       checkedAt: Date.now(),
