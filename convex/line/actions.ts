@@ -6,6 +6,7 @@ import { action, internalAction } from "../_generated/server";
 import {
   buildLineAuthorizeUrl,
   exchangeAuthorizationCode,
+  fetchLineFriendshipStatus,
   fetchLineProfile,
   getMessageQuota,
   getMessageQuotaConsumption,
@@ -57,13 +58,18 @@ export const redeemLineToken = action({
       channelId: getLoginChannelId(),
       channelSecret: getLoginChannelSecret(),
     });
-    const profile = await fetchLineProfile(accessToken);
+    const [profile, friendship] = await Promise.all([
+      fetchLineProfile(accessToken),
+      fetchLineFriendshipStatus(accessToken),
+    ]);
 
-    await ctx.runMutation(internal.line.mutations.finalizeLinking, {
+    const finalized = await ctx.runMutation(internal.line.mutations.finalizeLinking, {
       staffId: validation.staffId,
       tokenDocId: validation.tokenDocId,
       lineUserId: profile.userId,
+      lineFollowing: friendship.friendFlag,
     });
+    if (finalized.status !== "ok") return { status: finalized.status };
     return { status: "ok" };
   },
 });
@@ -108,13 +114,17 @@ export const refreshQuotaStatus = internalAction({
   args: {},
   handler: async (ctx) => {
     const [quota, consumed] = await Promise.all([getMessageQuota(), getMessageQuotaConsumption()]);
-    const totalQuota = quota.type === "limited" ? quota.value : 0;
+    const totalQuota = quota.type === "limited" ? quota.value : consumed + 1;
     const plan = PLAN_BY_QUOTA[totalQuota] ?? "communication";
-    await ctx.runMutation(internal.line.mutations.upsertQuotaStatus, {
+    const payload = {
       totalQuota,
       consumed,
       plan,
-    });
+    };
+    await ctx.runMutation(
+      internal.line.mutations.upsertQuotaStatus,
+      quota.type === "none" ? { ...payload, status: "normal" } : payload,
+    );
   },
 });
 

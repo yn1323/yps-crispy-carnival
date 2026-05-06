@@ -110,6 +110,16 @@ export async function fetchLineProfile(accessToken: string): Promise<{ userId: s
   return { userId: data.userId, displayName: data.displayName };
 }
 
+/** LINEログインチャネルに紐づく公式アカウントとの友だち状態を取得 */
+export async function fetchLineFriendshipStatus(accessToken: string): Promise<{ friendFlag: boolean }> {
+  const res = await fetch(`${LINE_API_BASE}/friendship/v1/status`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`LINE friendship status fetch failed: ${res.status}`);
+  const data = (await res.json()) as { friendFlag: boolean };
+  return { friendFlag: data.friendFlag };
+}
+
 /**
  * 認可URL組み立て
  * `bot_prompt=aggressive` で公式アカウント友達追加チェックを目立たせる

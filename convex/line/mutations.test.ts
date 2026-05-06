@@ -99,6 +99,7 @@ describe("line/mutations", () => {
         staffId: result.staffId,
         tokenDocId: result.tokenDocId,
         lineUserId: "U_abcdef",
+        lineFollowing: true,
       });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
@@ -115,6 +116,31 @@ describe("line/mutations", () => {
       expect(link?.usedAt).toBeGreaterThan(0);
     });
 
+    it("finalize の再実行は expired を返し、スタッフを上書きしない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
+      const result = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
+      if (result.status !== "ok") throw new Error("expected ok");
+
+      await t.mutation(internal.line.mutations.finalizeLinking, {
+        staffId: result.staffId,
+        tokenDocId: result.tokenDocId,
+        lineUserId: "U_first",
+        lineFollowing: true,
+      });
+      const retry = await t.mutation(internal.line.mutations.finalizeLinking, {
+        staffId: result.staffId,
+        tokenDocId: result.tokenDocId,
+        lineUserId: "U_second",
+        lineFollowing: true,
+      });
+
+      const staff = await t.run(async (ctx) => ctx.db.get(staffId));
+      expect(retry.status).toBe("expired");
+      expect(staff?.lineUserId).toBe("U_first");
+    });
+
     it("使用済みトークンは expired を返す", async () => {
       const t = convexTest(schema, modules);
       const { staffId, shopId } = await setupShop(t);
@@ -125,6 +151,7 @@ describe("line/mutations", () => {
         staffId: r1.staffId,
         tokenDocId: r1.tokenDocId,
         lineUserId: "U_abcdef",
+        lineFollowing: true,
       });
       const r2 = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
       expect(r2.status).toBe("expired");
@@ -173,6 +200,7 @@ describe("line/mutations", () => {
         staffId: r.staffId,
         tokenDocId: r.tokenDocId,
         lineUserId: "U_dup",
+        lineFollowing: true,
       });
 
       const newOwner = await t.run(async (ctx) => ctx.db.get(staffId));
@@ -258,6 +286,19 @@ describe("line/mutations", () => {
       const status = await t.run(async (ctx) => ctx.db.query("lineQuotaStatus").first());
       expect(status?.status).toBe("normal");
       expect(status?.remaining).toBe(4000);
+    });
+
+    it("status を指定した場合は remaining 0 でも normal にできる", async () => {
+      const t = convexTest(schema, modules);
+      await t.mutation(internal.line.mutations.upsertQuotaStatus, {
+        totalQuota: 0,
+        consumed: 0,
+        status: "normal",
+        plan: "communication",
+      });
+      const status = await t.run(async (ctx) => ctx.db.query("lineQuotaStatus").first());
+      expect(status?.status).toBe("normal");
+      expect(status?.remaining).toBe(0);
     });
   });
 
