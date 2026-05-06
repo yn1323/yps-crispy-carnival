@@ -1,4 +1,4 @@
-import { Box, Flex, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import dayjs from "dayjs";
@@ -15,7 +15,6 @@ import {
   formatDateWithWeekday,
   getDateRange,
 } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
@@ -82,8 +81,6 @@ type Props = {
 };
 
 export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
-  const isMobile = useBreakpointValue({ base: true, lg: false });
-
   const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useMutation(api.shiftBoard.mutations.confirmRecruitment);
   const sendReminderEmailsMutation = useMutation(api.shiftReminder.mutations.sendReminderEmails);
@@ -113,7 +110,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const confirmModal = useDialog();
   const saveDraftWarningModal = useDialog();
   const reminderModal = useDialog();
-  const Modal = isMobile ? BottomSheet : Dialog;
 
   const unsubmittedNames = useMemo(() => data.staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [data.staffs]);
 
@@ -224,7 +220,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         />
       </Box>
 
-      <Modal
+      <Dialog
         title={confirmTitle}
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
@@ -233,9 +229,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="一時保存時の注意"
         isOpen={saveDraftWarningModal.isOpen}
         onOpenChange={saveDraftWarningModal.onOpenChange}
@@ -244,9 +240,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onClose={saveDraftWarningModal.close}
       >
         <SaveDraftWarningContent />
-      </Modal>
+      </Dialog>
 
-      <Modal
+      <Dialog
         title="未提出者に催促メールを送信"
         isOpen={reminderModal.isOpen}
         onOpenChange={reminderModal.onOpenChange}
@@ -259,7 +255,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           deadline={formatDateWithWeekday(data.recruitment.deadline)}
           linkExpiresAtLabel={formatDateTimeWithWeekday(Date.now() + 24 * 60 * 60 * 1000)}
         />
-      </Modal>
+      </Dialog>
     </Flex>
   );
 };

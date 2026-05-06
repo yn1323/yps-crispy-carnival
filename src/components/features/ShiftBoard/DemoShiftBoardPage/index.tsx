@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, Icon, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Heading, Icon, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
@@ -10,7 +10,6 @@ import {
   formatDateTime,
   getWeekdayLabel,
 } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import type { TourHandle } from "@/src/components/ui/Tour";
 import { toaster } from "@/src/components/ui/toaster";
@@ -70,7 +69,6 @@ function generatePeriodLabel(dates: string[]): string {
 }
 
 export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
-  const isMobile = useBreakpointValue({ base: true, lg: false });
   const [confirmedAt, setConfirmedAt] = useState<number | null>(null);
   const isConfirmed = confirmedAt !== null;
 
@@ -84,7 +82,6 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
   const tourRef = useRef<TourHandle>(null);
 
   const confirmModal = useDialog();
-  const Modal = isMobile ? BottomSheet : Dialog;
 
   const handleOpenConfirm = useCallback(() => {
     // モーダルを開く前に tour を止めて overlay を片付けさせる（unmount はしない）
@@ -153,7 +150,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
         />
       </Box>
 
-      <Modal
+      <Dialog
         title={confirmTitle}
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
@@ -162,7 +159,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />
-      </Modal>
+      </Dialog>
 
       {tourPhase === "idle" && viewMode === "daily" && (
         <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
