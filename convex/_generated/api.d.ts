@@ -46,11 +46,11 @@ import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
 import type * as shop_mutations from "../shop/mutations.js";
-import type * as staff_mutations from "../staff/mutations.js";
-import type * as staff_schemas from "../staff/schemas.js";
 import type * as staffAuth_mutations from "../staffAuth/mutations.js";
 import type * as staffAuth_queries from "../staffAuth/queries.js";
 import type * as staffAuth_schemas from "../staffAuth/schemas.js";
+import type * as staff_mutations from "../staff/mutations.js";
+import type * as staff_schemas from "../staff/schemas.js";
 import type * as testing from "../testing.js";
 
 import type {
@@ -98,11 +98,11 @@ declare const fullApi: ApiFromModules<{
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;
   "shop/mutations": typeof shop_mutations;
-  "staff/mutations": typeof staff_mutations;
-  "staff/schemas": typeof staff_schemas;
   "staffAuth/mutations": typeof staffAuth_mutations;
   "staffAuth/queries": typeof staffAuth_queries;
   "staffAuth/schemas": typeof staffAuth_schemas;
+  "staff/mutations": typeof staff_mutations;
+  "staff/schemas": typeof staff_schemas;
   testing: typeof testing;
 }>;
 
