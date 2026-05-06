@@ -1,12 +1,45 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   JotaiStoryWrapper,
+  mockPositions,
   mockShifts,
   mockShiftsAllPatterns,
   mockShiftsRequestOnly,
   mockStaffs,
 } from "../../__mocks__/storyData";
+import type { ShiftData, StaffType } from "../../types";
 import { DailyView } from ".";
+
+const manyStaffs: StaffType[] = Array.from({ length: 28 }, (_, index) => {
+  const number = index + 1;
+  return {
+    id: `many-staff-${number}`,
+    name: `staff ${number.toString().padStart(2, "0")}`,
+    isSubmitted: true,
+  };
+});
+
+const manyStaffShifts: ShiftData[] = manyStaffs.map((staff, index) => {
+  const startHour = 10 + (index % 4);
+  const endHour = startHour + 5;
+  return {
+    id: `many-shift-${staff.id}`,
+    staffId: staff.id,
+    staffName: staff.name,
+    date: "2026-01-21",
+    requestedTime: { start: `${startHour}:00`, end: `${endHour}:00` },
+    positions: [
+      {
+        id: `many-position-${staff.id}`,
+        positionId: mockPositions[0].id,
+        positionName: mockPositions[0].name,
+        color: mockPositions[0].color,
+        start: `${startHour}:00`,
+        end: `${endHour}:00`,
+      },
+    ],
+  };
+});
 
 const meta = {
   title: "Features/Shift/ShiftForm/PC/DailyView",
@@ -124,6 +157,33 @@ export const UnassignedOnly: Story = {
     <JotaiStoryWrapper
       overrides={{
         initialShifts: mockShifts.map((s) => ({ ...s, positions: [] })),
+      }}
+    >
+      <DailyView />
+    </JotaiStoryWrapper>
+  ),
+};
+
+export const ManyStaffs: Story = {
+  render: () => (
+    <JotaiStoryWrapper
+      overrides={{
+        staffs: manyStaffs,
+        initialShifts: manyStaffShifts,
+      }}
+    >
+      <DailyView />
+    </JotaiStoryWrapper>
+  ),
+};
+
+export const ManyStaffsReadOnly: Story = {
+  render: () => (
+    <JotaiStoryWrapper
+      overrides={{
+        staffs: manyStaffs,
+        initialShifts: manyStaffShifts,
+        isReadOnly: true,
       }}
     >
       <DailyView />
