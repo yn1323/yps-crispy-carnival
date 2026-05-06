@@ -1,4 +1,3 @@
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
 import { convexRun } from "../helpers/convex";
 import { getOrCreateLineLinkToken } from "../helpers/notificationTokens";
@@ -12,8 +11,7 @@ const MANAGER = {
 test.describe("LINE連携URL発行", () => {
   test.setTimeout(60_000);
 
-  test.beforeEach(async ({ page }) => {
-    await setupClerkTestingToken({ page });
+  test.beforeEach(async () => {
     convexRun("testing:clearAllTables");
   });
 

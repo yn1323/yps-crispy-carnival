@@ -1,4 +1,3 @@
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { test } from "@playwright/test";
 import { convexRun } from "../helpers/convex";
 import { getNextWeekDates } from "../helpers/date";
@@ -15,8 +14,7 @@ const MANAGER = {
 test.describe("通知URL起点の確定シフト閲覧", () => {
   test.setTimeout(120_000);
 
-  test.beforeEach(async ({ page }) => {
-    await setupClerkTestingToken({ page });
+  test.beforeEach(async () => {
     convexRun("testing:clearAllTables");
   });
 
