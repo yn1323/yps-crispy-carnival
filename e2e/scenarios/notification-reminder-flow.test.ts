@@ -1,4 +1,3 @@
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { test } from "@playwright/test";
 import { convexRun } from "../helpers/convex";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
@@ -20,8 +19,7 @@ const REMINDED_STAFF = {
 test.describe("通知URL起点のシフト提出催促", () => {
   test.setTimeout(90_000);
 
-  test.beforeEach(async ({ page }) => {
-    await setupClerkTestingToken({ page });
+  test.beforeEach(async () => {
     convexRun("testing:clearAllTables");
   });
 

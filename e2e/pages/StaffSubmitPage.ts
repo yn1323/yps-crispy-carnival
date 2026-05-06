@@ -8,15 +8,15 @@ export class StaffSubmitPage {
   }
 
   async expectFormVisible() {
-    await expect(this.page.getByText("出勤する日をタップしてください")).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /提出する/ })).toBeVisible();
   }
 
   async expectUnsubmittedBadge() {
-    await expect(this.page.getByText("未提出")).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "提出する" })).toBeVisible();
   }
 
   async expectSubmittedBadge() {
-    await expect(this.page.getByText("提出済み")).toBeVisible();
+    await expect(this.page.getByRole("button", { name: "修正して提出する" })).toBeVisible();
   }
 
   async expectCompletionVisible() {
