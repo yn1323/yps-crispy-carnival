@@ -90,21 +90,17 @@ export const requestReissue = mutation({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { email, recruitmentId }) => {
-    const emailDomain = email.split("@")[1] ?? null;
-    const logSkip = (reason: string, extra: Record<string, unknown> = {}) => {
+    const emailDomain = email.split("@")[1];
+    const logSkip = (reason: string, extra: Record<string, unknown> = {}) =>
       console.warn("[requestReissue] skip", { reason, recruitmentId, ...extra });
-    };
 
     // レートリミットチェック（email+recruitmentId をキーに）
+    // メアド列挙攻撃防止: レートリミットでも成功時と同じレスポンス（void）を返す
     const { ok } = await rateLimit(ctx, {
       name: "requestReissue",
       key: `${email}:${recruitmentId}`,
     });
-    if (!ok) {
-      // メアド列挙攻撃防止: レートリミットでも成功時と同じレスポンス（void）を返す
-      logSkip("rate_limited", { emailDomain });
-      return;
-    }
+    if (!ok) return logSkip("rate_limited", { emailDomain });
 
     const staff = await ctx.db
       .query("staffs")
@@ -114,23 +110,21 @@ export const requestReissue = mutation({
     if (staff.isDeleted) return logSkip("staff_deleted", { staffId: staff._id });
 
     const recruitment = await ctx.db.get(recruitmentId);
-    if (!recruitment) return logSkip("recruitment_not_found", { staffId: staff._id });
-    if (recruitment.isDeleted) return logSkip("recruitment_deleted", { staffId: staff._id });
+    const staffId = staff._id;
+    if (!recruitment) return logSkip("recruitment_not_found", { staffId });
+    if (recruitment.isDeleted) return logSkip("recruitment_deleted", { staffId });
     if (recruitment.status !== "confirmed") {
-      return logSkip("recruitment_not_confirmed", { staffId: staff._id, status: recruitment.status });
+      return logSkip("recruitment_not_confirmed", { staffId, status: recruitment.status });
     }
     if (staff.shopId !== recruitment.shopId) {
       return logSkip("shop_mismatch", {
-        staffId: staff._id,
+        staffId,
         staffShopId: staff.shopId,
         recruitmentShopId: recruitment.shopId,
       });
     }
 
-    await ctx.scheduler.runAfter(0, internal.email.actions.sendReissueEmail, {
-      staffId: staff._id,
-      recruitmentId,
-    });
-    console.log("[requestReissue] scheduled", { staffId: staff._id, recruitmentId });
+    await ctx.scheduler.runAfter(0, internal.email.actions.sendReissueEmail, { staffId, recruitmentId });
+    console.log("[requestReissue] scheduled", { staffId, recruitmentId });
   },
 });
