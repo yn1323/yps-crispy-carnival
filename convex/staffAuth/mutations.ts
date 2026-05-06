@@ -102,27 +102,22 @@ export const requestReissue = mutation({
     });
     if (!ok) return logSkip("rate_limited", { emailDomain });
 
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (!recruitment) return logSkip("recruitment_not_found");
+    if (recruitment.isDeleted) return logSkip("recruitment_deleted");
+    if (recruitment.status !== "confirmed") {
+      return logSkip("recruitment_not_confirmed", { status: recruitment.status });
+    }
+
     const staff = await ctx.db
       .query("staffs")
-      .withIndex("by_email", (q) => q.eq("email", email))
+      .withIndex("by_shopId_email_isDeleted", (q) =>
+        q.eq("shopId", recruitment.shopId).eq("email", email).eq("isDeleted", false),
+      )
       .first();
     if (!staff) return logSkip("staff_not_found", { emailDomain });
-    if (staff.isDeleted) return logSkip("staff_deleted", { staffId: staff._id });
 
-    const recruitment = await ctx.db.get(recruitmentId);
     const staffId = staff._id;
-    if (!recruitment) return logSkip("recruitment_not_found", { staffId });
-    if (recruitment.isDeleted) return logSkip("recruitment_deleted", { staffId });
-    if (recruitment.status !== "confirmed") {
-      return logSkip("recruitment_not_confirmed", { staffId, status: recruitment.status });
-    }
-    if (staff.shopId !== recruitment.shopId) {
-      return logSkip("shop_mismatch", {
-        staffId,
-        staffShopId: staff.shopId,
-        recruitmentShopId: recruitment.shopId,
-      });
-    }
 
     await ctx.scheduler.runAfter(0, internal.email.actions.sendReissueEmail, { staffId, recruitmentId });
     console.log("[requestReissue] scheduled", { staffId, recruitmentId });

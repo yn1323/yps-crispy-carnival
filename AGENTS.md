@@ -56,6 +56,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - 実装後にコードレビュー観点で自己確認し、要修正の指摘があれば修正すること
 - 最後に不要な複雑さや重複を見直し、必要な範囲で簡素化すること
 - 最後にCodexのレビューを実施し、指摘があれば修正してから完了すること
+- レビュー結果をユーザーに伝える場合は、日本語で説明すること
 
 ### フロントエンド（UIあり）
 
@@ -96,7 +97,7 @@ convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / polici
 - **routes/**: TanStack Routerのファイルベースルーティング。ページコンポーネントの呼び出し**のみ**。`_auth/`（Clerk認証必須）と`_unregistered/`（ゲスト）でレイアウト分離
 - **pages/**: `useQuery`でデータ取得し、エラー/ローディング/正常系を振り分け。正常系のみfeaturesを呼ぶ
 - **features/**: ドメイン別ディレクトリ（Shop, Shift, Staff等）。`useMutation`はここで定義
-- **ui/**: 汎用UIコンポーネント（FormCard, BottomSheet等）。Select, DialogなどChakra UIのラッパーもここに配置
+- **ui/**: 汎用UIコンポーネント（FormCard, Dialog等）。SelectなどChakra UIのラッパーもここに配置
 - **templates/**: レイアウトコンポーネント（BottomMenu, SideMenu等）
 
 ### Convexバックエンド（詳細は `convex/AGENTS.md` を参照）
@@ -156,10 +157,9 @@ import { bar } from "@/convex/...";
 - `new Date()` + `toISOString()` による日付文字列生成はTZずれの原因になるため禁止
 - Convexバックエンド（`convex/`）ではdayjsを使えないため、文字列比較（"YYYY-MM-DD"）で対応
 
-### Select × モーダル/BottomSheet
+### Select × モーダル
 
-- モーダルやBottomSheet内でSelectを使う場合は `usePortal={false}` を指定すること（Portalだとドロップダウンがモーダル背後に回る）
-- BottomSheetの `overflowY="auto"` がドロップダウンをクリップする場合は `overflowY="visible"` を渡すこと
+- モーダル内でSelectを使う場合は `usePortal={false}` を指定すること（Portalだとドロップダウンがモーダル背後に回る）
 
 ### Storybook
 
@@ -167,10 +167,8 @@ import { bar } from "@/convex/...";
 - `@storybook/test`パッケージはインストールされていない。`fn()`は使わず、コールバックは `() => {}` で直接指定する
 - stories は各コンポーネントと同階層に配置（`.stories.tsx`）
 
-## デザイン
+## Storybook / VRT
 
-- デザイン関連のファイル・ルールは `design/` ディレクトリを参照（`design/AGENTS.md`）。
-- デザインをもとにモックを作成する場合、実装後にpencil MCP, Storybook MCP, Playwright MCPでスクショを取ってPencilのデザイン通り実装できているか確認すること（フォント差については許容）
 - VRTは無料枠で毎月のキャプチャ数に限りがあります。小さなコンポーネントはVariants Storyを作成し、1つのStoryにまとめたいです。
   大きいコンポーネントはそのままでOK。
   操作用のStoryが必要なら、Interactive Storyを別途作成すること。（小さいコンポーネントのみ）

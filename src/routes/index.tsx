@@ -2,19 +2,20 @@ import { useAuth } from "@clerk/clerk-react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { LandingPage } from "@/src/components/features/LandingPage";
 import { faqs } from "@/src/components/features/LandingPage/faqs";
-import { buildMeta, jsonLdMeta } from "@/src/helpers/seo";
+import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
+    links: buildLinks({ canonical: "/" }),
     meta: [
-      // 採用案: メール一通でシフト集まる｜少人数のお店のシフト管理
-      //   狙い: 「シフト 集める メール」「メール一通 シフト」「少人数 シフト管理」
-      // 候補A: スタッフはアプリ登録不要｜飲食店向けシフト管理シフトリ（KAKERUと競合）
-      // 候補B: シフトの希望はメールで集める｜少人数店向けシフト管理（自然だがやや弱い）
+      // 採用案: シフトリ｜LINEで届くアプリ不要のシフト管理
+      //   狙い: ブランド名を先頭に置き、検索結果やSNS共有で自然に見えるタイトルにする
+      // 候補A: 少人数店向けシフト管理｜メールでシフト希望を回収（検索寄り）
+      // 候補B: シフトリ｜少人数のお店のシフト管理（ブランド寄り）
       ...buildMeta({
-        title: "メール一通でシフト集まる｜少人数のお店のシフト管理",
+        title: "シフトリ｜LINEで届くアプリ不要のシフト管理",
         description:
-          "メールで届くリンクから、スタッフがシフト希望を提出できます。アプリ登録もアカウント作成も不要。LINEやエクセルでのシフト管理に限界を感じている飲食店・カフェ・少人数店向けの無料ツールです。",
+          "シフトリは、スタッフ登録なしでシフト希望を集められる少人数店向けのシフト管理ツールです。LINEやメールで届くリンクから提出でき、β期間中はLINE連携も追加料金なしで使えます。",
         canonical: "/",
       }),
       ...jsonLdMeta({

@@ -1,7 +1,8 @@
-import { Box, Button, Dialog as ChakraDialog, Circle, CloseButton, HStack, IconButton, Portal } from "@chakra-ui/react";
+import { Box, Dialog as ChakraDialog, Circle, CloseButton, HStack, Portal } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { LuInfo } from "react-icons/lu";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { useDialog } from "@/src/components/ui/Dialog";
 
 type InfoGuideProps = {

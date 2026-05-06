@@ -14,6 +14,7 @@ const SITE_NAME = "シフトリ";
 const SITE_URL = "https://shiftori.app";
 
 type MetaList = NonNullable<JSX.IntrinsicElements["meta"]>[];
+type LinkList = NonNullable<JSX.IntrinsicElements["link"]>[];
 
 type MetaEntry =
   | { title: string }
@@ -32,17 +33,23 @@ type BuildMetaOptions = {
 
 /**
  * Build route meta tags for TanStack Router's `head` option.
- * - Appends the site name to the title (except when the title is the site name itself)
- * - Mirrors description to `og:description`
+ * - Appends the site name to the title (except when the title already starts with the site name)
+ * - Mirrors title/description to Open Graph and Twitter Card tags
  * - Adds `robots: noindex, nofollow` when `noindex` is set
  */
 export const buildMeta = ({ title, description, noindex, canonical }: BuildMetaOptions): MetaList => {
-  const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
-  const entries: MetaEntry[] = [{ title: fullTitle }, { property: "og:title", content: fullTitle }];
+  const hasSiteName = title === SITE_NAME || title.startsWith(`${SITE_NAME}｜`) || title.startsWith(`${SITE_NAME} | `);
+  const fullTitle = hasSiteName ? title : `${title} | ${SITE_NAME}`;
+  const entries: MetaEntry[] = [
+    { title: fullTitle },
+    { property: "og:title", content: fullTitle },
+    { name: "twitter:title", content: fullTitle },
+  ];
 
   if (description) {
     entries.push({ name: "description", content: description });
     entries.push({ property: "og:description", content: description });
+    entries.push({ name: "twitter:description", content: description });
   }
 
   if (canonical) {
@@ -55,6 +62,10 @@ export const buildMeta = ({ title, description, noindex, canonical }: BuildMetaO
 
   return entries as unknown as MetaList;
 };
+
+/** Build route-specific link tags such as canonical URLs. */
+export const buildLinks = ({ canonical }: Pick<BuildMetaOptions, "canonical">): LinkList =>
+  canonical ? ([{ rel: "canonical", href: `${SITE_URL}${canonical}` }] as LinkList) : [];
 
 /**
  * Wrap a JSON-LD payload as a `head.meta` entry. Rendered as

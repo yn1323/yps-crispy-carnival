@@ -1,6 +1,7 @@
-import { Box, Flex, IconButton, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { LuX } from "react-icons/lu";
 import { formatDateWithWeekday } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { IconButton } from "@/src/components/ui/Button";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
 import { formatTime, getDateColor } from "../utils/timeOptions";
 

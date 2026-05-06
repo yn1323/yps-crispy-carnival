@@ -42,6 +42,7 @@ const schema = defineSchema({
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
+    .index("by_shopId_email_isDeleted", ["shopId", "email", "isDeleted"])
     .index("by_email", ["email"])
     .index("by_lineUserId", ["lineUserId"]),
 

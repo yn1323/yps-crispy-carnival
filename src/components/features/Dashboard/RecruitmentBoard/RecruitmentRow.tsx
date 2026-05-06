@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Flex, HStack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, HStack, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { LuArrowRight, LuCalendarClock } from "react-icons/lu";
 import {
@@ -7,6 +7,7 @@ import {
   type RecruitmentDisplayStatus,
 } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   recruitment: Recruitment;

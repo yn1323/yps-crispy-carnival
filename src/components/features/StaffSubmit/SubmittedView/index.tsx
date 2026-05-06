@@ -1,12 +1,13 @@
 import { Box, Circle, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
+import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
 import { SubmitPageLayout } from "../SubmitPageLayout";
 
 export const SubmittedView = () => {
   return (
     <SubmitPageLayout>
       <Box bg="teal.600" w="full">
-        <Box maxW="1024px" mx="auto" px={4} pt={3} pb={4}>
+        <Box maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} pt={3} pb={4}>
           <Text fontSize="xl" fontWeight="bold" color="white">
             シフト希望を提出
           </Text>
@@ -25,7 +26,7 @@ export const SubmittedView = () => {
           </Text>
           <VStack gap={1}>
             <Text fontSize="sm" color="fg.muted" textAlign="center">
-              店長からの連絡をお待ちください
+              シフト作成担当者からの連絡をお待ちください
             </Text>
             <Text fontSize="sm" color="fg.muted" textAlign="center">
               このページは閉じて大丈夫です

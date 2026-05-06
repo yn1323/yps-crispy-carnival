@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Heading, HStack, Image, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Image, Link, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useState } from "react";
@@ -15,6 +15,7 @@ import {
   PiTable,
 } from "react-icons/pi";
 import { BrowserMockup } from "@/src/components/ui/BrowserMockup";
+import { Button } from "@/src/components/ui/Button";
 import { type Faq, faqs } from "./faqs";
 
 const ANIMATIONS = `
@@ -39,6 +40,7 @@ export const LandingPage = () => (
     <Hero />
     <DemoSection />
     <PointsSection />
+    <LineSection />
     <ToolsSection />
     <HowSection />
     <FaqSection />
@@ -114,6 +116,9 @@ export const Nav = () => (
         </RouterLink>
       </Link>
       <HStack as="nav" gap={6} fontSize="14px" display={{ base: "none", md: "flex" }}>
+        <Link href="/demo/shiftboard" color="white" opacity={0.9} _hover={{ opacity: 0.7, textDecoration: "none" }}>
+          無料デモ
+        </Link>
         <Link href="/#features" color="white" opacity={0.9} _hover={{ opacity: 0.7, textDecoration: "none" }}>
           できること
         </Link>
@@ -282,9 +287,6 @@ const Hero = () => (
             />
           </Box>
         </Heading>
-        <Text mt={7} fontSize={{ base: "16px", lg: "20px" }} color="gray.700" lineHeight={1.7} whiteSpace="pre-line">
-          シフトづくり ぜんぶおまかせ
-        </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
           mt={10}
@@ -306,7 +308,6 @@ const Hero = () => (
               fontSize="18px"
               fontWeight="bold"
               borderRadius="full"
-              bg="white"
             >
               ログイン
             </Button>
@@ -315,6 +316,7 @@ const Hero = () => (
         <HStack mt={7} gap={6} fontSize="13px" color="fg.muted" flexWrap="wrap">
           <HeroMeta>登録無料</HeroMeta>
           <HeroMeta>専用アプリ不要</HeroMeta>
+          <HeroMeta>LINE連携も追加料金なし</HeroMeta>
         </HStack>
       </VStack>
       <ScheduleCanvas />
@@ -475,7 +477,7 @@ const POINTS: Point[] = [
     icon: LuSend,
     title: "シフト募集",
     lead: "期間を決めて一斉送信",
-    body: "スタッフはメールで届くリンクから申請\n専用アプリのインストールも不要",
+    body: "スタッフはLINEやメールで届くリンクから申請。\n専用アプリのインストールも不要",
   },
   {
     num: "02",
@@ -489,7 +491,7 @@ const POINTS: Point[] = [
     icon: LuCheck,
     title: "シフトの微調整",
     lead: "集めた希望を見ながら調整",
-    body: "修正完了でメールを一斉送信。\nみんな手元ですぐに確認可能！",
+    body: "修正完了で通知を一斉送信。\nLINE連携済みのスタッフにはLINEで届きます。",
   },
 ];
 
@@ -548,6 +550,117 @@ const PointCard = ({ num, icon: Icon, title, lead, body }: Point) => (
   </Box>
 );
 
+type LineFeature = { icon: IconType; title: string; body: string };
+
+const LINE_FEATURES: LineFeature[] = [
+  {
+    icon: PiChatsCircle,
+    title: "スタッフはいつものLINEで確認",
+    body: "シフト提出のお願いや確定後のお知らせを、普段使っているLINEに届けられます。",
+  },
+  {
+    icon: LuSend,
+    title: "お店から一斉にお知らせ",
+    body: "募集開始、提出リマインド、確定シフトの通知をスタッフごとにLINEかメールへ送れます。",
+  },
+  {
+    icon: LuCheck,
+    title: "β期間中は追加料金なし",
+    body: "β終了後も無料で使える範囲を用意する予定です。",
+  },
+];
+
+const LineSection = () => (
+  <Box
+    as="section"
+    id="line"
+    bg="#f7fff9"
+    borderYWidth="1px"
+    borderColor="green.100"
+    px={{ base: 5, lg: 6 }}
+    py={{ base: 14, lg: 24 }}
+  >
+    <Box mx="auto" w="full" maxW="1024px">
+      <SimpleGrid columns={{ base: 1, lg: 2 }} gap={{ base: 10, lg: 16 }} alignItems="center">
+        <VStack align="start" gap={0}>
+          <HStack
+            display="inline-flex"
+            gap={2}
+            fontSize="13px"
+            fontWeight="bold"
+            color="#047857"
+            bg="white"
+            px="14px"
+            py="6px"
+            borderRadius="full"
+            borderWidth="1px"
+            borderColor="green.200"
+          >
+            <Flex boxSize="20px" borderRadius="full" bg="#06c755" color="white" align="center" justify="center">
+              <PiChatsCircle size={14} />
+            </Flex>
+            <Box as="span">LINE連携</Box>
+          </HStack>
+          <Heading
+            as="h2"
+            mt={5}
+            fontSize={{ base: "30px", lg: "46px" }}
+            lineHeight={1.3}
+            fontWeight="bold"
+            color="gray.900"
+            whiteSpace="pre-line"
+          >
+            {"スタッフ連絡は\nいつものLINEへ"}
+          </Heading>
+          <Text mt={5} fontSize={{ base: "15px", lg: "17px" }} color="gray.700" lineHeight={1.9}>
+            新しいアプリを入れてもらわず、シフト提出や確定のお知らせを届けられます。
+          </Text>
+        </VStack>
+
+        <VStack align="stretch" gap={3}>
+          {LINE_FEATURES.map((feature) => (
+            <LineFeatureItem key={feature.title} {...feature} />
+          ))}
+        </VStack>
+      </SimpleGrid>
+    </Box>
+  </Box>
+);
+
+const LineFeatureItem = ({ icon: Icon, title, body }: LineFeature) => (
+  <HStack
+    align="start"
+    gap={4}
+    bg="white"
+    borderWidth="1px"
+    borderColor="green.100"
+    borderRadius="8px"
+    px={{ base: 4, lg: 5 }}
+    py={{ base: 4, lg: 5 }}
+    boxShadow="0 14px 32px -24px rgba(5,150,105,0.45)"
+  >
+    <Flex
+      boxSize="42px"
+      borderRadius="full"
+      bg="#ecfdf5"
+      color="#059669"
+      align="center"
+      justify="center"
+      flexShrink={0}
+    >
+      <Icon size={22} />
+    </Flex>
+    <Box minW={0}>
+      <Text fontSize="16px" fontWeight="bold" lineHeight={1.5}>
+        {title}
+      </Text>
+      <Text mt={1} fontSize="13px" color="fg.muted" lineHeight={1.8}>
+        {body}
+      </Text>
+    </Box>
+  </HStack>
+);
+
 type Tool = { icon: IconType; name: string; meta: string; iconBg: string; iconColor: string };
 
 const TOOLS: Tool[] = [
@@ -555,7 +668,7 @@ const TOOLS: Tool[] = [
   { icon: PiTable, name: "Excel", meta: "シフト表", iconBg: "#217346", iconColor: "#fff" },
   { icon: PiNote, name: "付箋メモ", meta: "厨房の壁", iconBg: "#fef3c7", iconColor: "#b45309" },
   { icon: PiNotebook, name: "手書きノート", meta: "バックヤード", iconBg: "#dbeafe", iconColor: "#1e40af" },
-  { icon: PiEnvelopeSimple, name: "SMS/メール", meta: "シフト催促", iconBg: "#fce7f3", iconColor: "#be185d" },
+  { icon: PiEnvelopeSimple, name: "LINE/メール", meta: "シフト通知", iconBg: "#fce7f3", iconColor: "#be185d" },
   { icon: PiClock, name: "頭の中", meta: "記憶だより", iconBg: "#f4f4f5", iconColor: "#3f3f46" },
 ];
 
@@ -647,7 +760,7 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
 );
 
 const STEPS: { title: string; body: string }[] = [
-  { title: "募集期間を決める", body: "期間を決めてスタッフ全員に募集開始メールを一斉送信" },
+  { title: "募集期間を決める", body: "期間を決めてスタッフ全員に募集開始通知を一斉送信" },
   { title: "希望シフトを集める", body: "スタッフがスマホから希望を入力" },
   { title: "確定シフトを通知", body: "微調整したシフトを全員に一斉送信" },
 ];
@@ -826,7 +939,6 @@ const BottomCta = () => (
             fontSize="18px"
             fontWeight="bold"
             borderRadius="full"
-            bg="white"
           >
             ログイン
           </Button>
@@ -861,6 +973,7 @@ export const Footer = () => (
       <FooterCol
         title="Product"
         links={[
+          { label: "無料デモ", href: "/demo/shiftboard", router: true },
           { label: "できること", href: "/#features" },
           { label: "使い方", href: "/#how" },
         ]}

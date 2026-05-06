@@ -62,7 +62,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
     <form id="setup-step1" onSubmit={handleSubmit(onNext)}>
       <Stack gap={5}>
         <Field.Root invalid={!!errors.shopName}>
-          <Field.Label>店舗名</Field.Label>
+          <Field.Label>お店の名前</Field.Label>
           <Input placeholder="例：居酒屋たなか" {...register("shopName")} />
           {errors.shopName && <Field.ErrorText>{errors.shopName.message}</Field.ErrorText>}
         </Field.Root>
@@ -92,7 +92,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
             </Field.Root>
           </Stack>
           <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-            仕込みや片付けも含めて、スタッフが働きうる時間帯を選びます。営業時間より広めでOKです。
+            仕込みや片付けも含めて、スタッフが働く可能性のある時間を選んでください。あとから変更できます。
           </Text>
         </Stack>
       </Stack>

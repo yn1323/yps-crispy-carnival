@@ -167,7 +167,7 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
 
           <!-- Footer -->
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問・変更希望はお店に直接ご連絡ください。</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問・変更希望はシフト作成担当者に連絡してください。</p>
           <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
         </td></tr>
       </table>
@@ -223,7 +223,7 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
 
           <!-- Footer -->
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問はお店に直接ご連絡ください。</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問はシフト作成担当者に連絡してください。</p>
           <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
         </td></tr>
       </table>
@@ -257,7 +257,7 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
           <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト希望が、まだ提出されていないようです。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">お忙しいところ恐れ入りますが、下記から提出をお願いします。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まだ提出していない場合は、こちらから送ってください。</p>
 
           <!-- Deadline (24h cutoff) -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
@@ -274,13 +274,13 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">以前のメールでお送りしたリンクとは別の新しいリンクです。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">すでに提出済みの場合は、このメールはご放念ください。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">すでに提出済みの場合は、このメールは無視してください。</p>
 
           ${params.lineCtaHtml ?? ""}
 
           <!-- Footer -->
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問はお店に直接ご連絡ください。</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問はシフト作成担当者に連絡してください。</p>
           <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
         </td></tr>
       </table>
@@ -309,17 +309,17 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
         </td></tr>
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトのお知らせをLINEでも受け取れるようになりました。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトのお知らせをLINEで受け取れるようになります。</p>
           <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">下のボタンから連携できます（2タップで完了します）。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINEに切り替える</a>
+              <a href="${params.authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINEで受け取る</a>
             </td></tr>
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは72時間有効です。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">メールのままでも問題なく届きます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINEで受け取ると、次回からシフト通知はLINEに届きます。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
           <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${params.shopName} のシフト通知システムです。</p>
@@ -333,14 +333,14 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
 }
 
 /**
- * 既存通知メール末尾の「LINEに切り替える」CTA セクション
+ * 既存通知メール末尾の「LINEで受け取る」CTA セクション
  * - 未連携 / 友達解除済みのスタッフのみに表示する想定（呼び出し側で判定）
  */
 export function buildLineCtaSection(params: { authorizeUrl: string; reLink: boolean }): string {
-  const label = params.reLink ? "LINEを再連携する" : "LINEに切り替える";
+  const label = params.reLink ? "LINEを再連携する" : "LINEで受け取る";
   const note = params.reLink
     ? "LINEの友達追加が解除されているようです。再連携するとLINEで通知が届きます。"
-    : "シフトのお知らせをLINEでも受け取れます。メールのままでも問題ありません。";
+    : "LINEで受け取ると、次回からシフト通知はLINEに届きます。";
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-top:1px solid #e2e8f0;padding-top:24px;">
     <tr><td>
       <p style="margin:0 0 12px;font-size:13px;color:#4a5568;">${note}</p>
@@ -376,7 +376,7 @@ export function buildReissueEmailHtml(params: ReissueEmailParams): string {
           <p style="margin:0 0 24px;font-size:13px;color:#718096;">このリンクは24時間有効です。リンクを開くと14日間閲覧できます。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問・変更希望はお店に直接ご連絡ください。</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトについてのご質問・変更希望はシフト作成担当者に連絡してください。</p>
           <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
         </td></tr>
       </table>

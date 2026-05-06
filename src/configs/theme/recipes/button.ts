@@ -116,10 +116,15 @@ export const buttonRecipe = defineRecipe({
         color: "colorPalette.contrast",
         borderColor: "transparent",
         _hover: {
-          bg: "colorPalette.solid/90",
+          bg: "colorPalette.solid/92",
+          shadow: "xs",
+        },
+        _active: {
+          bg: "colorPalette.solid",
+          transform: "translateY(1px)",
         },
         _expanded: {
-          bg: "colorPalette.solid/90",
+          bg: "colorPalette.solid/92",
         },
       },
       subtle: {
@@ -147,27 +152,48 @@ export const buttonRecipe = defineRecipe({
       },
       outline: {
         borderWidth: "1px",
-        borderColor: "colorPalette.muted",
+        borderColor: "border.emphasized",
         color: "colorPalette.fg",
+        bg: "white",
         _hover: {
-          bg: "colorPalette.subtle",
+          bg: "gray.50",
+          borderColor: "colorPalette.solid",
+        },
+        _active: {
+          bg: "gray.100",
+          borderColor: "colorPalette.solid",
         },
         _expanded: {
-          bg: "colorPalette.subtle",
+          bg: "gray.50",
+          borderColor: "colorPalette.solid",
         },
       },
       ghost: {
         bg: "transparent",
         color: "colorPalette.fg",
         _hover: {
-          bg: "colorPalette.subtle",
+          bg: "blackAlpha.50",
+          color: "colorPalette.solid",
+        },
+        _active: {
+          bg: "blackAlpha.100",
+          color: "colorPalette.solid",
         },
         _expanded: {
-          bg: "colorPalette.subtle",
+          bg: "blackAlpha.50",
+          color: "colorPalette.solid",
         },
       },
       plain: {
         color: "colorPalette.fg",
+        _hover: {
+          color: "colorPalette.solid",
+          textDecoration: "underline",
+          textUnderlineOffset: "3px",
+        },
+        _active: {
+          color: "colorPalette.solid",
+        },
       },
     },
   },

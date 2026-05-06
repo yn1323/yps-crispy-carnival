@@ -1,12 +1,14 @@
-import { Box, Flex } from "@chakra-ui/react";
-import { StaffHeader } from "@/src/components/templates/StaffHeader";
+import { Box, type BoxProps, Flex } from "@chakra-ui/react";
+import type { ReactNode } from "react";
+import { STAFF_CONTENT_MAX_W, STAFF_PAGE_PX, StaffHeader } from "@/src/components/templates/StaffHeader";
 
 /** StaffHeaderの高さに合わせたpadding-top */
 const HEADER_PT = { base: "48px", lg: "56px" };
+const STAFF_NARROW_CONTENT_MAX_W = "480px";
 
 type Props = {
   shopName: string;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 export function StaffLayout({ shopName, children }: Props) {
@@ -17,5 +19,47 @@ export function StaffLayout({ shopName, children }: Props) {
         {children}
       </Box>
     </Flex>
+  );
+}
+
+type StaffPageContentProps = BoxProps & {
+  children: ReactNode;
+};
+
+export function StaffPageContent({
+  children,
+  maxW = STAFF_CONTENT_MAX_W,
+  px = STAFF_PAGE_PX,
+  ...props
+}: StaffPageContentProps) {
+  return (
+    <Box w="full" maxW={maxW} mx="auto" px={px} {...props}>
+      {children}
+    </Box>
+  );
+}
+
+export function StaffNarrowContent(props: StaffPageContentProps) {
+  return <StaffPageContent maxW={STAFF_NARROW_CONTENT_MAX_W} {...props} />;
+}
+
+export function StaffCenteredContent({
+  children,
+  alignItems = "center",
+  justifyContent = "center",
+  ...props
+}: StaffPageContentProps) {
+  return (
+    <StaffNarrowContent
+      flex={1}
+      display="flex"
+      flexDirection="column"
+      alignItems={alignItems}
+      justifyContent={justifyContent}
+      py={{ base: 8, lg: 10 }}
+      {...props}
+    >
+      {children}
+    </StaffNarrowContent>
   );
 }

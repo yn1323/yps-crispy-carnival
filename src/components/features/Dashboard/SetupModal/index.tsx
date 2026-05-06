@@ -1,6 +1,5 @@
 import {
   Box,
-  Button,
   Dialog as ChakraDialog,
   Circle,
   Flex,
@@ -12,6 +11,7 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useState } from "react";
 import { LuArrowRight, LuCheck } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 import type { Step1Data } from "./SetupStep1";
 import { SetupStep1 } from "./SetupStep1/index.tsx";
 import type { Step2Data } from "./SetupStep2";
@@ -34,7 +34,7 @@ const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
         {currentStep > 1 ? <Icon as={LuCheck} boxSize={4} /> : "1"}
       </Circle>
       <Text fontSize="sm" fontWeight="semibold" color="teal.solid">
-        店舗情報
+        お店の情報
       </Text>
     </HStack>
     <Box flex={1} h="2px" bg={currentStep > 1 ? "teal.solid" : "gray.200"} mx={1} />
@@ -53,7 +53,7 @@ const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
         fontWeight={currentStep >= 2 ? "semibold" : "normal"}
         color={currentStep >= 2 ? "teal.solid" : "fg.subtle"}
       >
-        あなたの情報
+        あなたの名前
       </Text>
     </HStack>
   </HStack>
@@ -89,7 +89,7 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete }: Props) => {
     [onOpenChange],
   );
 
-  const title = currentStep === 1 ? "店舗情報を登録" : "あなたの情報を登録";
+  const title = currentStep === 1 ? "お店の情報を登録" : "あなたの名前を登録";
   const placement = isMobile ? "bottom" : "center";
 
   return (

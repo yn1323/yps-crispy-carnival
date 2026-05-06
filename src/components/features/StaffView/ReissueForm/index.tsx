@@ -1,7 +1,8 @@
-import { Button, Field, Input, Separator, Text, VStack } from "@chakra-ui/react";
+import { Field, Input, Separator, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { type ReissueFormValues, reissueSchema } from "@/convex/staffAuth/schemas";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   onSubmit: (values: ReissueFormValues) => void;
@@ -21,7 +22,7 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
     <form onSubmit={handleSubmit(onSubmit)}>
       <VStack gap={5} align="stretch">
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          お店に伝えたメールアドレスを入力してください。新しい閲覧リンクをお送りします。
+          登録済みのメールアドレスを入力してください。新しい閲覧リンクを送ります。
         </Text>
 
         <Field.Root invalid={!!errors.email}>
