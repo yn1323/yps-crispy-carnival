@@ -23,7 +23,7 @@ const STAFF_ASSIGNMENTS = [
 ];
 
 test.describe("田中さんの初めてのシフト確定", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(60_000);
   let dashboard: DashboardPage;
   let shiftBoard: ShiftBoardPage;
 

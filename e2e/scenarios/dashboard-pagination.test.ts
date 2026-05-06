@@ -4,7 +4,7 @@ import { seedOwnerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
 test.describe("ダッシュボードのページネーション", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(30_000);
 
   let dashboard: DashboardPage;
 
