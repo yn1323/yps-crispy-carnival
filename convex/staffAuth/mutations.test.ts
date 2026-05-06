@@ -229,6 +229,79 @@ describe("staffAuth/mutations", () => {
         }),
       ).resolves.not.toThrow();
     });
+
+    it("recruitment.status が confirmed 以外でも void を返す（エラーにならない）", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+
+      // setupTestData の recruitment を open に変更（confirmed 以外）
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { status: "open" });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("staff.shopId と recruitment.shopId が不一致でも void を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId } = await setupTestData(t);
+
+      // 別店舗を作って staff の shopId を移す
+      await t.run(async (ctx) => {
+        const otherShopId = await ctx.db.insert("shops", {
+          name: "別店舗",
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+          ownerId: "user_other_owner",
+          isDeleted: false,
+        });
+        await ctx.db.patch(staffId, { shopId: otherShopId });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("staff が論理削除済みでも void を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId } = await setupTestData(t);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, { isDeleted: true });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("recruitment が論理削除済みでも void を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { isDeleted: true });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId,
+        }),
+      ).resolves.not.toThrow();
+    });
   });
 
   describe("requestReissue レートリミット", () => {

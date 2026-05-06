@@ -79,6 +79,10 @@ export const verifyToken = mutation({
 /**
  * リンク再発行リクエスト
  * セキュリティ: 結果に関わらず一律voidを返す（メアド列挙攻撃防止）
+ *
+ * 内部ロギング: 早期リターンの理由をサーバーログに残し、配信不達の原因特定を可能にする。
+ * フロントへのレスポンスはどの分岐でも void を維持する。
+ * メールアドレスは生で残さず domain 部分のみログに含める（Dashboard 共有時の漏洩防止）。
  */
 export const requestReissue = mutation({
   args: {
@@ -86,6 +90,11 @@ export const requestReissue = mutation({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { email, recruitmentId }) => {
+    const emailDomain = email.split("@")[1] ?? null;
+    const logSkip = (reason: string, extra: Record<string, unknown> = {}) => {
+      console.warn("[requestReissue] skip", { reason, recruitmentId, ...extra });
+    };
+
     // レートリミットチェック（email+recruitmentId をキーに）
     const { ok } = await rateLimit(ctx, {
       name: "requestReissue",
@@ -93,6 +102,7 @@ export const requestReissue = mutation({
     });
     if (!ok) {
       // メアド列挙攻撃防止: レートリミットでも成功時と同じレスポンス（void）を返す
+      logSkip("rate_limited", { emailDomain });
       return;
     }
 
@@ -100,23 +110,27 @@ export const requestReissue = mutation({
       .query("staffs")
       .withIndex("by_email", (q) => q.eq("email", email))
       .first();
+    if (!staff) return logSkip("staff_not_found", { emailDomain });
+    if (staff.isDeleted) return logSkip("staff_deleted", { staffId: staff._id });
 
     const recruitment = await ctx.db.get(recruitmentId);
-
-    if (
-      !staff ||
-      staff.isDeleted ||
-      !recruitment ||
-      recruitment.isDeleted ||
-      recruitment.status !== "confirmed" ||
-      staff.shopId !== recruitment.shopId
-    ) {
-      return;
+    if (!recruitment) return logSkip("recruitment_not_found", { staffId: staff._id });
+    if (recruitment.isDeleted) return logSkip("recruitment_deleted", { staffId: staff._id });
+    if (recruitment.status !== "confirmed") {
+      return logSkip("recruitment_not_confirmed", { staffId: staff._id, status: recruitment.status });
+    }
+    if (staff.shopId !== recruitment.shopId) {
+      return logSkip("shop_mismatch", {
+        staffId: staff._id,
+        staffShopId: staff.shopId,
+        recruitmentShopId: recruitment.shopId,
+      });
     }
 
     await ctx.scheduler.runAfter(0, internal.email.actions.sendReissueEmail, {
       staffId: staff._id,
       recruitmentId,
     });
+    console.log("[requestReissue] scheduled", { staffId: staff._id, recruitmentId });
   },
 });
