@@ -1,9 +1,10 @@
-import { Box, Button, Flex, Heading, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuArrowRight, LuCalendarClock, LuCircleAlert, LuPlus, LuSettings, LuSparkles } from "react-icons/lu";
 import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {
