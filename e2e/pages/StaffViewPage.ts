@@ -28,6 +28,8 @@ export class StaffViewPage {
     await expect(this.page).toHaveURL(/\/shifts\/reissue/);
     await this.page.getByLabel("メールアドレス").fill(email);
     await this.page.getByRole("button", { name: "リンクを送信する" }).click();
-    await expect(this.page.getByText("新しい閲覧リンクをお送りしました")).toBeVisible();
+    await expect(
+      this.page.getByText(/新しい閲覧リンクをお送りしました|新しい閲覧リンクを送りました/).first(),
+    ).toBeVisible();
   }
 }

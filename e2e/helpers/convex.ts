@@ -34,3 +34,7 @@ export function convexRun(fn: string, args: Record<string, unknown> = {}): strin
     cwd: process.cwd(),
   });
 }
+
+export function convexRunJson<T>(fn: string, args: Record<string, unknown> = {}): T {
+  return JSON.parse(convexRun(fn, args).trim()) as T;
+}

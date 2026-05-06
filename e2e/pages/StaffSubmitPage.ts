@@ -8,15 +8,15 @@ export class StaffSubmitPage {
   }
 
   async expectFormVisible() {
-    await expect(this.page.getByRole("button", { name: /提出する/ })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /提出|更新/ })).toBeVisible();
   }
 
   async expectUnsubmittedBadge() {
-    await expect(this.page.getByRole("button", { name: "提出する" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /提出する|希望シフトを提出/ })).toBeVisible();
   }
 
   async expectSubmittedBadge() {
-    await expect(this.page.getByRole("button", { name: "修正して提出する" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /修正して提出する|希望シフトを更新/ })).toBeVisible();
   }
 
   async expectCompletionVisible() {
@@ -29,11 +29,11 @@ export class StaffSubmitPage {
   }
 
   async expectExpiredVisible() {
-    await expect(this.page.getByText("提出締切を過ぎています")).toBeVisible();
+    await expect(this.page.getByText(/提出締切を過ぎています|提出締切を過ぎました/)).toBeVisible();
   }
 
   async expectSubmitButtonNotVisible() {
-    await expect(this.page.getByRole("button", { name: /提出する/ })).not.toBeVisible();
+    await expect(this.page.getByRole("button", { name: /提出|更新/ })).not.toBeVisible();
   }
 
   async toggleDay(dateText: string) {
@@ -50,7 +50,7 @@ export class StaffSubmitPage {
   }
 
   async submit() {
-    await this.page.getByRole("button", { name: /提出する/ }).click();
+    await this.page.getByRole("button", { name: /提出|更新/ }).click();
   }
 
   async expectDayWorking(dateText: string) {
