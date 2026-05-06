@@ -20,6 +20,7 @@ const STAFF_PAGE_SIZE = 10;
 function DashboardPage() {
   const shop = useQuery(api.dashboard.queries.getDashboardShop);
   const skipPagination = shop === undefined || shop === null;
+  const lineBulkInviteTargetCount = useQuery(api.line.queries.getBulkInviteTargetCount, skipPagination ? "skip" : {});
   const recruitments = usePaginatedQuery(api.dashboard.queries.getDashboardRecruitments, skipPagination ? "skip" : {}, {
     initialNumItems: RECRUITMENT_PAGE_SIZE,
   });
@@ -48,6 +49,7 @@ function DashboardPage() {
           staffs={staffs.results}
           staffStatus={staffs.status}
           loadMoreStaffs={() => staffs.loadMore(STAFF_PAGE_SIZE)}
+          lineBulkInviteTargetCount={lineBulkInviteTargetCount}
         />
       </Animation>
     </RootContentWrapper>

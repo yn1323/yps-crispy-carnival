@@ -31,6 +31,7 @@ type Props = {
   staffs: Staff[];
   staffStatus: PaginationStatus;
   loadMoreStaffs: () => void;
+  lineBulkInviteTargetCount?: number;
 };
 
 export const DashboardContent = ({
@@ -41,6 +42,7 @@ export const DashboardContent = ({
   staffs,
   staffStatus,
   loadMoreStaffs,
+  lineBulkInviteTargetCount,
 }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
@@ -70,8 +72,6 @@ export const DashboardContent = ({
   const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
   const sendLineInviteBulk = useMutation(api.line.mutations.sendInviteBulk);
-
-  const unlinkedStaffCount = staffs.filter((s) => s.email && (!s.isLineLinked || !s.isLineFollowing)).length;
 
   const Modal = isMobile ? BottomSheet : Dialog;
 
@@ -233,6 +233,7 @@ export const DashboardContent = ({
               onShowLineQr={handleShowLineQr}
               onSendLineInvite={handleSendLineInviteClick}
               onSendLineInviteBulk={handleSendLineInviteBulkClick}
+              lineBulkInviteTargetCount={lineBulkInviteTargetCount}
               onLoadMore={loadMoreStaffs}
             />
           </>
@@ -347,7 +348,7 @@ export const DashboardContent = ({
         onSubmit={handleSendLineInviteBulkConfirm}
         submitLabel="送信"
       >
-        <LineBulkInviteContent unlinkedCount={unlinkedStaffCount} />
+        <LineBulkInviteContent unlinkedCount={lineBulkInviteTargetCount ?? 0} />
       </Dialog>
 
       {isSetupRequired && (

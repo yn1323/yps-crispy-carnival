@@ -13,6 +13,7 @@ type Props = {
   onShowLineQr: (staff: Staff) => void;
   onSendLineInvite: (staff: Staff) => void;
   onSendLineInviteBulk: () => void;
+  lineBulkInviteTargetCount?: number;
   onLoadMore: () => void;
 };
 
@@ -25,11 +26,12 @@ export const StaffRoster = ({
   onShowLineQr,
   onSendLineInvite,
   onSendLineInviteBulk,
+  lineBulkInviteTargetCount,
   onLoadMore,
 }: Props) => {
   const canLoadMore = status !== "Exhausted" && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
-  const unlinkedCount = staffs.filter((s) => s.email && (!s.isLineLinked || !s.isLineFollowing)).length;
+  const unlinkedCount = lineBulkInviteTargetCount ?? 0;
 
   return (
     <Stack gap={{ base: 4, lg: 5 }}>
