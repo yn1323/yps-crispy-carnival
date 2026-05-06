@@ -1,5 +1,6 @@
-import { Button, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Button, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuWifiOff } from "react-icons/lu";
+import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
 
 type Props = {
   onRetry: () => void;
@@ -7,7 +8,7 @@ type Props = {
 
 export const NetworkErrorView = ({ onRetry }: Props) => {
   return (
-    <Flex flex={1} align="center" justify="center" px={8}>
+    <StaffCenteredContent>
       <VStack gap={4}>
         <Icon as={LuWifiOff} boxSize={12} color="orange.500" />
         <Text fontSize="lg" fontWeight="semibold" textAlign="center">
@@ -21,6 +22,6 @@ export const NetworkErrorView = ({ onRetry }: Props) => {
           再試行する
         </Button>
       </VStack>
-    </Flex>
+    </StaffCenteredContent>
   );
 };

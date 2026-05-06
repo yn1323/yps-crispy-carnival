@@ -1,7 +1,6 @@
-import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuCalendarX } from "react-icons/lu";
-import { StaffHeaderBrand } from "@/src/components/templates/StaffHeader";
-import { SubmitPageLayout } from "../SubmitPageLayout";
+import { SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 
 type Props = {
   shopName: string;
@@ -10,11 +9,7 @@ type Props = {
 export const ExpiredSubmitView = ({ shopName }: Props) => {
   return (
     <SubmitPageLayout>
-      <Box bg="teal.600" w="full">
-        <Flex maxW="1024px" mx="auto" h={{ base: "56px", lg: "56px" }} px={4} align="center">
-          <StaffHeaderBrand shopName={shopName} />
-        </Flex>
-      </Box>
+      <SubmitPageHeader shopName={shopName} />
 
       {/* Content */}
       <Flex flex={1} align="center" justify="center" bg="white">

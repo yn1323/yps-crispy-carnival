@@ -1,6 +1,7 @@
 import { Box, Heading, Stack, Text } from "@chakra-ui/react";
 import type { ReactElement } from "react";
 import { LuCircleAlert, LuCircleCheck, LuClock } from "react-icons/lu";
+import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
 
 export type LineCallbackStatus = "loading" | "ok" | "expired" | "rate_limited" | "error";
 
@@ -52,7 +53,7 @@ const COPY: Record<
 export const LineCallbackPage = ({ status }: Props) => {
   const c = COPY[status];
   return (
-    <Stack align="center" gap={5} py={16} px={6} textAlign="center">
+    <StaffCenteredContent gap={5} textAlign="center">
       <Box
         boxSize="64px"
         borderRadius="full"
@@ -72,6 +73,6 @@ export const LineCallbackPage = ({ status }: Props) => {
           {c.description}
         </Text>
       </Stack>
-    </Stack>
+    </StaffCenteredContent>
   );
 };

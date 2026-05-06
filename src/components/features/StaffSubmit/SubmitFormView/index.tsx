@@ -4,9 +4,9 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer } from "react-icons/lu";
 import { formatDateWithWeekday, getDateRange } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { StaffHeaderBrand } from "@/src/components/templates/StaffHeader";
+import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
 import { DayCard, type DayEntry } from "../DayCard";
-import { SubmitPageContent, SubmitPageLayout } from "../SubmitPageLayout";
+import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -68,14 +68,10 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
 
   return (
     <SubmitPageLayout>
-      <Box bg="teal.600" w="full">
-        <Flex maxW="1024px" mx="auto" h={{ base: "56px", lg: "56px" }} px={4} align="center">
-          <StaffHeaderBrand shopName={data.shopName} />
-        </Flex>
-      </Box>
+      <SubmitPageHeader shopName={data.shopName} />
 
       <Box bg="white" w="full" borderBottomWidth={1} borderColor="border.default">
-        <Flex maxW="1024px" mx="auto" px={4} py={3} align="center">
+        <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center">
           <Box>
             <Text fontSize="sm" fontWeight="semibold">
               {formatPeriodLabel(data.periodStart, data.periodEnd)}
