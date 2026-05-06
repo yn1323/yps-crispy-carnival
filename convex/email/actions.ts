@@ -137,28 +137,20 @@ export const sendReissueEmail = internalAction({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { staffId, recruitmentId }) => {
-    const base = { staffId, recruitmentId };
-    const log = (event: string, extra: Record<string, unknown> = {}) =>
-      console.log(`[sendReissueEmail] ${event}`, { ...base, ...extra });
-    const logWarn = (event: string, extra: Record<string, unknown> = {}) =>
-      console.warn(`[sendReissueEmail] ${event}`, { ...base, ...extra });
-    const logError = (event: string, e: unknown, extra: Record<string, unknown> = {}) =>
-      console.error(`[sendReissueEmail] ${event}`, { ...base, ...extra, error: errorMessage(e) });
+    const log = (level: "log" | "warn" | "error", event: string, extra: Record<string, unknown> = {}) =>
+      console[level](`[sendReissueEmail] ${event}`, { staffId, recruitmentId, ...extra });
 
     const data = await ctx.runQuery(internal.email.queries.getReissueEmailData, { staffId, recruitmentId });
-    if (!data) {
-      logWarn("data_not_found");
-      return;
-    }
+    if (!data) return log("warn", "data_not_found");
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const channel = selectChannel({ lineUserId: data.lineUserId, lineFollowing: data.lineFollowing }, quota);
-    log("channel_selected", {
+    log("log", "channel_selected", {
       channel,
       hasLineUserId: Boolean(data.lineUserId),
       lineFollowing: Boolean(data.lineFollowing),
       hasEmail: Boolean(data.staffEmail),
-      quotaStatus: quota?.status ?? null,
+      quotaStatus: quota?.status,
     });
 
     const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
@@ -179,17 +171,13 @@ export const sendReissueEmail = internalAction({
             magicLinkUrl,
           }),
         );
-        log("line_sent");
-        return;
+        return log("log", "line_sent");
       } catch (e) {
-        logError("line_push_failed; falling back to email", e);
+        log("error", "line_push_failed; falling back to email", { error: errorMessage(e) });
       }
     }
 
-    if (!data.staffEmail) {
-      log("no_email_no_line_skip");
-      return;
-    }
+    if (!data.staffEmail) return log("log", "no_email_no_line_skip");
 
     try {
       const resend = getResendClient();
@@ -203,11 +191,11 @@ export const sendReissueEmail = internalAction({
           magicLinkUrl,
         }),
       });
-      log("email_sent");
+      log("log", "email_sent");
     } catch (e) {
       // Resend API のエラー（API key 無効 / domain 未認証 / 4xx / 5xx）が action 全体を
       // 落とすとフロントには成功扱いで返ってしまうため、ここで握ってログだけ残す。
-      logError("email_send_failed", e);
+      log("error", "email_send_failed", { error: errorMessage(e) });
     }
   },
 });
