@@ -56,6 +56,25 @@ export function buildRecruitmentLineText(params: {
 }
 
 /**
+ * 閲覧リンク再発行通知（LINE 用テキスト）
+ */
+export function buildReissueLineText(params: {
+  staffName: string;
+  shopName: string;
+  periodLabel: string;
+  magicLinkUrl: string;
+}): string {
+  return [
+    `${params.staffName}さん`,
+    "",
+    `${params.shopName}\n${params.periodLabel} のシフト閲覧リンクを再発行しました。`,
+    "",
+    "シフトの確認はこちら（24時間有効）",
+    params.magicLinkUrl,
+  ].join("\n");
+}
+
+/**
  * 催促通知（LINE 用テキスト）
  */
 export function buildReminderLineText(params: {

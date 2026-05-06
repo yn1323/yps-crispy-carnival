@@ -206,27 +206,62 @@ describe("staffAuth/mutations", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it("未登録メールでもエラーを投げない", async () => {
+    /**
+     * 早期リターンの全分岐で void が返ることを確認するテーブルドリブンテスト。
+     * setup フックで DB の状態をいじり、mutation がエラーを投げないことのみを検証する。
+     * （個別ログ出力は実装側のレビューで担保し、テストは「void 維持」契約だけを守る）
+     */
+    type Setup = (t: TestConvex<typeof schema>, ids: Awaited<ReturnType<typeof setupTestData>>) => Promise<void>;
+
+    const noop: Setup = async () => {};
+
+    it.each<{ name: string; email: string; setup: Setup }>([
+      { name: "未登録メールでも void", email: "unknown@example.com", setup: noop },
+      { name: "正常系（有効なメール+recruitment）", email: "suzuki@example.com", setup: noop },
+      {
+        name: "recruitment.status が confirmed 以外でも void",
+        email: "suzuki@example.com",
+        setup: async (t, { recruitmentId }) => {
+          await t.run(async (ctx) => ctx.db.patch(recruitmentId, { status: "open" }));
+        },
+      },
+      {
+        name: "staff.shopId と recruitment.shopId 不一致でも void",
+        email: "suzuki@example.com",
+        setup: async (t, { staffId }) => {
+          await t.run(async (ctx) => {
+            const otherShopId = await ctx.db.insert("shops", {
+              name: "別店舗",
+              shiftStartTime: "09:00",
+              shiftEndTime: "22:00",
+              ownerId: "user_other_owner",
+              isDeleted: false,
+            });
+            await ctx.db.patch(staffId, { shopId: otherShopId });
+          });
+        },
+      },
+      {
+        name: "staff が論理削除済みでも void",
+        email: "suzuki@example.com",
+        setup: async (t, { staffId }) => {
+          await t.run(async (ctx) => ctx.db.patch(staffId, { isDeleted: true }));
+        },
+      },
+      {
+        name: "recruitment が論理削除済みでも void",
+        email: "suzuki@example.com",
+        setup: async (t, { recruitmentId }) => {
+          await t.run(async (ctx) => ctx.db.patch(recruitmentId, { isDeleted: true }));
+        },
+      },
+    ])("$name", async ({ email, setup }) => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const ids = await setupTestData(t);
+      await setup(t, ids);
 
       await expect(
-        t.mutation(api.staffAuth.mutations.requestReissue, {
-          email: "unknown@example.com",
-          recruitmentId,
-        }),
-      ).resolves.not.toThrow();
-    });
-
-    it("有効なメール+recruitmentでエラーを投げない", async () => {
-      const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
-
-      await expect(
-        t.mutation(api.staffAuth.mutations.requestReissue, {
-          email: "suzuki@example.com",
-          recruitmentId,
-        }),
+        t.mutation(api.staffAuth.mutations.requestReissue, { email, recruitmentId: ids.recruitmentId }),
       ).resolves.not.toThrow();
     });
   });
