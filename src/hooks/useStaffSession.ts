@@ -20,14 +20,12 @@ export function useStaffSession(token: string | undefined): StaffSessionState {
   );
   const [rateLimited, setRateLimited] = useState(false);
   const [networkError, setNetworkError] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const verifyingRef = useRef(false);
 
   const verify = useCallback(() => {
     if (!token || session || verifyingRef.current) return;
 
     verifyingRef.current = true;
-    setVerifying(true);
 
     verifyToken({ token })
       .then((result) => {
@@ -45,7 +43,6 @@ export function useStaffSession(token: string | undefined): StaffSessionState {
       })
       .finally(() => {
         verifyingRef.current = false;
-        setVerifying(false);
       });
   }, [token, session, verifyToken]);
 
@@ -61,7 +58,7 @@ export function useStaffSession(token: string | undefined): StaffSessionState {
   if (rateLimited) return { status: "rateLimited" };
   if (networkError) return { status: "networkError", retry };
   if (expired) return { status: "expired", recruitmentId: expired.recruitmentId };
-  if (!session || verifying) return { status: "loading" };
+  if (!session) return { status: "loading" };
 
   return {
     status: "authenticated",
