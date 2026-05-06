@@ -36,6 +36,15 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 - `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
 - `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
 
+## Git Worktree運用
+
+- 同じブランチは複数のworktreeで同時にcheckoutできないため、作業ごとに `codex/...` などの専用ブランチを切ること
+- worktreeごとに `node_modules` は別管理になるため、新しいworktreeでは必要に応じて `pnpm install` を実行すること
+- `.env` はGoogle Driveへのシンボリックリンクなので、新しいworktree側でも `ls -l .env` でリンクが正しいか確認すること
+- `pnpm dev` はport 3000、`pnpm storybook` はport 6006を使う。複数worktreeで同時起動する場合は、片方を `pnpm exec vite --port 3001` や `pnpm exec storybook dev -p 6007` のように明示的にずらすこと
+- `pnpm convex:dev` は同じConvex deploymentに対して関数を同期するため、複数worktreeで同時起動すると別ブランチのbackend変更が押し合う可能性がある。基本は1つのworktreeだけで起動し、必要な時だけ切り替えること
+- 不要になったworktreeは `git worktree remove <path>` で削除し、状態確認には `git worktree list` を使うこと
+
 ## ペルソナ
 
 - あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
