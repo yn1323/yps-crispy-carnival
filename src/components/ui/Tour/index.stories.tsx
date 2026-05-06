@@ -1,6 +1,7 @@
-import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { Button } from "@/src/components/ui/Button";
 import { Tour, type TourStep } from "./index";
 
 const meta: Meta<typeof Tour> = {

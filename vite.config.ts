@@ -6,6 +6,9 @@ import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig({
   plugins: [tanstackRouter({ autoCodeSplitting: true }), viteReact(), tsconfigPaths()],
+  server: {
+    allowedHosts: [".ngrok.app", ".ngrok-free.app"],
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

@@ -1,9 +1,10 @@
-import type { IconButtonProps, SpanProps } from "@chakra-ui/react";
-import { ClientOnly, IconButton, Skeleton, Span } from "@chakra-ui/react";
+import type { SpanProps } from "@chakra-ui/react";
+import { ClientOnly, Skeleton, Span } from "@chakra-ui/react";
 import type { ThemeProviderProps } from "next-themes";
 import { ThemeProvider, useTheme } from "next-themes";
 import * as React from "react";
 import { LuMoon, LuSun } from "react-icons/lu";
+import { IconButton, type IconButtonProps } from "@/src/components/ui/Button";
 
 export type ColorModeProviderProps = ThemeProviderProps;
 
@@ -51,7 +52,7 @@ export const ColorModeButton = React.forwardRef<HTMLButtonElement, ColorModeButt
       <IconButton
         onClick={toggleColorMode}
         variant="ghost"
-        aria-label="Toggle color mode"
+        aria-label="表示色を切り替え"
         size="sm"
         ref={ref}
         {...props}

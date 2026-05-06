@@ -1,5 +1,5 @@
 import { useMutation } from "convex/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { clearSession, getStoredSession, type SessionInfo, storeSession } from "@/src/utils/staffSession";
 
@@ -7,49 +7,80 @@ type StaffSessionState =
   | { status: "loading" }
   | { status: "rateLimited" }
   | { status: "expired"; recruitmentId: string | null }
+  | { status: "networkError"; retry: () => void }
   | { status: "authenticated"; session: SessionInfo; clearSession: () => void };
 
 export function useStaffSession(token: string | undefined): StaffSessionState {
   const verifyToken = useMutation(api.staffAuth.mutations.verifyToken);
 
-  const initialSession = getStoredSession();
-  const [session, setSession] = useState<SessionInfo | null>(initialSession);
+  const [session, setSession] = useState<SessionInfo | null>(null);
   const [expired, setExpired] = useState<{ recruitmentId: string | null } | null>(
-    !token && !initialSession ? { recruitmentId: null } : null,
+    !token ? { recruitmentId: null } : null,
   );
   const [rateLimited, setRateLimited] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const verifyingRef = useRef(false);
+  const [networkError, setNetworkError] = useState(false);
+  const verifyingTokenRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!token || session || verifyingRef.current) return;
+  const verify = useCallback(() => {
+    if (!token || verifyingTokenRef.current === token) return;
 
-    verifyingRef.current = true;
-    setVerifying(true);
+    const verifyingToken = token;
+    verifyingTokenRef.current = verifyingToken;
+    setSession(null);
+    setExpired(null);
+    setRateLimited(false);
+    setNetworkError(false);
 
-    verifyToken({ token })
+    verifyToken({ token: verifyingToken })
       .then((result) => {
+        if (verifyingTokenRef.current !== verifyingToken) return;
+
         if (result.status === "ok") {
           storeSession(result.recruitmentId, result.sessionToken);
           setSession({ sessionToken: result.sessionToken, recruitmentId: result.recruitmentId });
         } else if (result.status === "rate_limited") {
           setRateLimited(true);
         } else {
+          if (result.recruitmentId) {
+            const storedSession = getStoredSession(result.recruitmentId);
+            if (storedSession) {
+              setSession(storedSession);
+              return;
+            }
+          }
           setExpired({ recruitmentId: result.recruitmentId });
         }
       })
       .catch(() => {
-        setExpired({ recruitmentId: null });
+        if (verifyingTokenRef.current !== verifyingToken) return;
+        setNetworkError(true);
       })
       .finally(() => {
-        verifyingRef.current = false;
-        setVerifying(false);
+        if (verifyingTokenRef.current === verifyingToken) {
+          verifyingTokenRef.current = null;
+        }
       });
-  }, [token, session, verifyToken]);
+  }, [token, verifyToken]);
+
+  useEffect(() => {
+    if (!token) {
+      setSession(null);
+      setExpired({ recruitmentId: null });
+      setRateLimited(false);
+      setNetworkError(false);
+      return;
+    }
+    verify();
+  }, [token, verify]);
+
+  const retry = useCallback(() => {
+    verify();
+  }, [verify]);
 
   if (rateLimited) return { status: "rateLimited" };
+  if (networkError) return { status: "networkError", retry };
   if (expired) return { status: "expired", recruitmentId: expired.recruitmentId };
-  if (!session || verifying) return { status: "loading" };
+  if (!session) return { status: "loading" };
 
   return {
     status: "authenticated",

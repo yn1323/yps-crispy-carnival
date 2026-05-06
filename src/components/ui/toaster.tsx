@@ -2,7 +2,8 @@ import { Toaster as ChakraToaster, createToaster, Portal, Spinner, Stack, Toast 
 import { ConvexError } from "convex/values";
 
 export function showErrorToast(error: unknown): void {
-  const title = error instanceof ConvexError && typeof error.data === "string" ? error.data : "エラーが発生しました";
+  const title =
+    error instanceof ConvexError && typeof error.data === "string" ? error.data : "うまく処理できませんでした";
   toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
 }
 

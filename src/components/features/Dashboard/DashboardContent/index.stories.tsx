@@ -18,10 +18,13 @@ export const Normal: Story = {
     shop: { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" },
     recruitments: mockRecruitments,
     recruitmentStatus: "CanLoadMore",
+    canLoadMoreRecruitments: true,
     loadMoreRecruitments: () => {},
     staffs: mockStaffs,
     staffStatus: "CanLoadMore",
+    canLoadMoreStaffs: true,
     loadMoreStaffs: () => {},
+    lineBulkInviteTargetCount: 2,
   },
 };
 
@@ -30,10 +33,13 @@ export const Empty: Story = {
     shop: { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" },
     recruitments: [],
     recruitmentStatus: "Exhausted",
+    canLoadMoreRecruitments: false,
     loadMoreRecruitments: () => {},
     staffs: [],
     staffStatus: "Exhausted",
+    canLoadMoreStaffs: false,
     loadMoreStaffs: () => {},
+    lineBulkInviteTargetCount: 0,
   },
 };
 
@@ -42,9 +48,12 @@ export const Setup: Story = {
     shop: null,
     recruitments: [],
     recruitmentStatus: "Exhausted",
+    canLoadMoreRecruitments: false,
     loadMoreRecruitments: () => {},
     staffs: [],
     staffStatus: "Exhausted",
+    canLoadMoreStaffs: false,
     loadMoreStaffs: () => {},
+    lineBulkInviteTargetCount: 0,
   },
 };

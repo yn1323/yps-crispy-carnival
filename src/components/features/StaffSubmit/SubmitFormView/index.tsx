@@ -1,11 +1,13 @@
-import { Box, Button, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer } from "react-icons/lu";
 import { formatDateWithWeekday, getDateRange } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
+import { Button } from "@/src/components/ui/Button";
 import { DayCard, type DayEntry } from "../DayCard";
-import { SubmitPageContent, SubmitPageLayout } from "../SubmitPageLayout";
+import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -67,19 +69,10 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
 
   return (
     <SubmitPageLayout>
-      <Box bg="teal.600" w="full">
-        <Box maxW="1024px" mx="auto" px={4} pt={3} pb={4}>
-          <Text fontSize="xs" color="white" opacity={0.8}>
-            {data.shopName}
-          </Text>
-          <Text fontSize="xl" fontWeight="bold" color="white">
-            シフト希望を提出
-          </Text>
-        </Box>
-      </Box>
+      <SubmitPageHeader shopName={data.shopName} />
 
       <Box bg="white" w="full" borderBottomWidth={1} borderColor="border.default">
-        <Flex maxW="1024px" mx="auto" px={4} py={3} justify="space-between" align="center">
+        <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center">
           <Box>
             <Text fontSize="sm" fontWeight="semibold">
               {formatPeriodLabel(data.periodStart, data.periodEnd)}
@@ -88,19 +81,6 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
               提出締切: {formatDateWithWeekday(data.deadline)}
             </Text>
           </Box>
-          {data.hasSubmitted ? (
-            <Box bg="green.50" px={2.5} py={1} borderRadius="full">
-              <Text fontSize="xs" fontWeight="semibold" color="green.800">
-                提出済み
-              </Text>
-            </Box>
-          ) : (
-            <Box bg="orange.50" px={2.5} py={1} borderRadius="full">
-              <Text fontSize="xs" fontWeight="semibold" color="orange.800">
-                未提出
-              </Text>
-            </Box>
-          )}
         </Flex>
       </Box>
 
@@ -110,7 +90,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             <LuPointer />
           </Icon>
           <Text fontSize="xs" fontWeight="medium" color="fg.muted">
-            出勤する日をタップしてください
+            出勤できる日をタップしてください
           </Text>
         </Flex>
 
@@ -138,7 +118,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             onClick={onFormSubmit}
             loading={isSubmitting}
           >
-            {data.hasSubmitted ? "修正して提出する" : "提出する"}
+            {data.hasSubmitted ? "希望シフトを更新" : "希望シフトを提出"}
           </Button>
         </Box>
       </SubmitPageContent>

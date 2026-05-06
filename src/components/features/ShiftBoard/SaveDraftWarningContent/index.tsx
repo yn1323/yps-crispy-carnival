@@ -3,9 +3,9 @@ import { Stack, Text } from "@chakra-ui/react";
 export const SaveDraftWarningContent = () => {
   return (
     <Stack gap={3} fontSize="sm" lineHeight="tall">
-      <Text>一時保存後に提出されたシフトは、勤務予定が自動で設定されません。</Text>
-      <Text>以降は希望シフトを見ながら手動でシフト設定することになります。</Text>
-      <Text>よろしいですか？</Text>
+      <Text>下書き保存のあとに届いた希望は、自動ではシフト表に入りません。</Text>
+      <Text>あとから届いた希望は、シフト表を見ながら手動で追加してください。</Text>
+      <Text>下書き保存しますか？</Text>
     </Stack>
   );
 };

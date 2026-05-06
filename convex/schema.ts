@@ -35,10 +35,16 @@ const schema = defineSchema({
     email: v.string(),
     userId: v.optional(v.id("users")),
     isDeleted: v.boolean(),
+    // LINE 連携
+    lineUserId: v.optional(v.string()), // LINE プロフィール userId
+    lineLinkedAt: v.optional(v.number()), // 連携完了時刻（Unix ms）
+    lineFollowing: v.optional(v.boolean()), // 友達追加中フラグ（follow/unfollow Webhook で同期）
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
-    .index("by_email", ["email"]),
+    .index("by_shopId_email_isDeleted", ["shopId", "email", "isDeleted"])
+    .index("by_email", ["email"])
+    .index("by_lineUserId", ["lineUserId"]),
 
   // ========================================
   // シフト募集
@@ -143,6 +149,33 @@ const schema = defineSchema({
     .index("by_sessionToken", ["sessionToken"])
     .index("by_staffId", ["staffId"])
     .index("by_staffId_recruitmentId", ["staffId", "recruitmentId"]),
+
+  // ========================================
+  // LINE 連携トークン（72h・ワンタイム）
+  // OAuth 認可の state パラメータにそのまま使う
+  // ========================================
+  lineLinkTokens: defineTable({
+    staffId: v.id("staffs"),
+    shopId: v.id("shops"),
+    token: v.string(), // UUID v4
+    expiresAt: v.number(), // 発行から72時間
+    usedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_staffId", ["staffId"]),
+
+  // ========================================
+  // LINE Quota 状態（単一レコード方針）
+  // 通知送信時はDB値だけ読む。LINE API は cron で1日1回だけ叩く
+  // ========================================
+  lineQuotaStatus: defineTable({
+    checkedAt: v.number(),
+    totalQuota: v.number(),
+    consumed: v.number(),
+    remaining: v.number(),
+    status: v.union(v.literal("normal"), v.literal("exceeded")),
+    plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
+  }),
 
   // ========================================
   // マネージャー招待（Phase 2、スキーマのみ）

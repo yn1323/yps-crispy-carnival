@@ -29,7 +29,7 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
     { k: "overview", label: "一覧" },
   ];
   return (
-    <Flex gap={0} role="tablist" aria-label="ビュー切替" data-tour="view-tabs">
+    <Flex gap={0} role="tablist" aria-label="表示切替" data-tour="view-tabs">
       {tabs.map((t) => {
         const active = value === t.k;
         return (
@@ -123,7 +123,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
             fontFamily: "inherit",
           }}
         >
-          催促
+          提出をお願い
         </button>
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
@@ -151,7 +151,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 700, color: "#b45309" }}>未提出 {names.length}人</span>
           <span style={{ fontSize: 11, color: "#b45309", opacity: 0.8 }}>
-            {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップで催促"}
+            {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップでお願い"}
           </span>
           {!isDisabled && <span style={{ marginLeft: "auto", fontSize: 16, color: "#b45309", flexShrink: 0 }}>›</span>}
         </button>
@@ -166,7 +166,7 @@ export const SaveButton = ({ compact = false, onClick }: SaveButtonProps) => (
   <button
     type="button"
     onClick={onClick}
-    aria-label="一時保存"
+    aria-label="下書き保存"
     style={{
       height: compact ? 28 : 32,
       padding: compact ? "0 8px" : "0 14px",
@@ -183,7 +183,7 @@ export const SaveButton = ({ compact = false, onClick }: SaveButtonProps) => (
       gap: 4,
     }}
   >
-    {compact ? <LuSave size={14} /> : "一時保存"}
+    {compact ? <LuSave size={14} /> : "下書き保存"}
   </button>
 );
 
@@ -194,7 +194,7 @@ type ConfirmButtonProps = {
 };
 
 export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }: ConfirmButtonProps) => {
-  const label = compact ? (isConfirmed ? "再通知" : "確定") : isConfirmed ? "再通知する" : "確定して通知する";
+  const label = compact ? (isConfirmed ? "再通知" : "確定") : isConfirmed ? "もう一度通知" : "シフトを確定して通知";
   return (
     <button
       type="button"

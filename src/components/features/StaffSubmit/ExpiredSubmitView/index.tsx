@@ -1,6 +1,6 @@
-import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuCalendarX } from "react-icons/lu";
-import { SubmitPageLayout } from "../SubmitPageLayout";
+import { SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 
 type Props = {
   shopName: string;
@@ -9,17 +9,7 @@ type Props = {
 export const ExpiredSubmitView = ({ shopName }: Props) => {
   return (
     <SubmitPageLayout>
-      {/* Header (full-width bg) */}
-      <Box bg="teal.600" w="full">
-        <Box maxW="1024px" mx="auto" px={4} pt={3} pb={4}>
-          <Text fontSize="xs" color="white" opacity={0.8}>
-            {shopName}
-          </Text>
-          <Text fontSize="xl" fontWeight="bold" color="white">
-            シフト希望を提出
-          </Text>
-        </Box>
-      </Box>
+      <SubmitPageHeader shopName={shopName} />
 
       {/* Content */}
       <Flex flex={1} align="center" justify="center" bg="white">
@@ -28,10 +18,10 @@ export const ExpiredSubmitView = ({ shopName }: Props) => {
             <LuCalendarX />
           </Icon>
           <Text fontSize="lg" fontWeight="semibold">
-            提出締切を過ぎています
+            提出締切を過ぎました
           </Text>
           <Text fontSize="sm" color="fg.muted" textAlign="center">
-            シフトの希望がある場合は、{"\n"}お店に直接ご連絡ください。
+            変更したい日がある場合は、{"\n"}シフト作成担当者に連絡してください。
           </Text>
         </VStack>
       </Flex>

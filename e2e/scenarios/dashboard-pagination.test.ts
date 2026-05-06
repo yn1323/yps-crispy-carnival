@@ -1,10 +1,10 @@
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { test } from "@playwright/test";
-import { convexRun } from "../helpers/convex";
+import { seedOwnerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
 test.describe("ダッシュボードのページネーション", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(30_000);
 
   let dashboard: DashboardPage;
 
@@ -15,21 +15,7 @@ test.describe("ダッシュボードのページネーション", () => {
 
   test("もっと見る・すべて表示でデータが段階的に表示される", async () => {
     await test.step("Step 0: データ準備", async () => {
-      convexRun("testing:clearAllTables");
-
-      // UI経由でshop + user作成（Clerkのsubjectと自動的に紐付く）
-      await dashboard.goto();
-      await dashboard.completeSetup({
-        shopName: "ページネーションテスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerName: "テスト管理者",
-        ownerEmail: "admin@example.com",
-      });
-      await dashboard.expectSetupComplete();
-
-      // DB直接投入: staffs 12人 + recruitments 8件
-      convexRun("testing:seedPaginationTestData");
+      seedOwnerScenario("testing:seedDashboardPaginationScenario");
     });
 
     await test.step("Step 1: シフトの「もっと見る」で3件ずつ追加表示される", async () => {
@@ -48,7 +34,7 @@ test.describe("ダッシュボードのページネーション", () => {
     });
 
     await test.step("Step 2: スタッフの「すべて表示」で全員表示される", async () => {
-      // オーナー（completeSetupで作成）+ 12人 = 13人、初期表示10人
+      // オーナー + 12人 = 13人、初期表示10人
       await dashboard.expectStaffRowCount(10);
       await dashboard.expectShowAllStaffsVisible();
 
