@@ -1,16 +1,20 @@
 import { Badge, Flex, HStack, IconButton, Menu, Portal, Stack, Text } from "@chakra-ui/react";
-import { LuEllipsisVertical, LuPencil, LuTrash2 } from "react-icons/lu";
+import { LuEllipsisVertical, LuMail, LuPencil, LuQrCode, LuTrash2 } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 
 type Props = {
   staff: Staff;
   onEdit: (staff: Staff) => void;
   onDelete: (staff: Staff) => void;
+  onShowLineQr: (staff: Staff) => void;
+  onSendLineInvite: (staff: Staff) => void;
 };
 
-export function StaffRow({ staff, onEdit, onDelete }: Props) {
+export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvite }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
   const avatarPalette = staff.isOwner ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
+  const isLineActive = staff.isLineLinked && staff.isLineFollowing;
+  const hasEmail = staff.email.length > 0;
 
   return (
     <HStack
@@ -37,13 +41,18 @@ export function StaffRow({ staff, onEdit, onDelete }: Props) {
         {initial}
       </Flex>
       <Stack gap={0} flex={1} minW={0}>
-        <HStack gap={2} align="center">
+        <HStack gap={2} align="center" wrap="wrap">
           <Text fontWeight={500} color="gray.900" truncate>
             {staff.name}
           </Text>
           {staff.isOwner && (
             <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} fontSize="10px">
               オーナー
+            </Badge>
+          )}
+          {isLineActive && (
+            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} fontSize="10px">
+              LINE連携済み
             </Badge>
           )}
         </HStack>
@@ -59,10 +68,26 @@ export function StaffRow({ staff, onEdit, onDelete }: Props) {
         </Menu.Trigger>
         <Portal>
           <Menu.Positioner>
-            <Menu.Content minW="140px">
+            <Menu.Content minW="180px">
               <Menu.Item value="edit" cursor="pointer" onClick={() => onEdit(staff)}>
                 <LuPencil />
                 編集
+              </Menu.Item>
+              <Menu.Item value="line-qr" cursor="pointer" onClick={() => onShowLineQr(staff)}>
+                <LuQrCode />
+                {isLineActive ? "LINE連携用QRを再表示" : "LINE連携用QRを表示"}
+              </Menu.Item>
+              <Menu.Item
+                value="line-invite"
+                cursor={hasEmail ? "pointer" : "not-allowed"}
+                color={hasEmail ? undefined : "fg.muted"}
+                disabled={!hasEmail}
+                onClick={() => {
+                  if (hasEmail) onSendLineInvite(staff);
+                }}
+              >
+                <LuMail />
+                LINE連携依頼を送る
               </Menu.Item>
               <Menu.Item
                 value="delete"

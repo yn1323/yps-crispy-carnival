@@ -23,6 +23,8 @@ export type Staff = {
   name: string;
   email: string;
   isOwner: boolean;
+  isLineLinked: boolean;
+  isLineFollowing: boolean;
 };
 
 export type { PaginationStatus } from "convex/browser";
