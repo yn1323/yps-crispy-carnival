@@ -38,7 +38,6 @@ export const LandingPage = () => (
     <style>{ANIMATIONS}</style>
     <Nav />
     <Hero />
-    <RelatedLinksSection />
     <DemoSection />
     <PointsSection />
     <ToolsSection />
@@ -220,106 +219,6 @@ const DemoPreviewContent = () => (
     </VStack>
   </Box>
 );
-
-type RelatedLink = {
-  label: string;
-  description: string;
-  href: string;
-  router?: boolean;
-};
-
-const RELATED_LINKS: RelatedLink[] = [
-  {
-    label: "無料デモ",
-    description: "登録なしで店長画面を試せます",
-    href: "/demo/shiftboard",
-    router: true,
-  },
-  {
-    label: "できること",
-    description: "募集、提出、調整、通知の流れを見られます",
-    href: "/#features",
-  },
-  {
-    label: "使い方",
-    description: "シフト募集から確定通知までの手順です",
-    href: "/#how",
-  },
-  {
-    label: "よくある質問",
-    description: "料金、登録、スタッフ利用についてまとめています",
-    href: "/#faq",
-  },
-];
-
-const RelatedLinksSection = () => (
-  <Box as="section" aria-labelledby="related-links-heading" bg="white" px={{ base: 5, lg: 6 }} py={{ base: 8, lg: 10 }}>
-    <Box mx="auto" w="full" maxW="1024px" borderYWidth="1px" borderColor="gray.200" py={{ base: 5, lg: 6 }}>
-      <Flex
-        align={{ base: "start", lg: "center" }}
-        justify="space-between"
-        gap={6}
-        direction={{ base: "column", lg: "row" }}
-      >
-        <Box minW={{ lg: "180px" }}>
-          <Heading id="related-links-heading" as="h2" fontSize="18px" lineHeight={1.5} fontWeight="bold">
-            関連リンク
-          </Heading>
-          <Text mt={1} fontSize="13px" color="fg.muted" lineHeight={1.6}>
-            シフトリの主な情報
-          </Text>
-        </Box>
-        <SimpleGrid
-          as="nav"
-          aria-label="シフトリの関連リンク"
-          columns={{ base: 1, md: 2, lg: 4 }}
-          gap={{ base: 2, md: 3 }}
-          flex="1"
-        >
-          {RELATED_LINKS.map((item) => (
-            <RelatedLinkItem key={item.label} item={item} />
-          ))}
-        </SimpleGrid>
-      </Flex>
-    </Box>
-  </Box>
-);
-
-const RelatedLinkItem = ({ item }: { item: RelatedLink }) => {
-  const content = (
-    <Flex
-      align="center"
-      justify="space-between"
-      gap={3}
-      minH="72px"
-      px={4}
-      py={3}
-      borderRadius="8px"
-      _hover={{ bg: "teal.50" }}
-      transition="background-color 160ms ease"
-    >
-      <Box minW={0}>
-        <Text fontSize="15px" fontWeight="bold" color="teal.700" lineHeight={1.5}>
-          {item.label}
-        </Text>
-        <Text mt={1} fontSize="12px" color="fg.muted" lineHeight={1.5}>
-          {item.description}
-        </Text>
-      </Box>
-      <PiArrowRight size={18} />
-    </Flex>
-  );
-
-  return item.router ? (
-    <Link asChild _hover={{ textDecoration: "none" }}>
-      <RouterLink to={item.href}>{content}</RouterLink>
-    </Link>
-  ) : (
-    <Link href={item.href} _hover={{ textDecoration: "none" }}>
-      {content}
-    </Link>
-  );
-};
 
 const Hero = () => (
   <Box
