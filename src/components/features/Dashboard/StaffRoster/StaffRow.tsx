@@ -1,6 +1,7 @@
-import { Badge, Flex, HStack, IconButton, Menu, Portal, Stack, Text } from "@chakra-ui/react";
+import { Badge, Flex, HStack, Menu, Portal, Stack, Text } from "@chakra-ui/react";
 import { LuEllipsisVertical, LuMail, LuPencil, LuQrCode, LuTrash2 } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
+import { IconButton } from "@/src/components/ui/Button";
 
 type Props = {
   staff: Staff;

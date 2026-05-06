@@ -1,6 +1,7 @@
-import { Button, Icon, Text, VStack } from "@chakra-ui/react";
+import { Icon, Text, VStack } from "@chakra-ui/react";
 import { LuWifiOff } from "react-icons/lu";
 import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   onRetry: () => void;

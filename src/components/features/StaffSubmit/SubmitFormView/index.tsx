@@ -1,10 +1,11 @@
-import { Box, Button, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer } from "react-icons/lu";
 import { formatDateWithWeekday, getDateRange } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
+import { Button } from "@/src/components/ui/Button";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";

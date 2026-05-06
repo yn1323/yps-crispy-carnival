@@ -1,6 +1,7 @@
-import { Button, Flex, Icon, Text } from "@chakra-ui/react";
+import { Flex, Icon, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LuInbox, LuPlus, LuSearch, LuUsers } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 import { Empty } from ".";
 
 const meta = {

@@ -152,50 +152,20 @@ export const buttonRecipe = defineRecipe({
       },
       outline: {
         borderWidth: "1px",
-        borderColor: "colorPalette.muted",
+        borderColor: "border.emphasized",
         color: "colorPalette.fg",
-        bg: "bg.panel",
+        bg: "white",
         _hover: {
           bg: "gray.50",
           borderColor: "colorPalette.solid",
-          color: "colorPalette.solid",
         },
         _active: {
           bg: "gray.100",
           borderColor: "colorPalette.solid",
-          color: "colorPalette.solid",
         },
         _expanded: {
           bg: "gray.50",
           borderColor: "colorPalette.solid",
-          color: "colorPalette.solid",
-        },
-      },
-      outlineOnTint: {
-        bg: "white",
-        borderWidth: "1px",
-        borderColor: "colorPalette.solid",
-        color: "colorPalette.fg",
-        shadow: "0 1px 2px var(--shadow-color)",
-        shadowColor: "blackAlpha.100",
-        _hover: {
-          bg: "colorPalette.solid",
-          borderColor: "colorPalette.solid",
-          color: "colorPalette.contrast",
-          shadow: "0 8px 18px var(--shadow-color)",
-          shadowColor: "colorPalette.muted",
-        },
-        _active: {
-          bg: "colorPalette.solid",
-          color: "colorPalette.contrast",
-          transform: "translateY(1px)",
-          shadow: "0 3px 8px var(--shadow-color)",
-          shadowColor: "colorPalette.muted",
-        },
-        _expanded: {
-          bg: "colorPalette.solid",
-          borderColor: "colorPalette.solid",
-          color: "colorPalette.contrast",
         },
       },
       ghost: {

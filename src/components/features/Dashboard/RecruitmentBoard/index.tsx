@@ -1,7 +1,8 @@
-import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuCalendarPlus, LuChevronDown, LuInbox } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import { Button } from "@/src/components/ui/Button";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {

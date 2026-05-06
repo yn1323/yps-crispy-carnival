@@ -1,7 +1,8 @@
-import { Box, Button, Code, HStack, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Box, Code, HStack, Spinner, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { LuCheck, LuCopy } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 
 type Props = {
   /** 認可フローの URL（state 入りの完成形） */

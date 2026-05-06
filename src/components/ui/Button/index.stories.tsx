@@ -14,7 +14,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const variants = ["solid", "outline", "outlineOnTint", "ghost", "plain"] as const;
+const variants = ["solid", "outline", "ghost", "plain"] as const;
 const backgrounds = [
   { label: "white", bg: "white" },
   { label: "gray.50", bg: "gray.50" },
@@ -63,7 +63,7 @@ export const Variants: Story = {
             <Button variant="outline" colorPalette="teal">
               戻る
             </Button>
-            <Button variant="outlineOnTint" colorPalette="teal" borderRadius="full">
+            <Button variant="outline" colorPalette="teal" borderRadius="full">
               ログイン
             </Button>
             <IconButton aria-label="設定" variant="ghost" colorPalette="teal">
