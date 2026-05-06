@@ -19,7 +19,7 @@ type MagicLinkSeed = {
 };
 
 test.describe("通知URL起点の確定シフト閲覧", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(45_000);
 
   test("確定URLで閲覧し、使用済みURLから再発行した新URLでも閲覧できる", async ({ browser, page }) => {
     const dates = getNextWeekDates();

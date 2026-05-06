@@ -15,7 +15,7 @@ type SubmitScenarioSeed = {
 };
 
 test.describe("通知URL起点のシフト募集", () => {
-  test.setTimeout(90_000);
+  test.setTimeout(45_000);
 
   test("募集開始で発行されたURLから提出し、店長画面に再編集まで反映される", async ({ page }) => {
     const dates = getNextWeekDates();

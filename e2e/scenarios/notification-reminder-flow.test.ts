@@ -15,7 +15,7 @@ type ReminderScenarioSeed = {
 };
 
 test.describe("通知URL起点のシフト提出催促", () => {
-  test.setTimeout(90_000);
+  test.setTimeout(45_000);
 
   test("催促で発行された未提出者URLから提出し、未提出表示が解消される", async ({ page }) => {
     const dates = getNextWeekDates();

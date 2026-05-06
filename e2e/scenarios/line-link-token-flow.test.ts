@@ -9,7 +9,7 @@ const MANAGER = {
 };
 
 test.describe("LINE連携URL発行", () => {
-  test.setTimeout(60_000);
+  test.setTimeout(30_000);
 
   test("店長操作でLINE連携トークンが発行される", async ({ page }) => {
     seedOwnerScenario("testing:seedLineLinkScenario");
