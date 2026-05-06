@@ -117,6 +117,8 @@ export const getReissueEmailData = internalQuery({
       shopName: shop.name,
       staffName: staff.name,
       staffEmail: staff.email,
+      lineUserId: staff.lineUserId,
+      lineFollowing: staff.lineFollowing,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
     };
   },
