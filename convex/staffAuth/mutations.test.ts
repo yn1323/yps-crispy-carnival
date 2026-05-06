@@ -264,6 +264,68 @@ describe("staffAuth/mutations", () => {
         t.mutation(api.staffAuth.mutations.requestReissue, { email, recruitmentId: ids.recruitmentId }),
       ).resolves.not.toThrow();
     });
+
+    it("same email in another shop does not block reissue for the recruitment shop", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const otherShopId = await ctx.db.insert("shops", {
+          name: "Other shop",
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+          ownerId: "user_other_owner",
+          isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          name: "Other staff",
+          email: "shared@example.com",
+          isDeleted: false,
+        });
+
+        const shopId = await ctx.db.insert("shops", {
+          name: "Target shop",
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+          ownerId: "user_owner",
+          isDeleted: false,
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-20",
+          periodEnd: "2026-01-26",
+          deadline: "2026-01-17",
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "Deleted target staff",
+          email: "shared@example.com",
+          isDeleted: true,
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "Target staff",
+          email: "shared@example.com",
+          isDeleted: false,
+        });
+
+        return { staffId, recruitmentId };
+      });
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+      await t.mutation(api.staffAuth.mutations.requestReissue, {
+        email: "shared@example.com",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      expect(logSpy).toHaveBeenCalledWith("[requestReissue] scheduled", {
+        staffId: ids.staffId,
+        recruitmentId: ids.recruitmentId,
+      });
+      logSpy.mockRestore();
+    });
   });
 
   describe("requestReissue レートリミット", () => {
