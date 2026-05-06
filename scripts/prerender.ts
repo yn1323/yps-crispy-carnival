@@ -109,12 +109,12 @@ function assertRenderedHtml(route: string, html: string): void {
   if (!/<h1[\s>]/i.test(html)) {
     throw new Error(`[prerender] ${route} produced HTML without any <h1> — app likely failed to mount`);
   }
-  // TanStack Router の head() が少なくとも1つ <title> を追加していれば、
-  // index.html の静的 <title> と合わせて2つ以上になるはず
+  // Page-specific <title> is managed by TanStack Router's HeadContent.
+  // index.html must not include another static <title>, otherwise SEO tags are duplicated.
   const titleCount = (html.match(/<title\b/gi) ?? []).length;
-  if (titleCount < 2) {
+  if (titleCount !== 1) {
     throw new Error(
-      `[prerender] ${route} produced HTML with only ${titleCount} <title> tag(s) — TanStack Router head() likely did not run`,
+      `[prerender] ${route} produced HTML with ${titleCount} <title> tag(s) — expected exactly one route-managed title`,
     );
   }
   // Emotion (Chakra UI) の動的注入スタイルが textContent にダンプされているか確認
@@ -177,14 +177,14 @@ async function main(): Promise<void> {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
 
       // React が #app に描画し、かつ TanStack Router の HeadContent が
-      // <title> を 1 つ以上追加するまで待機
+      // ページ固有の <title> を追加するまで待機
       // (Convex の WebSocket が networkidle を妨げるため DOM ベースで待機)
       await page.waitForFunction(
         () => {
           const app = document.getElementById("app");
           const appReady = app !== null && app.children.length > 0;
-          const headHasExtraTitle = document.querySelectorAll("head > title").length > 1;
-          return appReady && headHasExtraTitle;
+          const headHasRouteTitle = document.querySelectorAll("head > title").length === 1;
+          return appReady && headHasRouteTitle;
         },
         { timeout: RENDER_WAIT_TIMEOUT_MS },
       );

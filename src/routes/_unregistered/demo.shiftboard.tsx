@@ -1,7 +1,7 @@
 import { Alert, Box, Heading, Link, List, Text, VStack } from "@chakra-ui/react";
 import { createFileRoute, Link as RouterLink } from "@tanstack/react-router";
 import { DemoShiftBoardPage } from "@/src/components/features/ShiftBoard/DemoShiftBoardPage";
-import { buildMeta } from "@/src/helpers/seo";
+import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/_unregistered/demo/shiftboard")({
   head: () => ({
@@ -9,6 +9,7 @@ export const Route = createFileRoute("/_unregistered/demo/shiftboard")({
     //   狙い: 「シフト管理 デモ」「シフト管理 試す」「シフト管理 登録なし」
     // 候補A: 無料デモ｜店長視点で操作できるシフト管理サンドボックス（伝わりにくい）
     // 候補B: 資料請求なしで触れる｜飲食店向けシフト管理シフトリのデモ（差別化明確だが検索数小）
+    links: buildLinks({ canonical: "/demo/shiftboard" }),
     meta: buildMeta({
       title: "登録なしで試せる無料デモ｜店長視点でシフト管理を体験",
       description:
