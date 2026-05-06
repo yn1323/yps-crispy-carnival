@@ -1,7 +1,44 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Image, Link, Text } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 
 type Props = {
   shopName: string;
+};
+
+export const StaffHeaderBrand = ({ shopName }: Props) => {
+  return (
+    <Flex align="center" justify="space-between" gap={4} minW={0} w="full">
+      <Text
+        color="white"
+        fontWeight="bold"
+        fontSize={{ base: "md", lg: "lg" }}
+        overflow="hidden"
+        textOverflow="ellipsis"
+        whiteSpace="nowrap"
+        minW={0}
+        flex={1}
+      >
+        {shopName}
+      </Text>
+      <Flex align="center" gap={{ base: 1.5, lg: 2 }} flexShrink={0}>
+        <Text color="whiteAlpha.800" fontSize={{ base: "2xs", lg: "xs" }} fontWeight="semibold" whiteSpace="nowrap">
+          Powered by
+        </Text>
+        <Link asChild _hover={{ opacity: 0.85, textDecoration: "none" }}>
+          <RouterLink to="/" aria-label="シフトリのトップページへ">
+            <Image
+              src="/textlogo.webp"
+              alt="シフトリ"
+              h={{ base: "22px", lg: "26px" }}
+              w="auto"
+              loading="eager"
+              flexShrink={0}
+            />
+          </RouterLink>
+        </Link>
+      </Flex>
+    </Flex>
+  );
 };
 
 export const StaffHeader = ({ shopName }: Props) => {
@@ -17,9 +54,7 @@ export const StaffHeader = ({ shopName }: Props) => {
       zIndex={20}
     >
       <Flex maxW="1024px" mx="auto" h="full" px={{ base: 4, lg: 6 }} align="center">
-        <Text color="white" fontWeight="bold" fontSize={{ base: "md", lg: "lg" }}>
-          {shopName}
-        </Text>
+        <StaffHeaderBrand shopName={shopName} />
       </Flex>
     </Box>
   );
