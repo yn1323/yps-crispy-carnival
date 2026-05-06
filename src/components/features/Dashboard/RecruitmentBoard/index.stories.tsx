@@ -18,6 +18,7 @@ export const Variants: Story = {
   args: {
     recruitments: mockRecruitments,
     status: "Exhausted",
+    canLoadMore: false,
     onCreateClick: () => {},
     onOpenShiftBoard: () => {},
     onLoadMore: () => {},
@@ -31,6 +32,7 @@ export const Variants: Story = {
         <RecruitmentBoard
           recruitments={mockRecruitments}
           status="Exhausted"
+          canLoadMore={false}
           onCreateClick={() => {}}
           onOpenShiftBoard={() => {}}
           onLoadMore={() => {}}
@@ -43,6 +45,7 @@ export const Variants: Story = {
         <RecruitmentBoard
           recruitments={mockRecruitments.slice(0, 2)}
           status="CanLoadMore"
+          canLoadMore={true}
           onCreateClick={() => {}}
           onOpenShiftBoard={() => {}}
           onLoadMore={() => {}}
@@ -55,6 +58,7 @@ export const Variants: Story = {
         <RecruitmentBoard
           recruitments={[]}
           status="Exhausted"
+          canLoadMore={false}
           onCreateClick={() => {}}
           onOpenShiftBoard={() => {}}
           onLoadMore={() => {}}

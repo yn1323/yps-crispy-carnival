@@ -26,9 +26,11 @@ type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
   recruitments: Recruitment[];
   recruitmentStatus: PaginationStatus;
+  canLoadMoreRecruitments: boolean;
   loadMoreRecruitments: () => void;
   staffs: Staff[];
   staffStatus: PaginationStatus;
+  canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
   lineBulkInviteTargetCount?: number;
 };
@@ -37,9 +39,11 @@ export const DashboardContent = ({
   shop,
   recruitments,
   recruitmentStatus,
+  canLoadMoreRecruitments,
   loadMoreRecruitments,
   staffs,
   staffStatus,
+  canLoadMoreStaffs,
   loadMoreStaffs,
   lineBulkInviteTargetCount,
 }: Props) => {
@@ -216,6 +220,7 @@ export const DashboardContent = ({
             <RecruitmentBoard
               recruitments={recruitments}
               status={recruitmentStatus}
+              canLoadMore={canLoadMoreRecruitments}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onLoadMore={loadMoreRecruitments}
@@ -223,6 +228,7 @@ export const DashboardContent = ({
             <StaffRoster
               staffs={staffs}
               status={staffStatus}
+              canLoadMore={canLoadMoreStaffs}
               onAddClick={staffModal.open}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}

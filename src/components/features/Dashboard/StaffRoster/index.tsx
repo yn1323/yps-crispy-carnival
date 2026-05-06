@@ -7,6 +7,7 @@ import { StaffRow } from "./StaffRow";
 type Props = {
   staffs: Staff[];
   status: PaginationStatus;
+  canLoadMore: boolean;
   onAddClick: () => void;
   onEdit: (staff: Staff) => void;
   onDelete: (staff: Staff) => void;
@@ -20,6 +21,7 @@ type Props = {
 export const StaffRoster = ({
   staffs,
   status,
+  canLoadMore,
   onAddClick,
   onEdit,
   onDelete,
@@ -29,7 +31,7 @@ export const StaffRoster = ({
   lineBulkInviteTargetCount,
   onLoadMore,
 }: Props) => {
-  const canLoadMore = status !== "Exhausted" && status !== "LoadingFirstPage";
+  const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
   const unlinkedCount = lineBulkInviteTargetCount ?? 0;
 
@@ -94,7 +96,7 @@ export const StaffRoster = ({
         </Box>
       )}
 
-      {canLoadMore && (
+      {showLoadMore && (
         <Flex justify="center">
           <Button
             variant="ghost"

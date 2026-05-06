@@ -20,6 +20,7 @@ export const Variants: Story = {
   args: {
     staffs: mockStaffs,
     status: "Exhausted",
+    canLoadMore: false,
     onAddClick: noop,
     onEdit: noop,
     onDelete: noop,
@@ -38,6 +39,7 @@ export const Variants: Story = {
         <StaffRoster
           staffs={mockStaffs}
           status="Exhausted"
+          canLoadMore={false}
           onAddClick={noop}
           onEdit={noop}
           onDelete={noop}
@@ -55,6 +57,7 @@ export const Variants: Story = {
         <StaffRoster
           staffs={mockStaffsMany}
           status="CanLoadMore"
+          canLoadMore={true}
           onAddClick={noop}
           onEdit={noop}
           onDelete={noop}
@@ -72,6 +75,7 @@ export const Variants: Story = {
         <StaffRoster
           staffs={[]}
           status="Exhausted"
+          canLoadMore={false}
           onAddClick={noop}
           onEdit={noop}
           onDelete={noop}

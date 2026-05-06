@@ -7,13 +7,21 @@ import { RecruitmentRow } from "./RecruitmentRow";
 type Props = {
   recruitments: Recruitment[];
   status: PaginationStatus;
+  canLoadMore: boolean;
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onLoadMore: () => void;
 };
 
-export const RecruitmentBoard = ({ recruitments, status, onCreateClick, onOpenShiftBoard, onLoadMore }: Props) => {
-  const canLoadMore = status !== "Exhausted" && status !== "LoadingFirstPage";
+export const RecruitmentBoard = ({
+  recruitments,
+  status,
+  canLoadMore,
+  onCreateClick,
+  onOpenShiftBoard,
+  onLoadMore,
+}: Props) => {
+  const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
 
   return (
     <Stack gap={{ base: 4, lg: 5 }}>
@@ -45,7 +53,7 @@ export const RecruitmentBoard = ({ recruitments, status, onCreateClick, onOpenSh
         </Stack>
       )}
 
-      {canLoadMore && (
+      {showLoadMore && (
         <Flex justify="center">
           <Button
             variant="ghost"
