@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ExpiredView } from "@/src/components/features/StaffView/ExpiredView";
+import { NetworkErrorView } from "@/src/components/features/StaffView/NetworkErrorView";
 import { RateLimitedView } from "@/src/components/features/StaffView/RateLimitedView";
 import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
@@ -27,6 +28,13 @@ function ShiftViewRoute() {
 
   if (state.status === "loading") return <FullPageSpinner />;
   if (state.status === "rateLimited") return <RateLimitedView title="シフト閲覧" />;
+  if (state.status === "networkError") {
+    return (
+      <StaffLayout shopName="シフト閲覧">
+        <NetworkErrorView onRetry={state.retry} />
+      </StaffLayout>
+    );
+  }
   if (state.status === "expired") {
     return (
       <StaffLayout shopName="シフト閲覧">
