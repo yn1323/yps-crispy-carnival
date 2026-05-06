@@ -115,6 +115,22 @@ export class DashboardPage {
     await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
   }
 
+  async openLineQr(staffName: string) {
+    await this.openStaffMenu(staffName);
+    await this.page.getByRole("menuitem", { name: "LINE連携QRを表示" }).click();
+    await expect(this.page.getByRole("dialog", { name: "LINE連携QR / URL" })).toBeVisible();
+  }
+
+  async sendLineInvite(staffName: string) {
+    await this.openStaffMenu(staffName);
+    await this.page.getByRole("menuitem", { name: "メールでLINE連携URLを送る" }).click();
+
+    const dialog = this.page.getByRole("dialog", { name: "メールでLINE連携URLを送る" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "送信" }).click();
+    await expect(this.page.getByText("LINE連携URLをメールで送信しました")).toBeVisible();
+  }
+
   async expectStaffNotVisible(name: string) {
     await expect(this.page.getByText(name)).not.toBeVisible();
   }

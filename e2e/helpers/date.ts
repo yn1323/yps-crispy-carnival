@@ -1,5 +1,7 @@
 import dayjs from "dayjs";
 
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
 /** 来週月曜〜日曜の日付と今週金曜（締切）を返す */
 export function getNextWeekDates() {
   const today = dayjs();
@@ -13,4 +15,9 @@ export function getNextWeekDates() {
     deadline: nextMonday.subtract(1, "day").format("YYYY-MM-DD"),
     dates: Array.from({ length: 7 }, (_, i) => nextMonday.add(i, "day").format("YYYY-MM-DD")),
   };
+}
+
+export function formatDateWithWeekday(date: string) {
+  const d = dayjs(date);
+  return `${d.month() + 1}/${d.date()}(${WEEKDAYS[d.day()]})`;
 }

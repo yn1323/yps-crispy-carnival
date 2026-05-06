@@ -1,8 +1,65 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { buildLineAuthorizeUrl } from "./_lib/lineClient";
+import { generateUUID } from "./_lib/uuid";
 import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
+const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
+const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
+
+type MagicLinkPurpose = "submit" | "view";
+type TestCtx = QueryCtx | MutationCtx;
+
+function assertE2EHelpersEnabled() {
+  if (process.env.E2E_TESTING_ENABLED !== "true") {
+    throw new Error("E2E testing helpers are disabled. Set E2E_TESTING_ENABLED=true in the Convex deployment.");
+  }
+}
+
+async function findActiveStaffByEmail(ctx: TestCtx, staffEmail: string) {
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_email", (q) => q.eq("email", staffEmail))
+    .order("desc")
+    .take(10);
+  return staffs.find((staff) => !staff.isDeleted) ?? null;
+}
+
+function matchesPurpose(status: "open" | "confirmed", purpose: MagicLinkPurpose) {
+  return purpose === "submit" ? status === "open" : status === "confirmed";
+}
+
+async function findRecruitmentForPurpose(
+  ctx: TestCtx,
+  staff: { shopId: Id<"shops"> },
+  purpose: MagicLinkPurpose,
+  recruitmentId?: Id<"recruitments">,
+) {
+  if (recruitmentId) {
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (
+      recruitment &&
+      !recruitment.isDeleted &&
+      recruitment.shopId === staff.shopId &&
+      matchesPurpose(recruitment.status, purpose)
+    ) {
+      return recruitment;
+    }
+    return null;
+  }
+
+  const status = purpose === "submit" ? "open" : "confirmed";
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", status))
+    .order("desc")
+    .take(10);
+  return recruitments.find((recruitment) => !recruitment.isDeleted) ?? null;
+}
 
 /**
  * E2Eテスト用：全テーブルのデータをクリア
@@ -358,5 +415,125 @@ export const seedSubmitTestData = internalMutation({
     }
 
     return { token, shopId, staffId, recruitmentId };
+  },
+});
+
+export const getLatestMagicLinkToken = internalQuery({
+  args: {
+    recruitmentId: v.optional(v.id("recruitments")),
+    staffEmail: v.string(),
+    purpose: magicLinkPurposeValidator,
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) return { token: null };
+
+    const links = await ctx.db
+      .query("magicLinks")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
+      .order("desc")
+      .take(50);
+
+    for (const link of links) {
+      if (args.recruitmentId && link.recruitmentId !== args.recruitmentId) continue;
+      const recruitment = await ctx.db.get(link.recruitmentId);
+      if (!recruitment || recruitment.isDeleted || !matchesPurpose(recruitment.status, args.purpose)) continue;
+      return {
+        token: link.token,
+        staffId: staff._id,
+        recruitmentId: link.recruitmentId,
+        expiresAt: link.expiresAt,
+        usedAt: link.usedAt ?? null,
+      };
+    }
+
+    return { token: null };
+  },
+});
+
+export const createMagicLinkTokenForLatestRecruitment = internalMutation({
+  args: {
+    recruitmentId: v.optional(v.id("recruitments")),
+    staffEmail: v.string(),
+    purpose: magicLinkPurposeValidator,
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
+
+    const recruitment = await findRecruitmentForPurpose(ctx, staff, args.purpose, args.recruitmentId);
+    if (!recruitment) throw new Error(`Recruitment not found for ${args.purpose}: ${args.staffEmail}`);
+
+    const token = generateUUID();
+    await ctx.db.insert("magicLinks", {
+      token,
+      staffId: staff._id,
+      shopId: staff.shopId,
+      recruitmentId: recruitment._id,
+      expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+    });
+
+    return { token, staffId: staff._id, recruitmentId: recruitment._id };
+  },
+});
+
+export const getLatestLineLinkToken = internalQuery({
+  args: {
+    staffEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) return { token: null };
+
+    const links = await ctx.db
+      .query("lineLinkTokens")
+      .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
+      .order("desc")
+      .take(10);
+    const link = links[0];
+    if (!link) return { token: null };
+
+    const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
+    return {
+      token: link.token,
+      staffId: staff._id,
+      expiresAt: link.expiresAt,
+      usedAt: link.usedAt ?? null,
+      authorizeUrl: channelId
+        ? buildLineAuthorizeUrl({
+            channelId,
+            redirectUri: `${APP_URL}/line/callback`,
+            state: link.token,
+          })
+        : null,
+    };
+  },
+});
+
+export const createLineLinkTokenForStaff = internalMutation({
+  args: {
+    staffEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
+
+    const token = generateUUID();
+    await ctx.db.insert("lineLinkTokens", {
+      staffId: staff._id,
+      shopId: staff.shopId,
+      token,
+      expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+    });
+
+    return { token, staffId: staff._id };
   },
 });
