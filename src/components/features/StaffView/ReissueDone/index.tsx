@@ -1,9 +1,10 @@
-import { Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Icon, Text, VStack } from "@chakra-ui/react";
 import { LuSend } from "react-icons/lu";
+import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
 
 export const ReissueDone = () => {
   return (
-    <Flex flex={1} align="center" justify="center" px={8}>
+    <StaffCenteredContent>
       <VStack gap={4}>
         <Icon as={LuSend} boxSize={12} color="teal.500" />
         <Text fontSize="lg" fontWeight="semibold" textAlign="center">
@@ -16,6 +17,6 @@ export const ReissueDone = () => {
           届かない場合は{"\n"}お店に直接ご連絡ください。
         </Text>
       </VStack>
-    </Flex>
+    </StaffCenteredContent>
   );
 };

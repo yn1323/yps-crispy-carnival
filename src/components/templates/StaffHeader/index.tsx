@@ -1,6 +1,9 @@
 import { Box, Flex, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 
+export const STAFF_CONTENT_MAX_W = "1024px";
+export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
+
 type Props = {
   shopName: string;
 };
@@ -53,7 +56,7 @@ export const StaffHeader = ({ shopName }: Props) => {
       bg="teal.600"
       zIndex={20}
     >
-      <Flex maxW="1024px" mx="auto" h="full" px={{ base: 4, lg: 6 }} align="center">
+      <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" h="full" px={STAFF_PAGE_PX} align="center">
         <StaffHeaderBrand shopName={shopName} />
       </Flex>
     </Box>
