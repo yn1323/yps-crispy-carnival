@@ -5,7 +5,9 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { DayEntry } from "@/src/components/features/StaffSubmit/DayCard";
 import { ExpiredSubmitView } from "@/src/components/features/StaffSubmit/ExpiredSubmitView";
 import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
+import { NetworkErrorView } from "@/src/components/features/StaffView/NetworkErrorView";
 import { RateLimitedView } from "@/src/components/features/StaffView/RateLimitedView";
+import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { buildMeta } from "@/src/helpers/seo";
@@ -27,6 +29,13 @@ function ShiftSubmitRoute() {
 
   if (state.status === "loading") return <FullPageSpinner />;
   if (state.status === "rateLimited") return <RateLimitedView title="シフト提出" />;
+  if (state.status === "networkError") {
+    return (
+      <StaffLayout shopName="シフト提出">
+        <NetworkErrorView onRetry={state.retry} />
+      </StaffLayout>
+    );
+  }
   if (state.status === "expired") return <ExpiredSubmitView shopName="シフト提出" />;
 
   return (
