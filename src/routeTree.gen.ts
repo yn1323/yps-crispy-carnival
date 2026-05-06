@@ -19,6 +19,7 @@ import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
+import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
 import { Route as UnregisteredDemoShiftboardRouteImport } from './routes/_unregistered/demo.shiftboard'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
@@ -73,6 +74,12 @@ const UnregisteredShiftsReissueRoute =
     path: '/shifts/reissue',
     getParentRoute: () => UnregisteredRoute,
   } as any)
+const UnregisteredLineCallbackRoute =
+  UnregisteredLineCallbackRouteImport.update({
+    id: '/line/callback',
+    path: '/line/callback',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
 const UnregisteredDemoShiftboardRoute =
   UnregisteredDemoShiftboardRouteImport.update({
     id: '/demo/shiftboard',
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
+  '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
@@ -113,6 +121,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof UnregisteredWelcomeRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
+  '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
@@ -129,6 +138,7 @@ export interface FileRoutesById {
   '/_unregistered/welcome': typeof UnregisteredWelcomeRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_unregistered/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
+  '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/shiftboard/$recruitmentId'
     | '/demo/shiftboard'
+    | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/shiftboard/$recruitmentId'
     | '/demo/shiftboard'
+    | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
@@ -172,6 +184,7 @@ export interface FileRouteTypes {
     | '/_unregistered/welcome'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_unregistered/demo/shiftboard'
+    | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
     | '/_unregistered/shifts/submit'
     | '/_unregistered/shifts/view'
@@ -258,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredShiftsReissueRouteImport
       parentRoute: typeof UnregisteredRoute
     }
+    '/_unregistered/line/callback': {
+      id: '/_unregistered/line/callback'
+      path: '/line/callback'
+      fullPath: '/line/callback'
+      preLoaderRoute: typeof UnregisteredLineCallbackRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
     '/_unregistered/demo/shiftboard': {
       id: '/_unregistered/demo/shiftboard'
       path: '/demo/shiftboard'
@@ -297,6 +317,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 interface UnregisteredRouteChildren {
   UnregisteredWelcomeRoute: typeof UnregisteredWelcomeRoute
   UnregisteredDemoShiftboardRoute: typeof UnregisteredDemoShiftboardRoute
+  UnregisteredLineCallbackRoute: typeof UnregisteredLineCallbackRoute
   UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
   UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
   UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
@@ -306,6 +327,7 @@ interface UnregisteredRouteChildren {
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
   UnregisteredWelcomeRoute: UnregisteredWelcomeRoute,
   UnregisteredDemoShiftboardRoute: UnregisteredDemoShiftboardRoute,
+  UnregisteredLineCallbackRoute: UnregisteredLineCallbackRoute,
   UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
   UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
   UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
