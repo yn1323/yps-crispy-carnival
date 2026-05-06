@@ -287,9 +287,6 @@ const Hero = () => (
             />
           </Box>
         </Heading>
-        <Text mt={7} fontSize={{ base: "16px", lg: "20px" }} color="gray.700" lineHeight={1.7} whiteSpace="pre-line">
-          {"スタッフはいつものLINEで通知を受け取れます。\nβ期間中はLINE連携も追加料金なし。"}
-        </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
           mt={10}
@@ -569,7 +566,7 @@ const LINE_FEATURES: LineFeature[] = [
   {
     icon: LuCheck,
     title: "β期間中は追加料金なし",
-    body: "LINE連携の費用はシフトリ側で負担します。β終了後も無料で使える範囲を用意する予定です。",
+    body: "β終了後も無料で使える範囲を用意する予定です。",
   },
 ];
 
@@ -617,9 +614,6 @@ const LineSection = () => (
           </Heading>
           <Text mt={5} fontSize={{ base: "15px", lg: "17px" }} color="gray.700" lineHeight={1.9}>
             新しいアプリを入れてもらわず、シフト提出や確定のお知らせを届けられます。
-          </Text>
-          <Text mt={4} fontSize="12px" color="gray.500" lineHeight={1.8}>
-            β期間中は追加料金なし。β終了後も、無料で使える範囲を用意する予定です。
           </Text>
         </VStack>
 
