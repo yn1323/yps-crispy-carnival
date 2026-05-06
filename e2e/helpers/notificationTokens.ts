@@ -1,4 +1,4 @@
-import { convexRun } from "./convex";
+import { convexRunJson } from "./convex";
 
 type MagicLinkPurpose = "submit" | "view";
 
@@ -19,16 +19,8 @@ type CreatedLineLinkResult = Omit<LineLinkResult, "token"> & { token: string };
 const POLL_ATTEMPTS = 6;
 const POLL_INTERVAL_MS = 500;
 
-function parseConvexResult<T>(raw: string): T {
-  return JSON.parse(raw.trim()) as T;
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export function convexRunJson<T>(fn: string, args: Record<string, unknown> = {}): T {
-  return parseConvexResult<T>(convexRun(fn, args));
 }
 
 export async function getOrCreateMagicLinkToken(args: {

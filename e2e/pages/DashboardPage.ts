@@ -14,16 +14,18 @@ export class DashboardPage {
     ownerName: string;
     ownerEmail: string;
   }) {
-    await this.page.getByRole("button", { name: "店舗を登録する" }).click();
-    await expect(this.page.getByRole("dialog", { name: "店舗情報を登録" })).toBeVisible();
-    await this.page.getByLabel("店舗名").fill(data.shopName);
+    await this.page.getByRole("button", { name: /店舗を登録する|お店を登録する/ }).click();
+    await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
+    await this.page.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
     await this.selectTime("シフト開始時間", data.shiftStartTime);
     await this.selectTime("シフト終了時間", data.shiftEndTime);
     await this.page.getByRole("button", { name: "次へ" }).click();
 
-    await this.page.getByLabel("あなたの名前").fill(data.ownerName);
-    await this.page.getByLabel("メールアドレス").fill(data.ownerEmail);
-    await this.page.getByRole("button", { name: "お店を登録する" }).click();
+    const ownerDialog = this.page.getByRole("dialog", { name: "あなたの名前を登録" });
+    await expect(ownerDialog).toBeVisible();
+    await ownerDialog.getByLabel("あなたの名前").fill(data.ownerName);
+    await ownerDialog.getByLabel("メールアドレス").fill(data.ownerEmail);
+    await ownerDialog.getByRole("button", { name: "お店を登録する" }).click();
   }
 
   async expectSetupComplete() {
@@ -117,18 +119,20 @@ export class DashboardPage {
 
   async openLineQr(staffName: string) {
     await this.openStaffMenu(staffName);
-    await this.page.getByRole("menuitem", { name: "LINE連携QRを表示" }).click();
-    await expect(this.page.getByRole("dialog", { name: "LINE連携QR / URL" })).toBeVisible();
+    await this.page.getByRole("menuitem", { name: /LINE連携QRを表示|LINE連携リンクを表示/ }).click();
+    await expect(this.page.getByRole("dialog", { name: /LINE連携QR \/ URL|LINE連携リンク/ })).toBeVisible();
   }
 
   async sendLineInvite(staffName: string) {
     await this.openStaffMenu(staffName);
-    await this.page.getByRole("menuitem", { name: "メールでLINE連携URLを送る" }).click();
+    await this.page.getByRole("menuitem", { name: /メールでLINE連携URLを送る|LINE連携リンクをメールで送る/ }).click();
 
-    const dialog = this.page.getByRole("dialog", { name: "メールでLINE連携URLを送る" });
+    const dialog = this.page.getByRole("dialog", { name: /メールでLINE連携URLを送る|LINE連携リンクをメールで送る/ });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "送信" }).click();
-    await expect(this.page.getByText("LINE連携URLをメールで送信しました")).toBeVisible();
+    await expect(
+      this.page.getByText(/LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました/),
+    ).toBeVisible();
   }
 
   async expectStaffNotVisible(name: string) {
@@ -161,7 +165,7 @@ export class DashboardPage {
     await expect(this.page.getByRole("dialog", { name: "店舗設定" })).toBeVisible();
 
     if (data.shopName !== undefined) {
-      const nameInput = this.page.getByLabel("店舗名");
+      const nameInput = this.page.getByLabel(/店舗名|お店の名前/);
       await nameInput.clear();
       await nameInput.fill(data.shopName);
     }
