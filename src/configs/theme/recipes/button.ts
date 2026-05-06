@@ -116,10 +116,15 @@ export const buttonRecipe = defineRecipe({
         color: "colorPalette.contrast",
         borderColor: "transparent",
         _hover: {
-          bg: "colorPalette.solid/90",
+          bg: "colorPalette.solid/92",
+          shadow: "xs",
+        },
+        _active: {
+          bg: "colorPalette.solid",
+          transform: "translateY(1px)",
         },
         _expanded: {
-          bg: "colorPalette.solid/90",
+          bg: "colorPalette.solid/92",
         },
       },
       subtle: {
@@ -149,25 +154,76 @@ export const buttonRecipe = defineRecipe({
         borderWidth: "1px",
         borderColor: "colorPalette.muted",
         color: "colorPalette.fg",
+        bg: "bg.panel",
         _hover: {
-          bg: "colorPalette.subtle",
+          bg: "gray.50",
+          borderColor: "colorPalette.solid",
+          color: "colorPalette.solid",
+        },
+        _active: {
+          bg: "gray.100",
+          borderColor: "colorPalette.solid",
+          color: "colorPalette.solid",
         },
         _expanded: {
-          bg: "colorPalette.subtle",
+          bg: "gray.50",
+          borderColor: "colorPalette.solid",
+          color: "colorPalette.solid",
+        },
+      },
+      outlineOnTint: {
+        bg: "white",
+        borderWidth: "1px",
+        borderColor: "colorPalette.solid",
+        color: "colorPalette.fg",
+        shadow: "0 1px 2px var(--shadow-color)",
+        shadowColor: "blackAlpha.100",
+        _hover: {
+          bg: "colorPalette.solid",
+          borderColor: "colorPalette.solid",
+          color: "colorPalette.contrast",
+          shadow: "0 8px 18px var(--shadow-color)",
+          shadowColor: "colorPalette.muted",
+        },
+        _active: {
+          bg: "colorPalette.solid",
+          color: "colorPalette.contrast",
+          transform: "translateY(1px)",
+          shadow: "0 3px 8px var(--shadow-color)",
+          shadowColor: "colorPalette.muted",
+        },
+        _expanded: {
+          bg: "colorPalette.solid",
+          borderColor: "colorPalette.solid",
+          color: "colorPalette.contrast",
         },
       },
       ghost: {
         bg: "transparent",
         color: "colorPalette.fg",
         _hover: {
-          bg: "colorPalette.subtle",
+          bg: "blackAlpha.50",
+          color: "colorPalette.solid",
+        },
+        _active: {
+          bg: "blackAlpha.100",
+          color: "colorPalette.solid",
         },
         _expanded: {
-          bg: "colorPalette.subtle",
+          bg: "blackAlpha.50",
+          color: "colorPalette.solid",
         },
       },
       plain: {
         color: "colorPalette.fg",
+        _hover: {
+          color: "colorPalette.solid",
+          textDecoration: "underline",
+          textUnderlineOffset: "3px",
+        },
+        _active: {
+          color: "colorPalette.solid",
+        },
       },
     },
   },
