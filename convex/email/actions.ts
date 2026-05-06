@@ -15,6 +15,7 @@ import {
   buildRecruitmentEmailHtml,
   buildRecruitmentLineText,
   buildReissueEmailHtml,
+  buildReissueLineText,
   buildShiftConfirmationLineText,
 } from "./templates";
 
@@ -126,7 +127,9 @@ async function sendConfirmationEmail(opts: {
 }
 
 /**
- * 再発行メール（既存仕様。LINE経路の対象外）
+ * 再発行メールの配信
+ * - 連携済みかつ友達追加中 → LINE Push
+ * - それ以外 / LINE失敗時 → メール
  */
 export const sendReissueEmail = internalAction({
   args: {
@@ -137,15 +140,35 @@ export const sendReissueEmail = internalAction({
     const data = await ctx.runQuery(internal.email.queries.getReissueEmailData, { staffId, recruitmentId });
     if (!data) return;
 
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const channel = selectChannel({ lineUserId: data.lineUserId, lineFollowing: data.lineFollowing }, quota);
+
     const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
       staffId,
       shopId: data.shopId,
       recruitmentId,
     });
-
-    const resend = getResendClient();
     const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
 
+    if (channel === "line" && data.lineUserId) {
+      try {
+        await pushTextMessage(
+          data.lineUserId,
+          buildReissueLineText({
+            staffName: data.staffName,
+            shopName: data.shopName,
+            periodLabel: data.periodLabel,
+            magicLinkUrl,
+          }),
+        );
+        return;
+      } catch (e) {
+        console.error("LINE push failed; falling back to email", e);
+      }
+    }
+
+    if (!data.staffEmail) return;
+    const resend = getResendClient();
     await resend.emails.send({
       from: `${data.shopName} <${RESEND_FROM}>`,
       to: data.staffEmail,
