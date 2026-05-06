@@ -22,7 +22,7 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
     <form onSubmit={handleSubmit(onSubmit)}>
       <VStack gap={5} align="stretch">
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          お店に伝えたメールアドレスを入力してください。新しい閲覧リンクをお送りします。
+          登録済みのメールアドレスを入力してください。新しい閲覧リンクを送ります。
         </Text>
 
         <Field.Root invalid={!!errors.email}>

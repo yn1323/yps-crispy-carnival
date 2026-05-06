@@ -182,7 +182,7 @@ export const DashboardContent = ({
     try {
       await sendLineInvite({ staffId: lineInviteTarget._id });
       lineInviteDialog.close();
-      toaster.create({ title: "LINE連携URLをメールで送信しました", type: "success" });
+      toaster.create({ title: "LINE連携リンクをメールで送信しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -197,7 +197,8 @@ export const DashboardContent = ({
       const r = await sendLineInviteBulk({});
       lineBulkInviteDialog.close();
       toaster.create({
-        title: r.sentCount > 0 ? `${r.sentCount}名にLINE連携URLをメールで送信しました` : "送信対象のスタッフがいません",
+        title:
+          r.sentCount > 0 ? `${r.sentCount}名にLINE連携リンクをメールで送信しました` : "送信対象のスタッフがいません",
         type: "success",
       });
     } catch (error) {
@@ -273,7 +274,7 @@ export const DashboardContent = ({
         isOpen={editStaffModal.isOpen}
         onOpenChange={editStaffModal.onOpenChange}
         formId="edit-staff-form"
-        submitLabel="保存する"
+        submitLabel="変更を保存"
         onClose={editStaffModal.close}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
@@ -284,7 +285,7 @@ export const DashboardContent = ({
         isOpen={editShopModal.isOpen}
         onOpenChange={editShopModal.onOpenChange}
         formId="edit-shop-form"
-        submitLabel="保存する"
+        submitLabel="変更を保存"
         onClose={editShopModal.close}
       >
         {shop && (
@@ -305,18 +306,18 @@ export const DashboardContent = ({
         onOpenChange={deleteStaffDialog.onOpenChange}
         onClose={deleteStaffDialog.close}
         onSubmit={handleDeleteStaff}
-        submitLabel="削除する"
+        submitLabel="このスタッフを削除"
         role="alertdialog"
         submitColorPalette="red"
       >
         <Text>「{deleteTarget?.name}」を削除しますか？</Text>
         <Text fontSize="sm" color="gray.600">
-          この操作は取り消せません。
+          削除すると元に戻せません。
         </Text>
       </Dialog>
 
       <Dialog
-        title="LINE連携QR / URL"
+        title="LINE連携リンク"
         isOpen={lineQrDialog.isOpen}
         onOpenChange={lineQrDialog.onOpenChange}
         onClose={lineQrDialog.close}
@@ -330,7 +331,7 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
-        title="メールでLINE連携URLを送る"
+        title="LINE連携リンクをメールで送る"
         isOpen={lineInviteDialog.isOpen}
         onOpenChange={lineInviteDialog.onOpenChange}
         onClose={lineInviteDialog.close}
@@ -343,7 +344,7 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
-        title="未連携スタッフ全員に送信"
+        title="未連携のスタッフにまとめて送る"
         isOpen={lineBulkInviteDialog.isOpen}
         onOpenChange={lineBulkInviteDialog.onOpenChange}
         onClose={lineBulkInviteDialog.close}

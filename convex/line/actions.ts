@@ -96,7 +96,7 @@ export const replyDefaultMessage = internalAction({
   handler: async (_ctx, { replyToken }) => {
     const text = [
       "シフトリの通知用アカウントです。",
-      "シフトの確認や提出は、店長から届くメール／LINEのリンクからお願いします。",
+      "シフトの確認や提出は、シフト作成担当者から届くメール／LINEのリンクからお願いします。",
     ].join("\n");
     try {
       await replyTextMessage(replyToken, text);
@@ -152,7 +152,7 @@ export const sendInviteEmail = internalAction({
     await resend.emails.send({
       from: `${data.shopName} <${RESEND_FROM}>`,
       to: data.staffEmail,
-      subject: `【${data.shopName}】LINEで通知を受け取れるようになります`,
+      subject: `【${data.shopName}】シフト通知をLINEで受け取れます`,
       html: buildLineInviteEmailHtml({
         staffName: data.staffName,
         shopName: data.shopName,

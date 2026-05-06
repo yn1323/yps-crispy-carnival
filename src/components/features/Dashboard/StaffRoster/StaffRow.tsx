@@ -86,7 +86,7 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
                 }}
               >
                 <LuQrCode />
-                LINE連携QRを表示
+                LINE連携リンクを表示
               </Menu.Item>
               <Menu.Item
                 value="line-invite"
@@ -98,7 +98,7 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
                 }}
               >
                 <LuMail />
-                メールでLINE連携URLを送る
+                LINE連携リンクをメールで送る
               </Menu.Item>
               <Menu.Item
                 value="delete"

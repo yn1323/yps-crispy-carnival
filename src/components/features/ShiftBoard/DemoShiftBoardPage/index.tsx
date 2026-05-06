@@ -106,7 +106,9 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
     toaster.create({ title: "保存しました", type: "success" });
   }, []);
 
-  const confirmTitle = isConfirmed ? "シフトを再通知しますか？" : "シフトを確定して通知しますか？";
+  const confirmTitle = isConfirmed
+    ? "確定済みのシフトをもう一度通知しますか？"
+    : "このシフトをスタッフに通知しますか？";
 
   return (
     <Flex direction="column" h="100dvh" minH={0}>
@@ -155,7 +157,7 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
         onSubmit={handleConfirm}
-        submitLabel="確定して通知する"
+        submitLabel="シフトを確定して通知"
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={mockStaffs.length} periodLabel={periodLabel} />

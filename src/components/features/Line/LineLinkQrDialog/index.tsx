@@ -51,7 +51,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
       <Stack align="center" py={10} gap={3}>
         <Spinner color="teal.500" />
         <Text fontSize="sm" color="fg.muted">
-          連携用URLを発行しています...
+          連携用リンクを発行しています
         </Text>
       </Stack>
     );
@@ -60,7 +60,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
   return (
     <Stack gap={4}>
       <Text fontSize="sm" color="fg.muted">
-        {staffName}さんにLINE連携用URLを共有してください。72時間以内に1回だけ使えます。
+        {staffName}さんにLINE連携リンクを共有してください。72時間以内に1回だけ使えます。
       </Text>
       <Stack align="center" gap={3}>
         {qrSvg ? (
@@ -78,7 +78,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
           <Spinner color="teal.500" />
         )}
         <Text fontSize="xs" color="fg.muted">
-          スマホのカメラで読み取れます
+          スマホのカメラで読み取ってください
         </Text>
       </Stack>
       <Code
@@ -95,7 +95,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
       <HStack>
         <Button onClick={handleCopy} variant="outline" size="sm" colorPalette="teal" gap={1.5}>
           {copied ? <LuCheck /> : <LuCopy />}
-          {copied ? "コピーしました" : "URLをコピー"}
+          {copied ? "コピーしました" : "リンクをコピー"}
         </Button>
       </HStack>
     </Stack>

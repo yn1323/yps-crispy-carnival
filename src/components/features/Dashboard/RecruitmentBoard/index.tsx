@@ -91,10 +91,10 @@ const EmptyState = () => (
     </Box>
     <Stack gap={1}>
       <Text fontWeight="semibold" color="gray.800">
-        まだ募集はありません
+        シフト募集はまだありません
       </Text>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        期間を決めて最初の募集をつくりましょう。
+        期間と締切を決めて、スタッフに希望を聞きましょう。
       </Text>
     </Stack>
   </Stack>

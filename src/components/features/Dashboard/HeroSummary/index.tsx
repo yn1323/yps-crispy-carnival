@@ -72,7 +72,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
           お店の情報を登録しましょう
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          店舗名と営業時間を入れるだけで始められます。
+          お店の名前とシフト時間を入れるだけで始められます。
         </Text>
       </Stack>
       <Flex>
@@ -101,8 +101,8 @@ const ActionCard = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionCar
         iconBg="teal.100"
         iconFg="teal.700"
         border="teal.100"
-        title="今はやることがありません"
-        sub="次の期間の募集をつくりましょう"
+        title="今できる作業はありません"
+        sub="次のシフト募集を作りましょう"
         cta={{ label: "募集をつくる", icon: LuPlus, palette: "teal", variant: "solid" }}
         onClick={onCreateRecruitment}
       />

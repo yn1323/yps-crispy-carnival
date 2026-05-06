@@ -90,7 +90,7 @@ describe("shiftReminder/mutations", () => {
         t
           .withIdentity({ subject: "user_owner" })
           .mutation(api.shiftReminder.mutations.sendReminderEmails, { recruitmentId }),
-      ).rejects.toThrow("募集中の状態でのみ催促できます");
+      ).rejects.toThrow("募集中のシフトだけ、提出のお願いを送れます");
     });
 
     it("正常時に lastReminderSentAt を更新する", async () => {

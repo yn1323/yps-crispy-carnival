@@ -26,7 +26,7 @@ export const SubmittedView = () => {
           </Text>
           <VStack gap={1}>
             <Text fontSize="sm" color="fg.muted" textAlign="center">
-              店長からの連絡をお待ちください
+              シフト作成担当者からの連絡をお待ちください
             </Text>
             <Text fontSize="sm" color="fg.muted" textAlign="center">
               このページは閉じて大丈夫です

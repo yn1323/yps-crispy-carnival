@@ -61,7 +61,7 @@ export const StaffRoster = ({
               fontWeight="semibold"
             >
               <LuMail />
-              メールでLINE連携URLを送る ({unlinkedCount})
+              LINE連携リンクをメールで送る ({unlinkedCount})
             </Button>
           )}
           <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
@@ -137,7 +137,7 @@ const EmptyState = () => (
         まだスタッフはいません
       </Text>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        名前とメールアドレスでスタッフを登録できます
+        名前とメールアドレスだけでスタッフを登録できます。
       </Text>
     </Stack>
   </Stack>

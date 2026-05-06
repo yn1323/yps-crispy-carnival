@@ -174,7 +174,7 @@ describe("shiftBoard/mutations", () => {
             { staffId: staffId1, date: "2026-01-20", startTime: "15:00", endTime: "18:00" },
           ],
         }),
-      ).rejects.toThrow("同一スタッフの同一日に重複があります");
+      ).rejects.toThrow("同じスタッフの同じ日に、シフト時間が重なっています");
     });
 
     it("募集期間外の日付でエラー", async () => {
@@ -186,7 +186,7 @@ describe("shiftBoard/mutations", () => {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" }],
         }),
-      ).rejects.toThrow("シフト日が募集期間外です");
+      ).rejects.toThrow("募集期間内の日付を選んでください");
     });
 
     it("開始時間が終了時間以降でエラー", async () => {
@@ -198,7 +198,7 @@ describe("shiftBoard/mutations", () => {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "18:00", endTime: "10:00" }],
         }),
-      ).rejects.toThrow("開始時間が終了時間以降になっています");
+      ).rejects.toThrow("終了時間は開始時間より後にしてください");
     });
 
     it("開始時間と終了時間が同じでエラー", async () => {
@@ -210,7 +210,7 @@ describe("shiftBoard/mutations", () => {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "10:00" }],
         }),
-      ).rejects.toThrow("開始時間が終了時間以降になっています");
+      ).rejects.toThrow("終了時間は開始時間より後にしてください");
     });
 
     it("店舗のシフト時間外でエラー", async () => {
@@ -222,7 +222,7 @@ describe("shiftBoard/mutations", () => {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "07:00", endTime: "15:00" }],
         }),
-      ).rejects.toThrow("シフト時間が店舗の勤務可能時間外です");
+      ).rejects.toThrow("設定したシフト時間内にしてください");
     });
 
     it("削除済みスタッフでエラー", async () => {

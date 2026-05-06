@@ -13,11 +13,11 @@ export const NetworkErrorView = ({ onRetry }: Props) => {
       <VStack gap={4}>
         <Icon as={LuWifiOff} boxSize={12} color="orange.500" />
         <Text fontSize="lg" fontWeight="semibold" textAlign="center">
-          うまく開けませんでした
+          ページを開けませんでした
         </Text>
         <Text fontSize="sm" color="fg.muted" textAlign="center">
-          通信がうまくつながりませんでした。{"\n"}
-          再試行するか、ブラウザ（Safari/Chrome）{"\n"}で開き直してください。
+          通信が切れた可能性があります。{"\n"}
+          もう一度読み込むか、Safari、Chrome、Edgeで{"\n"}開いてください。
         </Text>
         <Button colorPalette="teal" size="md" borderRadius="lg" px={6} onClick={onRetry}>
           再試行する

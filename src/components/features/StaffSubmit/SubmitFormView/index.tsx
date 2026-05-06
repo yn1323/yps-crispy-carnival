@@ -90,7 +90,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             <LuPointer />
           </Icon>
           <Text fontSize="xs" fontWeight="medium" color="fg.muted">
-            出勤する日をタップしてください
+            出勤できる日をタップしてください
           </Text>
         </Flex>
 
@@ -118,7 +118,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             onClick={onFormSubmit}
             loading={isSubmitting}
           >
-            {data.hasSubmitted ? "修正して提出する" : "提出する"}
+            {data.hasSubmitted ? "希望シフトを更新" : "希望シフトを提出"}
           </Button>
         </Box>
       </SubmitPageContent>
