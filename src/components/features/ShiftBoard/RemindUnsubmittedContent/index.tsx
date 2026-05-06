@@ -10,7 +10,7 @@ export const RemindUnsubmittedContent = ({ unsubmittedNames, deadline, linkExpir
   return (
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
-        未提出 {unsubmittedNames.length}名に催促メールを送信します。
+        未提出 {unsubmittedNames.length}名に催促通知を送信します。
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4} mb={4}>
         <Text fontSize="sm" mb={2} color="gray.700">
