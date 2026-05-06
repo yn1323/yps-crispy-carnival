@@ -5,19 +5,13 @@ type SessionInfo = {
 
 export type { SessionInfo };
 
-export function getStoredSession(recruitmentId?: string): SessionInfo | null {
+export function getStoredSession(recruitmentId: string): SessionInfo | null {
   try {
-    if (recruitmentId) {
-      const val = localStorage.getItem(`yps_session_${recruitmentId}`);
-      if (val) return JSON.parse(val) as SessionInfo;
-      return null;
-    }
-    for (const key of Object.keys(localStorage)) {
-      if (key.startsWith("yps_session_")) {
-        const val = localStorage.getItem(key);
-        if (val) return JSON.parse(val) as SessionInfo;
-      }
-    }
+    const val = localStorage.getItem(`yps_session_${recruitmentId}`);
+    if (!val) return null;
+
+    const session = JSON.parse(val) as SessionInfo;
+    if (session.recruitmentId === recruitmentId) return session;
   } catch {
     // ignore
   }
