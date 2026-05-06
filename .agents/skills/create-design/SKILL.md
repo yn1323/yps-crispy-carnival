@@ -23,7 +23,7 @@ You must embody an expert in the relevant domain: UX designer, prototyper, visua
 2. Gather design context from the codebase
 3. Verbalize the system you'll use (junior-designer-to-manager review)
 4. Build
-5. Verify visually with Playwright MCP
+5. Verify visually in Storybook or Playwright when available
 6. Short end-of-turn summary (1–2 sentences)
 
 Run file-exploration tools concurrently when possible. For any scope beyond a single screen or beyond a few hours of work, use a todo list to track progress.
@@ -60,14 +60,13 @@ Skip questions only for obvious tweaks or when the user has already provided eve
 - `src/components/templates/` — layout shells (BottomMenu, SideMenu, ContentWrapper)
 - `src/components/features/` — domain UI (always read this when redesigning)
 - `src/components/pages/` — existing page-level compositions
-- `design/designIndex.md` — index of `.pen` design files
 - `doc/features/<relevant>.md` — feature specs
 
 While reading, observe and think out loud about the **visual vocabulary**: color palette, spacing rhythm, corner radii, shadow depth, density, hover/click states, copy tone, iconography. You will match it unless the user explicitly asks to break from it.
 
 **Prefer code over screenshots.** When redesigning an existing screen, read the actual source of the current page/feature — not just a screenshot of it. Code tells you exact tokens, spacing, and structural choices; screenshots only tell you appearance. Use screenshots as supplements when the user provides them, not as a substitute for reading the source.
 
-If the context you need isn't here, ask the user to point you at it (a screenshot, a `.pen` file, a reference product, a URL). Don't invent from thin air. Be proactive — list directories, grep for relevant names, open adjacent files.
+If the context you need isn't here, ask the user to point you at it (a screenshot, a reference product, a URL). Don't invent from thin air. Be proactive — list directories, grep for relevant names, open adjacent files.
 
 ### Step 3: Verbalize the system
 
@@ -126,11 +125,11 @@ Keep each variant file under ~300 lines — split nested components out if you'r
 - Lead with benefit, not pain. No humble-brag ("すごいでしょ?"). No condescension ("小さなお店" → "少人数のお店").
 - One line, multiple jobs (who it's for + what it does).
 
-### Step 5: Verify with Playwright MCP
+### Step 5: Verify Visually
 
 - Make sure Storybook is running (`pnpm storybook`, port 6006). If not, ask the user to start it.
 - Story URL format (iframe, no Storybook chrome): `http://localhost:6006/iframe.html?id=<kebab-title>--<kebab-story>&viewMode=story`. Example: `id=mocks-dashboard--variant-a`.
-- `playwright_navigate` to the story URL, then `playwright_screenshot`.
+- Open the story URL in the available browser or Playwright workflow and capture screenshots.
 - Capture at SP (390×844) and PC (1280×800) at minimum. For responsive breakpoint work, add a mid width (768×1024).
 - Check: layout breaks, overflow, border duplication, text wrapping, tap targets ≥ 44px, vertical rhythm, status color correctness. Match against the intent declared in Step 3.
 - Fix and re-capture. Don't report done until clean.
