@@ -15,6 +15,8 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
   const avatarPalette = staff.isOwner ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const hasEmail = staff.email.length > 0;
+  const canShowLineQr = !isLineActive;
+  const canSendLineInvite = hasEmail && !isLineActive;
 
   return (
     <HStack
@@ -73,21 +75,29 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
                 <LuPencil />
                 編集
               </Menu.Item>
-              <Menu.Item value="line-qr" cursor="pointer" onClick={() => onShowLineQr(staff)}>
+              <Menu.Item
+                value="line-qr"
+                cursor={canShowLineQr ? "pointer" : "not-allowed"}
+                color={canShowLineQr ? undefined : "fg.muted"}
+                disabled={!canShowLineQr}
+                onClick={() => {
+                  if (canShowLineQr) onShowLineQr(staff);
+                }}
+              >
                 <LuQrCode />
-                {isLineActive ? "LINE連携用QRを再表示" : "LINE連携用QRを表示"}
+                LINE連携QRを表示
               </Menu.Item>
               <Menu.Item
                 value="line-invite"
-                cursor={hasEmail ? "pointer" : "not-allowed"}
-                color={hasEmail ? undefined : "fg.muted"}
-                disabled={!hasEmail}
+                cursor={canSendLineInvite ? "pointer" : "not-allowed"}
+                color={canSendLineInvite ? undefined : "fg.muted"}
+                disabled={!canSendLineInvite}
                 onClick={() => {
-                  if (hasEmail) onSendLineInvite(staff);
+                  if (canSendLineInvite) onSendLineInvite(staff);
                 }}
               >
                 <LuMail />
-                LINE連携依頼を送る
+                メールでLINE連携URLを送る
               </Menu.Item>
               <Menu.Item
                 value="delete"
