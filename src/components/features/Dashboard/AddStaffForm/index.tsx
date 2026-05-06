@@ -92,7 +92,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
           onClick={() => append(EMPTY_ENTRY)}
         >
           <LuPlus />
-          もう1人追加
+          スタッフをもう1人追加
         </Button>
       </Stack>
     </form>

@@ -11,7 +11,7 @@ export const customErrorMap: z.ZodErrorMap = (issue) => {
         return { message: `${issue.minimum}つ以上選択してください。` };
       }
       if (issue.minimum === 1) {
-        return { message: "必須項目です" };
+        return { message: "入力してください" };
       } else {
         return { message: `${issue.minimum}文字以上で入力してください` };
       }
@@ -20,5 +20,5 @@ export const customErrorMap: z.ZodErrorMap = (issue) => {
       return { message: `${issue.maximum}文字以内で入力してください` };
   }
 
-  return { message: "入力値が正しくありません" };
+  return { message: "入力内容を確認してください" };
 };

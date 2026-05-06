@@ -15,7 +15,7 @@ export const RateLimitedView = ({ title }: Props) => {
             <LuTriangleAlert />
           </Icon>
           <Text fontSize="lg" fontWeight="semibold" textAlign="center">
-            アクセス制限中
+            しばらく待ってから開いてください
           </Text>
           <Text fontSize="sm" color="fg.muted" textAlign="center">
             しばらく時間を置いてから{"\n"}再度アクセスしてください

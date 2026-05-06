@@ -34,23 +34,23 @@ export const saveShiftAssignments = managerMutation({
     for (const a of args.assignments) {
       const key = `${a.staffId}-${a.date}`;
       if (seen.has(key)) {
-        throw new ConvexError("同一スタッフの同一日に重複があります");
+        throw new ConvexError("同じスタッフの同じ日に、シフト時間が重なっています");
       }
       seen.add(key);
 
       if (a.date < recruitment.periodStart || a.date > recruitment.periodEnd) {
-        throw new ConvexError("シフト日が募集期間外です");
+        throw new ConvexError("募集期間内の日付を選んでください");
       }
 
       const startMinutes = timeToMinutes(a.startTime);
       const endMinutes = timeToMinutes(a.endTime);
 
       if (startMinutes >= endMinutes) {
-        throw new ConvexError("開始時間が終了時間以降になっています");
+        throw new ConvexError("終了時間は開始時間より後にしてください");
       }
 
       if (startMinutes < shopStartMinutes || endMinutes > shopEndMinutes) {
-        throw new ConvexError("シフト時間が店舗の勤務可能時間外です");
+        throw new ConvexError("設定したシフト時間内にしてください");
       }
     }
 

@@ -117,7 +117,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       await sendReminderEmailsMutation({ recruitmentId });
       reminderModal.close();
-      toaster.create({ title: "催促通知を送信しました", type: "success" });
+      toaster.create({ title: "提出のお願いを送りました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -166,7 +166,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     }
   }, [data.shiftAssignments.length, data.recruitment.deadline, isConfirmed, saveDraftWarningModal, performSaveDraft]);
 
-  const confirmTitle = isConfirmed ? "シフトを再通知しますか？" : "シフトを確定して通知しますか？";
+  const confirmTitle = isConfirmed
+    ? "確定済みのシフトをもう一度通知しますか？"
+    : "このシフトをスタッフに通知しますか？";
 
   return (
     <Flex direction="column" h="calc(100dvh - 56px)" minH={0}>
@@ -225,29 +227,29 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
         onSubmit={handleConfirm}
-        submitLabel="確定して通知する"
+        submitLabel="シフトを確定して通知"
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
       </Dialog>
 
       <Dialog
-        title="一時保存時の注意"
+        title="下書き保存の注意"
         isOpen={saveDraftWarningModal.isOpen}
         onOpenChange={saveDraftWarningModal.onOpenChange}
         onSubmit={performSaveDraft}
-        submitLabel="保存する"
+        submitLabel="下書き保存"
         onClose={saveDraftWarningModal.close}
       >
         <SaveDraftWarningContent />
       </Dialog>
 
       <Dialog
-        title="未提出者に催促通知を送信"
+        title="未提出のスタッフに提出をお願い"
         isOpen={reminderModal.isOpen}
         onOpenChange={reminderModal.onOpenChange}
         onSubmit={handleSendReminders}
-        submitLabel="送信する"
+        submitLabel="提出のお願いを送る"
         onClose={reminderModal.close}
       >
         <RemindUnsubmittedContent

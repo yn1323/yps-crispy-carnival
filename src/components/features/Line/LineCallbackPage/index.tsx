@@ -18,13 +18,13 @@ const COPY: Record<
     iconBg: "blackAlpha.50",
     iconFg: "gray.500",
     title: "連携中です",
-    description: "LINE連携を完了しています...",
+    description: "LINE連携を確認しています",
   },
   ok: {
     icon: <LuCircleCheck />,
     iconBg: "green.50",
     iconFg: "green.500",
-    title: "LINEで通知を受け取れるようになりました",
+    title: "シフト通知をLINEで受け取れます",
     description: "シフト確定や提出依頼がLINEに届きます。このページは閉じて構いません。",
   },
   expired: {
@@ -32,7 +32,7 @@ const COPY: Record<
     iconBg: "orange.50",
     iconFg: "orange.500",
     title: "リンクの有効期限が切れています",
-    description: "店長に再発行を依頼してください。1つのリンクは72時間以内・1回のみ使えます。",
+    description: "シフト作成担当者にリンクをもう一度送ってもらってください。このリンクは72時間以内に1回だけ使えます。",
   },
   rate_limited: {
     icon: <LuCircleAlert />,
@@ -45,8 +45,8 @@ const COPY: Record<
     icon: <LuCircleAlert />,
     iconBg: "red.50",
     iconFg: "red.500",
-    title: "連携に失敗しました",
-    description: "通信エラーが発生しました。時間を置いて再度お試しください。",
+    title: "LINE連携を完了できませんでした",
+    description: "通信が切れた可能性があります。少し待ってからもう一度お試しください。",
   },
 };
 

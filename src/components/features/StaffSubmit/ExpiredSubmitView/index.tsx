@@ -18,10 +18,10 @@ export const ExpiredSubmitView = ({ shopName }: Props) => {
             <LuCalendarX />
           </Icon>
           <Text fontSize="lg" fontWeight="semibold">
-            提出締切を過ぎています
+            提出締切を過ぎました
           </Text>
           <Text fontSize="sm" color="fg.muted" textAlign="center">
-            シフトの希望がある場合は、{"\n"}お店に直接ご連絡ください。
+            変更したい日がある場合は、{"\n"}シフト作成担当者に連絡してください。
           </Text>
         </VStack>
       </Flex>

@@ -59,12 +59,12 @@ export const select =
     if (!val) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "必須項目です",
+        message: "入力してください",
       });
     } else if (options.every(({ value }) => value !== val)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "必須選択です",
+        message: "選択してください",
       });
     }
   };
