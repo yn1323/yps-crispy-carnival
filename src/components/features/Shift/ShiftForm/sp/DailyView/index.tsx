@@ -426,6 +426,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
 
 const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () => void; isReadOnly: boolean }) => {
   const isUnsub = !staff.isSubmitted;
+  const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
   return (
     <Box
       as="button"
@@ -448,7 +449,7 @@ const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () =
         {staff.name}
       </Box>
       <Box fontSize="10px" fontWeight={600} style={{ color: isUnsub ? "#b45309" : "#a1a1aa" }}>
-        {isUnsub ? "未提出" : "休み希望"}
+        {offLabel}
       </Box>
       {!isReadOnly && (
         <Box fontSize="18px" color="gray.400" lineHeight={1} ml="4px">
