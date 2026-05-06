@@ -81,7 +81,7 @@ export class DashboardPage {
   }
 
   async expectStaffSectionVisible() {
-    await expect(this.page.getByRole("heading", { name: "スタッフ", exact: true })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "スタッフ一覧", exact: true })).toBeVisible();
   }
 
   async expectStaffVisible(name: string) {
@@ -206,7 +206,7 @@ export class DashboardPage {
   }
 
   private staffSection() {
-    return this.page.getByRole("heading", { name: "スタッフ", exact: true }).locator("xpath=ancestor::*[3]");
+    return this.page.getByRole("heading", { name: "スタッフ一覧", exact: true }).locator("xpath=ancestor::*[3]");
   }
 
   private async openStaffMenu(staffName: string) {
