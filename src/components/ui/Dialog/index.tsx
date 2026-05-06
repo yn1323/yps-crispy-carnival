@@ -1,6 +1,7 @@
-import { Button, Dialog as ChakraDialog, CloseButton, Portal } from "@chakra-ui/react";
+import { Dialog as ChakraDialog, CloseButton, Portal } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
+import { Button } from "@/src/components/ui/Button";
 
 // useDialogフック - Dialog の開閉を制御
 export const useDialog = (defaultOpen = false) => {

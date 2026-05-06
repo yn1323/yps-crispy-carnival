@@ -18,14 +18,13 @@ const dayColor = (dateStr: string, holidays: string[]): string => {
 
 export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props) => (
   <Box
-    w="80px"
-    h="100%"
+    minH={0}
     borderRightWidth="1px"
     borderColor="gray.200"
     bg="white"
     py={2}
-    flexShrink={0}
     overflow="auto"
+    alignSelf="stretch"
     role="tablist"
     aria-label="日付選択"
     data-tour="date-rail"

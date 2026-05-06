@@ -1,7 +1,8 @@
-import { Box, Button, Field, Flex, IconButton, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { LuPlus, LuX } from "react-icons/lu";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { type AddStaffFormData, addStaffSchema } from "./index";
 
 const EMPTY_ENTRY = { name: "", email: "" } as const;
@@ -91,7 +92,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
           onClick={() => append(EMPTY_ENTRY)}
         >
           <LuPlus />
-          もう1人追加
+          スタッフをもう1人追加
         </Button>
       </Stack>
     </form>

@@ -5,7 +5,7 @@ import { buildLineCtaSection } from "../email/templates";
 import { buildLineAuthorizeUrl } from "./lineClient";
 
 /**
- * 既存通知メール末尾の「LINEに切り替える」CTA HTML を生成
+ * 既存通知メール末尾の「LINEで受け取る」CTA HTML を生成
  * - 未連携 / 友達解除済みのスタッフのみに対して CTA を返す
  * - LINE_LOGIN_CHANNEL_ID 未設定 or 既に連携済み&友達追加中 → 空文字
  */

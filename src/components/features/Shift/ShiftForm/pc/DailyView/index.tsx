@@ -1,4 +1,4 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Box, Flex, Grid } from "@chakra-ui/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
@@ -58,11 +58,11 @@ export const DailyView = () => {
   }, []);
 
   return (
-    <Flex flex={1} minH={0}>
+    <Grid flex={1} minH={0} overflow="hidden" templateColumns="80px minmax(0, 1fr)">
       <DateRail dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} holidays={holidays} />
-      <Flex direction="column" flex={1} minW={0} minH={0}>
+      <Flex direction="column" minW={0} minH={0} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />
-        <Box flex={1} minH={0}>
+        <Box flex={1} minH={0} overflow="hidden">
           <ShiftGrid
             onShiftClick={handleShiftClick}
             onStaffNameClick={() => {}}
@@ -82,6 +82,6 @@ export const DailyView = () => {
         onDeletePosition={handleDeletePosition}
         isReadOnly={isReadOnly}
       />
-    </Flex>
+    </Grid>
   );
 };

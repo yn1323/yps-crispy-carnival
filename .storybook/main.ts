@@ -12,7 +12,7 @@ const config: StorybookConfig = {
     },
   },
   stories: ["../src/**/*.stories.@(ts|tsx)"],
-  addons: ["@storybook/addon-docs", "@storybook/addon-vitest", "@storybook/addon-mcp"],
+  addons: ["@storybook/addon-docs", "@storybook/addon-vitest"],
   framework: {
     name: "@storybook/react-vite",
     options: {},

@@ -1,9 +1,10 @@
-import { Badge, Field, Flex, HStack, IconButton, Text, VStack } from "@chakra-ui/react";
+import { Badge, Field, Flex, HStack, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuTrash2 } from "react-icons/lu";
-import { BottomSheet } from "@/src/components/ui/BottomSheet";
+import { IconButton } from "@/src/components/ui/Button";
+import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
@@ -21,7 +22,6 @@ type ShiftEditSheetProps = {
   selectedDate: string;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  onBack?: () => void;
   onShiftUpdate: (updatedShift: ShiftData) => void;
   onShiftDelete: (staffId: string) => void;
 };
@@ -54,7 +54,6 @@ export const ShiftEditSheet = ({
   selectedDate,
   isOpen,
   onOpenChange,
-  onBack,
   onShiftUpdate,
   onShiftDelete,
 }: ShiftEditSheetProps) => {
@@ -138,14 +137,13 @@ export const ShiftEditSheet = ({
   const onSubmit = useMemo(() => handleSubmit(handleConfirm), [handleSubmit, handleConfirm]);
 
   return (
-    <BottomSheet
+    <Dialog
       title={`${staff.name}のシフト  ${dateLabel}`}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      onBack={onBack}
+      onClose={() => onOpenChange({ open: false })}
       onSubmit={onSubmit}
       submitLabel="確定"
-      overflowY="visible"
     >
       <VStack gap={4} align="stretch">
         <Flex align="center" gap={2}>
@@ -200,6 +198,6 @@ export const ShiftEditSheet = ({
           )}
         </HStack>
       </VStack>
-    </BottomSheet>
+    </Dialog>
   );
 };

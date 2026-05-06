@@ -21,17 +21,17 @@ export class ShiftBoardPage {
   }
 
   async switchToOverview() {
-    await this.page.getByRole("tablist", { name: "ビュー切替" }).getByRole("tab", { name: "一覧" }).first().click();
+    await this.page.getByRole("tab", { name: "一覧" }).first().click();
   }
 
   async confirm(staffCount: number) {
-    await this.page.getByRole("button", { name: "確定して通知する" }).click();
+    await this.page.getByRole("button", { name: /確定して通知する|シフトを確定して通知/ }).click();
 
     const dialog = this.page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(`対象: ${staffCount}名`)).toBeVisible();
 
-    await dialog.getByRole("button", { name: "確定して通知する" }).click();
+    await dialog.getByRole("button", { name: /確定して通知する|シフトを確定して通知/ }).click();
 
     await expect(this.page.getByText("確定しました")).toBeVisible();
   }
@@ -41,6 +41,35 @@ export class ShiftBoardPage {
   }
 
   async expectResendButton() {
-    await expect(this.page.getByRole("button", { name: "再通知する" })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /再通知する|もう一度通知/ })).toBeVisible();
+  }
+
+  async sendReminders(staffCount: number) {
+    await this.page.getByRole("button", { name: /催促|提出をお願い/ }).click();
+
+    const dialog = this.page.getByRole("dialog", { name: /未提出者に催促通知を送信|未提出のスタッフに提出をお願い/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(`未提出 ${staffCount}名`)).toBeVisible();
+
+    await dialog.getByRole("button", { name: /送信する|提出のお願いを送る/ }).click();
+    await expect(this.page.getByText(/催促通知を送信しました|提出のお願いを送りました/)).toBeVisible();
+  }
+
+  async expectNoUnsubmittedReminder() {
+    await expect(this.page.getByText(/未提出 \d+人/)).not.toBeVisible();
+  }
+
+  async expectOverviewStaffTimeCount(staffName: string, count: number) {
+    await this.switchToOverview();
+    const row = this.page.getByRole("row").filter({ hasText: staffName }).first();
+    await expect(row).toBeVisible();
+    await expect(row.getByText(/\d{1,2}:\d{2}.*\d{1,2}:\d{2}/)).toHaveCount(count);
+  }
+
+  async expectOverviewStaffHasTime(staffName: string) {
+    await this.switchToOverview();
+    const row = this.page.getByRole("row").filter({ hasText: staffName }).first();
+    await expect(row).toBeVisible();
+    await expect(row.getByText(/\d{1,2}:\d{2}.*\d{1,2}:\d{2}/).first()).toBeVisible();
   }
 }
