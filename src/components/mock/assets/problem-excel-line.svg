@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" role="img" aria-labelledby="title desc">
+  <title id="title">LINEとExcelで困る店長の線画イラスト</title>
+  <desc id="desc">店長がLINE、Excel、メモを見比べて困っている手描き風イラスト</desc>
+  <rect width="760" height="520" fill="#fffdfa"/>
+  <g fill="none" stroke="#2a211d" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+    <path d="M102 318c-14-11-22-31-23-58-1-58 39-98 98-99 55-1 94 36 100 90 4 34-4 58-23 74"/>
+    <path d="M107 217c29 8 76-4 108-33 10 26 26 41 54 49"/>
+    <path d="M119 264c0 14-9 25-21 25s-22-11-22-25 10-25 22-25"/>
+    <path d="M275 265c13 0 23 11 23 25s-10 25-23 25"/>
+    <circle cx="140" cy="262" r="4" fill="#2a211d" stroke="none"/>
+    <circle cx="222" cy="262" r="4" fill="#2a211d" stroke="none"/>
+    <path d="M167 299c16 8 33 8 49 0"/>
+    <path d="M110 506c5-56 25-102 61-130 20 13 62 13 84 0 37 29 58 74 62 130"/>
+    <path d="M171 378l40 88 35-88"/>
+    <path d="M389 111h251c20 0 36 16 36 36v142c0 20-16 36-36 36H389c-20 0-36-16-36-36V147c0-20 16-36 36-36z"/>
+    <path d="M353 170h323"/>
+    <path d="M417 86v48"/>
+    <path d="M612 86v48"/>
+    <path d="M402 207h41v34h-41z"/>
+    <path d="M469 207h41v34h-41z"/>
+    <path d="M536 207h41v34h-41z"/>
+    <path d="M603 207h41v34h-41z"/>
+    <path d="M402 263h41v34h-41z"/>
+    <path d="M469 263h41v34h-41z"/>
+    <path d="M536 263h41v34h-41z"/>
+    <path d="M603 263h41v34h-41z"/>
+    <rect x="418" y="355" width="256" height="101" rx="18"/>
+    <path d="M459 389h170"/>
+    <path d="M459 424h118"/>
+    <circle cx="448" cy="388" r="12"/>
+    <circle cx="448" cy="424" r="12"/>
+    <path d="M74 121h168c18 0 32 14 32 32v78"/>
+    <path d="M86 156h138"/>
+    <path d="M86 190h102"/>
+  </g>
+  <path d="M166 392l44 101 43-101c17 4 35 18 47 38v76H122v-76c11-20 26-33 44-38z" fill="#1f9ab8"/>
+  <g fill="#d8eff4" stroke="#2a211d" stroke-linecap="round" stroke-linejoin="round" stroke-width="6">
+    <path d="M402 207h41v34h-41z"/>
+    <path d="M536 207h41v34h-41z"/>
+    <path d="M469 263h41v34h-41z"/>
+  </g>
+  <g fill="none" stroke="#1f9ab8" stroke-linecap="round" stroke-width="7">
+    <path d="M320 97l18-24"/>
+    <path d="M331 138l33-10"/>
+    <path d="M304 79l-4-31"/>
+    <path d="M629 65l25-25"/>
+    <path d="M661 88l34-7"/>
+  </g>
+</svg>

@@ -229,8 +229,8 @@ const Hero = () => (
     gradientFrom="#99f6e4"
     gradientTo="#fafafa"
     px={{ base: 5, lg: 6 }}
-    pt={{ base: 10, lg: 18 }}
-    pb={{ base: 14, lg: 24 }}
+    pt={{ base: 10, lg: 12 }}
+    pb={{ base: 14, lg: 20 }}
   >
     <SimpleGrid
       mx="auto"
@@ -287,6 +287,11 @@ const Hero = () => (
             />
           </Box>
         </Heading>
+        <Text mt={6} maxW="560px" fontSize={{ base: "13px", lg: "16px" }} lineHeight={1.9} color="gray.700">
+          スタッフはLINEから希望を提出。
+          <br />
+          店長は集まった希望を見ながら、シフト表をかんたん作成。
+        </Text>
         <Stack
           direction={{ base: "column", sm: "row" }}
           mt={10}
@@ -424,11 +429,14 @@ const ScheduleCanvas = () => (
     <FloatingTag top="-12px" right="20%" delay={0} color="teal.700" showDot>
       確定済み
     </FloatingTag>
-    <FloatingTag bottom="30%" left={{ base: "10px", lg: "-40px" }} delay={1} color="gray.700">
-      提出 7/7人
+    <FloatingTag bottom="30%" left={{ base: "10px", lg: "-40px" }} delay={1} color="teal.700" showDot>
+      未提出2名
     </FloatingTag>
     <FloatingTag top="30%" right={{ base: "10px", lg: "-24px" }} delay={2} color="teal.700" showDot>
-      ワンクリックで通知
+      LINE・メールで通知
+    </FloatingTag>
+    <FloatingTag top="80%" right={{ base: "80px", lg: "30px" }} delay={2} color="teal.700" showDot>
+      シフト希望を自動反映
     </FloatingTag>
   </Box>
 );
