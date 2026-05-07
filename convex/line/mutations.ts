@@ -108,6 +108,7 @@ export const finalizeLinking = internalMutation({
     if (!link || link.staffId !== args.staffId || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
+    const staff = await ctx.db.get(args.staffId);
 
     // 既に他スタッフに紐づいている lineUserId の場合は上書きせず置き換え
     // （同じLINEアカウントを別スタッフが連携し直したケース）
@@ -131,6 +132,11 @@ export const finalizeLinking = internalMutation({
       lineFollowing: args.lineFollowing,
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
+    if (args.lineFollowing && staff && !staff.lineFollowing && !staff.isDeleted) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+        staffId: args.staffId,
+      });
+    }
     return { status: "ok" as const };
   },
 });
@@ -141,7 +147,13 @@ export const finalizeLinking = internalMutation({
 export const markFollowing = internalMutation({
   args: { staffId: v.id("staffs"), following: v.boolean() },
   handler: async (ctx, args) => {
+    const staff = await ctx.db.get(args.staffId);
     await ctx.db.patch(args.staffId, { lineFollowing: args.following });
+    if (args.following && staff && !staff.lineFollowing && !staff.isDeleted) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+        staffId: args.staffId,
+      });
+    }
   },
 });
 
@@ -183,7 +195,13 @@ export const dispatchWebhookEvents = internalMutation({
         .withIndex("by_lineUserId", (q) => q.eq("lineUserId", userId))
         .first();
       if (staff && !staff.isDeleted) {
+        const wasFollowing = Boolean(staff.lineFollowing);
         await ctx.db.patch(staff._id, { lineFollowing: following });
+        if (following && !wasFollowing) {
+          await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+            staffId: staff._id,
+          });
+        }
       }
     }
 

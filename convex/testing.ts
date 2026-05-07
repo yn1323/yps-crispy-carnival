@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
@@ -691,6 +692,22 @@ export const seedNotificationSubmitScenario = internalMutation({
   },
 });
 
+export const seedOpenRecruitmentNotificationScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+    dates: scenarioDatesValidator,
+  },
+  handler: async (ctx, args) => {
+    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      shopName: "追加通知テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+
+    return { shopId, recruitmentId, staffId: managerStaffId };
+  },
+});
+
 export const seedNotificationReminderScenario = internalMutation({
   args: {
     ownerId: v.string(),
@@ -875,5 +892,32 @@ export const createLineLinkTokenForStaff = internalMutation({
     const token = await createLineLinkToken(ctx, { staffId: staff._id, shopId: staff.shopId });
 
     return { token, staffId: staff._id };
+  },
+});
+
+export const simulateLineFollowForStaff = internalMutation({
+  args: {
+    staffEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
+
+    const wasFollowing = Boolean(staff.lineFollowing);
+    const lineUserId = staff.lineUserId ?? `U_e2e_${Date.now()}`;
+    await ctx.db.patch(staff._id, {
+      lineUserId,
+      lineFollowing: true,
+      lineLinkedAt: staff.lineLinkedAt ?? Date.now(),
+    });
+    if (!wasFollowing) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+        staffId: staff._id,
+      });
+    }
+
+    return { staffId: staff._id, lineUserId, scheduled: !wasFollowing };
   },
 });

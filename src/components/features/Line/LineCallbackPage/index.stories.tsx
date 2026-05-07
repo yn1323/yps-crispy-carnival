@@ -15,7 +15,7 @@ export const Variants: Story = {
   args: { status: "ok" },
   render: () => (
     <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-      {(["loading", "ok", "expired", "rate_limited", "error"] as const).map((s) => (
+      {(["loading", "ok", "needs_follow", "expired", "rate_limited", "error"] as const).map((s) => (
         <Stack key={s} gap={1}>
           <Text px={4} pt={3} fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase">
             status: {s}

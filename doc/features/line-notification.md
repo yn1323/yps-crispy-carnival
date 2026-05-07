@@ -86,6 +86,15 @@
 
 未設定でも既存メール送信は動作する（CTA 非表示・LINE Push スキップ）。
 
+## 追加スタッフへの募集中通知
+
+シフト募集中にスタッフを追加した場合、追加スタッフにも希望提出リンクをメールで送る。LINEログイン完了時に友だち追加済み、またはWebhook followで `lineFollowing` が `true` になった場合は、同じ対象募集の希望提出リンクをLINEで送る。
+
+- 対象募集: `status === "open"`、未削除、締切前または締切当日
+- メール通知: `staff.mutations.addStaffs` から追加スタッフごとに `internal.email.actions.sendOpenRecruitmentNotificationEmailsForStaff` をスケジュール
+- LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
+- 複数の対象募集がある場合は募集ごとに1通ずつ送る
+
 ## 設計ドキュメント
 
 `doc/plans/2026-05-06_LINE通知連携設計.md`
