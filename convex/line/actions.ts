@@ -46,7 +46,10 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
  */
 export const redeemLineToken = action({
   args: { state: v.string(), code: v.string() },
-  handler: async (ctx, args): Promise<{ status: "ok" } | { status: "expired" } | { status: "rate_limited" }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ status: "ok" } | { status: "needs_follow" } | { status: "expired" } | { status: "rate_limited" }> => {
     const validation = await ctx.runMutation(internal.line.mutations.validateLinkToken, {
       state: args.state,
     });
@@ -70,7 +73,7 @@ export const redeemLineToken = action({
       lineFollowing: friendship.friendFlag,
     });
     if (finalized.status !== "ok") return { status: finalized.status };
-    return { status: "ok" };
+    return { status: friendship.friendFlag ? "ok" : "needs_follow" };
   },
 });
 

@@ -85,6 +85,9 @@ describe("line/mutations", () => {
   });
 
   describe("redeemLineToken / finalizeLinking", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("有効トークンは ok を返し、finalize で staffs に lineUserId が保存され usedAt が記録される", async () => {
       const t = convexTest(schema, modules);
       const { staffId, shopId } = await setupShop(t);
@@ -212,6 +215,9 @@ describe("line/mutations", () => {
   });
 
   describe("dispatchWebhookEvents", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("follow イベントで lineFollowing が true になる", async () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);

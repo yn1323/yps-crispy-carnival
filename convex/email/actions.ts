@@ -269,3 +269,92 @@ export const sendRecruitmentNotificationEmails = internalAction({
     }
   },
 });
+
+/**
+ * スタッフ追加時: 追加された1スタッフへ、現在募集中の希望提出リンクをメールで送る。
+ */
+export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
+  args: { staffId: v.id("staffs") },
+  handler: async (ctx, { staffId }) => {
+    const data = await ctx.runQuery(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, { staffId });
+    if (!data || data.recruitments.length === 0 || !data.staff.email) return;
+
+    for (const recruitment of data.recruitments) {
+      const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId: recruitment.recruitmentId,
+        expiresAt: getDeadlineCutoff(recruitment.deadline),
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+      const lineCtaHtml = await buildLineCtaForStaff(ctx, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        lineUserId: data.staff.lineUserId,
+        lineFollowing: data.staff.lineFollowing,
+        appUrl: APP_URL,
+      });
+
+      try {
+        const resend = getResendClient();
+        await resend.emails.send({
+          from: `${data.shopName} <${RESEND_FROM}>`,
+          to: data.staff.email,
+          subject: `【${data.shopName}】${recruitment.periodLabel} シフト希望の提出をお願いします`,
+          html: buildRecruitmentEmailHtml({
+            staffName: data.staff.name,
+            periodLabel: recruitment.periodLabel,
+            deadline: formatDateLabel(recruitment.deadline),
+            magicLinkUrl,
+            lineCtaHtml,
+          }),
+        });
+      } catch (e) {
+        console.error("Recruitment notification email failed for added staff", e);
+      }
+    }
+  },
+});
+
+/**
+ * LINE連携・follow時: 1スタッフへ、現在募集中の希望提出リンクをLINEで送る。
+ */
+export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
+  args: { staffId: v.id("staffs") },
+  handler: async (ctx, { staffId }) => {
+    const data = await ctx.runQuery(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, { staffId });
+    if (!data || data.recruitments.length === 0 || !data.staff.lineUserId) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const channel = selectChannel(
+      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
+      quota,
+    );
+    if (channel !== "line") return;
+
+    for (const recruitment of data.recruitments) {
+      const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId: recruitment.recruitmentId,
+        expiresAt: getDeadlineCutoff(recruitment.deadline),
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+
+      try {
+        await pushTextMessage(
+          data.staff.lineUserId,
+          buildRecruitmentLineText({
+            staffName: data.staff.name,
+            shopName: data.shopName,
+            periodLabel: recruitment.periodLabel,
+            deadline: formatDateLabel(recruitment.deadline),
+            magicLinkUrl,
+          }),
+        );
+      } catch (e) {
+        console.error("LINE push failed for open recruitment notification", e);
+      }
+    }
+  },
+});
