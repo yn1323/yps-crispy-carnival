@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">店長とシフト表の線画イラスト</title>
+  <desc id="desc">小さなお店の店長がタブレットでシフト表を確認している手描き風イラスト</desc>
+  <rect width="960" height="520" fill="#fffdfa"/>
+  <g fill="none" stroke="#2a211d" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+    <path d="M146 360c-18-2-34-12-43-28-10-18-11-50-4-76 10-38 39-63 78-65 42-2 76 25 85 65 8 36 4 72-13 90-14 15-45 18-63 18"/>
+    <path d="M132 248c31 5 65-6 91-31 13 19 27 29 45 34"/>
+    <path d="M144 283c0 15-11 28-25 28-12 0-21-10-21-24 0-15 11-27 25-27"/>
+    <path d="M264 280c13 1 22 12 21 27-1 14-11 24-23 23-12-1-20-12-19-26"/>
+    <path d="M151 405c15 13 36 21 59 20 24-1 45-11 59-26"/>
+    <path d="M109 510c4-55 19-102 49-132 21 18 82 19 106 0 31 29 46 77 50 132"/>
+    <path d="M159 379l36 82 28-82"/>
+    <path d="M187 319c5 5 13 5 19 0"/>
+    <circle cx="168" cy="291" r="4" fill="#2a211d" stroke="none"/>
+    <circle cx="223" cy="291" r="4" fill="#2a211d" stroke="none"/>
+  </g>
+  <path d="M156 396l37 91 36-91c20 4 41 22 53 43v71H126v-71c9-20 18-36 30-43z" fill="#1f9ab8"/>
+  <g fill="#fffdfa" stroke="#2a211d" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
+    <rect x="319" y="269" width="247" height="154" rx="18"/>
+    <path d="M344 306h198"/>
+    <path d="M368 346h126"/>
+    <path d="M368 384h92"/>
+    <circle cx="511" cy="347" r="15" fill="#1f9ab8"/>
+    <path d="M501 348l8 8 17-20"/>
+  </g>
+  <g fill="#fffdfa" stroke="#2a211d" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
+    <rect x="350" y="82" width="352" height="214" rx="26"/>
+    <path d="M350 142h352"/>
+    <path d="M410 58v53"/>
+    <path d="M642 58v53"/>
+    <path d="M412 190h42v34h-42z" fill="#d8eff4"/>
+    <path d="M479 190h42v34h-42z" fill="#e9eef0"/>
+    <path d="M546 190h42v34h-42z" fill="#d8eff4"/>
+    <path d="M613 190h42v34h-42z" fill="#1f9ab8"/>
+    <path d="M412 245h42v34h-42z" fill="#e9eef0"/>
+    <path d="M479 245h42v34h-42z" fill="#1f9ab8"/>
+    <path d="M546 245h42v34h-42z" fill="#e9eef0"/>
+    <path d="M613 245h42v34h-42z" fill="#d8eff4"/>
+  </g>
+  <g fill="#fffdfa" stroke="#2a211d" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
+    <rect x="663" y="252" width="170" height="236" rx="34"/>
+    <path d="M717 282h63"/>
+    <rect x="705" y="324" width="86" height="88" rx="8" fill="#d8eff4"/>
+    <circle cx="749" cy="442" r="23" fill="#1f9ab8"/>
+    <path d="M737 442l9 9 18-22"/>
+  </g>
+  <g fill="none" stroke="#1f9ab8" stroke-linecap="round" stroke-width="7">
+    <path d="M756 133l23-25"/>
+    <path d="M786 159l34-7"/>
+    <path d="M729 109l-6-33"/>
+    <path d="M842 369l30 2"/>
+    <path d="M836 331l25-23"/>
+  </g>
+</svg>
