@@ -12,6 +12,7 @@
     "ngrok:auth": "tsx scripts/setupNgrokAuth.ts",
     "format": "biome check --write",
     "lint": "biome check",
+    "lint:font-size": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-font-size-tokens.ps1",
     "type-check": "tsc",
     "scaffdog": "scaffdog generate",
     "serve": "vite preview",

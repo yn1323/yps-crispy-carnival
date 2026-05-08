@@ -29,14 +29,14 @@ export const ProblemSection = () => (
     <Container maxW="7xl">
       <VStack gap={{ base: 10, md: 14 }}>
         <VStack gap={5} textAlign="center">
-          <Heading as="h2" color="gray.950" fontSize={{ base: "3xl", md: "5xl" }} lineHeight="1.25">
+          <Heading as="h2" color="gray.950" textStyle="heroTitle" lineHeight="1.25">
             シフト作成って、
             <Box as="span" color="teal.700">
               地味にやることが多い。
             </Box>
           </Heading>
           <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
-          <Text color="gray.700" fontSize={{ base: "md", md: "lg" }} lineHeight="1.8">
+          <Text color="gray.700" textStyle={{ base: "body", md: "lg" }} lineHeight="1.8">
             希望を集めるだけでも、確認・転記・共有まで意外と手間がかかります。
           </Text>
         </VStack>
@@ -61,17 +61,17 @@ export const ProblemSection = () => (
                 <Flex align="center" justify="center" boxSize={{ base: 12, md: 14 }} bg="white" borderRadius="full">
                   <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 8, md: 10 }} objectFit="contain" />
                 </Flex>
-                <Text color="gray.950" fontSize={{ base: "lg", md: "2xl" }} fontWeight="bold">
+                <Text color="gray.950" textStyle={{ base: "lg", md: "2xl" }} fontWeight="bold">
                   シフトリなら、
                 </Text>
               </Flex>
-              <Heading as="h3" color="gray.950" fontSize={{ base: "2xl", md: "4xl" }} lineHeight="1.35">
+              <Heading as="h3" color="gray.950" textStyle={{ base: "pageTitle", md: "4xl" }} lineHeight="1.35">
                 <Box as="span" color="teal.700">
                   集める・作る・共有する
                 </Box>
                 までを
               </Heading>
-              <Text color="gray.950" fontSize={{ base: "md", md: "xl" }} fontWeight="bold" lineHeight="1.8">
+              <Text color="gray.950" textStyle={{ base: "body", md: "xl" }} fontWeight="bold" lineHeight="1.8">
                 ひとつにまとめて、シフト作成を
                 <Box as="span" color="teal.700">
                   もっとラクに。
@@ -108,12 +108,12 @@ const ProblemCard = ({ number, title, image, alt }: { number: string; title: str
         bg="teal.500"
         color="white"
         borderRadius="full"
-        fontSize={{ base: "md", md: "xl" }}
+        textStyle={{ base: "md", md: "xl" }}
         fontWeight="bold"
       >
         {number}
       </Flex>
-      <Heading as="h3" color="gray.950" fontSize={{ base: "md", md: "xl" }} lineHeight="1.4">
+      <Heading as="h3" color="gray.950" textStyle={{ base: "md", md: "xl" }} lineHeight="1.4">
         {title}
       </Heading>
     </Flex>
@@ -148,10 +148,16 @@ const SolutionStep = ({
         <Icon as={icon} boxSize={{ base: 7, md: 10 }} />
       </Flex>
       <VStack gap={1}>
-        <Text color="teal.700" fontSize={{ base: "md", md: "xl" }} fontWeight="bold">
+        <Text color="teal.700" textStyle={{ base: "md", md: "xl" }} fontWeight="bold">
           {title}
         </Text>
-        <Text display={{ base: "none", md: "block" }} color="gray.950" fontSize="sm" fontWeight="bold" lineHeight="1.6">
+        <Text
+          display={{ base: "none", md: "block" }}
+          color="gray.950"
+          textStyle="sm"
+          fontWeight="bold"
+          lineHeight="1.6"
+        >
           {body}
         </Text>
       </VStack>

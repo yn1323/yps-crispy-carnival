@@ -28,13 +28,7 @@ export const RecruitmentBoard = ({
     <Stack gap={{ base: 4, lg: 5 }}>
       <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
         <Stack gap={1} minW={0}>
-          <Heading
-            as="h2"
-            fontSize={{ base: "xl", lg: "2xl" }}
-            fontWeight="bold"
-            letterSpacing="-0.01em"
-            color="gray.900"
-          >
+          <Heading as="h2" textStyle="sectionTitle" letterSpacing="-0.01em" color="gray.900">
             シフト募集
           </Heading>
         </Stack>
@@ -86,7 +80,7 @@ const EmptyState = () => (
     borderColor="teal.100"
     bg="teal.50/50"
   >
-    <Box color="teal.500" fontSize="32px">
+    <Box color="teal.500" fontSize="3xl">
       <LuInbox />
     </Box>
     <Stack gap={1}>

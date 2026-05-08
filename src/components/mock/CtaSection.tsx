@@ -24,13 +24,13 @@ export const CtaSection = () => (
 
         <VStack position="relative" zIndex={1} gap={{ base: 7, md: 10 }} textAlign="center">
           <VStack gap={{ base: 4, md: 6 }}>
-            <Text color="yellow.100" fontSize={{ base: "sm", md: "2xl" }} fontWeight="bold">
+            <Text color="yellow.100" textStyle={{ base: "label", md: "2xl" }} fontWeight="bold">
               正式リリース前のいまだけ
             </Text>
-            <Heading as="h2" fontSize={{ base: "4xl", md: "5xl" }} lineHeight="1.25">
+            <Heading as="h2" textStyle="heroTitle" lineHeight="1.25">
               全機能を無料で使えます。
             </Heading>
-            <Text maxW="860px" color="whiteAlpha.950" fontSize={{ base: "md", md: "lg" }} lineHeight="1.8">
+            <Text maxW="860px" color="whiteAlpha.950" textStyle={{ base: "body", md: "lg" }} lineHeight="1.8">
               シフト希望の回収から、シフト表の作成・共有まで。
               <Box as="span" display={{ base: "inline", md: "block" }}>
                 まずは無料でシフトリの使いやすさを試してみてください。
@@ -51,7 +51,7 @@ export const CtaSection = () => (
             ))}
           </SimpleGrid>
 
-          <Text maxW="780px" color="whiteAlpha.900" fontSize={{ base: "sm", md: "md" }} lineHeight="1.9">
+          <Text maxW="780px" color="whiteAlpha.900" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.9">
             現在は正式リリースに向けて準備中のため、すべての機能を無料でお使いいただけます。
             <Box as="span" display="block">
               正式な料金プランは今後ご案内予定です。
@@ -78,7 +78,7 @@ const CtaButton = ({ icon, label, tone }: { icon: IconType; label: string; tone:
       borderWidth="2px"
       borderColor="white"
       borderRadius="full"
-      fontSize={{ base: "lg", md: "lg" }}
+      textStyle="lg"
       fontWeight="bold"
       lineHeight="1.4"
       whiteSpace="normal"
@@ -116,7 +116,7 @@ const BenefitItem = ({ icon, label }: { icon: IconType; label: string }) => (
     >
       <Icon as={icon} boxSize={{ base: 7, md: 10 }} />
     </Flex>
-    <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold" lineHeight="1.6" whiteSpace="pre-line">
+    <Text textStyle={{ base: "md", md: "lg" }} fontWeight="bold" lineHeight="1.6" whiteSpace="pre-line">
       {label}
     </Text>
   </Flex>

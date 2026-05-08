@@ -50,10 +50,10 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
             _hover={{ bg: active ? "teal.50" : "gray.50" }}
           >
             <Flex align="baseline" justify="center" gap="3px">
-              <Box fontSize="14px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
+              <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
                 {d.date()}
               </Box>
-              <Box fontSize="12px" fontWeight={600} style={{ color: dayColor(iso, holidays) }}>
+              <Box textStyle="caption" fontWeight={600} style={{ color: dayColor(iso, holidays) }}>
                 ({getWeekdayLabel(iso)})
               </Box>
             </Flex>
