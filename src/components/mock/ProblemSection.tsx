@@ -32,7 +32,7 @@ export const ProblemSection = () => (
           <Heading as="h2" color="gray.950" textStyle="heroTitle" lineHeight="1.25">
             シフト作成って、
             <Box as="span" color="teal.700">
-              地味にやることが多い。
+              地味にやることが多い
             </Box>
           </Heading>
           <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
