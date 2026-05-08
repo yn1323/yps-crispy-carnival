@@ -13,6 +13,7 @@ const workingDaySchema = dayEntrySchema.refine(
 
 export const submitFormSchema = z.object({
   entries: z.array(workingDaySchema),
+  acceptedLegal: z.boolean().optional(),
 });
 
 export type SubmitFormData = z.infer<typeof submitFormSchema>;

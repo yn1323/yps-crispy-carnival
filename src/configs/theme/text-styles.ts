@@ -87,4 +87,56 @@ export const textStyles = defineTextStyles({
       fontWeight: "medium",
     },
   },
+  caption: {
+    value: {
+      fontSize: "xs",
+      lineHeight: "1rem",
+    },
+  },
+  bodySm: {
+    value: {
+      fontSize: "sm",
+      lineHeight: "1.625",
+    },
+  },
+  body: {
+    value: {
+      fontSize: "md",
+      lineHeight: "1.625",
+    },
+  },
+  sectionTitle: {
+    value: {
+      fontSize: { base: "xl", lg: "2xl" },
+      lineHeight: { base: "1.75rem", lg: "2rem" },
+      fontWeight: "bold",
+    },
+  },
+  pageTitle: {
+    value: {
+      fontSize: { base: "2xl", lg: "3xl" },
+      lineHeight: { base: "2rem", lg: "2.375rem" },
+      fontWeight: "bold",
+    },
+  },
+  heroTitle: {
+    value: {
+      fontSize: { base: "4xl", lg: "6xl" },
+      lineHeight: { base: "2.75rem", lg: "4.5rem" },
+      fontWeight: "bold",
+    },
+  },
+  numeric: {
+    value: {
+      fontSize: "sm",
+      lineHeight: "1.25rem",
+      fontVariantNumeric: "tabular-nums",
+    },
+  },
+  tableDense: {
+    value: {
+      fontSize: "xs",
+      lineHeight: "1rem",
+    },
+  },
 });

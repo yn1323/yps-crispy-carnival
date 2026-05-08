@@ -26,8 +26,6 @@ export const Variants: Story = {
     onDelete: noop,
     onShowLineQr: noop,
     onSendLineInvite: noop,
-    onSendLineInviteBulk: noop,
-    lineBulkInviteTargetCount: 2,
     onLoadMore: noop,
   },
   render: () => (
@@ -45,8 +43,6 @@ export const Variants: Story = {
           onDelete={noop}
           onShowLineQr={noop}
           onSendLineInvite={noop}
-          onSendLineInviteBulk={noop}
-          lineBulkInviteTargetCount={2}
           onLoadMore={noop}
         />
       </Stack>
@@ -63,8 +59,6 @@ export const Variants: Story = {
           onDelete={noop}
           onShowLineQr={noop}
           onSendLineInvite={noop}
-          onSendLineInviteBulk={noop}
-          lineBulkInviteTargetCount={12}
           onLoadMore={noop}
         />
       </Stack>
@@ -81,8 +75,6 @@ export const Variants: Story = {
           onDelete={noop}
           onShowLineQr={noop}
           onSendLineInvite={noop}
-          onSendLineInviteBulk={noop}
-          lineBulkInviteTargetCount={0}
           onLoadMore={noop}
         />
       </Stack>

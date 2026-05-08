@@ -9,11 +9,14 @@
  */
 
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
+import type * as _lib_emailFormat from "../_lib/emailFormat.js";
 import type * as _lib_functions from "../_lib/functions.js";
 import type * as _lib_lineClient from "../_lib/lineClient.js";
 import type * as _lib_lineCta from "../_lib/lineCta.js";
 import type * as _lib_lineSignature from "../_lib/lineSignature.js";
 import type * as _lib_notification from "../_lib/notification.js";
+import type * as _lib_notificationDelivery from "../_lib/notificationDelivery.js";
+import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeliveryQueries.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_time from "../_lib/time.js";
@@ -26,6 +29,10 @@ import type * as email_mutations from "../email/mutations.js";
 import type * as email_queries from "../email/queries.js";
 import type * as email_templates from "../email/templates.js";
 import type * as http from "../http.js";
+import type * as legal_actions from "../legal/actions.js";
+import type * as legal_documents from "../legal/documents.js";
+import type * as legal_mutations from "../legal/mutations.js";
+import type * as legal_queries from "../legal/queries.js";
 import type * as line_actions from "../line/actions.js";
 import type * as line_mutations from "../line/mutations.js";
 import type * as line_queries from "../line/queries.js";
@@ -61,11 +68,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/dateFormat": typeof _lib_dateFormat;
+  "_lib/emailFormat": typeof _lib_emailFormat;
   "_lib/functions": typeof _lib_functions;
   "_lib/lineClient": typeof _lib_lineClient;
   "_lib/lineCta": typeof _lib_lineCta;
   "_lib/lineSignature": typeof _lib_lineSignature;
   "_lib/notification": typeof _lib_notification;
+  "_lib/notificationDelivery": typeof _lib_notificationDelivery;
+  "_lib/notificationDeliveryQueries": typeof _lib_notificationDeliveryQueries;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
   "_lib/time": typeof _lib_time;
@@ -78,6 +88,10 @@ declare const fullApi: ApiFromModules<{
   "email/queries": typeof email_queries;
   "email/templates": typeof email_templates;
   http: typeof http;
+  "legal/actions": typeof legal_actions;
+  "legal/documents": typeof legal_documents;
+  "legal/mutations": typeof legal_mutations;
+  "legal/queries": typeof legal_queries;
   "line/actions": typeof line_actions;
   "line/mutations": typeof line_mutations;
   "line/queries": typeof line_queries;

@@ -20,10 +20,10 @@ export const DayTitle = ({ date, holidays = [] }: Props) => {
   return (
     <Box px={5} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
       <Flex align="baseline" gap={2}>
-        <Box fontSize="22px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <Box textStyle="2xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
           {d.month() + 1}月{d.date()}日
         </Box>
-        <Box fontSize="13px" fontWeight={600} style={{ color: dayColor(date, holidays) }}>
+        <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(date, holidays) }}>
           ({getWeekdayLabel(date)})
         </Box>
       </Flex>

@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { formatDateTimeLabel } from "../_lib/dateFormat";
+import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -26,7 +27,11 @@ export const sendReminderEmails = internalAction({
     if (!data || data.staffEntries.length === 0) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const resend = getResendClient();
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const resend = getResendClient({ suppressDelivery });
     const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
     const linkExpiresAtLabel = formatDateTimeLabel(expiresAt);
 
@@ -52,6 +57,7 @@ export const sendReminderEmails = internalAction({
               linkExpiresAtLabel,
               magicLinkUrl,
             }),
+            { suppressDelivery },
           );
           continue;
         } catch (e) {
@@ -70,9 +76,12 @@ export const sendReminderEmails = internalAction({
       });
 
       await resend.emails.send({
-        from: `${data.shopName} <${RESEND_FROM}>`,
+        from: formatResendFrom(data.shopName, RESEND_FROM),
         to: staff.email,
-        subject: `【${data.shopName}】${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
+        subject: formatResendSubject(
+          data.shopName,
+          `${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
+        ),
         html: buildReminderEmailHtml({
           staffName: staff.name,
           periodLabel: data.periodLabel,

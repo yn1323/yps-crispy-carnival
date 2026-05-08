@@ -1,4 +1,6 @@
 import { ConvexError, v } from "convex/values";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { managerMutation } from "../_lib/functions";
 
 export const addStaffs = managerMutation({
@@ -14,7 +16,7 @@ export const addStaffs = managerMutation({
       .take(500);
     const existingEmails = new Set(existingStaffs.filter((s) => !s.isDeleted && s.email).map((s) => s.email));
 
-    const inserted = [];
+    const inserted: Id<"staffs">[] = [];
     for (const entry of validEntries) {
       if (entry.email && existingEmails.has(entry.email)) continue;
       const id = await ctx.db.insert("staffs", {
@@ -24,6 +26,17 @@ export const addStaffs = managerMutation({
         isDeleted: false,
       });
       inserted.push(id);
+    }
+    for (const staffId of inserted) {
+      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
+        staffId,
+      });
+      await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+        staffId,
+      });
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
+        staffId,
+      });
     }
     return inserted;
   },

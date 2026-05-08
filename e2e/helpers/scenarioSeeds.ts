@@ -49,5 +49,5 @@ export function getE2EOwnerId() {
 }
 
 export function seedOwnerScenario<T>(fn: string, args: Record<string, unknown> = {}) {
-  return convexRunJson<T>(fn, { ownerId: getE2EOwnerId(), ...args });
+  return convexRunJson<T>(fn, { ownerId: getE2EOwnerId(), ownerEmail: process.env.E2E_CLERK_USER, ...args });
 }

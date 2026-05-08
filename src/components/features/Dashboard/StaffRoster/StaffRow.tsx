@@ -21,6 +21,8 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
 
   return (
     <HStack
+      as="article"
+      aria-label={`${staff.name}のスタッフ情報`}
       gap={3}
       px={{ base: 3, lg: 4 }}
       py={3.5}
@@ -49,12 +51,12 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
             {staff.name}
           </Text>
           {staff.isOwner && (
-            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} fontSize="10px">
+            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
               オーナー
             </Badge>
           )}
           {isLineActive && (
-            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} fontSize="10px">
+            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
               LINE連携済み
             </Badge>
           )}

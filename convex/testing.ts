@@ -1,8 +1,10 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { generateUUID } from "./_lib/uuid";
+import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
@@ -16,6 +18,12 @@ const scenarioDatesValidator = v.object({
   deadline: v.string(),
   dates: v.array(v.string()),
 });
+const legalConsentStateValidator = v.union(
+  v.literal("current"),
+  v.literal("missing"),
+  v.literal("oldRequired"),
+  v.literal("oldDocumentOnly"),
+);
 
 const DEFAULT_MANAGER = {
   name: "田中太郎",
@@ -30,6 +38,7 @@ type ScenarioDates = {
   deadline: string;
   dates: string[];
 };
+type LegalConsentState = "current" | "missing" | "oldRequired" | "oldDocumentOnly";
 
 function assertE2EHelpersEnabled() {
   if (process.env.E2E_TESTING_ENABLED !== "true") {
@@ -48,6 +57,39 @@ async function findActiveStaffByEmail(ctx: TestCtx, staffEmail: string) {
 
 function matchesPurpose(status: "open" | "confirmed", purpose: MagicLinkPurpose) {
   return purpose === "submit" ? status === "open" : status === "confirmed";
+}
+
+function legalConsentFields(audience: LegalAudience, state: LegalConsentState = "current") {
+  if (state === "missing") return {};
+
+  const versions = getLegalConsentVersions(audience);
+  const consentVersions =
+    state === "oldRequired"
+      ? {
+          legalTermsConsentVersion: `${versions.termsConsentVersion}-old`,
+          legalPrivacyConsentVersion: `${versions.privacyConsentVersion}-old`,
+        }
+      : {
+          legalTermsConsentVersion: versions.termsConsentVersion,
+          legalPrivacyConsentVersion: versions.privacyConsentVersion,
+        };
+  const documentVersions =
+    state === "oldDocumentOnly"
+      ? {
+          legalTermsDocumentVersion: `${versions.termsDocumentVersion}-old`,
+          legalPrivacyDocumentVersion: `${versions.privacyDocumentVersion}-old`,
+        }
+      : {
+          legalTermsDocumentVersion: versions.termsDocumentVersion,
+          legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
+        };
+
+  return {
+    ...consentVersions,
+    ...documentVersions,
+    legalConsentedAt: Date.now() - 1000,
+    legalConsentMethod: audience === "manager" ? "manager_setup" : "staff_email_link",
+  };
 }
 
 async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
@@ -119,11 +161,6 @@ async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
     await ctx.db.delete(position._id);
   }
 
-  const invites = await ctx.db.query("invites").collect();
-  for (const invite of invites) {
-    if (invite.shopId === shopId) await ctx.db.delete(invite._id);
-  }
-
   await ctx.db.delete(shopId);
 }
 
@@ -145,7 +182,16 @@ async function resetOwnerScenarioData(ctx: MutationCtx, ownerId: string) {
   }
 }
 
-async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; shopName: string }) {
+async function createOwnerScenario(
+  ctx: MutationCtx,
+  args: {
+    ownerId: string;
+    ownerEmail?: string;
+    shopName: string;
+    managerLegalConsentState?: LegalConsentState;
+    managerStaffLegalConsentState?: LegalConsentState;
+  },
+) {
   assertE2EHelpersEnabled();
   if (!args.ownerId) throw new Error("ownerId is required");
   await resetOwnerScenarioData(ctx, args.ownerId);
@@ -153,8 +199,9 @@ async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; sh
   const userId = await ctx.db.insert("users", {
     clerkId: args.ownerId,
     name: DEFAULT_MANAGER.name,
-    email: DEFAULT_MANAGER.email,
+    email: args.ownerEmail ?? DEFAULT_MANAGER.email,
     role: "manager",
+    ...legalConsentFields("manager", args.managerLegalConsentState),
     isDeleted: false,
   });
   const shopId = await ctx.db.insert("shops", {
@@ -169,6 +216,7 @@ async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; sh
     name: DEFAULT_MANAGER.name,
     email: DEFAULT_MANAGER.email,
     userId,
+    ...legalConsentFields("staff", args.managerStaffLegalConsentState),
     isDeleted: false,
   });
 
@@ -183,6 +231,7 @@ async function createStaff(
     email: string;
     lineUserId?: string;
     lineFollowing?: boolean;
+    legalConsentState?: LegalConsentState;
   },
 ) {
   return await ctx.db.insert("staffs", {
@@ -191,6 +240,7 @@ async function createStaff(
     email: args.email,
     lineUserId: args.lineUserId,
     lineFollowing: args.lineFollowing,
+    ...legalConsentFields("staff", args.legalConsentState),
     isDeleted: false,
   });
 }
@@ -279,6 +329,8 @@ async function findRecruitmentForPurpose(
  * GitHub Actionsでseed import前に実行
  */
 export const clearAllTables = internalMutation(async ({ db }) => {
+  assertE2EHelpersEnabled();
+
   for (const tableName of TABLE_NAMES) {
     const docs = await db.query(tableName).collect();
     for (const doc of docs) {
@@ -309,6 +361,8 @@ export const seedShiftData = internalMutation({
     dates: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
     const shops = await ctx.db.query("shops").order("desc").take(1);
     const shop = shops[0];
     if (!shop) throw new Error("No shop found");
@@ -355,6 +409,8 @@ export const seedShiftData = internalMutation({
 export const seedPaginationTestData = internalMutation({
   args: {},
   handler: async (ctx) => {
+    assertE2EHelpersEnabled();
+
     const shop = await ctx.db.query("shops").order("desc").first();
     if (!shop) throw new Error("No shop found. Run completeSetup first.");
 
@@ -398,6 +454,8 @@ export const seedPaginationTestData = internalMutation({
 export const seedRealisticStaffRequests = internalMutation({
   args: {},
   handler: async (ctx) => {
+    assertE2EHelpersEnabled();
+
     const shop = await ctx.db.query("shops").order("desc").first();
     if (!shop) throw new Error("No shop found");
 
@@ -568,8 +626,11 @@ export const seedSubmitTestData = internalMutation({
   args: {
     deadlinePassed: v.optional(v.boolean()),
     hasExistingSubmission: v.optional(v.boolean()),
+    legalConsentState: v.optional(legalConsentStateValidator),
   },
   handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
     const shopId = await ctx.db.insert("shops", {
       name: "テスト居酒屋さくら",
       shiftStartTime: "09:00",
@@ -581,6 +642,7 @@ export const seedSubmitTestData = internalMutation({
       shopId,
       name: "田中太郎",
       email: "tanaka@example.com",
+      ...legalConsentFields("staff", args.legalConsentState),
       isDeleted: false,
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
@@ -634,10 +696,12 @@ export const seedSubmitTestData = internalMutation({
 export const seedDashboardPaginationScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { shopId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "ページネーションテスト店舗",
     });
 
@@ -674,14 +738,99 @@ export const seedDashboardPaginationScenario = internalMutation({
   },
 });
 
+export const seedLegalManagerConsentScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
+    legalConsentState: legalConsentStateValidator,
+  },
+  handler: async (ctx, args) => {
+    const { shopId, userId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
+      shopName: "法務同意テスト店舗",
+      managerLegalConsentState: args.legalConsentState,
+    });
+    return { shopId, userId };
+  },
+});
+
+export const seedLegalStaffConsentPageScenario = internalMutation({
+  args: {
+    legalConsentState: v.optional(legalConsentStateValidator),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const shopId = await ctx.db.insert("shops", {
+      name: "法務同意テスト店舗",
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
+      ownerId: "legal_test_owner",
+      isDeleted: false,
+    });
+    const staffId = await createStaff(ctx, {
+      shopId,
+      name: "佐藤花子",
+      email: "sato@example.com",
+      legalConsentState: args.legalConsentState ?? "missing",
+    });
+    const token = generateUUID();
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    await ctx.db.insert("legalConsentTokens", {
+      staffId,
+      shopId,
+      token,
+      method: "staff_email_link",
+      expiresAt,
+    });
+    return { token, shopId, staffId, expiresAt };
+  },
+});
+
+export const seedLegalStaffSubmitScenario = internalMutation({
+  args: {
+    legalConsentState: legalConsentStateValidator,
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    const shopId = await ctx.db.insert("shops", {
+      name: "法務同意テスト店舗",
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
+      ownerId: "legal_test_owner",
+      isDeleted: false,
+    });
+    const staffId = await createStaff(ctx, {
+      shopId,
+      name: "佐藤花子",
+      email: "sato@example.com",
+      legalConsentState: args.legalConsentState,
+    });
+    const recruitmentId = await ctx.db.insert("recruitments", {
+      shopId,
+      periodStart: "2026-04-07",
+      periodEnd: "2026-04-13",
+      deadline: "2026-12-31",
+      status: "open",
+      isDeleted: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
+    });
+    const token = await createMagicLink(ctx, { staffId, shopId, recruitmentId });
+    return { token, shopId, staffId, recruitmentId };
+  },
+});
+
 export const seedNotificationSubmitScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "通知募集テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
@@ -691,14 +840,34 @@ export const seedNotificationSubmitScenario = internalMutation({
   },
 });
 
-export const seedNotificationReminderScenario = internalMutation({
+export const seedOpenRecruitmentNotificationScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
+      shopName: "追加通知テスト店舗",
+    });
+    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+
+    return { shopId, recruitmentId, staffId: managerStaffId };
+  },
+});
+
+export const seedNotificationReminderScenario = internalMutation({
+  args: {
+    ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
+    dates: scenarioDatesValidator,
+  },
+  handler: async (ctx, args) => {
+    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
+      ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "通知催促テスト店舗",
     });
     const remindedStaffId = await createStaff(ctx, {
@@ -729,11 +898,13 @@ export const seedNotificationReminderScenario = internalMutation({
 export const seedNotificationConfirmationViewScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "確定シフト閲覧テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "confirmed" });
@@ -753,10 +924,12 @@ export const seedNotificationConfirmationViewScenario = internalMutation({
 export const seedLineLinkScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "LINE連携テスト店舗",
     });
 
@@ -875,5 +1048,32 @@ export const createLineLinkTokenForStaff = internalMutation({
     const token = await createLineLinkToken(ctx, { staffId: staff._id, shopId: staff.shopId });
 
     return { token, staffId: staff._id };
+  },
+});
+
+export const simulateLineFollowForStaff = internalMutation({
+  args: {
+    staffEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
+
+    const wasFollowing = Boolean(staff.lineFollowing);
+    const lineUserId = staff.lineUserId ?? `U_e2e_${Date.now()}`;
+    await ctx.db.patch(staff._id, {
+      lineUserId,
+      lineFollowing: true,
+      lineLinkedAt: staff.lineLinkedAt ?? Date.now(),
+    });
+    if (!wasFollowing) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+        staffId: staff._id,
+      });
+    }
+
+    return { staffId: staff._id, lineUserId, scheduled: !wasFollowing };
   },
 });

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
-import { formatDateLabel, formatPeriodLabel, generateDateRange } from "../_lib/dateFormat";
+import { formatDateLabel, formatPeriodLabel, generateDateRange, todayJST } from "../_lib/dateFormat";
 
 /**
  * シフト確定メール送信に必要なデータを一括取得
@@ -93,6 +93,48 @@ export const getRecruitmentEmailData = internalQuery({
         lineUserId: s.lineUserId,
         lineFollowing: s.lineFollowing,
       })),
+    };
+  },
+});
+
+/**
+ * 後から追加・LINE連携された1スタッフに、現在募集中の希望提出通知を送るためのデータを取得する。
+ */
+export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
+  args: { staffId: v.id("staffs") },
+  handler: async (ctx, { staffId }) => {
+    const staff = await ctx.db.get(staffId);
+    if (!staff || staff.isDeleted) return null;
+
+    const shop = await ctx.db.get(staff.shopId);
+    if (!shop || shop.isDeleted) return null;
+
+    const today = todayJST();
+    const recruitments = await ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
+      .order("desc")
+      .take(50);
+
+    const openRecruitments = recruitments
+      .filter((r) => !r.isDeleted && r.deadline >= today)
+      .map((r) => ({
+        recruitmentId: r._id,
+        periodLabel: formatPeriodLabel(r.periodStart, r.periodEnd),
+        deadline: r.deadline,
+      }));
+
+    return {
+      shopId: staff.shopId,
+      shopName: shop.name,
+      staff: {
+        staffId: staff._id,
+        name: staff.name,
+        email: staff.email,
+        lineUserId: staff.lineUserId,
+        lineFollowing: staff.lineFollowing,
+      },
+      recruitments: openRecruitments,
     };
   },
 });
