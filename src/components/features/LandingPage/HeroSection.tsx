@@ -199,9 +199,11 @@ const HeroButton = ({ icon, label, tone, ...buttonProps }: HeroButtonProps) => {
   return (
     <Button
       type="button"
+      display="grid"
+      gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "auto minmax(0, 1fr) auto" }}
+      columnGap={{ base: 3, md: 4 }}
       h={{ base: "56px", md: "64px" }}
       w="full"
-      justifyContent="space-between"
       px={{ base: 5, md: 6 }}
       colorPalette="teal"
       variant={isPrimary ? "solid" : "outline"}
@@ -211,13 +213,17 @@ const HeroButton = ({ icon, label, tone, ...buttonProps }: HeroButtonProps) => {
       whiteSpace="normal"
       {...buttonProps}
     >
-      <Flex align="center" gap={3}>
-        <Icon as={icon} boxSize={{ base: 5, md: 6 }} />
-        <Text as="span" fontSize={{ base: "md", md: "lg" }}>
-          {label}
-        </Text>
-      </Flex>
-      <Icon as={LuChevronRight} boxSize={5} />
+      <Icon as={icon} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
+      <Text
+        as="span"
+        minW={0}
+        textAlign={{ base: "center", md: "left" }}
+        fontSize={{ base: "md", md: "lg" }}
+        whiteSpace={{ base: "normal", md: "nowrap" }}
+      >
+        {label}
+      </Text>
+      <Icon as={LuChevronRight} boxSize={5} justifySelf="center" />
     </Button>
   );
 };

@@ -93,9 +93,11 @@ const CtaButton = ({ icon, label, tone, ...buttonProps }: CtaButtonProps) => {
   return (
     <Button
       type="button"
+      display="grid"
+      gridTemplateColumns="28px minmax(0, 1fr) 28px"
+      columnGap={{ base: 3, md: 5 }}
       h={{ base: "56px", md: "64px" }}
       w="full"
-      justifyContent="space-between"
       px={{ base: 5, md: 7 }}
       color={isPrimary ? "teal.700" : "white"}
       bg={isPrimary ? "white" : "transparent"}
@@ -110,11 +112,11 @@ const CtaButton = ({ icon, label, tone, ...buttonProps }: CtaButtonProps) => {
       _active={{ bg: isPrimary ? "teal.100" : "whiteAlpha.300" }}
       {...buttonProps}
     >
-      <Flex align="center" gap={{ base: 3, md: 5 }}>
-        <Icon as={icon} boxSize={{ base: 6, md: 7 }} />
-        <Text as="span">{label}</Text>
-      </Flex>
-      <Icon as={LuChevronRight} boxSize={{ base: 5, md: 6 }} />
+      <Icon as={icon} boxSize={{ base: 6, md: 7 }} justifySelf="center" />
+      <Text as="span" minW={0} textAlign="center" whiteSpace={{ base: "normal", md: "nowrap" }}>
+        {label}
+      </Text>
+      <Icon as={LuChevronRight} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
     </Button>
   );
 };
