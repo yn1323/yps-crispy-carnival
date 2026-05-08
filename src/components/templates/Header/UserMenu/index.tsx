@@ -1,11 +1,12 @@
-import { Box, Icon, Menu, Portal, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { useAtomValue } from "jotai";
-import { LuLogOut, LuUserRound } from "react-icons/lu";
+import { LuChevronDown, LuLogOut, LuUserRound } from "react-icons/lu";
 import { userAtom } from "@/src/stores/user";
 
 export const UserMenu = () => {
   const user = useAtomValue(userAtom);
+  const displayName = user.name || "ユーザー";
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -17,8 +18,25 @@ export const UserMenu = () => {
           _hover={{ opacity: 0.8 }}
           transition="opacity 0.15s"
           display="flex"
+          alignItems="center"
+          gap={2}
+          minW={0}
         >
-          <Icon as={LuUserRound} boxSize={7} color="white" />
+          <Flex
+            boxSize={9}
+            borderRadius="full"
+            bg="white"
+            color="teal.600"
+            align="center"
+            justify="center"
+            flexShrink={0}
+          >
+            <Icon as={LuUserRound} boxSize={6} />
+          </Flex>
+          <Text color="white" fontSize="sm" fontWeight="semibold" maxW={{ base: "96px", md: "160px" }} truncate>
+            {displayName}
+          </Text>
+          <Icon as={LuChevronDown} boxSize={5} color="white" flexShrink={0} />
         </Box>
       </Menu.Trigger>
       <Portal>
@@ -26,7 +44,7 @@ export const UserMenu = () => {
           <Menu.Content minW="200px">
             <Box px={3} py={2}>
               <Text fontWeight="semibold" fontSize="sm">
-                {user.name}
+                {displayName}
               </Text>
               <Text fontSize="xs" color="fg.muted">
                 {user.email}

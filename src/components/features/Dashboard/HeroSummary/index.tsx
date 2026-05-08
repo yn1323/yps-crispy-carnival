@@ -1,10 +1,19 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuArrowRight, LuCalendarClock, LuCircleAlert, LuPlus, LuSettings, LuSparkles } from "react-icons/lu";
+import {
+  LuArrowRight,
+  LuCalendarClock,
+  LuCalendarDays,
+  LuCircleAlert,
+  LuCircleCheck,
+  LuPlus,
+  LuSparkles,
+  LuUsers,
+} from "react-icons/lu";
 import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { Button, IconButton } from "@/src/components/ui/Button";
+import { Button } from "@/src/components/ui/Button";
 import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {
@@ -25,30 +34,56 @@ export const HeroSummary = ({ shop, recruitments, onEditClick, onOpenShiftBoard,
   const action = pickNextAction(recruitments);
 
   return (
-    <Stack gap={3}>
-      <Flex justify="space-between" align="center" gap={3}>
-        <HStack gap={2.5} align="baseline" minW={0}>
-          <Heading as="h1" textStyle="sectionTitle" color="gray.900" letterSpacing="-0.01em" truncate>
-            {shop.name}
-          </Heading>
-          <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
-            {formatShiftTimeRange(shop.shiftStartTime, shop.shiftEndTime)}
-          </Text>
-        </HStack>
-        <IconButton
-          aria-label="店舗設定を編集"
-          variant="ghost"
-          size="sm"
-          color="fg.muted"
-          borderRadius="full"
-          onClick={onEditClick}
-          _hover={{ bg: "blackAlpha.50" }}
-        >
-          <LuSettings />
-        </IconButton>
-      </Flex>
+    <Stack gap={{ base: 5, lg: 6 }}>
+      <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
+        <Text display={{ base: "none", md: "block" }} fontSize="sm" fontWeight="semibold" color="fg.muted">
+          店舗
+        </Text>
 
-      <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
+        <Flex align="center" justify="space-between" direction="row" gap={4} minW={0}>
+          <HStack gap={4} align="center" flex={1} minW={0}>
+            <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
+              {shop.name}
+            </Heading>
+
+            <HStack display={{ base: "none", md: "flex" }} gap={2.5} color="fg.muted" flexShrink={0}>
+              <Text fontSize="sm" fontWeight="medium" whiteSpace="nowrap">
+                営業時間
+              </Text>
+              <Text fontSize={{ base: "md", lg: "lg" }} whiteSpace="nowrap">
+                {formatShiftTimeRange(shop.shiftStartTime, shop.shiftEndTime)}
+              </Text>
+            </HStack>
+          </HStack>
+
+          <Button
+            aria-label="店舗設定を編集"
+            variant="ghost"
+            size="sm"
+            colorPalette="teal"
+            px={{ base: 0, md: 2 }}
+            minW="auto"
+            fontWeight="semibold"
+            flexShrink={0}
+            onClick={onEditClick}
+          >
+            編集
+          </Button>
+        </Flex>
+      </Stack>
+
+      <Stack gap={{ base: 3, lg: 4 }}>
+        <HStack gap={2.5} align="center">
+          <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0}>
+            <LuCircleCheck />
+          </Box>
+          <Heading as="h2" textStyle="sectionTitle" color="gray.900">
+            今やること
+          </Heading>
+        </HStack>
+
+        <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
+      </Stack>
     </Stack>
   );
 };
@@ -77,7 +112,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
       </Stack>
       <Flex>
         <Button colorPalette="teal" size="md" onClick={onSetupClick} gap={1.5}>
-          店舗を登録する
+          お店を登録する
           <LuArrowRight />
         </Button>
       </Flex>
@@ -101,8 +136,8 @@ const ActionCard = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionCar
         iconBg="teal.100"
         iconFg="teal.700"
         border="teal.100"
-        title="今できる作業はありません"
-        sub="次のシフト募集を作りましょう"
+        title="次の募集をつくりましょう"
+        metaItems={[{ label: "募集中のシフトなし" }]}
         cta={{ label: "募集をつくる", icon: LuPlus, palette: "teal", variant: "solid" }}
         onClick={onCreateRecruitment}
       />
@@ -116,7 +151,7 @@ const ActionCard = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionCar
       iconFg={view.iconFg}
       border={view.border}
       title={view.title}
-      sub={view.sub}
+      metaItems={view.metaItems}
       cta={view.cta}
       onClick={() => onOpenShiftBoard(getRecruitmentId(action))}
     />
@@ -131,26 +166,33 @@ type SlimCardProps = {
   iconFg: string;
   border: string;
   title: string;
-  sub: string;
+  metaItems: MetaItem[];
   cta: { label: string; icon?: IconType; palette: "teal" | "orange"; variant: "solid" | "outline" };
   onClick: () => void;
 };
 
-const SlimCard = ({ icon: Icon, iconBg, iconFg, border, title, sub, cta, onClick }: SlimCardProps) => (
+type MetaItem = {
+  icon?: IconType;
+  label: string;
+  emphasis?: boolean;
+};
+
+const SlimCard = ({ icon: Icon, iconBg, iconFg, border, title, metaItems, cta, onClick }: SlimCardProps) => (
   <Flex
-    bg="white"
+    bg="teal.50/30"
     borderRadius="xl"
     borderWidth="1px"
     borderColor={border}
-    px={{ base: 4, lg: 5 }}
-    py={4}
-    gap={3}
-    align={{ base: "stretch", sm: "center" }}
-    direction={{ base: "column", sm: "row" }}
+    boxShadow="xs"
+    px={{ base: 4, md: 6, lg: 7 }}
+    py={{ base: 5, lg: 6 }}
+    gap={{ base: 4, md: 6 }}
+    align={{ base: "stretch", md: "center" }}
+    direction={{ base: "column", md: "row" }}
   >
-    <HStack gap={3} flex={1} minW={0}>
+    <HStack gap={{ base: 3, md: 5 }} flex={1} minW={0}>
       <Flex
-        boxSize="40px"
+        boxSize={{ base: "48px", md: "80px" }}
         borderRadius="full"
         bg={iconBg}
         color={iconFg}
@@ -158,24 +200,26 @@ const SlimCard = ({ icon: Icon, iconBg, iconFg, border, title, sub, cta, onClick
         justify="center"
         flexShrink={0}
       >
-        <Icon size={20} />
+        <Icon size={32} />
       </Flex>
-      <Stack gap={0.5} minW={0}>
-        <Text fontSize="md" fontWeight="bold" color="gray.900" lineHeight="short">
+      <Stack gap={1.5} minW={0}>
+        <Text fontSize={{ base: "lg", md: "2xl" }} fontWeight="bold" color="gray.900" lineHeight="short">
           {title}
         </Text>
-        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-          {sub}
-        </Text>
+        <HStack gap={2} wrap="wrap" pt={1}>
+          {metaItems.map((item) => (
+            <MetaChip key={item.label} item={item} />
+          ))}
+        </HStack>
       </Stack>
     </HStack>
     <Button
       colorPalette={cta.palette}
       variant={cta.variant}
-      size="sm"
+      size={{ base: "sm", md: "md" }}
       gap={1.5}
       fontWeight="semibold"
-      alignSelf={{ base: "stretch", sm: "center" }}
+      alignSelf={{ base: "stretch", md: "center" }}
       flexShrink={0}
       onClick={onClick}
     >
@@ -186,13 +230,34 @@ const SlimCard = ({ icon: Icon, iconBg, iconFg, border, title, sub, cta, onClick
   </Flex>
 );
 
+const MetaChip = ({ item }: { item: MetaItem }) => {
+  const MetaIcon = item.icon;
+
+  return (
+    <Badge
+      variant="subtle"
+      colorPalette={item.emphasis ? "orange" : "gray"}
+      borderRadius="full"
+      px={2.5}
+      py={1}
+      fontSize="xs"
+      fontWeight="medium"
+    >
+      <HStack as="span" gap={1.5}>
+        {MetaIcon && <MetaIcon size={14} />}
+        <Box as="span">{item.label}</Box>
+      </HStack>
+    </Badge>
+  );
+};
+
 type ActionView = {
   icon: IconType;
   iconBg: string;
   iconFg: string;
   border: string;
   title: string;
-  sub: string;
+  metaItems: MetaItem[];
   cta: { label: string; palette: "teal" | "orange"; variant: "solid" | "outline" };
 };
 
@@ -205,8 +270,12 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}のシフトを組みましょう`,
-        sub: `提出${responseCount}人・締切${formatDateShort(deadline)}超過`,
+        title: "シフトを調整しましょう",
+        metaItems: [
+          createPeriodMeta(periodStart, periodEnd),
+          createResponseMeta(responseCount),
+          { icon: LuCalendarClock, label: `締切 ${formatDateShort(deadline)}`, emphasis: true },
+        ],
         cta: { label: "シフトを組む", palette: "orange", variant: "solid" },
       };
     }
@@ -217,9 +286,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}は今日が締切`,
-        sub: `提出${responseCount}人・今日の締切後にシフトを組めます`,
-        cta: { label: "シフトを組む", palette: "orange", variant: "solid" },
+        title: "今日中に希望を確認しましょう",
+        metaItems: [
+          createPeriodMeta(periodStart, periodEnd),
+          createResponseMeta(responseCount),
+          { icon: LuCalendarClock, label: "今日が締切", emphasis: true },
+        ],
+        cta: { label: "希望を見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-soon": {
@@ -229,22 +302,38 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.100",
         iconFg: "teal.700",
         border: "teal.200",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}はあと${action.daysLeft}日で締切`,
-        sub: `提出${responseCount}人`,
+        title: "シフト希望を確認しましょう",
+        metaItems: [
+          createPeriodMeta(periodStart, periodEnd),
+          createResponseMeta(responseCount),
+          { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日`, emphasis: true },
+        ],
         cta: { label: "希望を見る", palette: "teal", variant: "outline" },
       };
     }
     case "collecting": {
-      const { periodStart, periodEnd, deadline, responseCount } = action.recruitment;
+      const { periodStart, periodEnd, responseCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
         iconBg: "teal.50",
         iconFg: "teal.700",
         border: "teal.100",
-        title: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}の提出待ち`,
-        sub: `提出${responseCount}人・締切${formatDateShort(deadline)}まであと${action.daysLeft}日`,
+        title: "シフト回収中です",
+        metaItems: [
+          createPeriodMeta(periodStart, periodEnd),
+          createResponseMeta(responseCount),
+          { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日` },
+        ],
         cta: { label: "希望を見る", palette: "teal", variant: "outline" },
       };
     }
   }
+}
+
+function createPeriodMeta(periodStart: string, periodEnd: string): MetaItem {
+  return { icon: LuCalendarDays, label: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}` };
+}
+
+function createResponseMeta(responseCount: number): MetaItem {
+  return { icon: LuUsers, label: `提出${responseCount}人` };
 }

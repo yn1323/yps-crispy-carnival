@@ -1,6 +1,6 @@
-import { Box, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
-import { LuCalendarPlus, LuChevronDown, LuInbox } from "react-icons/lu";
+import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { RecruitmentRow } from "./RecruitmentRow";
@@ -28,12 +28,23 @@ export const RecruitmentBoard = ({
     <Stack gap={{ base: 4, lg: 5 }}>
       <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
         <Stack gap={1} minW={0}>
-          <Heading as="h2" textStyle="sectionTitle" letterSpacing="-0.01em" color="gray.900">
-            シフト募集
-          </Heading>
+          <HStack gap={2.5} align="center">
+            <Box color="fg.muted" fontSize={{ base: "xl", lg: "2xl" }}>
+              <LuCalendarDays />
+            </Box>
+            <Heading
+              as="h2"
+              fontSize={{ base: "lg", lg: "xl" }}
+              lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+              fontWeight="bold"
+              color="gray.900"
+            >
+              シフト募集
+            </Heading>
+          </HStack>
         </Stack>
-        <Button colorPalette="teal" size="sm" onClick={onCreateClick} gap={1.5} fontWeight="semibold">
-          <LuCalendarPlus />
+        <Button variant="ghost" colorPalette="teal" size="sm" onClick={onCreateClick} gap={1.5} fontWeight="semibold">
+          <LuPlus />
           新しい募集をつくる
         </Button>
       </Flex>
