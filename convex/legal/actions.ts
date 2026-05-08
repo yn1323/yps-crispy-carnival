@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { getResendClient } from "../_lib/resend";
 import { buildStaffLegalConsentEmailHtml, buildStaffLegalConsentLineText } from "../email/templates";
@@ -29,9 +30,9 @@ export const sendStaffConsentEmail = internalAction({
 
     const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
-      from: `${data.shopName} <${RESEND_FROM}>`,
+      from: formatResendFrom(data.shopName, RESEND_FROM),
       to: data.staffEmail,
-      subject: `【${data.shopName}】シフト管理サービスの利用規約・プライバシーポリシー確認のお願い`,
+      subject: formatResendSubject(data.shopName, "シフト管理サービスの利用規約・プライバシーポリシー確認のお願い"),
       html: buildStaffLegalConsentEmailHtml({
         staffName: data.staffName,
         shopName: data.shopName,

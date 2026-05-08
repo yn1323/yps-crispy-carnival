@@ -3,6 +3,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalAction } from "../_generated/server";
+import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import {
   buildLineAuthorizeUrl,
   exchangeAuthorizationCode,
@@ -157,9 +158,9 @@ export const sendInviteEmail = internalAction({
 
     const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
-      from: `${data.shopName} <${RESEND_FROM}>`,
+      from: formatResendFrom(data.shopName, RESEND_FROM),
       to: data.staffEmail,
-      subject: `【${data.shopName}】シフト通知をLINEで受け取れます`,
+      subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
       html: buildLineInviteEmailHtml({
         staffName: data.staffName,
         shopName: data.shopName,

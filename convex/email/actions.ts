@@ -6,6 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
 import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -113,11 +114,11 @@ async function sendConfirmationEmail(opts: {
   });
 
   await resend.emails.send({
-    from: `${data.shopName} <${RESEND_FROM}>`,
+    from: formatResendFrom(data.shopName, RESEND_FROM),
     to: staffData.email,
     subject: isResend
-      ? `【シフト変更】【${data.shopName}】${data.periodLabel} シフト変更のお知らせ`
-      : `【${data.shopName}】${data.periodLabel} シフト確定のお知らせ`,
+      ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
+      : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`),
     html: buildConfirmationEmailHtml({
       staffName: staffData.name,
       periodLabel: data.periodLabel,
@@ -191,9 +192,9 @@ export const sendReissueEmail = internalAction({
     try {
       const resend = getResendClient({ suppressDelivery });
       await resend.emails.send({
-        from: `${data.shopName} <${RESEND_FROM}>`,
+        from: formatResendFrom(data.shopName, RESEND_FROM),
         to: data.staffEmail,
-        subject: `【${data.shopName}】${data.periodLabel} シフト閲覧リンク`,
+        subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
         html: buildReissueEmailHtml({
           staffName: data.staffName,
           periodLabel: data.periodLabel,
@@ -269,9 +270,9 @@ export const sendRecruitmentNotificationEmails = internalAction({
         appUrl: APP_URL,
       });
       await resend.emails.send({
-        from: `${data.shopName} <${RESEND_FROM}>`,
+        from: formatResendFrom(data.shopName, RESEND_FROM),
         to: staff.email,
-        subject: `【${data.shopName}】${data.periodLabel} シフト希望の提出をお願いします`,
+        subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出をお願いします`),
         html: buildRecruitmentEmailHtml({
           staffName: staff.name,
           periodLabel: data.periodLabel,
@@ -316,9 +317,9 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
       try {
         const resend = getResendClient({ suppressDelivery });
         await resend.emails.send({
-          from: `${data.shopName} <${RESEND_FROM}>`,
+          from: formatResendFrom(data.shopName, RESEND_FROM),
           to: data.staff.email,
-          subject: `【${data.shopName}】${recruitment.periodLabel} シフト希望の提出をお願いします`,
+          subject: formatResendSubject(data.shopName, `${recruitment.periodLabel} シフト希望の提出をお願いします`),
           html: buildRecruitmentEmailHtml({
             staffName: data.staff.name,
             periodLabel: recruitment.periodLabel,
