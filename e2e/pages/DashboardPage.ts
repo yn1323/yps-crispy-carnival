@@ -103,7 +103,7 @@ export class DashboardPage {
   }
 
   async expectStaffVisible(name: string) {
-    await expect(this.page.getByText(name)).toBeVisible();
+    await expect(this.staffSection().getByText(name)).toBeVisible();
   }
 
   async editStaff(staffName: string, newData: { name: string; email: string }) {
@@ -158,7 +158,7 @@ export class DashboardPage {
   }
 
   async expectStaffNotVisible(name: string) {
-    await expect(this.page.getByText(name)).not.toBeVisible();
+    await expect(this.staffSection().getByText(name)).not.toBeVisible();
   }
 
   async openUserMenu() {
@@ -247,11 +247,11 @@ export class DashboardPage {
   }
 
   private recruitmentSection() {
-    return this.page.getByRole("heading", { name: "シフト募集" }).locator("xpath=ancestor::*[3]");
+    return this.page.getByRole("region", { name: "シフト募集" });
   }
 
   private staffSection() {
-    return this.page.getByRole("heading", { name: "スタッフ一覧", exact: true }).locator("xpath=ancestor::*[3]");
+    return this.page.getByRole("region", { name: "スタッフ一覧" });
   }
 
   private legalReconsentMessage() {
@@ -259,9 +259,7 @@ export class DashboardPage {
   }
 
   private async openStaffMenu(staffName: string) {
-    const row = this.page
-      .getByText(staffName)
-      .locator("xpath=ancestor::div[.//button[@aria-label='スタッフの操作メニュー']][1]");
+    const row = this.staffSection().getByRole("article", { name: `${staffName}のスタッフ情報` });
     await row.getByRole("button", { name: "スタッフの操作メニュー" }).click();
   }
 

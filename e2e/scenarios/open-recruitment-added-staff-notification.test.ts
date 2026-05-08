@@ -37,6 +37,7 @@ test.describe("募集中の追加スタッフ通知", () => {
       await submitPage.expectFormVisible();
       await submitPage.expectUnsubmittedBadge();
       await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
+      await submitPage.acceptLegalConsent();
       await submitPage.submit();
       await submitPage.expectCompletionVisible();
     });

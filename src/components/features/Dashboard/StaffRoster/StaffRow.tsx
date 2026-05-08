@@ -21,6 +21,8 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
 
   return (
     <HStack
+      as="article"
+      aria-label={`${staff.name}のスタッフ情報`}
       gap={3}
       px={{ base: 3, lg: 4 }}
       py={3.5}
