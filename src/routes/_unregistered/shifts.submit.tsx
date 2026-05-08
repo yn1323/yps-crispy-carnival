@@ -63,7 +63,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
   if (data === undefined) return <FullPageSpinner />;
   if (data === null) return <ExpiredSubmitView shopName="シフト提出" />;
 
-  const handleSubmit = async (entries: DayEntry[]) => {
+  const handleSubmit = async (entries: DayEntry[], acceptedLegal?: boolean) => {
     const requests = entries
       .filter((e) => e.isWorking)
       .map((e) => ({ date: e.date, startTime: e.startTime, endTime: e.endTime }));
@@ -71,6 +71,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
       sessionToken: session.sessionToken,
       recruitmentId: session.recruitmentId as Id<"recruitments">,
       requests,
+      acceptedLegal,
     });
     await navigate({ to: "/shifts/submit/completed" });
   };

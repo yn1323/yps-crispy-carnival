@@ -112,7 +112,7 @@ export const SPOverviewView = () => {
                 >
                   {isOpen ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                 </Flex>
-                <Box fontSize="14px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
+                <Box textStyle="numeric" fontWeight={700} color="gray.800">
                   {wkDates[0].label} – {wkDates[wkDates.length - 1].label}
                 </Box>
               </Flex>
@@ -135,7 +135,7 @@ export const SPOverviewView = () => {
                       >
                         <Box w="44px" flexShrink={0}>
                           <Box
-                            fontSize="14px"
+                            textStyle="numeric"
                             fontWeight={700}
                             color="gray.800"
                             lineHeight="1.1"
@@ -143,7 +143,7 @@ export const SPOverviewView = () => {
                           >
                             {d.label}
                           </Box>
-                          <Box fontSize="10px" fontWeight={700} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
+                          <Box textStyle="2xs" fontWeight={700} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
                             {d.wk}
                           </Box>
                         </Box>
@@ -151,7 +151,7 @@ export const SPOverviewView = () => {
                           {working.length > 0 ? (
                             <DayStaffList staffs={working} iso={d.iso} lookup={lookup} />
                           ) : (
-                            <Box fontSize="11px" color="gray.400">
+                            <Box textStyle="caption" color="gray.400">
                               出勤なし
                             </Box>
                           )}
@@ -183,11 +183,11 @@ const DayStaffList = ({
       const asn = lookup.get(`${s.id}-${iso}`);
       if (!asn) return null;
       return (
-        <Flex key={s.id} align="center" gap={2} fontSize="11px">
+        <Flex key={s.id} align="center" gap={2} textStyle="tableDense">
           <Box color="gray.800" fontWeight={600} flex={1} minW={0}>
             {s.name}
           </Box>
-          <Box color="teal.700" fontWeight={600} style={{ fontVariantNumeric: "tabular-nums" }}>
+          <Box color="teal.700" fontWeight={600} fontVariantNumeric="tabular-nums">
             {asn[0]}–{asn[1]}
           </Box>
         </Flex>

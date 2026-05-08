@@ -10,6 +10,8 @@
  *   LINE_MESSAGING_CHANNEL_ACCESS_TOKEN
  */
 
+import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
+
 const LINE_API_BASE = "https://api.line.me";
 
 function getMessagingAccessToken(): string {
@@ -20,8 +22,21 @@ function getMessagingAccessToken(): string {
 
 export type LineTextMessage = { type: "text"; text: string };
 
+type LineDeliveryOptions = {
+  suppressDelivery?: boolean;
+};
+
 /** Push 送信。連携済みかつ友達追加中のスタッフに対して使う */
-export async function pushTextMessage(toUserId: string, text: string): Promise<void> {
+export async function pushTextMessage(
+  toUserId: string,
+  text: string,
+  options: LineDeliveryOptions = {},
+): Promise<void> {
+  if (isNotificationDeliverySuppressed(options)) {
+    logSuppressedNotification("line.push", { toUserIdLength: toUserId.length, textLength: text.length });
+    return;
+  }
+
   const res = await fetch(`${LINE_API_BASE}/v2/bot/message/push`, {
     method: "POST",
     headers: {
@@ -37,7 +52,16 @@ export async function pushTextMessage(toUserId: string, text: string): Promise<v
 }
 
 /** Reply 送信。replyToken を消費する。課金対象外 */
-export async function replyTextMessage(replyToken: string, text: string): Promise<void> {
+export async function replyTextMessage(
+  replyToken: string,
+  text: string,
+  options: LineDeliveryOptions = {},
+): Promise<void> {
+  if (isNotificationDeliverySuppressed(options)) {
+    logSuppressedNotification("line.reply", { replyTokenLength: replyToken.length, textLength: text.length });
+    return;
+  }
+
   const res = await fetch(`${LINE_API_BASE}/v2/bot/message/reply`, {
     method: "POST",
     headers: {
@@ -55,6 +79,11 @@ export async function replyTextMessage(replyToken: string, text: string): Promis
 
 /** Quota（当月上限）取得 */
 export async function getMessageQuota(): Promise<{ type: "limited" | "none"; value: number }> {
+  if (isNotificationDeliverySuppressed()) {
+    logSuppressedNotification("line.quota", {});
+    return { type: "limited", value: 200 };
+  }
+
   const res = await fetch(`${LINE_API_BASE}/v2/bot/message/quota`, {
     headers: { Authorization: `Bearer ${getMessagingAccessToken()}` },
   });
@@ -65,6 +94,11 @@ export async function getMessageQuota(): Promise<{ type: "limited" | "none"; val
 
 /** 当月消費通数を取得 */
 export async function getMessageQuotaConsumption(): Promise<number> {
+  if (isNotificationDeliverySuppressed()) {
+    logSuppressedNotification("line.quotaConsumption", {});
+    return 0;
+  }
+
   const res = await fetch(`${LINE_API_BASE}/v2/bot/message/quota/consumption`, {
     headers: { Authorization: `Bearer ${getMessagingAccessToken()}` },
   });

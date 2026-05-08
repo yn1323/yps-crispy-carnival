@@ -1,10 +1,20 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
-import { api } from "../_generated/api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api, internal } from "../_generated/api";
+import { todayJST } from "../_lib/dateFormat";
 import { modules, schema } from "../_test/setup.test-helper";
+
+function dateFromToday(daysFromNow: number): string {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  d.setUTCDate(d.getUTCDate() + daysFromNow);
+  return d.toISOString().split("T")[0];
+}
 
 describe("staff/mutations", () => {
   describe("addStaffs", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
       await expect(
@@ -51,6 +61,39 @@ describe("staff/mutations", () => {
       );
       expect(staffs).toHaveLength(2);
       expect(staffs.every((s) => !s.isDeleted)).toBe(true);
+    });
+
+    it("追加スタッフ向けの同意依頼メールとLINE連携メールをスケジュールする", async () => {
+      const t = convexTest(schema, modules);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("users", {
+          clerkId: "user_mgr",
+          name: "管理者",
+          email: "mgr@example.com",
+          role: "manager",
+          isDeleted: false,
+        });
+        await ctx.db.insert("shops", {
+          name: "テスト店舗",
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+          ownerId: "user_mgr",
+          isDeleted: false,
+        });
+      });
+
+      const [staffId] = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
+      });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some((job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === staffId),
+      ).toBe(true);
+      expect(
+        scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffId),
+      ).toBe(true);
     });
 
     it("空の name のエントリはスキップする", async () => {
@@ -127,6 +170,72 @@ describe("staff/mutations", () => {
           .collect(),
       );
       expect(allStaffs).toHaveLength(2);
+    });
+
+    it("追加スタッフ向け通知データは締切前のopen募集だけを返す", async () => {
+      const t = convexTest(schema, modules);
+
+      const ids = await t.run(async (ctx) => {
+        await ctx.db.insert("users", {
+          clerkId: "user_mgr",
+          name: "管理者",
+          email: "mgr@example.com",
+          role: "manager",
+          isDeleted: false,
+        });
+        const shopId = await ctx.db.insert("shops", {
+          name: "テスト店舗",
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+          ownerId: "user_mgr",
+          isDeleted: false,
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "追加スタッフ",
+          email: "added@example.com",
+          isDeleted: false,
+        });
+        const openRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: dateFromToday(7),
+          periodEnd: dateFromToday(13),
+          deadline: todayJST(),
+          status: "open",
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: dateFromToday(14),
+          periodEnd: dateFromToday(20),
+          deadline: dateFromToday(5),
+          status: "confirmed",
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: dateFromToday(-14),
+          periodEnd: dateFromToday(-8),
+          deadline: dateFromToday(-15),
+          status: "open",
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: dateFromToday(21),
+          periodEnd: dateFromToday(27),
+          deadline: dateFromToday(10),
+          status: "open",
+          isDeleted: true,
+        });
+        return { staffId, openRecruitmentId };
+      });
+
+      const data = await t.query(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, {
+        staffId: ids.staffId,
+      });
+
+      expect(data?.recruitments.map((r) => r.recruitmentId)).toEqual([ids.openRecruitmentId]);
     });
   });
 

@@ -57,13 +57,4 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     period: HOUR,
     capacity: 30,
   },
-
-  // LINE 連携依頼メール（一括送信）: shopId をキーに
-  // 3回/時 — 一斉送信の連打防止
-  lineInviteBulk: {
-    kind: "token bucket",
-    rate: 3,
-    period: HOUR,
-    capacity: 3,
-  },
 });

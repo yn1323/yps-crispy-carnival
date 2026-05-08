@@ -152,7 +152,7 @@ const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateC
         >
           {isOpen ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
         </Flex>
-        <Box fontSize="15px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <Box textStyle="numeric" fontWeight={700} color="gray.800">
           {rangeLabel}
         </Box>
       </Flex>
@@ -182,7 +182,7 @@ type WeekTableProps = {
 
 const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly }: WeekTableProps) => (
   <Box>
-    <Box as="table" w="100%" style={{ borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
+    <Box as="table" w="100%" textStyle="tableDense" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
       <Box as="colgroup">
         <Box as="col" style={{ width: 200 }} />
         {wkDates.map((d) => (
@@ -194,12 +194,12 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
         <Box as="tr" bg="gray.50" borderBottomWidth="1px" borderColor="gray.200">
           <Box
             as="th"
+            textStyle="tableDense"
             style={{
               padding: "10px 18px",
               textAlign: "left",
               fontWeight: 600,
               color: "#52525b",
-              fontSize: 11,
             }}
           >
             スタッフ
@@ -219,10 +219,10 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                   opacity: d.inRange ? 1 : 0.35,
                 }}
               >
-                <Box fontSize="12px" color="gray.700" fontWeight={600} style={{ fontVariantNumeric: "tabular-nums" }}>
+                <Box textStyle="numeric" color="gray.700" fontWeight={600}>
                   {d.label}
                 </Box>
-                <Box fontSize="10px" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
+                <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
                   {d.wk}
                 </Box>
               </Box>
@@ -230,12 +230,12 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
           })}
           <Box
             as="th"
+            textStyle="tableDense"
             style={{
               padding: "10px 18px",
               textAlign: "right",
               fontWeight: 600,
               color: "#52525b",
-              fontSize: 11,
             }}
           >
             計
@@ -250,11 +250,11 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
             <Box as="tr" key={s.id} borderBottomWidth="1px" borderColor="gray.100">
               <Box as="td" style={{ padding: "10px 18px" }}>
                 <Flex align="center" gap="10px">
-                  <Box fontSize="13px" fontWeight={600} color={isUnsub ? "gray.500" : "gray.800"}>
+                  <Box textStyle="sm" fontWeight={600} color={isUnsub ? "gray.500" : "gray.800"}>
                     {s.name}
                   </Box>
                   {isUnsub && (
-                    <Box fontSize="10px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+                    <Box textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
                       未提出
                     </Box>
                   )}
@@ -268,7 +268,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                     {asn ? (
                       <Box
                         as="span"
-                        fontSize="12px"
+                        textStyle="numeric"
                         fontWeight={600}
                         color="teal.700"
                         style={{ fontVariantNumeric: "tabular-nums" }}
@@ -276,7 +276,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                         {asn[0]}–{asn[1]}
                       </Box>
                     ) : (
-                      <Box as="span" color={d.inRange ? "gray.300" : "gray.200"} fontSize="12px">
+                      <Box as="span" color={d.inRange ? "gray.300" : "gray.200"} textStyle="caption">
                         —
                       </Box>
                     )}
@@ -285,13 +285,13 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
               })}
               <Box
                 as="td"
+                textStyle="sm"
                 style={{
                   padding: "10px 18px",
                   textAlign: "right",
                   fontWeight: 700,
                   color: total ? "#27272a" : "#d4d4d8",
                   fontVariantNumeric: "tabular-nums",
-                  fontSize: 13,
                 }}
               >
                 {total ? `${total}h` : "—"}

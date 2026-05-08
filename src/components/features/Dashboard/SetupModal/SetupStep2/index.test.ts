@@ -5,6 +5,7 @@ describe("step2Schema (ownerProfile)", () => {
   const validData = {
     name: "山田 太郎",
     email: "yamada@example.com",
+    acceptedLegal: true,
   };
 
   it("有効なデータを受け入れる", () => {
@@ -29,6 +30,11 @@ describe("step2Schema (ownerProfile)", () => {
       const error = result.error.issues.find((i) => i.path.includes("email"));
       expect(error?.message).toBe("正しいメールアドレスを入力してください");
     }
+  });
+
+  it("同意がない場合エラー", () => {
+    const result = step2Schema.safeParse({ ...validData, acceptedLegal: false });
+    expect(result.success).toBe(false);
   });
 
   it("有効なメールアドレスを受け入れる", () => {

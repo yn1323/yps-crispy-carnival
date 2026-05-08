@@ -26,10 +26,10 @@ export const TimeHeader = ({ timeRange }: TimeHeaderProps) => {
           left={`${x}px`}
           top="50%"
           transform="translate(-50%, -50%)"
-          fontSize="10px"
+          textStyle="2xs"
           color="gray.500"
           whiteSpace="nowrap"
-          style={{ fontVariantNumeric: "tabular-nums" }}
+          fontVariantNumeric="tabular-nums"
         >
           {hour}:00
         </Text>

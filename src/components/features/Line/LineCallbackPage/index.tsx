@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { LuCircleAlert, LuCircleCheck, LuClock } from "react-icons/lu";
 import { StaffCenteredContent } from "@/src/components/templates/StaffLayout";
 
-export type LineCallbackStatus = "loading" | "ok" | "expired" | "rate_limited" | "error";
+export type LineCallbackStatus = "loading" | "ok" | "needs_follow" | "expired" | "rate_limited" | "error";
 
 type Props = {
   status: LineCallbackStatus;
@@ -26,6 +26,14 @@ const COPY: Record<
     iconFg: "green.500",
     title: "シフト通知をLINEで受け取れます",
     description: "シフト確定や提出依頼がLINEに届きます。このページは閉じて構いません。",
+  },
+  needs_follow: {
+    icon: <LuCircleAlert />,
+    iconBg: "orange.50",
+    iconFg: "orange.500",
+    title: "LINE連携は完了しました",
+    description:
+      "シフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。友だち追加後、募集中のシフトがあればLINEに届きます。",
   },
   expired: {
     icon: <LuClock />,
@@ -59,7 +67,7 @@ export const LineCallbackPage = ({ status }: Props) => {
         borderRadius="full"
         bg={c.iconBg}
         color={c.iconFg}
-        fontSize="32px"
+        fontSize="3xl"
         display="grid"
         placeItems="center"
       >
