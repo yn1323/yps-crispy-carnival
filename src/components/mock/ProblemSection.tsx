@@ -10,38 +10,43 @@ const problemCards = [
   { number: "01", title: "希望を集める", image: issueCollectImage, alt: "LINEやメモで集まった希望を見返すイメージ" },
   {
     number: "02",
-    title: "未提出を確認する",
+    title: "未提出を追う",
     image: issueCheckSubmissionImage,
     alt: "提出状況を確認して未提出者を把握するイメージ",
   },
-  { number: "03", title: "Excelに転記する", image: issueRewriteExcelImage, alt: "集めた希望をExcelに転記するイメージ" },
-  { number: "04", title: "変更を共有する", image: issueNotifyChangeImage, alt: "完成後の変更を共有するイメージ" },
+  { number: "03", title: "表に転記する", image: issueRewriteExcelImage, alt: "集めた希望を表に転記するイメージ" },
+  { number: "04", title: "変更を伝える", image: issueNotifyChangeImage, alt: "完成後の変更を共有するイメージ" },
 ];
 
 const solutionSteps = [
-  { icon: LuMessageCircle, title: "集める", body: "LINEから希望をかんたん提出" },
-  { icon: LuCalendarCheck, title: "作る", body: "希望を反映してシフト表を作成" },
-  { icon: LuBell, title: "共有する", body: "確定シフトをワンクリックで通知" },
+  { icon: LuMessageCircle, title: "集める", body: "LINEで提出" },
+  { icon: LuCalendarCheck, title: "作る", body: "希望を見て作成" },
+  { icon: LuBell, title: "共有する", body: "まとめて通知" },
 ];
 
 export const ProblemSection = () => (
-  <Box as="section" bg="gray.50" py={{ base: 16, md: 24 }}>
+  <Box as="section" id="how" bg="gray.50" py={{ base: 16, md: 24 }}>
     <Container maxW="7xl">
       <VStack gap={{ base: 10, md: 14 }}>
         <VStack gap={5} textAlign="center">
-          <Heading as="h2" color="gray.950" textStyle="heroTitle" lineHeight="1.25">
-            シフト作成って、
+          <Heading
+            as="h2"
+            color="gray.950"
+            fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+          >
+            シフト作成は
             <Box as="span" color="teal.700">
-              地味にやることが多い
+              意外と手間が多い
             </Box>
           </Heading>
           <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
-          <Text color="gray.700" textStyle={{ base: "body", md: "lg" }} lineHeight="1.8">
-            希望を集めるだけでも、確認・転記・共有まで意外と手間がかかります。
+          <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+            希望回収だけでなく、未提出確認や転記、変更共有にも時間がかかります。
           </Text>
         </VStack>
 
-        <SimpleGrid columns={{ base: 2, lg: 4 }} gap={{ base: 4, md: 7 }} w="full">
+        <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} gap={{ base: 4, md: 7 }} w="full">
           {problemCards.map((card) => (
             <ProblemCard key={card.number} {...card} />
           ))}
@@ -61,20 +66,20 @@ export const ProblemSection = () => (
                 <Flex align="center" justify="center" boxSize={{ base: 12, md: 14 }} bg="white" borderRadius="full">
                   <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 8, md: 10 }} objectFit="contain" />
                 </Flex>
-                <Text color="gray.950" textStyle={{ base: "lg", md: "2xl" }} fontWeight="bold">
+                <Text color="gray.950" textStyle={{ base: "md", md: "xl" }} fontWeight="bold">
                   シフトリなら、
                 </Text>
               </Flex>
-              <Heading as="h3" color="gray.950" textStyle={{ base: "pageTitle", md: "4xl" }} lineHeight="1.35">
+              <Heading as="h3" color="gray.950" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.35">
                 <Box as="span" color="teal.700">
-                  集める・作る・共有する
+                  集める・作る・共有を
                 </Box>
-                までを
+                ひとつに
               </Heading>
-              <Text color="gray.950" textStyle={{ base: "body", md: "xl" }} fontWeight="bold" lineHeight="1.8">
-                ひとつにまとめて、シフト作成を
+              <Text color="gray.950" textStyle={{ base: "bodySm", md: "md" }} fontWeight="bold" lineHeight="1.8">
+                シフト作成の流れを
                 <Box as="span" color="teal.700">
-                  もっとラクに。
+                  もっとラクに
                 </Box>
               </Text>
             </VStack>
@@ -95,7 +100,7 @@ const ProblemCard = ({ number, title, image, alt }: { number: string; title: str
   <Box
     bg="white"
     borderRadius="2xl"
-    px={{ base: 4, md: 8 }}
+    px={{ base: 5, md: 8 }}
     py={{ base: 5, md: 8 }}
     boxShadow="0 14px 34px rgba(15, 23, 42, 0.08)"
   >
@@ -113,12 +118,12 @@ const ProblemCard = ({ number, title, image, alt }: { number: string; title: str
       >
         {number}
       </Flex>
-      <Heading as="h3" color="gray.950" textStyle={{ base: "md", md: "xl" }} lineHeight="1.4">
+      <Heading as="h3" color="gray.950" textStyle={{ base: "md", md: "lg" }} lineHeight="1.4">
         {title}
       </Heading>
     </Flex>
 
-    <Flex align="center" justify="center" h={{ base: "132px", md: "220px" }} mt={{ base: 4, md: 8 }} borderRadius="xl">
+    <Flex align="center" justify="center" h={{ base: "148px", md: "220px" }} mt={{ base: 4, md: 8 }} borderRadius="xl">
       <Image src={image} alt={alt} maxH="full" w="full" objectFit="contain" loading="lazy" />
     </Flex>
   </Box>

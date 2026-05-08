@@ -3,6 +3,7 @@ import { BenefitsSection } from "./BenefitsSection";
 import { CtaSection } from "./CtaSection";
 import { FaqSection } from "./FaqSection";
 import { FeatureSection } from "./FeatureSection";
+import { FooterSection } from "./FooterSection";
 import { HeroSection } from "./HeroSection";
 import { ProblemSection } from "./ProblemSection";
 
@@ -14,7 +15,8 @@ export const LandingPageMock = () => (
     <BenefitsSection />
     <CtaSection />
     <FaqSection />
+    <FooterSection />
   </Box>
 );
 
-export { BenefitsSection, CtaSection, FaqSection, FeatureSection, HeroSection, ProblemSection };
+export { BenefitsSection, CtaSection, FaqSection, FeatureSection, FooterSection, HeroSection, ProblemSection };

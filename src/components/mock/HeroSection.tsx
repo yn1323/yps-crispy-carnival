@@ -1,35 +1,31 @@
-import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Heading, Icon, Image, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 import type { IconType } from "react-icons";
-import {
-  LuBell,
-  LuCalendarDays,
-  LuChevronRight,
-  LuMenu,
-  LuMessageCircle,
-  LuMonitorPlay,
-  LuUserPlus,
-} from "react-icons/lu";
+import { LuBell, LuCalendarDays, LuChevronRight, LuMonitorPlay, LuUserPlus } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import heroPcImage from "./hero-pc.webp";
 import heroSpImage from "./hero-sp.webp";
 
-const navItems = ["シフトリでできること", "使い方", "よくある質問"];
+const navItems = [
+  { label: "シフトリでできること", href: "#features" },
+  { label: "よくある質問", href: "#faq" },
+];
 
 const heroBenefits = [
   {
-    icon: LuMessageCircle,
-    title: "スタッフはLINEで提出",
-    body: "専用アプリのインストール不要",
+    imageSrc: "/line-icon.png",
+    title: "LINEで提出",
+    body: "専用アプリ不要",
   },
   {
     icon: LuCalendarDays,
-    title: "シフト作成がかんたん",
-    body: "自動集計で作成の手間を削減",
+    title: "簡単作成",
+    body: "AIサポート",
   },
   {
     icon: LuBell,
-    title: "シフト確定をお知らせ",
-    body: "LINEで自動通知されるから安心",
+    title: "すぐ共有",
+    body: "まとめて通知",
   },
 ];
 
@@ -50,69 +46,88 @@ export const HeroSection = () => (
 
         <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
           {navItems.map((item) => (
-            <Text key={item} color="gray.950" textStyle="sm" fontWeight="bold">
-              {item}
-            </Text>
+            <Link
+              key={item.href}
+              href={item.href}
+              color="gray.950"
+              textStyle="sm"
+              fontWeight="bold"
+              _hover={{ color: "teal.700", textDecoration: "none" }}
+            >
+              {item.label}
+            </Link>
           ))}
           <Flex align="center" gap={3}>
-            <Button type="button" h="48px" px={7} colorPalette="teal" borderRadius="full" fontWeight="bold">
-              無料ではじめる
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              colorPalette="teal"
-              h="48px"
-              px={7}
-              bg="whiteAlpha.500"
-              borderRadius="full"
-              fontWeight="bold"
-            >
-              デモを見る
-            </Button>
+            <SignInButton mode="modal">
+              <Button
+                type="button"
+                variant="solid"
+                colorPalette="teal"
+                h="48px"
+                px={6}
+                borderRadius="full"
+                fontWeight="bold"
+              >
+                ログイン
+              </Button>
+            </SignInButton>
           </Flex>
         </Flex>
 
-        <Button
-          type="button"
-          display={{ base: "inline-flex", md: "none" }}
-          variant="ghost"
-          size="sm"
-          aria-label="メニューを開く"
-        >
-          <Icon as={LuMenu} boxSize={7} />
-        </Button>
+        <SignInButton mode="modal">
+          <Button
+            type="button"
+            display={{ base: "inline-flex", md: "none" }}
+            variant="solid"
+            colorPalette="teal"
+            h="42px"
+            px={5}
+            borderRadius="full"
+            fontWeight="bold"
+          >
+            ログイン
+          </Button>
+        </SignInButton>
       </Flex>
 
       <Grid
         mt={{ base: 9, md: 16 }}
-        templateColumns={{ base: "1fr", lg: "minmax(0, 0.88fr) minmax(520px, 1.12fr)" }}
-        gap={{ base: 8, lg: 10 }}
+        templateColumns={{ base: "1fr", xl: "minmax(0, 0.88fr) minmax(520px, 1.12fr)" }}
+        gap={{ base: 8, xl: 10 }}
         alignItems="center"
       >
-        <VStack align={{ base: "stretch", lg: "start" }} gap={{ base: 7, md: 8 }}>
-          <VStack align={{ base: "stretch", lg: "start" }} gap={{ base: 5, md: 6 }}>
-            <Heading as="h1" textStyle="heroTitle" lineHeight="1.15" letterSpacing="0">
-              シフト作成を、
+        <VStack align={{ base: "stretch", xl: "start" }} gap={{ base: 7, md: 8 }}>
+          <VStack align={{ base: "stretch", xl: "start" }} gap={{ base: 5, md: 6 }}>
+            <Heading
+              as="h1"
+              fontSize={{ base: "4xl", md: "5xl", xl: "6xl" }}
+              lineHeight={{ base: "2.75rem", md: "3.75rem", xl: "4.5rem" }}
+              letterSpacing="0"
+            >
+              シフト作成を
               <Box as="span" display="block" color="teal.700">
                 もっとラク
                 <Box as="span" color="gray.950">
-                  に。
+                  に
                 </Box>
               </Box>
             </Heading>
 
-            <Text maxW="580px" color="gray.800" textStyle={{ base: "body", md: "lg" }} lineHeight="1.9">
-              希望シフトの回収から、シフト表の作成・共有までLINEで完結。
-              <Box as="span" display={{ base: "inline", md: "block" }}>
-                小さなお店のシフト管理ツール「シフトリ」
+            <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+              希望回収からシフト作成・通知まで、LINEでひとつに。
+              <Box as="span" display="block">
+                小さなお店向けのシフト管理ツールです。
               </Box>
             </Text>
           </VStack>
 
           <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} w="full" maxW={{ md: "660px" }}>
-            <HeroButton icon={LuUserPlus} label="無料ではじめる" subLabel="1分で登録完了" tone="primary" />
-            <HeroButton icon={LuMonitorPlay} label="登録なしでデモを見る" tone="secondary" />
+            <SignUpButton mode="modal">
+              <HeroButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
+            </SignUpButton>
+            <Link href="/demo/shiftboard" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
+              <HeroButton icon={LuMonitorPlay} label="登録なしで試す" tone="secondary" />
+            </Link>
           </SimpleGrid>
 
           <SimpleGrid columns={{ base: 1, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
@@ -129,25 +144,17 @@ export const HeroSection = () => (
 );
 
 const Brand = () => (
-  <Flex align="center" gap={3}>
-    <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 9, md: 10 }} objectFit="contain" />
-    <Text color="gray.950" fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
-      シフトリ
-    </Text>
-  </Flex>
+  <Link href="/" _hover={{ opacity: 0.8, textDecoration: "none" }}>
+    <Flex align="center" gap={3}>
+      <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 9, md: 10 }} objectFit="contain" />
+      <Text color="gray.950" fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
+        シフトリ
+      </Text>
+    </Flex>
+  </Link>
 );
 
-const HeroButton = ({
-  icon,
-  label,
-  subLabel,
-  tone,
-}: {
-  icon: IconType;
-  label: string;
-  subLabel?: string;
-  tone: "primary" | "secondary";
-}) => {
+const HeroButton = ({ icon, label, tone }: { icon: IconType; label: string; tone: "primary" | "secondary" }) => {
   const isPrimary = tone === "primary";
 
   return (
@@ -167,11 +174,6 @@ const HeroButton = ({
         <Icon as={icon} boxSize={{ base: 5, md: 6 }} />
         <Text as="span" fontSize={{ base: "md", md: "lg" }}>
           {label}
-          {subLabel ? (
-            <Box as="span" ml={2} fontSize={{ base: "xs", md: "sm" }}>
-              （{subLabel}）
-            </Box>
-          ) : null}
         </Text>
       </Flex>
       <Icon as={LuChevronRight} boxSize={5} />
@@ -179,7 +181,17 @@ const HeroButton = ({
   );
 };
 
-const HeroBenefit = ({ icon, title, body }: { icon: IconType; title: string; body: string }) => (
+const HeroBenefit = ({
+  icon,
+  imageSrc,
+  title,
+  body,
+}: {
+  icon?: IconType;
+  imageSrc?: string;
+  title: string;
+  body: string;
+}) => (
   <Flex
     align="center"
     gap={4}
@@ -200,7 +212,11 @@ const HeroBenefit = ({ icon, title, body }: { icon: IconType; title: string; bod
       borderWidth="1px"
       borderColor="teal.100"
     >
-      <Icon as={icon} boxSize={{ base: 6, md: 7 }} />
+      {imageSrc ? (
+        <Image src={imageSrc} alt="" boxSize={{ base: 7, md: 8 }} objectFit="contain" />
+      ) : (
+        icon && <Icon as={icon} boxSize={{ base: 6, md: 7 }} />
+      )}
     </Flex>
     <Box>
       <Text color="teal.800" textStyle={{ base: "sm", md: "md" }} fontWeight="bold" lineHeight="1.5">
@@ -215,11 +231,11 @@ const HeroBenefit = ({ icon, title, body }: { icon: IconType; title: string; bod
 
 const HeroVisual = () => (
   <>
-    <Box display={{ base: "block", lg: "none" }} maxW="360px" mx="auto" mt={{ base: 2, md: 0 }}>
+    <Box display={{ base: "block", xl: "none" }} maxW="360px" mx="auto" mt={{ base: 2, md: 0 }}>
       <Image src={heroSpImage} alt="シフトリのスマホ通知イメージ" w="full" h="auto" objectFit="contain" />
     </Box>
 
-    <Box display={{ base: "none", lg: "block" }} position="relative" minH="520px">
+    <Box display={{ base: "none", xl: "block" }} position="relative" minH="520px">
       <DashboardMock />
       <PhoneMock />
     </Box>
