@@ -32,7 +32,7 @@ export const StaffRoster = ({
   const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
 
   return (
-    <Stack gap={{ base: 4, lg: 5 }}>
+    <Stack as="section" aria-label="スタッフ一覧" gap={{ base: 4, lg: 5 }}>
       <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
         <Stack gap={1} minW={0}>
           <HStack gap={2.5} align="center">
