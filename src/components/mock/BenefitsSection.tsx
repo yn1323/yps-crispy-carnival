@@ -7,36 +7,36 @@ import userImage from "./side-user.webp";
 const makerBenefits = [
   {
     icon: LuClipboardList,
-    title: "希望を一覧で確認できる",
-    body: "集まった希望を見やすく一覧で確認できます。",
+    title: "希望を一覧で確認",
+    body: "集まった希望を画面でまとめて見られます。",
   },
   {
     icon: LuUsers,
-    title: "未提出のスタッフがすぐわかる",
-    body: "未提出の人を一覧で確認できるので、催促の手間が減ります。",
+    title: "未提出者がわかる",
+    body: "声をかける相手をすぐに絞れます。",
   },
   {
     icon: LuSend,
-    title: "確定シフトをまとめて共有できる",
-    body: "確定したシフトをワンクリックでスタッフへ通知できます。",
+    title: "確定シフトを共有",
+    body: "スタッフへの通知をまとめて送れます。",
   },
 ];
 
 const staffBenefits = [
   {
     icon: LuMessageCircle,
-    title: "LINEから希望を提出できる",
-    body: "いつものLINEトークから、かんたんに希望シフトを送れます。",
+    title: "LINEから提出",
+    body: "いつものトークから希望を送れます。",
   },
   {
     icon: LuSmartphone,
-    title: "専用アプリのインストール不要",
-    body: "新しいアプリを入れる必要がなく、すぐに使い始められます。",
+    title: "専用アプリ不要",
+    body: "新しいアプリを入れずに使えます。",
   },
   {
     icon: LuCalendarCheck,
-    title: "確定シフトも確認しやすい",
-    body: "確定したシフトは通知されるので、見逃しにくく安心です。",
+    title: "確定後も確認しやすい",
+    body: "通知からシフトを見返せます。",
   },
 ];
 
@@ -45,23 +45,20 @@ export const BenefitsSection = () => (
     <Container maxW="7xl">
       <VStack gap={{ base: 10, md: 12 }}>
         <VStack gap={5} textAlign="center">
-          <Heading as="h2" color="gray.950" textStyle="sectionTitle" lineHeight="1.25">
-            シフトを
+          <Heading
+            as="h2"
+            color="gray.950"
+            fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+          >
             <Box as="span" color="teal.700">
-              作る人
+              作る人・出す人
             </Box>
-            にも、
-            <Box as="span" color="teal.700">
-              出す人
-            </Box>
-            にもやさしく。
+            にもやさしく
           </Heading>
           <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
-          <Text color="gray.700" textStyle={{ base: "body", md: "lg" }} lineHeight="1.9">
-            シフト作成をラクにするには、希望を出す側の使いやすさも大切です。
-            <Box as="span" display={{ base: "inline", md: "block" }}>
-              シフトリは、いつものLINEを使って、無理なく続けられるシフト管理を目指しました。
-            </Box>
+          <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
+            管理者の手間と、スタッフの提出負担をどちらも減らします。
           </Text>
         </VStack>
 
@@ -70,8 +67,8 @@ export const BenefitsSection = () => (
             title="シフトを作る人"
             imageSrc={makerImage}
             imageAlt="シフトを作る人のイメージ"
-            lead="希望の回収、未提出の確認、確定シフトの共有までひとつに。"
-            body="LINEや紙を見返しながらExcelに入力する手間を減らせます。"
+            lead="回収・確認・共有をひとつに"
+            body="転記や共有の手間を減らせます。"
             tone="teal"
             items={makerBenefits}
           />
@@ -79,8 +76,8 @@ export const BenefitsSection = () => (
             title="シフトを出す人"
             imageSrc={userImage}
             imageAlt="シフトを出す人のイメージ"
-            lead="いつものLINEから希望シフトを提出。"
-            body="新しいアプリを入れたり、むずかしい操作を覚えたりする必要はありません。"
+            lead="いつものLINEから提出"
+            body="新しいアプリや難しい操作なしで使えます。"
             tone="amber"
             items={staffBenefits}
           />
@@ -128,16 +125,16 @@ const BenefitCard = ({
             bg="whiteAlpha.800"
             borderRadius="2xl"
           >
-            <Image src={imageSrc} alt={imageAlt} w="full" h="full" objectFit="contain" />
+            <Image src={imageSrc} alt={imageAlt} w="full" h="full" objectFit="contain" borderRadius="xl" />
           </Flex>
           <Box>
-            <Heading as="h3" color="teal.700" textStyle={{ base: "xl", md: "2xl" }} lineHeight="1.35">
+            <Heading as="h3" color="teal.700" fontSize={{ base: "xl", md: "2xl" }} lineHeight="1.35">
               {title}
             </Heading>
-            <Text mt={3} color="gray.950" textStyle={{ base: "sm", md: "md" }} fontWeight="bold" lineHeight="1.8">
+            <Text mt={3} color="gray.950" textStyle={{ base: "sm", md: "md" }} fontWeight="bold" lineHeight="1.7">
               {lead}
             </Text>
-            <Text mt={2} color="gray.700" textStyle={{ base: "sm", md: "sm" }} lineHeight="1.8">
+            <Text mt={2} color="gray.700" textStyle="sm" lineHeight="1.7">
               {body}
             </Text>
           </Box>
@@ -171,10 +168,10 @@ const BenefitItem = ({ icon, title, body }: { icon: IconType; title: string; bod
       <Icon as={icon} boxSize={{ base: 6, md: 7 }} />
     </Flex>
     <Box>
-      <Text color="gray.950" textStyle={{ base: "md", md: "lg" }} fontWeight="bold" lineHeight="1.6">
+      <Text color="gray.950" textStyle={{ base: "md", md: "md" }} fontWeight="bold" lineHeight="1.55">
         {title}
       </Text>
-      <Text mt={1} color="gray.700" textStyle="sm" lineHeight="1.8">
+      <Text mt={1} color="gray.700" textStyle="sm" lineHeight="1.7">
         {body}
       </Text>
     </Box>

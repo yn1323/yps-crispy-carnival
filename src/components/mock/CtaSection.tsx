@@ -1,15 +1,16 @@
-import { Box, Button, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Container, Flex, Heading, Icon, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { SignUpButton } from "@clerk/clerk-react";
 import type { IconType } from "react-icons";
 import { LuChevronRight, LuClock, LuMonitor, LuMonitorPlay, LuSmartphone, LuUserPlus } from "react-icons/lu";
 
 const benefits = [
-  { icon: LuClock, label: "登録は\n1分で完了" },
-  { icon: LuSmartphone, label: "スタッフは\n専用アプリ不要" },
-  { icon: LuMonitor, label: "デモは\n登録不要" },
+  { icon: LuClock, label: "1分で登録" },
+  { icon: LuSmartphone, label: "専用アプリ不要" },
+  { icon: LuMonitor, label: "デモを試せる" },
 ];
 
 export const CtaSection = () => (
-  <Box as="section" bg="white" py={{ base: 16, md: 24 }}>
+  <Box as="section" id="cta" bg="white" py={{ base: 16, md: 24 }}>
     <Container maxW="7xl">
       <Box
         position="relative"
@@ -24,24 +25,32 @@ export const CtaSection = () => (
 
         <VStack position="relative" zIndex={1} gap={{ base: 7, md: 10 }} textAlign="center">
           <VStack gap={{ base: 4, md: 6 }}>
-            <Text color="yellow.100" textStyle={{ base: "label", md: "2xl" }} fontWeight="bold">
-              正式リリース前のいまだけ
-            </Text>
-            <Heading as="h2" textStyle="heroTitle" lineHeight="1.25">
-              全機能を無料で使えます。
+            <Heading
+              as="h2"
+              fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
+              lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+            >
+              まずは無料で試せます
             </Heading>
-            <Text maxW="860px" color="whiteAlpha.950" textStyle={{ base: "body", md: "lg" }} lineHeight="1.8">
-              シフト希望の回収から、シフト表の作成・共有まで。
-              <Box as="span" display={{ base: "inline", md: "block" }}>
-                まずは無料でシフトリの使いやすさを試してみてください。
-              </Box>
+            <Text maxW="720px" color="whiteAlpha.950" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+              希望回収からシフト作成・共有まで、シフトリの使いやすさをそのままお試しください。
             </Text>
           </VStack>
 
           <Box w="full" maxW="1080px" borderTopWidth="1px" borderTopColor="whiteAlpha.400" pt={{ base: 6, md: 8 }}>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 4, md: 6 }}>
-              <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
-              <CtaButton icon={LuMonitorPlay} label="登録なしでデモを見る" tone="secondary" />
+              <SignUpButton mode="modal">
+                <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
+              </SignUpButton>
+              <Link
+                href="/demo/shiftboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                display="block"
+                _hover={{ textDecoration: "none" }}
+              >
+                <CtaButton icon={LuMonitorPlay} label="登録なしでデモを試す" tone="secondary" />
+              </Link>
             </SimpleGrid>
           </Box>
 
@@ -51,11 +60,8 @@ export const CtaSection = () => (
             ))}
           </SimpleGrid>
 
-          <Text maxW="780px" color="whiteAlpha.900" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.9">
-            現在は正式リリースに向けて準備中のため、すべての機能を無料でお使いいただけます。
-            <Box as="span" display="block">
-              正式な料金プランは今後ご案内予定です。
-            </Box>
+          <Text maxW="640px" color="whiteAlpha.900" textStyle="bodySm" lineHeight="1.8">
+            現在は正式リリースに向けて準備中です。料金プランは今後ご案内します。
           </Text>
         </VStack>
       </Box>
@@ -69,7 +75,7 @@ const CtaButton = ({ icon, label, tone }: { icon: IconType; label: string; tone:
   return (
     <Button
       type="button"
-      h={{ base: "64px", md: "76px" }}
+      h={{ base: "56px", md: "64px" }}
       w="full"
       justifyContent="space-between"
       px={{ base: 5, md: 7 }}
@@ -78,7 +84,7 @@ const CtaButton = ({ icon, label, tone }: { icon: IconType; label: string; tone:
       borderWidth="2px"
       borderColor="white"
       borderRadius="full"
-      textStyle="lg"
+      textStyle={{ base: "md", md: "md" }}
       fontWeight="bold"
       lineHeight="1.4"
       whiteSpace="normal"
@@ -116,7 +122,7 @@ const BenefitItem = ({ icon, label }: { icon: IconType; label: string }) => (
     >
       <Icon as={icon} boxSize={{ base: 7, md: 10 }} />
     </Flex>
-    <Text textStyle={{ base: "md", md: "lg" }} fontWeight="bold" lineHeight="1.6" whiteSpace="pre-line">
+    <Text textStyle={{ base: "md", md: "md" }} fontWeight="bold" lineHeight="1.5">
       {label}
     </Text>
   </Flex>
@@ -128,22 +134,6 @@ const Decorations = () => (
       position="absolute"
       inset={0}
       bg="linear-gradient(135deg, rgba(0, 99, 92, 0.95), rgba(0, 134, 119, 0.9) 48%, rgba(0, 92, 85, 0.98))"
-    />
-    <Box
-      position="absolute"
-      top="-120px"
-      left="-120px"
-      boxSize={{ base: "220px", md: "360px" }}
-      borderRadius="full"
-      bg="whiteAlpha.100"
-    />
-    <Box
-      position="absolute"
-      right="-110px"
-      bottom="-110px"
-      boxSize={{ base: "220px", md: "340px" }}
-      borderRadius="full"
-      bg="whiteAlpha.100"
     />
     <Box
       position="absolute"

@@ -4,13 +4,13 @@ const faqs = [
   {
     question: "本当に無料で使えますか？",
     answer: [
-      "現在は正式リリースに向けて準備中のため、すべての機能を無料でお試しいただけます。",
-      "正式な料金プランは今後ご案内予定です。",
+      "はい。正式リリース前の先行利用として、現在は無料でお試しいただけます。",
+      "料金プランは今後ご案内します。",
     ],
   },
   {
-    question: "登録しないと使えませんか？",
-    answer: ["登録なしで試せるデモページをご用意しています。", "実際に使いはじめる場合は、お店の登録が必要です。"],
+    question: "登録なしで試せますか？",
+    answer: ["はい。デモページは登録なしで試せます。", "実際に使いはじめる場合は、お店の登録が必要です。"],
   },
   {
     question: "スタッフもアカウント登録が必要ですか？",
@@ -18,17 +18,11 @@ const faqs = [
   },
   {
     question: "LINE公式アカウントは必要ですか？",
-    answer: [
-      "必要ありません。",
-      "シフトリ専用のLINEアカウントからスタッフへ通知が届くため、お店側でLINE公式アカウントを準備する必要はありません。",
-    ],
+    answer: ["必要ありません。", "シフトリ専用のLINEアカウントから通知が届くため、お店側で準備する必要はありません。"],
   },
   {
     question: "スマホでも使えますか？",
-    answer: [
-      "スタッフの希望提出はスマホから利用できます。",
-      "シフト作成や管理はPCでの利用をおすすめしています（スマホでも一部確認できます）。",
-    ],
+    answer: ["スタッフの希望提出はスマホから利用できます。", "シフト作成や管理はPCでの利用をおすすめしています。"],
   },
   {
     question: "小さなお店でも使えますか？",
@@ -37,15 +31,20 @@ const faqs = [
 ];
 
 export const FaqSection = () => (
-  <Box as="section" bg="white" py={{ base: 16, md: 24 }}>
+  <Box as="section" id="faq" bg="white" py={{ base: 16, md: 24 }}>
     <Container maxW="6xl">
       <VStack gap={{ base: 8, md: 10 }}>
         <VStack gap={3} textAlign="center">
-          <Heading as="h2" color="gray.950" textStyle="heroTitle" lineHeight="1.2">
+          <Heading
+            as="h2"
+            color="gray.950"
+            fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+          >
             よくある質問
           </Heading>
-          <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.9">
-            シフトリを使いはじめる前に、気になりやすいことをまとめました。
+          <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+            使いはじめる前に、よく聞かれることをまとめました。
           </Text>
         </VStack>
 
@@ -71,7 +70,7 @@ export const FaqSection = () => (
                   textAlign="left"
                   _hover={{ bg: "teal.50" }}
                 >
-                  <Text as="span" flex="1" color="teal.700" textStyle={{ base: "md", md: "lg" }} fontWeight="bold">
+                  <Text as="span" flex="1" color="teal.700" textStyle={{ base: "md", md: "md" }} fontWeight="bold">
                     {faq.question}
                   </Text>
                   <Accordion.ItemIndicator color="teal.600" />
@@ -80,7 +79,7 @@ export const FaqSection = () => (
                   <Accordion.ItemBody px={{ base: 5, md: 8 }} py={{ base: 5, md: 6 }}>
                     <VStack align="stretch" gap={2}>
                       {faq.answer.map((line) => (
-                        <Text key={line} color="gray.900" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.9">
+                        <Text key={line} color="gray.900" textStyle="bodySm" lineHeight="1.8">
                           {line}
                         </Text>
                       ))}
