@@ -53,7 +53,7 @@ const Eyebrow = ({ children }: { children: string }) => (
   <HStack
     display="inline-flex"
     gap={2}
-    fontSize="13px"
+    textStyle="label"
     fontWeight="semibold"
     color="teal.700"
     bg="teal.50"
@@ -72,7 +72,7 @@ const SectionHeading = ({ children }: { children: string }) => (
     as="h2"
     mt={5}
     fontWeight="medium"
-    fontSize={{ base: "30px", lg: "48px" }}
+    fontSize={{ base: "3xl", lg: "5xl" }}
     lineHeight={1.3}
     letterSpacing="-0.01em"
     whiteSpace="pre-line"
@@ -100,7 +100,7 @@ export const Nav = () => (
     <Flex w="full" maxW="1024px" mx="auto" align="center" justify="space-between" gap={4}>
       <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
         <RouterLink to="/">
-          <HStack gap={2.5} fontWeight="bold" fontSize="18px" letterSpacing="0.02em" color="white">
+          <HStack gap={2.5} fontWeight="bold" textStyle="lg" letterSpacing="0.02em" color="white">
             <Flex
               boxSize="28px"
               borderRadius="full"
@@ -115,7 +115,7 @@ export const Nav = () => (
           </HStack>
         </RouterLink>
       </Link>
-      <HStack as="nav" gap={6} fontSize="14px" display={{ base: "none", md: "flex" }}>
+      <HStack as="nav" gap={6} textStyle="sm" display={{ base: "none", md: "flex" }}>
         <Link href="/demo/shiftboard" color="white" opacity={0.9} _hover={{ opacity: 0.7, textDecoration: "none" }}>
           無料デモ
         </Link>
@@ -137,7 +137,7 @@ export const Nav = () => (
         py="8px"
         borderRadius="full"
         fontWeight="bold"
-        fontSize="14px"
+        textStyle="sm"
         _hover={{ opacity: 0.85, textDecoration: "none" }}
       >
         はじめてみる
@@ -178,7 +178,7 @@ const DemoSection = () => (
 
       <VStack mt={{ base: 10, lg: 12 }} gap={3}>
         <Link href="/demo/shiftboard" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
-          <Button colorPalette="teal" h="56px" px={10} fontSize="18px" fontWeight="bold" borderRadius="full">
+          <Button colorPalette="teal" h="56px" px={10} size="lg" fontWeight="bold" borderRadius="full">
             デモを開く
             <PiArrowSquareOut />
           </Button>
@@ -191,17 +191,17 @@ const DemoSection = () => (
 const DemoPreviewContent = () => (
   <Box px={{ base: 5, lg: 8 }} py={{ base: 6, lg: 8 }}>
     <Flex align="center" justify="space-between" mb={5}>
-      <Text fontSize={{ base: "14px", lg: "16px" }} fontWeight="bold">
+      <Text textStyle={{ base: "sm", lg: "md" }} fontWeight="bold">
         カフェ シフトリ · 5/2 (土)
       </Text>
-      <Text fontSize="12px" color="fg.muted">
+      <Text textStyle="caption" color="fg.muted">
         提出 3/3人
       </Text>
     </Flex>
     <VStack align="stretch" gap={3}>
       {PREVIEW_ROWS.map((r) => (
         <Box key={r.name} display="grid" gridTemplateColumns="64px 1fr" alignItems="center" h="32px">
-          <Text fontSize="13px" fontWeight="medium">
+          <Text textStyle="sm" fontWeight="medium">
             {r.name}
           </Text>
           <Box position="relative" h="22px" bg="gray.100" borderRadius="4px" overflow="hidden">
@@ -244,7 +244,7 @@ const Hero = () => (
         <HStack
           alignSelf="start"
           gap={2}
-          fontSize="13px"
+          textStyle="label"
           fontWeight="semibold"
           color="teal.700"
           bg="white"
@@ -265,8 +265,7 @@ const Hero = () => (
         </HStack>
         <Heading
           as="h1"
-          fontSize={{ base: "40px", lg: "64px" }}
-          fontWeight="bold"
+          textStyle="heroTitle"
           lineHeight={1.15}
           letterSpacing="-0.02em"
           whiteSpace="pre-line"
@@ -287,7 +286,7 @@ const Hero = () => (
             />
           </Box>
         </Heading>
-        <Text mt={6} maxW="560px" fontSize={{ base: "13px", lg: "16px" }} lineHeight={1.9} color="gray.700">
+        <Text mt={6} maxW="560px" textStyle={{ base: "bodySm", lg: "body" }} lineHeight={1.9} color="gray.700">
           スタッフはLINEから希望を提出。
           <br />
           店長は集まった希望を見ながら、シフト表をかんたん作成。
@@ -300,7 +299,7 @@ const Hero = () => (
           flexWrap="wrap"
         >
           <SignUpButton mode="modal">
-            <Button colorPalette="teal" h="56px" px={8} fontSize="18px" fontWeight="bold" borderRadius="full">
+            <Button colorPalette="teal" h="56px" px={8} size="lg" fontWeight="bold" borderRadius="full">
               はじめてみる <PiArrowRight />
             </Button>
           </SignUpButton>
@@ -310,7 +309,7 @@ const Hero = () => (
               colorPalette="teal"
               h="56px"
               px={8}
-              fontSize="18px"
+              size="lg"
               fontWeight="bold"
               borderRadius="full"
             >
@@ -318,7 +317,7 @@ const Hero = () => (
             </Button>
           </SignInButton>
         </Stack>
-        <HStack mt={7} gap={6} fontSize="13px" color="fg.muted" flexWrap="wrap">
+        <HStack mt={7} gap={6} textStyle="caption" color="fg.muted" flexWrap="wrap">
           <HeroMeta>登録無料</HeroMeta>
           <HeroMeta>専用アプリ不要</HeroMeta>
           <HeroMeta>LINE連携も追加料金なし</HeroMeta>
@@ -371,12 +370,19 @@ const ScheduleCanvas = () => (
         <Box boxSize="10px" borderRadius="full" bg="#fbbf24" />
         <Box boxSize="10px" borderRadius="full" bg="#4ade80" />
       </HStack>
-      <Text fontSize="13px" fontWeight="bold" color="fg.muted" letterSpacing="0.04em" textTransform="uppercase">
+      <Text textStyle="label" color="fg.muted" letterSpacing="0.04em" textTransform="uppercase">
         5/2 (土) · 6人
       </Text>
     </Flex>
     <Box position="relative">
-      <Box display="grid" gridTemplateColumns="70px repeat(7, 1fr)" fontSize="11px" color="fg.muted" mb={2} pl={1}>
+      <Box
+        display="grid"
+        gridTemplateColumns="70px repeat(7, 1fr)"
+        textStyle="tableDense"
+        color="fg.muted"
+        mb={2}
+        pl={1}
+      >
         <Box />
         {TIMES.map((t) => (
           <Box key={t} px={1}>
@@ -395,7 +401,7 @@ const ScheduleCanvas = () => (
           borderColor="gray.100"
           _last={{ borderBottomWidth: 0 }}
         >
-          <Text fontSize="12px" color="fg" fontWeight="medium" pr={2} lineClamp={1}>
+          <Text textStyle="caption" color="fg" fontWeight="medium" pr={2} lineClamp={1}>
             {row.name}
           </Text>
           <Box
@@ -464,7 +470,7 @@ const FloatingTag = ({ children, top, bottom, left, right, delay, color, showDot
     borderRadius="full"
     px={3}
     py={1.5}
-    fontSize="12px"
+    textStyle="caption"
     fontWeight="semibold"
     color={color}
     borderWidth="1px"
@@ -535,7 +541,7 @@ const PointCard = ({ num, icon: Icon, title, lead, body }: Point) => (
       position="absolute"
       top={6}
       right={6}
-      fontSize="11px"
+      textStyle="caption"
       fontWeight="bold"
       color="teal.600"
       opacity={0.5}
@@ -546,13 +552,13 @@ const PointCard = ({ num, icon: Icon, title, lead, body }: Point) => (
     <Flex boxSize="64px" borderRadius="full" bg="teal.50" color="teal.600" align="center" justify="center" mb={6}>
       <Icon size={28} />
     </Flex>
-    <Text fontSize="22px" fontWeight="bold" lineHeight={1.4} mb={3}>
+    <Text textStyle="2xl" fontWeight="bold" lineHeight={1.4} mb={3}>
       {title}
     </Text>
-    <Text fontSize="15px" fontWeight="semibold" color="fg" lineHeight={1.6} mb={2}>
+    <Text textStyle="md" fontWeight="semibold" color="fg" lineHeight={1.6} mb={2}>
       {lead}
     </Text>
-    <Text fontSize="14px" color="fg.muted" lineHeight={1.8} whiteSpace="pre-line">
+    <Text textStyle="bodySm" color="fg.muted" lineHeight={1.8} whiteSpace="pre-line">
       {body}
     </Text>
   </Box>
@@ -594,7 +600,7 @@ const LineSection = () => (
           <HStack
             display="inline-flex"
             gap={2}
-            fontSize="13px"
+            textStyle="label"
             fontWeight="bold"
             color="#047857"
             bg="white"
@@ -612,7 +618,7 @@ const LineSection = () => (
           <Heading
             as="h2"
             mt={5}
-            fontSize={{ base: "30px", lg: "46px" }}
+            fontSize={{ base: "3xl", lg: "5xl" }}
             lineHeight={1.3}
             fontWeight="bold"
             color="gray.900"
@@ -620,7 +626,7 @@ const LineSection = () => (
           >
             {"スタッフ連絡は\nいつものLINEへ"}
           </Heading>
-          <Text mt={5} fontSize={{ base: "15px", lg: "17px" }} color="gray.700" lineHeight={1.9}>
+          <Text mt={5} textStyle={{ base: "bodySm", lg: "body" }} color="gray.700" lineHeight={1.9}>
             新しいアプリを入れてもらわず、シフト提出や確定のお知らせを届けられます。
           </Text>
         </VStack>
@@ -659,10 +665,10 @@ const LineFeatureItem = ({ icon: Icon, title, body }: LineFeature) => (
       <Icon size={22} />
     </Flex>
     <Box minW={0}>
-      <Text fontSize="16px" fontWeight="bold" lineHeight={1.5}>
+      <Text textStyle="md" fontWeight="bold" lineHeight={1.5}>
         {title}
       </Text>
-      <Text mt={1} fontSize="13px" color="fg.muted" lineHeight={1.8}>
+      <Text mt={1} textStyle="bodySm" color="fg.muted" lineHeight={1.8}>
         {body}
       </Text>
     </Box>
@@ -723,10 +729,10 @@ const ToolsSection = () => (
       </Flex>
       <VStack bg="teal.600" borderRadius="20px" p={8} color="white" textAlign="center" gap={3}>
         <Image src="/logo512.png" alt="" boxSize="48px" />
-        <Text fontSize="22px" fontWeight="bold">
+        <Text textStyle="2xl" fontWeight="bold">
           シフトリ
         </Text>
-        <Text fontSize="13px" opacity={0.85}>
+        <Text textStyle="bodySm" opacity={0.85}>
           ひとつの画面に、ぜんぶ集まります。
         </Text>
       </VStack>
@@ -757,10 +763,10 @@ const ToolChip = ({ icon: Icon, name, meta, iconBg, iconColor }: Tool) => (
       <Icon size={18} />
     </Flex>
     <Box>
-      <Text fontSize={{ base: "12px", lg: "14px" }} fontWeight="bold">
+      <Text textStyle={{ base: "caption", lg: "sm" }} fontWeight="bold">
         {name}
       </Text>
-      <Text fontSize="11px" color="fg.muted" mt="2px" display={{ base: "none", lg: "block" }}>
+      <Text textStyle="caption" color="fg.muted" mt="2px" display={{ base: "none", lg: "block" }}>
         {meta}
       </Text>
     </Box>
@@ -808,7 +814,7 @@ const StepItem = ({ index, total, title, body }: { index: number; total: number;
       mx="auto"
       mb={5}
       fontWeight="bold"
-      fontSize="18px"
+      textStyle="lg"
       position="relative"
       zIndex={2}
     >
@@ -826,10 +832,10 @@ const StepItem = ({ index, total, title, body }: { index: number; total: number;
         zIndex={1}
       />
     )}
-    <Text fontSize="18px" fontWeight="bold" mb={2}>
+    <Text textStyle="lg" fontWeight="bold" mb={2}>
       {title}
     </Text>
-    <Text fontSize="14px" color="fg.muted" lineHeight={1.7}>
+    <Text textStyle="bodySm" color="fg.muted" lineHeight={1.7}>
       {body}
     </Text>
   </Box>
@@ -883,12 +889,12 @@ const FaqItem = ({ item, isOpen, onToggle }: { item: Faq; isOpen: boolean; onTog
     transition="border-color 200ms"
     cursor="pointer"
   >
-    <Flex justify="space-between" align="center" fontWeight="bold" fontSize="16px">
+    <Flex justify="space-between" align="center" fontWeight="bold" textStyle="md">
       <Box as="span">{item.q}</Box>
       <Box
         as="span"
         color="teal.600"
-        fontSize="20px"
+        fontSize="xl"
         fontWeight="normal"
         transform={isOpen ? "rotate(45deg)" : "rotate(0)"}
         transition="transform 200ms"
@@ -902,7 +908,7 @@ const FaqItem = ({ item, isOpen, onToggle }: { item: Faq; isOpen: boolean; onTog
       mt={isOpen ? 3 : 0}
       transition="max-height 250ms ease, margin 200ms"
     >
-      <Text fontSize="14px" color="fg.muted" lineHeight={1.8} whiteSpace="pre-line">
+      <Text textStyle="bodySm" color="fg.muted" lineHeight={1.8} whiteSpace="pre-line">
         {item.a}
       </Text>
     </Box>
@@ -925,7 +931,7 @@ const BottomCta = () => (
       <Heading
         as="h2"
         mt={5}
-        fontSize={{ base: "26px", lg: "40px" }}
+        fontSize={{ base: "3xl", lg: "4xl" }}
         fontWeight="bold"
         lineHeight={1.3}
         whiteSpace="pre-line"
@@ -934,20 +940,12 @@ const BottomCta = () => (
       </Heading>
       <Stack direction={{ base: "column", sm: "row" }} gap={4} justify="center" flexWrap="wrap" mt={4}>
         <SignUpButton mode="modal">
-          <Button colorPalette="teal" h="56px" px={8} fontSize="18px" fontWeight="bold" borderRadius="full">
+          <Button colorPalette="teal" h="56px" px={8} size="lg" fontWeight="bold" borderRadius="full">
             はじめてみる <PiArrowRight />
           </Button>
         </SignUpButton>
         <SignInButton mode="modal">
-          <Button
-            variant="outline"
-            colorPalette="teal"
-            h="56px"
-            px={8}
-            fontSize="18px"
-            fontWeight="bold"
-            borderRadius="full"
-          >
+          <Button variant="outline" colorPalette="teal" h="56px" px={8} size="lg" fontWeight="bold" borderRadius="full">
             ログイン
           </Button>
         </SignInButton>
@@ -968,11 +966,11 @@ export const Footer = () => (
       gap={{ base: 8, lg: 12 }}
     >
       <VStack align="start" gap={3} gridColumn={{ base: "1 / -1", lg: "auto" }}>
-        <HStack gap={2.5} fontWeight="bold" fontSize="18px">
+        <HStack gap={2.5} fontWeight="bold" textStyle="lg">
           <Image src="/logo512.png" alt="" boxSize="28px" borderRadius="full" bg="whiteAlpha.300" p="3px" />
           <Box as="span">シフトリ</Box>
         </HStack>
-        <Text fontSize="14px" opacity={0.85} lineHeight={1.7} maxW="260px">
+        <Text textStyle="bodySm" opacity={0.85} lineHeight={1.7} maxW="260px">
           少人数のお店のシフトづくりを
           <br />
           もっとラクに
@@ -1002,7 +1000,7 @@ export const Footer = () => (
       pt={6}
       borderTopWidth="1px"
       borderColor="whiteAlpha.300"
-      fontSize="12px"
+      textStyle="caption"
       opacity={0.7}
       justify="center"
       flexWrap="wrap"
@@ -1017,16 +1015,16 @@ export const Footer = () => (
 
 const FooterCol = ({ title, links }: { title: string; links: FooterColLink[] }) => (
   <VStack align="start" gap={2.5}>
-    <Text fontSize="13px" fontWeight="bold" opacity={0.7} letterSpacing="0.08em" textTransform="uppercase" mb={1}>
+    <Text textStyle="label" fontWeight="bold" opacity={0.7} letterSpacing="0.08em" textTransform="uppercase" mb={1}>
       {title}
     </Text>
     {links.map(({ label, href, router }) =>
       router ? (
-        <Link key={label} asChild color="white" fontSize="14px" _hover={{ opacity: 0.75, textDecoration: "none" }}>
+        <Link key={label} asChild color="white" textStyle="sm" _hover={{ opacity: 0.75, textDecoration: "none" }}>
           <RouterLink to={href}>{label}</RouterLink>
         </Link>
       ) : (
-        <Link key={label} href={href} color="white" fontSize="14px" _hover={{ opacity: 0.75, textDecoration: "none" }}>
+        <Link key={label} href={href} color="white" textStyle="sm" _hover={{ opacity: 0.75, textDecoration: "none" }}>
           {label}
         </Link>
       ),

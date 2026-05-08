@@ -7,10 +7,10 @@ export const HeroSection = () => (
         <Text color="teal.700" fontWeight="bold">
           シフト管理SaaS
         </Text>
-        <Heading as="h1" fontSize={{ base: "4xl", md: "6xl" }} lineHeight="1.1">
+        <Heading as="h1" textStyle="heroTitle" lineHeight="1.1">
           店舗のシフト調整を、もっと軽く。
         </Heading>
-        <Text maxW="2xl" color="fg.muted" fontSize={{ base: "md", md: "lg" }}>
+        <Text maxW="2xl" color="fg.muted" textStyle={{ base: "body", md: "lg" }}>
           LINEで提出、画面で確認。作る人にも出す人にも迷いが少ないシフト管理へ。
         </Text>
       </VStack>

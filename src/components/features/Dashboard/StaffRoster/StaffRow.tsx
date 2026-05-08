@@ -49,12 +49,12 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
             {staff.name}
           </Text>
           {staff.isOwner && (
-            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} fontSize="10px">
+            <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
               オーナー
             </Badge>
           )}
           {isLineActive && (
-            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} fontSize="10px">
+            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
               LINE連携済み
             </Badge>
           )}

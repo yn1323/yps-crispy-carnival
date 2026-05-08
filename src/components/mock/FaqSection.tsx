@@ -41,10 +41,10 @@ export const FaqSection = () => (
     <Container maxW="6xl">
       <VStack gap={{ base: 8, md: 10 }}>
         <VStack gap={3} textAlign="center">
-          <Heading as="h2" color="gray.950" fontSize={{ base: "3xl", md: "5xl" }} lineHeight="1.2">
+          <Heading as="h2" color="gray.950" textStyle="heroTitle" lineHeight="1.2">
             よくある質問
           </Heading>
-          <Text color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight="1.9">
+          <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.9">
             シフトリを使いはじめる前に、気になりやすいことをまとめました。
           </Text>
         </VStack>
@@ -71,7 +71,7 @@ export const FaqSection = () => (
                   textAlign="left"
                   _hover={{ bg: "teal.50" }}
                 >
-                  <Text as="span" flex="1" color="teal.700" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
+                  <Text as="span" flex="1" color="teal.700" textStyle={{ base: "md", md: "lg" }} fontWeight="bold">
                     {faq.question}
                   </Text>
                   <Accordion.ItemIndicator color="teal.600" />
@@ -80,7 +80,7 @@ export const FaqSection = () => (
                   <Accordion.ItemBody px={{ base: 5, md: 8 }} py={{ base: 5, md: 6 }}>
                     <VStack align="stretch" gap={2}>
                       {faq.answer.map((line) => (
-                        <Text key={line} color="gray.900" fontSize={{ base: "sm", md: "md" }} lineHeight="1.9">
+                        <Text key={line} color="gray.900" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.9">
                           {line}
                         </Text>
                       ))}

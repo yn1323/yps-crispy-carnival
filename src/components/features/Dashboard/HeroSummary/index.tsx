@@ -28,7 +28,7 @@ export const HeroSummary = ({ shop, recruitments, onEditClick, onOpenShiftBoard,
     <Stack gap={3}>
       <Flex justify="space-between" align="center" gap={3}>
         <HStack gap={2.5} align="baseline" minW={0}>
-          <Heading as="h1" fontSize={{ base: "xl", lg: "2xl" }} color="gray.900" letterSpacing="-0.01em" truncate>
+          <Heading as="h1" textStyle="sectionTitle" color="gray.900" letterSpacing="-0.01em" truncate>
             {shop.name}
           </Heading>
           <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
@@ -68,7 +68,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
   >
     <Stack gap={4} maxW="520px">
       <Stack gap={1.5}>
-        <Heading as="h1" fontSize={{ base: "xl", lg: "2xl" }} color="gray.900" letterSpacing="-0.01em">
+        <Heading as="h1" textStyle="sectionTitle" color="gray.900" letterSpacing="-0.01em">
           お店の情報を登録しましょう
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">

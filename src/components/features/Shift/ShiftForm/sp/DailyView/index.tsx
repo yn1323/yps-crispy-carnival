@@ -172,16 +172,16 @@ export const SPDailyView = () => {
                 cursor="pointer"
               >
                 <Box
-                  fontSize="16px"
+                  textStyle="md"
                   fontWeight={700}
                   color={active ? "teal.700" : "gray.800"}
                   lineHeight="1.1"
-                  style={{ fontVariantNumeric: "tabular-nums" }}
+                  fontVariantNumeric="tabular-nums"
                 >
                   {d.date()}
                 </Box>
                 <Box
-                  fontSize="10px"
+                  textStyle="2xs"
                   mt="2px"
                   fontWeight={active ? 700 : 500}
                   style={{ color: dayColor(iso, holidays) }}
@@ -198,10 +198,10 @@ export const SPDailyView = () => {
       {sd && (
         <Box px={4} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
           <Flex align="baseline" gap={2}>
-            <Box fontSize="20px" fontWeight={700} color="gray.800" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {sd.month() + 1}月{sd.date()}日
             </Box>
-            <Box fontSize="13px" fontWeight={600} style={{ color: dayColor(selectedDate, holidays) }}>
+            <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(selectedDate, holidays) }}>
               ({getWeekdayLabel(selectedDate)})
             </Box>
           </Flex>
@@ -279,14 +279,14 @@ export const SPDailyView = () => {
 
 const SectionHeader = ({ label, count, hint }: { label: string; count: number; hint?: string }) => (
   <Flex align="baseline" gap={2} mb={2} px={1}>
-    <Box fontSize="11px" fontWeight={700} color="gray.600" letterSpacing="0.04em">
+    <Box textStyle="caption" fontWeight={700} color="gray.600" letterSpacing="0.04em">
       {label}
     </Box>
-    <Box fontSize="11px" color="gray.400" fontWeight={600}>
+    <Box textStyle="caption" color="gray.400" fontWeight={600}>
       {count}
     </Box>
     {hint && (
-      <Box fontSize="10px" color="gray.400" ml="auto">
+      <Box textStyle="2xs" color="gray.400" ml="auto">
         {hint}
       </Box>
     )}
@@ -304,6 +304,7 @@ const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
+      // Avatar initials scale with the configured avatar box size.
       fontSize: Math.round(size * 0.42),
       fontWeight: 600,
       flexShrink: 0,
@@ -353,12 +354,12 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
     >
       <Flex align="center" gap={2} mb={2}>
         <Avatar staff={staff} size={28} />
-        <Box fontSize="13px" fontWeight={600} color="gray.800" flex={1}>
+        <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staff.name}
         </Box>
         {mismatch && (
           <Box
-            fontSize="10px"
+            textStyle="2xs"
             fontWeight={700}
             px={2}
             py="1px"
@@ -373,12 +374,12 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
           </Box>
         )}
         {hasAsn && asn && (
-          <Box fontSize="11px" fontWeight={700} color="teal.700" style={{ fontVariantNumeric: "tabular-nums" }}>
+          <Box textStyle="caption" fontWeight={700} color="teal.700" fontVariantNumeric="tabular-nums">
             {asn[0]}–{asn[1]}
           </Box>
         )}
         {!hasReq && !hasAsn && staff.isSubmitted && (
-          <Box fontSize="10px" color="gray.400">
+          <Box textStyle="2xs" color="gray.400">
             休み
           </Box>
         )}
@@ -445,14 +446,14 @@ const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () =
       _active={isReadOnly ? undefined : { bg: "gray.50" }}
     >
       <Avatar staff={staff} size={24} />
-      <Box fontSize="13px" fontWeight={600} color="gray.600" flex={1}>
+      <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
         {staff.name}
       </Box>
-      <Box fontSize="10px" fontWeight={600} style={{ color: isUnsub ? "#b45309" : "#a1a1aa" }}>
+      <Box textStyle="2xs" fontWeight={600} style={{ color: isUnsub ? "#b45309" : "#a1a1aa" }}>
         {offLabel}
       </Box>
       {!isReadOnly && (
-        <Box fontSize="18px" color="gray.400" lineHeight={1} ml="4px">
+        <Box fontSize="lg" color="gray.400" lineHeight={1} ml="4px">
           ＋
         </Box>
       )}

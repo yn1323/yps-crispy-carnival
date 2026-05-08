@@ -21,19 +21,19 @@ export const TourTooltip = ({ index, size, step, tooltipProps }: TooltipRenderPr
     fontFamily="inherit"
   >
     {step.title && (
-      <Text fontSize="15px" fontWeight={700} color="gray.900" lineHeight="1.45">
+      <Text textStyle="md" fontWeight={700} color="gray.900" lineHeight="1.45">
         {step.title}
       </Text>
     )}
 
     {step.content && (
-      <Text mt={1.5} fontSize="13px" color="gray.600" lineHeight="1.75">
+      <Text mt={1.5} textStyle="bodySm" color="gray.600" lineHeight="1.75">
         {step.content}
       </Text>
     )}
 
     <Flex mt={3} align="center" justify="flex-end">
-      <Text fontSize="11px" fontWeight={600} color="gray.400" style={{ fontVariantNumeric: "tabular-nums" }}>
+      <Text textStyle="caption" fontWeight={600} color="gray.400" fontVariantNumeric="tabular-nums">
         {index + 1} / {size}
       </Text>
     </Flex>

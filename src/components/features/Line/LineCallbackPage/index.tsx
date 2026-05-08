@@ -67,7 +67,7 @@ export const LineCallbackPage = ({ status }: Props) => {
         borderRadius="full"
         bg={c.iconBg}
         color={c.iconFg}
-        fontSize="32px"
+        fontSize="3xl"
         display="grid"
         placeItems="center"
       >

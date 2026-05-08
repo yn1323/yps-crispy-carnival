@@ -120,7 +120,7 @@ export function PrivacyPolicy(): ReactNode {
           target="_blank"
           rel="noopener noreferrer"
           color="teal.700"
-          fontSize={{ base: "14px", lg: "15px" }}
+          textStyle="bodySm"
         >
           お問い合わせフォーム
         </Link>
