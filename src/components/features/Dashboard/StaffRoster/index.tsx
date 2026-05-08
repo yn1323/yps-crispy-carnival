@@ -1,6 +1,6 @@
-import { Box, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
-import { LuChevronDown, LuMail, LuUserPlus, LuUsers } from "react-icons/lu";
+import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { StaffRow } from "./StaffRow";
@@ -14,8 +14,6 @@ type Props = {
   onDelete: (staff: Staff) => void;
   onShowLineQr: (staff: Staff) => void;
   onSendLineInvite: (staff: Staff) => void;
-  onSendLineInviteBulk: () => void;
-  lineBulkInviteTargetCount?: number;
   onLoadMore: () => void;
 };
 
@@ -28,44 +26,33 @@ export const StaffRoster = ({
   onDelete,
   onShowLineQr,
   onSendLineInvite,
-  onSendLineInviteBulk,
-  lineBulkInviteTargetCount,
   onLoadMore,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
-  const unlinkedCount = lineBulkInviteTargetCount ?? 0;
 
   return (
-    <Stack gap={{ base: 4, lg: 5 }}>
+    <Stack as="section" aria-label="スタッフ一覧" gap={{ base: 4, lg: 5 }}>
       <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
         <Stack gap={1} minW={0}>
-          <Heading
-            as="h2"
-            fontSize={{ base: "xl", lg: "2xl" }}
-            fontWeight="bold"
-            letterSpacing="-0.01em"
-            color="gray.900"
-          >
-            スタッフ一覧
-          </Heading>
+          <HStack gap={2.5} align="center">
+            <Box color="fg.muted" fontSize={{ base: "xl", lg: "2xl" }}>
+              <LuUsers />
+            </Box>
+            <Heading
+              as="h2"
+              fontSize={{ base: "lg", lg: "xl" }}
+              lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+              fontWeight="bold"
+              color="gray.900"
+            >
+              スタッフ一覧
+            </Heading>
+          </HStack>
         </Stack>
         <Flex gap={2} wrap="wrap">
-          {unlinkedCount > 0 && (
-            <Button
-              variant="outline"
-              colorPalette="green"
-              size="sm"
-              onClick={onSendLineInviteBulk}
-              gap={1.5}
-              fontWeight="semibold"
-            >
-              <LuMail />
-              LINE連携リンクをメールで送る ({unlinkedCount})
-            </Button>
-          )}
-          <Button colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
-            <LuUserPlus />
+          <Button variant="ghost" colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
+            <LuPlus />
             スタッフを追加
           </Button>
         </Flex>
@@ -129,7 +116,7 @@ const EmptyState = () => (
     borderColor="teal.100"
     bg="teal.50/50"
   >
-    <Box color="teal.500" fontSize="32px">
+    <Box color="teal.500" fontSize="3xl">
       <LuUsers />
     </Box>
     <Stack gap={1}>

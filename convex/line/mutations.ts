@@ -1,6 +1,5 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
 import { internalMutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
@@ -108,6 +107,7 @@ export const finalizeLinking = internalMutation({
     if (!link || link.staffId !== args.staffId || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
+    const staff = await ctx.db.get(args.staffId);
 
     // 既に他スタッフに紐づいている lineUserId の場合は上書きせず置き換え
     // （同じLINEアカウントを別スタッフが連携し直したケース）
@@ -131,6 +131,16 @@ export const finalizeLinking = internalMutation({
       lineFollowing: args.lineFollowing,
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
+    if (args.lineFollowing) {
+      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+        staffId: args.staffId,
+      });
+    }
+    if (args.lineFollowing && staff && !staff.lineFollowing && !staff.isDeleted) {
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+        staffId: args.staffId,
+      });
+    }
     return { status: "ok" as const };
   },
 });
@@ -141,7 +151,16 @@ export const finalizeLinking = internalMutation({
 export const markFollowing = internalMutation({
   args: { staffId: v.id("staffs"), following: v.boolean() },
   handler: async (ctx, args) => {
+    const staff = await ctx.db.get(args.staffId);
     await ctx.db.patch(args.staffId, { lineFollowing: args.following });
+    if (args.following && staff && !staff.lineFollowing && !staff.isDeleted) {
+      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+        staffId: args.staffId,
+      });
+      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+        staffId: args.staffId,
+      });
+    }
   },
 });
 
@@ -183,7 +202,16 @@ export const dispatchWebhookEvents = internalMutation({
         .withIndex("by_lineUserId", (q) => q.eq("lineUserId", userId))
         .first();
       if (staff && !staff.isDeleted) {
+        const wasFollowing = Boolean(staff.lineFollowing);
         await ctx.db.patch(staff._id, { lineFollowing: following });
+        if (following && !wasFollowing) {
+          await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+            staffId: staff._id,
+          });
+          await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+            staffId: staff._id,
+          });
+        }
       }
     }
 
@@ -246,39 +274,5 @@ export const sendInvite = managerMutation({
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,
     });
-  },
-});
-
-/**
- * 一括: 未連携 or 友達解除のスタッフ全員に依頼メール
- *
- * - rate limit は `lineInviteBulk`（3回/時、shopId キー）。個別ボタンとは別バケット
- * - Resend / LINE 側のスロットリングを避けるため、scheduler で 100ms 間隔に分散
- */
-const BULK_INVITE_INTERVAL_MS = 100;
-
-export const sendInviteBulk = managerMutation({
-  args: {},
-  handler: async (ctx) => {
-    const { ok } = await rateLimit(ctx, {
-      name: "lineInviteBulk",
-      key: ctx.shop._id,
-    });
-    if (!ok) {
-      throw new ConvexError("送信が集中しています。しばらく待ってからお試しください");
-    }
-
-    const staffs = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
-      .collect();
-    const targets = staffs.filter((s) => s.email && (!s.lineUserId || s.lineFollowing === false));
-
-    for (let i = 0; i < targets.length; i++) {
-      await ctx.scheduler.runAfter(i * BULK_INVITE_INTERVAL_MS, internal.line.actions.sendInviteEmail, {
-        staffId: targets[i]._id as Id<"staffs">,
-      });
-    }
-    return { sentCount: targets.length };
   },
 });

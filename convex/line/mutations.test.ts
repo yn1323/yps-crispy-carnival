@@ -85,6 +85,9 @@ describe("line/mutations", () => {
   });
 
   describe("redeemLineToken / finalizeLinking", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("有効トークンは ok を返し、finalize で staffs に lineUserId が保存され usedAt が記録される", async () => {
       const t = convexTest(schema, modules);
       const { staffId, shopId } = await setupShop(t);
@@ -114,6 +117,11 @@ describe("line/mutations", () => {
           .first(),
       );
       expect(link?.usedAt).toBeGreaterThan(0);
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some((job) => job.name === "legal/actions:sendStaffConsentLine" && job.args[0]?.staffId === staffId),
+      ).toBe(true);
     });
 
     it("finalize の再実行は expired を返し、スタッフを上書きしない", async () => {
@@ -212,6 +220,9 @@ describe("line/mutations", () => {
   });
 
   describe("dispatchWebhookEvents", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("follow イベントで lineFollowing が true になる", async () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);
@@ -223,6 +234,11 @@ describe("line/mutations", () => {
       });
       const s = await t.run(async (ctx) => ctx.db.get(staffId));
       expect(s?.lineFollowing).toBe(true);
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some((job) => job.name === "legal/actions:sendStaffConsentLine" && job.args[0]?.staffId === staffId),
+      ).toBe(true);
     });
 
     it("unfollow イベントで lineFollowing が false になる", async () => {
@@ -348,47 +364,6 @@ describe("line/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { staffId }),
       ).rejects.toThrow("メールアドレスが未登録");
-    });
-  });
-
-  describe("sendInviteBulk", () => {
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
-
-    it("未連携スタッフだけが対象になる", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId } = await setupShop(t);
-      await t.run(async (ctx) => {
-        // 連携済み（friend OK）
-        await ctx.db.insert("staffs", {
-          shopId,
-          name: "連携済み",
-          email: "ok@example.com",
-          isDeleted: false,
-          lineUserId: "U_a",
-          lineFollowing: true,
-        });
-        // 連携済みだが友達解除（対象になる）
-        await ctx.db.insert("staffs", {
-          shopId,
-          name: "解除済み",
-          email: "unfollow@example.com",
-          isDeleted: false,
-          lineUserId: "U_b",
-          lineFollowing: false,
-        });
-        // メール未登録（対象外）
-        await ctx.db.insert("staffs", {
-          shopId,
-          name: "メールなし",
-          email: "",
-          isDeleted: false,
-        });
-      });
-
-      const r = await t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInviteBulk, {});
-      // setupShop の suzuki(未連携・email有) + 解除済み = 2件
-      expect(r.sentCount).toBe(2);
     });
   });
 });

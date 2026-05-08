@@ -74,6 +74,19 @@ export const Variants: Story = {
   ),
 };
 
+export const MetaItemsMobile: Story = {
+  args: {
+    shop: SHOP,
+    recruitments: [dueSoon, confirmed],
+    ...NOOP,
+  },
+  render: () => (
+    <Stack maxW="360px" mx="auto" w="full">
+      <HeroSummary shop={SHOP} recruitments={[dueSoon, confirmed]} {...NOOP} />
+    </Stack>
+  ),
+};
+
 const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <Stack gap={2}>
     <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">

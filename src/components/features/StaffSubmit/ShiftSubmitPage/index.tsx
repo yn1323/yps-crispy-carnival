@@ -5,7 +5,7 @@ import { type SubmissionData, SubmitFormView } from "../SubmitFormView";
 
 type Props = {
   data: SubmissionData;
-  onSubmit: (entries: DayEntry[]) => Promise<void>;
+  onSubmit: (entries: DayEntry[], acceptedLegal?: boolean) => Promise<void>;
 };
 
 export const ShiftSubmitPage = ({ data, onSubmit }: Props) => {

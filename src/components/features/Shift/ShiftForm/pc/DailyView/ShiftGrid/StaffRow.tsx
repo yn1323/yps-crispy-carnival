@@ -100,16 +100,16 @@ export const StaffRow = ({
           _hover={isReadOnly ? undefined : { color: "teal.600" }}
           onClick={isReadOnly ? undefined : () => onStaffNameClick(staff.id)}
         >
-          <Text fontSize="13px" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
+          <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
             {staff.name}
           </Text>
           {!isReadOnly && status === "no_request" && (
-            <Text color="gray.400" fontSize="10px" fontWeight={600} flexShrink={0} ml="auto">
+            <Text color="gray.400" textStyle="2xs" fontWeight={600} flexShrink={0} ml="auto">
               休み希望
             </Text>
           )}
           {!isReadOnly && status === "not_submitted" && (
-            <Text fontSize="10px" fontWeight={600} flexShrink={0} ml="auto" style={{ color: "#b45309" }}>
+            <Text textStyle="2xs" fontWeight={600} flexShrink={0} ml="auto" style={{ color: "#b45309" }}>
               未提出
             </Text>
           )}

@@ -14,6 +14,10 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TermsStaffRouteImport } from './routes/terms.staff'
+import { Route as TermsManagerRouteImport } from './routes/terms.manager'
+import { Route as PrivacyStaffRouteImport } from './routes/privacy.staff'
+import { Route as PrivacyManagerRouteImport } from './routes/privacy.manager'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
@@ -22,6 +26,7 @@ import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregist
 import { Route as UnregisteredDemoShiftboardRouteImport } from './routes/_unregistered/demo.shiftboard'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
+import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -45,6 +50,26 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const TermsStaffRoute = TermsStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => TermsRoute,
+} as any)
+const TermsManagerRoute = TermsManagerRouteImport.update({
+  id: '/manager',
+  path: '/manager',
+  getParentRoute: () => TermsRoute,
+} as any)
+const PrivacyStaffRoute = PrivacyStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => PrivacyRoute,
+} as any)
+const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
+  id: '/manager',
+  path: '/manager',
+  getParentRoute: () => PrivacyRoute,
 } as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
@@ -92,31 +117,47 @@ const UnregisteredShiftsSubmitCompletedRoute =
     path: '/shifts/submit/completed',
     getParentRoute: () => UnregisteredRoute,
   } as any)
+const UnregisteredLegalStaffConsentRoute =
+  UnregisteredLegalStaffConsentRouteImport.update({
+    id: '/legal/staff/consent',
+    path: '/legal/staff/consent',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/privacy': typeof PrivacyRoute
-  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRouteWithChildren
+  '/terms': typeof TermsRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
+  '/privacy/manager': typeof PrivacyManagerRoute
+  '/privacy/staff': typeof PrivacyStaffRoute
+  '/terms/manager': typeof TermsManagerRoute
+  '/terms/staff': typeof TermsStaffRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/privacy': typeof PrivacyRoute
-  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRouteWithChildren
+  '/terms': typeof TermsRouteWithChildren
   '/dashboard': typeof AuthDashboardRoute
+  '/privacy/manager': typeof PrivacyManagerRoute
+  '/privacy/staff': typeof PrivacyStaffRoute
+  '/terms/manager': typeof TermsManagerRoute
+  '/terms/staff': typeof TermsStaffRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRoutesById {
@@ -124,15 +165,20 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
-  '/privacy': typeof PrivacyRoute
-  '/terms': typeof TermsRoute
+  '/privacy': typeof PrivacyRouteWithChildren
+  '/terms': typeof TermsRouteWithChildren
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/privacy/manager': typeof PrivacyManagerRoute
+  '/privacy/staff': typeof PrivacyStaffRoute
+  '/terms/manager': typeof TermsManagerRoute
+  '/terms/staff': typeof TermsStaffRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_unregistered/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRouteTypes {
@@ -142,12 +188,17 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/dashboard'
+    | '/privacy/manager'
+    | '/privacy/staff'
+    | '/terms/manager'
+    | '/terms/staff'
     | '/shiftboard/$recruitmentId'
     | '/demo/shiftboard'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
+    | '/legal/staff/consent'
     | '/shifts/submit/completed'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -155,12 +206,17 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/dashboard'
+    | '/privacy/manager'
+    | '/privacy/staff'
+    | '/terms/manager'
+    | '/terms/staff'
     | '/shiftboard/$recruitmentId'
     | '/demo/shiftboard'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
+    | '/legal/staff/consent'
     | '/shifts/submit/completed'
   id:
     | '__root__'
@@ -170,12 +226,17 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/_auth/dashboard'
+    | '/privacy/manager'
+    | '/privacy/staff'
+    | '/terms/manager'
+    | '/terms/staff'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_unregistered/demo/shiftboard'
     | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
     | '/_unregistered/shifts/submit'
     | '/_unregistered/shifts/view'
+    | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
   fileRoutesById: FileRoutesById
 }
@@ -183,8 +244,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
-  PrivacyRoute: typeof PrivacyRoute
-  TermsRoute: typeof TermsRoute
+  PrivacyRoute: typeof PrivacyRouteWithChildren
+  TermsRoute: typeof TermsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -223,6 +284,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/terms/staff': {
+      id: '/terms/staff'
+      path: '/staff'
+      fullPath: '/terms/staff'
+      preLoaderRoute: typeof TermsStaffRouteImport
+      parentRoute: typeof TermsRoute
+    }
+    '/terms/manager': {
+      id: '/terms/manager'
+      path: '/manager'
+      fullPath: '/terms/manager'
+      preLoaderRoute: typeof TermsManagerRouteImport
+      parentRoute: typeof TermsRoute
+    }
+    '/privacy/staff': {
+      id: '/privacy/staff'
+      path: '/staff'
+      fullPath: '/privacy/staff'
+      preLoaderRoute: typeof PrivacyStaffRouteImport
+      parentRoute: typeof PrivacyRoute
+    }
+    '/privacy/manager': {
+      id: '/privacy/manager'
+      path: '/manager'
+      fullPath: '/privacy/manager'
+      preLoaderRoute: typeof PrivacyManagerRouteImport
+      parentRoute: typeof PrivacyRoute
     }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
@@ -280,6 +369,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredShiftsSubmitCompletedRouteImport
       parentRoute: typeof UnregisteredRoute
     }
+    '/_unregistered/legal/staff/consent': {
+      id: '/_unregistered/legal/staff/consent'
+      path: '/legal/staff/consent'
+      fullPath: '/legal/staff/consent'
+      preLoaderRoute: typeof UnregisteredLegalStaffConsentRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
   }
 }
 
@@ -301,6 +397,7 @@ interface UnregisteredRouteChildren {
   UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
   UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
   UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
+  UnregisteredLegalStaffConsentRoute: typeof UnregisteredLegalStaffConsentRoute
   UnregisteredShiftsSubmitCompletedRoute: typeof UnregisteredShiftsSubmitCompletedRoute
 }
 
@@ -310,6 +407,7 @@ const UnregisteredRouteChildren: UnregisteredRouteChildren = {
   UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
   UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
   UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
+  UnregisteredLegalStaffConsentRoute: UnregisteredLegalStaffConsentRoute,
   UnregisteredShiftsSubmitCompletedRoute:
     UnregisteredShiftsSubmitCompletedRoute,
 }
@@ -318,12 +416,37 @@ const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
   UnregisteredRouteChildren,
 )
 
+interface PrivacyRouteChildren {
+  PrivacyManagerRoute: typeof PrivacyManagerRoute
+  PrivacyStaffRoute: typeof PrivacyStaffRoute
+}
+
+const PrivacyRouteChildren: PrivacyRouteChildren = {
+  PrivacyManagerRoute: PrivacyManagerRoute,
+  PrivacyStaffRoute: PrivacyStaffRoute,
+}
+
+const PrivacyRouteWithChildren =
+  PrivacyRoute._addFileChildren(PrivacyRouteChildren)
+
+interface TermsRouteChildren {
+  TermsManagerRoute: typeof TermsManagerRoute
+  TermsStaffRoute: typeof TermsStaffRoute
+}
+
+const TermsRouteChildren: TermsRouteChildren = {
+  TermsManagerRoute: TermsManagerRoute,
+  TermsStaffRoute: TermsStaffRoute,
+}
+
+const TermsRouteWithChildren = TermsRoute._addFileChildren(TermsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
-  PrivacyRoute: PrivacyRoute,
-  TermsRoute: TermsRoute,
+  PrivacyRoute: PrivacyRouteWithChildren,
+  TermsRoute: TermsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

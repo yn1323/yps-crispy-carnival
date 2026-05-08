@@ -22,7 +22,7 @@ export function LegalPage({ title, lastUpdated, children }: LegalPageProps): Rea
         align="stretch"
         textAlign="left"
       >
-        <Heading as="h1" fontSize={{ base: "24px", lg: "32px" }} color="fg" fontWeight="bold">
+        <Heading as="h1" textStyle="pageTitle" color="fg">
           {title}
         </Heading>
         <Text fontSize="sm" color="fg.subtle">
@@ -40,7 +40,7 @@ type SectionProps = { title: string; children: ReactNode };
 export function Section({ title, children }: SectionProps): ReactNode {
   return (
     <VStack gap={3} align="stretch">
-      <Heading as="h2" fontSize={{ base: "20px", lg: "24px" }} color="teal.700" fontWeight="bold">
+      <Heading as="h2" textStyle="sectionTitle" color="teal.700">
         {title}
       </Heading>
       {children}
@@ -52,7 +52,7 @@ type SubHeadingProps = { children: ReactNode };
 
 export function SubHeading({ children }: SubHeadingProps): ReactNode {
   return (
-    <Text fontWeight="bold" fontSize={{ base: "16px", lg: "18px" }} color="fg">
+    <Text textStyle="lg" fontWeight="bold" color="fg">
       {children}
     </Text>
   );
@@ -62,7 +62,7 @@ type BodyProps = { children: ReactNode };
 
 export function Body({ children }: BodyProps): ReactNode {
   return (
-    <Text fontSize={{ base: "14px", lg: "15px" }} color="fg.muted" lineHeight={1.8}>
+    <Text textStyle="bodySm" color="fg.muted" lineHeight={1.8}>
       {children}
     </Text>
   );
@@ -74,7 +74,7 @@ export function BulletList({ items }: BulletListProps): ReactNode {
   return (
     <VStack as="ul" align="stretch" gap={2} pl={5} listStyleType="disc">
       {items.map((item) => (
-        <Text as="li" key={item} fontSize={{ base: "14px", lg: "15px" }} color="fg.muted" lineHeight={1.8}>
+        <Text as="li" key={item} textStyle="bodySm" color="fg.muted" lineHeight={1.8}>
           {item}
         </Text>
       ))}
