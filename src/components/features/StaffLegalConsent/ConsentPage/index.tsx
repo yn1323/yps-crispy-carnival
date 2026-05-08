@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 
 export type StaffLegalDocumentLinks = {
-  terms: { title: string; version: string; path: string };
-  privacy: { title: string; version: string; path: string };
+  terms: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
+  privacy: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
 };
 
 export type StaffLegalConsentPageData =

@@ -68,7 +68,7 @@ export function Terms({ audience = "manager" }: Props): ReactNode {
           </Link>
           をご確認ください。
         </Body>
-        <Body>文書バージョン: {documents.terms.version}</Body>
+        <Body>文書バージョン: {documents.terms.documentVersion}</Body>
       </Section>
     </LegalPage>
   );

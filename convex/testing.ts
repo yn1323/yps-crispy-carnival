@@ -141,7 +141,7 @@ async function resetOwnerScenarioData(ctx: MutationCtx, ownerId: string) {
   }
 }
 
-async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; shopName: string }) {
+async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; ownerEmail?: string; shopName: string }) {
   assertE2EHelpersEnabled();
   if (!args.ownerId) throw new Error("ownerId is required");
   await resetOwnerScenarioData(ctx, args.ownerId);
@@ -149,7 +149,7 @@ async function createOwnerScenario(ctx: MutationCtx, args: { ownerId: string; sh
   const userId = await ctx.db.insert("users", {
     clerkId: args.ownerId,
     name: DEFAULT_MANAGER.name,
-    email: DEFAULT_MANAGER.email,
+    email: args.ownerEmail ?? DEFAULT_MANAGER.email,
     role: "manager",
     isDeleted: false,
   });
@@ -630,10 +630,12 @@ export const seedSubmitTestData = internalMutation({
 export const seedDashboardPaginationScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { shopId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "ページネーションテスト店舗",
     });
 
@@ -673,11 +675,13 @@ export const seedDashboardPaginationScenario = internalMutation({
 export const seedNotificationSubmitScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "通知募集テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
@@ -690,11 +694,13 @@ export const seedNotificationSubmitScenario = internalMutation({
 export const seedOpenRecruitmentNotificationScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "追加通知テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
@@ -706,11 +712,13 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
 export const seedNotificationReminderScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "通知催促テスト店舗",
     });
     const remindedStaffId = await createStaff(ctx, {
@@ -741,11 +749,13 @@ export const seedNotificationReminderScenario = internalMutation({
 export const seedNotificationConfirmationViewScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "確定シフト閲覧テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "confirmed" });
@@ -765,10 +775,12 @@ export const seedNotificationConfirmationViewScenario = internalMutation({
 export const seedLineLinkScenario = internalMutation({
   args: {
     ownerId: v.string(),
+    ownerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
       ownerId: args.ownerId,
+      ownerEmail: args.ownerEmail,
       shopName: "LINE連携テスト店舗",
     });
 

@@ -16,6 +16,13 @@ type Story = StoryObj<typeof meta>;
 export const Normal: Story = {
   args: {
     shop: { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" },
+    managerLegalConsentStatus: {
+      required: false,
+      documents: {
+        terms: { title: "管理ユーザー向け利用規約", path: "/terms/manager" },
+        privacy: { title: "管理ユーザー向けプライバシーポリシー", path: "/privacy/manager" },
+      },
+    },
     recruitments: mockRecruitments,
     recruitmentStatus: "CanLoadMore",
     canLoadMoreRecruitments: true,
@@ -25,6 +32,19 @@ export const Normal: Story = {
     canLoadMoreStaffs: true,
     loadMoreStaffs: () => {},
     lineBulkInviteTargetCount: 2,
+  },
+};
+
+export const LegalReconsentRequired: Story = {
+  args: {
+    ...Normal.args,
+    managerLegalConsentStatus: {
+      required: true,
+      documents: {
+        terms: { title: "管理ユーザー向け利用規約", path: "/terms/manager" },
+        privacy: { title: "管理ユーザー向けプライバシーポリシー", path: "/privacy/manager" },
+      },
+    },
   },
 };
 

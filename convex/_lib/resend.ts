@@ -1,8 +1,12 @@
 import { Resend } from "resend";
 import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
 
-export function getResendClient(): Resend {
-  if (isNotificationDeliverySuppressed()) {
+type ResendClientOptions = {
+  suppressDelivery?: boolean;
+};
+
+export function getResendClient(options: ResendClientOptions = {}): Resend {
+  if (isNotificationDeliverySuppressed(options)) {
     return {
       emails: {
         send: async (payload: unknown) => {

@@ -15,6 +15,7 @@ import type * as _lib_lineCta from "../_lib/lineCta.js";
 import type * as _lib_lineSignature from "../_lib/lineSignature.js";
 import type * as _lib_notification from "../_lib/notification.js";
 import type * as _lib_notificationDelivery from "../_lib/notificationDelivery.js";
+import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeliveryQueries.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_time from "../_lib/time.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/lineSignature": typeof _lib_lineSignature;
   "_lib/notification": typeof _lib_notification;
   "_lib/notificationDelivery": typeof _lib_notificationDelivery;
+  "_lib/notificationDeliveryQueries": typeof _lib_notificationDeliveryQueries;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
   "_lib/time": typeof _lib_time;

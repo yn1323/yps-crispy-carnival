@@ -55,8 +55,10 @@ describe("setup/mutations", () => {
       expect(user?.name).toBe("山田 太郎");
       expect(user?.email).toBe("yamada@example.com");
       expect(user?.role).toBe("manager");
-      expect(user?.legalTermsVersion).toBe("manager-terms-2026-05-09");
-      expect(user?.legalPrivacyVersion).toBe("manager-privacy-2026-05-09");
+      expect(user?.legalTermsConsentVersion).toBe("manager-terms-consent-2026-05-09");
+      expect(user?.legalPrivacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
+      expect(user?.legalTermsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
+      expect(user?.legalPrivacyDocumentVersion).toBe("manager-privacy-doc-2026-05-09");
       expect(user?.legalConsentMethod).toBe("manager_setup");
 
       const staffs = await t.run(async (ctx) =>

@@ -26,7 +26,11 @@ export const sendReminderEmails = internalAction({
     if (!data || data.staffEntries.length === 0) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const resend = getResendClient();
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const resend = getResendClient({ suppressDelivery });
     const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
     const linkExpiresAtLabel = formatDateTimeLabel(expiresAt);
 
@@ -52,6 +56,7 @@ export const sendReminderEmails = internalAction({
               linkExpiresAtLabel,
               magicLinkUrl,
             }),
+            { suppressDelivery },
           );
           continue;
         } catch (e) {

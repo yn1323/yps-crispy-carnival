@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx, mutation } from "../_generated/server";
+import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
 import { getLegalConsentVersions, hasCurrentLegalConsent, type LegalConsentMethod } from "./documents";
 
@@ -23,8 +24,10 @@ export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaf
   const now = Date.now();
   const versions = getLegalConsentVersions("staff");
   const legalConsent = {
-    legalTermsVersion: versions.termsVersion,
-    legalPrivacyVersion: versions.privacyVersion,
+    legalTermsConsentVersion: versions.termsConsentVersion,
+    legalPrivacyConsentVersion: versions.privacyConsentVersion,
+    legalTermsDocumentVersion: versions.termsDocumentVersion,
+    legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
     legalConsentedAt: now,
     legalConsentMethod: args.method,
   };
@@ -47,8 +50,10 @@ export async function recordUserLegalConsent(ctx: MutationCtx, args: RecordUserC
   const now = Date.now();
   const versions = getLegalConsentVersions("manager");
   const legalConsent = {
-    legalTermsVersion: versions.termsVersion,
-    legalPrivacyVersion: versions.privacyVersion,
+    legalTermsConsentVersion: versions.termsConsentVersion,
+    legalPrivacyConsentVersion: versions.privacyConsentVersion,
+    legalTermsDocumentVersion: versions.termsDocumentVersion,
+    legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
     legalConsentedAt: now,
     legalConsentMethod: args.method,
   };
@@ -135,6 +140,25 @@ export const acceptStaffLegalConsentFromLine = internalMutation({
       shopId: args.shopId,
       method: "line_link_notice",
     });
+    return { status: "ok" as const };
+  },
+});
+
+export const acceptManagerLegalConsent = managerMutation({
+  args: {
+    acceptedLegal: v.literal(true),
+  },
+  handler: async (ctx) => {
+    if (hasCurrentLegalConsent(ctx.user, "manager")) {
+      return { status: "already_accepted" as const };
+    }
+
+    await recordUserLegalConsent(ctx, {
+      userId: ctx.user._id,
+      shopId: ctx.shop._id,
+      method: "manager_reconsent",
+    });
+
     return { status: "ok" as const };
   },
 });

@@ -16,6 +16,7 @@ import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
 import { HeroSummary, WelcomeHero } from "../HeroSummary";
+import { LegalReconsentBanner } from "../LegalReconsentBanner";
 import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
@@ -24,6 +25,13 @@ import type { PaginationStatus, Recruitment, Staff } from "../types";
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
+  managerLegalConsentStatus?: {
+    required: boolean;
+    documents: {
+      terms: { title: string; path: string };
+      privacy: { title: string; path: string };
+    };
+  };
   recruitments: Recruitment[];
   recruitmentStatus: PaginationStatus;
   canLoadMoreRecruitments: boolean;
@@ -37,6 +45,7 @@ type Props = {
 
 export const DashboardContent = ({
   shop,
+  managerLegalConsentStatus,
   recruitments,
   recruitmentStatus,
   canLoadMoreRecruitments,
@@ -64,8 +73,10 @@ export const DashboardContent = ({
   const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
   const [lineQrLoading, setLineQrLoading] = useState(false);
   const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
+  const [legalConsentSubmitting, setLegalConsentSubmitting] = useState(false);
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
+  const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
   const addStaffs = useMutation(api.staff.mutations.addStaffs);
   const editStaffMut = useMutation(api.staff.mutations.editStaff);
@@ -102,6 +113,18 @@ export const DashboardContent = ({
       toaster.create({ title: "募集をつくりました", type: "success" });
     } catch (error) {
       showErrorToast(error);
+    }
+  };
+
+  const handleAcceptManagerLegalConsent = async () => {
+    try {
+      setLegalConsentSubmitting(true);
+      await acceptManagerLegalConsent({ acceptedLegal: true });
+      toaster.create({ title: "同意を記録しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    } finally {
+      setLegalConsentSubmitting(false);
     }
   };
 
@@ -212,6 +235,13 @@ export const DashboardContent = ({
       <ContentWrapper>
         {shop ? (
           <>
+            {managerLegalConsentStatus?.required && (
+              <LegalReconsentBanner
+                documents={managerLegalConsentStatus.documents}
+                isSubmitting={legalConsentSubmitting}
+                onAccept={handleAcceptManagerLegalConsent}
+              />
+            )}
             <HeroSummary
               shop={shop}
               recruitments={recruitments}

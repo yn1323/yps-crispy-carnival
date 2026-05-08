@@ -1,52 +1,79 @@
 # 法務文書のバージョン更新メモ
 
-利用規約・プライバシーポリシーを変更したときに、同意バージョンの更新を忘れないための備忘録です。
+利用規約・プライバシーポリシーを更新するときの備忘録です。  
+このアプリでは「文書そのものの版」と「再同意を求める版」を分けています。
 
 ## 更新する場所
 
-現在有効な文書バージョンは `convex/legal/documents.ts` にあります。
+現在の文書情報は `convex/legal/documents.ts` の `LEGAL_DOCUMENTS` で管理します。
 
-- 管理ユーザー向け利用規約: `LEGAL_DOCUMENTS.manager.terms.version`
-- 管理ユーザー向けプライバシーポリシー: `LEGAL_DOCUMENTS.manager.privacy.version`
-- スタッフ向け利用規約: `LEGAL_DOCUMENTS.staff.terms.version`
-- スタッフ向けプライバシーポリシー: `LEGAL_DOCUMENTS.staff.privacy.version`
+- 管理ユーザー向け利用規約: `LEGAL_DOCUMENTS.manager.terms`
+- 管理ユーザー向けプライバシーポリシー: `LEGAL_DOCUMENTS.manager.privacy`
+- スタッフ向け利用規約: `LEGAL_DOCUMENTS.staff.terms`
+- スタッフ向けプライバシーポリシー: `LEGAL_DOCUMENTS.staff.privacy`
 
-文書本文は以下のコンポーネントを更新します。
+各文書には2種類の版があります。
+
+- `documentVersion`: 本文を更新したら上げる版
+- `requiredConsentVersion`: 再同意が必要な変更の時だけ上げる版
+
+文書本文は以下を更新します。
 
 - 利用規約: `src/components/features/Terms/index.tsx`
 - プライバシーポリシー: `src/components/features/PrivacyPolicy/index.tsx`
 
-## 手順
+## 軽微な修正の場合
 
-1. 対象文書の本文を更新する。
-2. `convex/legal/documents.ts` の対象 `version` を新しい値にする。
-3. `lastUpdated` の表示日も必要に応じて更新する。
-4. `pnpm lint` と `pnpm type-check` を実行する。
+誤字修正、表現の調整、説明の補足など、再同意までは不要な変更です。
 
-## バージョン命名
+1. 本文を更新する。
+2. 対象文書の `documentVersion` を上げる。
+3. 画面表示の `lastUpdated` も必要に応じて更新する。
+4. `requiredConsentVersion` は変更しない。
 
-基本は `audience-kind-YYYY-MM-DD` にします。
+この場合、既存ユーザー・スタッフに再同意は求められません。
 
-- 例: `manager-terms-2026-05-09`
-- 例: `staff-privacy-2026-05-09`
+## 再同意が必要な変更の場合
 
-同じ日に複数回変更する場合は末尾に `-2` などを付けます。
+取得する個人情報、利用目的、外部サービス、通知や操作条件、免責・禁止事項など、利用者の判断に影響する変更です。
 
-## 再同意が必要な変更
+1. 本文を更新する。
+2. 対象文書の `documentVersion` を上げる。
+3. 対象文書の `requiredConsentVersion` も上げる。
+4. 画面表示の `lastUpdated` も更新する。
 
-以下のような変更では、バージョンを必ず上げます。
+`requiredConsentVersion` を上げると、保存済みの同意版と一致しなくなるため再同意が必要になります。
 
-- 取得する個人情報の種類を増やす
-- 利用目的を追加または大きく変更する
-- 外部サービスや第三者提供の扱いを変更する
-- 免責、禁止事項、サービス利用条件を利用者に不利な方向へ変更する
-- スタッフの同意が必要な操作や通知の扱いを変更する
+- 管理ユーザー: ダッシュボード上部に再同意バナーが表示されます。
+- スタッフ: シフト提出時に同意チェックボックスが表示されます。
 
-誤字修正や表現の軽微な調整だけなら、バージョンを上げない判断もできます。
+## 命名ルール
+
+基本は用途が分かる名前にします。
+
+- 文書版: `audience-kind-doc-YYYY-MM-DD`
+- 同意要求版: `audience-kind-consent-YYYY-MM-DD`
+
+例:
+
+- `manager-terms-doc-2026-05-09`
+- `manager-terms-consent-2026-05-09`
+- `staff-privacy-doc-2026-05-09`
+- `staff-privacy-consent-2026-05-09`
+
+同じ日に複数回上げる場合は末尾に `-2` などを付けます。
 
 ## 動作メモ
 
-- バージョンを上げると、既存の同意は旧バージョン扱いになります。
+- 同意判定は `requiredConsentVersion` だけを見ます。
+- 同意履歴には、同意要求版と実際に同意した文書版の両方を保存します。
 - スタッフは未同意でもシフト募集・催促・確定通知を受け取れます。
-- スタッフはシフト提出時に最新バージョンへ同意していない場合、チェックボックスで同意してから提出します。
 - スタッフ同意メールのリンクは30日間有効です。
+- 管理ユーザーの再同意バナーは表示だけで、ダッシュボード操作はブロックしません。
+
+## 確認手順
+
+1. `convex/legal/documents.ts` の対象文書が意図した版になっていることを確認する。
+2. 軽微な修正なら `requiredConsentVersion` を変えていないことを確認する。
+3. 再同意が必要な修正なら `requiredConsentVersion` も上げたことを確認する。
+4. `pnpm lint` と `pnpm type-check` を実行する。
