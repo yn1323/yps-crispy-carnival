@@ -26,6 +26,7 @@ const heroBenefits = [
     icon: LuBell,
     title: "すぐ共有",
     body: "まとめて通知",
+    hideOnMobile: true,
   },
 ];
 
@@ -40,97 +41,74 @@ export const HeroSection = () => (
     gradientTo="white"
     color="gray.950"
   >
-    <Container position="relative" zIndex={1} maxW="7xl" pt={{ base: 5, md: 8 }} pb={{ base: 12, md: 16 }}>
-      <Flex as="header" align="center" justify="space-between" gap={6}>
-        <Brand />
+    <Box as="header" position="fixed" insetX={0} top={0} zIndex="sticky" bg="#dff1ff">
+      <Container maxW="7xl" py={{ base: 3, md: 4 }}>
+        <HeaderContent />
+      </Container>
+    </Box>
 
-        <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              color="gray.950"
-              textStyle="sm"
-              fontWeight="bold"
-              _hover={{ color: "teal.700", textDecoration: "none" }}
-            >
-              {item.label}
-            </Link>
-          ))}
-          <Flex align="center" gap={3}>
-            <SignInButton mode="modal">
-              <Button
-                type="button"
-                variant="solid"
-                colorPalette="teal"
-                h="48px"
-                px={6}
-                borderRadius="full"
-                fontWeight="bold"
-              >
-                ログイン
-              </Button>
-            </SignInButton>
-          </Flex>
-        </Flex>
-
-        <SignInButton mode="modal">
-          <Button
-            type="button"
-            display={{ base: "inline-flex", md: "none" }}
-            variant="solid"
-            colorPalette="teal"
-            h="42px"
-            px={5}
-            borderRadius="full"
-            fontWeight="bold"
-          >
-            ログイン
-          </Button>
-        </SignInButton>
-      </Flex>
-
+    <Container position="relative" zIndex={1} maxW="7xl" pt={{ base: 24, md: 28 }} pb={{ base: 12, md: 16 }}>
       <Grid
-        mt={{ base: 9, md: 16 }}
+        mt={{ base: 0, md: 4 }}
         templateColumns={{ base: "1fr", xl: "minmax(0, 0.88fr) minmax(520px, 1.12fr)" }}
-        gap={{ base: 8, xl: 10 }}
+        gap={{ base: 8, md: 9, xl: 10 }}
         alignItems="center"
       >
         <VStack align={{ base: "stretch", xl: "start" }} gap={{ base: 7, md: 8 }}>
-          <VStack align={{ base: "stretch", xl: "start" }} gap={{ base: 5, md: 6 }}>
-            <Heading
-              as="h1"
-              fontSize={{ base: "4xl", md: "5xl", xl: "6xl" }}
-              lineHeight={{ base: "2.75rem", md: "3.75rem", xl: "4.5rem" }}
-              letterSpacing="0"
+          <Grid
+            templateColumns={{ base: "1fr", md: "minmax(0, 0.92fr) minmax(320px, 1.08fr)", xl: "1fr" }}
+            gap={{ base: 5, md: 7 }}
+            alignItems="center"
+            w="full"
+          >
+            <VStack
+              align={{ base: "center", md: "start" }}
+              gap={{ base: 5, md: 6 }}
+              textAlign={{ base: "center", md: "left" }}
             >
-              シフト作成を
-              <Box as="span" display="block" color="teal.700">
-                もっとラク
-                <Box as="span" color="gray.950">
-                  に
+              <Heading
+                as="h1"
+                fontSize={{ base: "3xl", sm: "4xl", md: "5xl", xl: "6xl" }}
+                lineHeight={{ base: "2.25rem", sm: "2.75rem", md: "3.75rem", xl: "4.5rem" }}
+                letterSpacing="0"
+              >
+                シフト作成を
+                <Box as="span" display="block" color="teal.700">
+                  もっとラク
+                  <Box as="span" color="gray.950">
+                    に
+                  </Box>
                 </Box>
-              </Box>
-            </Heading>
+              </Heading>
 
-            <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
-              希望回収からシフト作成・通知まで、LINEでひとつに。
-              <Box as="span" display="block">
-                小さなお店向けのシフト管理ツールです。
-              </Box>
-            </Text>
-          </VStack>
+              <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+                希望回収からシフト作成・通知まで、LINEでひとつに。
+                <Box as="span" display="block">
+                  小さなお店向けのシフト管理ツールです。
+                </Box>
+              </Text>
+            </VStack>
+
+            <CompactHeroVisual />
+          </Grid>
 
           <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} w="full" maxW={{ md: "660px" }}>
             <SignUpButton mode="modal">
               <HeroButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
             </SignUpButton>
-            <Link href="/demo/shiftboard" target="_blank" rel="noopener noreferrer" _hover={{ textDecoration: "none" }}>
+            <Link
+              href="/demo/shiftboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              display="block"
+              w="full"
+              _hover={{ textDecoration: "none" }}
+            >
               <HeroButton icon={LuMonitorPlay} label="登録なしで試す" tone="secondary" />
             </Link>
           </SimpleGrid>
 
-          <SimpleGrid columns={{ base: 1, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
+          <SimpleGrid columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
             {heroBenefits.map((benefit) => (
               <HeroBenefit key={benefit.title} {...benefit} />
             ))}
@@ -141,6 +119,57 @@ export const HeroSection = () => (
       </Grid>
     </Container>
   </Box>
+);
+
+const HeaderContent = () => (
+  <Flex align="center" justify="space-between" gap={6}>
+    <Brand />
+
+    <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
+      {navItems.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          color="gray.950"
+          textStyle="sm"
+          fontWeight="bold"
+          _hover={{ color: "teal.700", textDecoration: "none" }}
+        >
+          {item.label}
+        </Link>
+      ))}
+      <Flex align="center" gap={3}>
+        <SignInButton mode="modal">
+          <Button
+            type="button"
+            variant="solid"
+            colorPalette="teal"
+            h="48px"
+            px={6}
+            borderRadius="full"
+            fontWeight="bold"
+          >
+            ログイン
+          </Button>
+        </SignInButton>
+      </Flex>
+    </Flex>
+
+    <SignInButton mode="modal">
+      <Button
+        type="button"
+        display={{ base: "inline-flex", md: "none" }}
+        variant="solid"
+        colorPalette="teal"
+        h="42px"
+        px={5}
+        borderRadius="full"
+        fontWeight="bold"
+      >
+        ログイン
+      </Button>
+    </SignInButton>
+  </Flex>
 );
 
 const Brand = () => (
@@ -161,6 +190,7 @@ const HeroButton = ({ icon, label, tone }: { icon: IconType; label: string; tone
     <Button
       type="button"
       h={{ base: "56px", md: "64px" }}
+      w="full"
       justifyContent="space-between"
       px={{ base: 5, md: 6 }}
       colorPalette="teal"
@@ -186,15 +216,18 @@ const HeroBenefit = ({
   imageSrc,
   title,
   body,
+  hideOnMobile,
 }: {
   icon?: IconType;
   imageSrc?: string;
   title: string;
   body: string;
+  hideOnMobile?: boolean;
 }) => (
   <Flex
+    display={{ base: hideOnMobile ? "none" : "flex", md: "flex" }}
     align="center"
-    gap={4}
+    gap={{ base: 3, md: 4 }}
     bg={{ base: "white", md: "transparent" }}
     borderWidth={{ base: "1px", md: "0" }}
     borderColor="blackAlpha.100"
@@ -229,17 +262,45 @@ const HeroBenefit = ({
   </Flex>
 );
 
-const HeroVisual = () => (
-  <>
-    <Box display={{ base: "block", xl: "none" }} maxW="360px" mx="auto" mt={{ base: 2, md: 0 }}>
-      <Image src={heroSpImage} alt="シフトリのスマホ通知イメージ" w="full" h="auto" objectFit="contain" />
+const CompactHeroVisual = () => (
+  <Box
+    display={{ base: "block", xl: "none" }}
+    position="relative"
+    alignSelf="center"
+    justifySelf="center"
+    w="full"
+    maxW={{ base: "320px", md: "400px", lg: "500px" }}
+    aspectRatio="1.08"
+    mt={{ base: 0, md: 2 }}
+  >
+    <Box position="absolute" insetStart="0" insetEnd="7%" insetBlockStart="8%">
+      <Image
+        src={heroPcImage}
+        alt="シフトリのPCシフト作成画面イメージ"
+        w="full"
+        h="auto"
+        objectFit="contain"
+        filter="drop-shadow(0 14px 22px rgba(12, 36, 48, 0.16))"
+      />
     </Box>
+    <Box position="absolute" insetEnd="0" insetBlockEnd="0" w="38%">
+      <Image
+        src={heroSpImage}
+        alt="シフトリのスマホ通知イメージ"
+        w="full"
+        h="auto"
+        objectFit="contain"
+        filter="drop-shadow(0 14px 24px rgba(12, 36, 48, 0.2))"
+      />
+    </Box>
+  </Box>
+);
 
-    <Box display={{ base: "none", xl: "block" }} position="relative" minH="520px">
-      <DashboardMock />
-      <PhoneMock />
-    </Box>
-  </>
+const HeroVisual = () => (
+  <Box display={{ base: "none", xl: "block" }} position="relative" minH="520px">
+    <DashboardMock />
+    <PhoneMock />
+  </Box>
 );
 
 const DashboardMock = () => (

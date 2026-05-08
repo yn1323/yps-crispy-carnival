@@ -62,8 +62,8 @@ export const FeatureSection = () => (
           <Heading
             as="h2"
             color="gray.950"
-            fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
-            lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+            fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
           >
             <Box as="span" color="teal.700">
               シフトリ
@@ -157,6 +157,7 @@ const featureImageVisuals: Partial<Record<FeatureVisualType, string>> = {
 
 const FeatureVisual = ({ type, featured }: { type: FeatureVisualType; featured?: boolean }) => {
   const imageSrc = featureImageVisuals[type];
+  const isShiftVisual = type === "shift";
 
   return (
     <Flex
@@ -165,7 +166,11 @@ const FeatureVisual = ({ type, featured }: { type: FeatureVisualType; featured?:
       justify="center"
       alignSelf={{ lg: "stretch" }}
       h={{ lg: "100%" }}
-      minH={{ base: featured ? "220px" : "170px", md: featured ? "240px" : "170px", lg: "100%" }}
+      minH={{
+        base: featured && !isShiftVisual ? "220px" : "170px",
+        md: featured && !isShiftVisual ? "240px" : "170px",
+        lg: "100%",
+      }}
       overflow="hidden"
     >
       {imageSrc && (
@@ -186,7 +191,7 @@ const FeatureVisual = ({ type, featured }: { type: FeatureVisualType; featured?:
 };
 
 const ShiftVisual = () => (
-  <Box position="relative" w="full" maxW={{ base: "360px", md: "520px" }} mx="auto">
+  <Box position="relative" w="full" maxW={{ base: "320px", md: "460px" }} mx="auto">
     <Image src={shiftFormImage} alt="シフト表を作る画面イメージ" w="full" objectFit="contain" loading="lazy" />
   </Box>
 );

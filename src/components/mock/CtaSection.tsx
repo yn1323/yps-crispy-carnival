@@ -27,8 +27,8 @@ export const CtaSection = () => (
           <VStack gap={{ base: 4, md: 6 }}>
             <Heading
               as="h2"
-              fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
-              lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+              fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
+              lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
             >
               まずは無料で試せます
             </Heading>
@@ -54,7 +54,7 @@ export const CtaSection = () => (
             </SimpleGrid>
           </Box>
 
-          <SimpleGrid columns={{ base: 1, md: 3 }} gap={{ base: 0, md: 8 }} w="full" maxW="980px">
+          <SimpleGrid columns={{ base: 1, lg: 3 }} gap={{ base: 0, lg: 8 }} w="full" maxW="980px">
             {benefits.map((benefit) => (
               <BenefitItem key={benefit.label} icon={benefit.icon} label={benefit.label} />
             ))}
@@ -103,13 +103,13 @@ const CtaButton = ({ icon, label, tone }: { icon: IconType; label: string; tone:
 const BenefitItem = ({ icon, label }: { icon: IconType; label: string }) => (
   <Flex
     align="center"
-    justify={{ base: "start", md: "center" }}
-    gap={{ base: 4, md: 5 }}
-    borderTopWidth={{ base: "1px", md: "0" }}
-    borderLeftWidth={{ base: "0", md: "1px" }}
+    justify={{ base: "start", lg: "center" }}
+    gap={{ base: 4, lg: 5 }}
+    borderTopWidth={{ base: "1px", lg: "0" }}
+    borderLeftWidth={{ base: "0", lg: "1px" }}
     borderColor="whiteAlpha.400"
-    px={{ base: 0, md: 6 }}
-    py={{ base: 5, md: 0 }}
+    px={{ base: 0, lg: 6 }}
+    py={{ base: 5, lg: 0 }}
     _first={{ borderTopWidth: "0", borderLeftWidth: "0" }}
   >
     <Flex
