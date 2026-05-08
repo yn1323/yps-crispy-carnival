@@ -134,7 +134,7 @@ export const refreshQuotaStatus = internalAction({
 
 /**
  * 連携依頼メール（個別 / 一括 共通）を1件送る
- * `sendInvite` / `sendInviteBulk` mutation から scheduler 経由で呼ばれる
+ * `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
  */
 export const sendInviteEmail = internalAction({
   args: { staffId: v.id("staffs") },

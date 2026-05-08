@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { LineBulkInviteContent } from "@/src/components/features/Line/LineBulkInviteContent";
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
@@ -40,7 +39,6 @@ type Props = {
   staffStatus: PaginationStatus;
   canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
-  lineBulkInviteTargetCount?: number;
 };
 
 export const DashboardContent = ({
@@ -54,7 +52,6 @@ export const DashboardContent = ({
   staffStatus,
   canLoadMoreStaffs,
   loadMoreStaffs,
-  lineBulkInviteTargetCount,
 }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
@@ -64,7 +61,6 @@ export const DashboardContent = ({
   const deleteStaffDialog = useDialog();
   const lineQrDialog = useDialog();
   const lineInviteDialog = useDialog();
-  const lineBulkInviteDialog = useDialog();
   const setupModal = useDialog();
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
@@ -84,7 +80,6 @@ export const DashboardContent = ({
   const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
   const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
-  const sendLineInviteBulk = useMutation(api.line.mutations.sendInviteBulk);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
@@ -212,24 +207,6 @@ export const DashboardContent = ({
     }
   };
 
-  const handleSendLineInviteBulkClick = () => {
-    lineBulkInviteDialog.open();
-  };
-
-  const handleSendLineInviteBulkConfirm = async () => {
-    try {
-      const r = await sendLineInviteBulk({});
-      lineBulkInviteDialog.close();
-      toaster.create({
-        title:
-          r.sentCount > 0 ? `${r.sentCount}名にLINE連携リンクをメールで送信しました` : "送信対象のスタッフがいません",
-        type: "success",
-      });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  };
-
   return (
     <>
       <ContentWrapper>
@@ -266,8 +243,6 @@ export const DashboardContent = ({
               onDelete={handleDeleteClick}
               onShowLineQr={handleShowLineQr}
               onSendLineInvite={handleSendLineInviteClick}
-              onSendLineInviteBulk={handleSendLineInviteBulkClick}
-              lineBulkInviteTargetCount={lineBulkInviteTargetCount}
               onLoadMore={loadMoreStaffs}
             />
           </>
@@ -372,17 +347,6 @@ export const DashboardContent = ({
         {lineInviteTarget && (
           <LineInviteConfirmContent staffName={lineInviteTarget.name} staffEmail={lineInviteTarget.email} />
         )}
-      </Dialog>
-
-      <Dialog
-        title="未連携のスタッフにまとめて送る"
-        isOpen={lineBulkInviteDialog.isOpen}
-        onOpenChange={lineBulkInviteDialog.onOpenChange}
-        onClose={lineBulkInviteDialog.close}
-        onSubmit={handleSendLineInviteBulkConfirm}
-        submitLabel="送信"
-      >
-        <LineBulkInviteContent unlinkedCount={lineBulkInviteTargetCount ?? 0} />
       </Dialog>
 
       {isSetupRequired && (

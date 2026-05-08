@@ -63,6 +63,39 @@ describe("staff/mutations", () => {
       expect(staffs.every((s) => !s.isDeleted)).toBe(true);
     });
 
+    it("追加スタッフ向けの同意依頼メールとLINE連携メールをスケジュールする", async () => {
+      const t = convexTest(schema, modules);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("users", {
+          clerkId: "user_mgr",
+          name: "管理者",
+          email: "mgr@example.com",
+          role: "manager",
+          isDeleted: false,
+        });
+        await ctx.db.insert("shops", {
+          name: "テスト店舗",
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+          ownerId: "user_mgr",
+          isDeleted: false,
+        });
+      });
+
+      const [staffId] = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
+      });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some((job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === staffId),
+      ).toBe(true);
+      expect(
+        scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffId),
+      ).toBe(true);
+    });
+
     it("空の name のエントリはスキップする", async () => {
       const t = convexTest(schema, modules);
 

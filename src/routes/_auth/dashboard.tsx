@@ -31,7 +31,6 @@ function DashboardPage() {
     api.legal.queries.getManagerConsentStatus,
     shop === undefined || shop === null ? "skip" : {},
   );
-  const lineBulkInviteTargetCount = useQuery(api.line.queries.getBulkInviteTargetCount, skipPagination ? "skip" : {});
   const recruitments = usePaginatedQuery(api.dashboard.queries.getDashboardRecruitments, skipPagination ? "skip" : {}, {
     initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE,
   });
@@ -85,7 +84,6 @@ function DashboardPage() {
           staffStatus={staffs.status}
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
-          lineBulkInviteTargetCount={lineBulkInviteTargetCount}
           managerLegalConsentStatus={managerLegalConsentStatus}
         />
       </Animation>

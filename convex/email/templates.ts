@@ -321,6 +321,7 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは72時間有効です。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">期限が切れた場合は、シフト作成担当者に連絡してください。</p>
           <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINE連携すると次回からメールではなく、LINEで届くようになります。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
