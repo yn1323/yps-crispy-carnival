@@ -32,8 +32,8 @@ export const ProblemSection = () => (
           <Heading
             as="h2"
             color="gray.950"
-            fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
-            lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+            fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
           >
             シフト作成は
             <Box as="span" color="teal.700">
@@ -46,7 +46,7 @@ export const ProblemSection = () => (
           </Text>
         </VStack>
 
-        <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} gap={{ base: 4, md: 7 }} w="full">
+        <SimpleGrid columns={{ base: 2, lg: 4 }} gap={{ base: 3, md: 7 }} w="full">
           {problemCards.map((card) => (
             <ProblemCard key={card.number} {...card} />
           ))}
@@ -100,30 +100,30 @@ const ProblemCard = ({ number, title, image, alt }: { number: string; title: str
   <Box
     bg="white"
     borderRadius="2xl"
-    px={{ base: 5, md: 8 }}
-    py={{ base: 5, md: 8 }}
+    px={{ base: 3, md: 8 }}
+    py={{ base: 4, md: 8 }}
     boxShadow="0 14px 34px rgba(15, 23, 42, 0.08)"
   >
-    <Flex align="center" gap={{ base: 3, md: 5 }}>
+    <Flex align="center" gap={{ base: 2, md: 5 }}>
       <Flex
         align="center"
         justify="center"
         flex="0 0 auto"
-        boxSize={{ base: 10, md: 14 }}
+        boxSize={{ base: 9, md: 14 }}
         bg="teal.500"
         color="white"
         borderRadius="full"
-        textStyle={{ base: "md", md: "xl" }}
+        textStyle={{ base: "sm", md: "xl" }}
         fontWeight="bold"
       >
         {number}
       </Flex>
-      <Heading as="h3" color="gray.950" textStyle={{ base: "md", md: "lg" }} lineHeight="1.4">
+      <Heading as="h3" color="gray.950" textStyle={{ base: "sm", md: "lg" }} lineHeight="1.35">
         {title}
       </Heading>
     </Flex>
 
-    <Flex align="center" justify="center" h={{ base: "148px", md: "220px" }} mt={{ base: 4, md: 8 }} borderRadius="xl">
+    <Flex align="center" justify="center" h={{ base: "116px", md: "220px" }} mt={{ base: 3, md: 8 }} borderRadius="xl">
       <Image src={image} alt={alt} maxH="full" w="full" objectFit="contain" loading="lazy" />
     </Flex>
   </Box>

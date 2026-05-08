@@ -38,8 +38,8 @@ export const FaqSection = () => (
           <Heading
             as="h2"
             color="gray.950"
-            fontSize={{ base: "3xl", md: "4xl", xl: "5xl" }}
-            lineHeight={{ base: "2.5rem", md: "3rem", xl: "3.75rem" }}
+            fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
           >
             よくある質問
           </Heading>

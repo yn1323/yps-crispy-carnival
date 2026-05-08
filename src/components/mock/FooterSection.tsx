@@ -5,7 +5,6 @@ type FooterColLink = { label: string; href: string };
 const productLinks: FooterColLink[] = [
   { label: "無料デモ", href: "/demo/shiftboard" },
   { label: "できること", href: "#features" },
-  { label: "使い方", href: "#how" },
 ];
 
 const supportLinks: FooterColLink[] = [{ label: "よくある質問", href: "#faq" }];
