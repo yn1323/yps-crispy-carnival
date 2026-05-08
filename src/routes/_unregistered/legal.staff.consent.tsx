@@ -35,8 +35,18 @@ function StaffLegalConsentRoute() {
           data={{
             status: "expired",
             documents: {
-              terms: { title: "スタッフ向け利用規約", version: "", path: "/terms/staff" },
-              privacy: { title: "スタッフ向けプライバシーポリシー", version: "", path: "/privacy/staff" },
+              terms: {
+                title: "スタッフ向け利用規約",
+                documentVersion: "",
+                requiredConsentVersion: "",
+                path: "/terms/staff",
+              },
+              privacy: {
+                title: "スタッフ向けプライバシーポリシー",
+                documentVersion: "",
+                requiredConsentVersion: "",
+                path: "/privacy/staff",
+              },
             },
           }}
         />

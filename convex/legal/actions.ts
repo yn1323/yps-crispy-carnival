@@ -15,6 +15,10 @@ export const sendStaffConsentEmail = internalAction({
   handler: async (ctx, { staffId }) => {
     const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
     if (!data?.staffEmail) return;
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
 
     const { token, expiresAt } = await ctx.runMutation(internal.legal.mutations.createStaffConsentToken, {
       staffId: data.staffId,
@@ -23,7 +27,7 @@ export const sendStaffConsentEmail = internalAction({
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
 
-    const resend = getResendClient();
+    const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
       from: `${data.shopName} <${RESEND_FROM}>`,
       to: data.staffEmail,
@@ -44,6 +48,10 @@ export const sendStaffConsentLine = internalAction({
   handler: async (ctx, { staffId }) => {
     const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
     if (!data?.lineUserId || data.lineFollowing === false) return;
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
 
     const { token, expiresAt } = await ctx.runMutation(internal.legal.mutations.createStaffConsentToken, {
       staffId: data.staffId,
@@ -61,6 +69,7 @@ export const sendStaffConsentLine = internalAction({
           consentUrl,
           expiresAt,
         }),
+        { suppressDelivery },
       );
     } catch (e) {
       console.error("Staff legal consent LINE push failed", e);

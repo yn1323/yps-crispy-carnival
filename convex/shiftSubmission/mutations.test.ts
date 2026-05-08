@@ -19,8 +19,10 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlineP
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
-      legalTermsVersion: "staff-terms-2026-05-09",
-      legalPrivacyVersion: "staff-privacy-2026-05-09",
+      legalTermsConsentVersion: "staff-terms-consent-2026-05-09",
+      legalPrivacyConsentVersion: "staff-privacy-consent-2026-05-09",
+      legalTermsDocumentVersion: "staff-terms-doc-2026-05-09",
+      legalPrivacyDocumentVersion: "staff-privacy-doc-2026-05-09",
       legalConsentedAt: Date.now(),
       legalConsentMethod: "staff_email_link",
       isDeleted: false,
@@ -172,13 +174,40 @@ describe("shiftSubmission/mutations", () => {
       expect(submission).not.toBeNull();
     });
 
+    it("文書バージョンだけ古い場合は再同意なしで提出できる", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, {
+          legalTermsDocumentVersion: "staff-terms-doc-old",
+          legalPrivacyDocumentVersion: "staff-privacy-doc-old",
+        });
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        recruitmentId,
+        requests: validRequests,
+      });
+
+      const submission = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .first(),
+      );
+      expect(submission).not.toBeNull();
+    });
+
     it("未同意スタッフは同意なしで提出できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(staffId, {
-          legalTermsVersion: undefined,
-          legalPrivacyVersion: undefined,
+          legalTermsConsentVersion: undefined,
+          legalPrivacyConsentVersion: undefined,
+          legalTermsDocumentVersion: undefined,
+          legalPrivacyDocumentVersion: undefined,
           legalConsentedAt: undefined,
           legalConsentMethod: undefined,
         });
@@ -198,8 +227,10 @@ describe("shiftSubmission/mutations", () => {
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(staffId, {
-          legalTermsVersion: undefined,
-          legalPrivacyVersion: undefined,
+          legalTermsConsentVersion: undefined,
+          legalPrivacyConsentVersion: undefined,
+          legalTermsDocumentVersion: undefined,
+          legalPrivacyDocumentVersion: undefined,
           legalConsentedAt: undefined,
           legalConsentMethod: undefined,
         });
@@ -221,8 +252,10 @@ describe("shiftSubmission/mutations", () => {
         return [staff, events] as const;
       });
 
-      expect(staff?.legalTermsVersion).toBe("staff-terms-2026-05-09");
-      expect(staff?.legalPrivacyVersion).toBe("staff-privacy-2026-05-09");
+      expect(staff?.legalTermsConsentVersion).toBe("staff-terms-consent-2026-05-09");
+      expect(staff?.legalPrivacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+      expect(staff?.legalTermsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
+      expect(staff?.legalPrivacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
       expect(staff?.legalConsentMethod).toBe("shift_submit");
       expect(events).toHaveLength(1);
       expect(events[0].method).toBe("shift_submit");

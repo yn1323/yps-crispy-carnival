@@ -12,13 +12,16 @@ export type LegalDocumentInfo = {
   audience: LegalAudience;
   kind: LegalDocumentKind;
   title: string;
-  version: string;
+  documentVersion: string;
+  requiredConsentVersion: string;
   path: string;
 };
 
 export type LegalConsentSnapshot = {
-  legalTermsVersion?: string;
-  legalPrivacyVersion?: string;
+  legalTermsConsentVersion?: string;
+  legalPrivacyConsentVersion?: string;
+  legalTermsDocumentVersion?: string;
+  legalPrivacyDocumentVersion?: string;
   legalConsentedAt?: number;
   legalConsentMethod?: LegalConsentMethod | string;
 };
@@ -29,14 +32,16 @@ export const LEGAL_DOCUMENTS = {
       audience: "manager",
       kind: "terms",
       title: "管理ユーザー向け利用規約",
-      version: "manager-terms-2026-05-09",
+      documentVersion: "manager-terms-doc-2026-05-09",
+      requiredConsentVersion: "manager-terms-consent-2026-05-09",
       path: "/terms/manager",
     },
     privacy: {
       audience: "manager",
       kind: "privacy",
       title: "管理ユーザー向けプライバシーポリシー",
-      version: "manager-privacy-2026-05-09",
+      documentVersion: "manager-privacy-doc-2026-05-09",
+      requiredConsentVersion: "manager-privacy-consent-2026-05-09",
       path: "/privacy/manager",
     },
   },
@@ -45,14 +50,16 @@ export const LEGAL_DOCUMENTS = {
       audience: "staff",
       kind: "terms",
       title: "スタッフ向け利用規約",
-      version: "staff-terms-2026-05-09",
+      documentVersion: "staff-terms-doc-2026-05-09",
+      requiredConsentVersion: "staff-terms-consent-2026-05-09",
       path: "/terms/staff",
     },
     privacy: {
       audience: "staff",
       kind: "privacy",
       title: "スタッフ向けプライバシーポリシー",
-      version: "staff-privacy-2026-05-09",
+      documentVersion: "staff-privacy-doc-2026-05-09",
+      requiredConsentVersion: "staff-privacy-consent-2026-05-09",
       path: "/privacy/staff",
     },
   },
@@ -65,8 +72,10 @@ export function getLegalDocumentsForAudience(audience: LegalAudience) {
 export function getLegalConsentVersions(audience: LegalAudience) {
   const documents = getLegalDocumentsForAudience(audience);
   return {
-    termsVersion: documents.terms.version,
-    privacyVersion: documents.privacy.version,
+    termsConsentVersion: documents.terms.requiredConsentVersion,
+    privacyConsentVersion: documents.privacy.requiredConsentVersion,
+    termsDocumentVersion: documents.terms.documentVersion,
+    privacyDocumentVersion: documents.privacy.documentVersion,
   };
 }
 
@@ -76,5 +85,8 @@ export function hasCurrentLegalConsent(
 ): boolean {
   if (!consent) return false;
   const current = getLegalConsentVersions(audience);
-  return consent.legalTermsVersion === current.termsVersion && consent.legalPrivacyVersion === current.privacyVersion;
+  return (
+    consent.legalTermsConsentVersion === current.termsConsentVersion &&
+    consent.legalPrivacyConsentVersion === current.privacyConsentVersion
+  );
 }

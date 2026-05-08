@@ -22,8 +22,8 @@ export type SubmissionData = {
   existingRequests: { date: string; startTime: string; endTime: string }[];
   legalConsentRequired: boolean;
   legalDocuments: {
-    terms: { title: string; version: string; path: string };
-    privacy: { title: string; version: string; path: string };
+    terms: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
+    privacy: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
   };
   timeRange: { startTime: string; endTime: string };
 };

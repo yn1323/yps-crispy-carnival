@@ -100,7 +100,7 @@ export function PrivacyPolicy({ audience = "manager" }: Props): ReactNode {
           </Link>
           をご確認ください。
         </Body>
-        <Body>文書バージョン: {documents.privacy.version}</Body>
+        <Body>文書バージョン: {documents.privacy.documentVersion}</Body>
       </Section>
     </LegalPage>
   );

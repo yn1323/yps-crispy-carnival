@@ -34,7 +34,11 @@ export const sendShiftConfirmationEmails = internalAction({
     if (!data) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const resend = getResendClient();
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const resend = getResendClient({ suppressDelivery });
 
     for (const staffData of data.staffEntries) {
       const channel = selectChannel(
@@ -59,7 +63,7 @@ export const sendShiftConfirmationEmails = internalAction({
           isResend,
         });
         try {
-          await pushTextMessage(staffData.lineUserId, text);
+          await pushTextMessage(staffData.lineUserId, text, { suppressDelivery });
         } catch (e) {
           console.error("LINE push failed; falling back to email", e);
           await sendConfirmationEmail({
@@ -144,6 +148,10 @@ export const sendReissueEmail = internalAction({
     if (!data) return log("warn", "data_not_found");
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
     const channel = selectChannel({ lineUserId: data.lineUserId, lineFollowing: data.lineFollowing }, quota);
     log("log", "channel_selected", {
       channel,
@@ -170,6 +178,7 @@ export const sendReissueEmail = internalAction({
             periodLabel: data.periodLabel,
             magicLinkUrl,
           }),
+          { suppressDelivery },
         );
         return log("log", "line_sent");
       } catch (e) {
@@ -180,7 +189,7 @@ export const sendReissueEmail = internalAction({
     if (!data.staffEmail) return log("log", "no_email_no_line_skip");
 
     try {
-      const resend = getResendClient();
+      const resend = getResendClient({ suppressDelivery });
       await resend.emails.send({
         from: `${data.shopName} <${RESEND_FROM}>`,
         to: data.staffEmail,
@@ -214,7 +223,11 @@ export const sendRecruitmentNotificationEmails = internalAction({
     if (!data) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
-    const resend = getResendClient();
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const resend = getResendClient({ suppressDelivery });
     const expiresAt = getDeadlineCutoff(data.deadline);
 
     for (const staff of data.staffEntries) {
@@ -239,6 +252,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
               deadline: formatDateLabel(data.deadline),
               magicLinkUrl,
             }),
+            { suppressDelivery },
           );
           continue;
         } catch (e) {
@@ -278,6 +292,10 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
   handler: async (ctx, { staffId }) => {
     const data = await ctx.runQuery(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, { staffId });
     if (!data || data.recruitments.length === 0 || !data.staff.email) return;
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
 
     for (const recruitment of data.recruitments) {
       const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
@@ -296,7 +314,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
       });
 
       try {
-        const resend = getResendClient();
+        const resend = getResendClient({ suppressDelivery });
         await resend.emails.send({
           from: `${data.shopName} <${RESEND_FROM}>`,
           to: data.staff.email,
@@ -326,6 +344,10 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
     if (!data || data.recruitments.length === 0 || !data.staff.lineUserId) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
     const channel = selectChannel(
       { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
       quota,
@@ -351,6 +373,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
             deadline: formatDateLabel(recruitment.deadline),
             magicLinkUrl,
           }),
+          { suppressDelivery },
         );
       } catch (e) {
         console.error("LINE push failed for open recruitment notification", e);

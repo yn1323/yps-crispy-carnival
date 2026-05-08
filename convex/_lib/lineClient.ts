@@ -22,9 +22,17 @@ function getMessagingAccessToken(): string {
 
 export type LineTextMessage = { type: "text"; text: string };
 
+type LineDeliveryOptions = {
+  suppressDelivery?: boolean;
+};
+
 /** Push 送信。連携済みかつ友達追加中のスタッフに対して使う */
-export async function pushTextMessage(toUserId: string, text: string): Promise<void> {
-  if (isNotificationDeliverySuppressed()) {
+export async function pushTextMessage(
+  toUserId: string,
+  text: string,
+  options: LineDeliveryOptions = {},
+): Promise<void> {
+  if (isNotificationDeliverySuppressed(options)) {
     logSuppressedNotification("line.push", { toUserIdLength: toUserId.length, textLength: text.length });
     return;
   }
@@ -44,8 +52,12 @@ export async function pushTextMessage(toUserId: string, text: string): Promise<v
 }
 
 /** Reply 送信。replyToken を消費する。課金対象外 */
-export async function replyTextMessage(replyToken: string, text: string): Promise<void> {
-  if (isNotificationDeliverySuppressed()) {
+export async function replyTextMessage(
+  replyToken: string,
+  text: string,
+  options: LineDeliveryOptions = {},
+): Promise<void> {
+  if (isNotificationDeliverySuppressed(options)) {
     logSuppressedNotification("line.reply", { replyTokenLength: replyToken.length, textLength: text.length });
     return;
   }

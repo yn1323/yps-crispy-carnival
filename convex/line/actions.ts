@@ -140,6 +140,10 @@ export const sendInviteEmail = internalAction({
   handler: async (ctx, { staffId }) => {
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
 
     const { token } = await ctx.runMutation(internal.line.mutations.createLinkTokenInternal, {
       staffId: data.staffId,
@@ -151,7 +155,7 @@ export const sendInviteEmail = internalAction({
       state: token,
     });
 
-    const resend = getResendClient();
+    const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
       from: `${data.shopName} <${RESEND_FROM}>`,
       to: data.staffEmail,

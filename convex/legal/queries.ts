@@ -1,6 +1,25 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
+import { managerQuery } from "../_lib/functions";
 import { getLegalDocumentsForAudience, hasCurrentLegalConsent } from "./documents";
+
+export const getManagerConsentStatus = managerQuery({
+  args: {},
+  handler: async (ctx) => {
+    const documents = getLegalDocumentsForAudience("manager");
+    if (!ctx.user || !ctx.shop) {
+      return {
+        required: false,
+        documents,
+      };
+    }
+
+    return {
+      required: !hasCurrentLegalConsent(ctx.user, "manager"),
+      documents,
+    };
+  },
+});
 
 export const getStaffConsentPageData = query({
   args: { token: v.string() },
