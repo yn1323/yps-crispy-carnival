@@ -1,20 +1,21 @@
-import { Box, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import {
-  LuArrowRight,
-  LuBell,
-  LuCalendarCheck,
-  LuClipboardCheck,
-  LuFileSpreadsheet,
-  LuMegaphone,
-  LuMessageCircle,
-} from "react-icons/lu";
+import { LuArrowRight, LuBell, LuCalendarCheck, LuMessageCircle } from "react-icons/lu";
+import issueCheckSubmissionImage from "./issue-check-submission.webp";
+import issueCollectImage from "./issue-collect.webp";
+import issueNotifyChangeImage from "./issue-notify-change.webp";
+import issueRewriteExcelImage from "./issue-rewrite-excel.webp";
 
 const problemCards = [
-  { number: "01", title: "希望を集める", icon: LuMessageCircle },
-  { number: "02", title: "未提出を確認する", icon: LuClipboardCheck },
-  { number: "03", title: "Excelに転記する", icon: LuFileSpreadsheet },
-  { number: "04", title: "変更を共有する", icon: LuMegaphone },
+  { number: "01", title: "希望を集める", image: issueCollectImage, alt: "LINEやメモで集まった希望を見返すイメージ" },
+  {
+    number: "02",
+    title: "未提出を確認する",
+    image: issueCheckSubmissionImage,
+    alt: "提出状況を確認して未提出者を把握するイメージ",
+  },
+  { number: "03", title: "Excelに転記する", image: issueRewriteExcelImage, alt: "集めた希望をExcelに転記するイメージ" },
+  { number: "04", title: "変更を共有する", image: issueNotifyChangeImage, alt: "完成後の変更を共有するイメージ" },
 ];
 
 const solutionSteps = [
@@ -40,7 +41,7 @@ export const ProblemSection = () => (
           </Text>
         </VStack>
 
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={{ base: 5, md: 7 }} w="full">
+        <SimpleGrid columns={{ base: 2, lg: 4 }} gap={{ base: 4, md: 7 }} w="full">
           {problemCards.map((card) => (
             <ProblemCard key={card.number} {...card} />
           ))}
@@ -56,9 +57,14 @@ export const ProblemSection = () => (
         >
           <SimpleGrid columns={{ base: 1, lg: 2 }} gap={{ base: 8, lg: 10 }} alignItems="center">
             <VStack align={{ base: "center", lg: "start" }} gap={3} textAlign={{ base: "center", lg: "left" }}>
-              <Text color="gray.950" fontSize={{ base: "lg", md: "2xl" }} fontWeight="bold">
-                シフトリなら、
-              </Text>
+              <Flex align="center" justify={{ base: "center", lg: "start" }} gap={3}>
+                <Flex align="center" justify="center" boxSize={{ base: 12, md: 14 }} bg="white" borderRadius="full">
+                  <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 8, md: 10 }} objectFit="contain" />
+                </Flex>
+                <Text color="gray.950" fontSize={{ base: "lg", md: "2xl" }} fontWeight="bold">
+                  シフトリなら、
+                </Text>
+              </Flex>
               <Heading as="h3" color="gray.950" fontSize={{ base: "2xl", md: "4xl" }} lineHeight="1.35">
                 <Box as="span" color="teal.700">
                   集める・作る・共有する
@@ -73,11 +79,11 @@ export const ProblemSection = () => (
               </Text>
             </VStack>
 
-            <Flex align="stretch" justify="center" direction={{ base: "column", md: "row" }} gap={{ base: 4, md: 5 }}>
+            <SimpleGrid columns={3} gap={{ base: 2, md: 5 }} w="full">
               {solutionSteps.map((step, index) => (
                 <SolutionStep key={step.title} {...step} showArrow={index < solutionSteps.length - 1} />
               ))}
-            </Flex>
+            </SimpleGrid>
           </SimpleGrid>
         </Box>
       </VStack>
@@ -85,44 +91,35 @@ export const ProblemSection = () => (
   </Box>
 );
 
-const ProblemCard = ({ number, title, icon }: { number: string; title: string; icon: IconType }) => (
+const ProblemCard = ({ number, title, image, alt }: { number: string; title: string; image: string; alt: string }) => (
   <Box
     bg="white"
     borderRadius="2xl"
-    px={{ base: 6, md: 8 }}
-    py={{ base: 7, md: 8 }}
+    px={{ base: 4, md: 8 }}
+    py={{ base: 5, md: 8 }}
     boxShadow="0 14px 34px rgba(15, 23, 42, 0.08)"
   >
-    <Flex align="center" gap={5}>
+    <Flex align="center" gap={{ base: 3, md: 5 }}>
       <Flex
         align="center"
         justify="center"
         flex="0 0 auto"
-        boxSize={{ base: 12, md: 14 }}
+        boxSize={{ base: 10, md: 14 }}
         bg="teal.500"
         color="white"
         borderRadius="full"
-        fontSize={{ base: "lg", md: "xl" }}
+        fontSize={{ base: "md", md: "xl" }}
         fontWeight="bold"
       >
         {number}
       </Flex>
-      <Heading as="h3" color="gray.950" fontSize={{ base: "xl", md: "xl" }} lineHeight="1.4">
+      <Heading as="h3" color="gray.950" fontSize={{ base: "md", md: "xl" }} lineHeight="1.4">
         {title}
       </Heading>
     </Flex>
 
-    <Flex
-      aria-hidden="true"
-      align="center"
-      justify="center"
-      h={{ base: "180px", md: "220px" }}
-      mt={{ base: 6, md: 8 }}
-      color="teal.600"
-      borderRadius="xl"
-      bg="linear-gradient(135deg, rgba(204, 251, 241, 0.45), rgba(255, 255, 255, 0.9))"
-    >
-      <Icon as={icon} boxSize={{ base: 16, md: 20 }} opacity={0.18} />
+    <Flex align="center" justify="center" h={{ base: "132px", md: "220px" }} mt={{ base: 4, md: 8 }} borderRadius="xl">
+      <Image src={image} alt={alt} maxH="full" w="full" objectFit="contain" loading="lazy" />
     </Flex>
   </Box>
 );
@@ -138,23 +135,23 @@ const SolutionStep = ({
   body: string;
   showArrow: boolean;
 }) => (
-  <Flex align="center" gap={{ base: 4, md: 5 }}>
+  <Flex align="center" justify="center" gap={{ base: 2, md: 5 }}>
     <VStack gap={3} minW={{ base: "auto", md: "120px" }} textAlign="center">
       <Flex
         align="center"
         justify="center"
-        boxSize={{ base: 16, md: 20 }}
+        boxSize={{ base: 14, md: 20 }}
         bg="white"
         color="teal.700"
         borderRadius="full"
       >
-        <Icon as={icon} boxSize={{ base: 8, md: 10 }} />
+        <Icon as={icon} boxSize={{ base: 7, md: 10 }} />
       </Flex>
       <VStack gap={1}>
-        <Text color="teal.700" fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
+        <Text color="teal.700" fontSize={{ base: "md", md: "xl" }} fontWeight="bold">
           {title}
         </Text>
-        <Text color="gray.950" fontSize="sm" fontWeight="bold" lineHeight="1.6">
+        <Text display={{ base: "none", md: "block" }} color="gray.950" fontSize="sm" fontWeight="bold" lineHeight="1.6">
           {body}
         </Text>
       </VStack>
