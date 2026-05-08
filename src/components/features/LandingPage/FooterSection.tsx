@@ -31,9 +31,7 @@ export const FooterSection = () => (
           </HStack>
         </Link>
         <Text textStyle="bodySm" opacity={0.85} lineHeight={1.7} maxW="260px">
-          少人数のお店のシフトづくりを
-          <br />
-          もっとラクに
+          シフト作成をもっとラクに
         </Text>
       </VStack>
 
