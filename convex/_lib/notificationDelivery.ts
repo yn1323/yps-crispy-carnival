@@ -13,7 +13,8 @@ export function isNotificationDeliverySuppressed(options: SuppressionOptions = {
 export function isDryRunOwnerEmail(ownerEmail: string | undefined | null): boolean {
   const normalizedOwnerEmail = ownerEmail?.trim().toLowerCase();
   if (!normalizedOwnerEmail) return false;
-  const ownerDomain = normalizedOwnerEmail.includes("@") ? normalizedOwnerEmail.split("@").at(-1) : null;
+  const ownerEmailParts = normalizedOwnerEmail.split("@");
+  const ownerDomain = ownerEmailParts.length > 1 ? ownerEmailParts[ownerEmailParts.length - 1] : null;
 
   return (process.env.NOTIFICATION_DRY_RUN_USER_EMAILS ?? "")
     .split(",")
