@@ -68,7 +68,7 @@ export const FeatureSection = () => (
             <Box as="span" color="teal.700">
               シフトリ
             </Box>
-            で 希望回収から通知までひとつに
+            で 希望回収から確定までひとつに
           </Heading>
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
             未提出確認、シフト表の作成、スタッフへの通知まで、同じ流れで進められます。

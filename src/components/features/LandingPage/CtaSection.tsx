@@ -1,4 +1,16 @@
-import { Box, Button, Container, Flex, Heading, Icon, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  type ButtonProps,
+  Container,
+  Flex,
+  Heading,
+  Icon,
+  Link,
+  SimpleGrid,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 import { SignUpButton } from "@clerk/clerk-react";
 import type { IconType } from "react-icons";
 import { LuChevronRight, LuClock, LuMonitor, LuMonitorPlay, LuSmartphone, LuUserPlus } from "react-icons/lu";
@@ -69,7 +81,13 @@ export const CtaSection = () => (
   </Box>
 );
 
-const CtaButton = ({ icon, label, tone }: { icon: IconType; label: string; tone: "primary" | "secondary" }) => {
+type CtaButtonProps = {
+  icon: IconType;
+  label: string;
+  tone: "primary" | "secondary";
+} & ButtonProps;
+
+const CtaButton = ({ icon, label, tone, ...buttonProps }: CtaButtonProps) => {
   const isPrimary = tone === "primary";
 
   return (
@@ -90,6 +108,7 @@ const CtaButton = ({ icon, label, tone }: { icon: IconType; label: string; tone:
       whiteSpace="normal"
       _hover={{ bg: isPrimary ? "teal.50" : "whiteAlpha.200" }}
       _active={{ bg: isPrimary ? "teal.100" : "whiteAlpha.300" }}
+      {...buttonProps}
     >
       <Flex align="center" gap={{ base: 3, md: 5 }}>
         <Icon as={icon} boxSize={{ base: 6, md: 7 }} />
