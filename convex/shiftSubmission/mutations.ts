@@ -3,6 +3,8 @@ import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { timeToMinutes } from "../_lib/time";
+import { hasCurrentLegalConsent } from "../legal/documents";
+import { recordStaffLegalConsent } from "../legal/mutations";
 import { submitShiftRequestsSchema } from "./schemas";
 
 /**
@@ -12,6 +14,7 @@ import { submitShiftRequestsSchema } from "./schemas";
 export const submitShiftRequests = staffSessionMutation({
   args: {
     recruitmentId: v.id("recruitments"),
+    acceptedLegal: v.optional(v.boolean()),
     requests: v.array(
       v.object({
         date: v.string(),
@@ -45,6 +48,18 @@ export const submitShiftRequests = staffSessionMutation({
     const parsed = submitShiftRequestsSchema.safeParse({ requests: args.requests });
     if (!parsed.success) {
       throw new ConvexError("Invalid request data");
+    }
+
+    if (!hasCurrentLegalConsent(ctx.staff, "staff")) {
+      if (args.acceptedLegal !== true) {
+        throw new ConvexError("Legal consent required");
+      }
+      await recordStaffLegalConsent(ctx, {
+        staffId: ctx.staff._id,
+        shopId: ctx.shop._id,
+        method: "shift_submit",
+        sourceRecruitmentId: args.recruitmentId,
+      });
     }
 
     for (const req of args.requests) {

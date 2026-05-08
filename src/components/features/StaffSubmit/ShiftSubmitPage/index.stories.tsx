@@ -11,6 +11,11 @@ const baseData: SubmissionData = {
   isBeforeDeadline: true,
   hasSubmitted: false,
   existingRequests: [],
+  legalConsentRequired: false,
+  legalDocuments: {
+    terms: { title: "スタッフ向け利用規約", version: "staff-terms-2026-05-09", path: "/terms/staff" },
+    privacy: { title: "スタッフ向けプライバシーポリシー", version: "staff-privacy-2026-05-09", path: "/privacy/staff" },
+  },
   timeRange: { startTime: "09:00", endTime: "22:00" },
 };
 
@@ -76,6 +81,16 @@ export const StateD_Expired: Story = {
       ...baseData,
       isBeforeDeadline: false,
       hasSubmitted: false,
+    },
+  },
+};
+
+export const StateE_LegalConsentRequired: Story = {
+  args: {
+    onSubmit: noop,
+    data: {
+      ...baseData,
+      legalConsentRequired: true,
     },
   },
 };

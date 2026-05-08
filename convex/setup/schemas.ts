@@ -17,6 +17,9 @@ export type CreateShopInput = z.infer<typeof createShopSchema>;
 export const ownerProfileSchema = z.object({
   name: z.string().min(1, "名前を入力してください"),
   email: z.string().min(1, "メールアドレスを入力してください").email("正しいメールアドレスを入力してください"),
+  acceptedLegal: z.boolean().refine((value) => value, {
+    message: "利用規約とプライバシーポリシーに同意してください",
+  }),
 });
 
 export type OwnerProfileInput = z.infer<typeof ownerProfileSchema>;

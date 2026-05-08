@@ -28,6 +28,9 @@ export const addStaffs = managerMutation({
       inserted.push(id);
     }
     for (const staffId of inserted) {
+      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
+        staffId,
+      });
       await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
         staffId,
       });

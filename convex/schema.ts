@@ -23,6 +23,10 @@ const schema = defineSchema({
     name: v.string(),
     email: v.string(),
     role: v.union(v.literal("admin"), v.literal("manager")),
+    legalTermsVersion: v.optional(v.string()),
+    legalPrivacyVersion: v.optional(v.string()),
+    legalConsentedAt: v.optional(v.number()),
+    legalConsentMethod: v.optional(v.string()),
     isDeleted: v.boolean(),
   }).index("by_clerkId", ["clerkId"]),
 
@@ -34,6 +38,10 @@ const schema = defineSchema({
     name: v.string(),
     email: v.string(),
     userId: v.optional(v.id("users")),
+    legalTermsVersion: v.optional(v.string()),
+    legalPrivacyVersion: v.optional(v.string()),
+    legalConsentedAt: v.optional(v.number()),
+    legalConsentMethod: v.optional(v.string()),
     isDeleted: v.boolean(),
     // LINE 連携
     lineUserId: v.optional(v.string()), // LINE プロフィール userId
@@ -177,16 +185,31 @@ const schema = defineSchema({
     plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
   }),
 
-  // ========================================
-  // マネージャー招待（Phase 2、スキーマのみ）
-  // ========================================
-  invites: defineTable({
+  legalConsentTokens: defineTable({
+    staffId: v.id("staffs"),
     shopId: v.id("shops"),
-    email: v.string(),
     token: v.string(),
+    method: v.string(),
     expiresAt: v.number(),
     usedAt: v.optional(v.number()),
-  }).index("by_token", ["token"]),
+  })
+    .index("by_token", ["token"])
+    .index("by_staffId", ["staffId"]),
+
+  legalConsentEvents: defineTable({
+    subjectType: v.union(v.literal("user"), v.literal("staff")),
+    userId: v.optional(v.id("users")),
+    staffId: v.optional(v.id("staffs")),
+    shopId: v.id("shops"),
+    termsVersion: v.string(),
+    privacyVersion: v.string(),
+    consentedAt: v.number(),
+    method: v.string(),
+    sourceRecruitmentId: v.optional(v.id("recruitments")),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_staffId", ["staffId"])
+    .index("by_shopId", ["shopId"]),
 });
 
 export default schema;

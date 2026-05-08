@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
+import { getLegalDocumentsForAudience, hasCurrentLegalConsent } from "../legal/documents";
 
 /**
  * シフト提出画面のデータ取得
@@ -44,6 +45,8 @@ export const getSubmissionPageData = staffSessionQuery({
         startTime: r.startTime,
         endTime: r.endTime,
       })),
+      legalConsentRequired: !hasCurrentLegalConsent(ctx.staff, "staff"),
+      legalDocuments: getLegalDocumentsForAudience("staff"),
       timeRange: {
         startTime: ctx.shop.shiftStartTime,
         endTime: ctx.shop.shiftEndTime,

@@ -132,6 +132,11 @@ export const finalizeLinking = internalMutation({
       lineFollowing: args.lineFollowing,
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
+    if (args.lineFollowing) {
+      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+        staffId: args.staffId,
+      });
+    }
     if (args.lineFollowing && staff && !staff.lineFollowing && !staff.isDeleted) {
       await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
@@ -150,6 +155,9 @@ export const markFollowing = internalMutation({
     const staff = await ctx.db.get(args.staffId);
     await ctx.db.patch(args.staffId, { lineFollowing: args.following });
     if (args.following && staff && !staff.lineFollowing && !staff.isDeleted) {
+      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+        staffId: args.staffId,
+      });
       await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
       });
@@ -198,6 +206,9 @@ export const dispatchWebhookEvents = internalMutation({
         const wasFollowing = Boolean(staff.lineFollowing);
         await ctx.db.patch(staff._id, { lineFollowing: following });
         if (following && !wasFollowing) {
+          await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
+            staffId: staff._id,
+          });
           await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
             staffId: staff._id,
           });

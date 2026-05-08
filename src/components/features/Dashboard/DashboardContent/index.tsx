@@ -87,6 +87,7 @@ export const DashboardContent = ({
         shiftEndTime: data.shiftEndTime,
         ownerName: data.name,
         ownerEmail: data.email,
+        acceptedLegal: data.acceptedLegal as true,
       });
       toaster.create({ title: "セットアップが完了しました", type: "success" });
     } catch (error) {
