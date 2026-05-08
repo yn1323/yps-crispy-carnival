@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
+import { getLegalConsentVersions } from "./documents";
 
 async function setupStaff(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
@@ -181,5 +182,38 @@ describe("legal/mutations", () => {
       .withIdentity({ subject: "manager_current" })
       .query(api.legal.queries.getManagerConsentStatus, {});
     expect(oldConsentResult.required).toBe(true);
+  });
+
+  it("同意済みスタッフには同意依頼通知データを返さない", async () => {
+    const t = convexTest(schema, modules);
+    const versions = getLegalConsentVersions("staff");
+    const { staffId } = await t.run(async (ctx) => {
+      const shopId = await ctx.db.insert("shops", {
+        name: "テスト店舗",
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+        ownerId: "owner",
+        isDeleted: false,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "田中 太郎",
+        email: "tanaka@example.com",
+        lineUserId: "U_staff",
+        lineFollowing: true,
+        legalTermsConsentVersion: versions.termsConsentVersion,
+        legalPrivacyConsentVersion: versions.privacyConsentVersion,
+        legalTermsDocumentVersion: versions.termsDocumentVersion,
+        legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
+        legalConsentedAt: Date.now() - 1000,
+        legalConsentMethod: "staff_email_link",
+        isDeleted: false,
+      });
+      return { staffId };
+    });
+
+    const data = await t.query(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
+
+    expect(data).toBeNull();
   });
 });

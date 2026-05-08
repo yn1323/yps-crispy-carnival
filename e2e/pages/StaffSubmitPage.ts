@@ -36,6 +36,24 @@ export class StaffSubmitPage {
     await expect(this.page.getByRole("button", { name: /提出|更新/ })).not.toBeVisible();
   }
 
+  async expectLegalConsentVisible() {
+    await expect(
+      this.page.getByText(/初回の提出時、または利用規約・プライバシーポリシーに大きな変更があった場合のみ/),
+    ).toBeVisible();
+    await expect(this.legalConsentCheckbox()).toBeVisible();
+  }
+
+  async expectLegalConsentNotVisible() {
+    await expect(
+      this.page.getByText(/初回の提出時、または利用規約・プライバシーポリシーに大きな変更があった場合のみ/),
+    ).not.toBeVisible();
+    await expect(this.legalConsentCheckbox()).not.toBeVisible();
+  }
+
+  async acceptLegalConsent() {
+    await this.page.locator("[data-scope='checkbox'][data-part='control']").click();
+  }
+
   async toggleDay(dateText: string) {
     const dateEl = this.page.getByText(dateText, { exact: true });
     await dateEl.locator("..").click();
@@ -61,5 +79,9 @@ export class StaffSubmitPage {
   async expectDayOff(dateText: string) {
     const row = this.page.getByText(dateText, { exact: true }).locator("..");
     await expect(row.getByText("休み")).toBeVisible();
+  }
+
+  private legalConsentCheckbox() {
+    return this.page.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー/ });
   }
 }
