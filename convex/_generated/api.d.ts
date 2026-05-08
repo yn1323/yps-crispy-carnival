@@ -9,6 +9,7 @@
  */
 
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
+import type * as _lib_emailFormat from "../_lib/emailFormat.js";
 import type * as _lib_functions from "../_lib/functions.js";
 import type * as _lib_lineClient from "../_lib/lineClient.js";
 import type * as _lib_lineCta from "../_lib/lineCta.js";
@@ -67,6 +68,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/dateFormat": typeof _lib_dateFormat;
+  "_lib/emailFormat": typeof _lib_emailFormat;
   "_lib/functions": typeof _lib_functions;
   "_lib/lineClient": typeof _lib_lineClient;
   "_lib/lineCta": typeof _lib_lineCta;
