@@ -14,7 +14,7 @@ export class DashboardPage {
     ownerName: string;
     ownerEmail: string;
   }) {
-    await this.page.getByRole("button", { name: /店舗を登録する|お店を登録する/ }).click();
+    await this.page.getByRole("button", { name: /お店を登録する/ }).click();
     await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
     await this.page.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
     await this.selectTime("シフト開始時間", data.shiftStartTime);
@@ -25,11 +25,27 @@ export class DashboardPage {
     await expect(ownerDialog).toBeVisible();
     await ownerDialog.getByLabel("あなたの名前").fill(data.ownerName);
     await ownerDialog.getByLabel("メールアドレス").fill(data.ownerEmail);
+    await ownerDialog.locator("[data-scope='checkbox'][data-part='control']").click();
     await ownerDialog.getByRole("button", { name: "お店を登録する" }).click();
   }
 
   async expectSetupComplete() {
     await expect(this.page.getByText("セットアップが完了しました")).toBeVisible();
+  }
+
+  async expectLegalReconsentVisible() {
+    await expect(this.legalReconsentMessage()).toBeVisible();
+  }
+
+  async expectLegalReconsentNotVisible() {
+    await expect(this.legalReconsentMessage()).not.toBeVisible();
+  }
+
+  async acceptLegalReconsent() {
+    await this.page.locator("[data-scope='checkbox'][data-part='control']").click();
+    await this.page.getByRole("button", { name: "OK" }).click();
+    await expect(this.page.getByText("同意を記録しました")).toBeVisible();
+    await this.expectLegalReconsentNotVisible();
   }
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
@@ -236,6 +252,10 @@ export class DashboardPage {
 
   private staffSection() {
     return this.page.getByRole("heading", { name: "スタッフ一覧", exact: true }).locator("xpath=ancestor::*[3]");
+  }
+
+  private legalReconsentMessage() {
+    return this.page.getByText("利用規約・プライバシーポリシーを更新しました");
   }
 
   private async openStaffMenu(staffName: string) {
