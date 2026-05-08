@@ -12,9 +12,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const PC: Story = {};
+export const Desktop: Story = {};
 
-export const SP: Story = {
+export const Mobile: Story = {
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },

@@ -2,7 +2,7 @@ import { Box, Container, Flex, Grid, Heading, Icon, Image, Link, SimpleGrid, Tex
 import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 import type { IconType } from "react-icons";
 import { LuBell, LuCalendarDays, LuChevronRight, LuMonitorPlay, LuUserPlus } from "react-icons/lu";
-import { Button } from "@/src/components/ui/Button";
+import { Button, type ButtonProps } from "@/src/components/ui/Button";
 import heroPcImage from "./hero-pc.webp";
 import heroSpImage from "./hero-sp.webp";
 
@@ -41,11 +41,7 @@ export const HeroSection = () => (
     gradientTo="white"
     color="gray.950"
   >
-    <Box as="header" position="fixed" insetX={0} top={0} zIndex="sticky" bg="#dff1ff">
-      <Container maxW="7xl" py={{ base: 3, md: 4 }}>
-        <HeaderContent />
-      </Container>
-    </Box>
+    <Nav />
 
     <Container position="relative" zIndex={1} maxW="7xl" pt={{ base: 24, md: 28 }} pb={{ base: 12, md: 16 }}>
       <Grid
@@ -108,7 +104,13 @@ export const HeroSection = () => (
             </Link>
           </SimpleGrid>
 
-          <SimpleGrid columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
+          <SimpleGrid
+            display={{ base: "none", md: "grid" }}
+            columns={{ base: 2, md: 3 }}
+            gap={{ base: 3, md: 5 }}
+            w="full"
+            maxW="760px"
+          >
             {heroBenefits.map((benefit) => (
               <HeroBenefit key={benefit.title} {...benefit} />
             ))}
@@ -117,6 +119,14 @@ export const HeroSection = () => (
 
         <HeroVisual />
       </Grid>
+    </Container>
+  </Box>
+);
+
+export const Nav = () => (
+  <Box as="header" position="fixed" insetX={0} top={0} zIndex="sticky" bg="#dff1ff">
+    <Container maxW="7xl" py={{ base: 3, md: 4 }}>
+      <HeaderContent />
     </Container>
   </Box>
 );
@@ -183,7 +193,13 @@ const Brand = () => (
   </Link>
 );
 
-const HeroButton = ({ icon, label, tone }: { icon: IconType; label: string; tone: "primary" | "secondary" }) => {
+type HeroButtonProps = {
+  icon: IconType;
+  label: string;
+  tone: "primary" | "secondary";
+} & ButtonProps;
+
+const HeroButton = ({ icon, label, tone, ...buttonProps }: HeroButtonProps) => {
   const isPrimary = tone === "primary";
 
   return (
@@ -199,6 +215,7 @@ const HeroButton = ({ icon, label, tone }: { icon: IconType; label: string; tone
       borderRadius="full"
       fontWeight="bold"
       whiteSpace="normal"
+      {...buttonProps}
     >
       <Flex align="center" gap={3}>
         <Icon as={icon} boxSize={{ base: 5, md: 6 }} />
