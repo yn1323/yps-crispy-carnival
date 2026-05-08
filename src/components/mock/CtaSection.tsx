@@ -1,6 +1,6 @@
 import { Box, Button, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuChevronRight, LuClock, LuEye, LuMonitor, LuSmartphone, LuUserPlus } from "react-icons/lu";
+import { LuChevronRight, LuClock, LuMonitor, LuMonitorPlay, LuSmartphone, LuUserPlus } from "react-icons/lu";
 
 const benefits = [
   { icon: LuClock, label: "登録は\n1分で完了" },
@@ -41,7 +41,7 @@ export const CtaSection = () => (
           <Box w="full" maxW="1080px" borderTopWidth="1px" borderTopColor="whiteAlpha.400" pt={{ base: 6, md: 8 }}>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 4, md: 6 }}>
               <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
-              <CtaButton icon={LuEye} label="登録なしでデモを見る" tone="secondary" />
+              <CtaButton icon={LuMonitorPlay} label="登録なしでデモを見る" tone="secondary" />
             </SimpleGrid>
           </Box>
 
