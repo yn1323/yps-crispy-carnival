@@ -120,11 +120,6 @@ async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
     await ctx.db.delete(position._id);
   }
 
-  const invites = await ctx.db.query("invites").collect();
-  for (const invite of invites) {
-    if (invite.shopId === shopId) await ctx.db.delete(invite._id);
-  }
-
   await ctx.db.delete(shopId);
 }
 

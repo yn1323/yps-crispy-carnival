@@ -1,4 +1,4 @@
-import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
+import { Box, Checkbox, Flex, Icon, Link, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -20,12 +20,17 @@ export type SubmissionData = {
   isBeforeDeadline: boolean;
   hasSubmitted: boolean;
   existingRequests: { date: string; startTime: string; endTime: string }[];
+  legalConsentRequired: boolean;
+  legalDocuments: {
+    terms: { title: string; version: string; path: string };
+    privacy: { title: string; version: string; path: string };
+  };
   timeRange: { startTime: string; endTime: string };
 };
 
 type Props = {
   data: SubmissionData;
-  onSubmit: (entries: DayEntry[]) => Promise<void>;
+  onSubmit: (entries: DayEntry[], acceptedLegal?: boolean) => Promise<void>;
 };
 
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
@@ -38,16 +43,19 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const {
     watch,
     setValue,
+    setError,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SubmitFormData>({
     resolver: zodResolver(submitFormSchema),
     defaultValues: {
       entries: buildEntries(dates, data.existingRequests, data.timeRange),
+      acceptedLegal: false,
     },
   });
 
   const entries = watch("entries");
+  const acceptedLegal = watch("acceptedLegal");
 
   const handleSetWorking = (index: number) => {
     setValue(`entries.${index}.isWorking`, true, { shouldValidate: true });
@@ -64,7 +72,11 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   };
 
   const onFormSubmit = handleSubmit(async (formData) => {
-    await onSubmit(formData.entries);
+    if (data.legalConsentRequired && formData.acceptedLegal !== true) {
+      setError("acceptedLegal", { message: "利用規約とプライバシーポリシーに同意してください" });
+      return;
+    }
+    await onSubmit(formData.entries, formData.acceptedLegal);
   });
 
   return (
@@ -109,6 +121,48 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
         </VStack>
 
         <Box px={4} pt={2} pb={6}>
+          {data.legalConsentRequired && (
+            <Box mb={4} p={4} bg="white" borderWidth={1} borderColor="border.default" borderRadius="md">
+              <Text mb={3} fontSize="xs" color="fg.muted" lineHeight={1.7}>
+                初回の提出時、または利用規約・プライバシーポリシーに大きな変更があった場合のみ、確認をお願いしています。
+              </Text>
+              <Checkbox.Root
+                colorPalette="teal"
+                checked={acceptedLegal}
+                onCheckedChange={(details) => {
+                  setValue("acceptedLegal", details.checked === true, { shouldDirty: true, shouldValidate: true });
+                }}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label fontSize="sm" lineHeight={1.7}>
+                  <Link
+                    href={data.legalDocuments.terms.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    color="teal.700"
+                  >
+                    利用規約
+                  </Link>
+                  と
+                  <Link
+                    href={data.legalDocuments.privacy.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    color="teal.700"
+                  >
+                    プライバシーポリシー
+                  </Link>
+                  に同意します
+                </Checkbox.Label>
+              </Checkbox.Root>
+              {errors.acceptedLegal && (
+                <Text mt={2} fontSize="xs" color="red.600">
+                  {errors.acceptedLegal.message}
+                </Text>
+              )}
+            </Box>
+          )}
           <Button
             w="full"
             h="48px"

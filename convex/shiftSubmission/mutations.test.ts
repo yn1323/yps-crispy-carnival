@@ -19,6 +19,10 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlineP
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
+      legalTermsVersion: "staff-terms-2026-05-09",
+      legalPrivacyVersion: "staff-privacy-2026-05-09",
+      legalConsentedAt: Date.now(),
+      legalConsentMethod: "staff_email_link",
       isDeleted: false,
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
@@ -166,6 +170,63 @@ describe("shiftSubmission/mutations", () => {
 
       expect(requests).toHaveLength(0);
       expect(submission).not.toBeNull();
+    });
+
+    it("未同意スタッフは同意なしで提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, {
+          legalTermsVersion: undefined,
+          legalPrivacyVersion: undefined,
+          legalConsentedAt: undefined,
+          legalConsentMethod: undefined,
+        });
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toThrow("Legal consent required");
+    });
+
+    it("未同意スタッフは提出時の同意で最新バージョンを記録できる", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, {
+          legalTermsVersion: undefined,
+          legalPrivacyVersion: undefined,
+          legalConsentedAt: undefined,
+          legalConsentMethod: undefined,
+        });
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        recruitmentId,
+        requests: validRequests,
+        acceptedLegal: true,
+      });
+
+      const [staff, events] = await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        const events = await ctx.db
+          .query("legalConsentEvents")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect();
+        return [staff, events] as const;
+      });
+
+      expect(staff?.legalTermsVersion).toBe("staff-terms-2026-05-09");
+      expect(staff?.legalPrivacyVersion).toBe("staff-privacy-2026-05-09");
+      expect(staff?.legalConsentMethod).toBe("shift_submit");
+      expect(events).toHaveLength(1);
+      expect(events[0].method).toBe("shift_submit");
+      expect(events[0].sourceRecruitmentId).toBe(recruitmentId);
     });
 
     it("再提出で既存データを置き換え＋submittedAt更新", async () => {

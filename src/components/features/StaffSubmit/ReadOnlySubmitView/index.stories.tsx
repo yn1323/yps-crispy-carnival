@@ -16,6 +16,11 @@ const mockData: SubmissionData = {
     { date: "2026-04-09", startTime: "10:00", endTime: "15:00" },
     { date: "2026-04-11", startTime: "09:00", endTime: "22:00" },
   ],
+  legalConsentRequired: false,
+  legalDocuments: {
+    terms: { title: "スタッフ向け利用規約", version: "staff-terms-2026-05-09", path: "/terms/staff" },
+    privacy: { title: "スタッフ向けプライバシーポリシー", version: "staff-privacy-2026-05-09", path: "/privacy/staff" },
+  },
   timeRange: { startTime: "09:00", endTime: "22:00" },
 };
 
