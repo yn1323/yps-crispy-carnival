@@ -104,13 +104,7 @@ export const HeroSection = () => (
             </Link>
           </SimpleGrid>
 
-          <SimpleGrid
-            display={{ base: "none", md: "grid" }}
-            columns={{ base: 2, md: 3 }}
-            gap={{ base: 3, md: 5 }}
-            w="full"
-            maxW="760px"
-          >
+          <SimpleGrid display="grid" columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
             {heroBenefits.map((benefit) => (
               <HeroBenefit key={benefit.title} {...benefit} />
             ))}
@@ -256,14 +250,14 @@ const HeroBenefit = ({
       justify="center"
       flex="0 0 auto"
       boxSize={{ base: 11, md: 14 }}
-      bg="teal.50"
+      bg={imageSrc ? "transparent" : "teal.50"}
       color="teal.700"
-      borderRadius="full"
-      borderWidth="1px"
-      borderColor="teal.100"
+      borderRadius={imageSrc ? "none" : "full"}
+      borderWidth={imageSrc ? "0" : "1px"}
+      borderColor={imageSrc ? "transparent" : "teal.100"}
     >
       {imageSrc ? (
-        <Image src={imageSrc} alt="" boxSize={{ base: 7, md: 8 }} objectFit="contain" />
+        <Image src={imageSrc} alt="" boxSize={{ base: 9, md: 10 }} objectFit="contain" />
       ) : (
         icon && <Icon as={icon} boxSize={{ base: 6, md: 7 }} />
       )}
