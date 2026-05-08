@@ -1,3 +1,5 @@
+import type { LegalDocumentInfo } from "../legal/documents";
+
 type ShiftEntry = {
   date: string;
   startTime: string | null;
@@ -217,7 +219,7 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは提出締切まで有効です。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出後も締切前であれば修正できます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出後も締切前であればいつでも訂正できます。</p>
 
           ${params.lineCtaHtml ?? ""}
 
@@ -310,16 +312,17 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトのお知らせをLINEで受け取れるようになります。</p>
-          <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">下のボタンから連携できます（2タップで完了します）。</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">下のボタンから連携できます。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINEで受け取る</a>
+              <a href="${params.authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINE連携する</a>
             </td></tr>
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは72時間有効です。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINEで受け取ると、次回からシフト通知はLINEに届きます。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">期限が切れた場合は、シフト作成担当者に連絡してください。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINE連携すると次回からメールではなく、LINEで届くようになります。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
           <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${params.shopName} のシフト通知システムです。</p>
@@ -337,16 +340,99 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
  * - 未連携 / 友達解除済みのスタッフのみに表示する想定（呼び出し側で判定）
  */
 export function buildLineCtaSection(params: { authorizeUrl: string; reLink: boolean }): string {
-  const label = params.reLink ? "LINEを再連携する" : "LINEで受け取る";
+  const label = params.reLink ? "LINEを再連携する" : "LINE連携する";
   const note = params.reLink
     ? "LINEの友達追加が解除されているようです。再連携するとLINEで通知が届きます。"
-    : "LINEで受け取ると、次回からシフト通知はLINEに届きます。";
+    : "LINE連携すると次回からメールではなく、LINEで届くようになります。";
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-top:1px solid #e2e8f0;padding-top:24px;">
     <tr><td>
       <p style="margin:0 0 12px;font-size:13px;color:#4a5568;">${note}</p>
+    </td></tr>
+    <tr><td align="center">
       <a href="${params.authorizeUrl}" style="display:inline-block;padding:10px 24px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;" rel="noreferrer">${label}</a>
     </td></tr>
   </table>`;
+}
+
+type StaffLegalConsentEmailParams = {
+  staffName: string;
+  shopName: string;
+  consentUrl: string;
+  expiresAt: number;
+  documents: {
+    terms: LegalDocumentInfo;
+    privacy: LegalDocumentInfo;
+  };
+};
+
+function formatDateTimeJa(timestamp: number): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+export function buildStaffLegalConsentEmailHtml(params: StaffLegalConsentEmailParams): string {
+  const expiresAtLabel = formatDateTimeJa(params.expiresAt);
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 20px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">
+            ${params.shopName} が利用しているシフト管理SaaS「シフトリ」からのお知らせです。<br/>
+            シフトリではメール・LINEからシフト希望の提出・確定の通知の受け取りが可能です。
+          </p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">サービス利用のため、利用規約とプライバシーポリシーへの同意をお願いします。</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <a href="${params.consentUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">規約を確認して同意する</a>
+            </td></tr>
+          </table>
+
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは ${expiresAtLabel} まで有効です。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">期限が切れた場合でも、LINE連携時の案内やシフト提出時に同意できます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">未同意でも、シフト募集・催促・確定シフトなどのお知らせは引き続き受け取れます。</p>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildStaffLegalConsentLineText(params: {
+  staffName: string;
+  shopName: string;
+  consentUrl: string;
+  expiresAt: number;
+}): string {
+  return [
+    `${params.staffName}さん`,
+    "",
+    `${params.shopName} が利用しているシフト管理SaaS「シフトリ」からのお知らせです。`,
+    "スタッフ向け利用規約とプライバシーポリシーをご確認ください。",
+    "",
+    "確認と同意はこちら",
+    params.consentUrl,
+    "",
+    `リンク有効期限: ${formatDateTimeJa(params.expiresAt)}`,
+    "未同意でもシフトのお知らせは引き続き受け取れます。期限が切れた場合はシフト提出時にも同意できます。",
+  ].join("\n");
 }
 
 export function buildReissueEmailHtml(params: ReissueEmailParams): string {

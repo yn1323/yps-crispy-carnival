@@ -44,7 +44,7 @@ export const BrowserMockup = ({ src, alt, url = "shiftori.app", maxW, children }
           color="#6B7280"
         >
           <LuLock size={12} />
-          <Text fontSize={{ base: "11px", lg: "13px" }}>{url}</Text>
+          <Text textStyle={{ base: "caption", lg: "sm" }}>{url}</Text>
         </Flex>
       </Flex>
     </Box>

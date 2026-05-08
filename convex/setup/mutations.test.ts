@@ -10,6 +10,7 @@ const setupArgs = {
   shiftEndTime: "22:00",
   ownerName: "山田 太郎",
   ownerEmail: "yamada@example.com",
+  acceptedLegal: true as const,
 };
 
 describe("setup/mutations", () => {
@@ -19,7 +20,17 @@ describe("setup/mutations", () => {
       await expect(t.mutation(api.setup.mutations.setupShopAndOwner, setupArgs)).rejects.toThrow();
     });
 
-    it("店舗・ユーザー・スタッフを1トランザクションで作成する", async () => {
+    it("同意なしではエラー", async () => {
+      const t = convexTest(schema, modules);
+      await expect(
+        t.withIdentity({ subject: "user_without_legal" }).mutation(api.setup.mutations.setupShopAndOwner, {
+          ...setupArgs,
+          acceptedLegal: false as true,
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("店舗・ユーザー・スタッフ・同意履歴をトランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
       const asUser = t.withIdentity({
         subject: "user_new",
@@ -30,12 +41,10 @@ describe("setup/mutations", () => {
       const shopId = await asUser.mutation(api.setup.mutations.setupShopAndOwner, setupArgs);
       expect(shopId).toBeDefined();
 
-      // shops テーブルを確認
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("テスト店舗");
       expect(shop?.ownerId).toBe("user_new");
 
-      // users テーブルを確認
       const user = await t.run(async (ctx) =>
         ctx.db
           .query("users")
@@ -46,8 +55,12 @@ describe("setup/mutations", () => {
       expect(user?.name).toBe("山田 太郎");
       expect(user?.email).toBe("yamada@example.com");
       expect(user?.role).toBe("manager");
+      expect(user?.legalTermsConsentVersion).toBe("manager-terms-consent-2026-05-09");
+      expect(user?.legalPrivacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
+      expect(user?.legalTermsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
+      expect(user?.legalPrivacyDocumentVersion).toBe("manager-privacy-doc-2026-05-09");
+      expect(user?.legalConsentMethod).toBe("manager_setup");
 
-      // staffs テーブルを確認
       const staffs = await t.run(async (ctx) =>
         ctx.db
           .query("staffs")
@@ -58,6 +71,15 @@ describe("setup/mutations", () => {
       expect(staffs[0].name).toBe("山田 太郎");
       expect(staffs[0].email).toBe("yamada@example.com");
       expect(staffs[0].userId).toBe(user?._id);
+
+      const consentEvents = await t.run(async (ctx) =>
+        ctx.db
+          .query("legalConsentEvents")
+          .withIndex("by_userId", (q) => q.eq("userId", user?._id))
+          .collect(),
+      );
+      expect(consentEvents).toHaveLength(1);
+      expect(consentEvents[0].method).toBe("manager_setup");
     });
 
     it("既に店舗がある場合エラーをthrow", async () => {
@@ -85,7 +107,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
-    it("既存ユーザーレコードがある場合は名前・メールを更新する", async () => {
+    it("既存ユーザーレコードがある場合は名前・メールと同意を更新する", async () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
@@ -108,6 +130,7 @@ describe("setup/mutations", () => {
       );
       expect(user?.name).toBe("山田 太郎");
       expect(user?.email).toBe("yamada@example.com");
+      expect(user?.legalConsentMethod).toBe("manager_setup");
     });
   });
 });

@@ -3,6 +3,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalAction } from "../_generated/server";
+import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import {
   buildLineAuthorizeUrl,
   exchangeAuthorizationCode,
@@ -46,7 +47,10 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
  */
 export const redeemLineToken = action({
   args: { state: v.string(), code: v.string() },
-  handler: async (ctx, args): Promise<{ status: "ok" } | { status: "expired" } | { status: "rate_limited" }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ status: "ok" } | { status: "needs_follow" } | { status: "expired" } | { status: "rate_limited" }> => {
     const validation = await ctx.runMutation(internal.line.mutations.validateLinkToken, {
       state: args.state,
     });
@@ -70,7 +74,7 @@ export const redeemLineToken = action({
       lineFollowing: friendship.friendFlag,
     });
     if (finalized.status !== "ok") return { status: finalized.status };
-    return { status: "ok" };
+    return { status: friendship.friendFlag ? "ok" : "needs_follow" };
   },
 });
 
@@ -130,13 +134,17 @@ export const refreshQuotaStatus = internalAction({
 
 /**
  * 連携依頼メール（個別 / 一括 共通）を1件送る
- * `sendInvite` / `sendInviteBulk` mutation から scheduler 経由で呼ばれる
+ * `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
  */
 export const sendInviteEmail = internalAction({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
 
     const { token } = await ctx.runMutation(internal.line.mutations.createLinkTokenInternal, {
       staffId: data.staffId,
@@ -148,11 +156,11 @@ export const sendInviteEmail = internalAction({
       state: token,
     });
 
-    const resend = getResendClient();
+    const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
-      from: `${data.shopName} <${RESEND_FROM}>`,
+      from: formatResendFrom(data.shopName, RESEND_FROM),
       to: data.staffEmail,
-      subject: `【${data.shopName}】シフト通知をLINEで受け取れます`,
+      subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
       html: buildLineInviteEmailHtml({
         staffName: data.staffName,
         shopName: data.shopName,

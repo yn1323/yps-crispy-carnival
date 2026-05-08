@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { authenticatedMutation } from "../_lib/functions";
+import { recordUserLegalConsent } from "../legal/mutations";
 
 export const setupShopAndOwner = authenticatedMutation({
   args: {
@@ -8,6 +9,7 @@ export const setupShopAndOwner = authenticatedMutation({
     shiftEndTime: v.string(),
     ownerName: v.string(),
     ownerEmail: v.string(),
+    acceptedLegal: v.literal(true),
   },
   handler: async (ctx, args) => {
     const existingShop = await ctx.db
@@ -42,6 +44,12 @@ export const setupShopAndOwner = authenticatedMutation({
         email: args.ownerEmail,
       });
     }
+
+    await recordUserLegalConsent(ctx, {
+      userId,
+      shopId,
+      method: "manager_setup",
+    });
 
     await ctx.db.insert("staffs", {
       shopId,

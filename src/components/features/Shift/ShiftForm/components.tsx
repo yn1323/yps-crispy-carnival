@@ -14,6 +14,7 @@ export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
+      // Avatar initials scale with the configured avatar box size.
       fontSize: Math.round(size * 0.42),
       fontWeight: 600,
       flexShrink: 0,
@@ -42,7 +43,7 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
             cursor="pointer"
             py="10px"
             px={{ base: "14px", lg: "18px" }}
-            fontSize="13px"
+            textStyle="sm"
             fontWeight={active ? 700 : 500}
             color={active ? "teal.700" : "gray.500"}
             borderBottomWidth="2px"
@@ -78,14 +79,14 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
         flexShrink={0}
         style={{ background: "#fffbeb", borderTop: "1px solid #fde68a" }}
       >
-        <Box fontSize="12px" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+        <Box textStyle="caption" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
           未提出 {names.length}人
         </Box>
         <Flex gap={2} overflow="auto" flex={1}>
           {names.map((n) => (
             <Box
               key={n}
-              fontSize="11px"
+              textStyle="caption"
               flexShrink={0}
               px={2}
               py="2px"
@@ -101,7 +102,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
           ))}
         </Flex>
         {lastSentAtLabel && (
-          <Box fontSize="11px" flexShrink={0} style={{ color: "#92400e" }}>
+          <Box textStyle="caption" flexShrink={0} style={{ color: "#92400e" }}>
             前回送信: {lastSentAtLabel}
           </Box>
         )}
@@ -116,7 +117,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
             color: isDisabled ? "#a8a29e" : "#b45309",
             border: `1px solid ${isDisabled ? "#e7e5e4" : "#fcd34d"}`,
             borderRadius: 6,
-            fontSize: 11,
+            fontSize: "var(--chakra-font-sizes-xs)",
             fontWeight: 600,
             cursor: isDisabled ? "not-allowed" : "pointer",
             flexShrink: 0,
@@ -149,11 +150,19 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
           }}
         >
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#b45309" }}>未提出 {names.length}人</span>
-          <span style={{ fontSize: 11, color: "#b45309", opacity: 0.8 }}>
+          <span style={{ fontSize: "var(--chakra-font-sizes-sm)", fontWeight: 700, color: "#b45309" }}>
+            未提出 {names.length}人
+          </span>
+          <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
             {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップでお願い"}
           </span>
-          {!isDisabled && <span style={{ marginLeft: "auto", fontSize: 16, color: "#b45309", flexShrink: 0 }}>›</span>}
+          {!isDisabled && (
+            <span
+              style={{ marginLeft: "auto", fontSize: "var(--chakra-font-sizes-md)", color: "#b45309", flexShrink: 0 }}
+            >
+              ›
+            </span>
+          )}
         </button>
       </Box>
     </>
@@ -175,7 +184,7 @@ export const SaveButton = ({ compact = false, onClick }: SaveButtonProps) => (
       border: "1px solid #d4d4d8",
       borderRadius: 6,
       cursor: "pointer",
-      fontSize: compact ? 12 : 13,
+      fontSize: compact ? "var(--chakra-font-sizes-xs)" : "var(--chakra-font-sizes-sm)",
       fontWeight: 500,
       fontFamily: "inherit",
       display: "inline-flex",
@@ -208,7 +217,7 @@ export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }:
         border: isConfirmed ? "1px solid #0d9488" : "none",
         borderRadius: 6,
         cursor: "pointer",
-        fontSize: compact ? 12 : 13,
+        fontSize: compact ? "var(--chakra-font-sizes-xs)" : "var(--chakra-font-sizes-sm)",
         fontWeight: 600,
         fontFamily: "inherit",
         boxShadow: isConfirmed ? "none" : "0 1px 2px rgba(13,148,136,0.25)",
@@ -248,7 +257,7 @@ export const ExportButton = ({ compact = false }: { compact?: boolean }) => {
           border: "none",
           borderRadius: 6,
           cursor: "pointer",
-          fontSize: compact ? 12 : 13,
+          fontSize: compact ? "var(--chakra-font-sizes-xs)" : "var(--chakra-font-sizes-sm)",
           fontWeight: 600,
           display: "inline-flex",
           alignItems: "center",
@@ -308,10 +317,10 @@ export const ExportButton = ({ compact = false }: { compact?: boolean }) => {
                   {it.icon}
                 </Box>
                 <Box minW={0} flex={1}>
-                  <Box fontSize="13px" fontWeight={600} color="gray.800">
+                  <Box textStyle="sm" fontWeight={600} color="gray.800">
                     {it.label}
                   </Box>
-                  <Box fontSize="11px" color="gray.500" mt="1px">
+                  <Box textStyle="caption" color="gray.500" mt="1px">
                     {it.sub}
                   </Box>
                 </Box>

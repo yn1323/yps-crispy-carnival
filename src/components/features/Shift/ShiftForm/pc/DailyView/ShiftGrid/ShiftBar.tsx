@@ -91,13 +91,7 @@ export const ShiftBar = ({
           px="10px"
           zIndex={1}
         >
-          <Text
-            fontSize="10px"
-            fontWeight={600}
-            color="gray.500"
-            whiteSpace="nowrap"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
+          <Text textStyle="2xs" fontWeight={600} color="gray.500" whiteSpace="nowrap" fontVariantNumeric="tabular-nums">
             希望: {shift.requestedTime.start}-{shift.requestedTime.end}
           </Text>
         </Box>
@@ -220,10 +214,10 @@ export const ShiftBar = ({
               zIndex={4}
             >
               <Text
-                fontSize="11px"
+                textStyle="caption"
                 fontWeight={600}
                 color="white"
-                style={{ fontVariantNumeric: "tabular-nums" }}
+                fontVariantNumeric="tabular-nums"
                 whiteSpace="nowrap"
               >
                 {earliestStart}–{latestEnd}

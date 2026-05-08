@@ -37,6 +37,20 @@ export async function getOrCreateMagicLinkToken(args: {
   return convexRunJson<CreatedMagicLinkResult>("testing:createMagicLinkTokenForLatestRecruitment", args);
 }
 
+export async function waitForMagicLinkToken(args: {
+  recruitmentId?: string;
+  staffEmail: string;
+  purpose: MagicLinkPurpose;
+}): Promise<CreatedMagicLinkResult> {
+  for (let i = 0; i < POLL_ATTEMPTS * 2; i++) {
+    const result = convexRunJson<MagicLinkResult>("testing:getLatestMagicLinkToken", args);
+    if (result.token) return result as CreatedMagicLinkResult;
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`Magic link token was not issued for ${args.staffEmail}`);
+}
+
 export async function getOrCreateLineLinkToken(staffEmail: string): Promise<CreatedLineLinkResult> {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
     const result = convexRunJson<LineLinkResult>("testing:getLatestLineLinkToken", { staffEmail });

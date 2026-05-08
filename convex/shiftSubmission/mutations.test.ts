@@ -19,6 +19,12 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlineP
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
+      legalTermsConsentVersion: "staff-terms-consent-2026-05-09",
+      legalPrivacyConsentVersion: "staff-privacy-consent-2026-05-09",
+      legalTermsDocumentVersion: "staff-terms-doc-2026-05-09",
+      legalPrivacyDocumentVersion: "staff-privacy-doc-2026-05-09",
+      legalConsentedAt: Date.now(),
+      legalConsentMethod: "staff_email_link",
       isDeleted: false,
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
@@ -166,6 +172,94 @@ describe("shiftSubmission/mutations", () => {
 
       expect(requests).toHaveLength(0);
       expect(submission).not.toBeNull();
+    });
+
+    it("文書バージョンだけ古い場合は再同意なしで提出できる", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, {
+          legalTermsDocumentVersion: "staff-terms-doc-old",
+          legalPrivacyDocumentVersion: "staff-privacy-doc-old",
+        });
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        recruitmentId,
+        requests: validRequests,
+      });
+
+      const submission = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .first(),
+      );
+      expect(submission).not.toBeNull();
+    });
+
+    it("未同意スタッフは同意なしで提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, {
+          legalTermsConsentVersion: undefined,
+          legalPrivacyConsentVersion: undefined,
+          legalTermsDocumentVersion: undefined,
+          legalPrivacyDocumentVersion: undefined,
+          legalConsentedAt: undefined,
+          legalConsentMethod: undefined,
+        });
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toThrow("Legal consent required");
+    });
+
+    it("未同意スタッフは提出時の同意で最新バージョンを記録できる", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, {
+          legalTermsConsentVersion: undefined,
+          legalPrivacyConsentVersion: undefined,
+          legalTermsDocumentVersion: undefined,
+          legalPrivacyDocumentVersion: undefined,
+          legalConsentedAt: undefined,
+          legalConsentMethod: undefined,
+        });
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        recruitmentId,
+        requests: validRequests,
+        acceptedLegal: true,
+      });
+
+      const [staff, events] = await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        const events = await ctx.db
+          .query("legalConsentEvents")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect();
+        return [staff, events] as const;
+      });
+
+      expect(staff?.legalTermsConsentVersion).toBe("staff-terms-consent-2026-05-09");
+      expect(staff?.legalPrivacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+      expect(staff?.legalTermsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
+      expect(staff?.legalPrivacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
+      expect(staff?.legalConsentMethod).toBe("shift_submit");
+      expect(events).toHaveLength(1);
+      expect(events[0].method).toBe("shift_submit");
+      expect(events[0].sourceRecruitmentId).toBe(recruitmentId);
     });
 
     it("再提出で既存データを置き換え＋submittedAt更新", async () => {
