@@ -26,6 +26,8 @@ export function getE2EOwnerId() {
 
   const storagePath = join(process.cwd(), "e2e", ".clerk", "user.json");
   const state = JSON.parse(readFileSync(storagePath, "utf-8")) as ClerkStorageState;
+  // Clerk の cookie 名・domain はローカル/CIで揺れることがある。
+  // seed には実際にログインした ownerId が必要なので、保存済み storageState からJWTの sub を読む。
   const sessionCookie =
     state.cookies.find((cookie) => cookie.name === "__session" && cookie.domain === "localhost") ??
     state.cookies.find((cookie) => cookie.name.startsWith("__session"));
@@ -49,5 +51,6 @@ export function getE2EOwnerId() {
 }
 
 export function seedOwnerScenario<T>(fn: string, args: Record<string, unknown> = {}) {
+  // dry-run 判定は ownerEmail 経由で行うため、seed でも本番コードと同じ owner 情報を渡す。
   return convexRunJson<T>(fn, { ownerId: getE2EOwnerId(), ownerEmail: process.env.E2E_CLERK_USER, ...args });
 }

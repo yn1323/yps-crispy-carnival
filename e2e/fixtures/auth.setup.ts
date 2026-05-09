@@ -6,7 +6,7 @@ const STORAGE_STATE_PATH = "e2e/.clerk/user.json";
 setup("prepare Clerk testing token and sign in", async ({ page }) => {
   await clerkSetup();
 
-  // サインイン
+  // Clerk の認証画面そのものはE2E対象外。ここでは以降の manager 画面検証に必要な storageState だけ作る。
   await page.goto("/");
   await clerk.signIn({
     page,
@@ -17,10 +17,9 @@ setup("prepare Clerk testing token and sign in", async ({ page }) => {
     },
   });
 
-  // サインイン後にダッシュボードへ遷移
+  // dashboard 到達まで確認してから保存し、後続 scenario が初回ロード競合を踏まないようにする。
   await page.goto("/dashboard");
   await page.waitForURL(/dashboard/, { timeout: 15000 });
 
-  // 認証状態をstorageStateとして保存
   await page.context().storageState({ path: STORAGE_STATE_PATH });
 });

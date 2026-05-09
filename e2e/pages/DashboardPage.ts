@@ -92,6 +92,8 @@ export class DashboardPage {
     const warningDialog = this.page.getByRole("alertdialog", { name: "まだ希望がそろっていません" });
     const navigated = this.page.waitForURL(/\/shiftboard\//);
     const dialogAppeared = warningDialog.waitFor({ state: "visible" }).then(() => true);
+    // 未提出者がいる募集では確認ダイアログを挟む。提出済みシナリオと未提出シナリオの両方で使うため、
+    // URL遷移とdialog表示を競争させて、どちらの導線でも同じPOMから進める。
     if (await Promise.race([dialogAppeared, navigated.then(() => false)])) {
       await warningDialog.getByRole("button", { name: "このまま進む" }).click();
       await navigated;
@@ -265,6 +267,7 @@ export class DashboardPage {
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択
   private async selectTime(label: string, value: string) {
+    // Chakra Select は同じ時刻 option が複数のlistboxに出るため、開いたcomboboxのラベルでスコープする。
     await this.page.getByRole("combobox", { name: label }).click();
     await this.page.getByRole("listbox", { name: label }).getByRole("option", { name: value, exact: true }).click();
   }
