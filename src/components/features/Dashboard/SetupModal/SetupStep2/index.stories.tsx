@@ -16,3 +16,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
+
+export const PrefilledFromAuth: Story = {
+  args: {
+    defaultValues: {
+      name: "山田 太郎",
+      email: "yamada@example.com",
+    },
+  },
+};

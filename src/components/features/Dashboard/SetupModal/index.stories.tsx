@@ -11,6 +11,10 @@ const meta = {
     isOpen: true,
     onOpenChange: () => {},
     onComplete: () => {},
+    ownerProfileDefaults: {
+      name: "山田 太郎",
+      email: "yamada@example.com",
+    },
   },
 } satisfies Meta<typeof SetupModal>;
 
