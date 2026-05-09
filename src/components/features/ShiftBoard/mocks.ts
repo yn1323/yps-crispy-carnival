@@ -1,4 +1,4 @@
-import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/components/features/Shift/ShiftForm/types";
+import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 export const mockDates = [
   "2026-01-20",

@@ -12,8 +12,8 @@ import {
 } from "react-icons/lu";
 import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
-import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { Button } from "@/src/components/ui/Button";
+import { formatDateShort } from "@/src/domains/shift/date";
 import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {

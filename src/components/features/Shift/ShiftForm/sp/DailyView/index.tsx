@@ -3,12 +3,12 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
+import { getWeekdayLabel } from "@/src/domains/shift/date";
+import { computeVisualBreaks } from "@/src/domains/shift/operations";
+import { timeToMinutes } from "@/src/domains/shift/time";
+import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../constants";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
-import type { PositionSegment, ShiftData, StaffType, TimeRange } from "../../types";
-import { getWeekdayLabel } from "../../utils/dateUtils";
-import { computeVisualBreaks } from "../../utils/shiftOperations";
-import { timeToMinutes } from "../../utils/timeConversion";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 

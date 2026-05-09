@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { timeToMinutes } from "../../utils/timeConversion";
+import { timeToMinutes } from "@/src/domains/shift/time";
 
 export const addTimeSchema = z
   .object({

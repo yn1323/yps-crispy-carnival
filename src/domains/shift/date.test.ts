@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildWeeklyGrid, getWeekStartDate } from "./dateUtils";
+import { buildWeeklyGrid, getWeekStartDate } from "./date";
 
 describe("getWeekStartDate", () => {
   test("月曜起算（デフォルト）で水曜日の週開始日は直前の月曜日", () => {

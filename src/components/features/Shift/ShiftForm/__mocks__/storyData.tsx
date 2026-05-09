@@ -1,7 +1,15 @@
 import { Provider } from "jotai";
 import type { ReactNode } from "react";
+import type {
+  PositionType,
+  RequiredStaffingData,
+  ShiftData,
+  SortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { useShiftFormInit } from "../hooks/useShiftFormInit";
-import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "../types";
 
 export const mockStaffs: StaffType[] = [
   { id: "staff1", name: "Aさん", isSubmitted: true },

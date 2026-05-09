@@ -1,7 +1,15 @@
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
+import type {
+  PositionType,
+  RequiredStaffingData,
+  ShiftData,
+  SortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortModeAtom, viewModeAtom } from "../stores";
-import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "../types";
 
 type UseShiftFormInitParams = {
   shopId: string;
