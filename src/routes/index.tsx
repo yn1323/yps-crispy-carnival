@@ -1,8 +1,7 @@
-import { useAuth } from "@clerk/clerk-react";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { LandingPage } from "@/src/components/features/LandingPage";
+import { createFileRoute } from "@tanstack/react-router";
 import { faqs } from "@/src/components/features/LandingPage/faqs";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
+import { HomePage } from "@/src/pages/home";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,18 +28,5 @@ export const Route = createFileRoute("/")({
       }),
     ],
   }),
-  component: IndexPage,
+  component: HomePage,
 });
-
-function IndexPage() {
-  const { isSignedIn, isLoaded } = useAuth();
-
-  // Clerk のロード完了を待たず LP を返す。
-  // - prerender 時も、初回 hydrate 時も、同じ <LandingPage /> を返すので hydration mismatch しない
-  // - ログイン済み判定が取れた瞬間にだけ /dashboard へリダイレクト
-  if (isLoaded && isSignedIn) {
-    return <Navigate to="/dashboard" />;
-  }
-
-  return <LandingPage />;
-}
