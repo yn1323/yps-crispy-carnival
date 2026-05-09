@@ -38,9 +38,11 @@ describe("isDryRunOwnerEmail", () => {
     vi.unstubAllEnvs();
   });
 
-  it("matches NOTIFICATION_DRY_RUN_USER_EMAILS case-insensitively after trimming", () => {
+  it("matches NOTIFICATION_DRY_RUN_USER_EMAILS entries as case-insensitive substrings after trimming", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "testtest, Test2@example.com ");
 
+    expect(isDryRunOwnerEmail(" testtest ")).toBe(true);
+    expect(isDryRunOwnerEmail(" testtest@example.com ")).toBe(true);
     expect(isDryRunOwnerEmail(" TEST2@example.com ")).toBe(true);
   });
 
