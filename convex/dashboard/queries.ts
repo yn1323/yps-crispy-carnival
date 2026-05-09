@@ -3,8 +3,7 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel } from "../_generated/dataModel";
 import { authenticatedQuery } from "../_lib/functions";
-
-const MAX_SHIFT_REQUESTS = 1000;
+import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
 
 // shop未登録のsetup中に paginated query が走ってもエラーログを出さないための空結果
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
@@ -52,18 +51,17 @@ export const getDashboardRecruitments = authenticatedQuery({
 
     const page = await Promise.all(
       paginatedResult.page.map(async (r) => {
-        const requests = await ctx.db
-          .query("shiftRequests")
+        const submissions = await ctx.db
+          .query("shiftSubmissions")
           .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))
-          .take(MAX_SHIFT_REQUESTS);
-        const uniqueStaffIds = new Set(requests.map((req) => req.staffId));
+          .take(DASHBOARD_RESPONSE_COUNT_LIMIT);
         return {
           _id: r._id,
           periodStart: r.periodStart,
           periodEnd: r.periodEnd,
           deadline: r.deadline,
           status: r.status,
-          responseCount: uniqueStaffIds.size,
+          responseCount: submissions.length,
         };
       }),
     );

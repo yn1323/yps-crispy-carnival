@@ -48,8 +48,8 @@ export const getSubmissionPageData = staffSessionQuery({
       legalConsentRequired: !hasCurrentLegalConsent(ctx.staff, "staff"),
       legalDocuments: getLegalDocumentsForAudience("staff"),
       timeRange: {
-        startTime: ctx.shop.shiftStartTime,
-        endTime: ctx.shop.shiftEndTime,
+        startTime: recruitment.shiftStartTime ?? ctx.shop.shiftStartTime,
+        endTime: recruitment.shiftEndTime ?? ctx.shop.shiftEndTime,
       },
     };
   },

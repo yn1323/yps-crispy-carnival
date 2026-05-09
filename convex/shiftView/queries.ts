@@ -1,0 +1,58 @@
+import { v } from "convex/values";
+import { formatPeriodLabel } from "../_lib/dateFormat";
+import { staffSessionQuery } from "../_lib/functions";
+import { timeToMinutes } from "../_lib/time";
+import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
+
+export const getShiftViewData = staffSessionQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  handler: async (ctx, { recruitmentId }) => {
+    if (!ctx.staff || !ctx.shop || !ctx.session) return null;
+    const shop = ctx.shop;
+    const session = ctx.session;
+    if (session.recruitmentId !== recruitmentId) return null;
+
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (
+      !recruitment ||
+      recruitment.isDeleted ||
+      recruitment.shopId !== shop._id ||
+      recruitment.status !== "confirmed"
+    ) {
+      return null;
+    }
+
+    const [staffs, assignments] = await Promise.all([
+      ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .take(SHIFT_BOARD_STAFF_LIMIT),
+      ctx.db
+        .query("shiftAssignments")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+        .take(SHIFT_ASSIGNMENT_LIMIT),
+    ]);
+
+    const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
+    const endTimeStr = recruitment.shiftEndTime ?? shop.shiftEndTime;
+
+    return {
+      shopName: shop.name,
+      periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      periodStart: recruitment.periodStart,
+      periodEnd: recruitment.periodEnd,
+      staffs: staffs.map((s) => ({ _id: s._id, name: s.name })),
+      assignments: assignments.map((a) => ({
+        staffId: a.staffId,
+        date: a.date,
+        startTime: a.startTime,
+        endTime: a.endTime,
+      })),
+      timeRange: {
+        start: Math.floor(timeToMinutes(startTimeStr) / 60),
+        end: Math.ceil(timeToMinutes(endTimeStr) / 60),
+        unit: SHIFT_BOARD_TIME_UNIT_MINUTES,
+      },
+    };
+  },
+});

@@ -53,7 +53,7 @@ export function StaffShiftViewRoutePage({ token }: Props) {
 }
 
 function ShiftViewContent({ session }: { session: { sessionToken: string; recruitmentId: string } }) {
-  const data = useQuery(api.staffAuth.queries.getShiftViewData, {
+  const data = useQuery(api.shiftView.queries.getShiftViewData, {
     sessionToken: session.sessionToken,
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });

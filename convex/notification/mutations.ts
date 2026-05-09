@@ -1,8 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation } from "../_generated/server";
 import { generateUUID } from "../_lib/uuid";
-
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+import { MAGIC_LINK_DEFAULT_TTL_MS } from "../constants";
 
 /**
  * マジックリンクトークンを生成してDBに保存
@@ -23,7 +22,7 @@ export const createMagicLink = internalMutation({
       staffId: args.staffId,
       shopId: args.shopId,
       recruitmentId: args.recruitmentId,
-      expiresAt: args.expiresAt ?? Date.now() + TWENTY_FOUR_HOURS_MS,
+      expiresAt: args.expiresAt ?? Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     return { token };

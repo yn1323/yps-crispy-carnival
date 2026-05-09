@@ -27,7 +27,7 @@ export const sendReminderEmails = managerMutation({
       lastReminderSentAt: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, internal.shiftReminder.actions.sendReminderEmails, {
+    await ctx.scheduler.runAfter(0, internal.notification.reminderActions.sendReminderEmails, {
       recruitmentId: args.recruitmentId,
     });
   },

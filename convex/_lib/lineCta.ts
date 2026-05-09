@@ -1,7 +1,7 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
-import { buildLineCtaSection } from "../email/templates";
+import { buildLineCtaSection } from "../notification/templates";
 import { buildLineAuthorizeUrl } from "./lineClient";
 
 /**
