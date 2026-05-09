@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   deploy-preview:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && !startsWith(github.head_ref, 'renovate/')
     runs-on: ubuntu-latest
     environment: Preview
     env:
