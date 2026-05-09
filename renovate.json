@@ -6,7 +6,7 @@
   "baseBranchPatterns": ["develop"],
   "automerge": true,
   "platformAutomerge": true,
-  "rebaseWhen": "conflicted",
+  "rebaseWhen": "behind-base-branch",
   "minimumReleaseAge": "2 days",
   "schedule": ["* * * * 6"],
   "prConcurrentLimit": 10,
