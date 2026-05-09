@@ -120,19 +120,20 @@ export const HeroSection = () => (
 type NavProps = {
   showLinks?: boolean;
   showLogin?: boolean;
+  compact?: boolean;
 };
 
-export const Nav = ({ showLinks = true, showLogin = true }: NavProps) => (
+export const Nav = ({ showLinks = true, showLogin = true, compact = false }: NavProps) => (
   <Box as="header" position="fixed" insetX={0} top={0} zIndex="sticky" bg="#dff1ff">
-    <Container maxW="7xl" py={{ base: 3, md: 4 }}>
-      <HeaderContent showLinks={showLinks} showLogin={showLogin} />
+    <Container maxW="7xl" py={{ base: compact ? 2 : 3, md: compact ? 2 : 4 }}>
+      <HeaderContent showLinks={showLinks} showLogin={showLogin} compact={compact} />
     </Container>
   </Box>
 );
 
-const HeaderContent = ({ showLinks, showLogin }: Required<NavProps>) => (
+const HeaderContent = ({ showLinks, showLogin, compact }: Required<NavProps>) => (
   <Flex align="center" justify="space-between" gap={6}>
-    <Brand />
+    <Brand compact={compact} />
 
     {(showLinks || showLogin) && (
       <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
@@ -188,11 +189,16 @@ const HeaderContent = ({ showLinks, showLogin }: Required<NavProps>) => (
   </Flex>
 );
 
-const Brand = () => (
+const Brand = ({ compact }: { compact: boolean }) => (
   <Link href="/" _hover={{ opacity: 0.8, textDecoration: "none" }}>
     <Flex align="center" gap={3}>
-      <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 9, md: 10 }} objectFit="contain" />
-      <Text color="gray.950" fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
+      <Image
+        src="/logo192.webp"
+        alt="シフトリ"
+        boxSize={{ base: compact ? 8 : 9, md: compact ? 8 : 10 }}
+        objectFit="contain"
+      />
+      <Text color="gray.950" fontSize={{ base: compact ? "lg" : "xl", md: compact ? "xl" : "2xl" }} fontWeight="bold">
         シフトリ
       </Text>
     </Flex>

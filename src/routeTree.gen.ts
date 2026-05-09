@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as FaqRouteImport } from './routes/faq'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -36,6 +38,16 @@ const TermsRoute = TermsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnregisteredRoute = UnregisteredRouteImport.update({
@@ -126,6 +138,8 @@ const UnregisteredLegalStaffConsentRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/faq': typeof FaqRoute
+  '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
@@ -144,6 +158,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/faq': typeof FaqRoute
+  '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
@@ -165,6 +181,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
+  '/faq': typeof FaqRoute
+  '/features': typeof FeaturesRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
@@ -185,6 +203,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/faq'
+    | '/features'
     | '/privacy'
     | '/terms'
     | '/dashboard'
@@ -203,6 +223,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/faq'
+    | '/features'
     | '/privacy'
     | '/terms'
     | '/dashboard'
@@ -223,6 +245,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_auth'
     | '/_unregistered'
+    | '/faq'
+    | '/features'
     | '/privacy'
     | '/terms'
     | '/_auth/dashboard'
@@ -244,6 +268,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
+  FaqRoute: typeof FaqRoute
+  FeaturesRoute: typeof FeaturesRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
   PrivacyManagerRoute: typeof PrivacyManagerRoute
@@ -266,6 +292,20 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_unregistered': {
@@ -424,6 +464,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
+  FaqRoute: FaqRoute,
+  FeaturesRoute: FeaturesRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
   PrivacyManagerRoute: PrivacyManagerRoute,
