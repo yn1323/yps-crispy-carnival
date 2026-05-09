@@ -145,6 +145,7 @@ describe("shiftSubmission/mutations", () => {
       expect(requests).toHaveLength(2);
       expect(requests[0].date).toBe("2026-04-07");
       expect(submission).not.toBeNull();
+      expect(submission?.firstSubmittedAt).toBeTypeOf("number");
       expect(submission?.submittedAt).toBeTypeOf("number");
     });
 
@@ -301,7 +302,35 @@ describe("shiftSubmission/mutations", () => {
 
       expect(requests).toHaveLength(1);
       expect(requests[0].date).toBe("2026-04-10");
+      expect(submission?.firstSubmittedAt).toBe(firstSubmission?.firstSubmittedAt);
       expect(submission?.submittedAt).toBeGreaterThanOrEqual(firstSubmission?.submittedAt ?? 0);
+    });
+
+    it("firstSubmittedAtがない既存提出の再提出では以前のsubmittedAtを初回提出時刻として保持する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId,
+          submittedAt: 1000,
+        });
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        recruitmentId,
+        requests: validRequests,
+      });
+
+      const submission = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .first(),
+      );
+      expect(submission?.firstSubmittedAt).toBe(1000);
+      expect(submission?.submittedAt).toBeGreaterThan(1000);
     });
 
     it("募集期間外の日付でエラー", async () => {

@@ -11,11 +11,13 @@ export type ShiftBoardData = {
     status: "open" | "confirmed";
     confirmedAt: number | null;
     lastReminderSentAt: number | null;
+    draftSavedAt: number | null;
   };
   staffs: Array<{
     _id: Id<"staffs">;
     name: string;
     isSubmitted: boolean;
+    wasSubmittedAtDraft: boolean;
   }>;
   shiftRequests: Array<{
     staffId: Id<"staffs">;

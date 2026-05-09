@@ -102,6 +102,7 @@ export const submitShiftRequests = staffSessionMutation({
       ),
     );
 
+    const now = Date.now();
     const existingSubmission = await ctx.db
       .query("shiftSubmissions")
       .withIndex("by_recruitmentId_staffId", (q) =>
@@ -109,12 +110,17 @@ export const submitShiftRequests = staffSessionMutation({
       )
       .first();
     if (existingSubmission) {
-      await ctx.db.patch(existingSubmission._id, { submittedAt: Date.now() });
+      await ctx.db.patch(existingSubmission._id, {
+        // 既存データは firstSubmittedAt がないため、再提出直前の submittedAt を初回扱いにする。
+        firstSubmittedAt: existingSubmission.firstSubmittedAt ?? existingSubmission.submittedAt,
+        submittedAt: now,
+      });
     } else {
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId: args.recruitmentId,
         staffId: ctx.staff._id,
-        submittedAt: Date.now(),
+        firstSubmittedAt: now,
+        submittedAt: now,
       });
     }
   },

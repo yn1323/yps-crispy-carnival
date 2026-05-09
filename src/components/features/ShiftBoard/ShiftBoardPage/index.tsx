@@ -1,7 +1,6 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import dayjs from "dayjs";
 import { useCallback, useMemo, useRef } from "react";
 import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -16,10 +15,10 @@ import {
   formatDateWithWeekday,
   getDateRange,
 } from "@/src/domains/shift/date";
+import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
-import { SaveDraftWarningContent } from "../SaveDraftWarningContent";
 import type { ShiftBoardData } from "../types";
 
 const POSITIONS = [DEFAULT_POSITION];
@@ -36,19 +35,25 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
     requestMap.set(`${r.staffId}-${r.date}`, { startTime: r.startTime, endTime: r.endTime });
   }
 
-  const source = data.shiftAssignments.length > 0 ? data.shiftAssignments : data.shiftRequests;
-  const sourceMap = new Map<string, { startTime: string; endTime: string }>();
-  for (const item of source) {
-    sourceMap.set(`${item.staffId}-${item.date}`, { startTime: item.startTime, endTime: item.endTime });
+  const assignmentMap = new Map<string, { startTime: string; endTime: string }>();
+  for (const item of data.shiftAssignments) {
+    assignmentMap.set(`${item.staffId}-${item.date}`, { startTime: item.startTime, endTime: item.endTime });
   }
+  const wasSubmittedAtDraftMap = new Map(data.staffs.map((s) => [s._id, s.wasSubmittedAtDraft]));
 
   const shifts: ShiftData[] = [];
 
   for (const staff of staffs) {
     for (const date of dates) {
       const key = `${staff.id}-${date}`;
-      const entry = sourceMap.get(key);
+      const assignment = assignmentMap.get(key);
       const request = requestMap.get(key);
+      const displayLine = resolveDisplayShiftLine({
+        hasDraftSaved: data.recruitment.draftSavedAt !== null,
+        savedAssignment: assignment,
+        wasSubmittedAtDraft: wasSubmittedAtDraftMap.get(staff.id as Id<"staffs">) ?? false,
+        currentRequest: request,
+      });
 
       shifts.push({
         id: `shift-${staff.id}-${date}`,
@@ -56,18 +61,19 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
         staffName: staff.name,
         date,
         requestedTime: request ? { start: request.startTime, end: request.endTime } : null,
-        positions: entry
-          ? [
-              {
-                id: `seg-${staff.id}-${date}`,
-                positionId: DEFAULT_POSITION.id,
-                positionName: DEFAULT_POSITION.name,
-                color: DEFAULT_POSITION.color,
-                start: entry.startTime,
-                end: entry.endTime,
-              },
-            ]
-          : [],
+        positions:
+          displayLine.type !== "none"
+            ? [
+                {
+                  id: `seg-${staff.id}-${date}`,
+                  positionId: DEFAULT_POSITION.id,
+                  positionName: DEFAULT_POSITION.name,
+                  color: DEFAULT_POSITION.color,
+                  start: displayLine.start,
+                  end: displayLine.end,
+                },
+              ]
+            : [],
       });
     }
   }
@@ -108,7 +114,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, []);
 
   const confirmModal = useDialog();
-  const saveDraftWarningModal = useDialog();
   const reminderModal = useDialog();
 
   const unsubmittedNames = useMemo(() => data.staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [data.staffs]);
@@ -148,23 +153,11 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const performSaveDraft = useCallback(async () => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
-      saveDraftWarningModal.close();
       toaster.create({ title: "保存しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
-  }, [saveShiftAssignments, recruitmentId, buildAssignments, saveDraftWarningModal]);
-
-  const handleSaveDraft = useCallback(() => {
-    const isFirstSave = data.shiftAssignments.length === 0 && !isConfirmed;
-    // 締切日当日はまだ新規希望が届く可能性があるので警告対象に含める（strict less-than）
-    const isPastDeadline = data.recruitment.deadline < dayjs().format("YYYY-MM-DD");
-    if (isFirstSave && !isPastDeadline) {
-      saveDraftWarningModal.open();
-    } else {
-      void performSaveDraft();
-    }
-  }, [data.shiftAssignments.length, data.recruitment.deadline, isConfirmed, saveDraftWarningModal, performSaveDraft]);
+  }, [saveShiftAssignments, recruitmentId, buildAssignments]);
 
   const confirmTitle = isConfirmed
     ? "確定済みのシフトをもう一度通知しますか？"
@@ -211,7 +204,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           timeRange={data.timeRange}
           onShiftsChange={handleShiftsChange}
           isConfirmed={isConfirmed}
-          onSaveDraft={handleSaveDraft}
+          onSaveDraft={performSaveDraft}
           onConfirm={confirmModal.open}
           onRemind={isConfirmed ? undefined : reminderModal.open}
           lastSentAtLabel={
@@ -231,17 +224,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
-      </Dialog>
-
-      <Dialog
-        title="下書き保存の注意"
-        isOpen={saveDraftWarningModal.isOpen}
-        onOpenChange={saveDraftWarningModal.onOpenChange}
-        onSubmit={performSaveDraft}
-        submitLabel="下書き保存"
-        onClose={saveDraftWarningModal.close}
-      >
-        <SaveDraftWarningContent />
       </Dialog>
 
       <Dialog

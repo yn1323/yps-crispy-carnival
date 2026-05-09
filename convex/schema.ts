@@ -79,6 +79,8 @@ const schema = defineSchema({
     shiftEndTime: v.optional(v.string()), // "25:00" = 翌1:00
     // 未提出者への催促メール最終送信時刻（24時間クールダウン判定用）
     lastReminderSentAt: v.optional(v.number()),
+    // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
+    draftSavedAt: v.optional(v.number()),
   })
     .index("by_shopId", ["shopId"])
     .index("by_shopId_status", ["shopId", "status"]),
@@ -118,6 +120,7 @@ const schema = defineSchema({
   shiftSubmissions: defineTable({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
+    firstSubmittedAt: v.optional(v.number()), // Unix ms（初回提出日時、既存データは submittedAt にフォールバック）
     submittedAt: v.number(), // Unix ms（最終提出日時）
   })
     .index("by_recruitmentId", ["recruitmentId"])

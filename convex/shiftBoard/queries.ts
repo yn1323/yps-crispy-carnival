@@ -40,7 +40,12 @@ export const getShiftBoardData = managerQuery({
       .query("shiftSubmissions")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
       .take(SHIFT_BOARD_STAFF_LIMIT);
+    const submissionByStaffId = new Map(submissions.map((s) => [s.staffId, s]));
     const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
+    // draftSavedAt 導入前の既存データは、保存済み assignment の作成時刻を暫定の保存時刻として扱う。
+    const effectiveDraftSavedAt =
+      recruitment.draftSavedAt ??
+      (shiftAssignments.length > 0 ? Math.max(...shiftAssignments.map((a) => a._creationTime)) : null);
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
     // 募集時点のスナップショットを優先し、マイグレーション未適用時のみ店舗の現在値にフォールバック
@@ -63,12 +68,22 @@ export const getShiftBoardData = managerQuery({
         status: recruitment.status,
         confirmedAt: recruitment.confirmedAt ?? null,
         lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
+        draftSavedAt: effectiveDraftSavedAt,
       },
-      staffs: allStaffs.map((s) => ({
-        _id: s._id,
-        name: s.name,
-        isSubmitted: submittedStaffIds.has(s._id),
-      })),
+      staffs: allStaffs.map((s) => {
+        const submission = submissionByStaffId.get(s._id);
+        // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
+        const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;
+        return {
+          _id: s._id,
+          name: s.name,
+          isSubmitted: submittedStaffIds.has(s._id),
+          wasSubmittedAtDraft:
+            effectiveDraftSavedAt !== null && firstSubmittedAt !== null
+              ? firstSubmittedAt <= effectiveDraftSavedAt
+              : false,
+        };
+      }),
       shiftRequests: shiftRequests.map((r) => ({
         staffId: r.staffId,
         date: r.date,

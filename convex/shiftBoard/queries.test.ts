@@ -49,7 +49,126 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_all_off" })
       .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
 
-    expect(result?.staffs).toEqual([{ _id: staffId, name: "全休みスタッフ", isSubmitted: true }]);
+    expect(result?.staffs).toEqual([
+      { _id: staffId, name: "全休みスタッフ", isSubmitted: true, wasSubmittedAtDraft: false },
+    ]);
+  });
+
+  it("下書き保存時点で提出済みだったスタッフを返す", async () => {
+    const t = convexTest(schema, modules);
+    const { recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: "manager_draft_status",
+        name: "管理者",
+        email: "manager@example.com",
+        role: "manager",
+        isDeleted: false,
+      });
+      const shopId = await ctx.db.insert("shops", {
+        name: "テスト店舗",
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+        ownerId: "manager_draft_status",
+        isDeleted: false,
+      });
+      const staffBeforeDraftId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "保存前提出",
+        email: "before@example.com",
+        isDeleted: false,
+      });
+      const staffAfterDraftId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "保存後提出",
+        email: "after@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        status: "open",
+        isDeleted: false,
+        draftSavedAt: 2000,
+      });
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId: staffBeforeDraftId,
+        firstSubmittedAt: 1000,
+        submittedAt: 3000,
+      });
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId: staffAfterDraftId,
+        firstSubmittedAt: 3000,
+        submittedAt: 3000,
+      });
+      return { recruitmentId, staffBeforeDraftId, staffAfterDraftId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_draft_status" })
+      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+
+    const staffById = new Map(result?.staffs.map((s) => [s._id, s]));
+    expect(staffById.get(staffBeforeDraftId)?.wasSubmittedAtDraft).toBe(true);
+    expect(staffById.get(staffAfterDraftId)?.wasSubmittedAtDraft).toBe(false);
+    expect(result?.recruitment.draftSavedAt).toBe(2000);
+  });
+
+  it("draftSavedAtがない既存データは保存済み割当の作成時刻を使う", async () => {
+    const t = convexTest(schema, modules);
+    const { recruitmentId, staffId } = await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: "manager_legacy_draft",
+        name: "管理者",
+        email: "manager@example.com",
+        role: "manager",
+        isDeleted: false,
+      });
+      const shopId = await ctx.db.insert("shops", {
+        name: "テスト店舗",
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+        ownerId: "manager_legacy_draft",
+        isDeleted: false,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "既存スタッフ",
+        email: "legacy@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        status: "open",
+        isDeleted: false,
+      });
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId,
+        submittedAt: 1,
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: "2026-04-01",
+        startTime: "10:00",
+        endTime: "18:00",
+      });
+      return { recruitmentId, staffId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_legacy_draft" })
+      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+
+    expect(result?.recruitment.draftSavedAt).toBeTypeOf("number");
+    expect(result?.staffs.find((s) => s._id === staffId)?.wasSubmittedAtDraft).toBe(true);
   });
 
   it("分つきシフト時間は表示用に丸めつつ編集可能境界を分で返す", async () => {

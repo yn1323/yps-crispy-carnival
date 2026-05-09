@@ -158,6 +158,22 @@ describe("shiftBoard/mutations", () => {
           .collect(),
       );
       expect(assignments).toHaveLength(0);
+      const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      expect(recruitment?.draftSavedAt).toBeTypeOf("number");
+    });
+
+    it("保存時にdraftSavedAtを更新する", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const asOwner = t.withIdentity({ subject: "user_owner" });
+
+      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        recruitmentId,
+        assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
+      });
+
+      const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      expect(recruitment?.draftSavedAt).toBeTypeOf("number");
     });
 
     it("保存時に既存の割当を全削除して置き換える", async () => {

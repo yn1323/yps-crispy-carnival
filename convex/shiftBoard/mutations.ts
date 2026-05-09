@@ -63,6 +63,8 @@ export const saveShiftAssignments = managerMutation({
       }),
     );
 
+    const draftSavedAt = Date.now();
+
     // 既存のshiftAssignmentsを全削除
     const existing = await ctx.db
       .query("shiftAssignments")
@@ -83,6 +85,8 @@ export const saveShiftAssignments = managerMutation({
         }),
       ),
     );
+
+    await ctx.db.patch(args.recruitmentId, { draftSavedAt });
   },
 });
 
