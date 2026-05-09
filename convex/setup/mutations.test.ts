@@ -1,6 +1,6 @@
 import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -14,6 +14,9 @@ const setupArgs = {
 };
 
 describe("setup/mutations", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
   describe("setupShopAndOwner", () => {
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
@@ -71,6 +74,11 @@ describe("setup/mutations", () => {
       expect(staffs[0].name).toBe("山田 太郎");
       expect(staffs[0].email).toBe("yamada@example.com");
       expect(staffs[0].userId).toBe(user?._id);
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffs[0]._id),
+      ).toBe(true);
 
       const consentEvents = await t.run(async (ctx) =>
         ctx.db

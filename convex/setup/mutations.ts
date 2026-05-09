@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { internal } from "../_generated/api";
 import { authenticatedMutation } from "../_lib/functions";
 import { recordUserLegalConsent } from "../legal/service";
 
@@ -51,12 +52,16 @@ export const setupShopAndOwner = authenticatedMutation({
       method: "manager_setup",
     });
 
-    await ctx.db.insert("staffs", {
+    const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: args.ownerName,
       email: args.ownerEmail,
       userId,
       isDeleted: false,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+      staffId,
     });
 
     return shopId;

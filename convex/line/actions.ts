@@ -132,7 +132,7 @@ export const refreshQuotaStatus = internalAction({
 
 /**
  * 連携依頼メール（個別 / 一括 共通）を1件送る
- * `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
+ * `setup.setupShopAndOwner` / `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
  */
 export const sendInviteEmail = internalAction({
   args: { staffId: v.id("staffs") },
