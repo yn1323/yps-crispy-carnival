@@ -57,7 +57,7 @@ jobs:
       - name: Deploy Report to GitHub Pages
         if: ${{ !cancelled() }}
         run: |
-          git clone https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
+          git clone --depth 1 --single-branch https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
           rm -rf hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}
           mkdir -p hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}
           cp -r playwright-report/* hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}/
