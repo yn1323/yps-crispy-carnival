@@ -64,10 +64,10 @@
     "react-icons": "5.5.0",
     "react-joyride": "^3.0.2",
     "resend": "^6.9.2",
-    "zod": "4.3.6"
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.12",
+    "@biomejs/biome": "2.4.14",
     "@clerk/testing": "1.14.6",
     "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "1.57.0",
