@@ -53,6 +53,8 @@ export const sendShiftConfirmationEmails = internalAction({
       const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
       if (channel === "line" && staffData.lineUserId) {
+        // LINE失敗時のメールフォールバックでも同じ閲覧リンクを使う。
+        // 先にトークンを切ることで、送信経路だけが変わってもスタッフの遷移先は揃う。
         const text = buildShiftConfirmationLineText({
           staffName: staffData.name,
           shopName: data.shopName,
@@ -241,6 +243,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
       if (channel === "line" && staff.lineUserId) {
+        // Quota は日次同期なので実送信で失敗する可能性がある。送れない場合は同じ token のメールへ逃がす。
         try {
           await pushTextMessage(
             staff.lineUserId,
@@ -293,6 +296,8 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
       staffId,
     });
     if (!data || data.recruitments.length === 0 || !data.staff.email) return;
+    // スタッフ追加時の追送は個別失敗を握る。登録 mutation を成功扱いにした後の補助通知なので、
+    // 1件のメール不達で他の募集中リンク送信まで止めない。
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
@@ -355,6 +360,8 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
       { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
       quota,
     );
+    // follow直後でも quota exceeded が分かっている場合は送らない。
+    // メール経路はスタッフ追加時・募集作成時に別途担保される。
     if (channel !== "line") return;
 
     for (const recruitment of data.recruitments) {

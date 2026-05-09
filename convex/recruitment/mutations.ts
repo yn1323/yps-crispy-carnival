@@ -37,7 +37,7 @@ export const createRecruitment = managerMutation({
       shiftStartTime: ctx.shop.shiftStartTime,
       shiftEndTime: ctx.shop.shiftEndTime,
     });
-    // 全スタッフに募集開始メールを送信
+    // 募集作成はDB更新を先に完了させ、通知は action 側で LINE / email / dry-run を振り分ける。
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendRecruitmentNotificationEmails, {
       recruitmentId,
     });

@@ -27,6 +27,8 @@ export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaf
     legalConsentMethod: args.method,
   };
 
+  // 現在値は staff / user ドキュメントへ写し、監査用の履歴は events に追記する。
+  // 画面の判定は現在値だけを読み、あとから規約バージョンの証跡を追えるように分けている。
   await ctx.db.patch(args.staffId, legalConsent);
   await ctx.db.insert("legalConsentEvents", {
     subjectType: "staff",
@@ -53,6 +55,7 @@ export async function recordUserLegalConsent(ctx: MutationCtx, args: RecordUserC
     legalConsentMethod: args.method,
   };
 
+  // manager も staff と同じ二重記録にする。再同意導線が増えても、判定と監査の責務を混ぜない。
   await ctx.db.patch(args.userId, legalConsent);
   await ctx.db.insert("legalConsentEvents", {
     subjectType: "user",

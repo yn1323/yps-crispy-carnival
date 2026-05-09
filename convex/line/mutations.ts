@@ -131,11 +131,15 @@ export const finalizeLinking = internalMutation({
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
     if (args.lineFollowing) {
+      // LINE連携直後に同意依頼を送る。未followの場合は needs_follow 画面で友だち追加を促し、
+      // follow Webhook 側で同じ案内を送る。
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
         staffId: args.staffId,
       });
     }
     if (args.lineFollowing && staff && !staff.lineFollowing && !staff.isDeleted) {
+      // 初回followになったタイミングだけ、現在募集中の提出リンクをLINEにも流す。
+      // 既にfollow済みの再連携では重複送信しない。
       await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
       });
@@ -204,6 +208,7 @@ export const dispatchWebhookEvents = internalMutation({
         const wasFollowing = Boolean(staff.lineFollowing);
         await ctx.db.patch(staff._id, { lineFollowing: following });
         if (following && !wasFollowing) {
+          // ブロック解除などでfollow状態に戻った場合、未送達になっていた案内を補う。
           await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
             staffId: staff._id,
           });

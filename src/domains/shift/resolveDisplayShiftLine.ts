@@ -15,6 +15,10 @@ type ResolveDisplayShiftLineParams = {
   currentRequest?: ShiftLineTime | null;
 };
 
+/**
+ * シフト表セルに表示する緑ラインの優先順位を決める。
+ * 下書き保存後にスタッフが再提出した希望は点線で別表示し、店長が保存した判断を勝手に上書きしない。
+ */
 export const resolveDisplayShiftLine = ({
   hasDraftSaved,
   savedAssignment,

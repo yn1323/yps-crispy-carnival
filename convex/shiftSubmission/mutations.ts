@@ -44,6 +44,7 @@ export const submitShiftRequests = staffSessionMutation({
       throw new ConvexError("Not found");
     }
 
+    // 締切日は終日有効。翌日 0:00 を cutoff にして、表示上の「締切日」と提出可否を揃える。
     if (Date.now() >= getDeadlineCutoff(recruitment.deadline)) {
       throw new ConvexError("Deadline passed");
     }
@@ -57,6 +58,7 @@ export const submitShiftRequests = staffSessionMutation({
       if (args.acceptedLegal !== true) {
         throw new ConvexError("Legal consent required");
       }
+      // スタッフは Clerk アカウントを持たないため、初回提出の同意を staff ドキュメントへ直接記録する。
       await recordStaffLegalConsent(ctx, {
         staffId: ctx.staff._id,
         shopId: ctx.shop._id,
@@ -72,6 +74,7 @@ export const submitShiftRequests = staffSessionMutation({
       if (timeToMinutes(req.startTime) >= timeToMinutes(req.endTime)) {
         throw new ConvexError("Invalid time range");
       }
+      // 募集作成時点の営業時間を優先し、移行中データだけ現在の店舗設定へフォールバックする。
       const shiftStartTime = recruitment.shiftStartTime ?? ctx.shop.shiftStartTime;
       const shiftEndTime = recruitment.shiftEndTime ?? ctx.shop.shiftEndTime;
       if (
@@ -88,6 +91,8 @@ export const submitShiftRequests = staffSessionMutation({
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", ctx.staff._id),
       )
       .collect();
+    // 再提出は差分更新ではなく全置換。休みの日は shiftRequests を作らないため、
+    // shiftSubmissions 側の存在が「提出済み」の正になる。
     await Promise.all(existingRequests.map((r) => ctx.db.delete(r._id)));
 
     await Promise.all(

@@ -51,6 +51,8 @@ export const getDashboardRecruitments = authenticatedQuery({
 
     const page = await Promise.all(
       paginatedResult.page.map(async (r) => {
+        // 回答数は shiftRequests ではなく shiftSubmissions を正とする。
+        // 全日休み提出では明細が0件になるため、提出記録を数えないと未提出扱いになってしまう。
         const submissions = await ctx.db
           .query("shiftSubmissions")
           .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))

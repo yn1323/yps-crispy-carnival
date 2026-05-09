@@ -52,6 +52,8 @@ export const setupShopAndOwner = authenticatedMutation({
       method: "manager_setup",
     });
 
+    // owner もスタッフ一覧に含める。自分のシフトやLINE通知を同じ画面で扱うため、
+    // users と staffs は userId で紐付け、後続の編集時に表示名を同期する。
     const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: args.ownerName,

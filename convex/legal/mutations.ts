@@ -47,6 +47,8 @@ export const acceptStaffLegalConsent = mutation({
       return { status: "expired" as const };
     }
 
+    // 有効な同意がすでにある場合でも token は使用済みにする。
+    // 古いリンクを再利用できない状態に揃え、結果だけは成功として返す。
     if (!hasCurrentLegalConsent(staff, "staff")) {
       await recordStaffLegalConsent(ctx, {
         staffId: staff._id,

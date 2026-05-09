@@ -65,7 +65,8 @@ export const saveShiftAssignments = managerMutation({
 
     const draftSavedAt = Date.now();
 
-    // 既存のshiftAssignmentsを全削除
+    // シフト表は1募集分をまとめて編集するため、保存時は全置換にしてクライアント状態を正とする。
+    // 個別 patch にすると、削除された行や日付移動の扱いが複雑になりやすい。
     const existing = await ctx.db
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
@@ -73,7 +74,6 @@ export const saveShiftAssignments = managerMutation({
 
     await Promise.all(existing.map((a) => ctx.db.delete(a._id)));
 
-    // 新しいassignmentsを一括挿入
     await Promise.all(
       args.assignments.map((assignment) =>
         ctx.db.insert("shiftAssignments", {
@@ -102,6 +102,7 @@ export const confirmRecruitment = managerMutation({
 
     const isResend = recruitment.status === "confirmed";
 
+    // 再確定も同じ導線で許可する。通知文面だけ変更して、既存スタッフには変更連絡として届ける。
     await ctx.db.patch(args.recruitmentId, {
       status: "confirmed",
       confirmedAt: Date.now(),
