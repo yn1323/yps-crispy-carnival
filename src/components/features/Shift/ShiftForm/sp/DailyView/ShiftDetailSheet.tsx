@@ -1,8 +1,8 @@
 import { Box, Text, VStack } from "@chakra-ui/react";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../constants";
-import type { ShiftData, StaffType } from "../../types";
-import { formatDateWithWeekday } from "../../utils/dateUtils";
 
 type ShiftDetailSheetProps = {
   staff: StaffType;

@@ -1,9 +1,9 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../../constants";
 import { hourWidthAtom, selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../../stores";
-import type { ShiftData, StaffType } from "../../../types";
 import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";

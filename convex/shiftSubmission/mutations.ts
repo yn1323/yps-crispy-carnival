@@ -4,7 +4,7 @@ import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { timeToMinutes } from "../_lib/time";
 import { hasCurrentLegalConsent } from "../legal/documents";
-import { recordStaffLegalConsent } from "../legal/mutations";
+import { recordStaffLegalConsent } from "../legal/service";
 import { submitShiftRequestsSchema } from "./schemas";
 
 /**
@@ -40,6 +40,9 @@ export const submitShiftRequests = staffSessionMutation({
     if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
       throw new ConvexError("Not found");
     }
+    if (recruitment.status !== "open") {
+      throw new ConvexError("Not found");
+    }
 
     if (Date.now() >= getDeadlineCutoff(recruitment.deadline)) {
       throw new ConvexError("Deadline passed");
@@ -67,6 +70,14 @@ export const submitShiftRequests = staffSessionMutation({
         throw new ConvexError("Date out of range");
       }
       if (timeToMinutes(req.startTime) >= timeToMinutes(req.endTime)) {
+        throw new ConvexError("Invalid time range");
+      }
+      const shiftStartTime = recruitment.shiftStartTime ?? ctx.shop.shiftStartTime;
+      const shiftEndTime = recruitment.shiftEndTime ?? ctx.shop.shiftEndTime;
+      if (
+        timeToMinutes(req.startTime) < timeToMinutes(shiftStartTime) ||
+        timeToMinutes(req.endTime) > timeToMinutes(shiftEndTime)
+      ) {
         throw new ConvexError("Invalid time range");
       }
     }

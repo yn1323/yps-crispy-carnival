@@ -1,6 +1,14 @@
 import { atom } from "jotai";
-import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
-import { sortStaffs } from "./utils/sortStaffs";
+import { sortStaffs } from "@/src/domains/shift/sortStaffs";
+import type {
+  PositionType,
+  RequiredStaffingData,
+  ShiftData,
+  SortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 
 // ==========================================
 // 外部設定（propsから初期化、子コンポーネントは読み取り専用）

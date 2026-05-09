@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import type { LinkedResizeTarget, PositionSegment, ShiftData } from "../types";
 import {
   computeVisualBreaks,
   deletePositionFromShift,
@@ -7,7 +6,8 @@ import {
   mergeAdjacentPositions,
   normalizePositions,
   resizeLinkedPositions,
-} from "./shiftOperations";
+} from "./operations";
+import type { LinkedResizeTarget, PositionSegment, ShiftData } from "./types";
 
 const breakPosition = { id: "pos4", name: "休憩", color: "#6b7280" };
 

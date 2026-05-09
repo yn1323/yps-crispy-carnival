@@ -6,12 +6,13 @@
 
 ```
 src/
-├── routes/           # TanStack Router（ページ呼び出しのみ）
+├── routes/           # TanStack Router（ルーティング定義・head・検索/パラメータ受け渡しのみ）
+├── pages/            # ページコンポーネント（useQuery、エラー/ローディング処理）
 ├── components/
-│   ├── pages/        # ページコンポーネント（useQuery、エラー/ローディング処理）※現在未実装
-│   ├── features/     # 機能コンポーネント（ドメインロジック、useMutation）
-│   ├── templates/    # レイアウト（BottomMenu、SideMenu等）
+│   ├── features/     # 機能コンポーネント（UI組成、useMutation、ユーザー操作イベント）
+│   ├── templates/    # レイアウト（Header、StaffLayout等）
 │   └── ui/           # 汎用UIコンポーネント
+├── domains/          # ドメイン型・純粋ロジック・表示変換
 ├── stores/           # Jotai状態管理
 ├── helpers/          # ユーティリティ関数
 ├── constants/        # 定数定義
@@ -33,7 +34,11 @@ convex/
 
 | 機能 | Pages | Features | Convex |
 |------|-------|----------|--------|
-| シフトフォーム | - | `Shift/ShiftForm` | 未実装 |
+| ダッシュボード | `src/pages/dashboard/` | `Dashboard/*` | `dashboard`, `staff`, `recruitment`, `shop`, `line`, `legal`, `setup` |
+| シフト表 | `src/pages/shift-board/` | `ShiftBoard/*`, `Shift/ShiftForm` | `shiftBoard`, `shiftReminder` |
+| スタッフ希望提出 | `src/pages/staff-shift-submit/` | `StaffSubmit/*` | `shiftSubmission`, `staffAuth` |
+| スタッフシフト閲覧 | `src/pages/staff-shift-view/` | `StaffView/*`, `Shift/ShiftForm` | `staffAuth` |
+| シフトフォーム | - | `Shift/ShiftForm` | - |
 
 ---
 
@@ -43,6 +48,7 @@ convex/
 | ファイルパス | 責務 |
 |-------------|------|
 | `src/components/features/Shift/ShiftForm/` | シフト編集UI（PC版・SP版）、ドラッグ操作、表示切替 |
+| `src/domains/shift/` | シフト型、日付/時刻変換、シフト操作、スタッフソート |
 
 ---
 
@@ -55,12 +61,13 @@ convex/
 ┌─────────────────────────────────────┐
 │ [TanStack Router] src/routes/       │
 │   - ファイルベースルーティング       │
+│   - head/search/params の受け渡し    │
 │   - ページコンポーネント呼び出しのみ │
 └─────────────────────────────────────┘
       │
       ▼
 ┌─────────────────────────────────────┐
-│ [Pages] src/components/pages/       │
+│ [Pages] src/pages/                  │
 │   - useQuery() でデータ取得          │
 │   - エラー/ローディング判定          │
 │   - 正常系のみ Features 呼び出し     │
@@ -72,6 +79,13 @@ convex/
 │   - レイアウト、UI組成               │
 │   - useMutation() 定義               │
 │   - ユーザー操作イベント             │
+└─────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────┐
+│ [Domains] src/domains/              │
+│   - 型・純粋関数・表示変換           │
+│   - React/Convex 依存なし            │
 └─────────────────────────────────────┘
       │
       ▼
@@ -97,6 +111,7 @@ convex/
 - ページコンポーネントの呼び出し**のみ**
 - 状態管理は禁止
 - ビジネスロジックは禁止
+- `head`、`validateSearch`、URLパラメータの受け渡しはここに置く
 
 ### pages/ （ページ層）
 - `useQuery`の呼び出し
@@ -108,6 +123,11 @@ convex/
 - レイアウト、ドメインロジックを持つ
 - `useMutation`の定義
 - 正常系、エラー、ローディングのコンポーネントを内包
+
+### domains/ （ドメイン層）
+- React/Convex に依存しない型・定数・純粋関数を置く
+- 画面間で共有される変換ロジックは `features/` から切り出す
+- UI固有の座標計算やドラッグ判定は `components/features/` 側に残す
 
 ### templates/ （レイアウト層）
 - `BottomMenu`, `SideMenu`等のレイアウトコンポーネント

@@ -1,10 +1,12 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
 import { timeToMinutes } from "../_lib/time";
-
-const MAX_STAFFS = 200;
-const MAX_SHIFT_REQUESTS = 2000;
-const MAX_SHIFT_ASSIGNMENTS = 2000;
+import {
+  SHIFT_ASSIGNMENT_LIMIT,
+  SHIFT_BOARD_SHIFT_REQUEST_LIMIT,
+  SHIFT_BOARD_STAFF_LIMIT,
+  SHIFT_BOARD_TIME_UNIT_MINUTES,
+} from "../constants";
 
 export const getShiftBoardData = managerQuery({
   args: {
@@ -22,22 +24,23 @@ export const getShiftBoardData = managerQuery({
     const [allStaffs, shiftRequests, shiftAssignments] = await Promise.all([
       ctx.db
         .query("staffs")
-        .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
-        .take(MAX_STAFFS),
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .take(SHIFT_BOARD_STAFF_LIMIT),
       ctx.db
         .query("shiftRequests")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-        .take(MAX_SHIFT_REQUESTS),
+        .take(SHIFT_BOARD_SHIFT_REQUEST_LIMIT),
       ctx.db
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-        .take(MAX_SHIFT_ASSIGNMENTS),
+        .take(SHIFT_ASSIGNMENT_LIMIT),
     ]);
 
-    const staffs = allStaffs.filter((s) => !s.isDeleted);
-
-    // isSubmitted: そのスタッフのshiftRequestsが1件以上あるか
-    const submittedStaffIds = new Set(shiftRequests.map((r) => r.staffId));
+    const submissions = await ctx.db
+      .query("shiftSubmissions")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
+      .take(SHIFT_BOARD_STAFF_LIMIT);
+    const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
     // 募集時点のスナップショットを優先し、マイグレーション未適用時のみ店舗の現在値にフォールバック
@@ -59,7 +62,7 @@ export const getShiftBoardData = managerQuery({
         confirmedAt: recruitment.confirmedAt ?? null,
         lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
       },
-      staffs: staffs.map((s) => ({
+      staffs: allStaffs.map((s) => ({
         _id: s._id,
         name: s.name,
         isSubmitted: submittedStaffIds.has(s._id),
@@ -79,7 +82,7 @@ export const getShiftBoardData = managerQuery({
       timeRange: {
         start: startHour,
         end: endHour,
-        unit: 30,
+        unit: SHIFT_BOARD_TIME_UNIT_MINUTES,
       },
     };
   },

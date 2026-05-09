@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatDateLabel, formatPeriodLabel, generateDateRange, todayJST } from "../_lib/dateFormat";
+import { OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
 
 /**
  * シフト確定メール送信に必要なデータを一括取得
@@ -17,7 +18,7 @@ export const getConfirmationEmailData = internalQuery({
     const [staffs, assignments] = await Promise.all([
       ctx.db
         .query("staffs")
-        .withIndex("by_shopId", (q) => q.eq("shopId", recruitment.shopId))
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
         .collect(),
       ctx.db
         .query("shiftAssignments")
@@ -25,13 +26,11 @@ export const getConfirmationEmailData = internalQuery({
         .collect(),
     ]);
 
-    const activeStaffs = staffs.filter((s) => !s.isDeleted);
-
     // 期間内の全日付を生成
     const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
 
     // スタッフごとにシフト情報をグループ化
-    const staffEntries = activeStaffs.map((staff) => {
+    const staffEntries = staffs.map((staff) => {
       const staffAssignments = assignments.filter((a) => a.staffId === staff._id);
       const assignmentMap = new Map(staffAssignments.map((a) => [a.date, a]));
 
@@ -77,16 +76,15 @@ export const getRecruitmentEmailData = internalQuery({
 
     const staffs = await ctx.db
       .query("staffs")
-      .withIndex("by_shopId", (q) => q.eq("shopId", recruitment.shopId))
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
       .collect();
-    const activeStaffs = staffs.filter((s) => !s.isDeleted);
 
     return {
       shopId: recruitment.shopId,
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       deadline: recruitment.deadline,
-      staffEntries: activeStaffs.map((s) => ({
+      staffEntries: staffs.map((s) => ({
         staffId: s._id,
         name: s.name,
         email: s.email,
@@ -114,7 +112,7 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
       .query("recruitments")
       .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
       .order("desc")
-      .take(50);
+      .take(OPEN_RECRUITMENT_NOTIFICATION_LIMIT);
 
     const openRecruitments = recruitments
       .filter((r) => !r.isDeleted && r.deadline >= today)

@@ -1,5 +1,17 @@
 import { execFileSync } from "node:child_process";
 
+const npmConfigKeysToOmit = new Set([
+  "npm_config_npm_globalconfig",
+  "npm_config_verify_deps_before_run",
+  "npm_config__jsr_registry",
+]);
+
+function getNpxEnv() {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !npmConfigKeysToOmit.has(key.toLowerCase())),
+  ) as NodeJS.ProcessEnv;
+}
+
 function toJson5(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return `[${value.map(toJson5).join(",")}]`;
@@ -27,11 +39,13 @@ export function convexRun(fn: string, args: Record<string, unknown> = {}): strin
     return execFileSync("powershell.exe", ["-NoProfile", "-Command", psCommand], {
       encoding: "utf-8",
       cwd: process.cwd(),
+      env: getNpxEnv(),
     });
   }
   return execFileSync("npx", cliArgs, {
     encoding: "utf-8",
     cwd: process.cwd(),
+    env: getNpxEnv(),
   });
 }
 

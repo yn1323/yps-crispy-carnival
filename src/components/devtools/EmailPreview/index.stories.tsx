@@ -5,7 +5,7 @@ import {
   buildRecruitmentEmailHtml,
   buildReissueEmailHtml,
   buildReminderEmailHtml,
-} from "@/convex/email/templates";
+} from "@/convex/notification/templates";
 import { EmailPreview } from ".";
 
 const meta = {

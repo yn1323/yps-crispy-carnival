@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import {
   JotaiStoryWrapper,
   mockPositions,
@@ -7,7 +8,6 @@ import {
   mockShiftsRequestOnly,
   mockStaffs,
 } from "../../__mocks__/storyData";
-import type { ShiftData, StaffType } from "../../types";
 import { DailyView } from ".";
 
 const manyStaffs: StaffType[] = Array.from({ length: 28 }, (_, index) => {

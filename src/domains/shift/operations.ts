@@ -1,5 +1,5 @@
-import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "../types";
-import { minutesToPixel, minutesToTime, timeToMinutes } from "./timeConversion";
+import { minutesToTime, timeToMinutes } from "./time";
+import type { LinkedResizeTarget, PositionSegment, ShiftData } from "./types";
 
 // === シフト検索ユーティリティ ===
 
@@ -13,94 +13,6 @@ export const findShiftAtPosition = (params: {
   const { shifts, staffId, date } = params;
   // スタッフの当日シフトを返す（希望時間外にもポジションを塗れるため、位置は問わない）
   return shifts.find((shift) => shift.staffId === staffId && shift.date === date) ?? null;
-};
-
-// ポジションバー端（リサイズ対象）の検出（固定幅ベース）
-export const detectPositionResizeEdge = (params: {
-  shifts: ShiftData[];
-  staffId: string;
-  date: string;
-  x: number;
-  timeRange: TimeRange;
-  threshold: number;
-  hourWidth?: number;
-}): { shiftId: string; positionId: string; positionColor: string; edge: "start" | "end" } | null => {
-  const { shifts, staffId, date, x, timeRange, threshold, hourWidth } = params;
-
-  for (const shift of shifts) {
-    if (shift.staffId !== staffId || shift.date !== date) {
-      continue;
-    }
-
-    for (const pos of shift.positions) {
-      const startX = minutesToPixel(timeToMinutes(pos.start), timeRange, hourWidth);
-      const endX = minutesToPixel(timeToMinutes(pos.end), timeRange, hourWidth);
-
-      if (Math.abs(x - startX) <= threshold) {
-        return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "start" };
-      }
-      if (Math.abs(x - endX) <= threshold) {
-        return { shiftId: shift.id, positionId: pos.id, positionColor: pos.color, edge: "end" };
-      }
-    }
-  }
-
-  return null;
-};
-
-// 連結リサイズ対象の検出（隣接バーの境界を検出、固定幅ベース）
-export const detectLinkedResizeEdge = (params: {
-  shifts: ShiftData[];
-  staffId: string;
-  date: string;
-  x: number;
-  timeRange: TimeRange;
-  threshold: number;
-  hourWidth?: number;
-}): { shiftId: string; linkedTarget: LinkedResizeTarget } | null => {
-  const { shifts, staffId, date, x, timeRange, threshold, hourWidth } = params;
-
-  const targetShift = shifts.find((shift) => shift.staffId === staffId && shift.date === date);
-  if (!targetShift) return null;
-
-  const sortedPositions = [...targetShift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-
-  for (let i = 0; i < sortedPositions.length; i++) {
-    const pos = sortedPositions[i];
-    const prevPos = i > 0 ? sortedPositions[i - 1] : null;
-    const nextPos = i < sortedPositions.length - 1 ? sortedPositions[i + 1] : null;
-
-    const startX = minutesToPixel(timeToMinutes(pos.start), timeRange, hourWidth);
-    const endX = minutesToPixel(timeToMinutes(pos.end), timeRange, hourWidth);
-
-    // start側の判定（連結 or 単独）
-    if (Math.abs(x - startX) <= threshold) {
-      const isLinkedToPrev = prevPos && prevPos.end === pos.start;
-      return {
-        shiftId: targetShift.id,
-        linkedTarget: {
-          prevPosition: isLinkedToPrev ? { positionId: prevPos.id, positionColor: prevPos.color } : null,
-          nextPosition: { positionId: pos.id, positionColor: pos.color },
-          boundaryMinutes: timeToMinutes(pos.start),
-        },
-      };
-    }
-
-    // end側の判定（連結 or 単独）
-    if (Math.abs(x - endX) <= threshold) {
-      const isLinkedToNext = nextPos && pos.end === nextPos.start;
-      return {
-        shiftId: targetShift.id,
-        linkedTarget: {
-          prevPosition: { positionId: pos.id, positionColor: pos.color },
-          nextPosition: isLinkedToNext ? { positionId: nextPos.id, positionColor: nextPos.color } : null,
-          boundaryMinutes: timeToMinutes(pos.end),
-        },
-      };
-    }
-  }
-
-  return null;
 };
 
 // 指定位置のポジションセグメントを検索

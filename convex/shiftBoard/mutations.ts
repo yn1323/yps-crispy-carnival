@@ -2,8 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { managerMutation } from "../_lib/functions";
 import { timeToMinutes } from "../_lib/time";
-
-const MAX_SHIFT_ASSIGNMENTS = 2000;
+import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
 export const saveShiftAssignments = managerMutation({
   args: {
@@ -68,7 +67,7 @@ export const saveShiftAssignments = managerMutation({
     const existing = await ctx.db
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
-      .take(MAX_SHIFT_ASSIGNMENTS);
+      .take(SHIFT_ASSIGNMENT_LIMIT);
 
     await Promise.all(existing.map((a) => ctx.db.delete(a._id)));
 
@@ -104,7 +103,7 @@ export const confirmRecruitment = managerMutation({
       confirmedAt: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, internal.email.actions.sendShiftConfirmationEmails, {
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendShiftConfirmationEmails, {
       recruitmentId: args.recruitmentId,
       isResend,
     });

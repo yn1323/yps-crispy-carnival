@@ -231,7 +231,7 @@ describe("staff/mutations", () => {
         return { staffId, openRecruitmentId };
       });
 
-      const data = await t.query(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, {
+      const data = await t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
         staffId: ids.staffId,
       });
 

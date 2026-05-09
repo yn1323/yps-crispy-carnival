@@ -7,16 +7,16 @@ import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData, StaffType } from "@/src/components/features/Shift/ShiftForm/types";
+import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import {
   formatDateTime,
   formatDateTimeWithWeekday,
   formatDateWithWeekday,
   getDateRange,
-} from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+} from "@/src/domains/shift/date";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import { SaveDraftWarningContent } from "../SaveDraftWarningContent";

@@ -5,6 +5,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
+import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
@@ -20,9 +21,6 @@ import {
   buildShiftConfirmationLineText,
 } from "./templates";
 
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
-const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@shiftori.app";
-
 /**
  * シフト確定通知の配信
  * - 連携済みかつ友達追加中 → LINE Push
@@ -31,7 +29,7 @@ const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@shiftori.app";
 export const sendShiftConfirmationEmails = internalAction({
   args: { recruitmentId: v.id("recruitments"), isResend: v.boolean() },
   handler: async (ctx, { recruitmentId, isResend }) => {
-    const data = await ctx.runQuery(internal.email.queries.getConfirmationEmailData, { recruitmentId });
+    const data = await ctx.runQuery(internal.notification.queries.getConfirmationEmailData, { recruitmentId });
     if (!data) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -47,7 +45,7 @@ export const sendShiftConfirmationEmails = internalAction({
         quota,
       );
 
-      const { token: viewToken } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+      const { token: viewToken } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
         staffId: staffData.staffId,
         shopId: data.shopId,
         recruitmentId,
@@ -114,7 +112,7 @@ async function sendConfirmationEmail(opts: {
   });
 
   await resend.emails.send({
-    from: formatResendFrom(data.shopName, RESEND_FROM),
+    from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
     to: staffData.email,
     subject: isResend
       ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
@@ -145,7 +143,7 @@ export const sendReissueEmail = internalAction({
     const log = (level: "log" | "warn" | "error", event: string, extra: Record<string, unknown> = {}) =>
       console[level](`[sendReissueEmail] ${event}`, { staffId, recruitmentId, ...extra });
 
-    const data = await ctx.runQuery(internal.email.queries.getReissueEmailData, { staffId, recruitmentId });
+    const data = await ctx.runQuery(internal.notification.queries.getReissueEmailData, { staffId, recruitmentId });
     if (!data) return log("warn", "data_not_found");
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -162,7 +160,7 @@ export const sendReissueEmail = internalAction({
       quotaStatus: quota?.status,
     });
 
-    const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+    const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
       staffId,
       shopId: data.shopId,
       recruitmentId,
@@ -192,7 +190,7 @@ export const sendReissueEmail = internalAction({
     try {
       const resend = getResendClient({ suppressDelivery });
       await resend.emails.send({
-        from: formatResendFrom(data.shopName, RESEND_FROM),
+        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: data.staffEmail,
         subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
         html: buildReissueEmailHtml({
@@ -220,7 +218,7 @@ function errorMessage(e: unknown): string {
 export const sendRecruitmentNotificationEmails = internalAction({
   args: { recruitmentId: v.id("recruitments") },
   handler: async (ctx, { recruitmentId }) => {
-    const data = await ctx.runQuery(internal.email.queries.getRecruitmentEmailData, { recruitmentId });
+    const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, { recruitmentId });
     if (!data) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -234,7 +232,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
 
-      const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
@@ -270,7 +268,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
         appUrl: APP_URL,
       });
       await resend.emails.send({
-        from: formatResendFrom(data.shopName, RESEND_FROM),
+        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: staff.email,
         subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出をお願いします`),
         html: buildRecruitmentEmailHtml({
@@ -291,7 +289,9 @@ export const sendRecruitmentNotificationEmails = internalAction({
 export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
-    const data = await ctx.runQuery(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, { staffId });
+    const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
+      staffId,
+    });
     if (!data || data.recruitments.length === 0 || !data.staff.email) return;
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
@@ -299,7 +299,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
     );
 
     for (const recruitment of data.recruitments) {
-      const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
@@ -317,7 +317,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
       try {
         const resend = getResendClient({ suppressDelivery });
         await resend.emails.send({
-          from: formatResendFrom(data.shopName, RESEND_FROM),
+          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: data.staff.email,
           subject: formatResendSubject(data.shopName, `${recruitment.periodLabel} シフト希望の提出をお願いします`),
           html: buildRecruitmentEmailHtml({
@@ -341,7 +341,9 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
 export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
-    const data = await ctx.runQuery(internal.email.queries.getOpenRecruitmentNotificationDataForStaff, { staffId });
+    const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
+      staffId,
+    });
     if (!data || data.recruitments.length === 0 || !data.staff.lineUserId) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -356,7 +358,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
     if (channel !== "line") return;
 
     for (const recruitment of data.recruitments) {
-      const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,

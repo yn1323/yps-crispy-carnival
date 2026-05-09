@@ -3,16 +3,12 @@ import dayjs from "dayjs";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData, ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
-import {
-  formatDateShort,
-  formatDateTime,
-  getWeekdayLabel,
-} from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import type { TourHandle } from "@/src/components/ui/Tour";
 import { toaster } from "@/src/components/ui/toaster";
+import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
+import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
+import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../mocks";
 import { DemoIntroTour } from "./DemoIntroTour";

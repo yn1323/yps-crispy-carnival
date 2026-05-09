@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { MutableRefObject } from "react";
+import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { Avatar } from "../../../components";
-import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "../../../types";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { ShiftBar } from "./ShiftBar";

@@ -17,7 +17,7 @@ export const getReminderEmailData = internalQuery({
     const [staffs, submissions] = await Promise.all([
       ctx.db
         .query("staffs")
-        .withIndex("by_shopId", (q) => q.eq("shopId", recruitment.shopId))
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
         .collect(),
       ctx.db
         .query("shiftSubmissions")
@@ -26,7 +26,7 @@ export const getReminderEmailData = internalQuery({
     ]);
 
     const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
-    const unsubmittedStaffs = staffs.filter((s) => !s.isDeleted && !submittedStaffIds.has(s._id) && s.email.length > 0);
+    const unsubmittedStaffs = staffs.filter((s) => !submittedStaffIds.has(s._id) && s.email.length > 0);
 
     return {
       shopId: recruitment.shopId,

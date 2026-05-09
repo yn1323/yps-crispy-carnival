@@ -3,13 +3,11 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { getResendClient } from "../_lib/resend";
-import { buildStaffLegalConsentEmailHtml, buildStaffLegalConsentLineText } from "../email/templates";
-
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
-const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@shiftori.app";
+import { buildStaffLegalConsentEmailHtml, buildStaffLegalConsentLineText } from "../notification/templates";
 
 export const sendStaffConsentEmail = internalAction({
   args: { staffId: v.id("staffs") },
@@ -30,7 +28,7 @@ export const sendStaffConsentEmail = internalAction({
 
     const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
-      from: formatResendFrom(data.shopName, RESEND_FROM),
+      from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
       to: data.staffEmail,
       subject: formatResendSubject(data.shopName, "シフト管理サービスの利用規約・プライバシーポリシー確認のお願い"),
       html: buildStaffLegalConsentEmailHtml({

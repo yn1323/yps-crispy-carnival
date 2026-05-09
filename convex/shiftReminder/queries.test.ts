@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
 
-describe("shiftReminder/queries", () => {
+describe("notification/reminderQueries", () => {
   describe("getReminderEmailData", () => {
     it("未提出のスタッフのみ返す", async () => {
       const t = convexTest(schema, modules);
@@ -43,7 +43,7 @@ describe("shiftReminder/queries", () => {
         return { recruitmentId, submittedStaffId, unsubmittedStaffId };
       });
 
-      const result = await t.query(internal.shiftReminder.queries.getReminderEmailData, { recruitmentId });
+      const result = await t.query(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
 
       expect(result).not.toBeNull();
       expect(result?.staffEntries).toHaveLength(1);
@@ -78,7 +78,7 @@ describe("shiftReminder/queries", () => {
         return { recruitmentId };
       });
 
-      const result = await t.query(internal.shiftReminder.queries.getReminderEmailData, { recruitmentId });
+      const result = await t.query(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
 
       expect(result?.staffEntries).toHaveLength(0);
     });
@@ -110,7 +110,7 @@ describe("shiftReminder/queries", () => {
         return { recruitmentId };
       });
 
-      const result = await t.query(internal.shiftReminder.queries.getReminderEmailData, { recruitmentId });
+      const result = await t.query(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
 
       expect(result?.staffEntries).toHaveLength(0);
     });
@@ -136,7 +136,7 @@ describe("shiftReminder/queries", () => {
         return { recruitmentId };
       });
 
-      const result = await t.query(internal.shiftReminder.queries.getReminderEmailData, { recruitmentId });
+      const result = await t.query(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
 
       expect(result).toBeNull();
     });

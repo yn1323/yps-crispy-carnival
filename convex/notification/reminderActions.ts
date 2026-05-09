@@ -3,17 +3,15 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatDateTimeLabel } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { getResendClient } from "../_lib/resend";
-import { buildReminderEmailHtml, buildReminderLineText } from "../email/templates";
-
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
-const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@shiftori.app";
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+import { MAGIC_LINK_DEFAULT_TTL_MS } from "../constants";
+import { buildReminderEmailHtml, buildReminderLineText } from "./templates";
 
 /**
  * 未提出スタッフ全員に催促を送信
@@ -23,7 +21,7 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export const sendReminderEmails = internalAction({
   args: { recruitmentId: v.id("recruitments") },
   handler: async (ctx, { recruitmentId }) => {
-    const data = await ctx.runQuery(internal.shiftReminder.queries.getReminderEmailData, { recruitmentId });
+    const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
     if (!data || data.staffEntries.length === 0) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -32,13 +30,13 @@ export const sendReminderEmails = internalAction({
       { shopId: data.shopId },
     );
     const resend = getResendClient({ suppressDelivery });
-    const expiresAt = Date.now() + TWENTY_FOUR_HOURS_MS;
+    const expiresAt = Date.now() + MAGIC_LINK_DEFAULT_TTL_MS;
     const linkExpiresAtLabel = formatDateTimeLabel(expiresAt);
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
 
-      const { token } = await ctx.runMutation(internal.email.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
@@ -76,7 +74,7 @@ export const sendReminderEmails = internalAction({
       });
 
       await resend.emails.send({
-        from: formatResendFrom(data.shopName, RESEND_FROM),
+        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: staff.email,
         subject: formatResendSubject(
           data.shopName,

@@ -2,23 +2,29 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { managerMutation } from "../_lib/functions";
+import { STAFF_DUPLICATE_SCAN_LIMIT } from "../constants";
 
 export const addStaffs = managerMutation({
   args: {
     entries: v.array(v.object({ name: v.string(), email: v.string() })),
   },
   handler: async (ctx, args) => {
-    const validEntries = args.entries.filter((e) => e.name.trim() !== "");
+    const validEntries = args.entries
+      .map((entry) => ({ name: entry.name.trim(), email: entry.email.trim().toLowerCase() }))
+      .filter((e) => e.name !== "");
 
     const existingStaffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId", (q) => q.eq("shopId", ctx.shop._id))
-      .take(500);
-    const existingEmails = new Set(existingStaffs.filter((s) => !s.isDeleted && s.email).map((s) => s.email));
+      .take(STAFF_DUPLICATE_SCAN_LIMIT);
+    const existingEmails = new Set(
+      existingStaffs.filter((s) => !s.isDeleted && s.email).map((s) => s.email.trim().toLowerCase()),
+    );
+    const insertedEmails = new Set<string>();
 
     const inserted: Id<"staffs">[] = [];
     for (const entry of validEntries) {
-      if (entry.email && existingEmails.has(entry.email)) continue;
+      if (entry.email && (existingEmails.has(entry.email) || insertedEmails.has(entry.email))) continue;
       const id = await ctx.db.insert("staffs", {
         shopId: ctx.shop._id,
         name: entry.name,
@@ -26,6 +32,7 @@ export const addStaffs = managerMutation({
         isDeleted: false,
       });
       inserted.push(id);
+      if (entry.email) insertedEmails.add(entry.email);
     }
     for (const staffId of inserted) {
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
@@ -34,7 +41,7 @@ export const addStaffs = managerMutation({
       await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
         staffId,
       });
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
         staffId,
       });
     }
@@ -54,13 +61,15 @@ export const editStaff = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    const trimmedEmail = args.email.trim();
+    const trimmedEmail = args.email.trim().toLowerCase();
     if (trimmedEmail !== "") {
       const duplicate = await ctx.db
         .query("staffs")
-        .withIndex("by_email", (q) => q.eq("email", trimmedEmail))
+        .withIndex("by_shopId_email_isDeleted", (q) =>
+          q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
+        )
         .first();
-      if (duplicate && duplicate._id !== args.staffId && !duplicate.isDeleted && duplicate.shopId === ctx.shop._id) {
+      if (duplicate && duplicate._id !== args.staffId) {
         throw new ConvexError("このメールアドレスは既に使用されています");
       }
     }

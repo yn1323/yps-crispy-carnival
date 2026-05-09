@@ -1,5 +1,5 @@
-import { formatDateWithWeekday, isSaturday, isSunday } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import type { SelectItemType } from "@/src/components/ui/Select";
+import { formatDateWithWeekday, isSaturday, isSunday } from "@/src/domains/shift/date";
 import type { DayEntry } from "../DayCard";
 
 /**

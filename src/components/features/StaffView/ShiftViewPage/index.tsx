@@ -2,9 +2,9 @@ import { Box, Flex } from "@chakra-ui/react";
 import { useMemo } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData, StaffType } from "@/src/components/features/Shift/ShiftForm/types";
-import { getDateRange } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
+import { getDateRange } from "@/src/domains/shift/date";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { PeriodBar } from "../PeriodBar";
 
 const POSITIONS = [DEFAULT_POSITION];
