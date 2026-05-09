@@ -5,6 +5,7 @@ on:
 
 jobs:
   unit-test:
+    name: ui-test (${{ matrix.shard }})
     runs-on: ubuntu-latest
     environment: Preview
     strategy:

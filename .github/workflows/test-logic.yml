@@ -5,6 +5,7 @@ on:
 
 jobs:
   unit-test:
+    name: logic-test (${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
