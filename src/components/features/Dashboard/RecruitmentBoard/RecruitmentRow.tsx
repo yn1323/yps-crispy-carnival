@@ -6,7 +6,7 @@ import {
   type Recruitment,
   type RecruitmentDisplayStatus,
 } from "@/src/components/features/Dashboard/types";
-import { formatDateShort } from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
+import { formatDateShort } from "@/src/domains/shift/date";
 
 type Props = {
   recruitment: Recruitment;

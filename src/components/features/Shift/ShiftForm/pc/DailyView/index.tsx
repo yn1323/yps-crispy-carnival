@@ -1,9 +1,9 @@
 import { Box, Flex, Grid } from "@chakra-ui/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
+import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
+import type { ShiftData } from "@/src/domains/shift/types";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
-import type { ShiftData } from "../../types";
-import { mergeAdjacentPositions } from "../../utils/shiftOperations";
 import { DateRail } from "./DateRail";
 import { DayTitle } from "./DayTitle";
 import { ShiftGrid } from "./ShiftGrid";

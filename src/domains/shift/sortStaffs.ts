@@ -1,5 +1,5 @@
-import type { ShiftData, SortMode, StaffType } from "../types";
-import { timeToMinutes } from "./timeConversion";
+import { timeToMinutes } from "./time";
+import type { ShiftData, SortMode, StaffType } from "./types";
 
 type SortStaffsParams = {
   staffs: StaffType[];

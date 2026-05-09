@@ -1,7 +1,7 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { useState } from "react";
 import { LuChevronDown, LuDownload, LuFileSpreadsheet, LuFileText, LuPrinter, LuSave } from "react-icons/lu";
-import type { StaffType, ViewMode } from "./types";
+import type { StaffType, ViewMode } from "@/src/domains/shift/types";
 
 export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (
   <Box

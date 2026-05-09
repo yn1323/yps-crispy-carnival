@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
 
-describe("email/mutations", () => {
+describe("notification/mutations", () => {
   describe("createMagicLink", () => {
     it("24時間有効のマジックリンクが作成される", async () => {
       const t = convexTest(schema, modules);
@@ -34,7 +34,7 @@ describe("email/mutations", () => {
         return { shopId, staffId, recruitmentId };
       });
 
-      const result = await t.mutation(internal.email.mutations.createMagicLink, {
+      const result = await t.mutation(internal.notification.mutations.createMagicLink, {
         staffId,
         shopId,
         recruitmentId,

@@ -2,15 +2,14 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { APP_URL } from "./_lib/config";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { generateUUID } from "./_lib/uuid";
+import { LEGAL_CONSENT_TOKEN_TTL_MS, LINE_LINK_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
 const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
 const scenarioDatesValidator = v.object({
   periodStart: v.string(),
@@ -280,7 +279,7 @@ async function createMagicLink(
     staffId: args.staffId,
     shopId: args.shopId,
     recruitmentId: args.recruitmentId,
-    expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+    expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
   });
   return token;
 }
@@ -291,7 +290,7 @@ async function createLineLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs
     staffId: args.staffId,
     shopId: args.shopId,
     token,
-    expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+    expiresAt: Date.now() + LINE_LINK_TOKEN_TTL_MS,
   });
   return token;
 }
@@ -661,7 +660,7 @@ export const seedSubmitTestData = internalMutation({
       staffId,
       shopId,
       recruitmentId,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     // 既存提出がある場合
@@ -775,7 +774,7 @@ export const seedLegalStaffConsentPageScenario = internalMutation({
       legalConsentState: args.legalConsentState ?? "missing",
     });
     const token = generateUUID();
-    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    const expiresAt = Date.now() + LEGAL_CONSENT_TOKEN_TTL_MS;
     await ctx.db.insert("legalConsentTokens", {
       staffId,
       shopId,
@@ -993,7 +992,7 @@ export const createMagicLinkTokenForLatestRecruitment = internalMutation({
       staffId: staff._id,
       shopId: staff.shopId,
       recruitmentId: recruitment._id,
-      expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     return { token, staffId: staff._id, recruitmentId: recruitment._id };
@@ -1069,7 +1068,7 @@ export const simulateLineFollowForStaff = internalMutation({
       lineLinkedAt: staff.lineLinkedAt ?? Date.now(),
     });
     if (!wasFollowing) {
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: staff._id,
       });
     }

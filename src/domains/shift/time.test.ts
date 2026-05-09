@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { minutesToHoursLabel, minutesToTime, timeToMinutes } from "./timeConversion";
+import { minutesToHoursLabel, minutesToTime, timeToMinutes } from "./time";
 
 describe("timeToMinutes", () => {
   test("09:00 を 540分に変換できる", () => {

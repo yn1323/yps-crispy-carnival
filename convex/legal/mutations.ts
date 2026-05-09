@@ -1,75 +1,10 @@
 import { ConvexError, v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx, mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
-import { getLegalConsentVersions, hasCurrentLegalConsent, type LegalConsentMethod } from "./documents";
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
-type RecordStaffConsentArgs = {
-  staffId: Id<"staffs">;
-  shopId: Id<"shops">;
-  method: LegalConsentMethod;
-  sourceRecruitmentId?: Id<"recruitments">;
-};
-
-type RecordUserConsentArgs = {
-  userId: Id<"users">;
-  shopId: Id<"shops">;
-  method: LegalConsentMethod;
-};
-
-export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaffConsentArgs) {
-  const now = Date.now();
-  const versions = getLegalConsentVersions("staff");
-  const legalConsent = {
-    legalTermsConsentVersion: versions.termsConsentVersion,
-    legalPrivacyConsentVersion: versions.privacyConsentVersion,
-    legalTermsDocumentVersion: versions.termsDocumentVersion,
-    legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
-    legalConsentedAt: now,
-    legalConsentMethod: args.method,
-  };
-
-  await ctx.db.patch(args.staffId, legalConsent);
-  await ctx.db.insert("legalConsentEvents", {
-    subjectType: "staff",
-    staffId: args.staffId,
-    shopId: args.shopId,
-    ...versions,
-    consentedAt: now,
-    method: args.method,
-    sourceRecruitmentId: args.sourceRecruitmentId,
-  });
-
-  return legalConsent;
-}
-
-export async function recordUserLegalConsent(ctx: MutationCtx, args: RecordUserConsentArgs) {
-  const now = Date.now();
-  const versions = getLegalConsentVersions("manager");
-  const legalConsent = {
-    legalTermsConsentVersion: versions.termsConsentVersion,
-    legalPrivacyConsentVersion: versions.privacyConsentVersion,
-    legalTermsDocumentVersion: versions.termsDocumentVersion,
-    legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
-    legalConsentedAt: now,
-    legalConsentMethod: args.method,
-  };
-
-  await ctx.db.patch(args.userId, legalConsent);
-  await ctx.db.insert("legalConsentEvents", {
-    subjectType: "user",
-    userId: args.userId,
-    shopId: args.shopId,
-    ...versions,
-    consentedAt: now,
-    method: args.method,
-  });
-
-  return legalConsent;
-}
+import { LEGAL_CONSENT_TOKEN_TTL_MS } from "../constants";
+import { hasCurrentLegalConsent, type LegalConsentMethod } from "./documents";
+import { recordStaffLegalConsent, recordUserLegalConsent } from "./service";
 
 export const createStaffConsentToken = internalMutation({
   args: {
@@ -80,7 +15,7 @@ export const createStaffConsentToken = internalMutation({
   },
   handler: async (ctx, args) => {
     const token = generateUUID();
-    const expiresAt = args.expiresAt ?? Date.now() + THIRTY_DAYS_MS;
+    const expiresAt = args.expiresAt ?? Date.now() + LEGAL_CONSENT_TOKEN_TTL_MS;
     const method = args.method ?? "staff_email_link";
     await ctx.db.insert("legalConsentTokens", {
       staffId: args.staffId,

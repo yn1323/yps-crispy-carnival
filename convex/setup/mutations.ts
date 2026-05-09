@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { authenticatedMutation } from "../_lib/functions";
-import { recordUserLegalConsent } from "../legal/mutations";
+import { recordUserLegalConsent } from "../legal/service";
 
 export const setupShopAndOwner = authenticatedMutation({
   args: {

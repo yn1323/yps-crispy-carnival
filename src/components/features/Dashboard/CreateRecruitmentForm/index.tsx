@@ -16,10 +16,9 @@ const DatePlaceholder = ({ children, visible }: { children: string; visible: boo
     </Text>
   ) : null;
 
-const today = dayjs().format("YYYY-MM-DD");
-const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
-
 export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
+  const today = dayjs().format("YYYY-MM-DD");
+  const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
   const {
     register,
     handleSubmit,
@@ -48,9 +47,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
 
   const deadlineMax = (() => {
     if (!periodStart) return undefined;
-    const date = new Date(periodStart);
-    date.setDate(date.getDate() - 1);
-    return date.toISOString().split("T")[0];
+    return dayjs(periodStart).subtract(1, "day").format("YYYY-MM-DD");
   })();
 
   return (

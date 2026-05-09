@@ -7,11 +7,11 @@ import { IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
+import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { normalizePositions, paintPosition } from "@/src/domains/shift/operations";
+import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
+import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
-import type { PositionType, ShiftData, StaffType, TimeRange } from "../../types";
-import { formatDateWithWeekday } from "../../utils/dateUtils";
-import { normalizePositions, paintPosition } from "../../utils/shiftOperations";
-import { minutesToTime, timeToMinutes } from "../../utils/timeConversion";
 import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
 
 type ShiftEditSheetProps = {

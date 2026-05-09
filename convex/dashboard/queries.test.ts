@@ -133,7 +133,7 @@ describe("dashboard/queries", () => {
       expect(result.page[0].responseCount).toBe(0);
     });
 
-    it("responseCount は shiftRequests の staffId ユニーク数を返す", async () => {
+    it("responseCount は shiftSubmissions の件数を返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         await ctx.db.insert("users", {
@@ -190,6 +190,16 @@ describe("dashboard/queries", () => {
           date: "2026-04-01",
           startTime: "10:00",
           endTime: "18:00",
+        });
+        await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId: staff1,
+          submittedAt: Date.now(),
+        });
+        await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId: staff2,
+          submittedAt: Date.now(),
         });
       });
 

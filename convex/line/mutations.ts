@@ -1,13 +1,12 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
+import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
-
-const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
+import { LINE_LINK_TOKEN_TTL_MS } from "../constants";
 
 /**
  * 店長UI: 指定スタッフに紐づくLINE連携トークンを発行
@@ -28,7 +27,7 @@ export const generateLinkToken = managerMutation({
       staffId: staff._id,
       shopId: staff.shopId,
       token,
-      expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+      expiresAt: Date.now() + LINE_LINK_TOKEN_TTL_MS,
     });
 
     const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -55,7 +54,7 @@ export const createLinkTokenInternal = internalMutation({
       staffId,
       shopId,
       token,
-      expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+      expiresAt: Date.now() + LINE_LINK_TOKEN_TTL_MS,
     });
     return { token };
   },
@@ -137,7 +136,7 @@ export const finalizeLinking = internalMutation({
       });
     }
     if (args.lineFollowing && staff && !staff.lineFollowing && !staff.isDeleted) {
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
       });
     }
@@ -157,7 +156,7 @@ export const markFollowing = internalMutation({
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
         staffId: args.staffId,
       });
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
       });
     }
@@ -208,7 +207,7 @@ export const dispatchWebhookEvents = internalMutation({
           await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
             staffId: staff._id,
           });
-          await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+          await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
             staffId: staff._id,
           });
         }
