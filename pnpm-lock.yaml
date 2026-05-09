@@ -46,7 +46,7 @@ importers:
         version: 1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
       convex-helpers:
         specifier: ^0.1.114
-        version: 0.1.114(@standard-schema/spec@1.1.0)(convex@1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(zod@4.3.6)
+        version: 0.1.114(@standard-schema/spec@1.1.0)(convex@1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(zod@4.4.3)
       dayjs:
         specifier: ^1.11.19
         version: 1.11.19
@@ -78,8 +78,8 @@ importers:
         specifier: ^6.9.2
         version: 6.9.2
       zod:
-        specifier: 4.3.6
-        version: 4.3.6
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@biomejs/biome':
         specifier: 2.4.12
@@ -3493,6 +3493,7 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uvu@0.5.6:
@@ -3740,8 +3741,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -5953,14 +5954,14 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  convex-helpers@0.1.114(@standard-schema/spec@1.1.0)(convex@1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(zod@4.3.6):
+  convex-helpers@0.1.114(@standard-schema/spec@1.1.0)(convex@1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5))(react@19.2.5)(typescript@5.9.3)(zod@4.4.3):
     dependencies:
       convex: 1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
       react: 19.2.5
       typescript: 5.9.3
-      zod: 4.3.6
+      zod: 4.4.3
 
   convex-test@0.0.44(convex@1.35.1(@clerk/clerk-react@5.61.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)):
     dependencies:
@@ -7614,4 +7615,4 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zod@4.3.6: {}
+  zod@4.4.3: {}
