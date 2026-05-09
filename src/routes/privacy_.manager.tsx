@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PrivacyPolicy } from "@/src/components/features/PrivacyPolicy";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
-export const Route = createFileRoute("/privacy/manager")({
+export const Route = createFileRoute("/privacy_/manager")({
   head: () => ({
     links: buildLinks({ canonical: "/privacy/manager" }),
     meta: buildMeta({

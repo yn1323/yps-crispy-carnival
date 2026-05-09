@@ -14,10 +14,10 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TermsStaffRouteImport } from './routes/terms.staff'
-import { Route as TermsManagerRouteImport } from './routes/terms.manager'
-import { Route as PrivacyStaffRouteImport } from './routes/privacy.staff'
-import { Route as PrivacyManagerRouteImport } from './routes/privacy.manager'
+import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
+import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
+import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
+import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
@@ -52,24 +52,24 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsStaffRoute = TermsStaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
-  getParentRoute: () => TermsRoute,
+  id: '/terms_/staff',
+  path: '/terms/staff',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const TermsManagerRoute = TermsManagerRouteImport.update({
-  id: '/manager',
-  path: '/manager',
-  getParentRoute: () => TermsRoute,
+  id: '/terms_/manager',
+  path: '/terms/manager',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyStaffRoute = PrivacyStaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
-  getParentRoute: () => PrivacyRoute,
+  id: '/privacy_/staff',
+  path: '/privacy/staff',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
-  id: '/manager',
-  path: '/manager',
-  getParentRoute: () => PrivacyRoute,
+  id: '/privacy_/manager',
+  path: '/privacy/manager',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
@@ -126,8 +126,8 @@ const UnregisteredLegalStaffConsentRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/privacy': typeof PrivacyRouteWithChildren
-  '/terms': typeof TermsRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
@@ -144,8 +144,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/privacy': typeof PrivacyRouteWithChildren
-  '/terms': typeof TermsRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
@@ -165,13 +165,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
-  '/privacy': typeof PrivacyRouteWithChildren
-  '/terms': typeof TermsRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
-  '/privacy/manager': typeof PrivacyManagerRoute
-  '/privacy/staff': typeof PrivacyStaffRoute
-  '/terms/manager': typeof TermsManagerRoute
-  '/terms/staff': typeof TermsStaffRoute
+  '/privacy_/manager': typeof PrivacyManagerRoute
+  '/privacy_/staff': typeof PrivacyStaffRoute
+  '/terms_/manager': typeof TermsManagerRoute
+  '/terms_/staff': typeof TermsStaffRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_unregistered/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
@@ -226,10 +226,10 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/_auth/dashboard'
-    | '/privacy/manager'
-    | '/privacy/staff'
-    | '/terms/manager'
-    | '/terms/staff'
+    | '/privacy_/manager'
+    | '/privacy_/staff'
+    | '/terms_/manager'
+    | '/terms_/staff'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_unregistered/demo/shiftboard'
     | '/_unregistered/line/callback'
@@ -244,8 +244,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
-  PrivacyRoute: typeof PrivacyRouteWithChildren
-  TermsRoute: typeof TermsRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
+  PrivacyManagerRoute: typeof PrivacyManagerRoute
+  PrivacyStaffRoute: typeof PrivacyStaffRoute
+  TermsManagerRoute: typeof TermsManagerRoute
+  TermsStaffRoute: typeof TermsStaffRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -285,33 +289,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/terms/staff': {
-      id: '/terms/staff'
-      path: '/staff'
+    '/terms_/staff': {
+      id: '/terms_/staff'
+      path: '/terms/staff'
       fullPath: '/terms/staff'
       preLoaderRoute: typeof TermsStaffRouteImport
-      parentRoute: typeof TermsRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/terms/manager': {
-      id: '/terms/manager'
-      path: '/manager'
+    '/terms_/manager': {
+      id: '/terms_/manager'
+      path: '/terms/manager'
       fullPath: '/terms/manager'
       preLoaderRoute: typeof TermsManagerRouteImport
-      parentRoute: typeof TermsRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/privacy/staff': {
-      id: '/privacy/staff'
-      path: '/staff'
+    '/privacy_/staff': {
+      id: '/privacy_/staff'
+      path: '/privacy/staff'
       fullPath: '/privacy/staff'
       preLoaderRoute: typeof PrivacyStaffRouteImport
-      parentRoute: typeof PrivacyRoute
+      parentRoute: typeof rootRouteImport
     }
-    '/privacy/manager': {
-      id: '/privacy/manager'
-      path: '/manager'
+    '/privacy_/manager': {
+      id: '/privacy_/manager'
+      path: '/privacy/manager'
       fullPath: '/privacy/manager'
       preLoaderRoute: typeof PrivacyManagerRouteImport
-      parentRoute: typeof PrivacyRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
@@ -416,37 +420,16 @@ const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
   UnregisteredRouteChildren,
 )
 
-interface PrivacyRouteChildren {
-  PrivacyManagerRoute: typeof PrivacyManagerRoute
-  PrivacyStaffRoute: typeof PrivacyStaffRoute
-}
-
-const PrivacyRouteChildren: PrivacyRouteChildren = {
-  PrivacyManagerRoute: PrivacyManagerRoute,
-  PrivacyStaffRoute: PrivacyStaffRoute,
-}
-
-const PrivacyRouteWithChildren =
-  PrivacyRoute._addFileChildren(PrivacyRouteChildren)
-
-interface TermsRouteChildren {
-  TermsManagerRoute: typeof TermsManagerRoute
-  TermsStaffRoute: typeof TermsStaffRoute
-}
-
-const TermsRouteChildren: TermsRouteChildren = {
-  TermsManagerRoute: TermsManagerRoute,
-  TermsStaffRoute: TermsStaffRoute,
-}
-
-const TermsRouteWithChildren = TermsRoute._addFileChildren(TermsRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
-  PrivacyRoute: PrivacyRouteWithChildren,
-  TermsRoute: TermsRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
+  PrivacyManagerRoute: PrivacyManagerRoute,
+  PrivacyStaffRoute: PrivacyStaffRoute,
+  TermsManagerRoute: TermsManagerRoute,
+  TermsStaffRoute: TermsStaffRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

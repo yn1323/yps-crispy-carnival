@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Terms } from "@/src/components/features/Terms";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
-export const Route = createFileRoute("/terms/manager")({
+export const Route = createFileRoute("/terms_/manager")({
   head: () => ({
     links: buildLinks({ canonical: "/terms/manager" }),
     meta: buildMeta({
