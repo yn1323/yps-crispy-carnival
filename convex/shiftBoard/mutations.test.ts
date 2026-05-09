@@ -113,6 +113,34 @@ describe("shiftBoard/mutations", () => {
       expect(assignments[0].startTime).toBe("10:00");
     });
 
+    it("分つきシフト時間の境界内なら保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          shiftStartTime: "05:30",
+          shiftEndTime: "22:30",
+        });
+      });
+      const asOwner = t.withIdentity({ subject: "user_owner" });
+
+      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "05:30", endTime: "06:30" },
+          { staffId: staffId2, date: "2026-01-20", startTime: "21:30", endTime: "22:30" },
+        ],
+      });
+
+      const assignments = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect(),
+      );
+      expect(assignments).toHaveLength(2);
+    });
+
     it("空のassignmentsで保存できる（全員休み）", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
@@ -221,6 +249,42 @@ describe("shiftBoard/mutations", () => {
         t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "07:00", endTime: "15:00" }],
+        }),
+      ).rejects.toThrow("設定したシフト時間内にしてください");
+    });
+
+    it("分つきシフト開始時刻より前ならエラー", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          shiftStartTime: "05:30",
+          shiftEndTime: "22:30",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "05:00", endTime: "06:30" }],
+        }),
+      ).rejects.toThrow("設定したシフト時間内にしてください");
+    });
+
+    it("分つきシフト終了時刻より後ならエラー", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          shiftStartTime: "05:30",
+          shiftEndTime: "22:30",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "21:30", endTime: "23:00" }],
         }),
       ).rejects.toThrow("設定したシフト時間内にしてください");
     });

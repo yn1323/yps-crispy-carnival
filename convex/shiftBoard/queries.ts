@@ -48,8 +48,10 @@ export const getShiftBoardData = managerQuery({
     //   schema.ts 側で recruitments.shiftStartTime/shiftEndTime を v.string() に narrow するのと同じ PR で対応。
     const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
     const endTimeStr = recruitment.shiftEndTime ?? shop.shiftEndTime;
-    const startHour = Math.floor(timeToMinutes(startTimeStr) / 60);
-    const endHour = Math.ceil(timeToMinutes(endTimeStr) / 60);
+    const editableStartMinutes = timeToMinutes(startTimeStr);
+    const editableEndMinutes = timeToMinutes(endTimeStr);
+    const startHour = Math.floor(editableStartMinutes / 60);
+    const endHour = Math.ceil(editableEndMinutes / 60);
 
     return {
       shopId: shop._id,
@@ -83,6 +85,8 @@ export const getShiftBoardData = managerQuery({
         start: startHour,
         end: endHour,
         unit: SHIFT_BOARD_TIME_UNIT_MINUTES,
+        editableStartMinutes,
+        editableEndMinutes,
       },
     };
   },

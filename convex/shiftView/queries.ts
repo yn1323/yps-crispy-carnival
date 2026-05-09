@@ -35,6 +35,8 @@ export const getShiftViewData = staffSessionQuery({
 
     const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
     const endTimeStr = recruitment.shiftEndTime ?? shop.shiftEndTime;
+    const editableStartMinutes = timeToMinutes(startTimeStr);
+    const editableEndMinutes = timeToMinutes(endTimeStr);
 
     return {
       shopName: shop.name,
@@ -49,9 +51,11 @@ export const getShiftViewData = staffSessionQuery({
         endTime: a.endTime,
       })),
       timeRange: {
-        start: Math.floor(timeToMinutes(startTimeStr) / 60),
-        end: Math.ceil(timeToMinutes(endTimeStr) / 60),
+        start: Math.floor(editableStartMinutes / 60),
+        end: Math.ceil(editableEndMinutes / 60),
         unit: SHIFT_BOARD_TIME_UNIT_MINUTES,
+        editableStartMinutes,
+        editableEndMinutes,
       },
     };
   },

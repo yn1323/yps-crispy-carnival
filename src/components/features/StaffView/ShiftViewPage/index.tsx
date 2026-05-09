@@ -4,7 +4,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getDateRange } from "@/src/domains/shift/date";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { PeriodBar } from "../PeriodBar";
 
 const POSITIONS = [DEFAULT_POSITION];
@@ -22,7 +22,7 @@ type Props = {
   periodEnd: string;
   staffs: { _id: Id<"staffs">; name: string }[];
   assignments: Assignment[];
-  timeRange: { start: number; end: number; unit: number };
+  timeRange: TimeRange;
 };
 
 function buildShiftData(staffs: StaffType[], dates: string[], assignments: Assignment[]): ShiftData[] {

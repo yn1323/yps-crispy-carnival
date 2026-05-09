@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import type { TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardData = {
   shopId: Id<"shops">;
@@ -28,9 +29,5 @@ export type ShiftBoardData = {
     startTime: string;
     endTime: string;
   }>;
-  timeRange: {
-    start: number;
-    end: number;
-    unit: number;
-  };
+  timeRange: TimeRange;
 };
