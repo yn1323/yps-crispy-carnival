@@ -1,5 +1,6 @@
-import { Box, Checkbox, Flex, Link, Text } from "@chakra-ui/react";
+import { Box, Checkbox, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
+import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { Button } from "@/src/components/ui/Button";
 
 export type LegalReconsentDocumentLinks = {
@@ -48,13 +49,8 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
               <Checkbox.HiddenInput />
               <Checkbox.Control />
               <Checkbox.Label fontSize="sm" lineHeight={1.7} color="teal.950">
-                <Link href={documents.terms.path} target="_blank" rel="noopener noreferrer" color="teal.700">
-                  利用規約
-                </Link>
-                と
-                <Link href={documents.privacy.path} target="_blank" rel="noopener noreferrer" color="teal.700">
-                  プライバシーポリシー
-                </Link>
+                <LegalDocumentLink href={documents.terms.path}>利用規約</LegalDocumentLink>と
+                <LegalDocumentLink href={documents.privacy.path}>プライバシーポリシー</LegalDocumentLink>
                 に同意します
               </Checkbox.Label>
             </Checkbox.Root>

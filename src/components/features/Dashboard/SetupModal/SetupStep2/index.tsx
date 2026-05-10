@@ -1,6 +1,7 @@
-import { Checkbox, Field, Input, Link, Stack, Text } from "@chakra-ui/react";
+import { Checkbox, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { type Step2Data, step2Schema } from "./index";
 
 type Props = {
@@ -54,13 +55,8 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
             <Checkbox.HiddenInput />
             <Checkbox.Control />
             <Checkbox.Label fontSize="sm" lineHeight={1.7}>
-              <Link href="/terms/manager" target="_blank" rel="noopener noreferrer" color="teal.700">
-                利用規約
-              </Link>
-              と
-              <Link href="/privacy/manager" target="_blank" rel="noopener noreferrer" color="teal.700">
-                プライバシーポリシー
-              </Link>
+              <LegalDocumentLink href="/terms/manager">利用規約</LegalDocumentLink>と
+              <LegalDocumentLink href="/privacy/manager">プライバシーポリシー</LegalDocumentLink>
               に同意します
             </Checkbox.Label>
           </Checkbox.Root>
