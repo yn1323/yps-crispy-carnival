@@ -90,7 +90,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit }: Props) => {
         </Field.Root>
         <Field.Root invalid={!!errors.deadline}>
           <Field.Label>提出締切日</Field.Label>
-          <Box position="relative">
+          <Box position="relative" w="50%">
             <Input
               type="date"
               {...register("deadline")}
