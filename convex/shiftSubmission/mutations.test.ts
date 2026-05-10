@@ -273,25 +273,35 @@ describe("shiftSubmission/mutations", () => {
       expect(events[0].sourceRecruitmentId).toBe(recruitmentId);
     });
 
-    it("再提出で既存データを置き換え＋submittedAt更新", async () => {
+    it("既存提出がある場合はデータを置き換え＋submittedAt更新", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
-
-      // 初回提出
-      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
-        sessionToken,
-        recruitmentId,
-        requests: validRequests,
+      const firstSubmission = await t.run(async (ctx) => {
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId,
+          firstSubmittedAt: 500,
+          submittedAt: 1000,
+        });
+        await ctx.db.insert("shiftSubmissionSlots", {
+          submissionId,
+          recruitmentId,
+          staffId,
+          date: "2026-04-07",
+          startTime: "09:00",
+          endTime: "18:00",
+        });
+        await ctx.db.insert("shiftSubmissionSlots", {
+          submissionId,
+          recruitmentId,
+          staffId,
+          date: "2026-04-09",
+          startTime: "10:00",
+          endTime: "15:00",
+        });
+        return await ctx.db.get(submissionId);
       });
 
-      const firstSubmission = await t.run(async (ctx) =>
-        ctx.db
-          .query("shiftSubmissions")
-          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
-          .first(),
-      );
-
-      // 再提出（1件のみ）
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
         recruitmentId,

@@ -161,21 +161,40 @@ describe("shiftBoard/mutations", () => {
       expect(recruitment?.draftSavedAt).toBeTypeOf("number");
     });
 
-    it("保存時に既存の割当を全削除して置き換える", async () => {
+    it("既存の割当がある場合は全削除して置き換える", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       const asOwner = t.withIdentity({ subject: "user_owner" });
 
-      // 初回保存
-      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
-        recruitmentId,
-        assignments: [
-          { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
-          { staffId: staffId2, date: "2026-01-20", startTime: "11:00", endTime: "19:00" },
-        ],
+      await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        if (!recruitment) throw new Error("missing recruitment");
+        const positionId = await ctx.db.insert("positions", {
+          shopId: recruitment.shopId,
+          name: "既存ポジション",
+          color: "#64748b",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId: staffId1,
+          date: "2026-01-20",
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId: staffId2,
+          date: "2026-01-20",
+          startTime: "11:00",
+          endTime: "19:00",
+          positionId,
+        });
       });
 
-      // 2回目保存（staffId1のみ）
       await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "17:00" }],

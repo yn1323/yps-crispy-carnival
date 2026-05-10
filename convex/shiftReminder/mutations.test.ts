@@ -90,20 +90,21 @@ describe("shiftReminder/mutations", () => {
       expect(recruitment?.lastReminderSentAt).toBeTypeOf("number");
     });
 
-    it("連続送信できる（クールダウンなし）", async () => {
+    it("既に送信済みでもクールダウンなしで送信できる", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
-      const asOwner = t.withIdentity({ subject: "user_owner" });
+      const previous = Date.now() - 1000;
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { lastReminderSentAt: previous });
+      });
 
-      await asOwner.mutation(api.shiftReminder.mutations.sendReminderEmails, { recruitmentId });
-      const first = await t.run(async (ctx) => ctx.db.get(recruitmentId));
-
-      await asOwner.mutation(api.shiftReminder.mutations.sendReminderEmails, { recruitmentId });
+      await t.withIdentity({ subject: "user_owner" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
+        recruitmentId,
+      });
       const second = await t.run(async (ctx) => ctx.db.get(recruitmentId));
 
-      expect(first?.lastReminderSentAt).toBeTypeOf("number");
       expect(second?.lastReminderSentAt).toBeTypeOf("number");
-      expect(second?.lastReminderSentAt).toBeGreaterThanOrEqual(first?.lastReminderSentAt ?? 0);
+      expect(second?.lastReminderSentAt).toBeGreaterThanOrEqual(previous);
     });
   });
 });

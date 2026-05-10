@@ -2,6 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -20,6 +21,30 @@ async function setupShop(t: TestConvex<typeof schema>) {
     });
     return { shopId, staffId };
   });
+}
+
+async function seedLineLinkToken(
+  t: TestConvex<typeof schema>,
+  args: {
+    staffId: Id<"staffs">;
+    shopId: Id<"shops">;
+    token?: string;
+    expiresAt?: number;
+    usedAt?: number;
+  },
+) {
+  const token = args.token ?? "line-link-token";
+  const tokenDocId = await t.run(async (ctx) => {
+    const tokenDoc = {
+      staffId: args.staffId,
+      shopId: args.shopId,
+      token,
+      expiresAt: args.expiresAt ?? Date.now() + 72 * 60 * 60 * 1000,
+      ...(args.usedAt === undefined ? {} : { usedAt: args.usedAt }),
+    };
+    return await ctx.db.insert("lineLinkTokens", tokenDoc);
+  });
+  return { token, tokenDocId };
 }
 
 describe("line/mutations", () => {
@@ -70,23 +95,81 @@ describe("line/mutations", () => {
     });
   });
 
-  describe("redeemLineToken / finalizeLinking", () => {
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
-
-    it("有効トークンは ok を返し、finalize で staffLineAccounts にLINE連携情報が保存され usedAt が記録される", async () => {
+  describe("createLinkTokenInternal", () => {
+    it("LINE連携トークンを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { staffId, shopId } = await setupShop(t);
 
       const { token } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
 
+      expect(token).toMatch(/^[0-9a-f-]{36}$/);
+      const link = await t.run(async (ctx) =>
+        ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_token", (q) => q.eq("token", token))
+          .first(),
+      );
+      expect(link?.staffId).toBe(staffId);
+      expect(link?.shopId).toBe(shopId);
+      expect(link?.expiresAt).toBeGreaterThan(Date.now());
+    });
+  });
+
+  describe("validateLinkToken", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("有効トークンは ok を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token, tokenDocId } = await seedLineLinkToken(t, { staffId, shopId });
+
       const result = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;
+      expect(result.staffId).toBe(staffId);
+      expect(result.shopId).toBe(shopId);
+      expect(result.tokenDocId).toBe(tokenDocId);
+    });
+
+    it("使用済みトークンは expired を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token } = await seedLineLinkToken(t, { staffId, shopId, usedAt: Date.now() - 1000 });
+
+      const result = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
+
+      expect(result.status).toBe("expired");
+    });
+
+    it("期限切れトークンは expired を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      await seedLineLinkToken(t, { staffId, shopId, token: "expired-token", expiresAt: Date.now() - 1000 });
+
+      const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: "expired-token" });
+      expect(r.status).toBe("expired");
+    });
+
+    it("存在しない state は expired", async () => {
+      const t = convexTest(schema, modules);
+      const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: "nonexistent" });
+      expect(r.status).toBe("expired");
+    });
+  });
+
+  describe("finalizeLinking", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("有効な tokenDocId なら staffLineAccounts にLINE連携情報が保存され usedAt が記録される", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token, tokenDocId } = await seedLineLinkToken(t, { staffId, shopId });
 
       await t.mutation(internal.line.mutations.finalizeLinking, {
-        staffId: result.staffId,
-        tokenDocId: result.tokenDocId,
+        staffId,
+        tokenDocId,
         lineUserId: "U_abcdef",
         lineFollowing: true,
       });
@@ -115,22 +198,22 @@ describe("line/mutations", () => {
       ).toBe(true);
     });
 
-    it("finalize の再実行は expired を返し、スタッフを上書きしない", async () => {
+    it("使用済み tokenDocId は expired を返し、スタッフを上書きしない", async () => {
       const t = convexTest(schema, modules);
       const { staffId, shopId } = await setupShop(t);
-      const { token } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
-      const result = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
-      if (result.status !== "ok") throw new Error("expected ok");
-
-      await t.mutation(internal.line.mutations.finalizeLinking, {
-        staffId: result.staffId,
-        tokenDocId: result.tokenDocId,
-        lineUserId: "U_first",
-        lineFollowing: true,
+      const { tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "used-line-link-token",
+        usedAt: Date.now() - 1000,
       });
+      await t.run(async (ctx) => {
+        await seedStaffLineAccount(ctx, { staffId, shopId, lineUserId: "U_first", following: true });
+      });
+
       const retry = await t.mutation(internal.line.mutations.finalizeLinking, {
-        staffId: result.staffId,
-        tokenDocId: result.tokenDocId,
+        staffId,
+        tokenDocId,
         lineUserId: "U_second",
         lineFollowing: true,
       });
@@ -145,44 +228,7 @@ describe("line/mutations", () => {
       expect(account?.lineUserId).toBe("U_first");
     });
 
-    it("使用済みトークンは expired を返す", async () => {
-      const t = convexTest(schema, modules);
-      const { staffId, shopId } = await setupShop(t);
-      const { token } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
-      const r1 = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
-      if (r1.status !== "ok") throw new Error("expected ok");
-      await t.mutation(internal.line.mutations.finalizeLinking, {
-        staffId: r1.staffId,
-        tokenDocId: r1.tokenDocId,
-        lineUserId: "U_abcdef",
-        lineFollowing: true,
-      });
-      const r2 = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
-      expect(r2.status).toBe("expired");
-    });
-
-    it("期限切れトークンは expired を返す", async () => {
-      const t = convexTest(schema, modules);
-      const { staffId, shopId } = await setupShop(t);
-      await t.run(async (ctx) => {
-        await ctx.db.insert("lineLinkTokens", {
-          staffId,
-          shopId,
-          token: "expired-token",
-          expiresAt: Date.now() - 1000,
-        });
-      });
-      const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: "expired-token" });
-      expect(r.status).toBe("expired");
-    });
-
-    it("存在しない state は expired", async () => {
-      const t = convexTest(schema, modules);
-      const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: "nonexistent" });
-      expect(r.status).toBe("expired");
-    });
-
-    it("既に他スタッフに紐づく lineUserId は奪われる（再連携シナリオ）", async () => {
+    it("既に他スタッフに紐づく lineUserId は奪う", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
@@ -195,13 +241,11 @@ describe("line/mutations", () => {
         await seedStaffLineAccount(ctx, { staffId: otherStaffId, shopId, lineUserId: "U_dup", following: true });
         return otherStaffId;
       });
+      const { tokenDocId } = await seedLineLinkToken(t, { staffId, shopId, token: "relink-token" });
 
-      const { token } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
-      const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
-      if (r.status !== "ok") throw new Error("expected ok");
       await t.mutation(internal.line.mutations.finalizeLinking, {
-        staffId: r.staffId,
-        tokenDocId: r.tokenDocId,
+        staffId,
+        tokenDocId,
         lineUserId: "U_dup",
         lineFollowing: true,
       });
@@ -293,13 +337,19 @@ describe("line/mutations", () => {
   });
 
   describe("upsertQuotaStatus", () => {
-    it("初回は insert、2回目は replace で1件だけ保たれる", async () => {
+    it("既存レコードがある場合は replace で1件だけ保たれる", async () => {
       const t = convexTest(schema, modules);
-      await t.mutation(internal.line.mutations.upsertQuotaStatus, {
-        totalQuota: 200,
-        consumed: 50,
-        plan: "communication",
+      await t.run(async (ctx) => {
+        await ctx.db.insert("lineQuotaStatus", {
+          checkedAt: Date.now() - 1000,
+          totalQuota: 200,
+          consumed: 50,
+          remaining: 150,
+          status: "normal",
+          plan: "communication",
+        });
       });
+
       await t.mutation(internal.line.mutations.upsertQuotaStatus, {
         totalQuota: 200,
         consumed: 250,

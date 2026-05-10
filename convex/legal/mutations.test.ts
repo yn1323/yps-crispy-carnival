@@ -37,7 +37,16 @@ describe("legal/mutations", () => {
   it("スタッフ同意リンクで最新バージョンを保存する", async () => {
     const t = convexTest(schema, modules);
     const { shopId, staffId } = await setupStaff(t);
-    const { token } = await t.mutation(internal.legal.mutations.createStaffConsentToken, { staffId, shopId });
+    const token = "staff-consent-token";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("legalConsentTokens", {
+        staffId,
+        shopId,
+        token,
+        method: "staff_email_link",
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
+    });
 
     const result = await t.mutation(api.legal.mutations.acceptStaffLegalConsent, {
       token,
@@ -73,10 +82,15 @@ describe("legal/mutations", () => {
   it("期限切れトークンでは同意できない", async () => {
     const t = convexTest(schema, modules);
     const { shopId, staffId } = await setupStaff(t);
-    const { token } = await t.mutation(internal.legal.mutations.createStaffConsentToken, {
-      staffId,
-      shopId,
-      expiresAt: Date.now() - 1000,
+    const token = "expired-staff-consent-token";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("legalConsentTokens", {
+        staffId,
+        shopId,
+        token,
+        method: "staff_email_link",
+        expiresAt: Date.now() - 1000,
+      });
     });
 
     const result = await t.mutation(api.legal.mutations.acceptStaffLegalConsent, {
