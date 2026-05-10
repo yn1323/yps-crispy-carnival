@@ -1,7 +1,8 @@
 import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { seedManagerShop, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const setupArgs = {
@@ -14,6 +15,9 @@ const setupArgs = {
 };
 
 describe("setup/mutations", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
   describe("setupShopAndOwner", () => {
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
@@ -43,23 +47,29 @@ describe("setup/mutations", () => {
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("テスト店舗");
-      expect(shop?.ownerId).toBe("user_new");
 
       const user = await t.run(async (ctx) =>
         ctx.db
           .query("users")
-          .withIndex("by_clerkId", (q) => q.eq("clerkId", "user_new"))
+          .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", testAuthTokenIdentifier("user_new")))
           .first(),
       );
       expect(user).not.toBeNull();
+      if (!user) throw new Error("user not found");
       expect(user?.name).toBe("山田 太郎");
       expect(user?.email).toBe("yamada@example.com");
       expect(user?.role).toBe("manager");
-      expect(user?.legalTermsConsentVersion).toBe("manager-terms-consent-2026-05-09");
-      expect(user?.legalPrivacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
-      expect(user?.legalTermsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
-      expect(user?.legalPrivacyDocumentVersion).toBe("manager-privacy-doc-2026-05-09");
-      expect(user?.legalConsentMethod).toBe("manager_setup");
+      const consentState = await t.run(async (ctx) =>
+        ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .first(),
+      );
+      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-05-09");
+      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
+      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-05-09");
+      expect(consentState?.method).toBe("manager_setup");
 
       const staffs = await t.run(async (ctx) =>
         ctx.db
@@ -71,6 +81,11 @@ describe("setup/mutations", () => {
       expect(staffs[0].name).toBe("山田 太郎");
       expect(staffs[0].email).toBe("yamada@example.com");
       expect(staffs[0].userId).toBe(user?._id);
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffs[0]._id),
+      ).toBe(true);
 
       const consentEvents = await t.run(async (ctx) =>
         ctx.db
@@ -86,19 +101,10 @@ describe("setup/mutations", () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_existing",
-          name: "既存",
+        await seedManagerShop(ctx, {
+          subject: "user_existing",
           email: "ex@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
-        await ctx.db.insert("shops", {
-          name: "既存店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_existing",
-          isDeleted: false,
+          shopName: "既存店舗",
         });
       });
 
@@ -111,13 +117,7 @@ describe("setup/mutations", () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_has_record",
-          name: "旧名前",
-          email: "old@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
+        await seedUser(ctx, "user_has_record", "old@example.com");
       });
 
       await t.withIdentity({ subject: "user_has_record" }).mutation(api.setup.mutations.setupShopAndOwner, setupArgs);
@@ -125,12 +125,21 @@ describe("setup/mutations", () => {
       const user = await t.run(async (ctx) =>
         ctx.db
           .query("users")
-          .withIndex("by_clerkId", (q) => q.eq("clerkId", "user_has_record"))
+          .withIndex("by_authTokenIdentifier", (q) =>
+            q.eq("authTokenIdentifier", testAuthTokenIdentifier("user_has_record")),
+          )
           .first(),
       );
+      if (!user) throw new Error("user not found");
       expect(user?.name).toBe("山田 太郎");
       expect(user?.email).toBe("yamada@example.com");
-      expect(user?.legalConsentMethod).toBe("manager_setup");
+      const consentState = await t.run(async (ctx) =>
+        ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .first(),
+      );
+      expect(consentState?.method).toBe("manager_setup");
     });
   });
 });

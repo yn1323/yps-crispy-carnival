@@ -17,6 +17,8 @@ export const addStaffs = managerMutation({
       .query("staffs")
       .withIndex("by_shopId", (q) => q.eq("shopId", ctx.shop._id))
       .take(STAFF_DUPLICATE_SCAN_LIMIT);
+    // email 未入力スタッフは同姓同名でも別人として登録できる業務前提。
+    // 重複防止は連絡先として一意に扱える email のみで行う。
     const existingEmails = new Set(
       existingStaffs.filter((s) => !s.isDeleted && s.email).map((s) => s.email.trim().toLowerCase()),
     );
@@ -29,12 +31,15 @@ export const addStaffs = managerMutation({
         shopId: ctx.shop._id,
         name: entry.name,
         email: entry.email,
+        emailNormalized: entry.email,
         isDeleted: false,
       });
       inserted.push(id);
       if (entry.email) insertedEmails.add(entry.email);
     }
     for (const staffId of inserted) {
+      // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
+      // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
         staffId,
       });
@@ -63,21 +68,34 @@ export const editStaff = managerMutation({
 
     const trimmedEmail = args.email.trim().toLowerCase();
     if (trimmedEmail !== "") {
-      const duplicate = await ctx.db
+      const duplicateByNormalized = await ctx.db
         .query("staffs")
-        .withIndex("by_shopId_email_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
+        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+          q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
         )
         .first();
+      const duplicate =
+        duplicateByNormalized ??
+        (await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_email_isDeleted", (q) =>
+            q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
+          )
+          .first());
       if (duplicate && duplicate._id !== args.staffId) {
         throw new ConvexError("このメールアドレスは既に使用されています");
       }
     }
 
     const trimmedName = args.name.trim();
-    const patches = [ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail })];
+    const patches = [
+      ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
+    ];
     if (staff.userId === ctx.user._id) {
-      patches.push(ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail }));
+      // owner 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
+      patches.push(
+        ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
+      );
     }
     await Promise.all(patches);
   },
@@ -98,5 +116,31 @@ export const deleteStaff = managerMutation({
     }
 
     await ctx.db.patch(args.staffId, { isDeleted: true });
+
+    const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
+      ctx.db
+        .query("sessions")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+      ctx.db
+        .query("magicLinks")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+      ctx.db
+        .query("lineLinkTokens")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+      ctx.db
+        .query("staffLineAccounts")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+    ]);
+    const now = Date.now();
+    await Promise.all([
+      ...sessions.map((session) => ctx.db.patch(session._id, { revokedAt: now })),
+      ...magicLinks.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
+      ...lineLinkTokens.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
+      ...lineAccounts.map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
+    ]);
   },
 });

@@ -117,70 +117,88 @@ export const HeroSection = () => (
   </Box>
 );
 
-export const Nav = () => (
+type NavProps = {
+  showLinks?: boolean;
+  showLogin?: boolean;
+  compact?: boolean;
+};
+
+export const Nav = ({ showLinks = true, showLogin = true, compact = false }: NavProps) => (
   <Box as="header" position="fixed" insetX={0} top={0} zIndex="sticky" bg="#dff1ff">
-    <Container maxW="7xl" py={{ base: 3, md: 4 }}>
-      <HeaderContent />
+    <Container maxW="7xl" py={{ base: compact ? 2 : 3, md: compact ? 2 : 4 }}>
+      <HeaderContent showLinks={showLinks} showLogin={showLogin} compact={compact} />
     </Container>
   </Box>
 );
 
-const HeaderContent = () => (
+const HeaderContent = ({ showLinks, showLogin, compact }: Required<NavProps>) => (
   <Flex align="center" justify="space-between" gap={6}>
-    <Brand />
+    <Brand compact={compact} />
 
-    <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
-      {navItems.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          color="gray.950"
-          textStyle="sm"
-          fontWeight="bold"
-          _hover={{ color: "teal.700", textDecoration: "none" }}
-        >
-          {item.label}
-        </Link>
-      ))}
-      <Flex align="center" gap={3}>
-        <SignInButton mode="modal">
-          <Button
-            type="button"
-            variant="solid"
-            colorPalette="teal"
-            h="48px"
-            px={6}
-            borderRadius="full"
-            fontWeight="bold"
-          >
-            ログイン
-          </Button>
-        </SignInButton>
+    {(showLinks || showLogin) && (
+      <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
+        {showLinks &&
+          navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              color="gray.950"
+              textStyle="sm"
+              fontWeight="bold"
+              _hover={{ color: "teal.700", textDecoration: "none" }}
+            >
+              {item.label}
+            </Link>
+          ))}
+        {showLogin && (
+          <Flex align="center" gap={3}>
+            <SignInButton mode="modal">
+              <Button
+                type="button"
+                variant="solid"
+                colorPalette="teal"
+                h="48px"
+                px={6}
+                borderRadius="full"
+                fontWeight="bold"
+              >
+                ログイン
+              </Button>
+            </SignInButton>
+          </Flex>
+        )}
       </Flex>
-    </Flex>
+    )}
 
-    <SignInButton mode="modal">
-      <Button
-        type="button"
-        display={{ base: "inline-flex", md: "none" }}
-        variant="solid"
-        colorPalette="teal"
-        h="42px"
-        px={5}
-        borderRadius="full"
-        fontWeight="bold"
-      >
-        ログイン
-      </Button>
-    </SignInButton>
+    {showLogin && (
+      <SignInButton mode="modal">
+        <Button
+          type="button"
+          display={{ base: "inline-flex", md: "none" }}
+          variant="solid"
+          colorPalette="teal"
+          h="42px"
+          px={5}
+          borderRadius="full"
+          fontWeight="bold"
+        >
+          ログイン
+        </Button>
+      </SignInButton>
+    )}
   </Flex>
 );
 
-const Brand = () => (
+const Brand = ({ compact }: { compact: boolean }) => (
   <Link href="/" _hover={{ opacity: 0.8, textDecoration: "none" }}>
     <Flex align="center" gap={3}>
-      <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 9, md: 10 }} objectFit="contain" />
-      <Text color="gray.950" fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
+      <Image
+        src="/logo192.webp"
+        alt="シフトリ"
+        boxSize={{ base: compact ? 8 : 9, md: compact ? 8 : 10 }}
+        objectFit="contain"
+      />
+      <Text color="gray.950" fontSize={{ base: compact ? "lg" : "xl", md: compact ? "xl" : "2xl" }} fontWeight="bold">
         シフトリ
       </Text>
     </Flex>

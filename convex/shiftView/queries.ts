@@ -22,7 +22,7 @@ export const getShiftViewData = staffSessionQuery({
       return null;
     }
 
-    const [staffs, assignments] = await Promise.all([
+    const [staffs, assignments, positions] = await Promise.all([
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
@@ -31,10 +31,16 @@ export const getShiftViewData = staffSessionQuery({
         .query("shiftAssignments")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
         .take(SHIFT_ASSIGNMENT_LIMIT),
+      ctx.db
+        .query("positions")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .take(50),
     ]);
 
-    const startTimeStr = recruitment.shiftStartTime ?? shop.shiftStartTime;
-    const endTimeStr = recruitment.shiftEndTime ?? shop.shiftEndTime;
+    const startTimeStr = recruitment.shiftStartTime;
+    const endTimeStr = recruitment.shiftEndTime;
+    const editableStartMinutes = timeToMinutes(startTimeStr);
+    const editableEndMinutes = timeToMinutes(endTimeStr);
 
     return {
       shopName: shop.name,
@@ -42,16 +48,20 @@ export const getShiftViewData = staffSessionQuery({
       periodStart: recruitment.periodStart,
       periodEnd: recruitment.periodEnd,
       staffs: staffs.map((s) => ({ _id: s._id, name: s.name })),
+      positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: Boolean(p.isDefault) })),
       assignments: assignments.map((a) => ({
         staffId: a.staffId,
         date: a.date,
         startTime: a.startTime,
         endTime: a.endTime,
+        positionId: a.positionId,
       })),
       timeRange: {
-        start: Math.floor(timeToMinutes(startTimeStr) / 60),
-        end: Math.ceil(timeToMinutes(endTimeStr) / 60),
+        start: Math.floor(editableStartMinutes / 60),
+        end: Math.ceil(editableEndMinutes / 60),
         unit: SHIFT_BOARD_TIME_UNIT_MINUTES,
+        editableStartMinutes,
+        editableEndMinutes,
       },
     };
   },

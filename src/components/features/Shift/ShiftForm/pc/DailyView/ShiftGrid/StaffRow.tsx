@@ -4,6 +4,7 @@ import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } fr
 import { Avatar } from "../../../components";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
+import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
 import { ShiftBar } from "./ShiftBar";
 
 type DragState = {
@@ -136,6 +137,7 @@ export const StaffRow = ({
         cursor={cursorStyle}
         userSelect="none"
       >
+        <NonEditableTimeOverlay timeRange={timeRange} />
         <GridLines timeRange={timeRange} />
 
         {staffShifts.map((shift) => (

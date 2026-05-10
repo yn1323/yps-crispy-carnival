@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-/** 来週月曜〜日曜の日付と今週金曜（締切）を返す */
+/** 来週月曜〜日曜の日付と前日締切を返す。常に未来日にして、実行日による締切切れを避ける。 */
 export function getNextWeekDates() {
   const today = dayjs();
   const currentDay = today.day(); // 0=Sun, 1=Mon...

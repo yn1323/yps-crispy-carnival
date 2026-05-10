@@ -20,7 +20,7 @@ describe("E2E testing helpers", () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       await ctx.db.insert("users", {
-        clerkId: "owner_test",
+        authTokenIdentifier: "owner_test",
         name: "Test Owner",
         email: "owner@example.com",
         role: "manager",

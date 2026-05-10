@@ -30,13 +30,17 @@ const faqs = [
   },
 ];
 
-export const FaqSection = () => (
+type FaqSectionProps = {
+  headingAs?: "h1" | "h2";
+};
+
+export const FaqSection = ({ headingAs = "h2" }: FaqSectionProps) => (
   <Box as="section" id="faq" bg="white" py={{ base: 16, md: 24 }}>
     <Container maxW="6xl">
       <VStack gap={{ base: 8, md: 10 }}>
         <VStack gap={3} textAlign="center">
           <Heading
-            as="h2"
+            as={headingAs}
             color="gray.950"
             fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
             lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}

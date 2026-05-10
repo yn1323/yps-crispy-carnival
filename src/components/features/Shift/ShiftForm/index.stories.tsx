@@ -2,9 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from ".";
 import {
   mockDates,
+  mockHalfHourTimeRange,
   mockPositions,
   mockShifts,
   mockShiftsAllPatterns,
+  mockShiftsHalfHourBusinessHours,
   mockShiftsRequestOnly,
   mockStaffs,
   mockTimeRange,
@@ -56,6 +58,16 @@ export const AllPatterns: Story = {
     ...baseArgs,
     dates: ["2026-01-23"],
     initialShifts: mockShiftsAllPatterns,
+  },
+};
+
+// 店舗設定が05:30〜22:30のケース（端の30分は営業時間外としてグレーアウト）
+export const HalfHourBusinessHours: Story = {
+  args: {
+    ...baseArgs,
+    dates: ["2026-01-28"],
+    initialShifts: mockShiftsHalfHourBusinessHours,
+    timeRange: mockHalfHourTimeRange,
   },
 };
 

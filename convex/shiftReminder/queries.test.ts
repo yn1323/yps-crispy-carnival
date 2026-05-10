@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/reminderQueries", () => {
@@ -8,13 +9,7 @@ describe("notification/reminderQueries", () => {
     it("未提出のスタッフのみ返す", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, submittedStaffId, unsubmittedStaffId } = await t.run(async (ctx) => {
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_owner",
-          isDeleted: false,
-        });
+        const shopId = await seedShop(ctx, "テスト店舗");
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-05-01",
@@ -22,6 +17,8 @@ describe("notification/reminderQueries", () => {
           deadline: "2026-04-25",
           status: "open",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         const submittedStaffId = await ctx.db.insert("staffs", {
           shopId,
@@ -54,13 +51,7 @@ describe("notification/reminderQueries", () => {
     it("メールアドレス未登録のスタッフは除外する", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await t.run(async (ctx) => {
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_owner",
-          isDeleted: false,
-        });
+        const shopId = await seedShop(ctx, "テスト店舗");
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-05-01",
@@ -68,6 +59,8 @@ describe("notification/reminderQueries", () => {
           deadline: "2026-04-25",
           status: "open",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         await ctx.db.insert("staffs", {
           shopId,
@@ -86,13 +79,7 @@ describe("notification/reminderQueries", () => {
     it("論理削除済みスタッフは除外する", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await t.run(async (ctx) => {
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_owner",
-          isDeleted: false,
-        });
+        const shopId = await seedShop(ctx, "テスト店舗");
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-05-01",
@@ -100,6 +87,8 @@ describe("notification/reminderQueries", () => {
           deadline: "2026-04-25",
           status: "open",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         await ctx.db.insert("staffs", {
           shopId,
@@ -118,13 +107,7 @@ describe("notification/reminderQueries", () => {
     it("削除済みrecruitmentでは null を返す", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await t.run(async (ctx) => {
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_owner",
-          isDeleted: false,
-        });
+        const shopId = await seedShop(ctx, "テスト店舗");
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-05-01",
@@ -132,6 +115,8 @@ describe("notification/reminderQueries", () => {
           deadline: "2026-04-25",
           status: "open",
           isDeleted: true,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         return { recruitmentId };
       });

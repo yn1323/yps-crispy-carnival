@@ -12,6 +12,7 @@ import { normalizePositions, paintPosition } from "@/src/domains/shift/operation
 import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
+import { getEditableEndMinutes, getEditableStartMinutes } from "../../utils/timelineGeometry";
 import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
 
 type ShiftEditSheetProps = {
@@ -26,9 +27,9 @@ type ShiftEditSheetProps = {
   onShiftDelete: (staffId: string) => void;
 };
 
-const generateTimeOptions = (timeRange: TimeRange) => {
-  const options = [];
-  for (let m = timeRange.start * 60; m <= timeRange.end * 60; m += timeRange.unit) {
+export const generateTimeOptions = (timeRange: TimeRange) => {
+  const options: SelectItemType[] = [];
+  for (let m = getEditableStartMinutes(timeRange); m <= getEditableEndMinutes(timeRange); m += timeRange.unit) {
     const label = minutesToTime(m);
     options.push({ value: label, label });
   }

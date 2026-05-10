@@ -2,9 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import {
   JotaiStoryWrapper,
+  mockHalfHourTimeRange,
   mockPositions,
   mockShifts,
   mockShiftsAllPatterns,
+  mockShiftsHalfHourBusinessHours,
   mockShiftsRequestOnly,
   mockStaffs,
 } from "../../__mocks__/storyData";
@@ -107,6 +109,20 @@ export const WithBreak: Story = {
           (s): s is NonNullable<typeof s> => s !== undefined,
         ),
         staffs: mockStaffs.filter((s) => s.id === "staff4"),
+      }}
+    >
+      <DailyView />
+    </JotaiStoryWrapper>
+  ),
+};
+
+export const HalfHourBusinessHours: Story = {
+  render: () => (
+    <JotaiStoryWrapper
+      overrides={{
+        dates: ["2026-01-28"],
+        initialShifts: mockShiftsHalfHourBusinessHours,
+        timeRange: mockHalfHourTimeRange,
       }}
     >
       <DailyView />
