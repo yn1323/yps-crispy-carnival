@@ -1,8 +1,9 @@
-import { Box, Checkbox, Flex, Icon, Link, Text, VStack } from "@chakra-ui/react";
+import { Box, Checkbox, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer } from "react-icons/lu";
+import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
@@ -136,23 +137,8 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
                 <Checkbox.HiddenInput />
                 <Checkbox.Control />
                 <Checkbox.Label fontSize="sm" lineHeight={1.7}>
-                  <Link
-                    href={data.legalDocuments.terms.path}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    color="teal.700"
-                  >
-                    利用規約
-                  </Link>
-                  と
-                  <Link
-                    href={data.legalDocuments.privacy.path}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    color="teal.700"
-                  >
-                    プライバシーポリシー
-                  </Link>
+                  <LegalDocumentLink href={data.legalDocuments.terms.path}>利用規約</LegalDocumentLink>と
+                  <LegalDocumentLink href={data.legalDocuments.privacy.path}>プライバシーポリシー</LegalDocumentLink>
                   に同意します
                 </Checkbox.Label>
               </Checkbox.Root>

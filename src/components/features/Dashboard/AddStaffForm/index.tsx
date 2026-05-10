@@ -36,8 +36,8 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   return (
     <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={4}>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          現在募集中のシフトがある場合、追加したスタッフにも希望提出リンクをメールで送ります。
+        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+          追加時にシフトリの使い方、LINE連携案内、募集中の希望シフト提出リンクをメールでお送りします。
         </Text>
 
         {rootError && (

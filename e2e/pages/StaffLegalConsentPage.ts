@@ -8,7 +8,7 @@ export class StaffLegalConsentPage {
   }
 
   async expectConsentFormVisible() {
-    await expect(this.page.getByText("規約の確認")).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "利用規約・プライバシーポリシーの確認" })).toBeVisible();
     await expect(this.legalConsentCheckbox()).toBeVisible();
   }
 

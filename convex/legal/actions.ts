@@ -30,7 +30,7 @@ export const sendStaffConsentEmail = internalAction({
     await resend.emails.send({
       from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
       to: data.staffEmail,
-      subject: formatResendSubject(data.shopName, "シフト管理サービスの利用規約・プライバシーポリシー確認のお願い"),
+      subject: formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認"),
       html: buildStaffLegalConsentEmailHtml({
         staffName: data.staffName,
         shopName: data.shopName,

@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
+import { getE2EWorkerCount } from "./e2e/helpers/e2eUsers";
 
 dotenv.config({ debug: false, quiet: true });
 
@@ -7,19 +8,11 @@ dotenv.config({ debug: false, quiet: true });
  * E2Eテスト実行順序と依存関係:
  *
  * 1. setup
- *    ├── 全ユーザーのログイン認証を実行
+ *    ├── E2E_CLERK_USERS の3ユーザーでログイン認証を実行
  *    └── 認証状態をファイルに保存
  *
- * 2. 認証済みテスト (User A / 管理者)
- *    ├── auth/login.test.ts - 認証確認
- *    ├── shop/register.test.ts - 店舗登録
- *    ├── shop/list.test.ts - 店舗一覧
- *    ├── shop/detail.test.ts - 店舗詳細
- *    ├── shop/edit.test.ts - 店舗編集
- *    └── staff/list.test.ts - スタッフ一覧（StaffTab操作）
- *
- * 3. 認証済みテストB (User B / 新規店長)
- *    └── userB/new-owner.test.ts - 新規店長の初回ログイン〜店舗登録
+ * 2. 認証済みテスト
+ *    └── workerごとに別ユーザーの storageState を使い、owner単位のseedで並列実行
  *
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -31,8 +24,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 1 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: 1,
+  /* E2E_CLERK_USERS のユーザー数に合わせて、別ユーザーで並列実行する。 */
+  workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [["list"], ["html"], ["json", { outputFile: "test-results.json" }]],
   /* expect() の待機上限。エラー発生時に即座に失敗を返すため短めに設定 */
@@ -70,7 +63,6 @@ export default defineConfig({
       testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "e2e/.clerk/user.json",
       },
       dependencies: ["setup"],
     },

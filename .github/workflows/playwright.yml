@@ -45,7 +45,7 @@ jobs:
           TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
           CONVEX_PREVIEW_NAME: ${{ env.CONVEX_PREVIEW_NAME }}
-          E2E_CLERK_USER: ${{ vars.E2E_CLERK_USER }}
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
           E2E_CLERK_PASSWORD: ${{ vars.E2E_CLERK_PASSWORD }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
