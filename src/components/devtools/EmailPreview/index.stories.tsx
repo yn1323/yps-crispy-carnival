@@ -5,6 +5,7 @@ import {
   buildRecruitmentEmailHtml,
   buildReissueEmailHtml,
   buildReminderEmailHtml,
+  buildStaffLegalConsentEmailHtml,
 } from "@/convex/notification/templates";
 import { EmailPreview } from ".";
 
@@ -26,6 +27,7 @@ const fixtures = {
   deadline: "4/25(金)",
   magicLinkUrl: "https://example.com/shifts/view?token=preview-token",
   reissueUrl: "https://example.com/shifts/reissue?staff=preview",
+  consentUrl: "https://example.com/legal/staff/consent?token=preview-token",
   shifts: [
     { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
     { date: "5/2(土)", startTime: "17:00", endTime: "22:00" },
@@ -38,6 +40,25 @@ const fixtures = {
     { date: "5/3(日)", startTime: null, endTime: null },
   ],
 };
+
+const legalDocuments = {
+  terms: {
+    audience: "staff",
+    kind: "terms",
+    title: "スタッフ向け利用規約",
+    documentVersion: "staff-terms-doc-2026-05-09",
+    path: "/terms/staff",
+    requiredConsentVersion: "staff-terms-consent-2026-05-09",
+  },
+  privacy: {
+    audience: "staff",
+    kind: "privacy",
+    title: "スタッフ向けプライバシーポリシー",
+    documentVersion: "staff-privacy-doc-2026-05-09",
+    path: "/privacy/staff",
+    requiredConsentVersion: "staff-privacy-consent-2026-05-09",
+  },
+} as const;
 
 const Section = ({ label, html }: { label: string; html: string }) => (
   <Flex direction="column" gap={2}>
@@ -135,6 +156,23 @@ export const Reissue: StoryObj<typeof meta> = {
           staffName: fixtures.staffName,
           periodLabel: fixtures.periodLabel,
           magicLinkUrl: fixtures.magicLinkUrl,
+        })}
+      />
+    </VariantsContainer>
+  ),
+};
+
+export const StaffLegalConsent: StoryObj<typeof meta> = {
+  render: () => (
+    <VariantsContainer>
+      <Section
+        label="スタッフ向け案内・規約確認"
+        html={buildStaffLegalConsentEmailHtml({
+          staffName: fixtures.staffName,
+          shopName: "居酒屋さくら",
+          consentUrl: fixtures.consentUrl,
+          expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
+          documents: legalDocuments,
         })}
       />
     </VariantsContainer>
