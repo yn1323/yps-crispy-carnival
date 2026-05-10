@@ -30,7 +30,7 @@ export const verifyToken = mutation({
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
 
-    if (!magicLink || magicLink.expiresAt < Date.now() || magicLink.usedAt) {
+    if (!magicLink || magicLink.revokedAt || magicLink.expiresAt < Date.now() || magicLink.usedAt) {
       return {
         status: "expired" as const,
         recruitmentId: magicLink?.recruitmentId ?? null,
@@ -45,7 +45,7 @@ export const verifyToken = mutation({
       )
       .collect();
 
-    const validSession = existingSessions.find((s) => s.expiresAt > Date.now());
+    const validSession = existingSessions.find((s) => !s.revokedAt && s.expiresAt > Date.now());
 
     if (validSession) {
       await ctx.db.patch(magicLink._id, { usedAt: Date.now() });
@@ -89,7 +89,8 @@ export const requestReissue = mutation({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { email, recruitmentId }) => {
-    const emailDomain = email.split("@")[1];
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailDomain = normalizedEmail.split("@")[1];
     const logSkip = (reason: string, extra: Record<string, unknown> = {}) =>
       console.warn("[requestReissue] skip", { reason, recruitmentId, ...extra });
 
@@ -97,7 +98,7 @@ export const requestReissue = mutation({
     // メアド列挙攻撃防止: レートリミットでも成功時と同じレスポンス（void）を返す
     const { ok } = await rateLimit(ctx, {
       name: "requestReissue",
-      key: `${email}:${recruitmentId}`,
+      key: `${normalizedEmail}:${recruitmentId}`,
     });
     if (!ok) return logSkip("rate_limited", { emailDomain });
 
@@ -110,8 +111,8 @@ export const requestReissue = mutation({
 
     const staff = await ctx.db
       .query("staffs")
-      .withIndex("by_shopId_email_isDeleted", (q) =>
-        q.eq("shopId", recruitment.shopId).eq("email", email).eq("isDeleted", false),
+      .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+        q.eq("shopId", recruitment.shopId).eq("emailNormalized", normalizedEmail).eq("isDeleted", false),
       )
       .first();
     if (!staff) return logSkip("staff_not_found", { emailDomain });

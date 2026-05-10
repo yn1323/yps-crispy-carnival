@@ -45,6 +45,8 @@ export type TimeRange = {
   start: number; // 開始時 (9)
   end: number; // 終了時 (22)
   unit: number; // 分単位 (30)
+  editableStartMinutes?: number; // 編集可能開始分 (例: 05:30 = 330)
+  editableEndMinutes?: number; // 編集可能終了分 (例: 22:30 = 1350)
 };
 
 // ==========================================

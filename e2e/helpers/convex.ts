@@ -6,6 +6,8 @@ const npmConfigKeysToOmit = new Set([
   "npm_config__jsr_registry",
 ]);
 
+// pnpm 経由の vitest/playwright から npx convex を呼ぶと、一部の npm_config_* が
+// npm 側の未知設定 warning になる。E2Eログを読める状態に保つため、Convex CLI へ渡す環境だけ削る。
 function getNpxEnv() {
   return Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !npmConfigKeysToOmit.has(key.toLowerCase())),
@@ -32,6 +34,8 @@ export function convexRun(fn: string, args: Record<string, unknown> = {}): strin
     cliArgs.push(process.platform === "win32" ? toJson5(args) : JSON.stringify(args));
   }
   if (process.env.CONVEX_PREVIEW_NAME) {
+    // CI の preview deployment とローカル dev deployment を取り違えないよう、
+    // Playwright 側の環境変数を Convex CLI の明示オプションへ変換する。
     cliArgs.push("--preview-name", process.env.CONVEX_PREVIEW_NAME);
   }
   if (process.platform === "win32") {

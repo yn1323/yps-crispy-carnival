@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { todayJST } from "../_lib/dateFormat";
+import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 function dateFromToday(daysFromNow: number): string {
@@ -28,20 +29,12 @@ describe("staff/mutations", () => {
       const t = convexTest(schema, modules);
 
       const shopId = await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
           email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "テスト店舗",
         });
-        return await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
-        });
+        return seeded.shopId;
       });
 
       const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
@@ -67,20 +60,7 @@ describe("staff/mutations", () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
-          email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
-        await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
-        });
+        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
       });
 
       const [staffId] = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
@@ -100,20 +80,7 @@ describe("staff/mutations", () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
-          email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
-        await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
-        });
+        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
       });
 
       const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
@@ -131,19 +98,10 @@ describe("staff/mutations", () => {
       const t = convexTest(schema, modules);
 
       const shopId = await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
+        const { shopId: id } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
           email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
-        const id = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
+          shopName: "テスト店舗",
         });
         await ctx.db.insert("staffs", {
           shopId: id,
@@ -176,19 +134,10 @@ describe("staff/mutations", () => {
       const t = convexTest(schema, modules);
 
       const ids = await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
           email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
+          shopName: "テスト店舗",
         });
         const staffId = await ctx.db.insert("staffs", {
           shopId,
@@ -203,6 +152,8 @@ describe("staff/mutations", () => {
           deadline: todayJST(),
           status: "open",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         await ctx.db.insert("recruitments", {
           shopId,
@@ -211,6 +162,8 @@ describe("staff/mutations", () => {
           deadline: dateFromToday(5),
           status: "confirmed",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         await ctx.db.insert("recruitments", {
           shopId,
@@ -219,6 +172,8 @@ describe("staff/mutations", () => {
           deadline: dateFromToday(-15),
           status: "open",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         await ctx.db.insert("recruitments", {
           shopId,
@@ -227,6 +182,8 @@ describe("staff/mutations", () => {
           deadline: dateFromToday(10),
           status: "open",
           isDeleted: true,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         return { staffId, openRecruitmentId };
       });
@@ -242,19 +199,10 @@ describe("staff/mutations", () => {
   function setupShopWithStaff() {
     const t = convexTest(schema, modules);
     const data = t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "user_mgr",
-        name: "管理者",
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "user_mgr",
         email: "mgr@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        name: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "user_mgr",
-        isDeleted: false,
+        shopName: "テスト店舗",
       });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
@@ -293,13 +241,7 @@ describe("staff/mutations", () => {
       const { t } = setupShopWithStaff();
 
       const otherStaffId = await t.run(async (ctx) => {
-        const otherShopId = await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "other_owner",
-          isDeleted: false,
-        });
+        const otherShopId = await seedShop(ctx, "他店舗");
         return await ctx.db.insert("staffs", {
           shopId: otherShopId,
           name: "他店スタッフ",
@@ -391,13 +333,7 @@ describe("staff/mutations", () => {
       const { t } = setupShopWithStaff();
 
       const otherStaffId = await t.run(async (ctx) => {
-        const otherShopId = await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "other_owner",
-          isDeleted: false,
-        });
+        const otherShopId = await seedShop(ctx, "他店舗");
         return await ctx.db.insert("staffs", {
           shopId: otherShopId,
           name: "他店スタッフ",
@@ -415,19 +351,10 @@ describe("staff/mutations", () => {
       const t = convexTest(schema, modules);
 
       const adminStaffId = await t.run(async (ctx) => {
-        const userId = await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
+        const { userId, shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
           email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
+          shopName: "テスト店舗",
         });
         return await ctx.db.insert("staffs", {
           shopId,

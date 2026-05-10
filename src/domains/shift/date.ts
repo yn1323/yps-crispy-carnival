@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 
+// フロントの日付は "YYYY-MM-DD" 文字列を正とし、Date#toISOString 由来のTZずれを避ける。
 // 開始日から終了日までの日付配列を取得
 export const getDateRange = (startDate: string, endDate: string): string[] => {
   const dates: string[] = [];
@@ -99,8 +100,8 @@ export const getWeekStartDate = (date: string, weekStart: WeekStart = "mon"): st
   return dayjs(date).subtract(weekdayOffset(date, weekStart), "day").format("YYYY-MM-DD");
 };
 
-// 期間 dates を 7 × N の週グリッドに変換
-// 返値: 各要素は { iso: "YYYY-MM-DD", inRange: boolean }。期間外セルも日付を持つ
+// 期間 dates を 7 × N の週グリッドに変換。
+// 期間外セルも日付を持たせ、月曜/日曜始まりの見た目を固定したまま disabled 表示へ回す。
 export const buildWeeklyGrid = (
   dates: string[],
   weekStart: WeekStart = "mon",

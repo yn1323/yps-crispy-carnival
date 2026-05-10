@@ -2,6 +2,21 @@ import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatDateLabel, formatPeriodLabel, generateDateRange, todayJST } from "../_lib/dateFormat";
 import { OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
+import { getStaffLineAccount } from "../line/service";
+
+type AssignmentTime = {
+  startTime: string;
+  endTime: string;
+};
+
+function buildShiftTimeLabel(assignments: AssignmentTime[]) {
+  if (assignments.length === 0) return null;
+  return assignments
+    .slice()
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    .map((assignment) => `${assignment.startTime}-${assignment.endTime}`)
+    .join(" / ");
+}
 
 /**
  * シフト確定メール送信に必要なデータを一括取得
@@ -30,28 +45,35 @@ export const getConfirmationEmailData = internalQuery({
     const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
 
     // スタッフごとにシフト情報をグループ化
-    const staffEntries = staffs.map((staff) => {
-      const staffAssignments = assignments.filter((a) => a.staffId === staff._id);
-      const assignmentMap = new Map(staffAssignments.map((a) => [a.date, a]));
+    const staffEntries = await Promise.all(
+      staffs.map(async (staff) => {
+        const staffAssignments = assignments.filter((a) => a.staffId === staff._id);
+        const assignmentsByDate = new Map<string, AssignmentTime[]>();
+        for (const assignment of staffAssignments) {
+          const items = assignmentsByDate.get(assignment.date) ?? [];
+          items.push({ startTime: assignment.startTime, endTime: assignment.endTime });
+          assignmentsByDate.set(assignment.date, items);
+        }
+        const lineAccount = await getStaffLineAccount(ctx, staff._id);
 
-      const shifts = dates.map((date) => {
-        const assignment = assignmentMap.get(date);
+        const shifts = dates.map((date) => {
+          const timeLabel = buildShiftTimeLabel(assignmentsByDate.get(date) ?? []);
+          return {
+            date: formatDateLabel(date),
+            timeLabel,
+          };
+        });
+
         return {
-          date: formatDateLabel(date),
-          startTime: assignment?.startTime ?? null,
-          endTime: assignment?.endTime ?? null,
+          staffId: staff._id,
+          name: staff.name,
+          email: staff.email,
+          lineUserId: lineAccount?.lineUserId,
+          lineFollowing: lineAccount?.following,
+          shifts,
         };
-      });
-
-      return {
-        staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        lineUserId: staff.lineUserId,
-        lineFollowing: staff.lineFollowing,
-        shifts,
-      };
-    });
+      }),
+    );
 
     return {
       shopId: recruitment.shopId,
@@ -84,13 +106,18 @@ export const getRecruitmentEmailData = internalQuery({
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       deadline: recruitment.deadline,
-      staffEntries: staffs.map((s) => ({
-        staffId: s._id,
-        name: s.name,
-        email: s.email,
-        lineUserId: s.lineUserId,
-        lineFollowing: s.lineFollowing,
-      })),
+      staffEntries: await Promise.all(
+        staffs.map(async (s) => {
+          const lineAccount = await getStaffLineAccount(ctx, s._id);
+          return {
+            staffId: s._id,
+            name: s.name,
+            email: s.email,
+            lineUserId: lineAccount?.lineUserId,
+            lineFollowing: lineAccount?.following,
+          };
+        }),
+      ),
     };
   },
 });
@@ -122,6 +149,8 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
         deadline: r.deadline,
       }));
 
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+
     return {
       shopId: staff.shopId,
       shopName: shop.name,
@@ -129,8 +158,8 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
         staffId: staff._id,
         name: staff.name,
         email: staff.email,
-        lineUserId: staff.lineUserId,
-        lineFollowing: staff.lineFollowing,
+        lineUserId: lineAccount?.lineUserId,
+        lineFollowing: lineAccount?.following,
       },
       recruitments: openRecruitments,
     };
@@ -152,13 +181,15 @@ export const getReissueEmailData = internalQuery({
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
 
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+
     return {
       shopId: recruitment.shopId,
       shopName: shop.name,
       staffName: staff.name,
       staffEmail: staff.email,
-      lineUserId: staff.lineUserId,
-      lineFollowing: staff.lineFollowing,
+      lineUserId: lineAccount?.lineUserId,
+      lineFollowing: lineAccount?.following,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
     };
   },

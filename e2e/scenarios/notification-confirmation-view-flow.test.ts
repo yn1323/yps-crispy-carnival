@@ -36,6 +36,8 @@ test.describe("通知URL起点の確定シフト閲覧", () => {
     });
 
     await test.step("Step 2: 別ブラウザでは使用済みURLになり、再発行後の新URLで閲覧できる", async () => {
+      // 同じ browser context だと localStorage の staff session が残るため、
+      // 使用済みmagic linkの挙動は新規 context で確認する。
       const isolated = await browser.newContext({ baseURL: "http://localhost:3000" });
       const isolatedPage = await isolated.newPage();
       const isolatedView = new StaffViewPage(isolatedPage);

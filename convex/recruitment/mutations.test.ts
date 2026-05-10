@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { todayJST } from "../_lib/dateFormat";
+import { seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 function futureDate(daysFromNow: number): string {
@@ -26,13 +27,7 @@ describe("recruitment/mutations", () => {
     it("店舗未登録の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_no_shop",
-          name: "店舗なし",
-          email: "no@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
+        await seedUser(ctx, "user_no_shop", "no@example.com");
       });
 
       await expect(
@@ -43,20 +38,12 @@ describe("recruitment/mutations", () => {
     function setupShop() {
       const t = convexTest(schema, modules);
       const shopId = t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_mgr",
-          name: "管理者",
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
           email: "mgr@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "テスト店舗",
         });
-        return await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_mgr",
-          isDeleted: false,
-        });
+        return seeded.shopId;
       });
       return { t, shopId };
     }

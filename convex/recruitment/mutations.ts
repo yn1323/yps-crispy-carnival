@@ -37,7 +37,19 @@ export const createRecruitment = managerMutation({
       shiftStartTime: ctx.shop.shiftStartTime,
       shiftEndTime: ctx.shop.shiftEndTime,
     });
-    // 全スタッフに募集開始メールを送信
+    const activeStaffs = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
+      .collect();
+    await ctx.db.insert("recruitmentStats", {
+      recruitmentId,
+      shopId: ctx.shop._id,
+      submittedCount: 0,
+      activeStaffCountSnapshot: activeStaffs.length,
+      updatedAt: Date.now(),
+    });
+
+    // 募集作成はDB更新を先に完了させ、通知は action 側で LINE / email / dry-run を振り分ける。
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendRecruitmentNotificationEmails, {
       recruitmentId,
     });

@@ -28,6 +28,8 @@ export async function getOrCreateMagicLinkToken(args: {
   staffEmail: string;
   purpose: MagicLinkPurpose;
 }): Promise<CreatedMagicLinkResult> {
+  // 通知 action は scheduler 経由で非同期実行される。
+  // まず実際に発行された token を待ち、無ければテスト用 internal API で補助発行してシナリオを進める。
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
     const result = convexRunJson<MagicLinkResult>("testing:getLatestMagicLinkToken", args);
     if (result.token) return result as CreatedMagicLinkResult;
@@ -42,6 +44,7 @@ export async function waitForMagicLinkToken(args: {
   staffEmail: string;
   purpose: MagicLinkPurpose;
 }): Promise<CreatedMagicLinkResult> {
+  // 追送・follow起点の通知は「発行されること」自体が検証対象なので、補助発行せず待ち切れなければ失敗にする。
   for (let i = 0; i < POLL_ATTEMPTS * 2; i++) {
     const result = convexRunJson<MagicLinkResult>("testing:getLatestMagicLinkToken", args);
     if (result.token) return result as CreatedMagicLinkResult;
@@ -52,6 +55,7 @@ export async function waitForMagicLinkToken(args: {
 }
 
 export async function getOrCreateLineLinkToken(staffEmail: string): Promise<CreatedLineLinkResult> {
+  // LINE Login の外部画面には遷移しない。E2Eではアプリ側で連携URLを発行できることだけ確認する。
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
     const result = convexRunJson<LineLinkResult>("testing:getLatestLineLinkToken", { staffEmail });
     if (result.token) return result as CreatedLineLinkResult;

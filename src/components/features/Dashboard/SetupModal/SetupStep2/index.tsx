@@ -5,10 +5,11 @@ import { type Step2Data, step2Schema } from "./index";
 
 type Props = {
   onSubmit: (data: Step2Data) => void;
+  defaultValues?: Pick<Step2Data, "name" | "email">;
   formId?: string;
 };
 
-export const SetupStep2 = ({ onSubmit, formId = "setup-step2" }: Props) => {
+export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: Props) => {
   const {
     register,
     setValue,
@@ -17,7 +18,11 @@ export const SetupStep2 = ({ onSubmit, formId = "setup-step2" }: Props) => {
     formState: { errors },
   } = useForm<Step2Data>({
     resolver: zodResolver(step2Schema),
-    defaultValues: { name: "", email: "", acceptedLegal: false },
+    defaultValues: {
+      name: defaultValues?.name ?? "",
+      email: defaultValues?.email ?? "",
+      acceptedLegal: false,
+    },
   });
 
   const acceptedLegal = watch("acceptedLegal");

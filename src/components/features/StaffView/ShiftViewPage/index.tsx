@@ -4,7 +4,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getDateRange } from "@/src/domains/shift/date";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { PeriodBar } from "../PeriodBar";
 
 const POSITIONS = [DEFAULT_POSITION];
@@ -14,6 +14,7 @@ type Assignment = {
   date: string;
   startTime: string;
   endTime: string;
+  positionId: Id<"positions">;
 };
 
 type Props = {
@@ -21,45 +22,64 @@ type Props = {
   periodStart: string;
   periodEnd: string;
   staffs: { _id: Id<"staffs">; name: string }[];
+  positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[];
   assignments: Assignment[];
-  timeRange: { start: number; end: number; unit: number };
+  timeRange: TimeRange;
 };
 
-function buildShiftData(staffs: StaffType[], dates: string[], assignments: Assignment[]): ShiftData[] {
-  const assignmentMap = new Map<string, Assignment>();
+function buildShiftData(
+  staffs: StaffType[],
+  dates: string[],
+  assignments: Assignment[],
+  positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[],
+): ShiftData[] {
+  const fallbackPosition = positions.find((position) => position.isDefault) ?? positions[0];
+  const positionById = new Map(
+    positions.map((position) => [position._id, { name: position.name, color: position.color }]),
+  );
+  const assignmentMap = new Map<string, Assignment[]>();
   for (const a of assignments) {
-    assignmentMap.set(`${a.staffId}-${a.date}`, a);
+    const key = `${a.staffId}-${a.date}`;
+    const items = assignmentMap.get(key) ?? [];
+    items.push(a);
+    assignmentMap.set(key, items);
   }
 
   const shifts: ShiftData[] = [];
   for (const staff of staffs) {
     for (const date of dates) {
-      const assignment = assignmentMap.get(`${staff.id}-${date}`);
+      const assignment = (assignmentMap.get(`${staff.id}-${date}`) ?? []).sort((a, b) =>
+        a.startTime.localeCompare(b.startTime),
+      );
       shifts.push({
         id: `shift-${staff.id}-${date}`,
         staffId: staff.id,
         staffName: staff.name,
         date,
         requestedTime: null,
-        positions: assignment
-          ? [
-              {
-                id: `seg-${staff.id}-${date}`,
-                positionId: DEFAULT_POSITION.id,
-                positionName: DEFAULT_POSITION.name,
-                color: DEFAULT_POSITION.color,
-                start: assignment.startTime,
-                end: assignment.endTime,
-              },
-            ]
-          : [],
+        positions: assignment.map((item, index) => ({
+          id: `seg-${staff.id}-${date}-${index}`,
+          positionId: item.positionId,
+          positionName: positionById.get(item.positionId)?.name ?? fallbackPosition?.name ?? DEFAULT_POSITION.name,
+          color: positionById.get(item.positionId)?.color ?? fallbackPosition?.color ?? DEFAULT_POSITION.color,
+          start: item.startTime,
+          end: item.endTime,
+        })),
       });
     }
   }
   return shifts;
 }
 
-export function ShiftViewPage({ periodLabel, periodStart, periodEnd, staffs, assignments, timeRange }: Props) {
+export function ShiftViewPage({
+  periodLabel,
+  periodStart,
+  periodEnd,
+  staffs,
+  positions,
+  assignments,
+  timeRange,
+}: Props) {
   const dates = useMemo(() => getDateRange(periodStart, periodEnd), [periodStart, periodEnd]);
 
   const staffTypes: StaffType[] = useMemo(
@@ -67,7 +87,18 @@ export function ShiftViewPage({ periodLabel, periodStart, periodEnd, staffs, ass
     [staffs],
   );
 
-  const initialShifts = useMemo(() => buildShiftData(staffTypes, dates, assignments), [staffTypes, dates, assignments]);
+  const displayPositions = useMemo(
+    () =>
+      positions.length > 0
+        ? positions.map((position) => ({ id: position._id, name: position.name, color: position.color }))
+        : POSITIONS,
+    [positions],
+  );
+
+  const initialShifts = useMemo(
+    () => buildShiftData(staffTypes, dates, assignments, positions),
+    [staffTypes, dates, assignments, positions],
+  );
 
   return (
     <Flex direction="column" h="full" minH={0}>
@@ -77,7 +108,7 @@ export function ShiftViewPage({ periodLabel, periodStart, periodEnd, staffs, ass
         <ShiftForm
           shopId=""
           staffs={staffTypes}
-          positions={POSITIONS}
+          positions={displayPositions}
           initialShifts={initialShifts}
           dates={dates}
           timeRange={timeRange}

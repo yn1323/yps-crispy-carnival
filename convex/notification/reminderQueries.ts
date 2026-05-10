@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatDateLabel, formatPeriodLabel } from "../_lib/dateFormat";
+import { getStaffLineAccount } from "../line/service";
 
 /**
  * 催促メール送信に必要なデータを取得（未提出スタッフのみ）
@@ -33,13 +34,18 @@ export const getReminderEmailData = internalQuery({
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       deadline: formatDateLabel(recruitment.deadline),
-      staffEntries: unsubmittedStaffs.map((s) => ({
-        staffId: s._id,
-        name: s.name,
-        email: s.email,
-        lineUserId: s.lineUserId,
-        lineFollowing: s.lineFollowing,
-      })),
+      staffEntries: await Promise.all(
+        unsubmittedStaffs.map(async (s) => {
+          const lineAccount = await getStaffLineAccount(ctx, s._id);
+          return {
+            staffId: s._id,
+            name: s.name,
+            email: s.email,
+            lineUserId: lineAccount?.lineUserId,
+            lineFollowing: lineAccount?.following,
+          };
+        }),
+      ),
     };
   },
 });

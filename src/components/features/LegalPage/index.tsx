@@ -11,13 +11,14 @@ type LegalPageProps = {
 export function LegalPage({ title, lastUpdated, children }: LegalPageProps): ReactNode {
   return (
     <Box bg="white" minH="100vh" color="fg">
-      <Nav />
+      <Nav showLinks={false} showLogin={false} />
       <VStack
         mx="auto"
         w="full"
         maxW="768px"
         px={{ base: 4, lg: 12 }}
-        py={{ base: 12, lg: 24 }}
+        pt={{ base: 24, lg: 32 }}
+        pb={{ base: 12, lg: 24 }}
         gap={{ base: 6, lg: 8 }}
         align="stretch"
         textAlign="left"

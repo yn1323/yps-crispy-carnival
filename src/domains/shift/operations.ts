@@ -1,6 +1,9 @@
 import { minutesToTime, timeToMinutes } from "./time";
 import type { LinkedResizeTarget, PositionSegment, ShiftData } from "./types";
 
+// このファイルは ShiftForm の純粋操作だけを扱う。
+// requestedTime はスタッフ提出の原本なので、店長の編集操作では positions だけを更新する。
+
 // === シフト検索ユーティリティ ===
 
 // 指定位置のシフトを検索（希望シフト時間内かどうかに関わらず、スタッフのシフトを返す）
@@ -44,7 +47,8 @@ export const findPositionAtPosition = (params: {
 
 // === ポジション操作（希望シフトバーは編集不可） ===
 
-// ポジション消去（指定範囲のポジションセグメントを削除）
+// ポジション消去（指定範囲のポジションセグメントを削除）。
+// 途中だけ消す場合は前後に分割し、後続の正規化で休憩バーを再計算できる形にする。
 export const erasePosition = (params: { shift: ShiftData; startMinutes: number; endMinutes: number }): ShiftData => {
   const { shift, startMinutes, endMinutes } = params;
 
@@ -97,7 +101,8 @@ export const erasePosition = (params: { shift: ShiftData; startMinutes: number; 
   };
 };
 
-// ポジションリサイズ（希望シフト時間は変更しない）
+// ポジションリサイズ。
+// 伸ばした範囲が他ポジションに重なる場合は、ユーザー操作の直感に合わせて新しい範囲を優先する。
 export const resizePosition = (params: {
   shift: ShiftData;
   positionId: string;
@@ -220,7 +225,8 @@ export const resizeLinkedPositions = (params: {
   return { ...shift, positions: updatedPositions };
 };
 
-// ポジション塗り（希望シフト時間は変更しない + 重複上書き含む）
+// ポジション塗り。
+// ドラッグで塗った範囲を上書き扱いにし、既存ポジションの重複部分は削除または分割する。
 export const paintPosition = (params: {
   shift: ShiftData;
   positionId: string;
@@ -384,7 +390,8 @@ export const fillGapsWithBreak = (params: {
   return result;
 };
 
-// 正規化パイプライン: 休憩除去 → マージ → ギャップ埋め
+// 正規化パイプライン: 休憩除去 → マージ → ギャップ埋め。
+// 休憩はDB保存用の原本ではなく、勤務セグメントの隙間から再生成する派生データとして扱う。
 export const normalizePositions = (params: {
   positions: PositionSegment[];
   breakPosition: { id: string; name: string; color: string };

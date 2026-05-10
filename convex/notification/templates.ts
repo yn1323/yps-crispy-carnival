@@ -2,9 +2,15 @@ import type { LegalDocumentInfo } from "../legal/documents";
 
 type ShiftEntry = {
   date: string;
-  startTime: string | null;
-  endTime: string | null;
+  timeLabel?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
 };
+
+function shiftTimeLabel(shift: ShiftEntry): string | null {
+  if (shift.timeLabel !== undefined) return shift.timeLabel;
+  return shift.startTime && shift.endTime ? `${shift.startTime}-${shift.endTime}` : null;
+}
 
 /**
  * LINE 用のシフト確定通知テキスト（プレーンテキスト・短文）
@@ -26,9 +32,10 @@ export function buildShiftConfirmationLineText(params: {
       : `${params.shopName}\n${params.periodLabel} のシフトが確定しました。`,
     "",
     "▼あなたのシフト",
-    ...params.shifts.map((s) =>
-      s.startTime && s.endTime ? `${s.date} ${s.startTime}-${s.endTime}` : `${s.date} 休み`,
-    ),
+    ...params.shifts.map((s) => {
+      const timeLabel = shiftTimeLabel(s);
+      return timeLabel ? `${s.date} ${timeLabel}` : `${s.date} 休み`;
+    }),
     "",
     `全員分の確認はこちら（24時間有効）`,
     params.magicLinkUrl,
@@ -114,10 +121,11 @@ type ReissueEmailParams = {
 };
 
 function shiftRow(shift: ShiftEntry): string {
-  if (shift.startTime && shift.endTime) {
+  const timeLabel = shiftTimeLabel(shift);
+  if (timeLabel) {
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${shift.date}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${shift.startTime} - ${shift.endTime}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${timeLabel}</td>
     </tr>`;
   }
   return `<tr>

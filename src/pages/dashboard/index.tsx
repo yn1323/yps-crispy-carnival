@@ -17,6 +17,7 @@ export function DashboardPage() {
   const [visibleRecruitmentCount, setVisibleRecruitmentCount] = useState(RECRUITMENT_INITIAL_VISIBLE_COUNT);
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
   const shop = useQuery(api.dashboard.queries.getDashboardShop);
+  const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
   const skipPagination = shop === undefined || shop === null;
   const managerLegalConsentStatus = useQuery(
     api.legal.queries.getManagerConsentStatus,
@@ -76,6 +77,10 @@ export function DashboardPage() {
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
           managerLegalConsentStatus={managerLegalConsentStatus}
+          ownerProfileDefaults={{
+            name: currentUser?.name ?? "",
+            email: currentUser?.email ?? "",
+          }}
         />
       </Animation>
     </RootContentWrapper>

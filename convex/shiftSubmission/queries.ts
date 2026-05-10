@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
-import { getLegalDocumentsForAudience, hasCurrentLegalConsent } from "../legal/documents";
+import { getLegalDocumentsForAudience } from "../legal/documents";
+import { hasCurrentStaffLegalConsent } from "../legal/service";
 
 /**
  * シフト提出画面のデータ取得
@@ -21,13 +22,13 @@ export const getSubmissionPageData = staffSessionQuery({
     const isBeforeDeadline = Date.now() < getDeadlineCutoff(recruitment.deadline);
 
     const staffId = ctx.staff._id;
-    const [submission, requests] = await Promise.all([
+    const [submission, slots] = await Promise.all([
       ctx.db
         .query("shiftSubmissions")
         .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
         .first(),
       ctx.db
-        .query("shiftRequests")
+        .query("shiftSubmissionSlots")
         .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
         .collect(),
     ]);
@@ -40,16 +41,16 @@ export const getSubmissionPageData = staffSessionQuery({
       deadline: recruitment.deadline,
       isBeforeDeadline,
       hasSubmitted: submission !== null,
-      existingRequests: requests.map((r) => ({
+      existingRequests: slots.map((r) => ({
         date: r.date,
         startTime: r.startTime,
         endTime: r.endTime,
       })),
-      legalConsentRequired: !hasCurrentLegalConsent(ctx.staff, "staff"),
+      legalConsentRequired: !(await hasCurrentStaffLegalConsent(ctx, ctx.staff._id)),
       legalDocuments: getLegalDocumentsForAudience("staff"),
       timeRange: {
-        startTime: recruitment.shiftStartTime ?? ctx.shop.shiftStartTime,
-        endTime: recruitment.shiftEndTime ?? ctx.shop.shiftEndTime,
+        startTime: recruitment.shiftStartTime,
+        endTime: recruitment.shiftEndTime,
       },
     };
   },

@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { isDryRunOwnerEmail, isNotificationDeliverySuppressed } from "./notificationDelivery";
 
@@ -74,20 +75,12 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "owner_1",
-        name: "Owner",
+      const seeded = await seedManagerShop(ctx, {
+        subject: "owner_1",
         email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
+        shopName: "Shop",
       });
-      return await ctx.db.insert("shops", {
-        name: "Shop",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "owner_1",
-        isDeleted: false,
-      });
+      return seeded.shopId;
     });
 
     await expect(
@@ -99,20 +92,12 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "testtest,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "owner_2",
-        name: "Owner",
+      const seeded = await seedManagerShop(ctx, {
+        subject: "owner_2",
         email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
+        shopName: "Shop",
       });
-      return await ctx.db.insert("shops", {
-        name: "Shop",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "owner_2",
-        isDeleted: false,
-      });
+      return seeded.shopId;
     });
 
     await expect(
@@ -130,14 +115,14 @@ describe("E2E owner seed email", () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
     const t = convexTest(schema, modules);
     const result = await t.mutation(internal.testing.seedLineLinkScenario, {
-      ownerId: "owner_e2e",
+      ownerAuthTokenIdentifier: "owner_e2e",
       ownerEmail: "testtest",
     });
 
     const stored = await t.run(async (ctx) => {
       const owner = await ctx.db
         .query("users")
-        .withIndex("by_clerkId", (q) => q.eq("clerkId", "owner_e2e"))
+        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", "owner_e2e"))
         .first();
       const staff = await ctx.db.get(result.staffId);
       return { ownerEmail: owner?.email, staffEmail: staff?.email };

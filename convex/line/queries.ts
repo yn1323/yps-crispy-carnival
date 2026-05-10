@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { managerQuery } from "../_lib/functions";
+import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service";
 
 /**
  * 店舗のスタッフごとのLINE連携状況を返す（店長UI用）
@@ -14,13 +15,18 @@ export const getLinkStatusByShop = managerQuery({
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
       .collect();
-    return staffs.map((s) => ({
-      staffId: s._id,
-      name: s.name,
-      email: s.email,
-      isLinked: Boolean(s.lineUserId),
-      isFollowing: Boolean(s.lineFollowing),
-    }));
+    return await Promise.all(
+      staffs.map(async (s) => {
+        const account = await getStaffLineAccount(ctx, s._id);
+        return {
+          staffId: s._id,
+          name: s.name,
+          email: s.email,
+          isLinked: Boolean(account?.lineUserId),
+          isFollowing: Boolean(account?.following),
+        };
+      }),
+    );
   },
 });
 
@@ -51,10 +57,8 @@ export const getQuotaStatus = managerQuery({
 export const findStaffByLineUserId = internalQuery({
   args: { lineUserId: v.string() },
   handler: async (ctx, { lineUserId }) => {
-    const staff = await ctx.db
-      .query("staffs")
-      .withIndex("by_lineUserId", (q) => q.eq("lineUserId", lineUserId))
-      .first();
+    const account = await findStaffLineAccountByLineUserId(ctx, lineUserId);
+    const staff = account ? await ctx.db.get(account.staffId) : null;
     if (!staff || staff.isDeleted) return null;
     return { _id: staff._id, shopId: staff.shopId, name: staff.name };
   },
