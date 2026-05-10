@@ -2,15 +2,16 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { APP_URL } from "./_lib/config";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { generateUUID } from "./_lib/uuid";
+import { LEGAL_CONSENT_TOKEN_TTL_MS, LINE_LINK_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
+import { getStaffLineAccount, upsertStaffLineAccount } from "./line/service";
+import { ensureDefaultPosition } from "./position/service";
 import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
 const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
 const scenarioDatesValidator = v.object({
   periodStart: v.string(),
@@ -59,43 +60,62 @@ function matchesPurpose(status: "open" | "confirmed", purpose: MagicLinkPurpose)
   return purpose === "submit" ? status === "open" : status === "confirmed";
 }
 
-function legalConsentFields(audience: LegalAudience, state: LegalConsentState = "current") {
-  if (state === "missing") return {};
-
+function legalConsentPayload(audience: LegalAudience, state: LegalConsentState = "current") {
   const versions = getLegalConsentVersions(audience);
   const consentVersions =
     state === "oldRequired"
       ? {
-          legalTermsConsentVersion: `${versions.termsConsentVersion}-old`,
-          legalPrivacyConsentVersion: `${versions.privacyConsentVersion}-old`,
+          termsConsentVersion: `${versions.termsConsentVersion}-old`,
+          privacyConsentVersion: `${versions.privacyConsentVersion}-old`,
         }
       : {
-          legalTermsConsentVersion: versions.termsConsentVersion,
-          legalPrivacyConsentVersion: versions.privacyConsentVersion,
+          termsConsentVersion: versions.termsConsentVersion,
+          privacyConsentVersion: versions.privacyConsentVersion,
         };
   const documentVersions =
     state === "oldDocumentOnly"
       ? {
-          legalTermsDocumentVersion: `${versions.termsDocumentVersion}-old`,
-          legalPrivacyDocumentVersion: `${versions.privacyDocumentVersion}-old`,
+          termsDocumentVersion: `${versions.termsDocumentVersion}-old`,
+          privacyDocumentVersion: `${versions.privacyDocumentVersion}-old`,
         }
       : {
-          legalTermsDocumentVersion: versions.termsDocumentVersion,
-          legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
+          termsDocumentVersion: versions.termsDocumentVersion,
+          privacyDocumentVersion: versions.privacyDocumentVersion,
         };
 
   return {
     ...consentVersions,
     ...documentVersions,
-    legalConsentedAt: Date.now() - 1000,
-    legalConsentMethod: audience === "manager" ? "manager_setup" : "staff_email_link",
+    consentedAt: Date.now() - 1000,
+    method: audience === "manager" ? "manager_setup" : "staff_email_link",
   };
 }
 
+async function seedLegalConsentState(
+  ctx: MutationCtx,
+  args: {
+    audience: LegalAudience;
+    state?: LegalConsentState;
+    shopId: Id<"shops">;
+    userId?: Id<"users">;
+    staffId?: Id<"staffs">;
+  },
+) {
+  if ((args.state ?? "current") === "missing") return;
+  const payload = legalConsentPayload(args.audience, args.state);
+  await ctx.db.insert("legalConsentStates", {
+    subjectType: args.audience === "manager" ? "user" : "staff",
+    userId: args.userId,
+    staffId: args.staffId,
+    shopId: args.shopId,
+    ...payload,
+  });
+}
+
 async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recruitments">) {
-  const [requests, submissions, assignments] = await Promise.all([
+  const [slots, submissions, assignments, stats] = await Promise.all([
     ctx.db
-      .query("shiftRequests")
+      .query("shiftSubmissionSlots")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
     ctx.db
@@ -106,30 +126,54 @@ async function deleteRecruitmentGraph(ctx: MutationCtx, recruitmentId: Id<"recru
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
       .collect(),
+    ctx.db
+      .query("recruitmentStats")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+      .collect(),
   ]);
 
-  for (const doc of [...requests, ...submissions, ...assignments]) {
+  for (const doc of [...slots, ...submissions, ...assignments, ...stats]) {
     await ctx.db.delete(doc._id);
   }
 }
 
 async function deleteStaffAuthGraph(ctx: MutationCtx, staffId: Id<"staffs">) {
-  const [magicLinks, lineLinkTokens, sessions] = await Promise.all([
-    ctx.db
-      .query("magicLinks")
-      .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-      .collect(),
-    ctx.db
-      .query("lineLinkTokens")
-      .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-      .collect(),
-    ctx.db
-      .query("sessions")
-      .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-      .collect(),
-  ]);
+  const [magicLinks, lineLinkTokens, sessions, legalConsentTokens, lineAccounts, legalConsentStates] =
+    await Promise.all([
+      ctx.db
+        .query("magicLinks")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("lineLinkTokens")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("sessions")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("legalConsentTokens")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("staffLineAccounts")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+      ctx.db
+        .query("legalConsentStates")
+        .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+        .collect(),
+    ]);
 
-  for (const doc of [...magicLinks, ...lineLinkTokens, ...sessions]) {
+  for (const doc of [
+    ...magicLinks,
+    ...lineLinkTokens,
+    ...sessions,
+    ...legalConsentTokens,
+    ...lineAccounts,
+    ...legalConsentStates,
+  ]) {
     await ctx.db.delete(doc._id);
   }
 }
@@ -153,6 +197,14 @@ async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
     await ctx.db.delete(staff._id);
   }
 
+  const members = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+    .collect();
+  for (const member of members) {
+    await ctx.db.delete(member._id);
+  }
+
   const positions = await ctx.db
     .query("positions")
     .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
@@ -164,20 +216,26 @@ async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
   await ctx.db.delete(shopId);
 }
 
-async function resetOwnerScenarioData(ctx: MutationCtx, ownerId: string) {
-  const shops = await ctx.db
-    .query("shops")
-    .withIndex("by_ownerId", (q) => q.eq("ownerId", ownerId))
-    .collect();
-  for (const shop of shops) {
-    await deleteShopGraph(ctx, shop._id);
-  }
-
+async function resetOwnerScenarioData(ctx: MutationCtx, ownerAuthTokenIdentifier: string) {
   const users = await ctx.db
     .query("users")
-    .withIndex("by_clerkId", (q) => q.eq("clerkId", ownerId))
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", ownerAuthTokenIdentifier))
     .collect();
   for (const user of users) {
+    const memberships = await ctx.db
+      .query("shopMembers")
+      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+      .collect();
+    for (const membership of memberships) {
+      await deleteShopGraph(ctx, membership.shopId);
+    }
+    const states = await ctx.db
+      .query("legalConsentStates")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const state of states) {
+      await ctx.db.delete(state._id);
+    }
     await ctx.db.delete(user._id);
   }
 }
@@ -185,7 +243,7 @@ async function resetOwnerScenarioData(ctx: MutationCtx, ownerId: string) {
 async function createOwnerScenario(
   ctx: MutationCtx,
   args: {
-    ownerId: string;
+    ownerAuthTokenIdentifier: string;
     ownerEmail?: string;
     shopName: string;
     managerLegalConsentState?: LegalConsentState;
@@ -193,31 +251,46 @@ async function createOwnerScenario(
   },
 ) {
   assertE2EHelpersEnabled();
-  if (!args.ownerId) throw new Error("ownerId is required");
-  await resetOwnerScenarioData(ctx, args.ownerId);
+  if (!args.ownerAuthTokenIdentifier) throw new Error("ownerAuthTokenIdentifier is required");
+  await resetOwnerScenarioData(ctx, args.ownerAuthTokenIdentifier);
 
   const userId = await ctx.db.insert("users", {
-    clerkId: args.ownerId,
+    authTokenIdentifier: args.ownerAuthTokenIdentifier,
     name: DEFAULT_MANAGER.name,
     email: args.ownerEmail ?? DEFAULT_MANAGER.email,
     role: "manager",
-    ...legalConsentFields("manager", args.managerLegalConsentState),
     isDeleted: false,
   });
   const shopId = await ctx.db.insert("shops", {
     name: args.shopName,
     shiftStartTime: "09:00",
     shiftEndTime: "22:00",
-    ownerId: args.ownerId,
     isDeleted: false,
+  });
+  await ctx.db.insert("shopMembers", {
+    shopId,
+    userId,
+    role: "owner",
+    isDeleted: false,
+  });
+  await seedLegalConsentState(ctx, {
+    audience: "manager",
+    state: args.managerLegalConsentState,
+    shopId,
+    userId,
   });
   const managerStaffId = await ctx.db.insert("staffs", {
     shopId,
     name: DEFAULT_MANAGER.name,
     email: DEFAULT_MANAGER.email,
     userId,
-    ...legalConsentFields("staff", args.managerStaffLegalConsentState),
     isDeleted: false,
+  });
+  await seedLegalConsentState(ctx, {
+    audience: "staff",
+    state: args.managerStaffLegalConsentState,
+    shopId,
+    staffId: managerStaffId,
   });
 
   return { shopId, userId, managerStaffId };
@@ -234,15 +307,27 @@ async function createStaff(
     legalConsentState?: LegalConsentState;
   },
 ) {
-  return await ctx.db.insert("staffs", {
+  const staffId = await ctx.db.insert("staffs", {
     shopId: args.shopId,
     name: args.name,
     email: args.email,
-    lineUserId: args.lineUserId,
-    lineFollowing: args.lineFollowing,
-    ...legalConsentFields("staff", args.legalConsentState),
     isDeleted: false,
   });
+  if (args.lineUserId) {
+    await upsertStaffLineAccount(ctx, {
+      staffId,
+      shopId: args.shopId,
+      lineUserId: args.lineUserId,
+      following: args.lineFollowing ?? false,
+    });
+  }
+  await seedLegalConsentState(ctx, {
+    audience: "staff",
+    state: args.legalConsentState,
+    shopId: args.shopId,
+    staffId,
+  });
+  return staffId;
 }
 
 async function createRecruitment(
@@ -280,7 +365,7 @@ async function createMagicLink(
     staffId: args.staffId,
     shopId: args.shopId,
     recruitmentId: args.recruitmentId,
-    expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+    expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
   });
   return token;
 }
@@ -291,7 +376,7 @@ async function createLineLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs
     staffId: args.staffId,
     shopId: args.shopId,
     token,
-    expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+    expiresAt: Date.now() + LINE_LINK_TOKEN_TTL_MS,
   });
   return token;
 }
@@ -380,6 +465,7 @@ export const seedShiftData = internalMutation({
       .take(1);
     const recruitment = recruitments[0];
     if (!recruitment) throw new Error("No recruitment found");
+    const positionId = await ensureDefaultPosition(ctx, shop._id);
 
     let inserted = 0;
     for (const sa of args.staffAssignments) {
@@ -393,6 +479,7 @@ export const seedShiftData = internalMutation({
           date: args.dates[shift.dateIndex],
           startTime: shift.startTime,
           endTime: shift.endTime,
+          positionId,
         });
         inserted++;
       }
@@ -441,6 +528,8 @@ export const seedPaginationTestData = internalMutation({
         deadline: deadline.toISOString().slice(0, 10),
         status: "open",
         isDeleted: false,
+        shiftStartTime: shop.shiftStartTime,
+        shiftEndTime: shop.shiftEndTime,
       });
     }
 
@@ -593,12 +682,11 @@ export const seedRealisticStaffRequests = internalMutation({
 
       if (p.mode === "unsubmitted") continue;
 
+      const slotPayloads = [];
       for (let i = 0; i < 7; i++) {
         const slot = p.pick(i);
         if (!slot) continue;
-        await ctx.db.insert("shiftRequests", {
-          recruitmentId: recruitment._id,
-          staffId,
+        slotPayloads.push({
           date: dates[i],
           startTime: slot.startTime,
           endTime: slot.endTime,
@@ -606,11 +694,22 @@ export const seedRealisticStaffRequests = internalMutation({
         requestsInserted++;
       }
 
-      await ctx.db.insert("shiftSubmissions", {
+      const submissionId = await ctx.db.insert("shiftSubmissions", {
         recruitmentId: recruitment._id,
         staffId,
+        firstSubmittedAt: Date.now(),
         submittedAt: Date.now(),
       });
+      await Promise.all(
+        slotPayloads.map((slot) =>
+          ctx.db.insert("shiftSubmissionSlots", {
+            submissionId,
+            recruitmentId: recruitment._id,
+            staffId,
+            ...slot,
+          }),
+        ),
+      );
       submissionsInserted++;
     }
 
@@ -635,15 +734,19 @@ export const seedSubmitTestData = internalMutation({
       name: "テスト居酒屋さくら",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
-      ownerId: "test_owner",
       isDeleted: false,
     });
     const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: "田中太郎",
       email: "tanaka@example.com",
-      ...legalConsentFields("staff", args.legalConsentState),
       isDeleted: false,
+    });
+    await seedLegalConsentState(ctx, {
+      audience: "staff",
+      state: args.legalConsentState,
+      shopId,
+      staffId,
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
@@ -652,6 +755,8 @@ export const seedSubmitTestData = internalMutation({
       deadline: args.deadlinePassed ? "2026-01-01" : "2026-12-31",
       status: "open",
       isDeleted: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
     });
 
     // magic link token
@@ -661,30 +766,33 @@ export const seedSubmitTestData = internalMutation({
       staffId,
       shopId,
       recruitmentId,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     // 既存提出がある場合
     if (args.hasExistingSubmission) {
+      const submissionId = await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId,
+        firstSubmittedAt: Date.now(),
+        submittedAt: Date.now(),
+      });
       await Promise.all([
-        ctx.db.insert("shiftRequests", {
+        ctx.db.insert("shiftSubmissionSlots", {
+          submissionId,
           recruitmentId,
           staffId,
           date: "2026-04-07",
           startTime: "09:00",
           endTime: "18:00",
         }),
-        ctx.db.insert("shiftRequests", {
+        ctx.db.insert("shiftSubmissionSlots", {
+          submissionId,
           recruitmentId,
           staffId,
           date: "2026-04-09",
           startTime: "10:00",
           endTime: "15:00",
-        }),
-        ctx.db.insert("shiftSubmissions", {
-          recruitmentId,
-          staffId,
-          submittedAt: Date.now(),
         }),
       ]);
     }
@@ -695,12 +803,12 @@ export const seedSubmitTestData = internalMutation({
 
 export const seedDashboardPaginationScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { shopId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "ページネーションテスト店舗",
     });
@@ -740,13 +848,13 @@ export const seedDashboardPaginationScenario = internalMutation({
 
 export const seedLegalManagerConsentScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
     legalConsentState: legalConsentStateValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, userId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "法務同意テスト店舗",
       managerLegalConsentState: args.legalConsentState,
@@ -765,7 +873,6 @@ export const seedLegalStaffConsentPageScenario = internalMutation({
       name: "法務同意テスト店舗",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
-      ownerId: "legal_test_owner",
       isDeleted: false,
     });
     const staffId = await createStaff(ctx, {
@@ -775,7 +882,7 @@ export const seedLegalStaffConsentPageScenario = internalMutation({
       legalConsentState: args.legalConsentState ?? "missing",
     });
     const token = generateUUID();
-    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    const expiresAt = Date.now() + LEGAL_CONSENT_TOKEN_TTL_MS;
     await ctx.db.insert("legalConsentTokens", {
       staffId,
       shopId,
@@ -797,7 +904,6 @@ export const seedLegalStaffSubmitScenario = internalMutation({
       name: "法務同意テスト店舗",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
-      ownerId: "legal_test_owner",
       isDeleted: false,
     });
     const staffId = await createStaff(ctx, {
@@ -823,13 +929,13 @@ export const seedLegalStaffSubmitScenario = internalMutation({
 
 export const seedNotificationSubmitScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "通知募集テスト店舗",
     });
@@ -842,13 +948,13 @@ export const seedNotificationSubmitScenario = internalMutation({
 
 export const seedOpenRecruitmentNotificationScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "追加通知テスト店舗",
     });
@@ -860,13 +966,13 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
 
 export const seedNotificationReminderScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "通知催促テスト店舗",
     });
@@ -877,17 +983,19 @@ export const seedNotificationReminderScenario = internalMutation({
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
 
-    await ctx.db.insert("shiftRequests", {
+    const submissionId = await ctx.db.insert("shiftSubmissions", {
+      recruitmentId,
+      staffId: managerStaffId,
+      firstSubmittedAt: Date.now(),
+      submittedAt: Date.now(),
+    });
+    await ctx.db.insert("shiftSubmissionSlots", {
+      submissionId,
       recruitmentId,
       staffId: managerStaffId,
       date: args.dates.dates[0],
       startTime: "09:00",
       endTime: "18:00",
-    });
-    await ctx.db.insert("shiftSubmissions", {
-      recruitmentId,
-      staffId: managerStaffId,
-      submittedAt: Date.now(),
     });
     const reminderToken = await createMagicLink(ctx, { staffId: remindedStaffId, shopId, recruitmentId });
 
@@ -897,23 +1005,25 @@ export const seedNotificationReminderScenario = internalMutation({
 
 export const seedNotificationConfirmationViewScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "確定シフト閲覧テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "confirmed" });
+    const positionId = await ensureDefaultPosition(ctx, shopId);
     await ctx.db.insert("shiftAssignments", {
       recruitmentId,
       staffId: managerStaffId,
       date: args.dates.dates[0],
       startTime: "10:00",
       endTime: "18:00",
+      positionId,
     });
     const viewToken = await createMagicLink(ctx, { staffId: managerStaffId, shopId, recruitmentId });
 
@@ -923,12 +1033,12 @@ export const seedNotificationConfirmationViewScenario = internalMutation({
 
 export const seedLineLinkScenario = internalMutation({
   args: {
-    ownerId: v.string(),
+    ownerAuthTokenIdentifier: v.string(),
     ownerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerId: args.ownerId,
+      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
       ownerEmail: args.ownerEmail,
       shopName: "LINE連携テスト店舗",
     });
@@ -993,7 +1103,7 @@ export const createMagicLinkTokenForLatestRecruitment = internalMutation({
       staffId: staff._id,
       shopId: staff.shopId,
       recruitmentId: recruitment._id,
-      expiresAt: Date.now() + TWENTY_FOUR_HOURS_MS,
+      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     return { token, staffId: staff._id, recruitmentId: recruitment._id };
@@ -1061,15 +1171,17 @@ export const simulateLineFollowForStaff = internalMutation({
     const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
     if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
 
-    const wasFollowing = Boolean(staff.lineFollowing);
-    const lineUserId = staff.lineUserId ?? `U_e2e_${Date.now()}`;
-    await ctx.db.patch(staff._id, {
+    const account = await getStaffLineAccount(ctx, staff._id);
+    const wasFollowing = Boolean(account?.following);
+    const lineUserId = account?.lineUserId ?? `U_e2e_${Date.now()}`;
+    await upsertStaffLineAccount(ctx, {
+      staffId: staff._id,
+      shopId: staff.shopId,
       lineUserId,
-      lineFollowing: true,
-      lineLinkedAt: staff.lineLinkedAt ?? Date.now(),
+      following: true,
     });
     if (!wasFollowing) {
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: staff._id,
       });
     }

@@ -55,11 +55,13 @@ export class StaffSubmitPage {
   }
 
   async toggleDay(dateText: string) {
+    // 日付カード全体がトグル操作の対象。テキストから親へ上がり、表示文言変更にPOMを追随させる。
     const dateEl = this.page.getByText(dateText, { exact: true });
     await dateEl.locator("..").click();
   }
 
   async clearDay(dateText: string) {
+    // 休み戻しボタンは同じ日付行に閉じて探す。別日の同名ボタンを押さないためのスコープ。
     await this.page
       .getByText(dateText, { exact: true })
       .locator("..")

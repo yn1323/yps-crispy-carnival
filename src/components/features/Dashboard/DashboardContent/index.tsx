@@ -24,6 +24,10 @@ import type { PaginationStatus, Recruitment, Staff } from "../types";
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
+  ownerProfileDefaults?: {
+    name: string;
+    email: string;
+  };
   managerLegalConsentStatus?: {
     required: boolean;
     documents: {
@@ -43,6 +47,7 @@ type Props = {
 
 export const DashboardContent = ({
   shop,
+  ownerProfileDefaults,
   managerLegalConsentStatus,
   recruitments,
   recruitmentStatus,
@@ -354,6 +359,7 @@ export const DashboardContent = ({
           isOpen={setupModal.isOpen}
           onOpenChange={setupModal.onOpenChange}
           onComplete={handleSetupComplete}
+          ownerProfileDefaults={ownerProfileDefaults}
         />
       )}
     </>

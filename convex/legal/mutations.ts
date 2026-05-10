@@ -1,75 +1,15 @@
 import { ConvexError, v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx, mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
-import { getLegalConsentVersions, hasCurrentLegalConsent, type LegalConsentMethod } from "./documents";
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
-type RecordStaffConsentArgs = {
-  staffId: Id<"staffs">;
-  shopId: Id<"shops">;
-  method: LegalConsentMethod;
-  sourceRecruitmentId?: Id<"recruitments">;
-};
-
-type RecordUserConsentArgs = {
-  userId: Id<"users">;
-  shopId: Id<"shops">;
-  method: LegalConsentMethod;
-};
-
-export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaffConsentArgs) {
-  const now = Date.now();
-  const versions = getLegalConsentVersions("staff");
-  const legalConsent = {
-    legalTermsConsentVersion: versions.termsConsentVersion,
-    legalPrivacyConsentVersion: versions.privacyConsentVersion,
-    legalTermsDocumentVersion: versions.termsDocumentVersion,
-    legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
-    legalConsentedAt: now,
-    legalConsentMethod: args.method,
-  };
-
-  await ctx.db.patch(args.staffId, legalConsent);
-  await ctx.db.insert("legalConsentEvents", {
-    subjectType: "staff",
-    staffId: args.staffId,
-    shopId: args.shopId,
-    ...versions,
-    consentedAt: now,
-    method: args.method,
-    sourceRecruitmentId: args.sourceRecruitmentId,
-  });
-
-  return legalConsent;
-}
-
-export async function recordUserLegalConsent(ctx: MutationCtx, args: RecordUserConsentArgs) {
-  const now = Date.now();
-  const versions = getLegalConsentVersions("manager");
-  const legalConsent = {
-    legalTermsConsentVersion: versions.termsConsentVersion,
-    legalPrivacyConsentVersion: versions.privacyConsentVersion,
-    legalTermsDocumentVersion: versions.termsDocumentVersion,
-    legalPrivacyDocumentVersion: versions.privacyDocumentVersion,
-    legalConsentedAt: now,
-    legalConsentMethod: args.method,
-  };
-
-  await ctx.db.patch(args.userId, legalConsent);
-  await ctx.db.insert("legalConsentEvents", {
-    subjectType: "user",
-    userId: args.userId,
-    shopId: args.shopId,
-    ...versions,
-    consentedAt: now,
-    method: args.method,
-  });
-
-  return legalConsent;
-}
+import { LEGAL_CONSENT_TOKEN_TTL_MS } from "../constants";
+import type { LegalConsentMethod } from "./documents";
+import {
+  hasCurrentStaffLegalConsent,
+  hasCurrentUserLegalConsent,
+  recordStaffLegalConsent,
+  recordUserLegalConsent,
+} from "./service";
 
 export const createStaffConsentToken = internalMutation({
   args: {
@@ -80,7 +20,7 @@ export const createStaffConsentToken = internalMutation({
   },
   handler: async (ctx, args) => {
     const token = generateUUID();
-    const expiresAt = args.expiresAt ?? Date.now() + THIRTY_DAYS_MS;
+    const expiresAt = args.expiresAt ?? Date.now() + LEGAL_CONSENT_TOKEN_TTL_MS;
     const method = args.method ?? "staff_email_link";
     await ctx.db.insert("legalConsentTokens", {
       staffId: args.staffId,
@@ -103,7 +43,7 @@ export const acceptStaffLegalConsent = mutation({
       .query("legalConsentTokens")
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
-    if (!tokenDoc || tokenDoc.expiresAt < Date.now() || tokenDoc.usedAt) {
+    if (!tokenDoc || tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now() || tokenDoc.usedAt) {
       return { status: "expired" as const };
     }
 
@@ -112,7 +52,9 @@ export const acceptStaffLegalConsent = mutation({
       return { status: "expired" as const };
     }
 
-    if (!hasCurrentLegalConsent(staff, "staff")) {
+    // 有効な同意がすでにある場合でも token は使用済みにする。
+    // 古いリンクを再利用できない状態に揃え、結果だけは成功として返す。
+    if (!(await hasCurrentStaffLegalConsent(ctx, staff._id))) {
       await recordStaffLegalConsent(ctx, {
         staffId: staff._id,
         shopId: shop._id,
@@ -134,7 +76,7 @@ export const acceptStaffLegalConsentFromLine = internalMutation({
     if (!staff || staff.isDeleted || staff.shopId !== args.shopId) {
       throw new ConvexError("Not found");
     }
-    if (hasCurrentLegalConsent(staff, "staff")) return { status: "already_accepted" as const };
+    if (await hasCurrentStaffLegalConsent(ctx, args.staffId)) return { status: "already_accepted" as const };
     await recordStaffLegalConsent(ctx, {
       staffId: args.staffId,
       shopId: args.shopId,
@@ -149,7 +91,7 @@ export const acceptManagerLegalConsent = managerMutation({
     acceptedLegal: v.literal(true),
   },
   handler: async (ctx) => {
-    if (hasCurrentLegalConsent(ctx.user, "manager")) {
+    if (await hasCurrentUserLegalConsent(ctx, ctx.user._id)) {
       return { status: "already_accepted" as const };
     }
 

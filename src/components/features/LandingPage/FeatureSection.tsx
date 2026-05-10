@@ -40,7 +40,11 @@ const featureCards: {
   },
 ];
 
-export const FeatureSection = () => (
+type FeatureSectionProps = {
+  headingAs?: "h1" | "h2";
+};
+
+export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
   <Box as="section" id="features" bg="#eaf8f7" py={{ base: 16, md: 24 }}>
     <Container maxW="7xl">
       <VStack gap={{ base: 10, md: 12 }}>
@@ -60,7 +64,7 @@ export const FeatureSection = () => (
             できること
           </Text>
           <Heading
-            as="h2"
+            as={headingAs}
             color="gray.950"
             fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
             lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}

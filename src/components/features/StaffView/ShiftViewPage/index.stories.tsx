@@ -8,12 +8,45 @@ const mockStaffs = [
   { _id: "staff3" as Id<"staffs">, name: "佐藤一郎" },
 ];
 
+const defaultPositionId = "position-1" as Id<"positions">;
+const mockPositions = [{ _id: defaultPositionId, name: "シフト", color: "#3b82f6", isDefault: true }];
+
 const mockAssignments = [
-  { staffId: "staff1" as Id<"staffs">, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
-  { staffId: "staff1" as Id<"staffs">, date: "2026-01-22", startTime: "12:00", endTime: "21:00" },
-  { staffId: "staff2" as Id<"staffs">, date: "2026-01-20", startTime: "14:00", endTime: "22:00" },
-  { staffId: "staff2" as Id<"staffs">, date: "2026-01-21", startTime: "10:00", endTime: "18:00" },
-  { staffId: "staff3" as Id<"staffs">, date: "2026-01-23", startTime: "10:00", endTime: "18:00" },
+  {
+    staffId: "staff1" as Id<"staffs">,
+    date: "2026-01-20",
+    startTime: "10:00",
+    endTime: "18:00",
+    positionId: defaultPositionId,
+  },
+  {
+    staffId: "staff1" as Id<"staffs">,
+    date: "2026-01-22",
+    startTime: "12:00",
+    endTime: "21:00",
+    positionId: defaultPositionId,
+  },
+  {
+    staffId: "staff2" as Id<"staffs">,
+    date: "2026-01-20",
+    startTime: "14:00",
+    endTime: "22:00",
+    positionId: defaultPositionId,
+  },
+  {
+    staffId: "staff2" as Id<"staffs">,
+    date: "2026-01-21",
+    startTime: "10:00",
+    endTime: "18:00",
+    positionId: defaultPositionId,
+  },
+  {
+    staffId: "staff3" as Id<"staffs">,
+    date: "2026-01-23",
+    startTime: "10:00",
+    endTime: "18:00",
+    positionId: defaultPositionId,
+  },
 ];
 
 const meta = {
@@ -40,6 +73,7 @@ export const Basic: Story = {
     periodStart: "2026-01-20",
     periodEnd: "2026-01-26",
     staffs: mockStaffs,
+    positions: mockPositions,
     assignments: mockAssignments,
     timeRange: { start: 9, end: 23, unit: 30 },
   },
@@ -51,6 +85,7 @@ export const Empty: Story = {
     periodStart: "2026-01-20",
     periodEnd: "2026-01-26",
     staffs: [],
+    positions: mockPositions,
     assignments: [],
     timeRange: { start: 9, end: 23, unit: 30 },
   },

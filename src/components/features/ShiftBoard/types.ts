@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import type { TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardData = {
   shopId: Id<"shops">;
@@ -10,13 +11,15 @@ export type ShiftBoardData = {
     status: "open" | "confirmed";
     confirmedAt: number | null;
     lastReminderSentAt: number | null;
+    draftSavedAt: number | null;
   };
   staffs: Array<{
     _id: Id<"staffs">;
     name: string;
     isSubmitted: boolean;
+    wasSubmittedAtDraft: boolean;
   }>;
-  shiftRequests: Array<{
+  requestedSlots: Array<{
     staffId: Id<"staffs">;
     date: string;
     startTime: string;
@@ -27,10 +30,13 @@ export type ShiftBoardData = {
     date: string;
     startTime: string;
     endTime: string;
+    positionId: Id<"positions">;
   }>;
-  timeRange: {
-    start: number;
-    end: number;
-    unit: number;
-  };
+  positions: Array<{
+    _id: Id<"positions">;
+    name: string;
+    color: string;
+    isDefault: boolean;
+  }>;
+  timeRange: TimeRange;
 };

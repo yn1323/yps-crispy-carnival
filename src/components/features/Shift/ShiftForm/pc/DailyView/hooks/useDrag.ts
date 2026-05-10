@@ -1,17 +1,17 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useRef, useState } from "react";
-import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
-import { hourWidthAtom, selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
-import type { DragMode, LinkedResizeTarget, ShiftData } from "../../../types";
 import {
-  detectLinkedResizeEdge,
   findShiftAtPosition,
   mergeAdjacentPositions,
   paintPosition,
   resizeLinkedPositions,
   resizePosition,
-} from "../../../utils/shiftOperations";
-import { pixelToMinutes } from "../../../utils/timeConversion";
+} from "@/src/domains/shift/operations";
+import type { DragMode, LinkedResizeTarget, ShiftData } from "@/src/domains/shift/types";
+import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
+import { hourWidthAtom, selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
+import { detectLinkedResizeEdge } from "../../../utils/hitTesting";
+import { isWithinEditableRange, pixelToEditableMinutes, pixelToRawMinutes } from "../../../utils/timelineGeometry";
 
 type DragState = {
   mode: DragMode;
@@ -112,10 +112,13 @@ export const useDrag = (): UseDragReturn => {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, staffId: string, containerRect: DOMRect): boolean => {
       const x = e.clientX - containerRect.left;
-      const minutes = pixelToMinutes({ x, timeRange, hourWidth });
+      const rawMinutes = pixelToRawMinutes({ x, timeRange, hourWidth });
+      const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth });
 
       // まずリサイズエッジを判定（既存バーの端をドラッグした場合）
       if (tryDetectResize(staffId, x, minutes)) return true;
+
+      if (!isWithinEditableRange(rawMinutes, timeRange)) return false;
 
       // リサイズエッジでなければ塗りモード
       const position = selectedPosition ?? DEFAULT_POSITION;
@@ -174,7 +177,7 @@ export const useDrag = (): UseDragReturn => {
       if (!dragState.mode) return;
 
       const x = e.clientX - containerRect.left;
-      const minutes = pixelToMinutes({ x, timeRange, hourWidth });
+      const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth });
 
       setDragState((prev) => ({
         ...prev,

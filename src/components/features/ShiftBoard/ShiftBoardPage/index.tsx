@@ -1,28 +1,25 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import dayjs from "dayjs";
 import { useCallback, useMemo, useRef } from "react";
 import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData, StaffType } from "@/src/components/features/Shift/ShiftForm/types";
+import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import {
   formatDateTime,
   formatDateTimeWithWeekday,
   formatDateWithWeekday,
   getDateRange,
-} from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
-import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+} from "@/src/domains/shift/date";
+import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
+import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
-import { SaveDraftWarningContent } from "../SaveDraftWarningContent";
 import type { ShiftBoardData } from "../types";
-
-const POSITIONS = [DEFAULT_POSITION];
 
 function generatePeriodLabel(dates: string[]): string {
   if (dates.length === 0) return "";
@@ -31,24 +28,74 @@ function generatePeriodLabel(dates: string[]): string {
 
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
 function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] {
+  const positions = data.positions.length > 0 ? data.positions : [];
+  const defaultPosition = positions.find((position) => position.isDefault) ?? positions[0];
+  const fallbackPosition = defaultPosition
+    ? { id: defaultPosition._id, name: defaultPosition.name, color: defaultPosition.color }
+    : DEFAULT_POSITION;
+  const positionById = new Map(
+    positions.map((position) => [position._id, { id: position._id, name: position.name, color: position.color }]),
+  );
+
   const requestMap = new Map<string, { startTime: string; endTime: string }>();
-  for (const r of data.shiftRequests) {
+  for (const r of data.requestedSlots) {
     requestMap.set(`${r.staffId}-${r.date}`, { startTime: r.startTime, endTime: r.endTime });
   }
 
-  const source = data.shiftAssignments.length > 0 ? data.shiftAssignments : data.shiftRequests;
-  const sourceMap = new Map<string, { startTime: string; endTime: string }>();
-  for (const item of source) {
-    sourceMap.set(`${item.staffId}-${item.date}`, { startTime: item.startTime, endTime: item.endTime });
+  const assignmentMap = new Map<string, Array<{ startTime: string; endTime: string; positionId: Id<"positions"> }>>();
+  for (const item of data.shiftAssignments) {
+    const key = `${item.staffId}-${item.date}`;
+    const assignments = assignmentMap.get(key) ?? [];
+    assignments.push({ startTime: item.startTime, endTime: item.endTime, positionId: item.positionId });
+    assignmentMap.set(key, assignments);
   }
+  const wasSubmittedAtDraftMap = new Map(data.staffs.map((s) => [s._id, s.wasSubmittedAtDraft]));
 
   const shifts: ShiftData[] = [];
 
   for (const staff of staffs) {
     for (const date of dates) {
       const key = `${staff.id}-${date}`;
-      const entry = sourceMap.get(key);
+      const assignments = (assignmentMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
       const request = requestMap.get(key);
+      const savedAssignment =
+        assignments.length > 0
+          ? {
+              startTime: assignments[0].startTime,
+              endTime: assignments[assignments.length - 1].endTime,
+            }
+          : undefined;
+      const displayLine = resolveDisplayShiftLine({
+        hasDraftSaved: data.recruitment.draftSavedAt !== null,
+        savedAssignment,
+        wasSubmittedAtDraft: wasSubmittedAtDraftMap.get(staff.id as Id<"staffs">) ?? false,
+        currentRequest: request,
+      });
+      const positionSegments =
+        assignments.length > 0
+          ? assignments.map((assignment, index) => {
+              const position = positionById.get(assignment.positionId) ?? fallbackPosition;
+              return {
+                id: `seg-${staff.id}-${date}-${index}`,
+                positionId: position.id,
+                positionName: position.name,
+                color: position.color,
+                start: assignment.startTime,
+                end: assignment.endTime,
+              };
+            })
+          : displayLine.type !== "none"
+            ? [
+                {
+                  id: `seg-${staff.id}-${date}`,
+                  positionId: fallbackPosition.id,
+                  positionName: fallbackPosition.name,
+                  color: fallbackPosition.color,
+                  start: displayLine.start,
+                  end: displayLine.end,
+                },
+              ]
+            : [];
 
       shifts.push({
         id: `shift-${staff.id}-${date}`,
@@ -56,18 +103,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
         staffName: staff.name,
         date,
         requestedTime: request ? { start: request.startTime, end: request.endTime } : null,
-        positions: entry
-          ? [
-              {
-                id: `seg-${staff.id}-${date}`,
-                positionId: DEFAULT_POSITION.id,
-                positionName: DEFAULT_POSITION.name,
-                color: DEFAULT_POSITION.color,
-                start: entry.startTime,
-                end: entry.endTime,
-              },
-            ]
-          : [],
+        positions: positionSegments,
       });
     }
   }
@@ -100,6 +136,14 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     [data.staffs],
   );
 
+  const positions = useMemo(
+    () =>
+      data.positions.length > 0
+        ? data.positions.map((position) => ({ id: position._id, name: position.name, color: position.color }))
+        : [DEFAULT_POSITION],
+    [data.positions],
+  );
+
   const initialShifts = useMemo(() => buildShiftData(data, staffs, dates), [data, staffs, dates]);
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
@@ -108,7 +152,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, []);
 
   const confirmModal = useDialog();
-  const saveDraftWarningModal = useDialog();
   const reminderModal = useDialog();
 
   const unsubmittedNames = useMemo(() => data.staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [data.staffs]);
@@ -124,14 +167,19 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, [sendReminderEmailsMutation, recruitmentId, reminderModal]);
 
   const buildAssignments = useCallback(() => {
-    return shiftsRef.current
-      .filter((s) => s.positions.length > 0)
-      .map((s) => ({
-        staffId: s.staffId as Id<"staffs">,
-        date: s.date,
-        startTime: s.positions[0].start,
-        endTime: s.positions[s.positions.length - 1].end,
-      }));
+    return shiftsRef.current.flatMap((s) =>
+      s.positions
+        .filter((position) => position.positionId !== BREAK_POSITION.id)
+        .map((position) => ({
+          staffId: s.staffId as Id<"staffs">,
+          date: s.date,
+          startTime: position.start,
+          endTime: position.end,
+          ...(position.positionId !== DEFAULT_POSITION.id
+            ? { positionId: position.positionId as Id<"positions"> }
+            : {}),
+        })),
+    );
   }, []);
 
   const handleConfirm = useCallback(async () => {
@@ -148,23 +196,11 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const performSaveDraft = useCallback(async () => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
-      saveDraftWarningModal.close();
       toaster.create({ title: "保存しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
-  }, [saveShiftAssignments, recruitmentId, buildAssignments, saveDraftWarningModal]);
-
-  const handleSaveDraft = useCallback(() => {
-    const isFirstSave = data.shiftAssignments.length === 0 && !isConfirmed;
-    // 締切日当日はまだ新規希望が届く可能性があるので警告対象に含める（strict less-than）
-    const isPastDeadline = data.recruitment.deadline < dayjs().format("YYYY-MM-DD");
-    if (isFirstSave && !isPastDeadline) {
-      saveDraftWarningModal.open();
-    } else {
-      void performSaveDraft();
-    }
-  }, [data.shiftAssignments.length, data.recruitment.deadline, isConfirmed, saveDraftWarningModal, performSaveDraft]);
+  }, [saveShiftAssignments, recruitmentId, buildAssignments]);
 
   const confirmTitle = isConfirmed
     ? "確定済みのシフトをもう一度通知しますか？"
@@ -205,13 +241,13 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         <ShiftForm
           shopId={data.shopId}
           staffs={staffs}
-          positions={POSITIONS}
+          positions={positions}
           initialShifts={initialShifts}
           dates={dates}
           timeRange={data.timeRange}
           onShiftsChange={handleShiftsChange}
           isConfirmed={isConfirmed}
-          onSaveDraft={handleSaveDraft}
+          onSaveDraft={performSaveDraft}
           onConfirm={confirmModal.open}
           onRemind={isConfirmed ? undefined : reminderModal.open}
           lastSentAtLabel={
@@ -231,17 +267,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onClose={confirmModal.close}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
-      </Dialog>
-
-      <Dialog
-        title="下書き保存の注意"
-        isOpen={saveDraftWarningModal.isOpen}
-        onOpenChange={saveDraftWarningModal.onOpenChange}
-        onSubmit={performSaveDraft}
-        submitLabel="下書き保存"
-        onClose={saveDraftWarningModal.close}
-      >
-        <SaveDraftWarningContent />
       </Dialog>
 
       <Dialog

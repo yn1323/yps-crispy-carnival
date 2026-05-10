@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   deploy-preview:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && !startsWith(github.head_ref, 'renovate/')
     runs-on: ubuntu-latest
     environment: Preview
     env:
@@ -30,12 +30,14 @@ jobs:
             --cmd-url-env-var-name CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Seed Database
-        run: |
-          npx convex import --replace-all convex-seeds/seeds/db.zip --yes \
-            --preview-name "${{ env.CONVEX_PREVIEW_NAME }}"
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
+      # Re-enable this only after regenerating the seed snapshot.
+      # - name: Seed Database
+      #   run: |
+      #     npx convex import --replace-all convex-seeds/seeds/db.zip --yes \
+      #       --preview-name "${{ env.CONVEX_PREVIEW_NAME }}"
+      #   env:
+      #     CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Build
         run: pnpm build
         env:

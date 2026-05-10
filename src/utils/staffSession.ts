@@ -13,7 +13,7 @@ export function getStoredSession(recruitmentId: string): SessionInfo | null {
     const session = JSON.parse(val) as SessionInfo;
     if (session.recruitmentId === recruitmentId) return session;
   } catch {
-    // ignore
+    // localStorage はユーザー操作や古い形式の値で壊れ得るため、復旧は再ログイン導線に任せる。
   }
   return null;
 }

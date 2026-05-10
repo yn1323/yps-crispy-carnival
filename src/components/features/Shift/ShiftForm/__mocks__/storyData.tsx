@@ -1,7 +1,15 @@
 import { Provider } from "jotai";
 import type { ReactNode } from "react";
+import type {
+  PositionType,
+  RequiredStaffingData,
+  ShiftData,
+  SortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { useShiftFormInit } from "../hooks/useShiftFormInit";
-import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "../types";
 
 export const mockStaffs: StaffType[] = [
   { id: "staff1", name: "Aさん", isSubmitted: true },
@@ -45,6 +53,13 @@ export const mockDatesMidWeekStart = [
 ];
 
 export const mockTimeRange: TimeRange = { start: 9, end: 22, unit: 30 };
+export const mockHalfHourTimeRange: TimeRange = {
+  start: 5,
+  end: 23,
+  unit: 30,
+  editableStartMinutes: 330,
+  editableEndMinutes: 1350,
+};
 
 export const mockHolidays = ["2026-02-11"];
 
@@ -201,6 +216,27 @@ export const mockShiftsAllPatterns: ShiftData[] = [
 
 // 1/21 + 1/22 + 1/23 を合算した総合セット
 export const mockShiftsVariety: ShiftData[] = [...mockShifts, ...mockShiftsRequestOnly, ...mockShiftsAllPatterns];
+
+const halfHourDate = "2026-01-28";
+
+export const mockShiftsHalfHourBusinessHours: ShiftData[] = [
+  {
+    id: `half-hour-staff1`,
+    staffId: "staff1",
+    staffName: "Aさん",
+    date: halfHourDate,
+    requestedTime: { start: "05:30", end: "12:00" },
+    positions: [workSeg("staff1", halfHourDate, "05:30", "12:00")],
+  },
+  {
+    id: `half-hour-staff2`,
+    staffId: "staff2",
+    staffName: "Bさん",
+    date: halfHourDate,
+    requestedTime: { start: "18:00", end: "22:30" },
+    positions: [workSeg("staff2", halfHourDate, "18:00", "22:30")],
+  },
+];
 
 export const mockRequiredStaffing: RequiredStaffingData[] = [
   {

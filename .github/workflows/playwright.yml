@@ -30,12 +30,14 @@ jobs:
             --cmd-url-env-var-name CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Seed Database
-        run: |
-          npx convex import --replace-all convex-seeds/seeds/db.zip --yes \
-            --preview-name "${{ env.CONVEX_PREVIEW_NAME }}"
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
+      # E2E scenarios seed their own data via convex/testing.ts helpers.
+      # - name: Seed Database
+      #   run: |
+      #     npx convex import --replace-all convex-seeds/seeds/db.zip --yes \
+      #       --preview-name "${{ env.CONVEX_PREVIEW_NAME }}"
+      #   env:
+      #     CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Run Playwright tests
         id: playwright
         run: pnpm e2e
@@ -57,7 +59,7 @@ jobs:
       - name: Deploy Report to GitHub Pages
         if: ${{ !cancelled() }}
         run: |
-          git clone https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
+          git clone --depth 1 --single-branch https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git
           rm -rf hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}
           mkdir -p hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}
           cp -r playwright-report/* hosting-pages/$REPORT_DIR/${{ github.event.pull_request.number }}/

@@ -2,7 +2,34 @@ import type { UserIdentity } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc } from "../_generated/dataModel";
-import { mutation, query } from "../_generated/server";
+import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
+
+type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
+
+function authKey(identity: UserIdentity) {
+  return identity.tokenIdentifier;
+}
+
+async function getUserByIdentity(ctx: DbCtx, identity: UserIdentity) {
+  const key = authKey(identity);
+  const byToken = await ctx.db
+    .query("users")
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", key))
+    .first();
+  if (byToken) return byToken;
+  return null;
+}
+
+async function getShopByUser(ctx: DbCtx, user: Doc<"users">) {
+  const membership = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+    .first();
+  if (membership) {
+    return await ctx.db.get(membership.shopId);
+  }
+  return null;
+}
 
 // Query用: 全フィールド nullable（throw しないため）
 type AuthenticatedQueryCtx = {
@@ -38,10 +65,7 @@ export const authenticatedQuery = customQuery(query, {
     if (!identity) {
       return { ctx: { identity: null, user: null }, args: {} };
     }
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .first();
+    const user = await getUserByIdentity(ctx, identity);
     return { ctx: { identity, user }, args: {} };
   },
 });
@@ -53,10 +77,7 @@ export const authenticatedMutation = customMutation(mutation, {
     if (!identity) {
       throw new ConvexError("Unauthenticated");
     }
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .first();
+    const user = await getUserByIdentity(ctx, identity);
     return { ctx: { identity, user }, args: {} };
   },
 });
@@ -73,16 +94,8 @@ export const managerQuery = customQuery(query, {
     if (!identity) {
       return { ctx: { user: null, shop: null }, args: {} };
     }
-    const [user, shop] = await Promise.all([
-      ctx.db
-        .query("users")
-        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-        .first(),
-      ctx.db
-        .query("shops")
-        .withIndex("by_ownerId", (q) => q.eq("ownerId", identity.subject))
-        .first(),
-    ]);
+    const user = await getUserByIdentity(ctx, identity);
+    const shop = user ? await getShopByUser(ctx, user) : null;
     if (!user || user.isDeleted || !shop || shop.isDeleted) {
       return { ctx: { user: null, shop: null }, args: {} };
     }
@@ -97,16 +110,8 @@ export const managerMutation = customMutation(mutation, {
     if (!identity) {
       throw new ConvexError("Unauthenticated");
     }
-    const [user, shop] = await Promise.all([
-      ctx.db
-        .query("users")
-        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-        .first(),
-      ctx.db
-        .query("shops")
-        .withIndex("by_ownerId", (q) => q.eq("ownerId", identity.subject))
-        .first(),
-    ]);
+    const user = await getUserByIdentity(ctx, identity);
+    const shop = user ? await getShopByUser(ctx, user) : null;
     if (!user || user.isDeleted || !shop || shop.isDeleted) {
       throw new ConvexError("Not found");
     }
@@ -137,7 +142,7 @@ export const staffSessionQuery = customQuery(query, {
       .query("sessions")
       .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
       .first();
-    if (!session || session.expiresAt < Date.now()) {
+    if (!session || session.revokedAt || session.expiresAt < Date.now()) {
       return { ctx: { staff: null, shop: null, session: null }, args: {} };
     }
     const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
@@ -166,7 +171,7 @@ export const staffSessionMutation = customMutation(mutation, {
       .query("sessions")
       .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
       .first();
-    if (!session || session.expiresAt < Date.now()) {
+    if (!session || session.revokedAt || session.expiresAt < Date.now()) {
       throw new ConvexError("Session expired");
     }
     const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);

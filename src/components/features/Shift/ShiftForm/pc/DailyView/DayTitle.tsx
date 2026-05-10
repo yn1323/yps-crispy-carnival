@@ -1,6 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import dayjs from "dayjs";
-import { getWeekdayLabel } from "../../utils/dateUtils";
+import { getWeekdayLabel } from "@/src/domains/shift/date";
 
 type Props = {
   date: string;

@@ -58,6 +58,10 @@ export const Empty: Story = {
     staffStatus: "Exhausted",
     canLoadMoreStaffs: false,
     loadMoreStaffs: () => {},
+    ownerProfileDefaults: {
+      name: "山田 太郎",
+      email: "yamada@example.com",
+    },
   },
 };
 
