@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
 import { managerQuery } from "../_lib/functions";
-import { getLegalDocumentsForAudience, hasCurrentLegalConsent } from "./documents";
+import { getStaffLineAccount } from "../line/service";
+import { getLegalDocumentsForAudience } from "./documents";
+import { hasCurrentStaffLegalConsent, hasCurrentUserLegalConsent } from "./service";
 
 export const getManagerConsentStatus = managerQuery({
   args: {},
@@ -15,7 +17,7 @@ export const getManagerConsentStatus = managerQuery({
     }
 
     return {
-      required: !hasCurrentLegalConsent(ctx.user, "manager"),
+      required: !(await hasCurrentUserLegalConsent(ctx, ctx.user._id)),
       documents,
     };
   },
@@ -29,7 +31,7 @@ export const getStaffConsentPageData = query({
       .query("legalConsentTokens")
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
-    if (!tokenDoc || tokenDoc.expiresAt < Date.now()) {
+    if (!tokenDoc || tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now()) {
       return { status: "expired" as const, documents };
     }
 
@@ -38,7 +40,7 @@ export const getStaffConsentPageData = query({
       return { status: "expired" as const, documents };
     }
 
-    if (hasCurrentLegalConsent(staff, "staff")) {
+    if (await hasCurrentStaffLegalConsent(ctx, staff._id)) {
       return {
         status: "accepted" as const,
         staffName: staff.name,
@@ -65,17 +67,18 @@ export const getStaffConsentNotificationDataInternal = internalQuery({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
     const staff = await ctx.db.get(staffId);
-    if (!staff || staff.isDeleted || hasCurrentLegalConsent(staff, "staff")) return null;
+    if (!staff || staff.isDeleted || (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
 
     const shop = await ctx.db.get(staff.shopId);
     if (!shop || shop.isDeleted) return null;
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
 
     return {
       staffId: staff._id,
       staffName: staff.name,
       staffEmail: staff.email,
-      lineUserId: staff.lineUserId,
-      lineFollowing: staff.lineFollowing,
+      lineUserId: lineAccount?.lineUserId,
+      lineFollowing: lineAccount?.following,
       shopId: shop._id,
       shopName: shop.name,
       documents: getLegalDocumentsForAudience("staff"),

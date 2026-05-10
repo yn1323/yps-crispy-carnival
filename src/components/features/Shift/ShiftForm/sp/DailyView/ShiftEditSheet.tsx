@@ -7,11 +7,12 @@ import { IconButton } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
+import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { normalizePositions, paintPosition } from "@/src/domains/shift/operations";
+import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
+import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
-import type { PositionType, ShiftData, StaffType, TimeRange } from "../../types";
-import { formatDateWithWeekday } from "../../utils/dateUtils";
-import { normalizePositions, paintPosition } from "../../utils/shiftOperations";
-import { minutesToTime, timeToMinutes } from "../../utils/timeConversion";
+import { getEditableEndMinutes, getEditableStartMinutes } from "../../utils/timelineGeometry";
 import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
 
 type ShiftEditSheetProps = {
@@ -26,9 +27,9 @@ type ShiftEditSheetProps = {
   onShiftDelete: (staffId: string) => void;
 };
 
-const generateTimeOptions = (timeRange: TimeRange) => {
-  const options = [];
-  for (let m = timeRange.start * 60; m <= timeRange.end * 60; m += timeRange.unit) {
+export const generateTimeOptions = (timeRange: TimeRange) => {
+  const options: SelectItemType[] = [];
+  for (let m = getEditableStartMinutes(timeRange); m <= getEditableEndMinutes(timeRange); m += timeRange.unit) {
     const label = minutesToTime(m);
     options.push({ value: label, label });
   }

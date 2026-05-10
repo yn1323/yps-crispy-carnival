@@ -1,8 +1,8 @@
 import { Box, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
+import type { TimeRange } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../constants";
 import { hourWidthAtom } from "../../stores";
-import type { TimeRange } from "../../types";
 
 type TimeHeaderProps = {
   timeRange: TimeRange;

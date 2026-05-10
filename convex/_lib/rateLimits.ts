@@ -1,7 +1,5 @@
 import { defineRateLimits } from "convex-helpers/server/rateLimit";
-
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
+import { HOUR_MS, MINUTE_MS } from "../constants";
 
 export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   // マジックリンクトークン検証: トークン先頭8文字をキーに
@@ -9,7 +7,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   verifyToken: {
     kind: "token bucket",
     rate: 5,
-    period: MINUTE,
+    period: MINUTE_MS,
     capacity: 5,
   },
 
@@ -18,7 +16,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   requestReissue: {
     kind: "token bucket",
     rate: 3,
-    period: HOUR,
+    period: HOUR_MS,
     capacity: 3,
   },
 
@@ -27,7 +25,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   submitShiftRequests: {
     kind: "token bucket",
     rate: 5,
-    period: MINUTE,
+    period: MINUTE_MS,
     capacity: 5,
   },
 
@@ -36,7 +34,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   lineLinkRedeem: {
     kind: "token bucket",
     rate: 5,
-    period: MINUTE,
+    period: MINUTE_MS,
     capacity: 5,
   },
 
@@ -45,7 +43,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   lineWebhook: {
     kind: "token bucket",
     rate: 100,
-    period: MINUTE,
+    period: MINUTE_MS,
     capacity: 100,
   },
 
@@ -54,7 +52,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   lineInvite: {
     kind: "token bucket",
     rate: 30,
-    period: HOUR,
+    period: HOUR_MS,
     capacity: 30,
   },
 });

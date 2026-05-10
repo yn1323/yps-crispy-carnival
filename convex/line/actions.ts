@@ -3,6 +3,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalAction } from "../_generated/server";
+import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import {
   buildLineAuthorizeUrl,
@@ -15,10 +16,7 @@ import {
   replyTextMessage,
 } from "../_lib/lineClient";
 import { getResendClient } from "../_lib/resend";
-import { buildLineInviteEmailHtml } from "../email/templates";
-
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
-const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@shiftori.app";
+import { buildLineInviteEmailHtml } from "../notification/templates";
 
 function getLoginChannelId(): string {
   const v = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -134,7 +132,7 @@ export const refreshQuotaStatus = internalAction({
 
 /**
  * 連携依頼メール（個別 / 一括 共通）を1件送る
- * `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
+ * `setup.setupShopAndOwner` / `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
  */
 export const sendInviteEmail = internalAction({
   args: { staffId: v.id("staffs") },
@@ -158,7 +156,7 @@ export const sendInviteEmail = internalAction({
 
     const resend = getResendClient({ suppressDelivery });
     await resend.emails.send({
-      from: formatResendFrom(data.shopName, RESEND_FROM),
+      from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
       to: data.staffEmail,
       subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
       html: buildLineInviteEmailHtml({

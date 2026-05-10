@@ -3,29 +3,29 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
 async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlinePassed?: boolean }) {
   return await t.run(async (ctx) => {
-    const shopId = await ctx.db.insert("shops", {
-      name: "テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
-      ownerId: "user_owner",
-      isDeleted: false,
-    });
+    const shopId = await seedShop(ctx, "テスト店舗");
     const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
-      legalTermsConsentVersion: "staff-terms-consent-2026-05-09",
-      legalPrivacyConsentVersion: "staff-privacy-consent-2026-05-09",
-      legalTermsDocumentVersion: "staff-terms-doc-2026-05-09",
-      legalPrivacyDocumentVersion: "staff-privacy-doc-2026-05-09",
-      legalConsentedAt: Date.now(),
-      legalConsentMethod: "staff_email_link",
       isDeleted: false,
+    });
+    await ctx.db.insert("legalConsentStates", {
+      subjectType: "staff",
+      staffId,
+      shopId,
+      termsConsentVersion: "staff-terms-consent-2026-05-09",
+      privacyConsentVersion: "staff-privacy-consent-2026-05-09",
+      termsDocumentVersion: "staff-terms-doc-2026-05-09",
+      privacyDocumentVersion: "staff-privacy-doc-2026-05-09",
+      consentedAt: Date.now(),
+      method: "staff_email_link",
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
@@ -34,6 +34,8 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlineP
       deadline: options?.deadlinePassed ? "2026-01-01" : "2026-12-31",
       status: "open",
       isDeleted: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
     });
     const sessionToken = "test-session-token";
     await ctx.db.insert("sessions", {
@@ -95,6 +97,8 @@ describe("shiftSubmission/mutations", () => {
           deadline: "2026-12-31",
           status: "open",
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         }),
       );
 
@@ -130,9 +134,9 @@ describe("shiftSubmission/mutations", () => {
         requests: validRequests,
       });
 
-      const [requests, submission] = await t.run(async (ctx) => {
+      const [slots, submission] = await t.run(async (ctx) => {
         const reqs = await ctx.db
-          .query("shiftRequests")
+          .query("shiftSubmissionSlots")
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
           .collect();
         const sub = await ctx.db
@@ -142,9 +146,10 @@ describe("shiftSubmission/mutations", () => {
         return [reqs, sub] as const;
       });
 
-      expect(requests).toHaveLength(2);
-      expect(requests[0].date).toBe("2026-04-07");
+      expect(slots).toHaveLength(2);
+      expect(slots[0].date).toBe("2026-04-07");
       expect(submission).not.toBeNull();
+      expect(submission?.firstSubmittedAt).toBeTypeOf("number");
       expect(submission?.submittedAt).toBeTypeOf("number");
     });
 
@@ -158,9 +163,9 @@ describe("shiftSubmission/mutations", () => {
         requests: [],
       });
 
-      const [requests, submission] = await t.run(async (ctx) => {
+      const [slots, submission] = await t.run(async (ctx) => {
         const reqs = await ctx.db
-          .query("shiftRequests")
+          .query("shiftSubmissionSlots")
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
           .collect();
         const sub = await ctx.db
@@ -170,7 +175,7 @@ describe("shiftSubmission/mutations", () => {
         return [reqs, sub] as const;
       });
 
-      expect(requests).toHaveLength(0);
+      expect(slots).toHaveLength(0);
       expect(submission).not.toBeNull();
     });
 
@@ -178,9 +183,14 @@ describe("shiftSubmission/mutations", () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, {
-          legalTermsDocumentVersion: "staff-terms-doc-old",
-          legalPrivacyDocumentVersion: "staff-privacy-doc-old",
+        const state = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first();
+        if (!state) throw new Error("missing state");
+        await ctx.db.patch(state._id, {
+          termsDocumentVersion: "staff-terms-doc-old",
+          privacyDocumentVersion: "staff-privacy-doc-old",
         });
       });
 
@@ -203,14 +213,13 @@ describe("shiftSubmission/mutations", () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, {
-          legalTermsConsentVersion: undefined,
-          legalPrivacyConsentVersion: undefined,
-          legalTermsDocumentVersion: undefined,
-          legalPrivacyDocumentVersion: undefined,
-          legalConsentedAt: undefined,
-          legalConsentMethod: undefined,
-        });
+        const states = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect();
+        for (const state of states) {
+          await ctx.db.delete(state._id);
+        }
       });
 
       await expect(
@@ -226,14 +235,13 @@ describe("shiftSubmission/mutations", () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, {
-          legalTermsConsentVersion: undefined,
-          legalPrivacyConsentVersion: undefined,
-          legalTermsDocumentVersion: undefined,
-          legalPrivacyDocumentVersion: undefined,
-          legalConsentedAt: undefined,
-          legalConsentMethod: undefined,
-        });
+        const states = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .collect();
+        for (const state of states) {
+          await ctx.db.delete(state._id);
+        }
       });
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
@@ -243,53 +251,66 @@ describe("shiftSubmission/mutations", () => {
         acceptedLegal: true,
       });
 
-      const [staff, events] = await t.run(async (ctx) => {
-        const staff = await ctx.db.get(staffId);
+      const [state, events] = await t.run(async (ctx) => {
+        const state = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first();
         const events = await ctx.db
           .query("legalConsentEvents")
           .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
           .collect();
-        return [staff, events] as const;
+        return [state, events] as const;
       });
 
-      expect(staff?.legalTermsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(staff?.legalPrivacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
-      expect(staff?.legalTermsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-      expect(staff?.legalPrivacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
-      expect(staff?.legalConsentMethod).toBe("shift_submit");
+      expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
+      expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+      expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
+      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
+      expect(state?.method).toBe("shift_submit");
       expect(events).toHaveLength(1);
       expect(events[0].method).toBe("shift_submit");
       expect(events[0].sourceRecruitmentId).toBe(recruitmentId);
     });
 
-    it("再提出で既存データを置き換え＋submittedAt更新", async () => {
+    it("既存提出がある場合はデータを置き換え＋submittedAt更新", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
-
-      // 初回提出
-      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
-        sessionToken,
-        recruitmentId,
-        requests: validRequests,
+      const firstSubmission = await t.run(async (ctx) => {
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId,
+          firstSubmittedAt: 500,
+          submittedAt: 1000,
+        });
+        await ctx.db.insert("shiftSubmissionSlots", {
+          submissionId,
+          recruitmentId,
+          staffId,
+          date: "2026-04-07",
+          startTime: "09:00",
+          endTime: "18:00",
+        });
+        await ctx.db.insert("shiftSubmissionSlots", {
+          submissionId,
+          recruitmentId,
+          staffId,
+          date: "2026-04-09",
+          startTime: "10:00",
+          endTime: "15:00",
+        });
+        return await ctx.db.get(submissionId);
       });
 
-      const firstSubmission = await t.run(async (ctx) =>
-        ctx.db
-          .query("shiftSubmissions")
-          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
-          .first(),
-      );
-
-      // 再提出（1件のみ）
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
         recruitmentId,
         requests: [{ date: "2026-04-10", startTime: "10:00", endTime: "20:00" }],
       });
 
-      const [requests, submission] = await t.run(async (ctx) => {
+      const [slots, submission] = await t.run(async (ctx) => {
         const reqs = await ctx.db
-          .query("shiftRequests")
+          .query("shiftSubmissionSlots")
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
           .collect();
         const sub = await ctx.db
@@ -299,9 +320,37 @@ describe("shiftSubmission/mutations", () => {
         return [reqs, sub] as const;
       });
 
-      expect(requests).toHaveLength(1);
-      expect(requests[0].date).toBe("2026-04-10");
+      expect(slots).toHaveLength(1);
+      expect(slots[0].date).toBe("2026-04-10");
+      expect(submission?.firstSubmittedAt).toBe(firstSubmission?.firstSubmittedAt);
       expect(submission?.submittedAt).toBeGreaterThanOrEqual(firstSubmission?.submittedAt ?? 0);
+    });
+
+    it("firstSubmittedAtがない既存提出の再提出では以前のsubmittedAtを初回提出時刻として保持する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId,
+          submittedAt: 1000,
+        });
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        recruitmentId,
+        requests: validRequests,
+      });
+
+      const submission = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .first(),
+      );
+      expect(submission?.firstSubmittedAt).toBe(1000);
+      expect(submission?.submittedAt).toBeGreaterThan(1000);
     });
 
     it("募集期間外の日付でエラー", async () => {
@@ -328,6 +377,22 @@ describe("shiftSubmission/mutations", () => {
           requests: [{ date: "2026-04-07", startTime: "18:00", endTime: "09:00" }],
         }),
       ).rejects.toThrow("Invalid time range");
+    });
+
+    it("同じ日の希望が複数ある場合はエラー", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t);
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          recruitmentId,
+          requests: [
+            { date: "2026-04-07", startTime: "09:00", endTime: "12:00" },
+            { date: "2026-04-07", startTime: "13:00", endTime: "18:00" },
+          ],
+        }),
+      ).rejects.toThrow("同じ日の希望シフトは1件だけ登録できます");
     });
   });
 });

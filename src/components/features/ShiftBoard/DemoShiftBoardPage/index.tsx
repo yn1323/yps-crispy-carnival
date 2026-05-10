@@ -1,18 +1,14 @@
 import { Box, Flex, Heading, Icon, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { DEFAULT_POSITION } from "@/src/components/features/Shift/ShiftForm/constants";
-import type { ShiftData, ViewMode } from "@/src/components/features/Shift/ShiftForm/types";
-import {
-  formatDateShort,
-  formatDateTime,
-  getWeekdayLabel,
-} from "@/src/components/features/Shift/ShiftForm/utils/dateUtils";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import type { TourHandle } from "@/src/components/ui/Tour";
 import { toaster } from "@/src/components/ui/toaster";
+import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
+import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
+import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../mocks";
 import { DemoIntroTour } from "./DemoIntroTour";
@@ -26,6 +22,8 @@ const DEMO_SHOP_ID = "demo-shop";
 type Props = {
   /** 週の起点日（YYYY-MM-DD）。デフォルトは来週の月曜。VRT 安定化のため Story 側で固定値を差し込める */
   baseDate?: string;
+  headerStart?: ReactNode;
+  height?: string;
 };
 
 /** 来週の月曜（ローカルタイム）。シフトは将来の予定を立てる用途なので、今週ではなく来週を起点にする */
@@ -68,7 +66,7 @@ function generatePeriodLabel(dates: string[]): string {
   return `${formatDateShort(first)}(${getWeekdayLabel(first)})〜${formatDateShort(last)}(${getWeekdayLabel(last)}) のシフト`;
 }
 
-export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
+export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }: Props = {}) => {
   const [confirmedAt, setConfirmedAt] = useState<number | null>(null);
   const isConfirmed = confirmedAt !== null;
 
@@ -111,11 +109,13 @@ export const DemoShiftBoardPage = ({ baseDate }: Props = {}) => {
     : "このシフトをスタッフに通知しますか？";
 
   return (
-    <Flex direction="column" h="100dvh" minH={0}>
+    <Flex direction="column" h={height} minH={0}>
       <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
-        <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={600} color="gray.700" whiteSpace="nowrap">
-          シフトリ デモ
-        </Heading>
+        {headerStart ?? (
+          <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={600} color="gray.700" whiteSpace="nowrap">
+            シフトリ デモ
+          </Heading>
+        )}
         <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
           {periodLabel}
         </Text>

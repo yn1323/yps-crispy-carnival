@@ -3,8 +3,7 @@ import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
 import { rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
-
-const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
 
 /**
  * マジックリンクトークンを検証し、セッションを発行する
@@ -21,7 +20,7 @@ export const verifyToken = mutation({
     if (!ok) {
       return {
         status: "rate_limited" as const,
-        retryAfter: retryAt ?? Date.now() + 60_000,
+        retryAfter: retryAt ?? Date.now() + RATE_LIMIT_RETRY_FALLBACK_MS,
         recruitmentId: null,
       };
     }
@@ -31,7 +30,7 @@ export const verifyToken = mutation({
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
 
-    if (!magicLink || magicLink.expiresAt < Date.now() || magicLink.usedAt) {
+    if (!magicLink || magicLink.revokedAt || magicLink.expiresAt < Date.now() || magicLink.usedAt) {
       return {
         status: "expired" as const,
         recruitmentId: magicLink?.recruitmentId ?? null,
@@ -46,7 +45,7 @@ export const verifyToken = mutation({
       )
       .collect();
 
-    const validSession = existingSessions.find((s) => s.expiresAt > Date.now());
+    const validSession = existingSessions.find((s) => !s.revokedAt && s.expiresAt > Date.now());
 
     if (validSession) {
       await ctx.db.patch(magicLink._id, { usedAt: Date.now() });
@@ -64,7 +63,7 @@ export const verifyToken = mutation({
       staffId: magicLink.staffId,
       shopId: magicLink.shopId,
       recruitmentId: magicLink.recruitmentId,
-      expiresAt: Date.now() + FOURTEEN_DAYS_MS,
+      expiresAt: Date.now() + STAFF_SESSION_TTL_MS,
     });
     await ctx.db.patch(magicLink._id, { usedAt: Date.now() });
 
@@ -90,7 +89,8 @@ export const requestReissue = mutation({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { email, recruitmentId }) => {
-    const emailDomain = email.split("@")[1];
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailDomain = normalizedEmail.split("@")[1];
     const logSkip = (reason: string, extra: Record<string, unknown> = {}) =>
       console.warn("[requestReissue] skip", { reason, recruitmentId, ...extra });
 
@@ -98,7 +98,7 @@ export const requestReissue = mutation({
     // メアド列挙攻撃防止: レートリミットでも成功時と同じレスポンス（void）を返す
     const { ok } = await rateLimit(ctx, {
       name: "requestReissue",
-      key: `${email}:${recruitmentId}`,
+      key: `${normalizedEmail}:${recruitmentId}`,
     });
     if (!ok) return logSkip("rate_limited", { emailDomain });
 
@@ -111,15 +111,15 @@ export const requestReissue = mutation({
 
     const staff = await ctx.db
       .query("staffs")
-      .withIndex("by_shopId_email_isDeleted", (q) =>
-        q.eq("shopId", recruitment.shopId).eq("email", email).eq("isDeleted", false),
+      .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+        q.eq("shopId", recruitment.shopId).eq("emailNormalized", normalizedEmail).eq("isDeleted", false),
       )
       .first();
     if (!staff) return logSkip("staff_not_found", { emailDomain });
 
     const staffId = staff._id;
 
-    await ctx.scheduler.runAfter(0, internal.email.actions.sendReissueEmail, { staffId, recruitmentId });
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendReissueEmail, { staffId, recruitmentId });
     console.log("[requestReissue] scheduled", { staffId, recruitmentId });
   },
 });

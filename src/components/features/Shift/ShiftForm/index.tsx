@@ -2,6 +2,15 @@ import { Box, Flex } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue } from "jotai";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
+import type {
+  PositionType,
+  RequiredStaffingData,
+  ShiftData,
+  SortMode,
+  StaffType,
+  TimeRange,
+  ViewMode,
+} from "@/src/domains/shift/types";
 import { ConfirmButton, ExportButton, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
@@ -9,7 +18,6 @@ import { OverviewView } from "./pc/OverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
 import { shiftsAtom, viewModeAtom } from "./stores";
-import type { PositionType, RequiredStaffingData, ShiftData, SortMode, StaffType, TimeRange, ViewMode } from "./types";
 
 type ShiftFormProps = {
   shopId: string;

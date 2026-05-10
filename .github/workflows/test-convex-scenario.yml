@@ -1,0 +1,17 @@
+name: test-convex-scenario
+
+on:
+  - push
+
+jobs:
+  convex-scenario-test:
+    name: convex-scenario-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Run Test
+        run: pnpm vitest run --project='convex(scenario)'

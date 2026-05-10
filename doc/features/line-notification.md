@@ -17,8 +17,8 @@
 - `convex/_lib/lineSignature.ts` — HMAC-SHA256 署名検証
 - `convex/_lib/lineClient.ts` — LINE API ラッパー（push / reply / quota / profile / token / authorizeUrl）
 - `convex/_lib/notification.ts` — `selectChannel`（純粋関数）
-- `convex/email/actions.ts` / `convex/shiftReminder/actions.ts` — 既存通知に LINE 振り分け統合
-- `convex/email/templates.ts` — `buildLineInviteEmailHtml` / `buildLineCtaSection` / `buildShiftConfirmation/Recruitment/ReminderLineText`
+- `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — 既存通知に LINE 振り分け統合
+- `convex/notification/templates.ts` — `buildLineInviteEmailHtml` / `buildLineCtaSection` / `buildShiftConfirmation/Recruitment/ReminderLineText`
 
 ### フロントエンド（`src/`）
 
@@ -82,14 +82,15 @@
 
 未設定でも既存メール送信は動作する（CTA 非表示・LINE Push スキップ）。
 
-## 追加スタッフへの募集中通知
+## 初回セットアップ・追加スタッフへの通知
 
-スタッフ追加時に、スタッフ向け利用規約/プライバシーポリシー同意依頼メールとは別に LINE 連携依頼メールも送る。シフト募集中にスタッフを追加した場合、追加スタッフにも希望提出リンクをメールで送る。LINEログイン完了時に友だち追加済み、またはWebhook followで `lineFollowing` が `true` になった場合は、同じ対象募集の希望提出リンクをLINEで送る。
+店舗初回セットアップ時に、店長ユーザーのメールアドレスへ LINE 連携依頼メールを送る。スタッフ追加時にも、スタッフ向け利用規約/プライバシーポリシー同意依頼メールとは別に LINE 連携依頼メールを送る。シフト募集中にスタッフを追加した場合、追加スタッフにも希望提出リンクをメールで送る。LINEログイン完了時に友だち追加済み、またはWebhook followで `lineFollowing` が `true` になった場合は、同じ対象募集の希望提出リンクをLINEで送る。
 
 - 対象募集: `status === "open"`、未削除、締切前または締切当日
-- LINE連携依頼メール: `staff.mutations.addStaffs` から追加スタッフごとに `internal.line.actions.sendInviteEmail` をスケジュール
-- メール通知: `staff.mutations.addStaffs` から追加スタッフごとに `internal.email.actions.sendOpenRecruitmentNotificationEmailsForStaff` をスケジュール
-- LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
+- 店長向けLINE連携依頼メール: `setup.mutations.setupShopAndOwner` から初回登録した店長スタッフ行に対して `internal.line.actions.sendInviteEmail` をスケジュール
+- スタッフ向けLINE連携依頼メール: `staff.mutations.addStaffs` から追加スタッフごとに `internal.line.actions.sendInviteEmail` をスケジュール
+- メール通知: `staff.mutations.addStaffs` から追加スタッフごとに `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff` をスケジュール
+- LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
 - 複数の対象募集がある場合は募集ごとに1通ずつ送る
 
 ## 設計ドキュメント

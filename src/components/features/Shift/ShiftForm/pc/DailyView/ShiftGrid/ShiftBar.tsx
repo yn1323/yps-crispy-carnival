@@ -1,10 +1,11 @@
 import { Box, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
+import { computeVisualBreaks } from "@/src/domains/shift/operations";
+import { timeToMinutes } from "@/src/domains/shift/time";
+import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../../constants";
 import { hourWidthAtom } from "../../../stores";
-import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "../../../types";
-import { computeVisualBreaks } from "../../../utils/shiftOperations";
-import { minutesToPixel, timeToMinutes } from "../../../utils/timeConversion";
+import { minutesToPixel } from "../../../utils/timelineGeometry";
 
 type ShiftBarProps = {
   shift: ShiftData;

@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import { seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const validArgs = {
@@ -22,13 +23,7 @@ describe("shop/mutations", () => {
     it("店舗が存在しないマネージャーは Not found でエラー", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: "user_no_shop",
-          name: "店舗なし",
-          email: "noshop@example.com",
-          role: "manager",
-          isDeleted: false,
-        });
+        await seedUser(ctx, "user_no_shop", "noshop@example.com");
       });
       await expect(
         t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.updateShopSettings, validArgs),
@@ -38,20 +33,13 @@ describe("shop/mutations", () => {
     it("店舗名とシフト時間帯を更新する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: MANAGER_SUBJECT,
-          name: "山田 太郎",
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "居酒屋たなか",
         });
-        return ctx.db.insert("shops", {
-          name: "居酒屋たなか",
-          shiftStartTime: "14:00",
-          shiftEndTime: "25:00",
-          ownerId: MANAGER_SUBJECT,
-          isDeleted: false,
-        });
+        await ctx.db.patch(seeded.shopId, { shiftStartTime: "14:00", shiftEndTime: "25:00" });
+        return seeded.shopId;
       });
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, validArgs);
@@ -65,20 +53,13 @@ describe("shop/mutations", () => {
     it("店舗名の前後空白をトリムする", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: MANAGER_SUBJECT,
-          name: "山田 太郎",
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "居酒屋たなか",
         });
-        return ctx.db.insert("shops", {
-          name: "居酒屋たなか",
-          shiftStartTime: "14:00",
-          shiftEndTime: "25:00",
-          ownerId: MANAGER_SUBJECT,
-          isDeleted: false,
-        });
+        await ctx.db.patch(seeded.shopId, { shiftStartTime: "14:00", shiftEndTime: "25:00" });
+        return seeded.shopId;
       });
 
       await t
@@ -92,20 +73,12 @@ describe("shop/mutations", () => {
     it("空の店舗名は ConvexError", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: MANAGER_SUBJECT,
-          name: "山田 太郎",
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "居酒屋たなか",
         });
-        await ctx.db.insert("shops", {
-          name: "居酒屋たなか",
-          shiftStartTime: "14:00",
-          shiftEndTime: "25:00",
-          ownerId: MANAGER_SUBJECT,
-          isDeleted: false,
-        });
+        await ctx.db.patch(seeded.shopId, { shiftStartTime: "14:00", shiftEndTime: "25:00" });
       });
 
       await expect(
@@ -118,20 +91,12 @@ describe("shop/mutations", () => {
     it("終了時間 <= 開始時間は ConvexError", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: MANAGER_SUBJECT,
-          name: "山田 太郎",
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "居酒屋たなか",
         });
-        await ctx.db.insert("shops", {
-          name: "居酒屋たなか",
-          shiftStartTime: "14:00",
-          shiftEndTime: "25:00",
-          ownerId: MANAGER_SUBJECT,
-          isDeleted: false,
-        });
+        await ctx.db.patch(seeded.shopId, { shiftStartTime: "14:00", shiftEndTime: "25:00" });
       });
 
       await expect(
@@ -154,20 +119,13 @@ describe("shop/mutations", () => {
     it("既存 recruitments のシフト時間スナップショットは更新で変化しない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId } = await t.run(async (ctx) => {
-        await ctx.db.insert("users", {
-          clerkId: MANAGER_SUBJECT,
-          name: "山田 太郎",
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "居酒屋たなか",
         });
-        const shopId = await ctx.db.insert("shops", {
-          name: "居酒屋たなか",
-          shiftStartTime: "14:00",
-          shiftEndTime: "25:00",
-          ownerId: MANAGER_SUBJECT,
-          isDeleted: false,
-        });
+        const shopId = seeded.shopId;
+        await ctx.db.patch(shopId, { shiftStartTime: "14:00", shiftEndTime: "25:00" });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-05-01",

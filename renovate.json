@@ -1,24 +1,36 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", ":dependencyDashboard"],
   "timezone": "Asia/Tokyo",
   "labels": ["renovate"],
-  "baseBranches": ["develop"],
+  "baseBranchPatterns": ["develop"],
   "automerge": true,
+  "platformAutomerge": true,
+  "rebaseWhen": "behind-base-branch",
   "minimumReleaseAge": "2 days",
-  "schedule": ["before 6am on saturday"],
+  "schedule": ["* * * * 6"],
+  "prConcurrentLimit": 10,
+  "branchConcurrentLimit": 10,
+  "prHourlyLimit": 10,
+  "commitHourlyLimit": 10,
   "packageRules": [
     {
       "addLabels": ["react"],
-      "matchPackageNames": ["/react/"]
+      "groupName": "React packages",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
     },
     {
       "addLabels": ["Storybook"],
-      "matchPackageNames": ["/@storybook/", "@chromatic-com/storybook"]
+      "groupName": "Storybook packages",
+      "matchPackageNames": ["/^@storybook\\//", "@chromatic-com/storybook"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
     },
     {
       "addLabels": ["playwright"],
-      "matchPackageNames": ["/playwright/"]
+      "groupName": "Playwright packages",
+      "matchPackageNames": ["playwright", "/^@playwright\\//"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
     }
   ]
 }

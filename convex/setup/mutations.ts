@@ -1,6 +1,8 @@
 import { ConvexError, v } from "convex/values";
+import { internal } from "../_generated/api";
 import { authenticatedMutation } from "../_lib/functions";
-import { recordUserLegalConsent } from "../legal/mutations";
+import { recordUserLegalConsent } from "../legal/service";
+import { ensureDefaultPosition } from "../position/service";
 
 export const setupShopAndOwner = authenticatedMutation({
   args: {
@@ -12,10 +14,14 @@ export const setupShopAndOwner = authenticatedMutation({
     acceptedLegal: v.literal(true),
   },
   handler: async (ctx, args) => {
-    const existingShop = await ctx.db
-      .query("shops")
-      .withIndex("by_ownerId", (q) => q.eq("ownerId", ctx.identity.subject))
-      .first();
+    const currentUser = ctx.user;
+    const existingMembership = currentUser
+      ? await ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", currentUser._id).eq("isDeleted", false))
+          .first()
+      : null;
+    const existingShop = existingMembership ? await ctx.db.get(existingMembership.shopId) : null;
     if (existingShop && !existingShop.isDeleted) {
       throw new ConvexError("既に店舗が登録されています");
     }
@@ -24,24 +30,32 @@ export const setupShopAndOwner = authenticatedMutation({
       name: args.shopName,
       shiftStartTime: args.shiftStartTime,
       shiftEndTime: args.shiftEndTime,
-      ownerId: ctx.identity.subject,
       isDeleted: false,
     });
 
-    const userId = ctx.user
-      ? ctx.user._id
+    const userId = currentUser
+      ? currentUser._id
       : await ctx.db.insert("users", {
-          clerkId: ctx.identity.subject,
+          authTokenIdentifier: ctx.identity.tokenIdentifier,
           name: args.ownerName,
           email: args.ownerEmail,
+          emailNormalized: args.ownerEmail.trim().toLowerCase(),
           role: "manager",
           isDeleted: false,
         });
+    await ctx.db.insert("shopMembers", {
+      shopId,
+      userId,
+      role: "owner",
+      isDeleted: false,
+    });
+    await ensureDefaultPosition(ctx, shopId);
 
-    if (ctx.user) {
-      await ctx.db.patch(ctx.user._id, {
+    if (currentUser) {
+      await ctx.db.patch(currentUser._id, {
         name: args.ownerName,
         email: args.ownerEmail,
+        emailNormalized: args.ownerEmail.trim().toLowerCase(),
       });
     }
 
@@ -51,12 +65,19 @@ export const setupShopAndOwner = authenticatedMutation({
       method: "manager_setup",
     });
 
-    await ctx.db.insert("staffs", {
+    // owner もスタッフ一覧に含める。自分のシフトやLINE通知を同じ画面で扱うため、
+    // users と staffs は userId で紐付け、後続の編集時に表示名を同期する。
+    const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: args.ownerName,
       email: args.ownerEmail,
+      emailNormalized: args.ownerEmail.trim().toLowerCase(),
       userId,
       isDeleted: false,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+      staffId,
     });
 
     return shopId;

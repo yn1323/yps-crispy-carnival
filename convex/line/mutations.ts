@@ -1,13 +1,13 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
+import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
-
-const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
-const APP_URL = process.env.APP_URL ?? "https://shiftori.app";
+import { LINE_LINK_TOKEN_TTL_MS } from "../constants";
+import { findStaffLineAccountByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
 
 /**
  * 店長UI: 指定スタッフに紐づくLINE連携トークンを発行
@@ -28,7 +28,7 @@ export const generateLinkToken = managerMutation({
       staffId: staff._id,
       shopId: staff.shopId,
       token,
-      expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+      expiresAt: Date.now() + LINE_LINK_TOKEN_TTL_MS,
     });
 
     const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -55,7 +55,7 @@ export const createLinkTokenInternal = internalMutation({
       staffId,
       shopId,
       token,
-      expiresAt: Date.now() + SEVENTY_TWO_HOURS_MS,
+      expiresAt: Date.now() + LINE_LINK_TOKEN_TTL_MS,
     });
     return { token };
   },
@@ -80,7 +80,7 @@ export const validateLinkToken = internalMutation({
       .query("lineLinkTokens")
       .withIndex("by_token", (q) => q.eq("token", state))
       .first();
-    if (!link || link.expiresAt < Date.now() || link.usedAt) {
+    if (!link || link.revokedAt || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
     return {
@@ -104,40 +104,38 @@ export const finalizeLinking = internalMutation({
   },
   handler: async (ctx, args) => {
     const link = await ctx.db.get(args.tokenDocId);
-    if (!link || link.staffId !== args.staffId || link.expiresAt < Date.now() || link.usedAt) {
+    if (!link || link.revokedAt || link.staffId !== args.staffId || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
     const staff = await ctx.db.get(args.staffId);
+    if (!staff || staff.isDeleted) return { status: "expired" as const };
+    const currentAccount = await getStaffLineAccount(ctx, args.staffId);
 
     // 既に他スタッフに紐づいている lineUserId の場合は上書きせず置き換え
     // （同じLINEアカウントを別スタッフが連携し直したケース）
-    const existing = await ctx.db
-      .query("staffs")
-      .withIndex("by_lineUserId", (q) => q.eq("lineUserId", args.lineUserId))
-      .collect();
-    for (const other of existing) {
-      if (other._id !== args.staffId) {
-        await ctx.db.patch(other._id, {
-          lineUserId: undefined,
-          lineFollowing: false,
-          lineLinkedAt: undefined,
-        });
-      }
+    const existing = await findStaffLineAccountByLineUserId(ctx, args.lineUserId);
+    if (existing && existing.staffId !== args.staffId) {
+      await ctx.db.patch(existing._id, { isDeleted: true, following: false });
     }
 
-    await ctx.db.patch(args.staffId, {
+    await upsertStaffLineAccount(ctx, {
+      staffId: args.staffId,
+      shopId: staff.shopId,
       lineUserId: args.lineUserId,
-      lineLinkedAt: Date.now(),
-      lineFollowing: args.lineFollowing,
+      following: args.lineFollowing,
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
     if (args.lineFollowing) {
+      // LINE連携直後に同意依頼を送る。未followの場合は needs_follow 画面で友だち追加を促し、
+      // follow Webhook 側で同じ案内を送る。
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
         staffId: args.staffId,
       });
     }
-    if (args.lineFollowing && staff && !staff.lineFollowing && !staff.isDeleted) {
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+    if (args.lineFollowing && !currentAccount?.following) {
+      // 初回followになったタイミングだけ、現在募集中の提出リンクをLINEにも流す。
+      // 既にfollow済みの再連携では重複送信しない。
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
       });
     }
@@ -152,12 +150,19 @@ export const markFollowing = internalMutation({
   args: { staffId: v.id("staffs"), following: v.boolean() },
   handler: async (ctx, args) => {
     const staff = await ctx.db.get(args.staffId);
-    await ctx.db.patch(args.staffId, { lineFollowing: args.following });
-    if (args.following && staff && !staff.lineFollowing && !staff.isDeleted) {
+    const account = await ctx.db
+      .query("staffLineAccounts")
+      .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+      .first();
+    if (account && !account.isDeleted) {
+      await ctx.db.patch(account._id, { following: args.following, lastWebhookAt: Date.now() });
+    }
+    const wasFollowing = Boolean(account?.following);
+    if (args.following && staff && !wasFollowing && !staff.isDeleted) {
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
         staffId: args.staffId,
       });
-      await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
       });
     }
@@ -197,18 +202,17 @@ export const dispatchWebhookEvents = internalMutation({
     }
 
     for (const [userId, following] of followingByUserId) {
-      const staff = await ctx.db
-        .query("staffs")
-        .withIndex("by_lineUserId", (q) => q.eq("lineUserId", userId))
-        .first();
+      const account = await findStaffLineAccountByLineUserId(ctx, userId);
+      const staff = account ? await ctx.db.get(account.staffId) : null;
       if (staff && !staff.isDeleted) {
-        const wasFollowing = Boolean(staff.lineFollowing);
-        await ctx.db.patch(staff._id, { lineFollowing: following });
+        const wasFollowing = Boolean(account?.following);
+        if (account) await ctx.db.patch(account._id, { following, lastWebhookAt: Date.now() });
         if (following && !wasFollowing) {
+          // ブロック解除などでfollow状態に戻った場合、未送達になっていた案内を補う。
           await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
             staffId: staff._id,
           });
-          await ctx.scheduler.runAfter(0, internal.email.actions.sendOpenRecruitmentNotificationLinesForStaff, {
+          await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
             staffId: staff._id,
           });
         }
