@@ -6,6 +6,11 @@ This file provides guidance to Codex and other coding agents when working with c
 
 店舗スタッフのシフト管理SaaSアプリケーション。React + Vite + Convex構成。
 
+## 必読ドキュメント
+
+- 作業開始時に必ず `doc/rules/testing-strategy.md` を読み、テスト種別・粒度・Convex Scenario Test の配置方針に従うこと。
+- Convexコードを扱う場合は、従来通り `convex/_generated/ai/guidelines.md` も必ず読むこと。
+
 ## コマンド
 
 ```bash
@@ -15,9 +20,10 @@ pnpm build            # ビルド (vite build && tsc)
 pnpm lint             # Biomeでlint
 pnpm format           # Biomeでフォーマット (--write)
 pnpm type-check       # TypeScriptの型チェック
-pnpm test             # 全テスト (vitest: logic + ui)
+pnpm test             # 全テスト (vitest: logic + ui + convex)
 pnpm test:logic       # ロジックテストのみ (src/**/*.test.ts)
 pnpm test:ui          # UIテスト (Storybook + Playwright browser)
+pnpm test:convex      # Convexテスト (Function Test + Scenario Test)
 pnpm e2e              # E2Eテスト (Playwright)
 pnpm storybook        # Storybook起動 (port 6006)
 pnpm scaffdog         # コンポーネントの雛形生成
@@ -30,11 +36,13 @@ pnpm convex:dev       # Convex開発サーバー
 pnpm vitest --project=logic src/path/to/file.test.ts    # 特定ロジックテスト
 pnpm vitest --project=logic -t "テスト名"                # 特定テスト名
 pnpm vitest --project=ui                                 # UIテスト（Storybook必須）
+pnpm vitest --project=convex convex/path/to/file.test.ts # 特定Convexテスト
 pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 ```
 
 - `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
 - `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
+- `convex`プロジェクト: `convex/**/*.test.ts` の Convex Function Test / Scenario Test
 
 ## Git Worktree運用
 
@@ -197,6 +205,7 @@ import { bar } from "@/convex/...";
 - `doc/INDEX.md`: 機能仕様ドキュメントのインデックス
 - `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
 - `doc/plans/`: 実装計画
+- `doc/rules/testing-strategy.md`: テスト種別、粒度、Convex Scenario Test の設計方針
 - `doc/claude/soul.md`: 設計判断の指針
 - `convex/AGENTS.md`: Convexアーキテクチャ、実装観点の詳細
 - `e2e/AGENTS.md`: E2Eアーキテクチャ、実装観点の詳細
