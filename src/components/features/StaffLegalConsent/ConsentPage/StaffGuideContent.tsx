@@ -18,7 +18,7 @@ const shiftreeDescription = "勤務先のお店がシフト希望の回収や確
 
 const quickPoints: QuickPoint[] = [
   { icon: LuUserRoundX, label: "アカウント登録不要" },
-  { icon: LuLink, label: "LINE、メールからシフト提出" },
+  { icon: LuLink, label: "LINE・メールからシフト提出" },
 ];
 
 const guideItems: GuideItem[] = [
