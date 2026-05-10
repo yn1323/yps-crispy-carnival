@@ -63,8 +63,7 @@ recruitment.mutations.createRecruitment
 ```text
 convex/
   _scenario/
-    shiftCreation.test.ts
-    notificationLifecycle.test.ts
+    {businessFlow}.test.ts
   _test/
     setup.test-helper.ts
     fixtures.ts
@@ -80,6 +79,7 @@ convex/
 - 派生シナリオを `it` に分ける。
 - 1つの `it` は `seed -> 複数 mutation/query -> assert` まで一気通貫で検証する。
 - 細かい validation 分岐や境界値は Function Test / Logic UT に任せる。
+- ハッピーパスだけで終わらせず、後続の query / dashboard / 通知 / 集計に影響するエッジケースを同じ業務単位に含める。
 
 例:
 
@@ -93,17 +93,34 @@ describe("シフト作成シナリオ", () => {
 });
 ```
 
-### 最初に作るシナリオ
+### Scenario Test に含めるエッジケース
 
-最初の Scenario Test は `convex/_scenario/shiftCreation.test.ts` とする。
+Scenario Test では、入力値そのものの網羅ではなく、その入力や状態が複数 API 後の業務状態に影響するケースを扱う。
+ハッピーパスだけでは、集計・通知・表示用 query の意味論が崩れた退行を拾えないため、各シナリオには代表正常系に加えて業務上重要な派生を含める。
 
-優先する派生:
+判断基準:
 
-1. 募集作成から希望提出、確定まで完了できる。
-2. 下書き保存時点の提出済み状態を保持できる。
-3. 未提出スタッフがいる状態を正しく返す。
-4. 再提出すると古い希望が残らず最新状態になる。
-5. 削除済みスタッフは集計・表示対象から外れる。
+- その状態が後続の query、dashboard、通知データ、集計、スナップショットに影響するなら Scenario Test に含める。
+- mutation 単体の入力拒否で完結するなら Function Test に寄せる。
+- ユーザー操作や見た目の確認が主目的なら UI Component Test / E2E / VRT に寄せる。
+- すべての組み合わせは狙わず、業務上の意味が変わる代表値を選ぶ。
+
+含める例:
+
+- 未提出、全休み提出、再提出。
+- 下書き保存後の再提出や、確定後の閲覧。
+- 削除済みスタッフ、削除済み店舗、確定済み募集。
+- 法務同意済み/未同意、提出時同意、同意リンクの使用済み状態。
+- LINE 連携済み/未連携、follow/unfollow、通知チャネルに影響する状態。
+- 店舗シフト時間変更後も既存募集のスナップショットが維持されること。
+- open 募集がある状態でスタッフを追加したときの通知対象・提出依頼対象。
+- 既存セッションや使用済みトークンがある状態で、スタッフ向け画面が継続/失効を正しく扱うこと。
+
+含めない例:
+
+- 必須項目、文字数、メール形式など mutation 単体で完結する入力 validation。
+- IDOR、未認証、権限不足、rate limit など単一 API の契約確認。
+- UI 表示、ブラウザ遷移、外部 LINE / Resend 送信。
 
 ## 網羅性の考え方
 
