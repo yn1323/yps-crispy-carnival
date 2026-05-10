@@ -398,20 +398,19 @@ export function buildStaffLegalConsentEmailHtml(params: StaffLegalConsentEmailPa
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 20px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">
-            ${params.shopName} が利用しているシフト管理SaaS「シフトリ」からのお知らせです。<br/>
-            シフトリではメール・LINEからシフト希望の提出・確定の通知の受け取りが可能です。
+            ${params.shopName} で利用するシフト管理サービス「シフトリ」のご案内です。<br/>
+            シフトリでは、メール・LINEで届くリンクからシフト希望の提出や確定シフトの確認ができます。
           </p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">サービス利用のため、利用規約とプライバシーポリシーへの同意をお願いします。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">下のリンクから、シフトリの使い方と利用規約・プライバシーポリシーをご確認ください。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.consentUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">規約を確認して同意する</a>
+              <a href="${params.consentUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリの案内と規約を確認する</a>
             </td></tr>
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは ${expiresAtLabel} まで有効です。</p>
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">期限が切れた場合でも、LINE連携時の案内やシフト提出時に同意できます。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">未同意でも、シフト募集・催促・確定シフトなどのお知らせは引き続き受け取れます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">利用規約・プライバシーポリシーの同意が間に合わなくても、シフト募集・催促・確定シフトなどのお知らせは引き続き受け取れます。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
           <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
@@ -432,10 +431,12 @@ export function buildStaffLegalConsentLineText(params: {
   return [
     `${params.staffName}さん`,
     "",
-    `${params.shopName} が利用しているシフト管理SaaS「シフトリ」からのお知らせです。`,
-    "スタッフ向け利用規約とプライバシーポリシーをご確認ください。",
+    `${params.shopName} で利用するシフト管理サービス「シフトリ」のご案内です。`,
+    "シフトリでは、メール・LINEで届くリンクからシフト希望の提出や確定シフトの確認ができます。",
     "",
-    "確認と同意はこちら",
+    "シフトリの使い方と、利用規約・プライバシーポリシーを確認できます。",
+    "",
+    "確認はこちら",
     params.consentUrl,
     "",
     `リンク有効期限: ${formatDateTimeJa(params.expiresAt)}`,
