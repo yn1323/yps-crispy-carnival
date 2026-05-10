@@ -40,10 +40,10 @@ describe("isDryRunOwnerEmail", () => {
   });
 
   it("matches NOTIFICATION_DRY_RUN_USER_EMAILS entries as case-insensitive substrings after trimming", () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "testtest, Test2@example.com ");
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com, Test2@example.com ");
 
-    expect(isDryRunOwnerEmail(" testtest ")).toBe(true);
-    expect(isDryRunOwnerEmail(" testtest@example.com ")).toBe(true);
+    expect(isDryRunOwnerEmail(" e2e-user-1@test.com ")).toBe(true);
+    expect(isDryRunOwnerEmail(" preview-e2e-user-1@test.com ")).toBe(true);
     expect(isDryRunOwnerEmail(" TEST2@example.com ")).toBe(true);
   });
 
@@ -60,7 +60,7 @@ describe("isDryRunOwnerEmail", () => {
   });
 
   it("does not match owner emails outside NOTIFICATION_DRY_RUN_USER_EMAILS", () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "testtest,test2");
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com,test2");
 
     expect(isDryRunOwnerEmail("manager@example.com")).toBe(false);
   });
@@ -89,7 +89,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
   });
 
   it("returns false when the shop owner's users.email is not configured for dry-run", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "testtest,test2");
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
@@ -116,7 +116,7 @@ describe("E2E owner seed email", () => {
     const t = convexTest(schema, modules);
     const result = await t.mutation(internal.testing.seedLineLinkScenario, {
       ownerAuthTokenIdentifier: "owner_e2e",
-      ownerEmail: "testtest",
+      ownerEmail: "e2e-user-1@test.com",
     });
 
     const stored = await t.run(async (ctx) => {
@@ -128,6 +128,6 @@ describe("E2E owner seed email", () => {
       return { ownerEmail: owner?.email, staffEmail: staff?.email };
     });
 
-    expect(stored).toEqual({ ownerEmail: "testtest", staffEmail: "tanaka@example.com" });
+    expect(stored).toEqual({ ownerEmail: "e2e-user-1@test.com", staffEmail: "tanaka@example.com" });
   });
 });

@@ -44,8 +44,9 @@ e2e/
 
 ## 認証
 
-- `fixtures/auth.setup.ts` で `@clerk/testing` の `setupClerkTestingToken` を利用
-- CIでは環境変数 `E2E_CLERK_USER` / `E2E_CLERK_PASSWORD` を使用
+- `fixtures/auth.setup.ts` で `@clerk/testing` の `clerk.signIn` を利用し、3ユーザー分の storageState を作成
+- CIでは環境変数 `E2E_CLERK_USERS`（カンマ区切り3件） / `E2E_CLERK_PASSWORD` を使用
+- scenario は `fixtures/e2eTest.ts` の `test` を import し、workerごとに別ユーザーの storageState を使う
 
 ## データ
 

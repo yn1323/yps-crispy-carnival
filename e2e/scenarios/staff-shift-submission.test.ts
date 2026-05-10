@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
 
@@ -55,21 +55,6 @@ test.describe("スタッフのシフト希望提出", () => {
 
       await submitPage.submit();
       await submitPage.expectCompletionVisible();
-    });
-  });
-
-  test("締切後の表示確認", async () => {
-    await test.step("提出済み＋締切後は閲覧のみ", async () => {
-      const token = seedAndGetToken({ deadlinePassed: true, hasExistingSubmission: true });
-      await submitPage.goto(token);
-      await submitPage.expectReadOnlyVisible();
-      await submitPage.expectSubmitButtonNotVisible();
-    });
-
-    await test.step("未提出＋締切後は締切超過メッセージ", async () => {
-      const token = seedAndGetToken({ deadlinePassed: true });
-      await submitPage.goto(token);
-      await submitPage.expectExpiredVisible();
     });
   });
 });

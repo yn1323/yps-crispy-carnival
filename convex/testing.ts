@@ -13,6 +13,15 @@ import schema from "./schema";
 
 const TABLE_NAMES = Object.keys(schema.tables) as (keyof typeof schema.tables)[];
 const magicLinkPurposeValidator = v.union(v.literal("submit"), v.literal("view"));
+const staffEmailScopeArgs = {
+  shopId: v.optional(v.id("shops")),
+  staffEmail: v.string(),
+};
+const magicLinkLookupArgs = {
+  recruitmentId: v.optional(v.id("recruitments")),
+  ...staffEmailScopeArgs,
+  purpose: magicLinkPurposeValidator,
+};
 const scenarioDatesValidator = v.object({
   periodStart: v.string(),
   periodEnd: v.string(),
@@ -47,13 +56,44 @@ function assertE2EHelpersEnabled() {
   }
 }
 
-async function findActiveStaffByEmail(ctx: TestCtx, staffEmail: string) {
+async function findActiveStaffByEmail(ctx: TestCtx, staffEmail: string, shopId?: Id<"shops">) {
+  if (shopId) {
+    return await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_email_isDeleted", (q) =>
+        q.eq("shopId", shopId).eq("email", staffEmail).eq("isDeleted", false),
+      )
+      .first();
+  }
+
   const staffs = await ctx.db
     .query("staffs")
     .withIndex("by_email", (q) => q.eq("email", staffEmail))
     .order("desc")
     .take(10);
   return staffs.find((staff) => !staff.isDeleted) ?? null;
+}
+
+async function findOwnerShopByAuthTokenIdentifier(ctx: TestCtx, ownerAuthTokenIdentifier: string) {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", ownerAuthTokenIdentifier))
+    .order("desc")
+    .first();
+  if (!user || user.isDeleted) return null;
+
+  const memberships = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+    .order("desc")
+    .take(10);
+
+  for (const membership of memberships) {
+    const shop = await ctx.db.get(membership.shopId);
+    if (shop && !shop.isDeleted) return shop;
+  }
+
+  return null;
 }
 
 function matchesPurpose(status: "open" | "confirmed", purpose: MagicLinkPurpose) {
@@ -216,7 +256,7 @@ async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
   await ctx.db.delete(shopId);
 }
 
-async function resetOwnerScenarioData(ctx: MutationCtx, ownerAuthTokenIdentifier: string) {
+async function resetOwnerScenarioDataForAuth(ctx: MutationCtx, ownerAuthTokenIdentifier: string) {
   const users = await ctx.db
     .query("users")
     .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", ownerAuthTokenIdentifier))
@@ -240,6 +280,18 @@ async function resetOwnerScenarioData(ctx: MutationCtx, ownerAuthTokenIdentifier
   }
 }
 
+export const resetOwnerScenarioData = internalMutation({
+  args: {
+    ownerAuthTokenIdentifier: v.string(),
+  },
+  handler: async (ctx, args) => {
+    assertE2EHelpersEnabled();
+    if (!args.ownerAuthTokenIdentifier) throw new Error("ownerAuthTokenIdentifier is required");
+    await resetOwnerScenarioDataForAuth(ctx, args.ownerAuthTokenIdentifier);
+    return { reset: true };
+  },
+});
+
 async function createOwnerScenario(
   ctx: MutationCtx,
   args: {
@@ -252,7 +304,7 @@ async function createOwnerScenario(
 ) {
   assertE2EHelpersEnabled();
   if (!args.ownerAuthTokenIdentifier) throw new Error("ownerAuthTokenIdentifier is required");
-  await resetOwnerScenarioData(ctx, args.ownerAuthTokenIdentifier);
+  await resetOwnerScenarioDataForAuth(ctx, args.ownerAuthTokenIdentifier);
 
   const userId = await ctx.db.insert("users", {
     authTokenIdentifier: args.ownerAuthTokenIdentifier,
@@ -431,6 +483,7 @@ export const clearAllTables = internalMutation(async ({ db }) => {
  */
 export const seedShiftData = internalMutation({
   args: {
+    ownerAuthTokenIdentifier: v.optional(v.string()),
     staffAssignments: v.array(
       v.object({
         staffName: v.string(),
@@ -448,8 +501,9 @@ export const seedShiftData = internalMutation({
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const shops = await ctx.db.query("shops").order("desc").take(1);
-    const shop = shops[0];
+    const shop = args.ownerAuthTokenIdentifier
+      ? await findOwnerShopByAuthTokenIdentifier(ctx, args.ownerAuthTokenIdentifier)
+      : await ctx.db.query("shops").order("desc").first();
     if (!shop) throw new Error("No shop found");
 
     const staffs = await ctx.db
@@ -760,7 +814,7 @@ export const seedSubmitTestData = internalMutation({
     });
 
     // magic link token
-    const token = `test-token-${Date.now()}`;
+    const token = generateUUID();
     await ctx.db.insert("magicLinks", {
       token,
       staffId,
@@ -1048,15 +1102,11 @@ export const seedLineLinkScenario = internalMutation({
 });
 
 export const getLatestMagicLinkToken = internalQuery({
-  args: {
-    recruitmentId: v.optional(v.id("recruitments")),
-    staffEmail: v.string(),
-    purpose: magicLinkPurposeValidator,
-  },
+  args: magicLinkLookupArgs,
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail, args.shopId);
     if (!staff) return { token: null };
 
     const links = await ctx.db
@@ -1083,15 +1133,11 @@ export const getLatestMagicLinkToken = internalQuery({
 });
 
 export const createMagicLinkTokenForLatestRecruitment = internalMutation({
-  args: {
-    recruitmentId: v.optional(v.id("recruitments")),
-    staffEmail: v.string(),
-    purpose: magicLinkPurposeValidator,
-  },
+  args: magicLinkLookupArgs,
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail, args.shopId);
     if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
 
     const recruitment = await findRecruitmentForPurpose(ctx, staff, args.purpose, args.recruitmentId);
@@ -1111,13 +1157,11 @@ export const createMagicLinkTokenForLatestRecruitment = internalMutation({
 });
 
 export const getLatestLineLinkToken = internalQuery({
-  args: {
-    staffEmail: v.string(),
-  },
+  args: staffEmailScopeArgs,
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail, args.shopId);
     if (!staff) return { token: null };
 
     const links = await ctx.db
@@ -1146,13 +1190,11 @@ export const getLatestLineLinkToken = internalQuery({
 });
 
 export const createLineLinkTokenForStaff = internalMutation({
-  args: {
-    staffEmail: v.string(),
-  },
+  args: staffEmailScopeArgs,
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail, args.shopId);
     if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
 
     const token = await createLineLinkToken(ctx, { staffId: staff._id, shopId: staff.shopId });
@@ -1162,13 +1204,11 @@ export const createLineLinkTokenForStaff = internalMutation({
 });
 
 export const simulateLineFollowForStaff = internalMutation({
-  args: {
-    staffEmail: v.string(),
-  },
+  args: staffEmailScopeArgs,
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const staff = await findActiveStaffByEmail(ctx, args.staffEmail);
+    const staff = await findActiveStaffByEmail(ctx, args.staffEmail, args.shopId);
     if (!staff) throw new Error(`Staff not found: ${args.staffEmail}`);
 
     const account = await getStaffLineAccount(ctx, staff._id);
