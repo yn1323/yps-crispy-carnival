@@ -8,12 +8,13 @@ export const isNotificationDeliverySuppressedForShop = internalQuery({
     const shop = await ctx.db.get(shopId);
     if (!shop || shop.isDeleted) return false;
 
-    // shop.ownerId は Clerk の subject。通知 dry-run は店舗単位で抑止したいので、
-    // 配信 action からは owner のメールを直接渡さず、ここでサーバー側に閉じて解決する。
-    const owner = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", shop.ownerId))
+    // 通知 dry-run は店舗単位で抑止したいので、配信 action からは owner のメールを直接渡さない。
+    const ownerMembership = await ctx.db
+      .query("shopMembers")
+      .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+      .filter((q) => q.eq(q.field("role"), "owner"))
       .first();
+    const owner = ownerMembership ? await ctx.db.get(ownerMembership.userId) : null;
 
     return isDryRunOwnerEmail(owner?.email);
   },

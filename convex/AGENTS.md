@@ -55,9 +55,9 @@ convex/
 
 ### データ意味論
 
-- 「提出済みかどうか」「回答数」は `shiftSubmissions` を正とする。`shiftRequests` は提出内容の明細であり、全日休みの提出では作成されないことがある
-- 募集期間のシフト時刻は `recruitments.shiftStartTime` / `shiftEndTime` のスナップショットを優先し、移行中のみ `shops.shiftStartTime` / `shiftEndTime` へフォールバックする
-- フォールバックは Widen → Migrate → Narrow の一時措置として扱い、残す場合は `TODO[narrow]` を付ける
+- 「提出済みかどうか」「回答数」は `shiftSubmissions` を正とする。提出内容の明細は `shiftSubmissionSlots` に持ち、全休み提出では明細が0件になる
+- 募集期間のシフト時刻は `recruitments.shiftStartTime` / `shiftEndTime` のスナップショットを正とする
+- 既存データ互換のフォールバックは残さない。DB再作成前提のリファクタでは新スキーマだけを読む
 - 一覧系 query では必ず上限定数を使う。`.collect()` で無制限に読む前に、index と `take()` / `paginate()` にできないか検討する
 
 ## Convex 固有の注意事項

@@ -19,7 +19,7 @@ export type ShiftBoardData = {
     isSubmitted: boolean;
     wasSubmittedAtDraft: boolean;
   }>;
-  shiftRequests: Array<{
+  requestedSlots: Array<{
     staffId: Id<"staffs">;
     date: string;
     startTime: string;
@@ -30,6 +30,13 @@ export type ShiftBoardData = {
     date: string;
     startTime: string;
     endTime: string;
+    positionId: Id<"positions">;
+  }>;
+  positions: Array<{
+    _id: Id<"positions">;
+    name: string;
+    color: string;
+    isDefault: boolean;
   }>;
   timeRange: TimeRange;
 };

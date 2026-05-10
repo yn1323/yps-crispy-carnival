@@ -2,6 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用データセットアップ */
@@ -9,13 +10,7 @@ async function setupTestData(t: TestConvex<typeof schema>) {
   const magicLinkToken = "test-token-valid";
 
   const result = await t.run(async (ctx) => {
-    const shopId = await ctx.db.insert("shops", {
-      name: "テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
-      ownerId: "user_owner",
-      isDeleted: false,
-    });
+    const shopId = await seedShop(ctx, "テスト店舗");
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
       periodStart: "2026-01-20",
@@ -24,11 +19,14 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       status: "confirmed",
       confirmedAt: Date.now(),
       isDeleted: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
     });
     const staffId = await ctx.db.insert("staffs", {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
+      emailNormalized: "suzuki@example.com",
       isDeleted: false,
     });
     await ctx.db.insert("magicLinks", {
@@ -218,6 +216,7 @@ describe("staffAuth/mutations", () => {
     it.each<{ name: string; email: string; setup: Setup }>([
       { name: "未登録メールでも void", email: "unknown@example.com", setup: noop },
       { name: "正常系（有効なメール+recruitment）", email: "suzuki@example.com", setup: noop },
+      { name: "大文字・前後空白つきメールでも void", email: "  SUZUKI@example.com  ", setup: noop },
       {
         name: "recruitment.status が confirmed 以外でも void",
         email: "suzuki@example.com",
@@ -230,13 +229,7 @@ describe("staffAuth/mutations", () => {
         email: "suzuki@example.com",
         setup: async (t, { staffId }) => {
           await t.run(async (ctx) => {
-            const otherShopId = await ctx.db.insert("shops", {
-              name: "別店舗",
-              shiftStartTime: "09:00",
-              shiftEndTime: "22:00",
-              ownerId: "user_other_owner",
-              isDeleted: false,
-            });
+            const otherShopId = await seedShop(ctx, "別店舗");
             await ctx.db.patch(staffId, { shopId: otherShopId });
           });
         },
@@ -268,27 +261,16 @@ describe("staffAuth/mutations", () => {
     it("same email in another shop does not block reissue for the recruitment shop", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const otherShopId = await ctx.db.insert("shops", {
-          name: "Other shop",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_other_owner",
-          isDeleted: false,
-        });
+        const otherShopId = await seedShop(ctx, "Other shop");
         await ctx.db.insert("staffs", {
           shopId: otherShopId,
           name: "Other staff",
           email: "shared@example.com",
+          emailNormalized: "shared@example.com",
           isDeleted: false,
         });
 
-        const shopId = await ctx.db.insert("shops", {
-          name: "Target shop",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_owner",
-          isDeleted: false,
-        });
+        const shopId = await seedShop(ctx, "Target shop");
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-01-20",
@@ -297,17 +279,21 @@ describe("staffAuth/mutations", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         await ctx.db.insert("staffs", {
           shopId,
           name: "Deleted target staff",
           email: "shared@example.com",
+          emailNormalized: "shared@example.com",
           isDeleted: true,
         });
         const staffId = await ctx.db.insert("staffs", {
           shopId,
           name: "Target staff",
           email: "shared@example.com",
+          emailNormalized: "shared@example.com",
           isDeleted: false,
         });
 
@@ -339,7 +325,7 @@ describe("staffAuth/mutations", () => {
       for (let i = 0; i < 4; i++) {
         await expect(
           t.mutation(api.staffAuth.mutations.requestReissue, {
-            email: "suzuki@example.com",
+            email: " SUZUKI@example.com ",
             recruitmentId,
           }),
         ).resolves.not.toThrow();

@@ -123,7 +123,7 @@ export class DashboardPage {
     await emailInput.fill(newData.email);
 
     await this.page
-      .getByRole("dialog")
+      .getByRole("dialog", { name: "スタッフを編集" })
       .getByRole("button", { name: /保存する|変更を保存/ })
       .click();
     await expect(this.page.getByText("スタッフ情報を更新しました")).toBeVisible();
@@ -201,7 +201,7 @@ export class DashboardPage {
     }
 
     await this.page
-      .getByRole("dialog")
+      .getByRole("dialog", { name: "店舗設定" })
       .getByRole("button", { name: /保存する|変更を保存/ })
       .click();
     await expect(this.page.getByText("店舗設定を更新しました")).toBeVisible();

@@ -3,8 +3,13 @@ import { internalMutation, mutation } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS } from "../constants";
-import { hasCurrentLegalConsent, type LegalConsentMethod } from "./documents";
-import { recordStaffLegalConsent, recordUserLegalConsent } from "./service";
+import type { LegalConsentMethod } from "./documents";
+import {
+  hasCurrentStaffLegalConsent,
+  hasCurrentUserLegalConsent,
+  recordStaffLegalConsent,
+  recordUserLegalConsent,
+} from "./service";
 
 export const createStaffConsentToken = internalMutation({
   args: {
@@ -38,7 +43,7 @@ export const acceptStaffLegalConsent = mutation({
       .query("legalConsentTokens")
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
-    if (!tokenDoc || tokenDoc.expiresAt < Date.now() || tokenDoc.usedAt) {
+    if (!tokenDoc || tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now() || tokenDoc.usedAt) {
       return { status: "expired" as const };
     }
 
@@ -49,7 +54,7 @@ export const acceptStaffLegalConsent = mutation({
 
     // 有効な同意がすでにある場合でも token は使用済みにする。
     // 古いリンクを再利用できない状態に揃え、結果だけは成功として返す。
-    if (!hasCurrentLegalConsent(staff, "staff")) {
+    if (!(await hasCurrentStaffLegalConsent(ctx, staff._id))) {
       await recordStaffLegalConsent(ctx, {
         staffId: staff._id,
         shopId: shop._id,
@@ -71,7 +76,7 @@ export const acceptStaffLegalConsentFromLine = internalMutation({
     if (!staff || staff.isDeleted || staff.shopId !== args.shopId) {
       throw new ConvexError("Not found");
     }
-    if (hasCurrentLegalConsent(staff, "staff")) return { status: "already_accepted" as const };
+    if (await hasCurrentStaffLegalConsent(ctx, args.staffId)) return { status: "already_accepted" as const };
     await recordStaffLegalConsent(ctx, {
       staffId: args.staffId,
       shopId: args.shopId,
@@ -86,7 +91,7 @@ export const acceptManagerLegalConsent = managerMutation({
     acceptedLegal: v.literal(true),
   },
   handler: async (ctx) => {
-    if (hasCurrentLegalConsent(ctx.user, "manager")) {
+    if (await hasCurrentUserLegalConsent(ctx, ctx.user._id)) {
       return { status: "already_accepted" as const };
     }
 

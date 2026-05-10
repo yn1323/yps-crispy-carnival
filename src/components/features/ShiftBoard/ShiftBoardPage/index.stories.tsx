@@ -27,7 +27,7 @@ const mockData: ShiftBoardData = {
     { _id: "s9" as Id<"staffs">, name: "小林大輔", isSubmitted: false, wasSubmittedAtDraft: false },
     { _id: "s10" as Id<"staffs">, name: "加藤美穂", isSubmitted: true, wasSubmittedAtDraft: false },
   ],
-  shiftRequests: [
+  requestedSlots: [
     { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-21", startTime: "10:00", endTime: "18:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-22", startTime: "10:00", endTime: "18:00" },
@@ -63,6 +63,7 @@ const mockData: ShiftBoardData = {
     { staffId: "s10" as Id<"staffs">, date: "2026-01-26", startTime: "11:00", endTime: "18:00" },
   ],
   shiftAssignments: [],
+  positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#3b82f6", isDefault: true }],
   timeRange: { start: 9, end: 22, unit: 30 },
 };
 

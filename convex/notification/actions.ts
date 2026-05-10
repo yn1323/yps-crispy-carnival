@@ -93,7 +93,7 @@ async function sendConfirmationEmail(opts: {
     email: string;
     lineUserId?: string;
     lineFollowing?: boolean;
-    shifts: { date: string; startTime: string | null; endTime: string | null }[];
+    shifts: { date: string; timeLabel?: string | null; startTime?: string | null; endTime?: string | null }[];
   };
   data: { shopId: Id<"shops">; shopName: string; periodLabel: string };
   recruitmentId: Id<"recruitments">;

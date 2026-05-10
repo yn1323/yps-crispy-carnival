@@ -1,9 +1,10 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError } from "convex/values";
-import type { DataModel } from "../_generated/dataModel";
+import type { DataModel, Doc } from "../_generated/dataModel";
 import { authenticatedQuery } from "../_lib/functions";
 import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
+import { getStaffLineAccount } from "../line/service";
 
 // shop未登録のsetup中に paginated query が走ってもエラーログを出さないための空結果
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
@@ -12,13 +13,19 @@ const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   continueCursor: string;
 };
 
-async function getOwnerShop(ctx: { db: GenericDatabaseReader<DataModel>; identity: { subject: string } | null }) {
-  if (!ctx.identity) return null;
-  const subject = ctx.identity.subject;
-  const shop = await ctx.db
-    .query("shops")
-    .withIndex("by_ownerId", (q) => q.eq("ownerId", subject))
+async function getOwnerShop(ctx: {
+  db: GenericDatabaseReader<DataModel>;
+  identity: { subject: string } | null;
+  user: Doc<"users"> | null;
+}) {
+  if (!ctx.identity || !ctx.user) return null;
+  const user = ctx.user;
+  const membership = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
     .first();
+  if (!membership) return null;
+  const shop = await ctx.db.get(membership.shopId);
   return shop && !shop.isDeleted ? shop : null;
 }
 
@@ -51,19 +58,25 @@ export const getDashboardRecruitments = authenticatedQuery({
 
     const page = await Promise.all(
       paginatedResult.page.map(async (r) => {
-        // 回答数は shiftRequests ではなく shiftSubmissions を正とする。
+        // 回答数は shiftSubmissions を正とする。
         // 全日休み提出では明細が0件になるため、提出記録を数えないと未提出扱いになってしまう。
-        const submissions = await ctx.db
-          .query("shiftSubmissions")
+        const stats = await ctx.db
+          .query("recruitmentStats")
           .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))
-          .take(DASHBOARD_RESPONSE_COUNT_LIMIT);
+          .first();
+        const submissions = stats
+          ? []
+          : await ctx.db
+              .query("shiftSubmissions")
+              .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))
+              .take(DASHBOARD_RESPONSE_COUNT_LIMIT);
         return {
           _id: r._id,
           periodStart: r.periodStart,
           periodEnd: r.periodEnd,
           deadline: r.deadline,
           status: r.status,
-          responseCount: submissions.length,
+          responseCount: stats?.submittedCount ?? submissions.length,
         };
       }),
     );
@@ -87,14 +100,19 @@ export const getDashboardStaffs = authenticatedQuery({
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
       .paginate(args.paginationOpts);
 
-    const page = paginatedResult.page.map((s) => ({
-      _id: s._id,
-      name: s.name,
-      email: s.email,
-      isOwner: s.userId === ctx.user?._id,
-      isLineLinked: Boolean(s.lineUserId),
-      isLineFollowing: Boolean(s.lineFollowing),
-    }));
+    const page = await Promise.all(
+      paginatedResult.page.map(async (s) => {
+        const lineAccount = await getStaffLineAccount(ctx, s._id);
+        return {
+          _id: s._id,
+          name: s.name,
+          email: s.email,
+          isOwner: s.userId === ctx.user?._id,
+          isLineLinked: Boolean(lineAccount?.lineUserId),
+          isLineFollowing: Boolean(lineAccount?.following),
+        };
+      }),
+    );
 
     return {
       ...paginatedResult,

@@ -31,6 +31,7 @@ export const addStaffs = managerMutation({
         shopId: ctx.shop._id,
         name: entry.name,
         email: entry.email,
+        emailNormalized: entry.email,
         isDeleted: false,
       });
       inserted.push(id);
@@ -67,22 +68,34 @@ export const editStaff = managerMutation({
 
     const trimmedEmail = args.email.trim().toLowerCase();
     if (trimmedEmail !== "") {
-      const duplicate = await ctx.db
+      const duplicateByNormalized = await ctx.db
         .query("staffs")
-        .withIndex("by_shopId_email_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
+        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+          q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
         )
         .first();
+      const duplicate =
+        duplicateByNormalized ??
+        (await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_email_isDeleted", (q) =>
+            q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
+          )
+          .first());
       if (duplicate && duplicate._id !== args.staffId) {
         throw new ConvexError("このメールアドレスは既に使用されています");
       }
     }
 
     const trimmedName = args.name.trim();
-    const patches = [ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail })];
+    const patches = [
+      ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
+    ];
     if (staff.userId === ctx.user._id) {
       // owner 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
-      patches.push(ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail }));
+      patches.push(
+        ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
+      );
     }
     await Promise.all(patches);
   },
@@ -103,5 +116,31 @@ export const deleteStaff = managerMutation({
     }
 
     await ctx.db.patch(args.staffId, { isDeleted: true });
+
+    const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
+      ctx.db
+        .query("sessions")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+      ctx.db
+        .query("magicLinks")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+      ctx.db
+        .query("lineLinkTokens")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+      ctx.db
+        .query("staffLineAccounts")
+        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+        .collect(),
+    ]);
+    const now = Date.now();
+    await Promise.all([
+      ...sessions.map((session) => ctx.db.patch(session._id, { revokedAt: now })),
+      ...magicLinks.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
+      ...lineLinkTokens.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
+      ...lineAccounts.map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
+    ]);
   },
 });

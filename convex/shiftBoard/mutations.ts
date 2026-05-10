@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import { managerMutation } from "../_lib/functions";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
+import { ensureDefaultPosition } from "../position/service";
 
 export const saveShiftAssignments = managerMutation({
   args: {
@@ -13,6 +14,7 @@ export const saveShiftAssignments = managerMutation({
         date: v.string(),
         startTime: v.string(),
         endTime: v.string(),
+        positionId: v.optional(v.id("positions")),
       }),
     ),
   },
@@ -22,21 +24,14 @@ export const saveShiftAssignments = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    // 募集時点のスナップショットを優先し、マイグレーション未適用時のみ店舗の現在値にフォールバック
-    // TODO[narrow]: m001_recruitments_add_shift_times 完走後に `?? ctx.shop.xxx` を削除（schema の narrow と同じ PR で対応）
-    const startTimeStr = recruitment.shiftStartTime ?? ctx.shop.shiftStartTime;
-    const endTimeStr = recruitment.shiftEndTime ?? ctx.shop.shiftEndTime;
+    const startTimeStr = recruitment.shiftStartTime;
+    const endTimeStr = recruitment.shiftEndTime;
     const shopStartMinutes = timeToMinutes(startTimeStr);
     const shopEndMinutes = timeToMinutes(endTimeStr);
 
-    const seen = new Set<string>();
+    const rangesByStaffDate = new Map<string, Array<{ start: number; end: number }>>();
     for (const a of args.assignments) {
       const key = `${a.staffId}-${a.date}`;
-      if (seen.has(key)) {
-        throw new ConvexError("同じスタッフの同じ日に、シフト時間が重なっています");
-      }
-      seen.add(key);
-
       if (a.date < recruitment.periodStart || a.date > recruitment.periodEnd) {
         throw new ConvexError("募集期間内の日付を選んでください");
       }
@@ -51,19 +46,36 @@ export const saveShiftAssignments = managerMutation({
       if (startMinutes < shopStartMinutes || endMinutes > shopEndMinutes) {
         throw new ConvexError("設定したシフト時間内にしてください");
       }
+
+      const ranges = rangesByStaffDate.get(key) ?? [];
+      if (ranges.some((range) => startMinutes < range.end && endMinutes > range.start)) {
+        throw new ConvexError("同じスタッフの同じ日に、シフト時間が重なっています");
+      }
+      ranges.push({ start: startMinutes, end: endMinutes });
+      rangesByStaffDate.set(key, ranges);
     }
 
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
+    const uniquePositionIds = [...new Set(args.assignments.flatMap((a) => (a.positionId ? [a.positionId] : [])))];
     await Promise.all(
-      uniqueStaffIds.map(async (staffId) => {
-        const staff = await ctx.db.get(staffId);
-        if (!staff || staff.isDeleted || staff.shopId !== ctx.shop._id) {
-          throw new ConvexError("Not found");
-        }
-      }),
+      [
+        uniqueStaffIds.map(async (staffId) => {
+          const staff = await ctx.db.get(staffId);
+          if (!staff || staff.isDeleted || staff.shopId !== ctx.shop._id) {
+            throw new ConvexError("Not found");
+          }
+        }),
+        uniquePositionIds.map(async (positionId) => {
+          const position = await ctx.db.get(positionId);
+          if (!position || position.isDeleted || position.shopId !== ctx.shop._id) {
+            throw new ConvexError("Not found");
+          }
+        }),
+      ].flat(),
     );
 
     const draftSavedAt = Date.now();
+    const defaultPositionId = await ensureDefaultPosition(ctx, ctx.shop._id);
 
     // シフト表は1募集分をまとめて編集するため、保存時は全置換にしてクライアント状態を正とする。
     // 個別 patch にすると、削除された行や日付移動の扱いが複雑になりやすい。
@@ -82,6 +94,7 @@ export const saveShiftAssignments = managerMutation({
           date: assignment.date,
           startTime: assignment.startTime,
           endTime: assignment.endTime,
+          positionId: assignment.positionId ?? defaultPositionId,
         }),
       ),
     );

@@ -17,15 +17,6 @@ export type LegalDocumentInfo = {
   path: string;
 };
 
-export type LegalConsentSnapshot = {
-  legalTermsConsentVersion?: string;
-  legalPrivacyConsentVersion?: string;
-  legalTermsDocumentVersion?: string;
-  legalPrivacyDocumentVersion?: string;
-  legalConsentedAt?: number;
-  legalConsentMethod?: LegalConsentMethod | string;
-};
-
 export const LEGAL_DOCUMENTS = {
   manager: {
     terms: {
@@ -77,16 +68,4 @@ export function getLegalConsentVersions(audience: LegalAudience) {
     termsDocumentVersion: documents.terms.documentVersion,
     privacyDocumentVersion: documents.privacy.documentVersion,
   };
-}
-
-export function hasCurrentLegalConsent(
-  consent: LegalConsentSnapshot | null | undefined,
-  audience: LegalAudience,
-): boolean {
-  if (!consent) return false;
-  const current = getLegalConsentVersions(audience);
-  return (
-    consent.legalTermsConsentVersion === current.termsConsentVersion &&
-    consent.legalPrivacyConsentVersion === current.privacyConsentVersion
-  );
 }

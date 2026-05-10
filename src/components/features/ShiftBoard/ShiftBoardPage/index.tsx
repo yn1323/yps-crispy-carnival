@@ -8,7 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
-import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
+import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import {
   formatDateTime,
   formatDateTimeWithWeekday,
@@ -21,8 +21,6 @@ import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
 
-const POSITIONS = [DEFAULT_POSITION];
-
 function generatePeriodLabel(dates: string[]): string {
   if (dates.length === 0) return "";
   return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])} のシフト`;
@@ -30,14 +28,26 @@ function generatePeriodLabel(dates: string[]): string {
 
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
 function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] {
+  const positions = data.positions.length > 0 ? data.positions : [];
+  const defaultPosition = positions.find((position) => position.isDefault) ?? positions[0];
+  const fallbackPosition = defaultPosition
+    ? { id: defaultPosition._id, name: defaultPosition.name, color: defaultPosition.color }
+    : DEFAULT_POSITION;
+  const positionById = new Map(
+    positions.map((position) => [position._id, { id: position._id, name: position.name, color: position.color }]),
+  );
+
   const requestMap = new Map<string, { startTime: string; endTime: string }>();
-  for (const r of data.shiftRequests) {
+  for (const r of data.requestedSlots) {
     requestMap.set(`${r.staffId}-${r.date}`, { startTime: r.startTime, endTime: r.endTime });
   }
 
-  const assignmentMap = new Map<string, { startTime: string; endTime: string }>();
+  const assignmentMap = new Map<string, Array<{ startTime: string; endTime: string; positionId: Id<"positions"> }>>();
   for (const item of data.shiftAssignments) {
-    assignmentMap.set(`${item.staffId}-${item.date}`, { startTime: item.startTime, endTime: item.endTime });
+    const key = `${item.staffId}-${item.date}`;
+    const assignments = assignmentMap.get(key) ?? [];
+    assignments.push({ startTime: item.startTime, endTime: item.endTime, positionId: item.positionId });
+    assignmentMap.set(key, assignments);
   }
   const wasSubmittedAtDraftMap = new Map(data.staffs.map((s) => [s._id, s.wasSubmittedAtDraft]));
 
@@ -46,14 +56,46 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
   for (const staff of staffs) {
     for (const date of dates) {
       const key = `${staff.id}-${date}`;
-      const assignment = assignmentMap.get(key);
+      const assignments = (assignmentMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
       const request = requestMap.get(key);
+      const savedAssignment =
+        assignments.length > 0
+          ? {
+              startTime: assignments[0].startTime,
+              endTime: assignments[assignments.length - 1].endTime,
+            }
+          : undefined;
       const displayLine = resolveDisplayShiftLine({
         hasDraftSaved: data.recruitment.draftSavedAt !== null,
-        savedAssignment: assignment,
+        savedAssignment,
         wasSubmittedAtDraft: wasSubmittedAtDraftMap.get(staff.id as Id<"staffs">) ?? false,
         currentRequest: request,
       });
+      const positionSegments =
+        assignments.length > 0
+          ? assignments.map((assignment, index) => {
+              const position = positionById.get(assignment.positionId) ?? fallbackPosition;
+              return {
+                id: `seg-${staff.id}-${date}-${index}`,
+                positionId: position.id,
+                positionName: position.name,
+                color: position.color,
+                start: assignment.startTime,
+                end: assignment.endTime,
+              };
+            })
+          : displayLine.type !== "none"
+            ? [
+                {
+                  id: `seg-${staff.id}-${date}`,
+                  positionId: fallbackPosition.id,
+                  positionName: fallbackPosition.name,
+                  color: fallbackPosition.color,
+                  start: displayLine.start,
+                  end: displayLine.end,
+                },
+              ]
+            : [];
 
       shifts.push({
         id: `shift-${staff.id}-${date}`,
@@ -61,19 +103,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
         staffName: staff.name,
         date,
         requestedTime: request ? { start: request.startTime, end: request.endTime } : null,
-        positions:
-          displayLine.type !== "none"
-            ? [
-                {
-                  id: `seg-${staff.id}-${date}`,
-                  positionId: DEFAULT_POSITION.id,
-                  positionName: DEFAULT_POSITION.name,
-                  color: DEFAULT_POSITION.color,
-                  start: displayLine.start,
-                  end: displayLine.end,
-                },
-              ]
-            : [],
+        positions: positionSegments,
       });
     }
   }
@@ -106,6 +136,14 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     [data.staffs],
   );
 
+  const positions = useMemo(
+    () =>
+      data.positions.length > 0
+        ? data.positions.map((position) => ({ id: position._id, name: position.name, color: position.color }))
+        : [DEFAULT_POSITION],
+    [data.positions],
+  );
+
   const initialShifts = useMemo(() => buildShiftData(data, staffs, dates), [data, staffs, dates]);
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
@@ -129,14 +167,19 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, [sendReminderEmailsMutation, recruitmentId, reminderModal]);
 
   const buildAssignments = useCallback(() => {
-    return shiftsRef.current
-      .filter((s) => s.positions.length > 0)
-      .map((s) => ({
-        staffId: s.staffId as Id<"staffs">,
-        date: s.date,
-        startTime: s.positions[0].start,
-        endTime: s.positions[s.positions.length - 1].end,
-      }));
+    return shiftsRef.current.flatMap((s) =>
+      s.positions
+        .filter((position) => position.positionId !== BREAK_POSITION.id)
+        .map((position) => ({
+          staffId: s.staffId as Id<"staffs">,
+          date: s.date,
+          startTime: position.start,
+          endTime: position.end,
+          ...(position.positionId !== DEFAULT_POSITION.id
+            ? { positionId: position.positionId as Id<"positions"> }
+            : {}),
+        })),
+    );
   }, []);
 
   const handleConfirm = useCallback(async () => {
@@ -198,7 +241,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         <ShiftForm
           shopId={data.shopId}
           staffs={staffs}
-          positions={POSITIONS}
+          positions={positions}
           initialShifts={initialShifts}
           dates={dates}
           timeRange={data.timeRange}

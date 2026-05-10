@@ -4,24 +4,16 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedManagerShop, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用にshop + user + recruitment + staffsをセットアップ */
 async function setupTestData(t: TestConvex<typeof schema>) {
   const result = await t.run(async (ctx) => {
-    const shopId = await ctx.db.insert("shops", {
-      name: "テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
-      ownerId: "user_owner",
-      isDeleted: false,
-    });
-    await ctx.db.insert("users", {
-      clerkId: "user_owner",
-      name: "オーナー",
+    const { shopId } = await seedManagerShop(ctx, {
+      subject: "user_owner",
       email: "owner@example.com",
-      role: "manager",
-      isDeleted: false,
+      shopName: "テスト店舗",
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
@@ -30,6 +22,8 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       deadline: "2026-01-17",
       status: "open",
       isDeleted: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
     });
     const staffId1 = await ctx.db.insert("staffs", {
       shopId,
@@ -67,21 +61,12 @@ describe("shiftBoard/mutations", () => {
 
       // 別のshop+userを作成
       await t.run(async (ctx) => {
-        const otherShopId = await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_other",
-          isDeleted: false,
-        });
-        await ctx.db.insert("users", {
-          clerkId: "user_other",
-          name: "他人",
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_other",
           email: "other@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "他店舗",
         });
-        return otherShopId;
+        return shopId;
       });
 
       await expect(
@@ -206,7 +191,28 @@ describe("shiftBoard/mutations", () => {
       expect(assignments[0].startTime).toBe("09:00");
     });
 
-    it("同一スタッフ×同一日の重複でエラー", async () => {
+    it("同一スタッフ×同一日の時間が重ならない複数割当を保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+
+      await t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "14:00" },
+          { staffId: staffId1, date: "2026-01-20", startTime: "15:00", endTime: "18:00" },
+        ],
+      });
+
+      const assignments = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId1))
+          .collect(),
+      );
+      expect(assignments).toHaveLength(2);
+    });
+
+    it("同一スタッフ×同一日の時間が重なる割当でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
@@ -214,8 +220,8 @@ describe("shiftBoard/mutations", () => {
         t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [
-            { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "14:00" },
-            { staffId: staffId1, date: "2026-01-20", startTime: "15:00", endTime: "18:00" },
+            { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00" },
+            { staffId: staffId1, date: "2026-01-20", startTime: "14:00", endTime: "18:00" },
           ],
         }),
       ).rejects.toThrow("同じスタッフの同じ日に、シフト時間が重なっています");
@@ -310,14 +316,20 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId } = await setupTestData(t);
 
       const deletedStaffId = await t.run(async (ctx) => {
-        const shop = await ctx.db
-          .query("shops")
-          .withIndex("by_ownerId", (q) => q.eq("ownerId", "user_owner"))
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_authTokenIdentifier", (q) =>
+            q.eq("authTokenIdentifier", testAuthTokenIdentifier("user_owner")),
+          )
           .first();
-        if (!shop) throw new Error("shop not found");
-        const shopId = shop._id;
+        if (!user) throw new Error("user not found");
+        const membership = await ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+          .first();
+        if (!membership) throw new Error("shop not found");
         return await ctx.db.insert("staffs", {
-          shopId,
+          shopId: membership.shopId,
           name: "削除済み",
           email: "deleted@example.com",
           isDeleted: true,
@@ -366,19 +378,10 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId } = await setupTestData(t);
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_other2",
-          isDeleted: false,
-        });
-        await ctx.db.insert("users", {
-          clerkId: "user_other2",
-          name: "他人2",
+        await seedManagerShop(ctx, {
+          subject: "user_other2",
           email: "other2@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "他店舗",
         });
       });
 

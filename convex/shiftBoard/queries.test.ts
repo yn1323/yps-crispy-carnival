@@ -1,26 +1,14 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("shiftBoard/queries", () => {
   it("全休み提出は提出済みとして返す", async () => {
     const t = convexTest(schema, modules);
     const { recruitmentId, staffId } = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "manager_all_off",
-        name: "管理者",
-        email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        name: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "manager_all_off",
-        isDeleted: false,
-      });
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_all_off", shopName: "テスト店舗" });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
         name: "全休みスタッフ",
@@ -57,20 +45,7 @@ describe("shiftBoard/queries", () => {
   it("下書き保存時点で提出済みだったスタッフを返す", async () => {
     const t = convexTest(schema, modules);
     const { recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "manager_draft_status",
-        name: "管理者",
-        email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        name: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "manager_draft_status",
-        isDeleted: false,
-      });
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_draft_status", shopName: "テスト店舗" });
       const staffBeforeDraftId = await ctx.db.insert("staffs", {
         shopId,
         name: "保存前提出",
@@ -91,6 +66,8 @@ describe("shiftBoard/queries", () => {
         status: "open",
         isDeleted: false,
         draftSavedAt: 2000,
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
       });
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
@@ -120,20 +97,7 @@ describe("shiftBoard/queries", () => {
   it("draftSavedAtがない既存データは保存済み割当の作成時刻を使う", async () => {
     const t = convexTest(schema, modules);
     const { recruitmentId, staffId } = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "manager_legacy_draft",
-        name: "管理者",
-        email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        name: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "manager_legacy_draft",
-        isDeleted: false,
-      });
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_legacy_draft", shopName: "テスト店舗" });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
         name: "既存スタッフ",
@@ -147,6 +111,16 @@ describe("shiftBoard/queries", () => {
         deadline: "2026-03-28",
         status: "open",
         isDeleted: false,
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
       });
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
@@ -159,6 +133,7 @@ describe("shiftBoard/queries", () => {
         date: "2026-04-01",
         startTime: "10:00",
         endTime: "18:00",
+        positionId,
       });
       return { recruitmentId, staffId };
     });
@@ -174,20 +149,8 @@ describe("shiftBoard/queries", () => {
   it("分つきシフト時間は表示用に丸めつつ編集可能境界を分で返す", async () => {
     const t = convexTest(schema, modules);
     const recruitmentId = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "manager_half_hour",
-        name: "管理者",
-        email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        name: "テスト店舗",
-        shiftStartTime: "05:30",
-        shiftEndTime: "22:30",
-        ownerId: "manager_half_hour",
-        isDeleted: false,
-      });
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_half_hour", shopName: "テスト店舗" });
+      await ctx.db.patch(shopId, { shiftStartTime: "05:30", shiftEndTime: "22:30" });
       return await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-04-01",
@@ -216,20 +179,7 @@ describe("shiftBoard/queries", () => {
   it("募集スナップショットのシフト時間を店舗設定より優先する", async () => {
     const t = convexTest(schema, modules);
     const recruitmentId = await t.run(async (ctx) => {
-      await ctx.db.insert("users", {
-        clerkId: "manager_snapshot",
-        name: "管理者",
-        email: "manager@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        name: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
-        ownerId: "manager_snapshot",
-        isDeleted: false,
-      });
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_snapshot", shopName: "テスト店舗" });
       return await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-04-01",

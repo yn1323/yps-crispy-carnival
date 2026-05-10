@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/mutations", () => {
@@ -9,13 +10,7 @@ describe("notification/mutations", () => {
       const t = convexTest(schema, modules);
 
       const { shopId, staffId, recruitmentId } = await t.run(async (ctx) => {
-        const shopId = await ctx.db.insert("shops", {
-          name: "テスト店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_owner",
-          isDeleted: false,
-        });
+        const shopId = await seedShop(ctx, "テスト店舗");
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-01-20",
@@ -24,6 +19,8 @@ describe("notification/mutations", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
         });
         const staffId = await ctx.db.insert("staffs", {
           shopId,

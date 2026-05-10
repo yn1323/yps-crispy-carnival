@@ -75,6 +75,7 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
         periodStart={data.periodStart}
         periodEnd={data.periodEnd}
         staffs={data.staffs}
+        positions={data.positions}
         assignments={data.assignments}
         timeRange={data.timeRange}
       />

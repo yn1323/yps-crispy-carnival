@@ -4,23 +4,15 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function setupTestData(t: TestConvex<typeof schema>) {
   return t.run(async (ctx) => {
-    const shopId = await ctx.db.insert("shops", {
-      name: "テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
-      ownerId: "user_owner",
-      isDeleted: false,
-    });
-    await ctx.db.insert("users", {
-      clerkId: "user_owner",
-      name: "オーナー",
+    const { shopId } = await seedManagerShop(ctx, {
+      subject: "user_owner",
       email: "owner@example.com",
-      role: "manager",
-      isDeleted: false,
+      shopName: "テスト店舗",
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
@@ -29,6 +21,8 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       deadline: "2026-04-25",
       status: "open",
       isDeleted: false,
+      shiftStartTime: "09:00",
+      shiftEndTime: "22:00",
     });
     return { shopId, recruitmentId };
   });
@@ -55,19 +49,10 @@ describe("shiftReminder/mutations", () => {
       const { recruitmentId } = await setupTestData(t);
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "user_other",
-          isDeleted: false,
-        });
-        await ctx.db.insert("users", {
-          clerkId: "user_other",
-          name: "他人",
+        await seedManagerShop(ctx, {
+          subject: "user_other",
           email: "other@example.com",
-          role: "manager",
-          isDeleted: false,
+          shopName: "他店舗",
         });
       });
 

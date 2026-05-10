@@ -2,23 +2,15 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import { seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function setupShop(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
-    await ctx.db.insert("users", {
-      clerkId: "user_mgr",
-      name: "管理者",
+    const { shopId } = await seedManagerShop(ctx, {
+      subject: "user_mgr",
       email: "mgr@example.com",
-      role: "manager",
-      isDeleted: false,
-    });
-    const shopId = await ctx.db.insert("shops", {
-      name: "テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
-      ownerId: "user_mgr",
-      isDeleted: false,
+      shopName: "テスト店舗",
     });
     const staffId = await ctx.db.insert("staffs", {
       shopId,
@@ -61,13 +53,7 @@ describe("line/mutations", () => {
       const t = convexTest(schema, modules);
       await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
-        const otherShopId = await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "other_owner",
-          isDeleted: false,
-        });
+        const otherShopId = await seedShop(ctx, "他店舗");
         return await ctx.db.insert("staffs", {
           shopId: otherShopId,
           name: "他店スタッフ",
@@ -88,7 +74,7 @@ describe("line/mutations", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it("有効トークンは ok を返し、finalize で staffs に lineUserId が保存され usedAt が記録される", async () => {
+    it("有効トークンは ok を返し、finalize で staffLineAccounts にLINE連携情報が保存され usedAt が記録される", async () => {
       const t = convexTest(schema, modules);
       const { staffId, shopId } = await setupShop(t);
 
@@ -105,10 +91,15 @@ describe("line/mutations", () => {
         lineFollowing: true,
       });
 
-      const staff = await t.run(async (ctx) => ctx.db.get(staffId));
-      expect(staff?.lineUserId).toBe("U_abcdef");
-      expect(staff?.lineFollowing).toBe(true);
-      expect(staff?.lineLinkedAt).toBeGreaterThan(0);
+      const account = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first(),
+      );
+      expect(account?.lineUserId).toBe("U_abcdef");
+      expect(account?.following).toBe(true);
+      expect(account?.linkedAt).toBeGreaterThan(0);
 
       const link = await t.run(async (ctx) =>
         ctx.db
@@ -144,9 +135,14 @@ describe("line/mutations", () => {
         lineFollowing: true,
       });
 
-      const staff = await t.run(async (ctx) => ctx.db.get(staffId));
+      const account = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first(),
+      );
       expect(retry.status).toBe("expired");
-      expect(staff?.lineUserId).toBe("U_first");
+      expect(account?.lineUserId).toBe("U_first");
     });
 
     it("使用済みトークンは expired を返す", async () => {
@@ -189,17 +185,16 @@ describe("line/mutations", () => {
     it("既に他スタッフに紐づく lineUserId は奪われる（再連携シナリオ）", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId } = await setupShop(t);
-      const otherStaffId = await t.run(async (ctx) =>
-        ctx.db.insert("staffs", {
+      const otherStaffId = await t.run(async (ctx) => {
+        const otherStaffId = await ctx.db.insert("staffs", {
           shopId,
           name: "別人",
           email: "other@example.com",
           isDeleted: false,
-          lineUserId: "U_dup",
-          lineFollowing: true,
-          lineLinkedAt: Date.now(),
-        }),
-      );
+        });
+        await seedStaffLineAccount(ctx, { staffId: otherStaffId, shopId, lineUserId: "U_dup", following: true });
+        return otherStaffId;
+      });
 
       const { token } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
       const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
@@ -211,11 +206,21 @@ describe("line/mutations", () => {
         lineFollowing: true,
       });
 
-      const newOwner = await t.run(async (ctx) => ctx.db.get(staffId));
-      const oldOwner = await t.run(async (ctx) => ctx.db.get(otherStaffId));
-      expect(newOwner?.lineUserId).toBe("U_dup");
-      expect(oldOwner?.lineUserId).toBeUndefined();
-      expect(oldOwner?.lineFollowing).toBe(false);
+      const accounts = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", "U_dup").eq("isDeleted", false))
+          .collect(),
+      );
+      expect(accounts).toHaveLength(1);
+      expect(accounts[0].staffId).toBe(staffId);
+      const oldOwner = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", otherStaffId))
+          .first(),
+      );
+      expect(oldOwner?.isDeleted).toBe(true);
     });
   });
 
@@ -227,13 +232,20 @@ describe("line/mutations", () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, { lineUserId: "U_abc", lineFollowing: false });
+        const staff = await ctx.db.get(staffId);
+        if (!staff) throw new Error("missing staff");
+        await seedStaffLineAccount(ctx, { staffId, shopId: staff.shopId, lineUserId: "U_abc", following: false });
       });
       await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
         events: [{ type: "follow", userId: "U_abc" }],
       });
-      const s = await t.run(async (ctx) => ctx.db.get(staffId));
-      expect(s?.lineFollowing).toBe(true);
+      const account = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first(),
+      );
+      expect(account?.following).toBe(true);
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
@@ -245,13 +257,20 @@ describe("line/mutations", () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, { lineUserId: "U_abc", lineFollowing: true });
+        const staff = await ctx.db.get(staffId);
+        if (!staff) throw new Error("missing staff");
+        await seedStaffLineAccount(ctx, { staffId, shopId: staff.shopId, lineUserId: "U_abc", following: true });
       });
       await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
         events: [{ type: "unfollow", userId: "U_abc" }],
       });
-      const s = await t.run(async (ctx) => ctx.db.get(staffId));
-      expect(s?.lineFollowing).toBe(false);
+      const account = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first(),
+      );
+      expect(account?.following).toBe(false);
     });
 
     it("message イベントの replyToken が返る", async () => {
@@ -336,13 +355,7 @@ describe("line/mutations", () => {
       const t = convexTest(schema, modules);
       await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
-        const sid = await ctx.db.insert("shops", {
-          name: "他店舗",
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
-          ownerId: "other_owner",
-          isDeleted: false,
-        });
+        const sid = await seedShop(ctx, "他店舗");
         return await ctx.db.insert("staffs", {
           shopId: sid,
           name: "他店スタッフ",
