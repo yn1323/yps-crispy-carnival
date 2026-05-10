@@ -1,5 +1,4 @@
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
-import { test } from "@playwright/test";
+import { test } from "../fixtures/e2eTest";
 import { seedOwnerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
@@ -9,7 +8,6 @@ test.describe("ダッシュボードのページネーション", () => {
   let dashboard: DashboardPage;
 
   test.beforeEach(async ({ page }) => {
-    await setupClerkTestingToken({ page });
     dashboard = new DashboardPage(page);
   });
 

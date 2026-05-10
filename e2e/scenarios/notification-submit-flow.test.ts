@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "../fixtures/e2eTest";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
 import { seedOwnerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
