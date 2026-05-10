@@ -1,0 +1,117 @@
+name: Sync Release Version to Develop
+
+on:
+  workflow_run:
+    workflows: ["Release to Production"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: develop
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate sync token
+        env:
+          RELEASE_SYNC_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_SYNC_TOKEN" ]; then
+            echo "::error title=RELEASE_SYNC_TOKEN is not configured::Create a fine-grained PAT or GitHub App token with contents:write and pull_requests:write so the sync branch push triggers normal CI."
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync package version from main
+        id: sync
+        env:
+          RELEASE_SYNC_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          SYNC_BRANCH="ci/sync-release-version-to-develop"
+          git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin main develop --prune
+
+          MAIN_VERSION="$(git show origin/main:package.json | node -e "let input = ''; process.stdin.on('data', (chunk) => input += chunk); process.stdin.on('end', () => console.log(JSON.parse(input).version));")"
+          DEVELOP_VERSION="$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('package.json', 'utf8')).version);")"
+
+          echo "branch=${SYNC_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "version=${MAIN_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "from_version=${DEVELOP_VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [ "$MAIN_VERSION" = "$DEVELOP_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "develop already has package version ${MAIN_VERSION}."
+            exit 0
+          fi
+
+          git switch -C "$SYNC_BRANCH" origin/develop
+          node -e 'const fs = require("fs"); const version = process.argv[1]; const path = "package.json"; const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = version; fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);' "$MAIN_VERSION"
+
+          if git diff --quiet -- package.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json diff to sync."
+            exit 0
+          fi
+
+          git add package.json
+          git commit -m "chore: sync release version ${MAIN_VERSION} to develop"
+          git push --force-with-lease origin "$SYNC_BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pull request
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+          SYNC_BRANCH: ${{ steps.sync.outputs.branch }}
+          RELEASE_VERSION: ${{ steps.sync.outputs.version }}
+          DEVELOP_VERSION: ${{ steps.sync.outputs.from_version }}
+        run: |
+          set -euo pipefail
+
+          TITLE="chore: sync release version ${RELEASE_VERSION} to develop"
+          BODY="$(cat <<EOF
+          main のリリース処理で更新された package version を develop に取り込みます。
+
+          - develop: ${DEVELOP_VERSION}
+          - main: ${RELEASE_VERSION}
+
+          このPRは \`package.json\` の version 同期だけを対象にします。
+          EOF
+          )"
+
+          PR_NUMBER="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$SYNC_BRANCH" \
+            --base develop \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')"
+
+          if [ -n "$PR_NUMBER" ]; then
+            gh pr edit "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --body "$BODY"
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base develop \
+              --head "$SYNC_BRANCH" \
+              --title "$TITLE" \
+              --body "$BODY"
+          fi

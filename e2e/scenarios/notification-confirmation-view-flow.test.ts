@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
 import { getNextWeekDates } from "../helpers/date";
 import { seedOwnerScenario } from "../helpers/scenarioSeeds";
@@ -10,6 +10,7 @@ const MANAGER = {
 };
 
 type ConfirmationScenarioSeed = {
+  shopId: string;
   recruitmentId: string;
   viewToken: string;
 };
@@ -49,6 +50,7 @@ test.describe("通知URL起点の確定シフト閲覧", () => {
 
         const reissuedToken = convexRunJson<MagicLinkSeed>("testing:createMagicLinkTokenForLatestRecruitment", {
           recruitmentId: seed.recruitmentId,
+          shopId: seed.shopId,
           staffEmail: MANAGER.email,
           purpose: "view",
         });

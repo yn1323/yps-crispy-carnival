@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
 import { waitForMagicLinkToken } from "../helpers/notificationTokens";
@@ -16,12 +16,17 @@ const MANAGER = {
   email: "tanaka@example.com",
 };
 
+type OpenRecruitmentSeed = {
+  shopId: string;
+  recruitmentId: string;
+};
+
 test.describe("募集中の追加スタッフ通知", () => {
   test.setTimeout(45_000);
 
   test("募集中にスタッフを追加すると、そのスタッフの希望提出リンクが発行される", async ({ page }) => {
     const dates = getNextWeekDates();
-    seedOwnerScenario("testing:seedOpenRecruitmentNotificationScenario", { dates });
+    const seed = seedOwnerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
     const dashboard = new DashboardPage(page);
     const submitPage = new StaffSubmitPage(page);
 
@@ -32,7 +37,12 @@ test.describe("募集中の追加スタッフ通知", () => {
     });
 
     await test.step("Step 2: 追加スタッフ向けの希望提出リンクから提出できる", async () => {
-      const token = await waitForMagicLinkToken({ staffEmail: ADDED_STAFF.email, purpose: "submit" });
+      const token = await waitForMagicLinkToken({
+        recruitmentId: seed.recruitmentId,
+        shopId: seed.shopId,
+        staffEmail: ADDED_STAFF.email,
+        purpose: "submit",
+      });
       await submitPage.goto(token.token);
       await submitPage.expectFormVisible();
       await submitPage.expectUnsubmittedBadge();
@@ -45,18 +55,24 @@ test.describe("募集中の追加スタッフ通知", () => {
 
   test("LINE follow時に募集中シフトの希望提出リンクが発行される", async ({ page }) => {
     const dates = getNextWeekDates();
-    seedOwnerScenario("testing:seedOpenRecruitmentNotificationScenario", { dates });
+    const seed = seedOwnerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
     const submitPage = new StaffSubmitPage(page);
 
     await test.step("Step 1: LINE follow相当の状態更新を行う", async () => {
       const result = convexRunJson<{ scheduled: boolean }>("testing:simulateLineFollowForStaff", {
+        shopId: seed.shopId,
         staffEmail: MANAGER.email,
       });
       expect(result.scheduled).toBe(true);
     });
 
     await test.step("Step 2: LINE通知で発行された希望提出リンクから提出できる", async () => {
-      const token = await waitForMagicLinkToken({ staffEmail: MANAGER.email, purpose: "submit" });
+      const token = await waitForMagicLinkToken({
+        recruitmentId: seed.recruitmentId,
+        shopId: seed.shopId,
+        staffEmail: MANAGER.email,
+        purpose: "submit",
+      });
       await submitPage.goto(token.token);
       await submitPage.expectFormVisible();
       await submitPage.expectUnsubmittedBadge();
