@@ -36,6 +36,8 @@
     "convex:dev": "npx convex dev",
     "convex:configure": "npx convex dev --configure",
     "convex:clear": "npx convex run testing:clearAllTables",
+    "cconvex:clearAllTables:dev": "npx convex run testing:clearAllTables --deployment dev",
+    "cconvex:clearAllTables:prod": "npx convex run testing:clearAllTables --prod",
     "convex:restore": "tsx convex-seeds/scripts/import.ts",
     "convex:save": "tsx convex-seeds/scripts/export.ts",
     "convex:env-setup": "tsx scripts/setupEnv.ts",
