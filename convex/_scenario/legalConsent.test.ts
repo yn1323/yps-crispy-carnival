@@ -1,7 +1,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedSession, seedStaff } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -14,6 +15,10 @@ describe("法務同意シナリオ", () => {
 
   it("スタッフ同意リンクは page data から同意済み状態へ遷移し、同意済み通知対象から外れる", async () => {
     const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const staff = scenario.staff();
+
+    // Arrange: 法務同意が必要なスタッフと同意リンクを用意する。
     const { staffId, shopId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -29,18 +34,19 @@ describe("法務同意シナリオ", () => {
     });
     const { token } = await t.mutation(internal.legal.mutations.createStaffConsentToken, { staffId, shopId });
 
-    const pageBeforeAccept = await t.query(api.legal.queries.getStaffConsentPageData, { token });
+    // Assert: 同意前のページデータが表示できる。
+    const pageBeforeAccept = await staff.getStaffConsentPageData(token);
     expect(pageBeforeAccept).toMatchObject({
       status: "ok",
       staffName: "同意スタッフ",
       shopName: "法務店舗",
     });
 
-    await expect(
-      t.mutation(api.legal.mutations.acceptStaffLegalConsent, { token, acceptedLegal: true }),
-    ).resolves.toEqual({ status: "ok" });
+    // Act: スタッフが同意リンクから同意する。
+    await expect(staff.acceptStaffLegalConsent({ token, acceptedLegal: true })).resolves.toEqual({ status: "ok" });
 
-    const pageAfterAccept = await t.query(api.legal.queries.getStaffConsentPageData, { token });
+    // Assert: 同意後は通知対象から外れる。
+    const pageAfterAccept = await staff.getStaffConsentPageData(token);
     expect(pageAfterAccept).toMatchObject({
       status: "accepted",
       staffName: "同意スタッフ",
@@ -54,6 +60,10 @@ describe("法務同意シナリオ", () => {
 
   it("未同意スタッフはシフト提出時の同意で state/event が記録される", async () => {
     const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const staff = scenario.staff();
+
+    // Arrange: 未同意スタッフが提出できる募集中シフトとセッションを用意する。
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -84,13 +94,15 @@ describe("法務同意シナリオ", () => {
       return { staffId, recruitmentId };
     });
 
-    await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+    // Act: スタッフが提出時に法務同意する。
+    await staff.submitShiftRequests({
       sessionToken: "scenario-submit-legal-session",
       recruitmentId: ids.recruitmentId,
       acceptedLegal: true,
       requests: [{ date: scenarioDate(7), startTime: "10:00", endTime: "18:00" }],
     });
 
+    // Assert: 同意 state と event が提出由来として記録される。
     const legalState = await t.run(async (ctx) =>
       ctx.db
         .query("legalConsentStates")

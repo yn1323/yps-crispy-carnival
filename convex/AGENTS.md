@@ -337,6 +337,18 @@ convex/
 - 正常系と異常系をセットで書く
 - テストデータは internal mutation 経由でセットアップ
 
+### Convex Scenario Test
+
+`convex/_scenario/` の Scenario Test は、E2E の代わりに複数の Convex 関数を高速に通す業務フローテストとして扱う。
+
+- 繰り返し出るユーザー操作相当の API 呼び出しは `convex/_test/scenarioFixtures.ts` に寄せる
+- Scenario Fixture は public/internal Convex API を呼ぶ薄い operation wrapper にする
+- Fixture には検証パターン、期待値、`expect(...)` を入れない
+- DB 直 seed は前提状態作成だけに使い、通常のユーザー操作は Fixture 経由で表現する
+- 各 `it` は Scenario 向け AAA（Arrange / Act / Assert）が読み取れる順序で書く
+- 長い業務フローでは `Act` / `Assert` の小さなまとまりを複数置いてよい
+- 新しい Scenario Test を追加するときは、既存 Fixture に同じ操作がないか確認してから API 直呼びを追加する
+
 ### テスト不要
 
 - `_generated/`
