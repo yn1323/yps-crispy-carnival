@@ -1,7 +1,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedSession, seedStaff } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -14,7 +15,11 @@ describe("シフト表作成・確定シナリオ", () => {
 
   it("提出状況の混在から下書き保存、下書き後再提出、確定、スタッフ閲覧まで整合する", async () => {
     const t = convexTest(schema, modules);
-    const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const staff = scenario.staff();
+
+    // Arrange: 下書き保存前後で提出タイミングが異なるスタッフを用意する。
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -38,7 +43,7 @@ describe("シフト表作成・確定シナリオ", () => {
       periodEnd: scenarioDate(9),
       deadline: scenarioDate(3),
     };
-    const recruitmentId = await asManager.mutation(api.recruitment.mutations.createRecruitment, recruitmentInput);
+    const recruitmentId = await asManager.createRecruitment(recruitmentInput);
     await t.run(async (ctx) => {
       await seedSession(ctx, {
         sessionToken: "scenario-before-draft-session",
@@ -54,36 +59,40 @@ describe("シフト表作成・確定シナリオ", () => {
       });
     });
 
+    // Act: 保存前スタッフが希望を提出する。
     vi.setSystemTime(SCENARIO_NOW + 1_000);
-    await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+    await staff.submitShiftRequests({
       sessionToken: "scenario-before-draft-session",
       recruitmentId,
       acceptedLegal: true,
       requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
     });
 
+    // Act: 店長が提出済み希望を元に下書き保存する。
     vi.setSystemTime(SCENARIO_NOW + 2_000);
-    await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+    await asManager.saveShiftAssignments({
       recruitmentId,
       assignments: [
         { staffId: ids.beforeDraftStaffId, date: recruitmentInput.periodStart, startTime: "11:00", endTime: "17:00" },
       ],
     });
 
+    // Act: 下書き後に別スタッフが提出し、保存前スタッフも再提出する。
     vi.setSystemTime(SCENARIO_NOW + 3_000);
-    await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+    await staff.submitShiftRequests({
       sessionToken: "scenario-after-draft-session",
       recruitmentId,
       acceptedLegal: true,
       requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
     });
-    await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+    await staff.submitShiftRequests({
       sessionToken: "scenario-before-draft-session",
       recruitmentId,
       requests: [{ date: recruitmentInput.periodStart, startTime: "13:00", endTime: "21:00" }],
     });
 
-    const draftBoard = await asManager.query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+    // Assert: 下書き時点の提出済み判定と最新希望がシフト表に反映される。
+    const draftBoard = await asManager.getShiftBoardData(recruitmentId);
     const staffById = new Map(draftBoard?.staffs.map((staff) => [staff._id, staff]));
     expect(staffById.get(ids.beforeDraftStaffId)).toMatchObject({ isSubmitted: true, wasSubmittedAtDraft: true });
     expect(staffById.get(ids.afterDraftStaffId)).toMatchObject({ isSubmitted: true, wasSubmittedAtDraft: false });
@@ -105,14 +114,16 @@ describe("シフト表作成・確定シナリオ", () => {
       true,
     );
 
+    // Act: 店長がシフトを確定する。
     vi.setSystemTime(SCENARIO_NOW + 4_000);
-    await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+    await asManager.confirmRecruitment(recruitmentId);
 
-    const confirmedBoard = await asManager.query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+    // Assert: 確定状態、スタッフ閲覧、確定通知データが下書き保存内容を参照する。
+    const confirmedBoard = await asManager.getShiftBoardData(recruitmentId);
     expect(confirmedBoard?.recruitment.status).toBe("confirmed");
     expect(confirmedBoard?.recruitment.confirmedAt).toBe(SCENARIO_NOW + 4_000);
 
-    const staffView = await t.query(api.shiftView.queries.getShiftViewData, {
+    const staffView = await staff.getShiftViewData({
       sessionToken: "scenario-before-draft-session",
       recruitmentId,
     });
@@ -133,7 +144,10 @@ describe("シフト表作成・確定シナリオ", () => {
 
   it("確定済み募集には未提出催促を送れない", async () => {
     const t = convexTest(schema, modules);
-    const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    // Arrange: 確定済み募集を用意する。
     const recruitmentId = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -153,10 +167,7 @@ describe("シフト表作成・確定シナリオ", () => {
       });
     });
 
-    await expect(
-      asManager.mutation(api.shiftReminder.mutations.sendReminderEmails, {
-        recruitmentId,
-      }),
-    ).rejects.toThrow("募集中のシフトだけ");
+    // Act / Assert: 確定済み募集への催促操作は拒否される。
+    await expect(asManager.sendReminderEmails(recruitmentId)).rejects.toThrow("募集中のシフトだけ");
   });
 });

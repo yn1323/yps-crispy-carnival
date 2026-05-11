@@ -36,6 +36,10 @@ const config: StorybookConfig = {
         "@/convex": path.resolve(__dirname, "../convex"),
       },
     };
+    config.optimizeDeps = {
+      ...config.optimizeDeps,
+      include: [...(config.optimizeDeps?.include ?? []), "react-icons/fc"],
+    };
 
     // resolve.alias は Storybook の dep optimizer より後に評価されるため、
     // convex/react 等のモック差し替えには resolveId フックを使う

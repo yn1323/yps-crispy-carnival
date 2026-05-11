@@ -24,6 +24,7 @@ import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
 import type * as _lib_validation from "../_lib/validation.js";
 import type * as _test_scenarioBuilders from "../_test/scenarioBuilders.js";
+import type * as _test_scenarioFixtures from "../_test/scenarioFixtures.js";
 import type * as _test_seed from "../_test/seed.js";
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/uuid": typeof _lib_uuid;
   "_lib/validation": typeof _lib_validation;
   "_test/scenarioBuilders": typeof _test_scenarioBuilders;
+  "_test/scenarioFixtures": typeof _test_scenarioFixtures;
   "_test/seed": typeof _test_seed;
   constants: typeof constants;
   crons: typeof crons;
