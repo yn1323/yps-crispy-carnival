@@ -177,6 +177,8 @@ export const getReissueEmailData = internalQuery({
   handler: async (ctx, { staffId, recruitmentId }) => {
     const [staff, recruitment] = await Promise.all([ctx.db.get(staffId), ctx.db.get(recruitmentId)]);
     if (!staff || staff.isDeleted || !recruitment || recruitment.isDeleted) return null;
+    if (staff.shopId !== recruitment.shopId) return null;
+    if (recruitment.status !== "confirmed") return null;
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;

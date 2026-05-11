@@ -1,6 +1,6 @@
 import { Box, Circle, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
-import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
+import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { SubmitPageLayout } from "../SubmitPageLayout";
 
 export const SubmittedView = () => {

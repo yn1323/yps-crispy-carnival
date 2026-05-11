@@ -4,9 +4,14 @@ import { useAtomValue } from "jotai";
 import { LuChevronDown, LuLogOut, LuUserRound } from "react-icons/lu";
 import { userAtom } from "@/src/stores/user";
 
-export const UserMenu = () => {
+type Props = {
+  tone?: "dark" | "light";
+};
+
+export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
   const displayName = user.name || "ユーザー";
+  const isLight = tone === "light";
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -21,22 +26,34 @@ export const UserMenu = () => {
           alignItems="center"
           gap={2}
           minW={0}
+          px={isLight ? { base: 1.5, md: 2.5 } : undefined}
+          py={isLight ? 1 : undefined}
+          borderRadius={isLight ? "full" : undefined}
+          bg={isLight ? "whiteAlpha.700" : undefined}
+          borderWidth={isLight ? "1px" : undefined}
+          borderColor={isLight ? "whiteAlpha.900" : undefined}
         >
           <Flex
             boxSize={9}
             borderRadius="full"
-            bg="white"
-            color="teal.600"
+            bg={isLight ? "teal.600" : "white"}
+            color={isLight ? "white" : "teal.600"}
             align="center"
             justify="center"
             flexShrink={0}
           >
             <Icon as={LuUserRound} boxSize={6} />
           </Flex>
-          <Text color="white" fontSize="sm" fontWeight="semibold" maxW={{ base: "96px", md: "160px" }} truncate>
+          <Text
+            color={isLight ? "gray.900" : "white"}
+            fontSize="sm"
+            fontWeight="semibold"
+            maxW={{ base: "96px", md: "160px" }}
+            truncate
+          >
             {displayName}
           </Text>
-          <Icon as={LuChevronDown} boxSize={5} color="white" flexShrink={0} />
+          <Icon as={LuChevronDown} boxSize={5} color={isLight ? "gray.700" : "white"} flexShrink={0} />
         </Box>
       </Menu.Trigger>
       <Portal>

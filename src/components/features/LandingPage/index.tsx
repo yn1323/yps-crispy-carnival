@@ -19,7 +19,6 @@ export const LandingPage = () => (
   </Box>
 );
 
-export { Nav } from "./HeroSection";
 export {
   BenefitsSection,
   CtaSection,

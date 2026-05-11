@@ -1,6 +1,6 @@
-import { Flex, Spinner } from "@chakra-ui/react";
+import { Box, Flex, Spinner } from "@chakra-ui/react";
 import { usePaginatedQuery, useQuery } from "convex/react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { DashboardContent } from "@/src/components/features/Dashboard/DashboardContent";
 import { Animation } from "@/src/components/templates/Animation";
@@ -55,16 +55,16 @@ export function DashboardPage() {
 
   if (shop === undefined) {
     return (
-      <RootContentWrapper>
+      <DashboardPageShell>
         <Flex justify="center" align="center" minH="200px">
           <Spinner />
         </Flex>
-      </RootContentWrapper>
+      </DashboardPageShell>
     );
   }
 
   return (
-    <RootContentWrapper>
+    <DashboardPageShell>
       <Animation>
         <DashboardContent
           shop={shop}
@@ -83,6 +83,12 @@ export function DashboardPage() {
           }}
         />
       </Animation>
-    </RootContentWrapper>
+    </DashboardPageShell>
   );
 }
+
+const DashboardPageShell = ({ children }: { children: ReactNode }) => (
+  <Box minH={{ base: "calc(100dvh - 66px)", md: "calc(100dvh - 80px)" }} bg="white">
+    <RootContentWrapper>{children}</RootContentWrapper>
+  </Box>
+);

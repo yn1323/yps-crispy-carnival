@@ -1,9 +1,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import {
   countScheduledJobs,
-  firstPage,
   hasScheduledJob,
   MANAGER_SUBJECT,
   readScheduledFunctions,
@@ -11,6 +10,7 @@ import {
   scenarioDate,
   seedStaff,
 } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -23,7 +23,11 @@ describe("LINE通知連携シナリオ", () => {
 
   it("LINE連携からfollow/unfollow復帰まで、一覧表示と通知対象データに反映される", async () => {
     const t = convexTest(schema, modules);
-    const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const line = scenario.line();
+
+    // Arrange: 募集中シフトがある店舗にLINE未連携スタッフを用意する。
     const { staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -37,28 +41,28 @@ describe("LINE通知連携シナリオ", () => {
       });
       return { staffId };
     });
-    await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+    await asManager.createRecruitment({
       periodStart: scenarioDate(7),
       periodEnd: scenarioDate(13),
       deadline: scenarioDate(3),
     });
 
-    const link = await asManager.mutation(api.line.mutations.generateLinkToken, {
-      staffId,
-    });
+    // Act: 店長がLINE連携トークンを発行し、スタッフが連携を完了する。
+    const link = await asManager.generateLineLinkToken(staffId);
     expect(link.token).toBeTypeOf("string");
-    const validation = await t.mutation(internal.line.mutations.validateLinkToken, { state: link.token });
+    const validation = await line.validateLinkToken(link.token);
     expect(validation.status).toBe("ok");
     if (validation.status !== "ok") throw new Error("LINE token validation failed");
 
-    await t.mutation(internal.line.mutations.finalizeLinking, {
+    await line.finalizeLinking({
       staffId,
       tokenDocId: validation.tokenDocId,
       lineUserId: "U_line_scenario",
       lineFollowing: true,
     });
 
-    const staffPage = await asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage());
+    // Assert: 一覧、通知対象データ、連携後通知予約にLINE連携状態が反映される。
+    const staffPage = await asManager.getDashboardStaffs();
     expect(staffPage.page.find((staff) => staff._id === staffId)).toMatchObject({
       isLineLinked: true,
       isLineFollowing: true,
@@ -83,19 +87,21 @@ describe("LINE通知連携シナリオ", () => {
       }),
     ).toBe(true);
 
-    await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-      events: [{ type: "unfollow", userId: "U_line_scenario" }],
-    });
-    const staffPageAfterUnfollow = await asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage());
+    // Act: LINE webhookでunfollowを受け取る。
+    await line.dispatchWebhookEvents([{ type: "unfollow", userId: "U_line_scenario" }]);
+
+    // Assert: 一覧表示のfollow状態が落ちる。
+    const staffPageAfterUnfollow = await asManager.getDashboardStaffs();
     expect(staffPageAfterUnfollow.page.find((staff) => staff._id === staffId)).toMatchObject({
       isLineLinked: true,
       isLineFollowing: false,
     });
 
-    await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
-      events: [{ type: "follow", userId: "U_line_scenario" }],
-    });
-    const staffPageAfterRefollow = await asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage());
+    // Act: 同じLINEユーザーが再followする。
+    await line.dispatchWebhookEvents([{ type: "follow", userId: "U_line_scenario" }]);
+
+    // Assert: follow状態が復帰し、募集中通知が再度予約される。
+    const staffPageAfterRefollow = await asManager.getDashboardStaffs();
     expect(staffPageAfterRefollow.page.find((staff) => staff._id === staffId)).toMatchObject({
       isLineLinked: true,
       isLineFollowing: true,

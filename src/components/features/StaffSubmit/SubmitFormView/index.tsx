@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer } from "react-icons/lu";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
-import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
+import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";

@@ -1,15 +1,11 @@
-import { Box, Container, Flex, Grid, Heading, Icon, Image, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
-import { SignInButton, SignUpButton } from "@clerk/clerk-react";
+import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import { LuBell, LuCalendarDays, LuChevronRight, LuMonitorPlay, LuUserPlus } from "react-icons/lu";
+import { Header } from "@/src/components/templates/Header";
 import { Button, type ButtonProps } from "@/src/components/ui/Button";
 import heroPcImage from "./hero-pc.webp";
 import heroSpImage from "./hero-sp.webp";
-
-const navItems = [
-  { label: "シフトリでできること", href: "#features" },
-  { label: "よくある質問", href: "#faq" },
-];
 
 const heroBenefits = [
   {
@@ -36,12 +32,12 @@ export const HeroSection = () => (
     position="relative"
     overflow="hidden"
     bgGradient="to-b"
-    gradientFrom="#dff1ff"
-    gradientVia="#f2fbfb"
+    gradientFrom="#E6F7F5"
+    gradientVia="#F3FBFA"
     gradientTo="white"
     color="gray.950"
   >
-    <Nav />
+    <Header variant="public" />
 
     <Container position="relative" zIndex={1} maxW="7xl" pt={{ base: 24, md: 28 }} pb={{ base: 12, md: 16 }}>
       <Grid
@@ -89,19 +85,8 @@ export const HeroSection = () => (
           </Grid>
 
           <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} w="full" maxW={{ md: "660px" }}>
-            <SignUpButton mode="modal">
-              <HeroButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
-            </SignUpButton>
-            <Link
-              href="/demo/shiftboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              display="block"
-              w="full"
-              _hover={{ textDecoration: "none" }}
-            >
-              <HeroButton icon={LuMonitorPlay} label="登録なしで試す" tone="secondary" />
-            </Link>
+            <HeroButton icon={LuUserPlus} label="無料ではじめる" tone="primary" to="/signup" />
+            <HeroButton icon={LuMonitorPlay} label="登録なしで試す" tone="secondary" href="/demo/shiftboard" external />
           </SimpleGrid>
 
           <SimpleGrid display="grid" columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
@@ -117,105 +102,36 @@ export const HeroSection = () => (
   </Box>
 );
 
-type NavProps = {
-  showLinks?: boolean;
-  showLogin?: boolean;
-  compact?: boolean;
-};
-
-export const Nav = ({ showLinks = true, showLogin = true, compact = false }: NavProps) => (
-  <Box as="header" position="fixed" insetX={0} top={0} zIndex="sticky" bg="#dff1ff">
-    <Container maxW="7xl" py={{ base: compact ? 2 : 3, md: compact ? 2 : 4 }}>
-      <HeaderContent showLinks={showLinks} showLogin={showLogin} compact={compact} />
-    </Container>
-  </Box>
-);
-
-const HeaderContent = ({ showLinks, showLogin, compact }: Required<NavProps>) => (
-  <Flex align="center" justify="space-between" gap={6}>
-    <Brand compact={compact} />
-
-    {(showLinks || showLogin) && (
-      <Flex display={{ base: "none", md: "flex" }} align="center" gap={{ md: 7, lg: 9 }}>
-        {showLinks &&
-          navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              color="gray.950"
-              textStyle="sm"
-              fontWeight="bold"
-              _hover={{ color: "teal.700", textDecoration: "none" }}
-            >
-              {item.label}
-            </Link>
-          ))}
-        {showLogin && (
-          <Flex align="center" gap={3}>
-            <SignInButton mode="modal">
-              <Button
-                type="button"
-                variant="solid"
-                colorPalette="teal"
-                h="48px"
-                px={6}
-                borderRadius="full"
-                fontWeight="bold"
-              >
-                ログイン
-              </Button>
-            </SignInButton>
-          </Flex>
-        )}
-      </Flex>
-    )}
-
-    {showLogin && (
-      <SignInButton mode="modal">
-        <Button
-          type="button"
-          display={{ base: "inline-flex", md: "none" }}
-          variant="solid"
-          colorPalette="teal"
-          h="42px"
-          px={5}
-          borderRadius="full"
-          fontWeight="bold"
-        >
-          ログイン
-        </Button>
-      </SignInButton>
-    )}
-  </Flex>
-);
-
-const Brand = ({ compact }: { compact: boolean }) => (
-  <Link href="/" _hover={{ opacity: 0.8, textDecoration: "none" }}>
-    <Flex align="center" gap={3}>
-      <Image
-        src="/logo192.webp"
-        alt="シフトリ"
-        boxSize={{ base: compact ? 8 : 9, md: compact ? 8 : 10 }}
-        objectFit="contain"
-      />
-      <Text color="gray.950" fontSize={{ base: compact ? "lg" : "xl", md: compact ? "xl" : "2xl" }} fontWeight="bold">
-        シフトリ
-      </Text>
-    </Flex>
-  </Link>
-);
-
 type HeroButtonProps = {
   icon: IconType;
   label: string;
   tone: "primary" | "secondary";
+  to?: "/signup" | "/login";
+  href?: string;
+  external?: boolean;
 } & ButtonProps;
 
-const HeroButton = ({ icon, label, tone, ...buttonProps }: HeroButtonProps) => {
+const HeroButton = ({ icon, label, tone, to, href, external, ...buttonProps }: HeroButtonProps) => {
   const isPrimary = tone === "primary";
+  const content = (
+    <>
+      <Icon as={icon} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
+      <Text
+        as="span"
+        minW={0}
+        textAlign={{ base: "center", md: "left" }}
+        fontSize={{ base: "md", md: "lg" }}
+        whiteSpace={{ base: "normal", md: "nowrap" }}
+      >
+        {label}
+      </Text>
+      <Icon as={LuChevronRight} boxSize={5} justifySelf="center" />
+    </>
+  );
 
   return (
     <Button
+      asChild={!!to || !!href}
       type="button"
       display="grid"
       gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "auto minmax(0, 1fr) auto" }}
@@ -231,17 +147,17 @@ const HeroButton = ({ icon, label, tone, ...buttonProps }: HeroButtonProps) => {
       whiteSpace="normal"
       {...buttonProps}
     >
-      <Icon as={icon} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
-      <Text
-        as="span"
-        minW={0}
-        textAlign={{ base: "center", md: "left" }}
-        fontSize={{ base: "md", md: "lg" }}
-        whiteSpace={{ base: "normal", md: "nowrap" }}
-      >
-        {label}
-      </Text>
-      <Icon as={LuChevronRight} boxSize={5} justifySelf="center" />
+      {to ? (
+        <RouterLink to={to} search={{ redirect: undefined }}>
+          {content}
+        </RouterLink>
+      ) : href ? (
+        <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}>
+          {content}
+        </a>
+      ) : (
+        content
+      )}
     </Button>
   );
 };

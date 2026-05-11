@@ -1,6 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { STAFF_CONTENT_MAX_W, StaffHeaderBrand } from "@/src/components/templates/StaffHeader";
+import { Header, STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 
 type Props = {
   children: ReactNode;
@@ -27,11 +27,5 @@ export function SubmitPageContent({ children }: Props): ReactNode {
 }
 
 export function SubmitPageHeader({ shopName }: HeaderProps): ReactNode {
-  return (
-    <Box bg="teal.600" w="full">
-      <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" h={{ base: "56px", lg: "56px" }} px={4} align="center">
-        <StaffHeaderBrand shopName={shopName} />
-      </Flex>
-    </Box>
-  );
+  return <Header variant="staff" shopName={shopName} fixed={false} maxW={STAFF_CONTENT_MAX_W} px={4} />;
 }
