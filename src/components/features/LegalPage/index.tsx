@@ -1,6 +1,7 @@
 import { Box, Heading, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { Footer, Nav } from "@/src/components/features/LandingPage";
+import { Footer } from "@/src/components/features/LandingPage";
+import { Header } from "@/src/components/templates/Header";
 
 type LegalPageProps = {
   title: string;
@@ -11,7 +12,7 @@ type LegalPageProps = {
 export function LegalPage({ title, lastUpdated, children }: LegalPageProps): ReactNode {
   return (
     <Box bg="white" minH="100vh" color="fg">
-      <Nav showLinks={false} showLogin={false} />
+      <Header variant="public" showLinks={false} showLogin={false} />
       <VStack
         mx="auto"
         w="full"

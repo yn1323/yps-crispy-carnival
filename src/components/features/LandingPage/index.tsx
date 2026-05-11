@@ -19,7 +19,6 @@ export const LandingPage = () => (
   </Box>
 );
 
-export { PublicHeader as Nav } from "@/src/components/templates/PublicHeader";
 export {
   BenefitsSection,
   CtaSection,
