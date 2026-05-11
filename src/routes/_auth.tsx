@@ -22,7 +22,7 @@ function AuthenticatedLayout() {
   return (
     <Box w="100%">
       <Header />
-      <Box pt="56px" minH="100dvh">
+      <Box pt={{ base: "66px", md: "80px" }} minH="100dvh">
         <Outlet />
       </Box>
     </Box>

@@ -6,12 +6,11 @@ import {
   Flex,
   Heading,
   Icon,
-  Link,
   SimpleGrid,
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { SignUpButton } from "@clerk/clerk-react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import { LuChevronRight, LuClock, LuMonitor, LuMonitorPlay, LuSmartphone, LuUserPlus } from "react-icons/lu";
 
@@ -51,18 +50,14 @@ export const CtaSection = () => (
 
           <Box w="full" maxW="1080px" borderTopWidth="1px" borderTopColor="whiteAlpha.400" pt={{ base: 6, md: 8 }}>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 4, md: 6 }}>
-              <SignUpButton mode="modal">
-                <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" />
-              </SignUpButton>
-              <Link
+              <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" to="/signup" />
+              <CtaButton
+                icon={LuMonitorPlay}
+                label="登録なしでデモを試す"
+                tone="secondary"
                 href="/demo/shiftboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                display="block"
-                _hover={{ textDecoration: "none" }}
-              >
-                <CtaButton icon={LuMonitorPlay} label="登録なしでデモを試す" tone="secondary" />
-              </Link>
+                external
+              />
             </SimpleGrid>
           </Box>
 
@@ -85,13 +80,26 @@ type CtaButtonProps = {
   icon: IconType;
   label: string;
   tone: "primary" | "secondary";
+  to?: "/signup";
+  href?: string;
+  external?: boolean;
 } & ButtonProps;
 
-const CtaButton = ({ icon, label, tone, ...buttonProps }: CtaButtonProps) => {
+const CtaButton = ({ icon, label, tone, to, href, external, ...buttonProps }: CtaButtonProps) => {
   const isPrimary = tone === "primary";
+  const content = (
+    <>
+      <Icon as={icon} boxSize={{ base: 6, md: 7 }} justifySelf="center" />
+      <Text as="span" minW={0} textAlign="center" whiteSpace={{ base: "normal", md: "nowrap" }}>
+        {label}
+      </Text>
+      <Icon as={LuChevronRight} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
+    </>
+  );
 
   return (
     <Button
+      asChild={!!to || !!href}
       type="button"
       display="grid"
       gridTemplateColumns="28px minmax(0, 1fr) 28px"
@@ -112,11 +120,17 @@ const CtaButton = ({ icon, label, tone, ...buttonProps }: CtaButtonProps) => {
       _active={{ bg: isPrimary ? "teal.100" : "whiteAlpha.300" }}
       {...buttonProps}
     >
-      <Icon as={icon} boxSize={{ base: 6, md: 7 }} justifySelf="center" />
-      <Text as="span" minW={0} textAlign="center" whiteSpace={{ base: "normal", md: "nowrap" }}>
-        {label}
-      </Text>
-      <Icon as={LuChevronRight} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
+      {to ? (
+        <RouterLink to={to} search={{ redirect: undefined }}>
+          {content}
+        </RouterLink>
+      ) : href ? (
+        <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}>
+          {content}
+        </a>
+      ) : (
+        content
+      )}
     </Button>
   );
 };
