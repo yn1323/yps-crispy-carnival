@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
-import { firstPage, hasScheduledJob, readScheduledFunctions, SCENARIO_NOW } from "../_test/scenarioBuilders";
+import { hasScheduledJob, readScheduledFunctions, SCENARIO_NOW } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
@@ -15,13 +15,15 @@ describe("管理者セットアップシナリオ", () => {
 
   it("初回セットアップで店舗・管理者・owner staff・同意・初期positionが揃い、ダッシュボードに反映される", async () => {
     const t = convexTest(schema, modules);
-    const asManager = t.withIdentity({
+    const scenario = createScenario(t);
+    const asManager = scenario.manager({
       subject: SETUP_MANAGER_SUBJECT,
       name: "山田 太郎",
       email: "owner@example.com",
     });
 
-    const shopId = await asManager.mutation(api.setup.mutations.setupShopAndOwner, {
+    // Arrange / Act: 初回ユーザーがセットアップ画面から店舗とowner情報を登録する。
+    const shopId = await asManager.setupShopAndOwner({
       shopName: "初回セットアップ店舗",
       shiftStartTime: "09:30",
       shiftEndTime: "22:30",
@@ -30,11 +32,12 @@ describe("管理者セットアップシナリオ", () => {
       acceptedLegal: true,
     });
 
+    // Assert: セットアップ後にダッシュボードへ必要な状態が揃う。
     const [currentUser, shop, staffPage, consentStatus] = await Promise.all([
-      asManager.query(api.dashboard.queries.getCurrentUser, {}),
-      asManager.query(api.dashboard.queries.getDashboardShop, {}),
-      asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage()),
-      asManager.query(api.legal.queries.getManagerConsentStatus, {}),
+      asManager.getCurrentUser(),
+      asManager.getDashboardShop(),
+      asManager.getDashboardStaffs(),
+      asManager.getManagerConsentStatus(),
     ]);
     expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "owner@example.com" });
     expect(shop).toEqual({
@@ -67,13 +70,16 @@ describe("管理者セットアップシナリオ", () => {
     const scheduled = await readScheduledFunctions(t);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: state.ownerStaff._id })).toBe(true);
 
-    await asManager.mutation(api.staff.mutations.editStaff, {
+    // Act: owner自身のスタッフ情報を編集する。
+    await asManager.editStaff({
       staffId: state.ownerStaff._id,
       name: "山田 太郎 更新",
       email: "owner-updated@example.com",
     });
-    const updatedUser = await asManager.query(api.dashboard.queries.getCurrentUser, {});
-    const updatedStaffPage = await asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage());
+
+    // Assert: スタッフ表示名と管理者プロフィールが同期される。
+    const updatedUser = await asManager.getCurrentUser();
+    const updatedStaffPage = await asManager.getDashboardStaffs();
     expect(updatedUser).toEqual({ isNewUser: false, name: "山田 太郎 更新", email: "owner-updated@example.com" });
     expect(updatedStaffPage.page[0]).toMatchObject({
       name: "山田 太郎 更新",
