@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import {
   hasScheduledJob,
   MANAGER_SUBJECT,
@@ -10,6 +10,7 @@ import {
   seedSession,
   seedStaff,
 } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -22,6 +23,10 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
 
   it("確定シフトは既存セッションで閲覧でき、再発行依頼は通知 job と通知データにつながる", async () => {
     const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const staff = scenario.staff();
+
+    // Arrange: 確定済みシフトと閲覧セッションを用意する。
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -69,14 +74,15 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
       return { staffId, recruitmentId, positionId };
     });
 
-    const info = await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId: ids.recruitmentId });
+    // Assert: 確定募集の基本情報とスタッフ閲覧データを取得できる。
+    const info = await staff.getRecruitmentInfo(ids.recruitmentId);
     expect(info).toMatchObject({
       shopName: "閲覧店舗",
       periodStart: scenarioDate(7),
       periodEnd: scenarioDate(9),
     });
 
-    const view = await t.query(api.shiftView.queries.getShiftViewData, {
+    const view = await staff.getShiftViewData({
       sessionToken: "scenario-shift-view-session",
       recruitmentId: ids.recruitmentId,
     });
@@ -90,10 +96,13 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
       },
     ]);
 
-    await t.mutation(api.staffAuth.mutations.requestReissue, {
+    // Act: スタッフが確定シフトURLの再発行を依頼する。
+    await staff.requestReissue({
       email: "view-staff@example.com",
       recruitmentId: ids.recruitmentId,
     });
+
+    // Assert: 再発行通知jobと通知データが作られる。
     const scheduled = await readScheduledFunctions(t);
     expect(
       hasScheduledJob(scheduled, "notification/actions:sendReissueEmail", {
@@ -115,6 +124,10 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
 
   it("募集中のシフトでは閲覧データも再発行通知も出さない", async () => {
     const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const staff = scenario.staff();
+
+    // Arrange: まだ確定していない募集中シフトとセッションを用意する。
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -145,16 +158,21 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
       return { recruitmentId };
     });
 
+    // Act / Assert: 募集中シフトは閲覧データを返さない。
     await expect(
-      t.query(api.shiftView.queries.getShiftViewData, {
+      staff.getShiftViewData({
         sessionToken: "scenario-open-view-session",
         recruitmentId: ids.recruitmentId,
       }),
     ).resolves.toBeNull();
-    await t.mutation(api.staffAuth.mutations.requestReissue, {
+
+    // Act: 募集中シフトに再発行依頼を出す。
+    await staff.requestReissue({
       email: "open-view-staff@example.com",
       recruitmentId: ids.recruitmentId,
     });
+
+    // Assert: 再発行通知jobは予約されない。
     const scheduled = await readScheduledFunctions(t);
     expect(scheduled.some((job) => job.name === "notification/actions:sendReissueEmail")).toBe(false);
   });

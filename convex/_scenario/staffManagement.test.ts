@@ -1,8 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import {
-  firstPage,
   hasScheduledJob,
   MANAGER_SUBJECT,
   readScheduledFunctions,
@@ -10,6 +9,7 @@ import {
   scenarioDate,
   seedSession,
 } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -22,7 +22,10 @@ describe("スタッフ管理シナリオ", () => {
 
   it("募集中の店舗でスタッフ追加すると一覧・提出依頼・法務/LINE案内に反映され、削除で関連トークンを無効化する", async () => {
     const t = convexTest(schema, modules);
-    const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    // Arrange: 募集中のシフトがある店舗を用意する。
     const { shopId } = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -31,16 +34,17 @@ describe("スタッフ管理シナリオ", () => {
       });
       return { shopId: seeded.shopId };
     });
-    const recruitmentId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+    const recruitmentId = await asManager.createRecruitment({
       periodStart: scenarioDate(7),
       periodEnd: scenarioDate(13),
       deadline: scenarioDate(3),
     });
 
-    const [staffId] = await asManager.mutation(api.staff.mutations.addStaffs, {
-      entries: [{ name: "追加スタッフ", email: "new-staff@example.com" }],
-    });
-    const staffPage = await asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage());
+    // Act: 店長がスタッフを追加する。
+    const [staffId] = await asManager.addStaffs([{ name: "追加スタッフ", email: "new-staff@example.com" }]);
+
+    // Assert: 一覧表示と追加直後の通知予約が更新される。
+    const staffPage = await asManager.getDashboardStaffs();
     expect(staffPage.page.find((staff) => staff._id === staffId)).toMatchObject({
       name: "追加スタッフ",
       email: "new-staff@example.com",
@@ -80,8 +84,10 @@ describe("スタッフ管理シナリオ", () => {
       });
     });
 
-    await asManager.mutation(api.staff.mutations.deleteStaff, { staffId });
+    // Act: 店長がスタッフを削除する。
+    await asManager.deleteStaff(staffId);
 
+    // Assert: スタッフと関連トークン/セッション/LINE連携が無効化される。
     const stateAfterDelete = await t.run(async (ctx) => {
       const staff = await ctx.db.get(staffId);
       const session = await ctx.db
@@ -108,7 +114,7 @@ describe("スタッフ管理シナリオ", () => {
     expect(stateAfterDelete.lineLink?.revokedAt).toBeTypeOf("number");
     expect(stateAfterDelete.lineAccount).toMatchObject({ isDeleted: true, following: false });
 
-    const staffPageAfterDelete = await asManager.query(api.dashboard.queries.getDashboardStaffs, firstPage());
+    const staffPageAfterDelete = await asManager.getDashboardStaffs();
     expect(staffPageAfterDelete.page.find((staff) => staff._id === staffId)).toBeUndefined();
   });
 });
