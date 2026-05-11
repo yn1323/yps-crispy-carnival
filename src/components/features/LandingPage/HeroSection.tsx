@@ -2,7 +2,7 @@ import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Text, VSt
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
 import { LuBell, LuCalendarDays, LuChevronRight, LuMonitorPlay, LuUserPlus } from "react-icons/lu";
-import { PublicHeader } from "@/src/components/templates/PublicHeader";
+import { Header } from "@/src/components/templates/Header";
 import { Button, type ButtonProps } from "@/src/components/ui/Button";
 import heroPcImage from "./hero-pc.webp";
 import heroSpImage from "./hero-sp.webp";
@@ -32,12 +32,12 @@ export const HeroSection = () => (
     position="relative"
     overflow="hidden"
     bgGradient="to-b"
-    gradientFrom="#dff1ff"
-    gradientVia="#f2fbfb"
+    gradientFrom="#E6F7F5"
+    gradientVia="#F3FBFA"
     gradientTo="white"
     color="gray.950"
   >
-    <PublicHeader />
+    <Header variant="public" />
 
     <Container position="relative" zIndex={1} maxW="7xl" pt={{ base: 24, md: 28 }} pb={{ base: 12, md: 16 }}>
       <Grid

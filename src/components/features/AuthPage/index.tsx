@@ -24,7 +24,7 @@ import { useForm } from "react-hook-form";
 import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { z } from "zod";
-import { PublicHeader } from "@/src/components/templates/PublicHeader";
+import { Header } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import loginIllustration from "./login.webp";
 import { normalizeAuthRedirect } from "./redirect";
@@ -317,8 +317,8 @@ export function AuthContent({
   const description = mode === "forgot-password" ? "登録済みメールアドレスに再設定コードを送信します。" : undefined;
 
   return (
-    <Box minH="100dvh" bgGradient="to-b" gradientFrom="#dff1ff" gradientVia="#f4fbfb" gradientTo="white">
-      <PublicHeader showLinks={false} showLogin={false} />
+    <Box minH="100dvh" bgGradient="to-b" gradientFrom="#E6F7F5" gradientVia="#F3FBFA" gradientTo="white">
+      <Header variant="public" showLinks={false} showLogin={false} />
       <Container
         as="main"
         maxW="7xl"
