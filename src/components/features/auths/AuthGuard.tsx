@@ -1,9 +1,10 @@
 import { useAuth } from "@clerk/clerk-react";
-import { Navigate } from "@tanstack/react-router";
+import { Navigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
 import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
+import { normalizeAuthRedirect } from "@/src/components/features/AuthPage/redirect";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { userAtom } from "@/src/stores/user";
 
@@ -13,6 +14,7 @@ type Props = {
 
 export const AuthGuard = ({ children }: Props) => {
   const { isSignedIn, userId, isLoaded } = useAuth();
+  const location = useRouterState({ select: (state) => state.location });
   const [user, setUser] = useAtom(userAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
 
@@ -35,7 +37,9 @@ export const AuthGuard = ({ children }: Props) => {
   }
 
   if (!isSignedIn) {
-    return <Navigate to="/" />;
+    return (
+      <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(`${location.pathname}${location.searchStr}`) }} />
+    );
   }
 
   if (currentUser === undefined) {

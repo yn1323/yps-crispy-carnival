@@ -1,7 +1,7 @@
 import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { LuInfo } from "react-icons/lu";
-import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/StaffHeader";
+import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { getDateRange } from "@/src/domains/shift/date";
 import { DayCard } from "../DayCard";
 import type { SubmissionData } from "../SubmitFormView";

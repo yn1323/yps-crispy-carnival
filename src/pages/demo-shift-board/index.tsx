@@ -1,19 +1,19 @@
 import { Alert, Box, Container, Heading, Link, List, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { Nav } from "@/src/components/features/LandingPage";
 import { DemoShiftBoardPage } from "@/src/components/features/ShiftBoard/DemoShiftBoardPage";
+import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 export function DemoShiftBoardRoutePage() {
   return (
     <Box bg="white" minH="100dvh" color="fg">
-      <Nav showLinks={false} showLogin={false} compact />
+      <Header variant="public" showLinks={false} showLogin={false} />
 
-      <Box as="main" pt={12}>
+      <Box as="main" pt={HEADER_HEIGHT}>
         <Container display={{ base: "block", lg: "none" }} maxW="640px" pb={4}>
           <TopLink />
         </Container>
 
-        <Box display={{ base: "none", lg: "block" }} h="calc(100dvh - 48px)" minH="560px">
+        <Box display={{ base: "none", lg: "block" }} h={`calc(100dvh - ${HEADER_HEIGHT.md})`} minH="560px">
           <DemoShiftBoardPage headerStart={<TopLink />} height="100%" />
         </Box>
 
