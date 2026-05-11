@@ -10,7 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
@@ -35,9 +39,29 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesRoute = FeaturesRouteImport.update({
@@ -140,7 +164,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/privacy/manager': typeof PrivacyManagerRoute
@@ -160,7 +188,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/privacy/manager': typeof PrivacyManagerRoute
@@ -183,7 +215,11 @@ export interface FileRoutesById {
   '/_unregistered': typeof UnregisteredRouteWithChildren
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/privacy_/manager': typeof PrivacyManagerRoute
@@ -205,7 +241,11 @@ export interface FileRouteTypes {
     | '/'
     | '/faq'
     | '/features'
+    | '/forgot-password'
+    | '/login'
     | '/privacy'
+    | '/signup'
+    | '/sso-callback'
     | '/terms'
     | '/dashboard'
     | '/privacy/manager'
@@ -225,7 +265,11 @@ export interface FileRouteTypes {
     | '/'
     | '/faq'
     | '/features'
+    | '/forgot-password'
+    | '/login'
     | '/privacy'
+    | '/signup'
+    | '/sso-callback'
     | '/terms'
     | '/dashboard'
     | '/privacy/manager'
@@ -247,7 +291,11 @@ export interface FileRouteTypes {
     | '/_unregistered'
     | '/faq'
     | '/features'
+    | '/forgot-password'
+    | '/login'
     | '/privacy'
+    | '/signup'
+    | '/sso-callback'
     | '/terms'
     | '/_auth/dashboard'
     | '/privacy_/manager'
@@ -270,7 +318,11 @@ export interface RootRouteChildren {
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
+  SignupRoute: typeof SignupRoute
+  SsoCallbackRoute: typeof SsoCallbackRoute
   TermsRoute: typeof TermsRoute
   PrivacyManagerRoute: typeof PrivacyManagerRoute
   PrivacyStaffRoute: typeof PrivacyStaffRoute
@@ -287,11 +339,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features': {
@@ -466,7 +546,11 @@ const rootRouteChildren: RootRouteChildren = {
   UnregisteredRoute: UnregisteredRouteWithChildren,
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
+  SignupRoute: SignupRoute,
+  SsoCallbackRoute: SsoCallbackRoute,
   TermsRoute: TermsRoute,
   PrivacyManagerRoute: PrivacyManagerRoute,
   PrivacyStaffRoute: PrivacyStaffRoute,
