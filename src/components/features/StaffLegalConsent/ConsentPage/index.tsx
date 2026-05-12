@@ -1,5 +1,6 @@
 import { Box, VStack } from "@chakra-ui/react";
 import { useState } from "react";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { LegalConsentPanel } from "./LegalConsentPanel";
 import { StaffGuideContent } from "./StaffGuideContent";
 
@@ -47,9 +48,15 @@ export function StaffLegalConsentPage({ data, isSubmitting = false, onAccept }: 
   };
 
   return (
-    <Box minH="calc(100dvh - 48px)" px={{ base: 3, md: 0 }} pt={0} pb={{ base: 4, md: 8 }}>
+    <Box
+      minH="100dvh"
+      px={{ base: 3, md: 0 }}
+      mt={{ base: `calc(${HEADER_HEIGHT.base} * -1)`, md: `calc(${HEADER_HEIGHT.md} * -1)` }}
+      pt={0}
+      pb={{ base: 4, md: 8 }}
+    >
       <VStack align="stretch" gap={{ base: 4, md: 6 }} w="full" maxW="960px" mx="auto">
-        <StaffGuideContent />
+        <StaffGuideContent heroTopOffset={HEADER_HEIGHT} />
         <Box px={{ base: 4, md: 8 }} pb={{ base: 5, md: 8 }}>
           <LegalConsentPanel
             data={data}

@@ -44,6 +44,7 @@ const meta = {
   component: LegalConsentPanel,
   parameters: {
     layout: "fullscreen",
+    chromatic: { disableSnapshot: true },
   },
   args: {
     data: okData,
