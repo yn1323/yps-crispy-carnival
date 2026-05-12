@@ -3,7 +3,7 @@ import { Box, Flex, HStack, Image, Link, Text, VStack } from "@chakra-ui/react";
 type FooterColLink = { label: string; href: string };
 
 const productLinks: FooterColLink[] = [
-  { label: "無料デモ", href: "/demo/shiftboard" },
+  { label: "サンプル", href: "/demo/shiftboard" },
   { label: "できること", href: "/features" },
 ];
 
@@ -26,7 +26,7 @@ export const FooterSection = () => (
       <VStack align="start" gap={3} gridColumn={{ base: "1 / -1", lg: "auto" }}>
         <Link href="/" _hover={{ opacity: 0.8, textDecoration: "none" }}>
           <HStack gap={2.5} fontWeight="bold" textStyle="lg" color="white">
-            <Image src="/logo512.png" alt="" boxSize="28px" borderRadius="full" bg="whiteAlpha.300" p="3px" />
+            <Image src="/logo192.webp" alt="" boxSize="28px" borderRadius="full" bg="whiteAlpha.300" p="3px" />
             <Box as="span">シフトリ</Box>
           </HStack>
         </Link>

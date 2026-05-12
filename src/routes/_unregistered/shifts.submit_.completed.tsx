@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SubmittedView } from "@/src/components/features/StaffSubmit/SubmittedView";
 import { buildMeta } from "@/src/helpers/seo";
+import { StaffShiftSubmitCompletedPage } from "@/src/pages/staff-shift-submit-completed";
 
 export const Route = createFileRoute("/_unregistered/shifts/submit_/completed")({
   head: () => ({
@@ -10,5 +10,5 @@ export const Route = createFileRoute("/_unregistered/shifts/submit_/completed")(
 });
 
 function ShiftSubmitCompletedRoute() {
-  return <SubmittedView />;
+  return <StaffShiftSubmitCompletedPage />;
 }

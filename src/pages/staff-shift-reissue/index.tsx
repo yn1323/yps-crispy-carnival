@@ -1,13 +1,14 @@
 import { Box } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { useState } from "react";
+import { LuSend } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ReissueFormValues } from "@/convex/staffAuth/schemas";
-import { ReissueDone } from "@/src/components/features/StaffView/ReissueDone";
 import { ReissueForm } from "@/src/components/features/StaffView/ReissueForm";
 import { useRequestShiftReissue } from "@/src/components/features/StaffView/useRequestShiftReissue";
 import { StaffLayout, StaffNarrowContent } from "@/src/components/templates/StaffLayout";
+import { Empty } from "@/src/components/ui/Empty";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 
 type Props = {
@@ -42,7 +43,15 @@ export function StaffShiftReissuePage({ recruitmentId }: Props) {
   return (
     <StaffLayout shopName={shopName}>
       {isDone ? (
-        <ReissueDone />
+        <StaffNarrowContent flex={1} display="flex" alignItems="center" justifyContent="center">
+          <Empty
+            icon={LuSend}
+            title="新しい閲覧リンクを送りました"
+            description={"LINE連携済みの方にはLINEに、\nそうでない方にはメールに\n新しい閲覧リンクを送りました。"}
+            secondaryDescription={"届かない場合は\nシフト作成担当者に連絡してください。"}
+            tone="brand"
+          />
+        </StaffNarrowContent>
       ) : (
         <StaffNarrowContent py={{ base: 4, lg: 6 }}>
           <Box as="h1" fontSize="md" fontWeight="semibold" mb={4}>

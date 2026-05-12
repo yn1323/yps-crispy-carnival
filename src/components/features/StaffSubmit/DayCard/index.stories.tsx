@@ -82,7 +82,7 @@ const InteractiveDemo = () => {
         timeOptions={timeOptions}
         onToggleWorking={() => setEntry((e) => ({ ...e, isWorking: true }))}
         onTimeChange={(field, value) => setEntry((e) => ({ ...e, [field]: value }))}
-        onClear={() => setEntry((e) => ({ ...e, isWorking: false, startTime: "09:00", endTime: "22:00" }))}
+        onClear={() => setEntry((e) => ({ ...e, isWorking: false }))}
       />
     </div>
   );

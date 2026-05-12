@@ -43,6 +43,7 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlineP
       staffId,
       shopId,
       recruitmentId,
+      accessKind: "submit",
       expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
     });
     return { shopId, staffId, recruitmentId, sessionToken };
@@ -71,6 +72,7 @@ describe("shiftSubmission/mutations", () => {
           staffId: staff._id,
           shopId: shop._id,
           recruitmentId,
+          accessKind: "submit",
           expiresAt: Date.now() - 1000,
         });
         return token;
@@ -79,6 +81,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken: expiredToken,
+          accessKind: "submit",
           recruitmentId,
           requests: [],
         }),
@@ -105,6 +108,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken,
+          accessKind: "submit",
           recruitmentId: otherRecruitmentId,
           requests: [],
         }),
@@ -118,6 +122,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken,
+          accessKind: "submit",
           recruitmentId,
           requests: [],
         }),
@@ -130,6 +135,7 @@ describe("shiftSubmission/mutations", () => {
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
         requests: validRequests,
       });
@@ -159,6 +165,7 @@ describe("shiftSubmission/mutations", () => {
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
         requests: [],
       });
@@ -196,6 +203,7 @@ describe("shiftSubmission/mutations", () => {
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
         requests: validRequests,
       });
@@ -225,6 +233,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken,
+          accessKind: "submit",
           recruitmentId,
           requests: validRequests,
         }),
@@ -246,6 +255,7 @@ describe("shiftSubmission/mutations", () => {
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
         requests: validRequests,
         acceptedLegal: true,
@@ -304,6 +314,7 @@ describe("shiftSubmission/mutations", () => {
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
         requests: [{ date: "2026-04-10", startTime: "10:00", endTime: "20:00" }],
       });
@@ -339,6 +350,7 @@ describe("shiftSubmission/mutations", () => {
 
       await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
         requests: validRequests,
       });
@@ -360,6 +372,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken,
+          accessKind: "submit",
           recruitmentId,
           requests: [{ date: "2026-04-14", startTime: "09:00", endTime: "18:00" }],
         }),
@@ -373,6 +386,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken,
+          accessKind: "submit",
           recruitmentId,
           requests: [{ date: "2026-04-07", startTime: "18:00", endTime: "09:00" }],
         }),
@@ -386,6 +400,7 @@ describe("shiftSubmission/mutations", () => {
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
           sessionToken,
+          accessKind: "submit",
           recruitmentId,
           requests: [
             { date: "2026-04-07", startTime: "09:00", endTime: "12:00" },

@@ -6,8 +6,18 @@ import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用データセットアップ */
-async function setupTestData(t: TestConvex<typeof schema>) {
+async function setupTestData(
+  t: TestConvex<typeof schema>,
+  options: {
+    accessKind?: "submit" | "view";
+    legacyAccessKind?: boolean;
+    expiresAt?: number;
+    usedAt?: number;
+  } = {},
+) {
   const magicLinkToken = "test-token-valid";
+  const accessKind = options.accessKind ?? "view";
+  const status = accessKind === "submit" ? "open" : "confirmed";
 
   const result = await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
@@ -15,9 +25,9 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       shopId,
       periodStart: "2026-01-20",
       periodEnd: "2026-01-26",
-      deadline: "2026-01-17",
-      status: "confirmed",
-      confirmedAt: Date.now(),
+      deadline: accessKind === "submit" ? "2026-12-31" : "2026-01-17",
+      status,
+      ...(status === "confirmed" ? { confirmedAt: Date.now() } : {}),
       isDeleted: false,
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
@@ -34,7 +44,9 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       staffId,
       shopId,
       recruitmentId,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      ...(options.legacyAccessKind ? {} : { accessKind }),
+      expiresAt: options.expiresAt ?? Date.now() + 24 * 60 * 60 * 1000,
+      ...(options.usedAt === undefined ? {} : { usedAt: options.usedAt }),
     });
     return { shopId, recruitmentId, staffId };
   });
@@ -50,6 +62,7 @@ describe("staffAuth/mutations", () => {
 
       const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: magicLinkToken,
+        accessKind: "view",
       });
 
       expect(result.status).toBe("ok");
@@ -65,6 +78,7 @@ describe("staffAuth/mutations", () => {
 
       const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: magicLinkToken,
+        accessKind: "view",
       });
 
       expect(result.status).toBe("ok");
@@ -85,19 +99,107 @@ describe("staffAuth/mutations", () => {
       }
     });
 
-    it("使用済みトークンはexpiredが返る（ワンタイム）", async () => {
+    it("viewトークンは使用済みになるとexpiredが返る（ワンタイム）", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken } = await setupTestData(t);
 
       const result1 = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: magicLinkToken,
+        accessKind: "view",
       });
       const result2 = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: magicLinkToken,
+        accessKind: "view",
       });
 
       expect(result1.status).toBe("ok");
       expect(result2.status).toBe("expired");
+    });
+
+    it("submitトークンは期限内なら複数回検証でき、usedAtを付けない", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, { accessKind: "submit" });
+
+      const result1 = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+      const result2 = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result1.status).toBe("ok");
+      expect(result2.status).toBe("ok");
+      if (result1.status === "ok") expect(result1.recruitmentId).toBe(recruitmentId);
+      if (result2.status === "ok") expect(result2.recruitmentId).toBe(recruitmentId);
+
+      const link = await t.run(async (ctx) =>
+        ctx.db
+          .query("magicLinks")
+          .withIndex("by_token", (q) => q.eq("token", magicLinkToken))
+          .first(),
+      );
+      expect(link?.usedAt).toBeUndefined();
+    });
+
+    it("submitトークンをview用途で検証するとexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, { accessKind: "submit" });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "view",
+      });
+
+      expect(result).toEqual({ status: "expired", recruitmentId });
+    });
+
+    it("viewトークンをsubmit用途で検証するとexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, { accessKind: "view" });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result).toEqual({ status: "expired", recruitmentId });
+    });
+
+    it("accessKind未設定の使用済みsubmitトークンは締切前なら救済する", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        legacyAccessKind: true,
+        usedAt: Date.now() - 1000,
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
+    });
+
+    it("submitトークンは募集締切後ならexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { deadline: "2026-01-01" });
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result).toEqual({ status: "expired", recruitmentId });
     });
 
     it("期限切れトークンでexpiredが返る", async () => {
@@ -112,12 +214,14 @@ describe("staffAuth/mutations", () => {
           staffId,
           shopId,
           recruitmentId,
+          accessKind: "view",
           expiresAt: Date.now() - 1000,
         });
       });
 
       const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: "expired-token",
+        accessKind: "view",
       });
 
       expect(result.status).toBe("expired");
@@ -129,6 +233,7 @@ describe("staffAuth/mutations", () => {
 
       const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: "nonexistent-token",
+        accessKind: "view",
       });
 
       expect(result.status).toBe("expired");
@@ -145,6 +250,7 @@ describe("staffAuth/mutations", () => {
       for (let i = 0; i < 5; i++) {
         const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
           token: magicLinkToken,
+          accessKind: "view",
         });
         expect(result.status).not.toBe("rate_limited");
       }
@@ -152,6 +258,7 @@ describe("staffAuth/mutations", () => {
       // 6回目でレートリミット
       const result6 = await t.mutation(api.staffAuth.mutations.verifyToken, {
         token: magicLinkToken,
+        accessKind: "view",
       });
       expect(result6.status).toBe("rate_limited");
       if (result6.status === "rate_limited") {
@@ -171,6 +278,7 @@ describe("staffAuth/mutations", () => {
           staffId,
           shopId,
           recruitmentId,
+          accessKind: "view",
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
         });
         await ctx.db.insert("magicLinks", {
@@ -178,6 +286,7 @@ describe("staffAuth/mutations", () => {
           staffId,
           shopId,
           recruitmentId,
+          accessKind: "view",
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
         });
       });
@@ -186,12 +295,14 @@ describe("staffAuth/mutations", () => {
       for (let i = 0; i < 5; i++) {
         const resultA = await t.mutation(api.staffAuth.mutations.verifyToken, {
           token: "aaaaaaaa-token-1",
+          accessKind: "view",
         });
         expect(resultA.status).not.toBe("rate_limited");
       }
       for (let i = 0; i < 5; i++) {
         const resultB = await t.mutation(api.staffAuth.mutations.verifyToken, {
           token: "bbbbbbbb-token-2",
+          accessKind: "view",
         });
         expect(resultB.status).not.toBe("rate_limited");
       }

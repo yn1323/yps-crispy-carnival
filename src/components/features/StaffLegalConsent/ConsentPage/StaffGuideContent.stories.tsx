@@ -7,6 +7,7 @@ const meta = {
   component: StaffGuideContent,
   parameters: {
     layout: "fullscreen",
+    chromatic: { disableSnapshot: true },
   },
   decorators: [
     (Story) => (

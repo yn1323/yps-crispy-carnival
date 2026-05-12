@@ -21,33 +21,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 既存値が入力された状態 */
-export const PreFilled: Story = {};
-
 /** Dialog 内にレンダリング（PC） */
 export const InDialog: Story = {
-  render: () => (
-    <Dialog
-      title="店舗設定"
-      isOpen={true}
-      onOpenChange={() => {}}
-      formId="edit-shop-form"
-      submitLabel="保存する"
-      onClose={() => {}}
-    >
-      <EditShopForm
-        defaultValues={{ shopName: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" }}
-        onSubmit={() => {}}
-      />
-    </Dialog>
-  ),
-};
-
-/** モバイル幅でDialog内にレンダリング */
-export const InMobileDialog: Story = {
-  parameters: {
-    viewport: { defaultViewport: "mobile1" },
-  },
   render: () => (
     <Dialog
       title="店舗設定"
