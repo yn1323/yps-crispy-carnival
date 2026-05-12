@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Dialog } from "@/src/components/ui/Dialog";
 import { CreateRecruitmentForm } from "./index.tsx";
 
 const meta = {
@@ -15,16 +16,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 初期状態: 空のフォーム */
-export const Basic: Story = {};
-
-/** デフォルト値あり */
-export const WithDefaults: Story = {
-  args: {
-    defaultValues: {
-      periodStart: "2026-04-01",
-      periodEnd: "2026-04-30",
-      deadline: "2026-03-25",
-    },
-  },
+export const InDialog: Story = {
+  render: () => (
+    <Dialog
+      title="新しい募集をつくる"
+      isOpen={true}
+      onOpenChange={() => {}}
+      formId="create-recruitment-form"
+      submitLabel="募集をつくる"
+      onClose={() => {}}
+    >
+      <CreateRecruitmentForm onSubmit={() => {}} />
+    </Dialog>
+  ),
 };
