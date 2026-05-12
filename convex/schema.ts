@@ -117,7 +117,8 @@ const schema = defineSchema({
     .index("by_submissionId", ["submissionId"])
     .index("by_recruitmentId", ["recruitmentId"])
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
-    .index("by_staffId", ["staffId"]),
+    .index("by_staffId", ["staffId"])
+    .index("by_staffId_date", ["staffId", "date"]),
 
   // ========================================
   // 確定シフト割当

@@ -2,13 +2,14 @@ import { Box, Checkbox, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { LuPointer } from "react-icons/lu";
+import { LuPointer, LuRefreshCw } from "react-icons/lu";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
+import { buildEntriesFromPreviousWeeklyPattern, type PreviousWeeklyPattern } from "../utils/previousWeeklyPattern";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -27,6 +28,7 @@ export type SubmissionData = {
     privacy: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
   };
   timeRange: { startTime: string; endTime: string };
+  previousWeeklyPattern: PreviousWeeklyPattern | null;
 };
 
 type Props = {
@@ -72,6 +74,14 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
     setValue(`entries.${index}.endTime`, data.timeRange.endTime);
   };
 
+  const handleApplyPreviousPattern = () => {
+    if (!data.previousWeeklyPattern) return;
+    setValue("entries", buildEntriesFromPreviousWeeklyPattern(dates, data.previousWeeklyPattern, data.timeRange), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
   const onFormSubmit = handleSubmit(async (formData) => {
     if (data.legalConsentRequired && formData.acceptedLegal !== true) {
       setError("acceptedLegal", { message: "利用規約とプライバシーポリシーに同意してください" });
@@ -106,6 +116,27 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             出勤できる日をタップしてください
           </Text>
         </Flex>
+
+        {data.previousWeeklyPattern && (
+          <Box px={4} pt={3}>
+            <Button
+              type="button"
+              w="full"
+              h="44px"
+              variant="outline"
+              colorPalette="teal"
+              bg="white"
+              borderRadius="lg"
+              fontWeight="semibold"
+              onClick={handleApplyPreviousPattern}
+            >
+              <Icon boxSize={4}>
+                <LuRefreshCw />
+              </Icon>
+              前回と同じシフトを適用
+            </Button>
+          </Box>
+        )}
 
         <VStack px={4} py={3} gap={2}>
           {entries.map((entry, index) => (
