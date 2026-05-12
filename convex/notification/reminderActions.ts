@@ -4,13 +4,12 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDateTimeLabel } from "../_lib/dateFormat";
+import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { getResendClient } from "../_lib/resend";
-import { MAGIC_LINK_DEFAULT_TTL_MS } from "../constants";
 import { buildReminderEmailHtml, buildReminderLineText } from "./templates";
 
 /**
@@ -30,8 +29,8 @@ export const sendReminderEmails = internalAction({
       { shopId: data.shopId },
     );
     const resend = getResendClient({ suppressDelivery });
-    const expiresAt = Date.now() + MAGIC_LINK_DEFAULT_TTL_MS;
-    const linkExpiresAtLabel = formatDateTimeLabel(expiresAt);
+    const expiresAt = getDeadlineCutoff(data.deadline);
+    const linkExpiresAtLabel = formatDateLabel(data.deadline);
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
@@ -40,6 +39,7 @@ export const sendReminderEmails = internalAction({
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
+        accessKind: "submit",
         expiresAt,
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;

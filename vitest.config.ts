@@ -18,7 +18,7 @@ const logicProject = defineConfig({
     globals: true,
     name: "logic",
     setupFiles: ["./src/configs/vitest/vitest-setup.ts"],
-    include: ["./src/**/*.test.ts"],
+    include: ["./src/**/*.test.ts", "./scripts/**/*.test.ts"],
     exclude: ["node_modules"],
     env: {
       VITE_CLERK_PUBLISHABLE_KEY: process.env.VITE_CLERK_PUBLISHABLE_KEY,

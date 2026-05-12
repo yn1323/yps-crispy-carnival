@@ -78,6 +78,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: Preview
     steps:
+      - uses: actions/checkout@v6
+      - name: Setup
+        uses: ./.github/actions/setup
       - name: Delete Cloudflare Pages preview
         run: |
           DEPLOYMENTS=$(curl -s \
@@ -93,6 +96,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Delete Convex previews
+        if: ${{ github.event.pull_request.merged == true }}
+        run: |
+          pnpm exec tsx scripts/deleteConvexPreviews.ts \
+            --project-slug dev-yps-crispy-carnival \
+            --names "pr-${{ github.event.pull_request.number }}-deploy,pr-${{ github.event.pull_request.number }}-e2e"
+        env:
+          CONVEX_MANAGEMENT_TOKEN: ${{ secrets.CONVEX_MANAGEMENT_TOKEN }}
 
   deploy-develop:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'

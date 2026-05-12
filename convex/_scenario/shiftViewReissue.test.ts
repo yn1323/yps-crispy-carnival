@@ -70,6 +70,7 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
         staffId,
         shopId,
         recruitmentId,
+        accessKind: "view",
       });
       return { staffId, recruitmentId, positionId };
     });
@@ -154,6 +155,7 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
         staffId,
         shopId,
         recruitmentId,
+        accessKind: "view",
       });
       return { recruitmentId };
     });

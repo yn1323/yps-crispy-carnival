@@ -2,12 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from ".";
 import {
   mockDates,
+  mockDatesMidWeekStart,
   mockHalfHourTimeRange,
+  mockHolidays,
   mockPositions,
   mockShifts,
   mockShiftsAllPatterns,
   mockShiftsHalfHourBusinessHours,
-  mockShiftsRequestOnly,
   mockStaffs,
   mockTimeRange,
 } from "./__mocks__/storyData";
@@ -20,6 +21,37 @@ const baseArgs = {
   dates: mockDates,
   timeRange: mockTimeRange,
   holidays: [],
+};
+
+const allPatternsArgs = {
+  ...baseArgs,
+  dates: ["2026-01-23"],
+  initialShifts: mockShiftsAllPatterns,
+};
+
+const halfHourBusinessHoursArgs = {
+  ...baseArgs,
+  dates: ["2026-01-28"],
+  initialShifts: mockShiftsHalfHourBusinessHours,
+  timeRange: mockHalfHourTimeRange,
+};
+
+const emptyOrAllUnsubmittedArgs = {
+  ...baseArgs,
+  dates: ["2026-02-01"],
+  staffs: mockStaffs.map((staff) => ({ ...staff, isSubmitted: false })),
+  initialShifts: [],
+};
+
+const overviewCalendarRangeArgs = {
+  ...baseArgs,
+  dates: mockDatesMidWeekStart,
+  holidays: mockHolidays,
+  initialViewMode: "overview" as const,
+};
+
+const mobileGlobals = {
+  viewport: { value: "mobile2", isRotated: false },
 };
 
 const meta = {
@@ -40,101 +72,65 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// 基本: 日別ビュー・混合パターン
-export const Basic: Story = { args: baseArgs };
-
-// 希望のみ（シフト未割当）
-export const RequestOnly: Story = {
-  args: {
-    ...baseArgs,
-    dates: ["2026-01-22"],
-    initialShifts: mockShiftsRequestOnly,
-  },
+export const PCDaily_AllPatterns: Story = {
+  args: allPatternsArgs,
 };
 
-// 全パターン網羅（希望+一致 / 希望のみ / 未提出+手動 / 休憩あり / 未提出なし）
-export const AllPatterns: Story = {
-  args: {
-    ...baseArgs,
-    dates: ["2026-01-23"],
-    initialShifts: mockShiftsAllPatterns,
-  },
+export const PCDaily_HalfHourBusinessHours: Story = {
+  args: halfHourBusinessHoursArgs,
 };
 
-// 店舗設定が05:30〜22:30のケース（端の30分は営業時間外としてグレーアウト）
-export const HalfHourBusinessHours: Story = {
-  args: {
-    ...baseArgs,
-    dates: ["2026-01-28"],
-    initialShifts: mockShiftsHalfHourBusinessHours,
-    timeRange: mockHalfHourTimeRange,
-  },
+export const PCDaily_EmptyOrAllUnsubmitted: Story = {
+  args: emptyOrAllUnsubmittedArgs,
 };
 
-// シフト未割当状態（希望ありだけ）
-export const UnassignedOnly: Story = {
-  args: {
-    ...baseArgs,
-    initialShifts: mockShifts.map((s) => ({ ...s, positions: [] })),
-  },
+export const PCDaily_ReadOnly: Story = {
+  args: { ...allPatternsArgs, isReadOnly: true, currentStaffId: "staff1" },
 };
 
-// シフトが何もない日
-export const EmptyDay: Story = {
-  args: {
-    ...baseArgs,
-    dates: ["2026-02-01"],
-    initialShifts: [],
-  },
+export const PCDaily_Confirmed: Story = {
+  args: { ...allPatternsArgs, isConfirmed: true },
 };
 
-// 読み取り専用
-export const ReadOnly: Story = {
-  args: { ...baseArgs, isReadOnly: true, currentStaffId: "staff1" },
+export const PCOverview_CalendarRange: Story = {
+  args: overviewCalendarRangeArgs,
 };
 
-// 確定済み
-export const Confirmed: Story = {
-  args: { ...baseArgs, isConfirmed: true },
+export const PCOverview_ReadOnly: Story = {
+  args: { ...overviewCalendarRangeArgs, isReadOnly: true, currentStaffId: "staff1" },
 };
 
-// 一覧ビュー初期表示
-export const OverviewInitial: Story = {
-  args: { ...baseArgs, initialViewMode: "overview" },
+export const SPDaily_AllPatterns: Story = {
+  args: allPatternsArgs,
+  globals: mobileGlobals,
 };
 
-// SP: 日別
-export const SPDaily: Story = {
-  args: baseArgs,
-  globals: {
-    viewport: { value: "mobile2", isRotated: false },
-  },
+export const SPDaily_HalfHourBusinessHours: Story = {
+  args: halfHourBusinessHoursArgs,
+  globals: mobileGlobals,
 };
 
-// SP: 一覧
-export const SPOverview: Story = {
-  args: { ...baseArgs, initialViewMode: "overview" },
-  globals: {
-    viewport: { value: "mobile2", isRotated: false },
-  },
+export const SPDaily_EmptyOrAllUnsubmitted: Story = {
+  args: emptyOrAllUnsubmittedArgs,
+  globals: mobileGlobals,
 };
 
-// SP: 全パターン
-export const SPAllPatterns: Story = {
-  args: {
-    ...baseArgs,
-    dates: ["2026-01-23"],
-    initialShifts: mockShiftsAllPatterns,
-  },
-  globals: {
-    viewport: { value: "mobile2", isRotated: false },
-  },
+export const SPDaily_ReadOnly: Story = {
+  args: { ...allPatternsArgs, isReadOnly: true, currentStaffId: "staff1" },
+  globals: mobileGlobals,
 };
 
-// SP: 読み取り専用
-export const SPReadOnly: Story = {
-  args: { ...baseArgs, isReadOnly: true, currentStaffId: "staff1" },
-  globals: {
-    viewport: { value: "mobile2", isRotated: false },
-  },
+export const SPDaily_Confirmed: Story = {
+  args: { ...allPatternsArgs, isConfirmed: true },
+  globals: mobileGlobals,
+};
+
+export const SPOverview_CalendarRange: Story = {
+  args: overviewCalendarRangeArgs,
+  globals: mobileGlobals,
+};
+
+export const SPOverview_ReadOnly: Story = {
+  args: { ...overviewCalendarRangeArgs, isReadOnly: true, currentStaffId: "staff1" },
+  globals: mobileGlobals,
 };

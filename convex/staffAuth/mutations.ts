@@ -1,7 +1,14 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
+import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
+import {
+  inferAccessKindFromRecruitmentStatus,
+  recruitmentMatchesAccessKind,
+  sessionMatchesAccessKind,
+  staffAccessKindValidator,
+} from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
 
@@ -10,8 +17,9 @@ import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants
  * Clerk認証不要（スタッフのブラウザから直接呼ばれる）
  */
 export const verifyToken = mutation({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
+  args: { token: v.string(), accessKind: staffAccessKindValidator },
+  handler: async (ctx, { token, accessKind }) => {
+    const now = Date.now();
     // レートリミットチェック（トークン先頭8文字をキーに）
     const { ok, retryAt } = await rateLimit(ctx, {
       name: "verifyToken",
@@ -20,7 +28,7 @@ export const verifyToken = mutation({
     if (!ok) {
       return {
         status: "rate_limited" as const,
-        retryAfter: retryAt ?? Date.now() + RATE_LIMIT_RETRY_FALLBACK_MS,
+        retryAfter: retryAt ?? now + RATE_LIMIT_RETRY_FALLBACK_MS,
         recruitmentId: null,
       };
     }
@@ -30,10 +38,38 @@ export const verifyToken = mutation({
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
 
-    if (!magicLink || magicLink.revokedAt || magicLink.expiresAt < Date.now() || magicLink.usedAt) {
+    if (!magicLink || magicLink.revokedAt || magicLink.expiresAt < now) {
       return {
         status: "expired" as const,
         recruitmentId: magicLink?.recruitmentId ?? null,
+      };
+    }
+
+    const recruitment = await ctx.db.get(magicLink.recruitmentId);
+    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== magicLink.shopId) {
+      return {
+        status: "expired" as const,
+        recruitmentId: magicLink.recruitmentId,
+      };
+    }
+
+    const linkAccessKind = magicLink.accessKind ?? inferAccessKindFromRecruitmentStatus(recruitment.status);
+    if (linkAccessKind !== accessKind || !recruitmentMatchesAccessKind(recruitment.status, accessKind)) {
+      return {
+        status: "expired" as const,
+        recruitmentId: magicLink.recruitmentId,
+      };
+    }
+    if (accessKind === "submit" && now >= getDeadlineCutoff(recruitment.deadline)) {
+      return {
+        status: "expired" as const,
+        recruitmentId: magicLink.recruitmentId,
+      };
+    }
+    if (accessKind === "view" && magicLink.usedAt) {
+      return {
+        status: "expired" as const,
+        recruitmentId: magicLink.recruitmentId,
       };
     }
 
@@ -45,10 +81,15 @@ export const verifyToken = mutation({
       )
       .collect();
 
-    const validSession = existingSessions.find((s) => !s.revokedAt && s.expiresAt > Date.now());
+    const validSession =
+      accessKind === "view"
+        ? existingSessions.find((s) => !s.revokedAt && s.expiresAt > now && sessionMatchesAccessKind(s, accessKind))
+        : null;
 
     if (validSession) {
-      await ctx.db.patch(magicLink._id, { usedAt: Date.now() });
+      if (accessKind === "view" && !magicLink.usedAt) {
+        await ctx.db.patch(magicLink._id, { usedAt: now });
+      }
       return {
         status: "ok" as const,
         sessionToken: validSession.sessionToken,
@@ -63,9 +104,12 @@ export const verifyToken = mutation({
       staffId: magicLink.staffId,
       shopId: magicLink.shopId,
       recruitmentId: magicLink.recruitmentId,
-      expiresAt: Date.now() + STAFF_SESSION_TTL_MS,
+      accessKind,
+      expiresAt: now + STAFF_SESSION_TTL_MS,
     });
-    await ctx.db.patch(magicLink._id, { usedAt: Date.now() });
+    if (accessKind === "view") {
+      await ctx.db.patch(magicLink._id, { usedAt: now });
+    }
 
     return {
       status: "ok" as const,

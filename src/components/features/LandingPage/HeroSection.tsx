@@ -86,7 +86,7 @@ export const HeroSection = () => (
 
           <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} w="full" maxW={{ md: "660px" }}>
             <HeroButton icon={LuUserPlus} label="無料ではじめる" tone="primary" to="/signup" />
-            <HeroButton icon={LuMonitorPlay} label="登録なしで試す" tone="secondary" href="/demo/shiftboard" external />
+            <HeroButton icon={LuMonitorPlay} label="サンプルを見る" tone="secondary" href="/demo/shiftboard" external />
           </SimpleGrid>
 
           <SimpleGrid display="grid" columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">

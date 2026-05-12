@@ -1,14 +1,16 @@
 import { Box, Checkbox, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { LuPointer } from "react-icons/lu";
+import { LuPointer, LuRefreshCw } from "react-icons/lu";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
+import { buildRestEntry, buildWorkingEntry, type WorkingTime } from "../utils/dayEntryState";
+import { buildEntriesFromPreviousWeeklyPattern, type PreviousWeeklyPattern } from "../utils/previousWeeklyPattern";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -27,6 +29,7 @@ export type SubmissionData = {
     privacy: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
   };
   timeRange: { startTime: string; endTime: string };
+  previousWeeklyPattern: PreviousWeeklyPattern | null;
 };
 
 type Props = {
@@ -35,6 +38,7 @@ type Props = {
 };
 
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
+  const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
   const timeOptions = useMemo(
     () => generateTimeOptions(data.timeRange.startTime, data.timeRange.endTime),
@@ -59,17 +63,41 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const acceptedLegal = watch("acceptedLegal");
 
   const handleSetWorking = (index: number) => {
-    setValue(`entries.${index}.isWorking`, true, { shouldValidate: true });
+    const entry = entries[index];
+    const nextEntry = buildWorkingEntry({
+      entry,
+      timeRange: data.timeRange,
+      previousWeeklyPattern: data.previousWeeklyPattern,
+      latestWorkingTime: latestWorkingTimeRef.current,
+    });
+    latestWorkingTimeRef.current = { startTime: nextEntry.startTime, endTime: nextEntry.endTime };
+    setValue(`entries.${index}`, nextEntry, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleTimeChange = (index: number, field: "startTime" | "endTime", value: string) => {
+    const entry = entries[index];
     setValue(`entries.${index}.${field}`, value, { shouldValidate: true });
+    if (entry.isWorking) {
+      latestWorkingTimeRef.current = {
+        startTime: field === "startTime" ? value : entry.startTime,
+        endTime: field === "endTime" ? value : entry.endTime,
+      };
+    }
   };
 
   const handleClear = (index: number) => {
-    setValue(`entries.${index}.isWorking`, false, { shouldValidate: true });
-    setValue(`entries.${index}.startTime`, data.timeRange.startTime);
-    setValue(`entries.${index}.endTime`, data.timeRange.endTime);
+    const entry = entries[index];
+    latestWorkingTimeRef.current = { startTime: entry.startTime, endTime: entry.endTime };
+    setValue(`entries.${index}`, buildRestEntry(entry), { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleApplyPreviousPattern = () => {
+    if (!data.previousWeeklyPattern) return;
+    latestWorkingTimeRef.current = undefined;
+    setValue("entries", buildEntriesFromPreviousWeeklyPattern(dates, data.previousWeeklyPattern, data.timeRange), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const onFormSubmit = handleSubmit(async (formData) => {
@@ -106,6 +134,27 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             出勤できる日をタップしてください
           </Text>
         </Flex>
+
+        {data.previousWeeklyPattern && (
+          <Box px={4} pt={3}>
+            <Button
+              type="button"
+              w="full"
+              h="44px"
+              variant="outline"
+              colorPalette="teal"
+              bg="white"
+              borderRadius="lg"
+              fontWeight="semibold"
+              onClick={handleApplyPreviousPattern}
+            >
+              <Icon boxSize={4}>
+                <LuRefreshCw />
+              </Icon>
+              前回と同じシフトを適用
+            </Button>
+          </Box>
+        )}
 
         <VStack px={4} py={3} gap={2}>
           {entries.map((entry, index) => (
