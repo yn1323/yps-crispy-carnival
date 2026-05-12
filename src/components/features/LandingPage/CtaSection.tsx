@@ -17,7 +17,7 @@ import { LuChevronRight, LuClock, LuMonitor, LuMonitorPlay, LuSmartphone, LuUser
 const benefits = [
   { icon: LuClock, label: "1分で登録" },
   { icon: LuSmartphone, label: "専用アプリ不要" },
-  { icon: LuMonitor, label: "デモを試せる" },
+  { icon: LuMonitor, label: "サンプルを見られる" },
 ];
 
 export const CtaSection = () => (
@@ -53,7 +53,7 @@ export const CtaSection = () => (
               <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" to="/signup" />
               <CtaButton
                 icon={LuMonitorPlay}
-                label="登録なしでデモを試す"
+                label="サンプルを見る"
                 tone="secondary"
                 href="/demo/shiftboard"
                 external
