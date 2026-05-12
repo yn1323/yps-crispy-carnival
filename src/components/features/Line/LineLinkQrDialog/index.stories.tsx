@@ -1,9 +1,11 @@
 import { Box, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ReactNode } from "react";
+import { LineInviteConfirmContent } from "../LineInviteConfirmContent";
 import { LineLinkQrDialog } from ".";
 
 const meta = {
-  title: "Features/Line/LineLinkQrDialog",
+  title: "Features/Line/DialogContents",
   component: LineLinkQrDialog,
   parameters: { layout: "padded" },
 } satisfies Meta<typeof LineLinkQrDialog>;
@@ -18,6 +20,9 @@ export const Variants: Story = {
   },
   render: () => (
     <Stack gap={8} maxW="480px" mx="auto" w="full">
+      <VariantBlock label="LINE連携メール送信確認">
+        <LineInviteConfirmContent staffName="田中太郎" staffEmail="tanaka@example.com" />
+      </VariantBlock>
       <VariantBlock label="QR表示（URL確定済み）">
         <LineLinkQrDialog
           authorizeUrl="https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=12345&state=4d3c2b1a-5678-4abc-9def-0123456789ab"
@@ -31,7 +36,7 @@ export const Variants: Story = {
   ),
 };
 
-const VariantBlock = ({ label, children }: { label: string; children: React.ReactNode }) => (
+const VariantBlock = ({ label, children }: { label: string; children: ReactNode }) => (
   <Stack gap={3}>
     <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
       {label}
