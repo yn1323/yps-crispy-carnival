@@ -13,6 +13,12 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 describe("シフト希望回収シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -195,5 +201,116 @@ describe("シフト希望回収シナリオ", () => {
     const board = await asManager.getShiftBoardData(recruitmentId);
     expect(board?.timeRange.editableStartMinutes).toBe(540);
     expect(board?.timeRange.editableEndMinutes).toBe(1320);
+  });
+
+  it("過去のシフトあり週を次回募集の前回パターンとして再利用できる", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const staff = scenario.staff();
+
+    // Arrange: シフトあり週、全休み週、2週間募集の順に同じスタッフの提出セッションを用意する。
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manager-reuse@example.com",
+        shopName: "履歴再利用店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        name: "履歴再利用スタッフ",
+        email: "reuse-staff@example.com",
+      });
+      return { shopId: seeded.shopId, staffId };
+    });
+    const workedWeekInput = {
+      periodStart: scenarioDate(8),
+      periodEnd: scenarioDate(14),
+      deadline: scenarioDate(7),
+    };
+    const allOffWeekInput = {
+      periodStart: scenarioDate(15),
+      periodEnd: scenarioDate(21),
+      deadline: scenarioDate(14),
+    };
+    const currentInput = {
+      periodStart: scenarioDate(22),
+      periodEnd: scenarioDate(35),
+      deadline: scenarioDate(21),
+    };
+
+    const workedRecruitmentId = await asManager.createRecruitment(workedWeekInput);
+    const allOffRecruitmentId = await asManager.createRecruitment(allOffWeekInput);
+    const currentRecruitmentId = await asManager.createRecruitment(currentInput);
+    await t.run(async (ctx) => {
+      await seedSession(ctx, {
+        sessionToken: "scenario-reuse-worked-session",
+        staffId,
+        shopId,
+        recruitmentId: workedRecruitmentId,
+      });
+      await seedSession(ctx, {
+        sessionToken: "scenario-reuse-all-off-session",
+        staffId,
+        shopId,
+        recruitmentId: allOffRecruitmentId,
+      });
+      await seedSession(ctx, {
+        sessionToken: "scenario-reuse-current-session",
+        staffId,
+        shopId,
+        recruitmentId: currentRecruitmentId,
+      });
+    });
+
+    // Act: 前々回はシフトあり、前回は全休みで提出する。
+    await staff.submitShiftRequests({
+      sessionToken: "scenario-reuse-worked-session",
+      recruitmentId: workedRecruitmentId,
+      acceptedLegal: true,
+      requests: [
+        { date: workedWeekInput.periodStart, startTime: "10:00", endTime: "18:00" },
+        { date: addDays(workedWeekInput.periodStart, 2), startTime: "12:00", endTime: "20:00" },
+      ],
+    });
+    await staff.submitShiftRequests({
+      sessionToken: "scenario-reuse-all-off-session",
+      recruitmentId: allOffRecruitmentId,
+      requests: [],
+    });
+
+    // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンが返る。
+    const currentPage = await staff.getSubmissionPageData({
+      sessionToken: "scenario-reuse-current-session",
+      recruitmentId: currentRecruitmentId,
+    });
+    expect(currentPage?.previousWeeklyPattern).toEqual({
+      sourceWeekStart: workedWeekInput.periodStart,
+      days: [
+        { weekday: 1, startTime: "10:00", endTime: "18:00" },
+        { weekday: 3, startTime: "12:00", endTime: "20:00" },
+      ],
+    });
+
+    // Act: 返されたパターンを2週間分に反映した想定で提出する。
+    const repeatedRequests = [
+      { date: currentInput.periodStart, startTime: "10:00", endTime: "18:00" },
+      { date: addDays(currentInput.periodStart, 2), startTime: "12:00", endTime: "20:00" },
+      { date: addDays(currentInput.periodStart, 7), startTime: "10:00", endTime: "18:00" },
+      { date: addDays(currentInput.periodStart, 9), startTime: "12:00", endTime: "20:00" },
+    ];
+    await staff.submitShiftRequests({
+      sessionToken: "scenario-reuse-current-session",
+      recruitmentId: currentRecruitmentId,
+      requests: repeatedRequests,
+    });
+
+    // Assert: 提出集計とシフト表の希望スロットも、再利用後の提出内容として整合する。
+    const recruitmentsAfterSubmit = await asManager.getDashboardRecruitments();
+    expect(
+      recruitmentsAfterSubmit.page.find((recruitment) => recruitment._id === currentRecruitmentId)?.responseCount,
+    ).toBe(1);
+    const board = await asManager.getShiftBoardData(currentRecruitmentId);
+    expect(board?.requestedSlots).toEqual(repeatedRequests.map((request) => ({ staffId, ...request })));
   });
 });
