@@ -65,6 +65,7 @@ describe("スタッフ管理シナリオ", () => {
       staffId,
       shopId,
       recruitmentId,
+      accessKind: "submit",
     });
     const { token: lineToken } = await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId, shopId });
     await t.run(async (ctx) => {

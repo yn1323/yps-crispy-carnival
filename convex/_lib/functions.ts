@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc } from "../_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
+import { sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -136,13 +137,21 @@ type StaffSessionQueryCtx = {
  * - 無効/期限切れの場合は null を返す（throwしない）
  */
 export const staffSessionQuery = customQuery(query, {
-  args: { sessionToken: v.string() },
-  input: async (ctx, { sessionToken }): Promise<{ ctx: StaffSessionQueryCtx; args: Record<string, never> }> => {
+  args: { sessionToken: v.string(), accessKind: staffAccessKindValidator },
+  input: async (
+    ctx,
+    { sessionToken, accessKind },
+  ): Promise<{ ctx: StaffSessionQueryCtx; args: Record<string, never> }> => {
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
       .first();
-    if (!session || session.revokedAt || session.expiresAt < Date.now()) {
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt < Date.now() ||
+      !sessionMatchesAccessKind(session, accessKind)
+    ) {
       return { ctx: { staff: null, shop: null, session: null }, args: {} };
     }
     const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
@@ -165,13 +174,21 @@ type StaffSessionMutationCtx = {
  * - 無効/期限切れの場合は ConvexError を throw する
  */
 export const staffSessionMutation = customMutation(mutation, {
-  args: { sessionToken: v.string() },
-  input: async (ctx, { sessionToken }): Promise<{ ctx: StaffSessionMutationCtx; args: Record<string, never> }> => {
+  args: { sessionToken: v.string(), accessKind: staffAccessKindValidator },
+  input: async (
+    ctx,
+    { sessionToken, accessKind },
+  ): Promise<{ ctx: StaffSessionMutationCtx; args: Record<string, never> }> => {
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
       .first();
-    if (!session || session.revokedAt || session.expiresAt < Date.now()) {
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt < Date.now() ||
+      !sessionMatchesAccessKind(session, accessKind)
+    ) {
       throw new ConvexError("Session expired");
     }
     const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);

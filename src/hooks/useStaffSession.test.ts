@@ -12,6 +12,7 @@ vi.mock("@/convex/_generated/api", () => ({
   api: { staffAuth: { mutations: { verifyToken: "verifyToken" } } },
 }));
 
+import type { StaffAccessKind } from "@/src/utils/staffSession";
 import { useStaffSession } from "./useStaffSession";
 
 function writeStoredSession(recruitmentId: string, sessionToken: string): void {
@@ -42,16 +43,20 @@ describe("useStaffSession", () => {
     writeStoredSession("rec-old", "sess-old");
     verifyTokenMock.mockResolvedValueOnce({ status: "ok", sessionToken: "sess-new", recruitmentId: "rec-new" });
 
-    const { result } = renderHook(() => useStaffSession("token-new"));
+    const { result } = renderHook(() => useStaffSession("token-new", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("authenticated");
     });
-    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "token-new" });
+    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "token-new", accessKind: "submit" });
     if (result.current.status !== "authenticated") throw new Error("type guard");
-    expect(result.current.session).toEqual({ sessionToken: "sess-new", recruitmentId: "rec-new" });
-    expect(localStorage.getItem("yps_session_rec-new")).toBe(
-      JSON.stringify({ sessionToken: "sess-new", recruitmentId: "rec-new" }),
+    expect(result.current.session).toEqual({
+      sessionToken: "sess-new",
+      recruitmentId: "rec-new",
+      accessKind: "submit",
+    });
+    expect(localStorage.getItem("yps_session_submit_rec-new")).toBe(
+      JSON.stringify({ sessionToken: "sess-new", recruitmentId: "rec-new", accessKind: "submit" }),
     );
   });
 
@@ -60,11 +65,14 @@ describe("useStaffSession", () => {
     const second = deferred<{ status: "ok"; sessionToken: string; recruitmentId: string }>();
     verifyTokenMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
 
-    const { rerender, result } = renderHook(({ token }) => useStaffSession(token), {
-      initialProps: { token: "token-a" },
-    });
+    const { rerender, result } = renderHook(
+      ({ token, accessKind }: { token: string; accessKind: StaffAccessKind }) => useStaffSession(token, accessKind),
+      {
+        initialProps: { token: "token-a", accessKind: "submit" },
+      },
+    );
 
-    rerender({ token: "token-b" });
+    rerender({ token: "token-b", accessKind: "submit" });
 
     first.resolve({ status: "ok", sessionToken: "sess-a", recruitmentId: "rec-a" });
     second.resolve({ status: "ok", sessionToken: "sess-b", recruitmentId: "rec-b" });
@@ -72,20 +80,54 @@ describe("useStaffSession", () => {
     await waitFor(() => {
       expect(result.current.status).toBe("authenticated");
     });
-    expect(verifyTokenMock).toHaveBeenNthCalledWith(1, { token: "token-a" });
-    expect(verifyTokenMock).toHaveBeenNthCalledWith(2, { token: "token-b" });
+    expect(verifyTokenMock).toHaveBeenNthCalledWith(1, { token: "token-a", accessKind: "submit" });
+    expect(verifyTokenMock).toHaveBeenNthCalledWith(2, { token: "token-b", accessKind: "submit" });
     if (result.current.status !== "authenticated") throw new Error("type guard");
-    expect(result.current.session).toEqual({ sessionToken: "sess-b", recruitmentId: "rec-b" });
-    expect(localStorage.getItem("yps_session_rec-a")).toBeNull();
-    expect(localStorage.getItem("yps_session_rec-b")).toBe(
-      JSON.stringify({ sessionToken: "sess-b", recruitmentId: "rec-b" }),
+    expect(result.current.session).toEqual({
+      sessionToken: "sess-b",
+      recruitmentId: "rec-b",
+      accessKind: "submit",
+    });
+    expect(localStorage.getItem("yps_session_submit_rec-a")).toBeNull();
+    expect(localStorage.getItem("yps_session_submit_rec-b")).toBe(
+      JSON.stringify({ sessionToken: "sess-b", recruitmentId: "rec-b", accessKind: "submit" }),
     );
+  });
+
+  it("re-verifies when accessKind changes while the token stays the same", async () => {
+    const submit = deferred<{ status: "expired"; recruitmentId: string }>();
+    const view = deferred<{ status: "ok"; sessionToken: string; recruitmentId: string }>();
+    verifyTokenMock.mockReturnValueOnce(submit.promise).mockReturnValueOnce(view.promise);
+
+    const { rerender, result } = renderHook(
+      ({ token, accessKind }: { token: string; accessKind: StaffAccessKind }) => useStaffSession(token, accessKind),
+      {
+        initialProps: { token: "shared-token", accessKind: "submit" },
+      },
+    );
+
+    rerender({ token: "shared-token", accessKind: "view" });
+
+    submit.resolve({ status: "expired", recruitmentId: "rec-submit" });
+    view.resolve({ status: "ok", sessionToken: "sess-view", recruitmentId: "rec-view" });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("authenticated");
+    });
+    expect(verifyTokenMock).toHaveBeenNthCalledWith(1, { token: "shared-token", accessKind: "submit" });
+    expect(verifyTokenMock).toHaveBeenNthCalledWith(2, { token: "shared-token", accessKind: "view" });
+    if (result.current.status !== "authenticated") throw new Error("type guard");
+    expect(result.current.session).toEqual({
+      sessionToken: "sess-view",
+      recruitmentId: "rec-view",
+      accessKind: "view",
+    });
   });
 
   it("returns networkError when verifyToken rejects", async () => {
     verifyTokenMock.mockRejectedValueOnce(new Error("network down"));
 
-    const { result } = renderHook(() => useStaffSession("token-123"));
+    const { result } = renderHook(() => useStaffSession("token-123", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("networkError");
@@ -99,7 +141,7 @@ describe("useStaffSession", () => {
       .mockRejectedValueOnce(new Error("network down"))
       .mockResolvedValueOnce({ status: "ok", sessionToken: "sess-1", recruitmentId: "rec-1" });
 
-    const { result } = renderHook(() => useStaffSession("token-abc"));
+    const { result } = renderHook(() => useStaffSession("token-abc", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("networkError");
@@ -120,7 +162,7 @@ describe("useStaffSession", () => {
   it("returns expired when verifyToken returns expired and no matching stored session exists", async () => {
     verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-9" });
 
-    const { result } = renderHook(() => useStaffSession("token-xyz"));
+    const { result } = renderHook(() => useStaffSession("token-xyz", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("expired");
@@ -133,26 +175,42 @@ describe("useStaffSession", () => {
     writeStoredSession("rec-1", "sess-1");
     verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-1" });
 
-    const { result } = renderHook(() => useStaffSession("used-token"));
+    const { result } = renderHook(() => useStaffSession("used-token", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("authenticated");
     });
-    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token" });
+    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token", accessKind: "submit" });
     if (result.current.status !== "authenticated") throw new Error("type guard");
-    expect(result.current.session).toEqual({ sessionToken: "sess-1", recruitmentId: "rec-1" });
+    expect(result.current.session).toEqual({
+      sessionToken: "sess-1",
+      recruitmentId: "rec-1",
+      accessKind: "submit",
+    });
+  });
+
+  it("does not use a legacy submit session for view access", async () => {
+    writeStoredSession("rec-1", "sess-1");
+    verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-1" });
+
+    const { result } = renderHook(() => useStaffSession("used-token", "view"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("expired");
+    });
+    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token", accessKind: "view" });
   });
 
   it("does not use a stored session for another recruitment when token verification expires", async () => {
     writeStoredSession("rec-old", "sess-old");
     verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-new" });
 
-    const { result } = renderHook(() => useStaffSession("used-token"));
+    const { result } = renderHook(() => useStaffSession("used-token", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("expired");
     });
-    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token" });
+    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token", accessKind: "submit" });
     if (result.current.status !== "expired") throw new Error("type guard");
     expect(result.current.recruitmentId).toBe("rec-new");
   });
@@ -161,7 +219,7 @@ describe("useStaffSession", () => {
     localStorage.setItem("yps_session_rec-new", JSON.stringify({ sessionToken: "sess-old", recruitmentId: "rec-old" }));
     verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-new" });
 
-    const { result } = renderHook(() => useStaffSession("used-token"));
+    const { result } = renderHook(() => useStaffSession("used-token", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("expired");
@@ -177,7 +235,7 @@ describe("useStaffSession", () => {
       recruitmentId: null,
     });
 
-    const { result } = renderHook(() => useStaffSession("token-rl"));
+    const { result } = renderHook(() => useStaffSession("token-rl", "submit"));
 
     await waitFor(() => {
       expect(result.current.status).toBe("rateLimited");
@@ -187,7 +245,7 @@ describe("useStaffSession", () => {
   it("returns expired without reading arbitrary stored sessions when token is missing", () => {
     writeStoredSession("rec-1", "sess-1");
 
-    const { result } = renderHook(() => useStaffSession(undefined));
+    const { result } = renderHook(() => useStaffSession(undefined, "submit"));
 
     expect(result.current.status).toBe("expired");
     if (result.current.status !== "expired") throw new Error("type guard");

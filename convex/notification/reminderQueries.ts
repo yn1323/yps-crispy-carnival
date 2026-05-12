@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
-import { formatDateLabel, formatPeriodLabel } from "../_lib/dateFormat";
+import { formatPeriodLabel } from "../_lib/dateFormat";
 import { getStaffLineAccount } from "../line/service";
 
 /**
@@ -33,7 +33,7 @@ export const getReminderEmailData = internalQuery({
       shopId: recruitment.shopId,
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
-      deadline: formatDateLabel(recruitment.deadline),
+      deadline: recruitment.deadline,
       staffEntries: await Promise.all(
         unsubmittedStaffs.map(async (s) => {
           const lineAccount = await getStaffLineAccount(ctx, s._id);

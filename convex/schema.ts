@@ -179,7 +179,8 @@ const schema = defineSchema({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
-    expiresAt: v.number(), // Unix ms（24時間後）
+    accessKind: v.optional(v.union(v.literal("submit"), v.literal("view"))),
+    expiresAt: v.number(), // Unix ms（用途ごとの期限）
     usedAt: v.optional(v.number()), // 使用日時（ワンタイム制御）
     revokedAt: v.optional(v.number()),
   })
@@ -196,6 +197,7 @@ const schema = defineSchema({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
+    accessKind: v.optional(v.union(v.literal("submit"), v.literal("view"))),
     expiresAt: v.number(), // Unix ms（14日後）
     revokedAt: v.optional(v.number()),
   })

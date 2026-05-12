@@ -21,6 +21,7 @@ import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeli
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
+import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
 import type * as _lib_validation from "../_lib/validation.js";
@@ -90,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
+  "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/time": typeof _lib_time;
   "_lib/uuid": typeof _lib_uuid;
   "_lib/validation": typeof _lib_validation;

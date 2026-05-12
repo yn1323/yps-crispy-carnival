@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { selectChannel } from "../_lib/notification";
 import {
   countScheduledJobs,
@@ -163,6 +163,7 @@ describe("セキュリティ境界シナリオ", () => {
         staffId: staff.staffId,
         shopId: confirmationData.shopId,
         recruitmentId: ids.recruitmentId,
+        accessKind: "view",
       });
     }
 
@@ -452,31 +453,47 @@ describe("セキュリティ境界シナリオ", () => {
         endTime: "18:00",
         positionId,
       });
-      await seedSession(ctx, { sessionToken: "valid-view-session", staffId, shopId, recruitmentId });
+      await seedSession(ctx, {
+        sessionToken: "valid-view-session",
+        staffId,
+        shopId,
+        recruitmentId,
+        accessKind: "view",
+      });
       await seedSession(ctx, {
         sessionToken: "other-recruitment-session",
         staffId,
         shopId,
         recruitmentId: otherRecruitmentId,
+        accessKind: "view",
       });
       await seedSession(ctx, {
         sessionToken: "other-shop-session",
         staffId: otherShopStaffId,
         shopId: otherShopId,
         recruitmentId,
+        accessKind: "view",
       });
-      await seedSession(ctx, { sessionToken: "deleted-staff-session", staffId: deletedStaffId, shopId, recruitmentId });
+      await seedSession(ctx, {
+        sessionToken: "deleted-staff-session",
+        staffId: deletedStaffId,
+        shopId,
+        recruitmentId,
+        accessKind: "view",
+      });
       await seedSession(ctx, {
         sessionToken: "deleted-recruitment-session",
         staffId,
         shopId,
         recruitmentId: deletedRecruitmentId,
+        accessKind: "view",
       });
       await ctx.db.insert("sessions", {
         sessionToken: "expired-view-session",
         staffId,
         shopId,
         recruitmentId,
+        accessKind: "view",
         expiresAt: Date.now() - 1,
       });
       return { recruitmentId, deletedRecruitmentId };
@@ -503,6 +520,108 @@ describe("セキュリティ境界シナリオ", () => {
       staff.getShiftViewData({
         sessionToken: "deleted-recruitment-session",
         recruitmentId: ids.deletedRecruitmentId,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("提出用と閲覧用のリンク・sessionは相互に流用できない", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const staff = scenario.staff();
+
+    const ids = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "用途境界店舗");
+      const staffId = await seedStaff(ctx, { shopId, name: "用途境界スタッフ", email: "access-kind@example.com" });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const openRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(9),
+        deadline: scenarioDate(3),
+        status: "open",
+        isDeleted: false,
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+      });
+      const confirmedRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(14),
+        periodEnd: scenarioDate(16),
+        deadline: scenarioDate(10),
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId: confirmedRecruitmentId,
+        staffId,
+        date: scenarioDate(14),
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId,
+      });
+      await seedSession(ctx, {
+        sessionToken: "access-kind-submit-session",
+        staffId,
+        shopId,
+        recruitmentId: confirmedRecruitmentId,
+        accessKind: "submit",
+      });
+      return { shopId, staffId, openRecruitmentId, confirmedRecruitmentId };
+    });
+
+    const { token: viewToken } = await t.mutation(internal.notification.mutations.createMagicLink, {
+      staffId: ids.staffId,
+      shopId: ids.shopId,
+      recruitmentId: ids.confirmedRecruitmentId,
+      accessKind: "view",
+    });
+    const { token: submitToken } = await t.mutation(internal.notification.mutations.createMagicLink, {
+      staffId: ids.staffId,
+      shopId: ids.shopId,
+      recruitmentId: ids.openRecruitmentId,
+      accessKind: "submit",
+      expiresAt: new Date(`${scenarioDate(4)}T00:00:00.000Z`).getTime(),
+    });
+
+    await expect(staff.verifyMagicLink(viewToken, "submit")).resolves.toMatchObject({
+      status: "expired",
+      recruitmentId: ids.confirmedRecruitmentId,
+    });
+    await expect(staff.verifyMagicLink(submitToken, "view")).resolves.toMatchObject({
+      status: "expired",
+      recruitmentId: ids.openRecruitmentId,
+    });
+
+    const firstView = await staff.verifyMagicLink(viewToken, "view");
+    expect(firstView.status).toBe("ok");
+    if (firstView.status !== "ok") throw new Error("view link should authenticate once");
+    await expect(staff.verifyMagicLink(viewToken, "view")).resolves.toMatchObject({
+      status: "expired",
+      recruitmentId: ids.confirmedRecruitmentId,
+    });
+
+    await expect(
+      t.query(api.shiftView.queries.getShiftViewData, {
+        sessionToken: "access-kind-submit-session",
+        accessKind: "view",
+        recruitmentId: ids.confirmedRecruitmentId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken: firstView.sessionToken,
+        accessKind: "submit",
+        recruitmentId: ids.openRecruitmentId,
       }),
     ).resolves.toBeNull();
   });
@@ -651,6 +770,7 @@ describe("セキュリティ境界シナリオ", () => {
       staffId: ids.staffId,
       shopId: ids.shopId,
       recruitmentId: ids.recruitmentId,
+      accessKind: "submit",
     });
     await t.mutation(internal.line.mutations.createLinkTokenInternal, { staffId: ids.staffId, shopId: ids.shopId });
 

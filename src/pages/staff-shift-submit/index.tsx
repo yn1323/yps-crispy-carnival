@@ -19,7 +19,7 @@ type Props = {
 };
 
 export function StaffShiftSubmitPage({ token }: Props) {
-  const state = useStaffSession(token);
+  const state = useStaffSession(token, "submit");
 
   if (state.status === "loading") return <FullPageSpinner />;
   if (state.status === "rateLimited") {
@@ -99,6 +99,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
   const navigate = useNavigate();
   const data = useQuery(api.shiftSubmission.queries.getSubmissionPageData, {
     sessionToken: session.sessionToken,
+    accessKind: "submit",
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
   const submitShiftRequests = useSubmitShiftRequests(session);
