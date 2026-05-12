@@ -52,7 +52,6 @@ CI/CDパイプラインの構成と運用ルール。
 |---|---|
 | `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
 | `CONVEX_MANAGEMENT_TOKEN` | PRマージ時のConvex preview削除に使うManagement APIトークン |
-| `CONVEX_PROJECT_ID` | dev ConvexプロジェクトID。SecretではなくEnvironment Variableでも可 |
 | `VITE_CONVEX_URL` | dev Convexの永続URL |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
 | `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
@@ -91,7 +90,7 @@ CI/CDパイプラインの構成と運用ルール。
 | ジョブ | トリガー | 処理 |
 |---|---|---|
 | `deploy-preview` | PR to develop (open/sync) | Convex preview作成 → seed → ビルド → CF dev プレビューデプロイ |
-| `cleanup-preview` | PR to develop (close) | CF dev プレビュー削除。merged時のみConvex previewも削除 |
+| `cleanup-preview` | PR to develop (close) | CF dev プレビュー削除。merged時のみ `dev-yps-crispy-carnival` のConvex previewも削除 |
 | `deploy-develop` | push to develop | Convex devデプロイ → ビルド → CF dev メインデプロイ |
 
 ### リリース (`release.yml`)

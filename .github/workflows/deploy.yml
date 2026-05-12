@@ -100,10 +100,10 @@ jobs:
         if: ${{ github.event.pull_request.merged == true }}
         run: |
           pnpm exec tsx scripts/deleteConvexPreviews.ts \
+            --project-slug dev-yps-crispy-carnival \
             --names "pr-${{ github.event.pull_request.number }}-deploy,pr-${{ github.event.pull_request.number }}-e2e"
         env:
           CONVEX_MANAGEMENT_TOKEN: ${{ secrets.CONVEX_MANAGEMENT_TOKEN }}
-          CONVEX_PROJECT_ID: ${{ vars.CONVEX_PROJECT_ID || secrets.CONVEX_PROJECT_ID }}
 
   deploy-develop:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
