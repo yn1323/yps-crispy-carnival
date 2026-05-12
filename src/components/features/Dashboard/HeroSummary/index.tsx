@@ -28,9 +28,17 @@ type Props = {
   onEditClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
+  hideActionSection?: boolean;
 };
 
-export const HeroSummary = ({ shop, recruitments, onEditClick, onOpenShiftBoard, onCreateRecruitment }: Props) => {
+export const HeroSummary = ({
+  shop,
+  recruitments,
+  onEditClick,
+  onOpenShiftBoard,
+  onCreateRecruitment,
+  hideActionSection = false,
+}: Props) => {
   const action = pickNextAction(recruitments);
 
   return (
@@ -72,18 +80,20 @@ export const HeroSummary = ({ shop, recruitments, onEditClick, onOpenShiftBoard,
         </Flex>
       </Stack>
 
-      <Stack gap={{ base: 3, lg: 4 }}>
-        <HStack gap={2.5} align="center">
-          <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0}>
-            <LuCircleCheck />
-          </Box>
-          <Heading as="h2" textStyle="sectionTitle" color="gray.900">
-            今やること
-          </Heading>
-        </HStack>
+      {!hideActionSection && (
+        <Stack gap={{ base: 3, lg: 4 }}>
+          <HStack gap={2.5} align="center">
+            <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0}>
+              <LuCircleCheck />
+            </Box>
+            <Heading as="h2" textStyle="sectionTitle" color="gray.900">
+              今やること
+            </Heading>
+          </HStack>
 
-        <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
-      </Stack>
+          <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
+        </Stack>
+      )}
     </Stack>
   );
 };

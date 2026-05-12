@@ -4,12 +4,14 @@ import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
   recruitments: Recruitment[];
   status: PaginationStatus;
   canLoadMore: boolean;
+  tourRecruitmentId?: Recruitment["_id"];
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onLoadMore: () => void;
@@ -19,6 +21,7 @@ export const RecruitmentBoard = ({
   recruitments,
   status,
   canLoadMore,
+  tourRecruitmentId,
   onCreateClick,
   onOpenShiftBoard,
   onLoadMore,
@@ -44,7 +47,15 @@ export const RecruitmentBoard = ({
             </Heading>
           </HStack>
         </Stack>
-        <Button variant="ghost" colorPalette="teal" size="sm" onClick={onCreateClick} gap={1.5} fontWeight="semibold">
+        <Button
+          data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
+          variant="ghost"
+          colorPalette="teal"
+          size="sm"
+          onClick={onCreateClick}
+          gap={1.5}
+          fontWeight="semibold"
+        >
           <LuPlus />
           新しい募集をつくる
         </Button>
@@ -61,7 +72,12 @@ export const RecruitmentBoard = ({
       ) : (
         <Stack gap={{ base: 3, lg: 3.5 }}>
           {recruitments.map((r) => (
-            <RecruitmentRow key={r._id} recruitment={r} onOpenShiftBoard={onOpenShiftBoard} />
+            <RecruitmentRow
+              key={r._id}
+              recruitment={r}
+              dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
+              onOpenShiftBoard={onOpenShiftBoard}
+            />
           ))}
         </Stack>
       )}

@@ -10,6 +10,7 @@ import { formatDateShort } from "@/src/domains/shift/date";
 
 type Props = {
   recruitment: Recruitment;
+  dataTour?: string;
   onOpenShiftBoard: (recruitmentId: string) => void;
 };
 
@@ -22,7 +23,7 @@ const statusConfig: Record<
   confirmed: { label: "確定済み", colorPalette: "gray", accent: "gray.400" },
 };
 
-export function RecruitmentRow({ recruitment, onOpenShiftBoard }: Props) {
+export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard }: Props) {
   const { _id, periodStart, periodEnd, deadline, responseCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
   const { label, colorPalette, accent } = statusConfig[displayStatus];
@@ -31,6 +32,7 @@ export function RecruitmentRow({ recruitment, onOpenShiftBoard }: Props) {
   return (
     <Flex
       as="button"
+      data-tour={dataTour}
       aria-label={`${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}のシフトを見る`}
       onClick={() => onOpenShiftBoard(_id)}
       align="stretch"

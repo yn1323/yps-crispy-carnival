@@ -4,6 +4,7 @@ import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { StaffRow } from "./StaffRow";
 
 type Props = {
@@ -52,7 +53,15 @@ export const StaffRoster = ({
           </HStack>
         </Stack>
         <Flex gap={2} wrap="wrap">
-          <Button variant="ghost" colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
+          <Button
+            data-tour={DASHBOARD_TOUR_TARGET.addStaff}
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            onClick={onAddClick}
+            gap={1.5}
+            fontWeight="semibold"
+          >
             <LuPlus />
             スタッフを追加
           </Button>
