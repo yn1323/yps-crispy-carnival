@@ -1,6 +1,6 @@
 import { Box, Checkbox, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer, LuRefreshCw } from "react-icons/lu";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
@@ -9,11 +9,8 @@ import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
-import {
-  buildEntriesFromPreviousWeeklyPattern,
-  buildWorkingEntryFromPreviousWeeklyPattern,
-  type PreviousWeeklyPattern,
-} from "../utils/previousWeeklyPattern";
+import { buildRestEntry, buildWorkingEntry, type WorkingTime } from "../utils/dayEntryState";
+import { buildEntriesFromPreviousWeeklyPattern, type PreviousWeeklyPattern } from "../utils/previousWeeklyPattern";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -41,6 +38,7 @@ type Props = {
 };
 
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
+  const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
   const timeOptions = useMemo(
     () => generateTimeOptions(data.timeRange.startTime, data.timeRange.endTime),
@@ -66,30 +64,36 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
 
   const handleSetWorking = (index: number) => {
     const entry = entries[index];
-    const previousEntry = data.previousWeeklyPattern
-      ? buildWorkingEntryFromPreviousWeeklyPattern(entry.date, data.previousWeeklyPattern, data.timeRange)
-      : null;
-
-    if (previousEntry) {
-      setValue(`entries.${index}`, previousEntry, { shouldDirty: true, shouldValidate: true });
-      return;
-    }
-
-    setValue(`entries.${index}.isWorking`, true, { shouldDirty: true, shouldValidate: true });
+    const nextEntry = buildWorkingEntry({
+      entry,
+      timeRange: data.timeRange,
+      previousWeeklyPattern: data.previousWeeklyPattern,
+      latestWorkingTime: latestWorkingTimeRef.current,
+    });
+    latestWorkingTimeRef.current = { startTime: nextEntry.startTime, endTime: nextEntry.endTime };
+    setValue(`entries.${index}`, nextEntry, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleTimeChange = (index: number, field: "startTime" | "endTime", value: string) => {
+    const entry = entries[index];
     setValue(`entries.${index}.${field}`, value, { shouldValidate: true });
+    if (entry.isWorking) {
+      latestWorkingTimeRef.current = {
+        startTime: field === "startTime" ? value : entry.startTime,
+        endTime: field === "endTime" ? value : entry.endTime,
+      };
+    }
   };
 
   const handleClear = (index: number) => {
-    setValue(`entries.${index}.isWorking`, false, { shouldValidate: true });
-    setValue(`entries.${index}.startTime`, data.timeRange.startTime);
-    setValue(`entries.${index}.endTime`, data.timeRange.endTime);
+    const entry = entries[index];
+    latestWorkingTimeRef.current = { startTime: entry.startTime, endTime: entry.endTime };
+    setValue(`entries.${index}`, buildRestEntry(entry), { shouldDirty: true, shouldValidate: true });
   };
 
   const handleApplyPreviousPattern = () => {
     if (!data.previousWeeklyPattern) return;
+    latestWorkingTimeRef.current = undefined;
     setValue("entries", buildEntriesFromPreviousWeeklyPattern(dates, data.previousWeeklyPattern, data.timeRange), {
       shouldDirty: true,
       shouldValidate: true,
