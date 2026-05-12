@@ -26,6 +26,7 @@ import { LuEye, LuEyeOff } from "react-icons/lu";
 import { z } from "zod";
 import { Header } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import loginIllustration from "./login.webp";
 import { normalizeAuthRedirect } from "./redirect";
 
@@ -105,7 +106,11 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
   const [forgotStep, setForgotStep] = useState<ForgotStep>("request");
   const [forgotEmail, setForgotEmail] = useState("");
 
-  if (authLoaded && isSignedIn) {
+  if (!authLoaded) {
+    return <FullPageSpinner />;
+  }
+
+  if (isSignedIn) {
     return <Navigate to={redirectTo} replace />;
   }
 
@@ -266,7 +271,7 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
     <AuthContent
       mode={mode}
       errorMessage={errorMessage}
-      isSubmitting={isSubmitting || !authLoaded}
+      isSubmitting={isSubmitting}
       isVerificationStep={isVerificationStep}
       forgotStep={forgotStep}
       forgotEmail={forgotEmail}
@@ -500,6 +505,7 @@ export function SignupForm({
         <PasswordInput autoComplete="new-password" placeholder="8文字以上" {...register("password")} />
         <Field.ErrorText>{errors.password?.message}</Field.ErrorText>
       </Field.Root>
+      <ClerkCaptcha />
       <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText="作成中">
         アカウントを作成
       </Button>
@@ -588,6 +594,7 @@ export function ForgotPasswordForm({
 export function SsoCallbackPage() {
   const clerk = useClerk();
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [isProcessing, setIsProcessing] = useState(true);
 
   useEffect(() => {
     clerk
@@ -599,14 +606,21 @@ export function SsoCallbackPage() {
         continueSignUpUrl: "/signup",
         resetPasswordUrl: "/forgot-password",
       })
-      .catch((error) => setErrorMessage(getClerkErrorMessage(error)));
+      .catch((error) => {
+        setErrorMessage(getClerkErrorMessage(error));
+        setIsProcessing(false);
+      });
   }, [clerk]);
+
+  if (isProcessing && !errorMessage) {
+    return <FullPageSpinner />;
+  }
 
   return (
     <AuthContent
       mode="login"
       errorMessage={errorMessage}
-      isSubmitting
+      isSubmitting={false}
       onGoogle={() => {}}
       onLogin={() => {}}
       onSignup={() => {}}
@@ -672,6 +686,11 @@ const AuthError = ({ message }: { message?: string }) => {
     </Alert.Root>
   );
 };
+
+// Clerk の Bot sign-up protection はこの ID を起点に CAPTCHA を描画する。
+const ClerkCaptcha = () => (
+  <Box id="clerk-captcha" w="full" minH="1px" data-cl-theme="light" data-cl-size="flexible" data-cl-language="ja-JP" />
+);
 
 function buildAuthHref(path: "/login" | "/signup" | "/forgot-password", redirectTo: string) {
   return `${path}?redirect=${encodeURIComponent(redirectTo)}`;
