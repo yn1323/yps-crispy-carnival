@@ -49,6 +49,7 @@ export const sendShiftConfirmationEmails = internalAction({
         staffId: staffData.staffId,
         shopId: data.shopId,
         recruitmentId,
+        accessKind: "view",
       });
       const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
@@ -166,6 +167,7 @@ export const sendReissueEmail = internalAction({
       staffId,
       shopId: data.shopId,
       recruitmentId,
+      accessKind: "view",
     });
     const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
 
@@ -238,6 +240,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
+        accessKind: "submit",
         expiresAt,
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
@@ -308,6 +311,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
+        accessKind: "submit",
         expiresAt: getDeadlineCutoff(recruitment.deadline),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
@@ -369,6 +373,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
+        accessKind: "submit",
         expiresAt: getDeadlineCutoff(recruitment.deadline),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;

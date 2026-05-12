@@ -35,6 +35,7 @@ describe("notification/mutations", () => {
         staffId,
         shopId,
         recruitmentId,
+        accessKind: "view",
       });
 
       expect(result.token).toBeDefined();
@@ -51,7 +52,50 @@ describe("notification/mutations", () => {
         const diff = magicLink.expiresAt - Date.now();
         expect(diff).toBeGreaterThan(twentyFourHoursMs - 60000);
         expect(diff).toBeLessThanOrEqual(twentyFourHoursMs);
+        expect(magicLink.accessKind).toBe("view");
       });
+    });
+
+    it("指定した用途と期限を保存する", async () => {
+      const t = convexTest(schema, modules);
+      const expiresAt = Date.now() + 123456;
+
+      const { shopId, staffId, recruitmentId } = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "提出店舗");
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-20",
+          periodEnd: "2026-01-26",
+          deadline: "2026-01-17",
+          status: "open",
+          isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "提出スタッフ",
+          email: "submit@example.com",
+          isDeleted: false,
+        });
+        return { shopId, staffId, recruitmentId };
+      });
+
+      const result = await t.mutation(internal.notification.mutations.createMagicLink, {
+        staffId,
+        shopId,
+        recruitmentId,
+        accessKind: "submit",
+        expiresAt,
+      });
+
+      const magicLink = await t.run(async (ctx) =>
+        ctx.db
+          .query("magicLinks")
+          .withIndex("by_token", (q) => q.eq("token", result.token))
+          .first(),
+      );
+      expect(magicLink).toMatchObject({ accessKind: "submit", expiresAt });
     });
   });
 });

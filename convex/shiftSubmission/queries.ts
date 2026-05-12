@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
+import { getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 
@@ -18,8 +19,10 @@ export const getSubmissionPageData = staffSessionQuery({
     if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
       return null;
     }
+    if (recruitment.status !== "open") return null;
 
     const isBeforeDeadline = Date.now() < getDeadlineCutoff(recruitment.deadline);
+    if (!isBeforeDeadline) return null;
 
     const staffId = ctx.staff._id;
     const [submission, slots] = await Promise.all([
@@ -52,6 +55,14 @@ export const getSubmissionPageData = staffSessionQuery({
         startTime: recruitment.shiftStartTime,
         endTime: recruitment.shiftEndTime,
       },
+      previousWeeklyPattern: await getPreviousWeeklyPattern(ctx, {
+        staffId,
+        beforeDate: recruitment.periodStart,
+        timeRange: {
+          startTime: recruitment.shiftStartTime,
+          endTime: recruitment.shiftEndTime,
+        },
+      }),
     };
   },
 });

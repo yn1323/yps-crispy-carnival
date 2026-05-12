@@ -1,7 +1,14 @@
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { clearSession, getStoredSession, type SessionInfo, storeSession } from "@/src/utils/staffSession";
+import {
+  clearSession,
+  getLegacySubmitSession,
+  getStoredSession,
+  type SessionInfo,
+  type StaffAccessKind,
+  storeSession,
+} from "@/src/utils/staffSession";
 
 type StaffSessionState =
   | { status: "loading" }
@@ -10,7 +17,7 @@ type StaffSessionState =
   | { status: "networkError"; retry: () => void }
   | { status: "authenticated"; session: SessionInfo; clearSession: () => void };
 
-export function useStaffSession(token: string | undefined): StaffSessionState {
+export function useStaffSession(token: string | undefined, accessKind: StaffAccessKind): StaffSessionState {
   const verifyToken = useMutation(api.staffAuth.mutations.verifyToken);
 
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -19,30 +26,35 @@ export function useStaffSession(token: string | undefined): StaffSessionState {
   );
   const [rateLimited, setRateLimited] = useState(false);
   const [networkError, setNetworkError] = useState(false);
-  const verifyingTokenRef = useRef<string | null>(null);
+  const verifyingRequestKeyRef = useRef<string | null>(null);
 
   const verify = useCallback(() => {
-    if (!token || verifyingTokenRef.current === token) return;
+    if (!token) return;
 
     const verifyingToken = token;
-    verifyingTokenRef.current = verifyingToken;
+    const requestKey = `${accessKind}:${verifyingToken}`;
+    if (verifyingRequestKeyRef.current === requestKey) return;
+
+    verifyingRequestKeyRef.current = requestKey;
     setSession(null);
     setExpired(null);
     setRateLimited(false);
     setNetworkError(false);
 
-    verifyToken({ token: verifyingToken })
+    verifyToken({ token: verifyingToken, accessKind })
       .then((result) => {
-        if (verifyingTokenRef.current !== verifyingToken) return;
+        if (verifyingRequestKeyRef.current !== requestKey) return;
 
         if (result.status === "ok") {
-          storeSession(result.recruitmentId, result.sessionToken);
-          setSession({ sessionToken: result.sessionToken, recruitmentId: result.recruitmentId });
+          storeSession(result.recruitmentId, result.sessionToken, accessKind);
+          setSession({ sessionToken: result.sessionToken, recruitmentId: result.recruitmentId, accessKind });
         } else if (result.status === "rate_limited") {
           setRateLimited(true);
         } else {
           if (result.recruitmentId) {
-            const storedSession = getStoredSession(result.recruitmentId);
+            const storedSession =
+              getStoredSession(result.recruitmentId, accessKind) ??
+              (accessKind === "submit" ? getLegacySubmitSession(result.recruitmentId) : null);
             if (storedSession) {
               setSession(storedSession);
               return;
@@ -52,18 +64,19 @@ export function useStaffSession(token: string | undefined): StaffSessionState {
         }
       })
       .catch(() => {
-        if (verifyingTokenRef.current !== verifyingToken) return;
+        if (verifyingRequestKeyRef.current !== requestKey) return;
         setNetworkError(true);
       })
       .finally(() => {
-        if (verifyingTokenRef.current === verifyingToken) {
-          verifyingTokenRef.current = null;
+        if (verifyingRequestKeyRef.current === requestKey) {
+          verifyingRequestKeyRef.current = null;
         }
       });
-  }, [token, verifyToken]);
+  }, [accessKind, token, verifyToken]);
 
   useEffect(() => {
     if (!token) {
+      verifyingRequestKeyRef.current = null;
       setSession(null);
       setExpired({ recruitmentId: null });
       setRateLimited(false);
@@ -85,6 +98,6 @@ export function useStaffSession(token: string | undefined): StaffSessionState {
   return {
     status: "authenticated",
     session,
-    clearSession: () => clearSession(session.recruitmentId),
+    clearSession: () => clearSession(session.recruitmentId, accessKind),
   };
 }

@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Header } from "./index";
+import { createStore, Provider } from "jotai";
+import { userAtom } from "@/src/stores/user";
+import { Header, type HeaderProps } from "./index";
+
+const createStoreWithUser = () => {
+  const store = createStore();
+  store.set(userAtom, { authId: "test", name: "田中太郎", email: "tanaka@example.com" });
+  return store;
+};
 
 const meta = {
   title: "templates/Header",
@@ -7,12 +15,21 @@ const meta = {
   parameters: {
     layout: "fullscreen",
   },
-} satisfies Meta<typeof Header>;
+  decorators: [
+    (Story) => (
+      <Provider store={createStoreWithUser()}>
+        <Story />
+      </Provider>
+    ),
+  ],
+} satisfies Meta<HeaderProps>;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<HeaderProps>;
 
-export const User: Story = {};
+export const User: Story = {
+  args: {},
+};
 
 export const Public: Story = {
   args: {
