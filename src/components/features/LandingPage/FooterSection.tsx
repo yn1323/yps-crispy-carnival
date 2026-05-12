@@ -26,7 +26,7 @@ export const FooterSection = () => (
       <VStack align="start" gap={3} gridColumn={{ base: "1 / -1", lg: "auto" }}>
         <Link href="/" _hover={{ opacity: 0.8, textDecoration: "none" }}>
           <HStack gap={2.5} fontWeight="bold" textStyle="lg" color="white">
-            <Image src="/logo512.png" alt="" boxSize="28px" borderRadius="full" bg="whiteAlpha.300" p="3px" />
+            <Image src="/logo192.webp" alt="" boxSize="28px" borderRadius="full" bg="whiteAlpha.300" p="3px" />
             <Box as="span">シフトリ</Box>
           </HStack>
         </Link>
