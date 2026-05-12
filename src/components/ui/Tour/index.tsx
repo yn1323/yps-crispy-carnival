@@ -1,9 +1,11 @@
-import { forwardRef, useImperativeHandle } from "react";
+import { type ElementType, forwardRef, useImperativeHandle } from "react";
+import type { TooltipRenderProps } from "react-joyride";
 import { type EventData, type Options, type Step, useJoyride } from "react-joyride";
 import { TourTooltip } from "./TourTooltip";
 
 export type { EventData };
 export type TourStep = Step;
+export type TourTooltipComponent = ElementType<TooltipRenderProps>;
 
 /** ref で公開する imperative API */
 export type TourHandle = {
@@ -19,6 +21,8 @@ type Props = {
   onEvent?: (data: EventData) => void;
   /** 既定のオプション（skipBeacon 等）を個別に上書きしたいときに使う */
   options?: Partial<Options>;
+  /** 画面ごとの終了ボタンやCTAが必要なときに、既定Tooltipだけ差し替える */
+  tooltipComponent?: TourTooltipComponent;
 };
 
 const DEFAULT_OPTIONS: Partial<Options> = {
@@ -51,25 +55,27 @@ const CLICK_THROUGH_CSS = `
  * 残存する既知の挙動があるため、呼び出し側が ref.skip() で明示的に終了を
  * 宣言できるようにしている（公式推奨の `controls.skip()` を ref で露出）。
  */
-export const Tour = forwardRef<TourHandle, Props>(({ run, steps, stepIndex, onEvent, options }, ref) => {
-  const { controls, Tour: JoyrideTour } = useJoyride({
-    steps,
-    run,
-    stepIndex,
-    continuous: true,
-    tooltipComponent: TourTooltip,
-    onEvent,
-    options: { ...DEFAULT_OPTIONS, ...options },
-  });
+export const Tour = forwardRef<TourHandle, Props>(
+  ({ run, steps, stepIndex, onEvent, options, tooltipComponent }, ref) => {
+    const { controls, Tour: JoyrideTour } = useJoyride({
+      steps,
+      run,
+      stepIndex,
+      continuous: true,
+      tooltipComponent: tooltipComponent ?? TourTooltip,
+      onEvent,
+      options: { ...DEFAULT_OPTIONS, ...options },
+    });
 
-  useImperativeHandle(ref, () => ({ skip: controls.skip }), [controls]);
+    useImperativeHandle(ref, () => ({ skip: controls.skip }), [controls]);
 
-  return (
-    <>
-      {run && <style>{CLICK_THROUGH_CSS}</style>}
-      {JoyrideTour}
-    </>
-  );
-});
+    return (
+      <>
+        {run && <style>{CLICK_THROUGH_CSS}</style>}
+        {JoyrideTour}
+      </>
+    );
+  },
+);
 
 Tour.displayName = "Tour";
