@@ -78,6 +78,7 @@ describe("シフト希望回収シナリオ", () => {
       staffId: ids.submittedStaffId,
       shopId: ids.shopId,
       recruitmentId,
+      accessKind: "submit",
     });
     const verified = await staff.verifyMagicLink(token);
     expect(verified.status).toBe("ok");
@@ -201,6 +202,79 @@ describe("シフト希望回収シナリオ", () => {
     const board = await asManager.getShiftBoardData(recruitmentId);
     expect(board?.timeRange.editableStartMinutes).toBe(540);
     expect(board?.timeRange.editableEndMinutes).toBe(1320);
+  });
+
+  it("提出リンクは締切まで複数ブラウザ相当で開けて、別セッションから再提出できる", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const staff = scenario.staff();
+
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manager-multi-browser@example.com",
+        shopName: "複数ブラウザ店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        name: "複数ブラウザスタッフ",
+        email: "multi-browser@example.com",
+      });
+      return { shopId: seeded.shopId, staffId };
+    });
+    const recruitmentInput = {
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    };
+    const recruitmentId = await asManager.createRecruitment(recruitmentInput);
+    const { token } = await t.mutation(internal.notification.mutations.createMagicLink, {
+      staffId,
+      shopId,
+      recruitmentId,
+      accessKind: "submit",
+      expiresAt: new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`).getTime(),
+    });
+
+    const firstBrowser = await staff.verifyMagicLink(token);
+    const secondBrowser = await staff.verifyMagicLink(token);
+    expect(firstBrowser.status).toBe("ok");
+    expect(secondBrowser.status).toBe("ok");
+    if (firstBrowser.status !== "ok" || secondBrowser.status !== "ok") {
+      throw new Error("submit link should be reusable before deadline");
+    }
+    expect(firstBrowser.sessionToken).not.toBe(secondBrowser.sessionToken);
+
+    await expect(
+      staff.getSubmissionPageData({ sessionToken: firstBrowser.sessionToken, recruitmentId }),
+    ).resolves.toMatchObject({ staffName: "複数ブラウザスタッフ", hasSubmitted: false });
+    await expect(
+      staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
+    ).resolves.toMatchObject({ staffName: "複数ブラウザスタッフ", hasSubmitted: false });
+
+    await staff.submitShiftRequests({
+      sessionToken: firstBrowser.sessionToken,
+      recruitmentId,
+      acceptedLegal: true,
+      requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+    });
+    await staff.submitShiftRequests({
+      sessionToken: secondBrowser.sessionToken,
+      recruitmentId,
+      requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+    });
+
+    const board = await asManager.getShiftBoardData(recruitmentId);
+    expect(board?.requestedSlots).toEqual([
+      { staffId, date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" },
+    ]);
+
+    vi.setSystemTime(new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`));
+    await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({ status: "expired", recruitmentId });
+    await expect(
+      staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
+    ).resolves.toBeNull();
   });
 
   it("過去のシフトあり週を次回募集の前回パターンとして再利用できる", async () => {

@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function StaffShiftViewRoutePage({ token }: Props) {
-  const state = useStaffSession(token);
+  const state = useStaffSession(token, "view");
 
   if (state.status === "loading") return <FullPageSpinner />;
   if (state.status === "rateLimited") {
@@ -111,6 +111,7 @@ export function StaffShiftViewRoutePage({ token }: Props) {
 function ShiftViewContent({ session }: { session: { sessionToken: string; recruitmentId: string } }) {
   const data = useQuery(api.shiftView.queries.getShiftViewData, {
     sessionToken: session.sessionToken,
+    accessKind: "view",
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
 

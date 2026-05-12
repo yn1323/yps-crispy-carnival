@@ -42,6 +42,7 @@ async function setupSubmissionPageData(t: TestConvex<typeof schema>) {
       staffId,
       shopId,
       recruitmentId,
+      accessKind: "submit",
       expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
     });
     return { shopId, staffId, recruitmentId, sessionToken };
@@ -113,6 +114,7 @@ describe("shiftSubmission/queries", () => {
 
       const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
       });
 
@@ -145,6 +147,7 @@ describe("shiftSubmission/queries", () => {
 
       const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
       });
 
@@ -165,10 +168,48 @@ describe("shiftSubmission/queries", () => {
 
       const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
         sessionToken,
+        accessKind: "submit",
         recruitmentId,
       });
 
       expect(pageData?.previousWeeklyPattern).toBeNull();
+    });
+
+    it("締切後は有効な提出sessionがあっても提出画面データを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await seedSubmission(t, {
+        recruitmentId,
+        staffId,
+        slots: [{ date: "2026-04-21", startTime: "10:00", endTime: "18:00" }],
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { deadline: "2026-01-01" });
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData).toBeNull();
+    });
+
+    it("募集確定後は有効な提出sessionがあっても提出画面データを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { status: "confirmed" });
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData).toBeNull();
     });
   });
 });

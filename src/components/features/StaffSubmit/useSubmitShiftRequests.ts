@@ -17,6 +17,7 @@ export function useSubmitShiftRequests(session: Session) {
       .map((e) => ({ date: e.date, startTime: e.startTime, endTime: e.endTime }));
     await submitMutation({
       sessionToken: session.sessionToken,
+      accessKind: "submit",
       recruitmentId: session.recruitmentId as Id<"recruitments">,
       requests,
       acceptedLegal,
