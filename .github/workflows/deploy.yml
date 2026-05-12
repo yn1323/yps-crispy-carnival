@@ -93,6 +93,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Delete Convex previews
+        if: ${{ github.event.pull_request.merged == true }}
+        run: |
+          pnpm exec tsx scripts/deleteConvexPreviews.ts \
+            --names "pr-${{ github.event.pull_request.number }}-deploy,pr-${{ github.event.pull_request.number }}-e2e"
+        env:
+          CONVEX_MANAGEMENT_TOKEN: ${{ secrets.CONVEX_MANAGEMENT_TOKEN }}
+          CONVEX_PROJECT_ID: ${{ vars.CONVEX_PROJECT_ID || secrets.CONVEX_PROJECT_ID }}
 
   deploy-develop:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
