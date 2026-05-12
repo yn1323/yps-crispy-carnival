@@ -505,6 +505,7 @@ export function SignupForm({
         <PasswordInput autoComplete="new-password" placeholder="8文字以上" {...register("password")} />
         <Field.ErrorText>{errors.password?.message}</Field.ErrorText>
       </Field.Root>
+      <ClerkCaptcha />
       <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText="作成中">
         アカウントを作成
       </Button>
@@ -685,6 +686,11 @@ const AuthError = ({ message }: { message?: string }) => {
     </Alert.Root>
   );
 };
+
+// Clerk の Bot sign-up protection はこの ID を起点に CAPTCHA を描画する。
+const ClerkCaptcha = () => (
+  <Box id="clerk-captcha" w="full" minH="1px" data-cl-theme="light" data-cl-size="flexible" data-cl-language="ja-JP" />
+);
 
 function buildAuthHref(path: "/login" | "/signup" | "/forgot-password", redirectTo: string) {
   return `${path}?redirect=${encodeURIComponent(redirectTo)}`;
