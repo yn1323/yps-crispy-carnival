@@ -1,11 +1,10 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getDateRange } from "@/src/domains/shift/date";
 import type { ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { PeriodBar } from "../PeriodBar";
 
 const POSITIONS = [DEFAULT_POSITION];
 
@@ -102,7 +101,11 @@ export function ShiftViewPage({
 
   return (
     <Flex direction="column" h="full" minH={0}>
-      <PeriodBar periodLabel={periodLabel} />
+      <Box px={4} py={3}>
+        <Text fontSize="sm" fontWeight="semibold">
+          {periodLabel} のシフト
+        </Text>
+      </Box>
 
       <Box flex={1} minH={0} px={{ base: 0, lg: 4 }}>
         <ShiftForm

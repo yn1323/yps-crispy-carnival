@@ -1,11 +1,12 @@
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
+import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ExpiredView } from "@/src/components/features/StaffView/ExpiredView";
-import { NetworkErrorView } from "@/src/components/features/StaffView/NetworkErrorView";
-import { RateLimitedView } from "@/src/components/features/StaffView/RateLimitedView";
 import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage";
-import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
+import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { useStaffSession } from "@/src/hooks/useStaffSession";
@@ -18,18 +19,59 @@ export function StaffShiftViewRoutePage({ token }: Props) {
   const state = useStaffSession(token);
 
   if (state.status === "loading") return <FullPageSpinner />;
-  if (state.status === "rateLimited") return <RateLimitedView title="シフト閲覧" />;
+  if (state.status === "rateLimited") {
+    return (
+      <StaffLayout shopName="シフト閲覧">
+        <StaffCenteredContent>
+          <Empty
+            icon={LuTriangleAlert}
+            title="しばらく待ってから開いてください"
+            description={"しばらく時間を置いてから\n再度アクセスしてください"}
+            tone="warning"
+          />
+        </StaffCenteredContent>
+      </StaffLayout>
+    );
+  }
   if (state.status === "networkError") {
     return (
       <StaffLayout shopName="シフト閲覧">
-        <NetworkErrorView onRetry={state.retry} />
+        <StaffCenteredContent>
+          <Empty
+            icon={LuWifiOff}
+            title="ページを開けませんでした"
+            description={"通信が切れた可能性があります。\nもう一度読み込むか、Safari、Chrome、Edgeで開いてください。"}
+            tone="warning"
+            action={
+              <Button colorPalette="teal" size="md" borderRadius="lg" px={6} onClick={state.retry}>
+                再試行する
+              </Button>
+            }
+          />
+        </StaffCenteredContent>
       </StaffLayout>
     );
   }
   if (state.status === "expired") {
     return (
       <StaffLayout shopName="シフト閲覧">
-        <ExpiredView recruitmentId={state.recruitmentId} />
+        <StaffCenteredContent>
+          <Empty
+            icon={LuTriangleAlert}
+            title={"このリンクの有効期限が\n切れています"}
+            description={"下のボタンから新しいリンクを\n発行してください"}
+            tone="warning"
+            action={
+              state.recruitmentId ? (
+                <Link to="/shifts/reissue" search={{ recruitmentId: state.recruitmentId }}>
+                  <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
+                    リンクを再発行する
+                  </Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        </StaffCenteredContent>
       </StaffLayout>
     );
   }
@@ -38,7 +80,21 @@ export function StaffShiftViewRoutePage({ token }: Props) {
     <ErrorBoundary
       fallback={
         <StaffLayout shopName="シフト閲覧">
-          <ExpiredView recruitmentId={state.session.recruitmentId} />
+          <StaffCenteredContent>
+            <Empty
+              icon={LuTriangleAlert}
+              title={"このリンクの有効期限が\n切れています"}
+              description={"下のボタンから新しいリンクを\n発行してください"}
+              tone="warning"
+              action={
+                <Link to="/shifts/reissue" search={{ recruitmentId: state.session.recruitmentId }}>
+                  <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
+                    リンクを再発行する
+                  </Button>
+                </Link>
+              }
+            />
+          </StaffCenteredContent>
         </StaffLayout>
       }
       onError={(error) => {
@@ -63,7 +119,21 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
   if (data === null) {
     return (
       <StaffLayout shopName="シフト閲覧">
-        <ExpiredView recruitmentId={session.recruitmentId} />
+        <StaffCenteredContent>
+          <Empty
+            icon={LuTriangleAlert}
+            title={"このリンクの有効期限が\n切れています"}
+            description={"下のボタンから新しいリンクを\n発行してください"}
+            tone="warning"
+            action={
+              <Link to="/shifts/reissue" search={{ recruitmentId: session.recruitmentId }}>
+                <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
+                  リンクを再発行する
+                </Button>
+              </Link>
+            }
+          />
+        </StaffCenteredContent>
       </StaffLayout>
     );
   }
