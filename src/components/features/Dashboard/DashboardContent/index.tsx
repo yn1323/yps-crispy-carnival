@@ -1,7 +1,8 @@
-import { Text } from "@chakra-ui/react";
+import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useState } from "react";
+import { LuSparkles } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
@@ -21,6 +22,13 @@ import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffRoster } from "../StaffRoster";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
+import { OnboardingCallout } from "./OnboardingCallout";
+import {
+  type DashboardOnboardingStage,
+  deriveDashboardOnboardingState,
+} from "./OnboardingCallout/deriveDashboardOnboardingState";
+
+const REVIEWED_RECRUITMENT_STORAGE_KEY = "dashboardOnboardingReviewedRecruitments";
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
@@ -75,6 +83,19 @@ export const DashboardContent = ({
   const [lineQrLoading, setLineQrLoading] = useState(false);
   const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
   const [legalConsentSubmitting, setLegalConsentSubmitting] = useState(false);
+  const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
+  const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
+  const onboardingState = deriveDashboardOnboardingState({
+    recruitments,
+    staffs,
+    dismissedStages: dismissedOnboardingStages,
+    reviewedRecruitmentIds,
+  });
+  const visibleOnboardingState =
+    shop !== null && managerLegalConsentStatus?.required === false && onboardingState.kind === "visible"
+      ? onboardingState
+      : null;
+  const shouldHideNextActionSection = visibleOnboardingState !== null || (shop !== null && !managerLegalConsentStatus);
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
@@ -87,6 +108,14 @@ export const DashboardContent = ({
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
+    if (visibleOnboardingState?.stage === "review_submission" && recruitments[0]?._id === recruitmentId) {
+      setReviewedRecruitmentIds((current) => {
+        if (current.includes(recruitmentId)) return current;
+        const next = [...current, recruitmentId];
+        writeReviewedRecruitmentIds(next);
+        return next;
+      });
+    }
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
   };
 
@@ -230,11 +259,32 @@ export const DashboardContent = ({
               onEditClick={editShopModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onCreateRecruitment={recruitmentModal.open}
+              hideActionSection={shouldHideNextActionSection}
             />
+            {visibleOnboardingState && (
+              <Stack as="section" aria-label="はじめの確認" gap={{ base: 3, lg: 4 }}>
+                <HStack gap={2.5} align="center">
+                  <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0} color="fg.muted">
+                    <LuSparkles />
+                  </Box>
+                  <Heading as="h2" textStyle="sectionTitle" color="gray.900">
+                    はじめの確認
+                  </Heading>
+                </HStack>
+                <OnboardingCallout
+                  state={visibleOnboardingState}
+                  showLabel={false}
+                  onDismiss={(stage) =>
+                    setDismissedOnboardingStages((current) => (current.includes(stage) ? current : [...current, stage]))
+                  }
+                />
+              </Stack>
+            )}
             <RecruitmentBoard
               recruitments={recruitments}
               status={recruitmentStatus}
               canLoadMore={canLoadMoreRecruitments}
+              tourRecruitmentId={recruitments[0]?._id}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onLoadMore={loadMoreRecruitments}
@@ -365,3 +415,27 @@ export const DashboardContent = ({
     </>
   );
 };
+
+function readReviewedRecruitmentIds(): string[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const rawValue = window.sessionStorage.getItem(REVIEWED_RECRUITMENT_STORAGE_KEY);
+    if (!rawValue) return [];
+    const parsedValue: unknown = JSON.parse(rawValue);
+    if (!Array.isArray(parsedValue)) return [];
+    return parsedValue.filter((value): value is string => typeof value === "string");
+  } catch {
+    return [];
+  }
+}
+
+function writeReviewedRecruitmentIds(recruitmentIds: readonly string[]) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.sessionStorage.setItem(REVIEWED_RECRUITMENT_STORAGE_KEY, JSON.stringify(recruitmentIds));
+  } catch {
+    // sessionStorage が使えない環境でも、現在の画面状態だけは進められるようにする。
+  }
+}

@@ -33,13 +33,20 @@ export async function seedStaff(
 
 export async function seedSession(
   ctx: MutationCtx,
-  args: { sessionToken: string; staffId: Id<"staffs">; shopId: Id<"shops">; recruitmentId: Id<"recruitments"> },
+  args: {
+    sessionToken: string;
+    staffId: Id<"staffs">;
+    shopId: Id<"shops">;
+    recruitmentId: Id<"recruitments">;
+    accessKind?: "submit" | "view";
+  },
 ) {
   await ctx.db.insert("sessions", {
     sessionToken: args.sessionToken,
     staffId: args.staffId,
     shopId: args.shopId,
     recruitmentId: args.recruitmentId,
+    accessKind: args.accessKind ?? "submit",
     expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
   });
 }

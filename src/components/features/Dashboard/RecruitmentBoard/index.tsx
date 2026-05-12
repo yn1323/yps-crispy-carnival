@@ -1,14 +1,17 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
+import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
   recruitments: Recruitment[];
   status: PaginationStatus;
   canLoadMore: boolean;
+  tourRecruitmentId?: Recruitment["_id"];
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onLoadMore: () => void;
@@ -18,6 +21,7 @@ export const RecruitmentBoard = ({
   recruitments,
   status,
   canLoadMore,
+  tourRecruitmentId,
   onCreateClick,
   onOpenShiftBoard,
   onLoadMore,
@@ -43,18 +47,37 @@ export const RecruitmentBoard = ({
             </Heading>
           </HStack>
         </Stack>
-        <Button variant="ghost" colorPalette="teal" size="sm" onClick={onCreateClick} gap={1.5} fontWeight="semibold">
+        <Button
+          data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
+          variant="ghost"
+          colorPalette="teal"
+          size="sm"
+          onClick={onCreateClick}
+          gap={1.5}
+          fontWeight="semibold"
+        >
           <LuPlus />
           新しい募集をつくる
         </Button>
       </Flex>
 
       {recruitments.length === 0 ? (
-        <EmptyState />
+        <Empty
+          icon={LuInbox}
+          title="シフト募集はまだありません"
+          description="期間と締切を決めて、スタッフに希望を聞きましょう。"
+          tone="brand"
+          variant="section"
+        />
       ) : (
         <Stack gap={{ base: 3, lg: 3.5 }}>
           {recruitments.map((r) => (
-            <RecruitmentRow key={r._id} recruitment={r} onOpenShiftBoard={onOpenShiftBoard} />
+            <RecruitmentRow
+              key={r._id}
+              recruitment={r}
+              dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
+              onOpenShiftBoard={onOpenShiftBoard}
+            />
           ))}
         </Stack>
       )}
@@ -77,30 +100,3 @@ export const RecruitmentBoard = ({
     </Stack>
   );
 };
-
-const EmptyState = () => (
-  <Stack
-    align="center"
-    textAlign="center"
-    gap={3}
-    py={{ base: 10, lg: 12 }}
-    px={6}
-    borderRadius="xl"
-    borderStyle="dashed"
-    borderWidth="1.5px"
-    borderColor="teal.100"
-    bg="teal.50/50"
-  >
-    <Box color="teal.500" fontSize="3xl">
-      <LuInbox />
-    </Box>
-    <Stack gap={1}>
-      <Text fontWeight="semibold" color="gray.800">
-        シフト募集はまだありません
-      </Text>
-      <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        期間と締切を決めて、スタッフに希望を聞きましょう。
-      </Text>
-    </Stack>
-  </Stack>
-);

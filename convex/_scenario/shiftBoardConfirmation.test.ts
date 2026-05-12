@@ -122,9 +122,18 @@ describe("シフト表作成・確定シナリオ", () => {
     const confirmedBoard = await asManager.getShiftBoardData(recruitmentId);
     expect(confirmedBoard?.recruitment.status).toBe("confirmed");
     expect(confirmedBoard?.recruitment.confirmedAt).toBe(SCENARIO_NOW + 4_000);
+    await t.run(async (ctx) => {
+      await seedSession(ctx, {
+        sessionToken: "scenario-before-draft-view-session",
+        staffId: ids.beforeDraftStaffId,
+        shopId: ids.shopId,
+        recruitmentId,
+        accessKind: "view",
+      });
+    });
 
     const staffView = await staff.getShiftViewData({
-      sessionToken: "scenario-before-draft-session",
+      sessionToken: "scenario-before-draft-view-session",
       recruitmentId,
     });
     expect(staffView?.assignments).toEqual([

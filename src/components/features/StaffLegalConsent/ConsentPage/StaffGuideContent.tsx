@@ -3,6 +3,11 @@ import type { IconType } from "react-icons";
 import { LuBell, LuCalendarCheck, LuLink, LuMail, LuSmartphone, LuStore, LuUserRoundX } from "react-icons/lu";
 import heroSpImage from "../../LandingPage/hero-sp.webp";
 
+type HeroTopOffset = {
+  base: string;
+  md: string;
+};
+
 type QuickPoint = {
   icon: IconType;
   label: string;
@@ -51,24 +56,44 @@ const flowItems = [
   { icon: LuBell, labelLines: ["確定シフトが届く"] },
 ];
 
-export function StaffGuideContent() {
+type StaffGuideContentProps = {
+  heroTopOffset?: HeroTopOffset;
+};
+
+export function StaffGuideContent({ heroTopOffset }: StaffGuideContentProps) {
   return (
     <VStack align="stretch" gap={{ base: 5, md: 7 }}>
-      <HeroSection />
+      <HeroSection topOffset={heroTopOffset} />
       <GuideSection />
       <UsageFlowSection />
     </VStack>
   );
 }
 
-function HeroSection() {
+function HeroSection({ topOffset }: { topOffset?: HeroTopOffset }) {
+  const pt = topOffset
+    ? {
+        base: `calc(${topOffset.base} + 36px)`,
+        md: `calc(${topOffset.md} + 40px)`,
+      }
+    : { base: 9, md: 10 };
+
   return (
-    <Box position="relative" overflow="hidden" bg="teal.50" w="100vw" mx="calc(50% - 50vw)">
+    <Box
+      position="relative"
+      overflow="hidden"
+      bgGradient="to-b"
+      gradientFrom="#E6F7F5"
+      gradientVia="#F3FBFA"
+      gradientTo="white"
+      w="100vw"
+      mx="calc(50% - 50vw)"
+    >
       <Flex
         maxW="960px"
         mx="auto"
         px={{ base: 9, md: 8 }}
-        pt={{ base: 9, md: 10 }}
+        pt={pt}
         pb={{ base: 7, md: 9 }}
         gap={{ base: 6, md: 10 }}
         align={{ base: "stretch", md: "center" }}

@@ -18,9 +18,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 既存値が入力された状態 */
-export const PreFilled: Story = {};
-
 /** Dialog内にレンダリング */
 export const InDialog: Story = {
   render: () => (

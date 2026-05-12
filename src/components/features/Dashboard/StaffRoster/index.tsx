@@ -1,8 +1,10 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
+import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { StaffRow } from "./StaffRow";
 
 type Props = {
@@ -51,7 +53,15 @@ export const StaffRoster = ({
           </HStack>
         </Stack>
         <Flex gap={2} wrap="wrap">
-          <Button variant="ghost" colorPalette="teal" size="sm" onClick={onAddClick} gap={1.5} fontWeight="semibold">
+          <Button
+            data-tour={DASHBOARD_TOUR_TARGET.addStaff}
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            onClick={onAddClick}
+            gap={1.5}
+            fontWeight="semibold"
+          >
             <LuPlus />
             スタッフを追加
           </Button>
@@ -59,7 +69,13 @@ export const StaffRoster = ({
       </Flex>
 
       {sorted.length === 0 ? (
-        <EmptyState />
+        <Empty
+          icon={LuUsers}
+          title="まだスタッフはいません"
+          description="名前とメールアドレスだけでスタッフを登録できます。"
+          tone="brand"
+          variant="section"
+        />
       ) : (
         <Box
           bg="white"
@@ -102,30 +118,3 @@ export const StaffRoster = ({
     </Stack>
   );
 };
-
-const EmptyState = () => (
-  <Stack
-    align="center"
-    textAlign="center"
-    gap={3}
-    py={{ base: 10, lg: 12 }}
-    px={6}
-    borderRadius="xl"
-    borderStyle="dashed"
-    borderWidth="1.5px"
-    borderColor="teal.100"
-    bg="teal.50/50"
-  >
-    <Box color="teal.500" fontSize="3xl">
-      <LuUsers />
-    </Box>
-    <Stack gap={1}>
-      <Text fontWeight="semibold" color="gray.800">
-        まだスタッフはいません
-      </Text>
-      <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        名前とメールアドレスだけでスタッフを登録できます。
-      </Text>
-    </Stack>
-  </Stack>
-);

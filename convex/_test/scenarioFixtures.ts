@@ -96,11 +96,11 @@ export function createScenario(t: ScenarioTest) {
     },
     staff() {
       return {
-        verifyMagicLink(token: string) {
-          return t.mutation(api.staffAuth.mutations.verifyToken, { token });
+        verifyMagicLink(token: string, accessKind: "submit" | "view" = "submit") {
+          return t.mutation(api.staffAuth.mutations.verifyToken, { token, accessKind });
         },
         getSubmissionPageData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
-          return t.query(api.shiftSubmission.queries.getSubmissionPageData, args);
+          return t.query(api.shiftSubmission.queries.getSubmissionPageData, { ...args, accessKind: "submit" });
         },
         getRecruitmentInfo(recruitmentId: Id<"recruitments">) {
           return t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId });
@@ -111,10 +111,10 @@ export function createScenario(t: ScenarioTest) {
           acceptedLegal?: boolean;
           requests: ShiftRequest[];
         }) {
-          return t.mutation(api.shiftSubmission.mutations.submitShiftRequests, args);
+          return t.mutation(api.shiftSubmission.mutations.submitShiftRequests, { ...args, accessKind: "submit" });
         },
         getShiftViewData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
-          return t.query(api.shiftView.queries.getShiftViewData, args);
+          return t.query(api.shiftView.queries.getShiftViewData, { ...args, accessKind: "view" });
         },
         requestReissue(args: { email: string; recruitmentId: Id<"recruitments"> }) {
           return t.mutation(api.staffAuth.mutations.requestReissue, args);

@@ -33,7 +33,7 @@ type StaffHeaderVariantProps = {
   px?: ContainerProps["px"];
 };
 
-type HeaderProps = PublicHeaderVariantProps | UserHeaderVariantProps | StaffHeaderVariantProps;
+export type HeaderProps = PublicHeaderVariantProps | UserHeaderVariantProps | StaffHeaderVariantProps;
 
 export const Header = (props: HeaderProps = {}) => {
   if (props.variant === "public") {

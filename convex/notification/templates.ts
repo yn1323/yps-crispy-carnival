@@ -246,7 +246,7 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
 type ReminderEmailParams = {
   staffName: string;
   periodLabel: string;
-  linkExpiresAtLabel: string; // フォーマット済み（例: "5/6(月) 15:30"）
+  linkExpiresAtLabel: string; // フォーマット済み（例: "5/6(月)"）
   magicLinkUrl: string;
   lineCtaHtml?: string;
 };
@@ -269,7 +269,7 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
           <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト希望が、まだ提出されていないようです。</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まだ提出していない場合は、こちらから送ってください。</p>
 
-          <!-- Deadline (24h cutoff) -->
+          <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
               <strong>提出期限:</strong> ${params.linkExpiresAtLabel} まで

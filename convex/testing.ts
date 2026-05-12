@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { APP_URL } from "./_lib/config";
+import { getDeadlineCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { generateUUID } from "./_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS, LINE_LINK_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
@@ -409,15 +410,23 @@ async function createMagicLink(
     staffId: Id<"staffs">;
     shopId: Id<"shops">;
     recruitmentId: Id<"recruitments">;
+    accessKind: MagicLinkPurpose;
+    expiresAt?: number;
   },
 ) {
   const token = generateUUID();
+  const recruitment = await ctx.db.get(args.recruitmentId);
   await ctx.db.insert("magicLinks", {
     token,
     staffId: args.staffId,
     shopId: args.shopId,
     recruitmentId: args.recruitmentId,
-    expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
+    accessKind: args.accessKind,
+    expiresAt:
+      args.expiresAt ??
+      (args.accessKind === "submit" && recruitment
+        ? getDeadlineCutoff(recruitment.deadline)
+        : Date.now() + MAGIC_LINK_DEFAULT_TTL_MS),
   });
   return token;
 }
@@ -820,7 +829,8 @@ export const seedSubmitTestData = internalMutation({
       staffId,
       shopId,
       recruitmentId,
-      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
+      accessKind: "submit",
+      expiresAt: getDeadlineCutoff(args.deadlinePassed ? "2026-01-01" : "2026-12-31"),
     });
 
     // 既存提出がある場合
@@ -976,7 +986,7 @@ export const seedLegalStaffSubmitScenario = internalMutation({
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
     });
-    const token = await createMagicLink(ctx, { staffId, shopId, recruitmentId });
+    const token = await createMagicLink(ctx, { staffId, shopId, recruitmentId, accessKind: "submit" });
     return { token, shopId, staffId, recruitmentId };
   },
 });
@@ -994,7 +1004,12 @@ export const seedNotificationSubmitScenario = internalMutation({
       shopName: "通知募集テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
-    const token = await createMagicLink(ctx, { staffId: managerStaffId, shopId, recruitmentId });
+    const token = await createMagicLink(ctx, {
+      staffId: managerStaffId,
+      shopId,
+      recruitmentId,
+      accessKind: "submit",
+    });
 
     return { shopId, recruitmentId, token, staffId: managerStaffId };
   },
@@ -1051,7 +1066,12 @@ export const seedNotificationReminderScenario = internalMutation({
       startTime: "09:00",
       endTime: "18:00",
     });
-    const reminderToken = await createMagicLink(ctx, { staffId: remindedStaffId, shopId, recruitmentId });
+    const reminderToken = await createMagicLink(ctx, {
+      staffId: remindedStaffId,
+      shopId,
+      recruitmentId,
+      accessKind: "submit",
+    });
 
     return { shopId, recruitmentId, reminderToken, managerStaffId, remindedStaffId };
   },
@@ -1079,7 +1099,12 @@ export const seedNotificationConfirmationViewScenario = internalMutation({
       endTime: "18:00",
       positionId,
     });
-    const viewToken = await createMagicLink(ctx, { staffId: managerStaffId, shopId, recruitmentId });
+    const viewToken = await createMagicLink(ctx, {
+      staffId: managerStaffId,
+      shopId,
+      recruitmentId,
+      accessKind: "view",
+    });
 
     return { shopId, recruitmentId, viewToken, staffId: managerStaffId };
   },
@@ -1149,7 +1174,9 @@ export const createMagicLinkTokenForLatestRecruitment = internalMutation({
       staffId: staff._id,
       shopId: staff.shopId,
       recruitmentId: recruitment._id,
-      expiresAt: Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
+      accessKind: args.purpose,
+      expiresAt:
+        args.purpose === "submit" ? getDeadlineCutoff(recruitment.deadline) : Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     return { token, staffId: staff._id, recruitmentId: recruitment._id };

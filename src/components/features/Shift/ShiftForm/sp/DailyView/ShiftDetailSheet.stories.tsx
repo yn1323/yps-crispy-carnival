@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockShifts, mockStaffs } from "../../__mocks__/storyData";
+import { mockShifts, mockShiftsAllPatterns, mockStaffs } from "../../__mocks__/storyData";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 
 const meta = {
@@ -16,30 +16,50 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Basic: Story = {
+const staffWithBreak = mockStaffs.find((staff) => staff.id === "staff4") ?? mockStaffs[0];
+const shiftWithBreak = mockShiftsAllPatterns.find((shift) => shift.staffId === staffWithBreak.id) ?? mockShifts[0];
+const unsubmittedStaff = mockStaffs.find((staff) => !staff.isSubmitted) ?? mockStaffs[0];
+const emptyUnsubmittedShift = {
+  ...mockShifts[0],
+  id: "detail-sheet-empty-unsubmitted-shift",
+  staffId: unsubmittedStaff.id,
+  staffName: unsubmittedStaff.name,
+  requestedTime: null,
+  positions: [],
+};
+
+const baseArgs = {
+  staff: staffWithBreak,
+  shift: shiftWithBreak,
+  selectedDate: "2026-01-23",
+  isOpen: true,
+  onOpenChange: () => {},
+};
+
+export const Variants: Story = {
   args: {
-    staff: mockStaffs[0],
-    shift: mockShifts[0],
-    selectedDate: "2026-01-21",
-    isOpen: true,
-    onOpenChange: () => {},
+    ...baseArgs,
   },
 };
 
 export const NoPositions: Story = {
   args: {
-    ...Basic.args,
-    shift: {
-      ...mockShifts[0],
-      positions: [],
-    },
+    ...baseArgs,
+    staff: unsubmittedStaff,
+    shift: emptyUnsubmittedShift,
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
   },
 };
 
 export const UnsubmittedStaff: Story = {
   args: {
-    ...Basic.args,
-    staff: mockStaffs[2],
-    shift: mockShifts[5],
+    ...baseArgs,
+    staff: unsubmittedStaff,
+    shift: emptyUnsubmittedShift,
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
   },
 };

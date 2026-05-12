@@ -27,6 +27,7 @@ const baseData: SubmissionData = {
     },
   },
   timeRange: { startTime: "09:00", endTime: "22:00" },
+  previousWeeklyPattern: null,
 };
 
 const meta = {
@@ -63,6 +64,23 @@ export const StateB_Submitted: Story = {
         { date: "2026-04-09", startTime: "10:00", endTime: "15:00" },
         { date: "2026-04-11", startTime: "09:00", endTime: "22:00" },
       ],
+    },
+  },
+};
+
+export const StateB_PreviousPatternAvailable: Story = {
+  args: {
+    onSubmit: noop,
+    data: {
+      ...baseData,
+      previousWeeklyPattern: {
+        sourceWeekStart: "2026-03-30",
+        days: [
+          { weekday: 1, startTime: "09:00", endTime: "17:00" },
+          { weekday: 3, startTime: "10:00", endTime: "18:00" },
+          { weekday: 5, startTime: "12:00", endTime: "21:00" },
+        ],
+      },
     },
   },
 };
