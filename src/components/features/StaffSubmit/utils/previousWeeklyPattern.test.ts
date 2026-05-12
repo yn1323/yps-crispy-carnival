@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildEntriesFromPreviousWeeklyPattern, type PreviousWeeklyPattern } from "./previousWeeklyPattern";
+import {
+  buildEntriesFromPreviousWeeklyPattern,
+  buildWorkingEntryFromPreviousWeeklyPattern,
+  type PreviousWeeklyPattern,
+} from "./previousWeeklyPattern";
 
 const pattern: PreviousWeeklyPattern = {
   sourceWeekStart: "2026-04-06",
@@ -54,5 +58,25 @@ describe("buildEntriesFromPreviousWeeklyPattern", () => {
     );
 
     expect(entries[0]).toEqual({ date: "2026-04-13", isWorking: false, startTime: "09:00", endTime: "22:00" });
+  });
+});
+
+describe("buildWorkingEntryFromPreviousWeeklyPattern", () => {
+  it("対象日の曜日に一致する前回時間を出勤行として返す", () => {
+    const entry = buildWorkingEntryFromPreviousWeeklyPattern("2026-04-15", pattern, {
+      startTime: "09:00",
+      endTime: "22:00",
+    });
+
+    expect(entry).toEqual({ date: "2026-04-15", isWorking: true, startTime: "10:00", endTime: "18:00" });
+  });
+
+  it("対象曜日が前回パターンにない場合はnullを返す", () => {
+    const entry = buildWorkingEntryFromPreviousWeeklyPattern("2026-04-14", pattern, {
+      startTime: "09:00",
+      endTime: "22:00",
+    });
+
+    expect(entry).toBeNull();
   });
 });

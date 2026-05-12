@@ -24,24 +24,27 @@ function clampTimeRange(day: { startTime: string; endTime: string }, timeRange: 
   return { startTime, endTime };
 }
 
+export function buildWorkingEntryFromPreviousWeeklyPattern(
+  date: string,
+  pattern: PreviousWeeklyPattern,
+  timeRange: TimeRange,
+): DayEntry | null {
+  const patternDay = pattern.days.find((day) => day.weekday === getDayOfWeek(date));
+  if (!patternDay) return null;
+
+  const clamped = clampTimeRange(patternDay, timeRange);
+  if (!clamped) return null;
+
+  return { date, isWorking: true, startTime: clamped.startTime, endTime: clamped.endTime };
+}
+
 export function buildEntriesFromPreviousWeeklyPattern(
   dates: string[],
   pattern: PreviousWeeklyPattern,
   timeRange: TimeRange,
 ): DayEntry[] {
-  const patternByWeekday = new Map(pattern.days.map((day) => [day.weekday, day]));
-
   return dates.map((date) => {
-    const patternDay = patternByWeekday.get(getDayOfWeek(date));
-    if (!patternDay) {
-      return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
-    }
-
-    const clamped = clampTimeRange(patternDay, timeRange);
-    if (!clamped) {
-      return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
-    }
-
-    return { date, isWorking: true, startTime: clamped.startTime, endTime: clamped.endTime };
+    const previousEntry = buildWorkingEntryFromPreviousWeeklyPattern(date, pattern, timeRange);
+    return previousEntry ?? { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
   });
 }

@@ -9,7 +9,11 @@ import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
-import { buildEntriesFromPreviousWeeklyPattern, type PreviousWeeklyPattern } from "../utils/previousWeeklyPattern";
+import {
+  buildEntriesFromPreviousWeeklyPattern,
+  buildWorkingEntryFromPreviousWeeklyPattern,
+  type PreviousWeeklyPattern,
+} from "../utils/previousWeeklyPattern";
 import { buildEntries, formatPeriodLabel, generateTimeOptions } from "../utils/timeOptions";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -61,7 +65,17 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const acceptedLegal = watch("acceptedLegal");
 
   const handleSetWorking = (index: number) => {
-    setValue(`entries.${index}.isWorking`, true, { shouldValidate: true });
+    const entry = entries[index];
+    const previousEntry = data.previousWeeklyPattern
+      ? buildWorkingEntryFromPreviousWeeklyPattern(entry.date, data.previousWeeklyPattern, data.timeRange)
+      : null;
+
+    if (previousEntry) {
+      setValue(`entries.${index}`, previousEntry, { shouldDirty: true, shouldValidate: true });
+      return;
+    }
+
+    setValue(`entries.${index}.isWorking`, true, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleTimeChange = (index: number, field: "startTime" | "endTime", value: string) => {
