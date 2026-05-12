@@ -44,6 +44,26 @@ describe("GTM ヘルパー", () => {
       const scripts = document.head.querySelectorAll('script[src*="googletagmanager"]');
       expect(scripts.length).toBe(1);
     });
+
+    it("prerender済みのGTMタグがある場合はDOMへ二重挿入しない", () => {
+      const script = document.createElement("script");
+      script.src = "https://www.googletagmanager.com/gtm.js?id=GTM-TEST123";
+      document.head.appendChild(script);
+
+      const noscript = document.createElement("noscript");
+      const iframe = document.createElement("iframe");
+      iframe.src = "https://www.googletagmanager.com/ns.html?id=GTM-TEST123";
+      noscript.appendChild(iframe);
+      document.body.appendChild(noscript);
+
+      initGTM("GTM-TEST123");
+
+      expect(document.head.querySelectorAll('script[src*="googletagmanager"]').length).toBe(1);
+      expect(document.body.querySelectorAll("noscript").length).toBe(1);
+      expect(window.dataLayer).toEqual(
+        expect.arrayContaining([expect.objectContaining({ event: "gtm.js", "gtm.start": expect.any(Number) })]),
+      );
+    });
   });
 
   describe("sendPageView", () => {
