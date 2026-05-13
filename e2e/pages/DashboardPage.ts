@@ -141,6 +141,20 @@ export class DashboardPage {
     await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
   }
 
+  async deleteRecruitment() {
+    await this.recruitmentSection()
+      .getByRole("button", { name: /募集操作メニュー/ })
+      .first()
+      .click();
+    await this.page.getByRole("menuitem", { name: "募集を削除" }).click();
+
+    const dialog = this.page.getByRole("alertdialog", { name: /シフト募集を削除/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("本当に削除してよろしいですか？")).toBeVisible();
+    await dialog.getByRole("button", { name: "この募集を削除" }).click();
+    await expect(this.page.getByText("シフト募集を削除しました")).toBeVisible();
+  }
+
   async openLineQr(staffName: string) {
     await this.openStaffMenu(staffName);
     await this.page.getByRole("menuitem", { name: /LINE連携QRを表示|LINE連携リンクを表示/ }).click();

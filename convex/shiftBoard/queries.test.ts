@@ -5,6 +5,30 @@ import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("shiftBoard/queries", () => {
+  it("削除済み募集は null を返す", async () => {
+    const t = convexTest(schema, modules);
+    const recruitmentId = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_deleted_recruitment", shopName: "テスト店舗" });
+      return await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: true,
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_deleted_recruitment" })
+      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+
+    expect(result).toBeNull();
+  });
+
   it("全休み提出は提出済みとして返す", async () => {
     const t = convexTest(schema, modules);
     const { recruitmentId, staffId } = await t.run(async (ctx) => {

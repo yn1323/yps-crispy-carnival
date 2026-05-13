@@ -9,6 +9,7 @@ import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialo
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { formatDateShort } from "@/src/domains/shift/date";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import type { EditShopFormData } from "../EditShopForm/index";
@@ -71,12 +72,14 @@ export const DashboardContent = ({
   const staffModal = useDialog();
   const editStaffModal = useDialog();
   const editShopModal = useDialog();
+  const deleteRecruitmentDialog = useDialog();
   const deleteStaffDialog = useDialog();
   const lineQrDialog = useDialog();
   const lineInviteDialog = useDialog();
   const setupModal = useDialog();
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
+  const [deleteRecruitmentTarget, setDeleteRecruitmentTarget] = useState<Recruitment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
   const [lineQrTarget, setLineQrTarget] = useState<Staff | null>(null);
   const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
@@ -96,10 +99,16 @@ export const DashboardContent = ({
       ? onboardingState
       : null;
   const shouldHideNextActionSection = visibleOnboardingState !== null || (shop !== null && !managerLegalConsentStatus);
+  const deleteRecruitmentTitle = deleteRecruitmentTarget
+    ? `${formatDateShort(deleteRecruitmentTarget.periodStart)}〜${formatDateShort(
+        deleteRecruitmentTarget.periodEnd,
+      )}のシフト募集を削除`
+    : "シフト募集を削除";
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
+  const deleteRecruitmentMut = useMutation(api.recruitment.mutations.deleteRecruitment);
   const addStaffs = useMutation(api.staff.mutations.addStaffs);
   const editStaffMut = useMutation(api.staff.mutations.editStaff);
   const deleteStaffMut = useMutation(api.staff.mutations.deleteStaff);
@@ -140,6 +149,23 @@ export const DashboardContent = ({
       await createRecruitment(data);
       recruitmentModal.close();
       toaster.create({ title: "募集をつくりました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleDeleteRecruitmentClick = (recruitment: Recruitment) => {
+    setDeleteRecruitmentTarget(recruitment);
+    deleteRecruitmentDialog.open();
+  };
+
+  const handleDeleteRecruitment = async () => {
+    if (!deleteRecruitmentTarget) return;
+    try {
+      await deleteRecruitmentMut({ recruitmentId: deleteRecruitmentTarget._id });
+      deleteRecruitmentDialog.close();
+      setDeleteRecruitmentTarget(null);
+      toaster.create({ title: "シフト募集を削除しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -287,6 +313,7 @@ export const DashboardContent = ({
               tourRecruitmentId={recruitments[0]?._id}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
+              onDeleteRecruitment={handleDeleteRecruitmentClick}
               onLoadMore={loadMoreRecruitments}
             />
             <StaffRoster
@@ -315,6 +342,19 @@ export const DashboardContent = ({
         onClose={recruitmentModal.close}
       >
         <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
+      </Dialog>
+
+      <Dialog
+        title={deleteRecruitmentTitle}
+        isOpen={deleteRecruitmentDialog.isOpen}
+        onOpenChange={deleteRecruitmentDialog.onOpenChange}
+        onClose={deleteRecruitmentDialog.close}
+        onSubmit={handleDeleteRecruitment}
+        submitLabel="この募集を削除"
+        role="alertdialog"
+        submitColorPalette="red"
+      >
+        <Text>本当に削除してよろしいですか？</Text>
       </Dialog>
 
       <Dialog

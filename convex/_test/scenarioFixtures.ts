@@ -50,6 +50,9 @@ export function createScenario(t: ScenarioTest) {
         createRecruitment(args: RecruitmentInput) {
           return asManager.mutation(api.recruitment.mutations.createRecruitment, args);
         },
+        deleteRecruitment(recruitmentId: Id<"recruitments">) {
+          return asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId });
+        },
         updateShopSettings(args: ShopSettingsInput) {
           return asManager.mutation(api.shop.mutations.updateShopSettings, args);
         },

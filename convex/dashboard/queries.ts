@@ -52,7 +52,7 @@ export const getDashboardRecruitments = authenticatedQuery({
 
     const paginatedResult = await ctx.db
       .query("recruitments")
-      .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
       .order("desc")
       .paginate(args.paginationOpts);
 
