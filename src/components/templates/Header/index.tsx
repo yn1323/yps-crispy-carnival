@@ -55,7 +55,7 @@ export const Header = (props: HeaderProps = {}) => {
 
   return (
     <HeaderShell>
-      <HeaderBrand to="/dashboard" />
+      <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" />
       <UserMenu tone="light" />
     </HeaderShell>
   );
