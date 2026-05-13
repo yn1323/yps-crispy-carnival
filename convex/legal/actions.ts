@@ -12,7 +12,10 @@ import { buildStaffLegalConsentEmailHtml, buildStaffLegalConsentLineText } from 
 export const sendStaffConsentEmail = internalAction({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
-    const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
+    const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, {
+      staffId,
+      includeConsented: true,
+    });
     if (!data?.staffEmail) return;
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
