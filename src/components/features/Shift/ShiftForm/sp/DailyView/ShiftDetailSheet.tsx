@@ -18,7 +18,13 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
   const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
 
   return (
-    <Dialog title={`${staff.name}のシフト  ${dateLabel}`} isOpen={isOpen} onOpenChange={onOpenChange} hideFooter>
+    <Dialog
+      title={`${staff.name}のシフト  ${dateLabel}`}
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      hideFooter
+      modal={false}
+    >
       <VStack gap={4} align="stretch">
         {visibleSegments.length > 0 && (
           <Box>
