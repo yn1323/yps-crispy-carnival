@@ -6,6 +6,7 @@ import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
@@ -207,7 +208,14 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     : "このシフトをスタッフに通知しますか？";
 
   return (
-    <Flex direction="column" h="calc(100dvh - 56px)" minH={0}>
+    <Flex
+      direction="column"
+      h={{
+        base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
+        md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+      }}
+      minH={0}
+    >
       <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
         <Link to="/dashboard">
           <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
