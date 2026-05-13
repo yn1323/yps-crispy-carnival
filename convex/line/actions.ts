@@ -15,7 +15,7 @@ import {
   pushTextMessage,
   replyTextMessage,
 } from "../_lib/lineClient";
-import { getResendClient } from "../_lib/resend";
+import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { buildLineInviteEmailHtml } from "../notification/templates";
 
 function getLoginChannelId(): string {
@@ -158,17 +158,21 @@ export const sendInviteEmail = internalAction({
     });
 
     const resend = getResendClient({ suppressDelivery });
-    await resend.emails.send({
-      from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-      to: data.staffEmail,
-      subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
-      html: buildLineInviteEmailHtml({
-        staffName: data.staffName,
-        shopName: data.shopName,
-        authorizeUrl,
-        context,
-      }),
-    });
+    await sendResendEmail(
+      resend,
+      {
+        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+        to: data.staffEmail,
+        subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
+        html: buildLineInviteEmailHtml({
+          staffName: data.staffName,
+          shopName: data.shopName,
+          authorizeUrl,
+          context,
+        }),
+      },
+      "line.sendInviteEmail",
+    );
   },
 });
 
