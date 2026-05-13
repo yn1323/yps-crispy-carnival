@@ -22,7 +22,6 @@ export const getSubmissionPageData = staffSessionQuery({
     if (recruitment.status !== "open") return null;
 
     const isBeforeDeadline = Date.now() < getDeadlineCutoff(recruitment.deadline);
-    if (!isBeforeDeadline) return null;
 
     const staffId = ctx.staff._id;
     const [submission, slots] = await Promise.all([
@@ -55,14 +54,16 @@ export const getSubmissionPageData = staffSessionQuery({
         startTime: recruitment.shiftStartTime,
         endTime: recruitment.shiftEndTime,
       },
-      previousWeeklyPattern: await getPreviousWeeklyPattern(ctx, {
-        staffId,
-        beforeDate: recruitment.periodStart,
-        timeRange: {
-          startTime: recruitment.shiftStartTime,
-          endTime: recruitment.shiftEndTime,
-        },
-      }),
+      previousWeeklyPattern: isBeforeDeadline
+        ? await getPreviousWeeklyPattern(ctx, {
+            staffId,
+            beforeDate: recruitment.periodStart,
+            timeRange: {
+              startTime: recruitment.shiftStartTime,
+              endTime: recruitment.shiftEndTime,
+            },
+          })
+        : null,
     };
   },
 });

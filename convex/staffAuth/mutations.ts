@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
-import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import {
   inferAccessKindFromRecruitmentStatus,
@@ -38,7 +37,7 @@ export const verifyToken = mutation({
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
 
-    if (!magicLink || magicLink.revokedAt || magicLink.expiresAt < now) {
+    if (!magicLink || magicLink.revokedAt) {
       return {
         status: "expired" as const,
         recruitmentId: magicLink?.recruitmentId ?? null,
@@ -60,7 +59,9 @@ export const verifyToken = mutation({
         recruitmentId: magicLink.recruitmentId,
       };
     }
-    if (accessKind === "submit" && now >= getDeadlineCutoff(recruitment.deadline)) {
+    // submit リンクは「提出・修正は締切まで、閲覧は確定まで」なので、
+    // 締切由来の magicLink.expiresAt では失効させない。提出可否は submitShiftRequests 側で判定する。
+    if (accessKind === "view" && magicLink.expiresAt < now) {
       return {
         status: "expired" as const,
         recruitmentId: magicLink.recruitmentId,
