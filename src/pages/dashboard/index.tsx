@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { DashboardContent } from "@/src/components/features/Dashboard/DashboardContent";
 import { Animation } from "@/src/components/templates/Animation";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 
 const RECRUITMENT_INITIAL_VISIBLE_COUNT = 3;
@@ -96,7 +97,13 @@ export function DashboardPage() {
 }
 
 const DashboardPageShell = ({ children }: { children: ReactNode }) => (
-  <Box minH={{ base: "calc(100dvh - 66px)", md: "calc(100dvh - 80px)" }} bg="white">
+  <Box
+    minH={{
+      base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
+      md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+    }}
+    bg="white"
+  >
     <RootContentWrapper>{children}</RootContentWrapper>
   </Box>
 );
