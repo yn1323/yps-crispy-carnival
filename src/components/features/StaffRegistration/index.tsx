@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { LuCheck, LuSparkles } from "react-icons/lu";
 import { type StaffRegistrationFormData, staffRegistrationFormSchema } from "@/convex/staffRegistration/schemas";
 import { Button } from "@/src/components/ui/Button";
+import { Empty } from "@/src/components/ui/Empty";
 import { LegalDocumentLink } from "../LegalDocumentLink";
 import { suggestEmailTypoFix } from "./emailTypo";
 
@@ -73,29 +74,16 @@ export function StaffRegistrationPage({
 
   if (isSubmitted) {
     return (
-      <RegistrationShell>
-        <Stack gap={4} textAlign="center" align="center">
-          <Box
-            boxSize="56px"
-            borderRadius="full"
-            bg="teal.100"
-            color="teal.700"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontSize="2xl"
-          >
-            <LuCheck />
-          </Box>
-          <Stack gap={2}>
-            <Heading as="h1" fontSize="xl" color="gray.900">
-              申請を送りました
-            </Heading>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              店長が承認すると、シフト提出の案内がメールで届きます。
-            </Text>
-          </Stack>
-        </Stack>
+      <RegistrationShell centerContent>
+        <Empty
+          icon={LuCheck}
+          title="申請を送りました"
+          description="店長が承認すると、シフト提出の案内がメールで届きます。"
+          tone="success"
+          iconVariant="circle"
+          size="lg"
+          minH="auto"
+        />
       </RegistrationShell>
     );
   }
@@ -241,9 +229,15 @@ function ConfirmRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RegistrationShell({ children }: { children: ReactNode }) {
+function RegistrationShell({ children, centerContent = false }: { children: ReactNode; centerContent?: boolean }) {
   return (
-    <Box px={{ base: 4, md: 6 }} py={{ base: 6, md: 8 }} flex={1}>
+    <Box
+      px={{ base: 4, md: 6 }}
+      py={{ base: 6, md: 8 }}
+      flex={1}
+      display={centerContent ? "flex" : undefined}
+      alignItems={centerContent ? "center" : undefined}
+    >
       <Box maxW="520px" mx="auto">
         {children}
       </Box>
