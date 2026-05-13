@@ -161,7 +161,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       await sendReminderEmailsMutation({ recruitmentId });
       reminderModal.close();
-      toaster.create({ title: "提出のお願いを送りました", type: "success" });
+      toaster.create({ title: "催促を送りました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -278,17 +278,16 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       </Dialog>
 
       <Dialog
-        title="未提出のスタッフに提出をお願い"
+        title="未提出のスタッフに催促"
         isOpen={reminderModal.isOpen}
         onOpenChange={reminderModal.onOpenChange}
         onSubmit={handleSendReminders}
-        submitLabel="提出のお願いを送る"
+        submitLabel="催促を送る"
         onClose={reminderModal.close}
       >
         <RemindUnsubmittedContent
           unsubmittedNames={unsubmittedNames}
           deadline={formatDateWithWeekday(data.recruitment.deadline)}
-          linkExpiresAtLabel={formatDateTimeWithWeekday(Date.now() + 24 * 60 * 60 * 1000)}
         />
       </Dialog>
     </Flex>
