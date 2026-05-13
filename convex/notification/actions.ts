@@ -11,7 +11,7 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
-import { getResendClient } from "../_lib/resend";
+import { getResendClient, sendResendEmail } from "../_lib/resend";
 import {
   buildConfirmationEmailHtml,
   buildRecruitmentEmailHtml,
@@ -114,22 +114,26 @@ async function sendConfirmationEmail(opts: {
     appUrl: APP_URL,
   });
 
-  await resend.emails.send({
-    from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-    to: staffData.email,
-    subject: isResend
-      ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
-      : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`),
-    html: buildConfirmationEmailHtml({
-      staffName: staffData.name,
-      periodLabel: data.periodLabel,
-      shifts: staffData.shifts,
-      magicLinkUrl,
-      reissueUrl,
-      isResend,
-      lineCtaHtml,
-    }),
-  });
+  await sendResendEmail(
+    resend,
+    {
+      from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+      to: staffData.email,
+      subject: isResend
+        ? formatResendSubject(data.shopName, `${data.periodLabel} シフト変更のお知らせ`)
+        : formatResendSubject(data.shopName, `${data.periodLabel} シフト確定のお知らせ`),
+      html: buildConfirmationEmailHtml({
+        staffName: staffData.name,
+        periodLabel: data.periodLabel,
+        shifts: staffData.shifts,
+        magicLinkUrl,
+        reissueUrl,
+        isResend,
+        lineCtaHtml,
+      }),
+    },
+    "notification.sendConfirmationEmail",
+  );
 }
 
 /**
@@ -193,16 +197,20 @@ export const sendReissueEmail = internalAction({
 
     try {
       const resend = getResendClient({ suppressDelivery });
-      await resend.emails.send({
-        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-        to: data.staffEmail,
-        subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
-        html: buildReissueEmailHtml({
-          staffName: data.staffName,
-          periodLabel: data.periodLabel,
-          magicLinkUrl,
-        }),
-      });
+      await sendResendEmail(
+        resend,
+        {
+          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+          to: data.staffEmail,
+          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト閲覧リンク`),
+          html: buildReissueEmailHtml({
+            staffName: data.staffName,
+            periodLabel: data.periodLabel,
+            magicLinkUrl,
+          }),
+        },
+        "notification.sendReissueEmail",
+      );
       log("log", "email_sent");
     } catch (e) {
       // Resend API のエラー（API key 無効 / domain 未認証 / 4xx / 5xx）が action 全体を
@@ -273,18 +281,22 @@ export const sendRecruitmentNotificationEmails = internalAction({
         lineFollowing: staff.lineFollowing,
         appUrl: APP_URL,
       });
-      await resend.emails.send({
-        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-        to: staff.email,
-        subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出をお願いします`),
-        html: buildRecruitmentEmailHtml({
-          staffName: staff.name,
-          periodLabel: data.periodLabel,
-          deadline: formatDateLabel(data.deadline),
-          magicLinkUrl,
-          lineCtaHtml,
-        }),
-      });
+      await sendResendEmail(
+        resend,
+        {
+          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+          to: staff.email,
+          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出をお願いします`),
+          html: buildRecruitmentEmailHtml({
+            staffName: staff.name,
+            periodLabel: data.periodLabel,
+            deadline: formatDateLabel(data.deadline),
+            magicLinkUrl,
+            lineCtaHtml,
+          }),
+        },
+        "notification.sendRecruitmentNotificationEmails",
+      );
     }
   },
 });
@@ -325,18 +337,22 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
 
       try {
         const resend = getResendClient({ suppressDelivery });
-        await resend.emails.send({
-          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-          to: data.staff.email,
-          subject: formatResendSubject(data.shopName, `${recruitment.periodLabel} シフト希望の提出をお願いします`),
-          html: buildRecruitmentEmailHtml({
-            staffName: data.staff.name,
-            periodLabel: recruitment.periodLabel,
-            deadline: formatDateLabel(recruitment.deadline),
-            magicLinkUrl,
-            lineCtaHtml,
-          }),
-        });
+        await sendResendEmail(
+          resend,
+          {
+            from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+            to: data.staff.email,
+            subject: formatResendSubject(data.shopName, `${recruitment.periodLabel} シフト希望の提出をお願いします`),
+            html: buildRecruitmentEmailHtml({
+              staffName: data.staff.name,
+              periodLabel: recruitment.periodLabel,
+              deadline: formatDateLabel(recruitment.deadline),
+              magicLinkUrl,
+              lineCtaHtml,
+            }),
+          },
+          "notification.sendOpenRecruitmentNotificationEmailsForStaff",
+        );
       } catch (e) {
         console.error("Recruitment notification email failed for added staff", e);
       }

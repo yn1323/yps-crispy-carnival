@@ -1,7 +1,7 @@
 import { Box, Heading, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { Footer } from "@/src/components/features/LandingPage";
-import { Header } from "@/src/components/templates/Header";
+import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 type LegalPageProps = {
   title: string;
@@ -18,7 +18,7 @@ export function LegalPage({ title, lastUpdated, children }: LegalPageProps): Rea
         w="full"
         maxW="768px"
         px={{ base: 4, lg: 12 }}
-        pt={{ base: 24, lg: 32 }}
+        pt={{ base: `calc(${HEADER_HEIGHT.base} + 32px)`, lg: `calc(${HEADER_HEIGHT.md} + 48px)` }}
         pb={{ base: 12, lg: 24 }}
         gap={{ base: 6, lg: 8 }}
         align="stretch"

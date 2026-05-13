@@ -184,7 +184,7 @@ describe("staffAuth/mutations", () => {
       if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
     });
 
-    it("submitトークンは募集締切後ならexpiredが返る", async () => {
+    it("submitトークンは募集締切後でもopenならセッションを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken, recruitmentId } = await setupTestData(t, {
         accessKind: "submit",
@@ -192,6 +192,41 @@ describe("staffAuth/mutations", () => {
       });
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, { deadline: "2026-01-01" });
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
+    });
+
+    it("submitトークンはmagicLinkのexpiresAtを過ぎてもopenならセッションを発行できる", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        expiresAt: Date.now() - 1000,
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
+    });
+
+    it("submitトークンは募集確定後ならexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
       });
 
       const result = await t.mutation(api.staffAuth.mutations.verifyToken, {

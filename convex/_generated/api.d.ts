@@ -30,6 +30,7 @@ import type * as _test_scenarioFixtures from "../_test/scenarioFixtures.js";
 import type * as _test_seed from "../_test/seed.js";
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
+import type * as dashboard_mutations from "../dashboard/mutations.js";
 import type * as dashboard_queries from "../dashboard/queries.js";
 import type * as http from "../http.js";
 import type * as legal_actions from "../legal/actions.js";
@@ -69,6 +70,9 @@ import type * as staff_schemas from "../staff/schemas.js";
 import type * as staffAuth_mutations from "../staffAuth/mutations.js";
 import type * as staffAuth_queries from "../staffAuth/queries.js";
 import type * as staffAuth_schemas from "../staffAuth/schemas.js";
+import type * as staffRegistration_mutations from "../staffRegistration/mutations.js";
+import type * as staffRegistration_queries from "../staffRegistration/queries.js";
+import type * as staffRegistration_schemas from "../staffRegistration/schemas.js";
 import type * as testing from "../testing.js";
 
 import type {
@@ -100,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   "_test/seed": typeof _test_seed;
   constants: typeof constants;
   crons: typeof crons;
+  "dashboard/mutations": typeof dashboard_mutations;
   "dashboard/queries": typeof dashboard_queries;
   http: typeof http;
   "legal/actions": typeof legal_actions;
@@ -139,6 +144,9 @@ declare const fullApi: ApiFromModules<{
   "staffAuth/mutations": typeof staffAuth_mutations;
   "staffAuth/queries": typeof staffAuth_queries;
   "staffAuth/schemas": typeof staffAuth_schemas;
+  "staffRegistration/mutations": typeof staffRegistration_mutations;
+  "staffRegistration/queries": typeof staffRegistration_queries;
+  "staffRegistration/schemas": typeof staffRegistration_schemas;
   testing: typeof testing;
 }>;
 

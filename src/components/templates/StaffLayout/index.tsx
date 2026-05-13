@@ -1,9 +1,7 @@
 import { Box, type BoxProps, Flex } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { Header, STAFF_CONTENT_MAX_W, STAFF_PAGE_PX } from "@/src/components/templates/Header";
+import { HEADER_HEIGHT, Header, STAFF_CONTENT_MAX_W, STAFF_PAGE_PX } from "@/src/components/templates/Header";
 
-/** 固定ヘッダーの高さに合わせたpadding-top */
-const HEADER_PT = { base: "66px", md: "80px" };
 const STAFF_NARROW_CONTENT_MAX_W = "480px";
 
 type Props = {
@@ -15,7 +13,7 @@ export function StaffLayout({ shopName, children }: Props) {
   return (
     <Flex direction="column">
       <Header variant="staff" shopName={shopName} maxW={STAFF_CONTENT_MAX_W} px={STAFF_PAGE_PX} />
-      <Box pt={HEADER_PT} flex={1} display="flex" flexDirection="column" minH="100dvh">
+      <Box pt={HEADER_HEIGHT} flex={1} display="flex" flexDirection="column" minH="100dvh">
         {children}
       </Box>
     </Flex>

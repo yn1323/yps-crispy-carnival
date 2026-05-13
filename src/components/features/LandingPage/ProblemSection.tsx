@@ -67,7 +67,7 @@ export const ProblemSection = () => (
                   <Image src="/logo192.webp" alt="シフトリ" boxSize={{ base: 8, md: 10 }} objectFit="contain" />
                 </Flex>
                 <Text color="gray.950" textStyle={{ base: "md", md: "xl" }} fontWeight="bold">
-                  シフトリなら、
+                  シフトリなら
                 </Text>
               </Flex>
               <Heading as="h3" color="gray.950" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.35">

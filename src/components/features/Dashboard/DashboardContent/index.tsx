@@ -1,14 +1,16 @@
 import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useState } from "react";
-import { LuSparkles } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import { LuKeyboard, LuSparkles } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { formatDateShort } from "@/src/domains/shift/date";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import type { EditShopFormData } from "../EditShopForm/index";
@@ -20,8 +22,9 @@ import { LegalReconsentBanner } from "../LegalReconsentBanner";
 import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
+import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRoster } from "../StaffRoster";
-import type { PaginationStatus, Recruitment, Staff } from "../types";
+import type { PaginationStatus, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { OnboardingCallout } from "./OnboardingCallout";
 import {
   type DashboardOnboardingStage,
@@ -29,6 +32,12 @@ import {
 } from "./OnboardingCallout/deriveDashboardOnboardingState";
 
 const REVIEWED_RECRUITMENT_STORAGE_KEY = "dashboardOnboardingReviewedRecruitments";
+const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
+  "create_recruitment",
+  "submit_self",
+  "review_submission",
+  "add_staff",
+];
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
@@ -51,6 +60,8 @@ type Props = {
   staffStatus: PaginationStatus;
   canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
+  pendingStaffRequests?: StaffRegistrationRequest[];
+  isDashboardOnboardingDismissed?: boolean;
 };
 
 export const DashboardContent = ({
@@ -65,30 +76,41 @@ export const DashboardContent = ({
   staffStatus,
   canLoadMoreStaffs,
   loadMoreStaffs,
+  pendingStaffRequests = [],
+  isDashboardOnboardingDismissed = false,
 }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
   const editStaffModal = useDialog();
   const editShopModal = useDialog();
+  const deleteRecruitmentDialog = useDialog();
   const deleteStaffDialog = useDialog();
   const lineQrDialog = useDialog();
   const lineInviteDialog = useDialog();
   const setupModal = useDialog();
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
+  const [deleteRecruitmentTarget, setDeleteRecruitmentTarget] = useState<Recruitment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
   const [lineQrTarget, setLineQrTarget] = useState<Staff | null>(null);
   const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
   const [lineQrLoading, setLineQrLoading] = useState(false);
   const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
+  const [staffModalMode, setStaffModalMode] = useState<"qr" | "manual">("qr");
+  const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
+  const [registrationUrlLoading, setRegistrationUrlLoading] = useState(false);
+  const [rejectRequestTarget, setRejectRequestTarget] = useState<StaffRegistrationRequest | null>(null);
   const [legalConsentSubmitting, setLegalConsentSubmitting] = useState(false);
   const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
+  const [autoDismissedOnboarding, setAutoDismissedOnboarding] = useState(false);
   const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
+  const shouldTreatOnboardingDismissed =
+    isDashboardOnboardingDismissed || autoDismissedOnboarding || pendingStaffRequests.length > 0;
   const onboardingState = deriveDashboardOnboardingState({
     recruitments,
     staffs,
-    dismissedStages: dismissedOnboardingStages,
+    dismissedStages: shouldTreatOnboardingDismissed ? COMPLETED_ONBOARDING_STAGES : dismissedOnboardingStages,
     reviewedRecruitmentIds,
   });
   const visibleOnboardingState =
@@ -96,16 +118,33 @@ export const DashboardContent = ({
       ? onboardingState
       : null;
   const shouldHideNextActionSection = visibleOnboardingState !== null || (shop !== null && !managerLegalConsentStatus);
+  const deleteRecruitmentTitle = deleteRecruitmentTarget
+    ? `${formatDateShort(deleteRecruitmentTarget.periodStart)}〜${formatDateShort(
+        deleteRecruitmentTarget.periodEnd,
+      )}のシフト募集を削除`
+    : "シフト募集を削除";
 
   const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
   const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
+  const deleteRecruitmentMut = useMutation(api.recruitment.mutations.deleteRecruitment);
   const addStaffs = useMutation(api.staff.mutations.addStaffs);
   const editStaffMut = useMutation(api.staff.mutations.editStaff);
   const deleteStaffMut = useMutation(api.staff.mutations.deleteStaff);
   const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
   const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
+  const ensureShopRegistrationLink = useMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
+  const approveStaffRequest = useMutation(api.staffRegistration.mutations.approveRequest);
+  const rejectStaffRequest = useMutation(api.staffRegistration.mutations.rejectRequest);
+  const dismissOnboarding = useMutation(api.dashboard.mutations.dismissOnboarding);
+
+  useEffect(() => {
+    if (pendingStaffRequests.length === 0 || isDashboardOnboardingDismissed || autoDismissedOnboarding) return;
+    setAutoDismissedOnboarding(true);
+    setDismissedOnboardingStages(COMPLETED_ONBOARDING_STAGES);
+    dismissOnboarding({}).catch(showErrorToast);
+  }, [autoDismissedOnboarding, dismissOnboarding, isDashboardOnboardingDismissed, pendingStaffRequests.length]);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
     if (visibleOnboardingState?.stage === "review_submission" && recruitments[0]?._id === recruitmentId) {
@@ -145,6 +184,23 @@ export const DashboardContent = ({
     }
   };
 
+  const handleDeleteRecruitmentClick = (recruitment: Recruitment) => {
+    setDeleteRecruitmentTarget(recruitment);
+    deleteRecruitmentDialog.open();
+  };
+
+  const handleDeleteRecruitment = async () => {
+    if (!deleteRecruitmentTarget) return;
+    try {
+      await deleteRecruitmentMut({ recruitmentId: deleteRecruitmentTarget._id });
+      deleteRecruitmentDialog.close();
+      setDeleteRecruitmentTarget(null);
+      toaster.create({ title: "シフト募集を削除しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
   const handleAcceptManagerLegalConsent = async () => {
     try {
       setLegalConsentSubmitting(true);
@@ -162,6 +218,53 @@ export const DashboardContent = ({
       await addStaffs({ entries: data.entries });
       staffModal.close();
       toaster.create({ title: "スタッフを追加しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleOpenStaffModal = async () => {
+    setStaffModalMode("qr");
+    staffModal.open();
+    setRegistrationUrlLoading(true);
+    try {
+      const result = await ensureShopRegistrationLink({});
+      setRegistrationUrl(result.registrationUrl);
+    } catch (error) {
+      showErrorToast(error);
+    } finally {
+      setRegistrationUrlLoading(false);
+    }
+  };
+
+  const handleApproveStaffRequest = async (request: StaffRegistrationRequest) => {
+    try {
+      await approveStaffRequest({ requestId: request._id });
+      toaster.create({ title: "スタッフ申請を承認しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleRejectStaffRequestClick = (request: StaffRegistrationRequest) => {
+    setRejectRequestTarget(request);
+  };
+
+  const handleRejectStaffRequest = async () => {
+    if (!rejectRequestTarget) return;
+    try {
+      await rejectStaffRequest({ requestId: rejectRequestTarget._id });
+      setRejectRequestTarget(null);
+      toaster.create({ title: "スタッフ申請を却下しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleDismissOnboarding = async (stage: DashboardOnboardingStage) => {
+    setDismissedOnboardingStages((current) => (current.includes(stage) ? current : [...current, stage]));
+    try {
+      await dismissOnboarding({});
     } catch (error) {
       showErrorToast(error);
     }
@@ -259,24 +362,25 @@ export const DashboardContent = ({
               onEditClick={editShopModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onCreateRecruitment={recruitmentModal.open}
+              pendingStaffRequests={pendingStaffRequests}
+              onApproveStaffRequest={handleApproveStaffRequest}
+              onRejectStaffRequest={handleRejectStaffRequestClick}
               hideActionSection={shouldHideNextActionSection}
             />
             {visibleOnboardingState && (
-              <Stack as="section" aria-label="はじめの確認" gap={{ base: 3, lg: 4 }}>
+              <Stack as="section" aria-label="シフトリへようこそ！" gap={{ base: 3, lg: 4 }}>
                 <HStack gap={2.5} align="center">
                   <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0} color="fg.muted">
                     <LuSparkles />
                   </Box>
                   <Heading as="h2" textStyle="sectionTitle" color="gray.900">
-                    はじめの確認
+                    シフトリへようこそ！
                   </Heading>
                 </HStack>
                 <OnboardingCallout
                   state={visibleOnboardingState}
                   showLabel={false}
-                  onDismiss={(stage) =>
-                    setDismissedOnboardingStages((current) => (current.includes(stage) ? current : [...current, stage]))
-                  }
+                  onDismiss={handleDismissOnboarding}
                 />
               </Stack>
             )}
@@ -287,13 +391,14 @@ export const DashboardContent = ({
               tourRecruitmentId={recruitments[0]?._id}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
+              onDeleteRecruitment={handleDeleteRecruitmentClick}
               onLoadMore={loadMoreRecruitments}
             />
             <StaffRoster
               staffs={staffs}
               status={staffStatus}
               canLoadMore={canLoadMoreStaffs}
-              onAddClick={staffModal.open}
+              onAddClick={handleOpenStaffModal}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}
               onShowLineQr={handleShowLineQr}
@@ -318,16 +423,60 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
+        title={deleteRecruitmentTitle}
+        isOpen={deleteRecruitmentDialog.isOpen}
+        onOpenChange={deleteRecruitmentDialog.onOpenChange}
+        onClose={deleteRecruitmentDialog.close}
+        onSubmit={handleDeleteRecruitment}
+        submitLabel="この募集を削除"
+        role="alertdialog"
+        submitColorPalette="red"
+      >
+        <Text>本当に削除してよろしいですか？</Text>
+      </Dialog>
+
+      <Dialog
         title="スタッフを追加"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
-        formId="add-staff-form"
-        submitLabel="スタッフを追加する"
+        formId={staffModalMode === "manual" ? "add-staff-form" : undefined}
+        submitLabel={staffModalMode === "manual" ? "スタッフを追加する" : undefined}
         onClose={staffModal.close}
+        closeLabel={staffModalMode === "manual" ? "キャンセル" : "閉じる"}
+        footer={
+          staffModalMode === "qr" ? (
+            <Button onClick={() => setStaffModalMode("manual")} variant="ghost" size="sm" colorPalette="gray" gap={1.5}>
+              <LuKeyboard />
+              自分で入力する
+            </Button>
+          ) : undefined
+        }
         maxW="640px"
         maxH="85dvh"
       >
-        <AddStaffForm onSubmit={handleAddStaffs} />
+        {staffModalMode === "qr" ? (
+          <StaffRegistrationLinkPanel registrationUrl={registrationUrl} isLoading={registrationUrlLoading} />
+        ) : (
+          <AddStaffForm onSubmit={handleAddStaffs} />
+        )}
+      </Dialog>
+
+      <Dialog
+        title="スタッフ申請を却下"
+        isOpen={rejectRequestTarget !== null}
+        onOpenChange={({ open }) => {
+          if (!open) setRejectRequestTarget(null);
+        }}
+        onClose={() => setRejectRequestTarget(null)}
+        onSubmit={handleRejectStaffRequest}
+        submitLabel="この申請を却下"
+        role="alertdialog"
+        submitColorPalette="red"
+      >
+        <Text>「{rejectRequestTarget?.name}」さんの参加申請を却下しますか？</Text>
+        <Text fontSize="sm" color="gray.600">
+          却下してもスタッフには通知されません。必要な場合は店長から直接案内してください。
+        </Text>
       </Dialog>
 
       <Dialog

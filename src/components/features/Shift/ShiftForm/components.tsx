@@ -124,7 +124,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
             fontFamily: "inherit",
           }}
         >
-          提出をお願い
+          催促通知を送る
         </button>
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
@@ -154,7 +154,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
             未提出 {names.length}人
           </span>
           <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
-            {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップでお願い"}
+            {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップで催促通知を送る"}
           </span>
           {!isDisabled && (
             <span

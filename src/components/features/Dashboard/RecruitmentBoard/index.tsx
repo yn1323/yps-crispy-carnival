@@ -14,6 +14,7 @@ type Props = {
   tourRecruitmentId?: Recruitment["_id"];
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
+  onDeleteRecruitment: (recruitment: Recruitment) => void;
   onLoadMore: () => void;
 };
 
@@ -24,6 +25,7 @@ export const RecruitmentBoard = ({
   tourRecruitmentId,
   onCreateClick,
   onOpenShiftBoard,
+  onDeleteRecruitment,
   onLoadMore,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
@@ -77,6 +79,7 @@ export const RecruitmentBoard = ({
               recruitment={r}
               dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
               onOpenShiftBoard={onOpenShiftBoard}
+              onDeleteRecruitment={onDeleteRecruitment}
             />
           ))}
         </Stack>

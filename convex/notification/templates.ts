@@ -61,6 +61,8 @@ export function buildRecruitmentLineText(params: {
     "",
     "提出はこちら",
     params.magicLinkUrl,
+    "",
+    "提出・修正は締切までです。提出後は、締切後もシフト確定まで内容を確認できます。",
   ].join("\n");
 }
 
@@ -101,6 +103,8 @@ export function buildReminderLineText(params: {
     "",
     "提出はこちら",
     params.magicLinkUrl,
+    "",
+    "提出・修正は期限までです。提出済みの場合は、期限後もシフト確定まで内容を確認できます。",
   ].join("\n");
 }
 
@@ -226,8 +230,8 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
             </td></tr>
           </table>
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは提出締切まで有効です。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出後も締切前であればいつでも訂正できます。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">提出・修正は提出締切まで可能です。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出後は、締切後もシフト確定までこのリンクから内容を確認できます。</p>
 
           ${params.lineCtaHtml ?? ""}
 
@@ -284,7 +288,8 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">以前のメールでお送りしたリンクとは別の新しいリンクです。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">すでに提出済みの場合は、このメールは無視してください。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">提出・修正は提出期限まで可能です。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">すでに提出済みの場合は、期限後もシフト確定までリンクから内容を確認できます。</p>
 
           ${params.lineCtaHtml ?? ""}
 
@@ -304,9 +309,18 @@ type LineInviteEmailParams = {
   staffName: string;
   shopName: string;
   authorizeUrl: string;
+  context?: "default" | "registration_approved";
 };
 
 export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string {
+  const lead =
+    params.context === "registration_approved"
+      ? "スタッフ登録が承認されました。シフトのお知らせをLINEで受け取れるようになります。"
+      : "シフトのお知らせをLINEで受け取れるようになります。";
+  const description =
+    params.context === "registration_approved"
+      ? "続けて、下のボタンからLINE連携をお願いします。"
+      : "下のボタンから連携できます。";
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -319,8 +333,8 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
         </td></tr>
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトのお知らせをLINEで受け取れるようになります。</p>
-          <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">下のボタンから連携できます。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${lead}</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">${description}</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">

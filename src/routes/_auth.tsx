@@ -2,7 +2,7 @@ import { Box } from "@chakra-ui/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { AuthGuard } from "@/src/components/features/auths/AuthGuard";
 import { UnauthenticatedBoundary } from "@/src/components/features/auths/UnauthenticatedBoundary";
-import { Header } from "@/src/components/templates/Header";
+import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 export const Route = createFileRoute("/_auth")({
   component: RouteComponent,
@@ -22,7 +22,7 @@ function AuthenticatedLayout() {
   return (
     <Box w="100%">
       <Header />
-      <Box pt={{ base: "66px", md: "80px" }} minH="100dvh">
+      <Box pt={HEADER_HEIGHT} minH="100dvh">
         <Outlet />
       </Box>
     </Box>

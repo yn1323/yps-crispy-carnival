@@ -25,19 +25,6 @@ export function getStoredSession(recruitmentId: string, accessKind: StaffAccessK
   return null;
 }
 
-export function getLegacySubmitSession(recruitmentId: string): SessionInfo | null {
-  try {
-    const val = localStorage.getItem(`yps_session_${recruitmentId}`);
-    if (!val) return null;
-
-    const session = JSON.parse(val) as Omit<SessionInfo, "accessKind">;
-    if (session.recruitmentId === recruitmentId) return { ...session, accessKind: "submit" };
-  } catch {
-    // accessKind 導入前の値は提出用にだけ救済する。読めない値は再認証に任せる。
-  }
-  return null;
-}
-
 export function storeSession(recruitmentId: string, sessionToken: string, accessKind: StaffAccessKind): void {
   localStorage.setItem(
     sessionKey(recruitmentId, accessKind),

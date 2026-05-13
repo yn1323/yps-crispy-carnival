@@ -19,7 +19,7 @@ export type DashboardOnboardingState =
     }
   | {
       kind: "hidden";
-      reason: "dismissed" | "enough_staffs";
+      reason: "dismissed";
       stage?: DashboardOnboardingStage;
     };
 
@@ -32,14 +32,9 @@ type Params = {
 
 export function deriveDashboardOnboardingState({
   recruitments,
-  staffs,
   dismissedStages = [],
   reviewedRecruitmentIds = [],
 }: Params): DashboardOnboardingState {
-  if (staffs.length >= 2) {
-    return { kind: "hidden", reason: "enough_staffs" };
-  }
-
   const latestRecruitment = recruitments[0];
   const state = latestRecruitment
     ? deriveStateWithRecruitment(latestRecruitment, reviewedRecruitmentIds)
@@ -47,7 +42,7 @@ export function deriveDashboardOnboardingState({
         stage: "create_recruitment",
         progressLabel: "1/4",
         title: "シフト作成から提出までの流れを体験しましょう",
-        description: "期間を決めてシフトを募集してみましょう。",
+        description: "期間を決めてシフトを募集してみましょう。（作成したシフトはあとで削除可能です）",
         tour: {
           target: DASHBOARD_TOUR_TARGET.createRecruitment,
           placement: "bottom",

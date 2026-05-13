@@ -98,6 +98,17 @@ export const SPDailyView = () => {
     [isReadOnly, detailDialog, editDialog],
   );
 
+  const handleStaffDialogOpenChange = useCallback(
+    (details: { open: boolean }) => {
+      const dialog = isReadOnly ? detailDialog : editDialog;
+      dialog.onOpenChange(details);
+      if (!details.open) {
+        setSelectedStaffId(null);
+      }
+    },
+    [isReadOnly, detailDialog, editDialog],
+  );
+
   const handleShiftUpdate = useCallback(
     (updatedShift: ShiftData) => {
       const exists = shifts.some((s) => s.id === updatedShift.id);
@@ -256,7 +267,7 @@ export const SPDailyView = () => {
           shift={selectedShift}
           selectedDate={selectedDate}
           isOpen={detailDialog.isOpen}
-          onOpenChange={detailDialog.onOpenChange}
+          onOpenChange={handleStaffDialogOpenChange}
         />
       )}
 
@@ -268,7 +279,7 @@ export const SPDailyView = () => {
           timeRange={timeRange}
           selectedDate={selectedDate}
           isOpen={editDialog.isOpen}
-          onOpenChange={editDialog.onOpenChange}
+          onOpenChange={handleStaffDialogOpenChange}
           onShiftUpdate={handleShiftUpdate}
           onShiftDelete={handleShiftDelete}
         />
