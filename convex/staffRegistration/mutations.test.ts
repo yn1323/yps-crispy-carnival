@@ -199,7 +199,11 @@ describe("staffRegistration/mutations", () => {
           job.args[0]?.staffId === staffId,
       ),
     ).toBe(true);
-    expect(state.scheduled.some((job) => job.name === "legal/actions:sendStaffConsentEmail")).toBe(false);
+    expect(
+      state.scheduled.some(
+        (job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === staffId,
+      ),
+    ).toBe(true);
   });
 
   it("却下するとstaffs作成と通知予約をしない", async () => {

@@ -222,5 +222,19 @@ describe("legal/mutations", () => {
     const data = await t.query(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
 
     expect(data).toBeNull();
+
+    const guideData = await t.query(internal.legal.queries.getStaffConsentNotificationDataInternal, {
+      staffId,
+      includeConsented: true,
+    });
+
+    expect(guideData).toMatchObject({
+      staffId,
+      staffName: "田中 太郎",
+      staffEmail: "tanaka@example.com",
+      lineUserId: "U_staff",
+      lineFollowing: true,
+      shopName: "テスト店舗",
+    });
   });
 });
