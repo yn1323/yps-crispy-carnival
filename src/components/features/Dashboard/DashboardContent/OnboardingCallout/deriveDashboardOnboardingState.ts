@@ -42,7 +42,7 @@ export function deriveDashboardOnboardingState({
         stage: "create_recruitment",
         progressLabel: "1/4",
         title: "シフト作成から提出までの流れを体験しましょう",
-        description: "期間を決めてシフトを募集してみましょう。",
+        description: "期間を決めてシフトを募集してみましょう。（作成したシフトはあとで削除可能です）",
         tour: {
           target: DASHBOARD_TOUR_TARGET.createRecruitment,
           placement: "bottom",
