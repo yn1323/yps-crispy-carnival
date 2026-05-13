@@ -57,3 +57,19 @@ export const createRecruitment = managerMutation({
     return recruitmentId;
   },
 });
+
+export const deleteRecruitment = managerMutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+  },
+  handler: async (ctx, args) => {
+    const recruitment = await ctx.db.get(args.recruitmentId);
+    if (!recruitment || recruitment.shopId !== ctx.shop._id || recruitment.isDeleted) {
+      throw new ConvexError("Not found");
+    }
+
+    // 周辺データは監査・集計のため残し、募集を失効させることで提出/閲覧/通知導線から外す。
+    await ctx.db.patch(args.recruitmentId, { isDeleted: true });
+    return null;
+  },
+});

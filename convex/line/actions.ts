@@ -15,7 +15,7 @@ import {
   pushTextMessage,
   replyTextMessage,
 } from "../_lib/lineClient";
-import { getResendClient } from "../_lib/resend";
+import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { buildLineInviteEmailHtml } from "../notification/templates";
 
 function getLoginChannelId(): string {
@@ -135,8 +135,11 @@ export const refreshQuotaStatus = internalAction({
  * `setup.setupShopAndOwner` / `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
  */
 export const sendInviteEmail = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: {
+    staffId: v.id("staffs"),
+    context: v.optional(v.union(v.literal("default"), v.literal("registration_approved"))),
+  },
+  handler: async (ctx, { staffId, context }) => {
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
     const suppressDelivery = await ctx.runQuery(
@@ -155,16 +158,21 @@ export const sendInviteEmail = internalAction({
     });
 
     const resend = getResendClient({ suppressDelivery });
-    await resend.emails.send({
-      from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-      to: data.staffEmail,
-      subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
-      html: buildLineInviteEmailHtml({
-        staffName: data.staffName,
-        shopName: data.shopName,
-        authorizeUrl,
-      }),
-    });
+    await sendResendEmail(
+      resend,
+      {
+        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+        to: data.staffEmail,
+        subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
+        html: buildLineInviteEmailHtml({
+          staffName: data.staffName,
+          shopName: data.shopName,
+          authorizeUrl,
+          context,
+        }),
+      },
+      "line.sendInviteEmail",
+    );
   },
 });
 

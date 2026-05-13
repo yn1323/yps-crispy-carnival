@@ -26,13 +26,20 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
 
       {/* Info Banner (full-width bg) */}
       <Box bg="blue.50" w="full">
-        <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={2.5} gap={2} align="center">
-          <Icon color="blue.600" boxSize={4}>
+        <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={2.5} gap={2} align="flex-start">
+          <Icon color="blue.600" boxSize={4} mt={0.5}>
             <LuInfo />
           </Icon>
-          <Text fontSize="xs" fontWeight="medium" color="blue.800">
-            提出締切を過ぎたため変更できません
-          </Text>
+          <Box>
+            <Text fontSize="xs" fontWeight="semibold" color="blue.800">
+              締切を過ぎたため変更できません
+            </Text>
+            <Text mt={0.5} fontSize="xs" color="blue.700" lineHeight={1.6}>
+              シフトは調整中です。
+              <br />
+              確定までしばらくお待ちください。
+            </Text>
+          </Box>
         </Flex>
       </Box>
 

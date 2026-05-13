@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { DashboardContent } from "@/src/components/features/Dashboard/DashboardContent";
 import { Animation } from "@/src/components/templates/Animation";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 
 const RECRUITMENT_INITIAL_VISIBLE_COUNT = 3;
@@ -29,6 +30,10 @@ export function DashboardPage() {
   const staffs = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, skipPagination ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
   });
+  const pendingStaffRequests = useQuery(
+    api.staffRegistration.queries.getPendingRequests,
+    shop === undefined || shop === null ? "skip" : {},
+  );
 
   const canLoadMoreRecruitments =
     recruitments.results.length > visibleRecruitmentCount ||
@@ -76,6 +81,10 @@ export function DashboardPage() {
           staffStatus={staffs.status}
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
+          pendingStaffRequests={pendingStaffRequests ?? []}
+          isDashboardOnboardingDismissed={Boolean(
+            currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
+          )}
           managerLegalConsentStatus={managerLegalConsentStatus}
           ownerProfileDefaults={{
             name: currentUser?.name ?? "",
@@ -88,7 +97,13 @@ export function DashboardPage() {
 }
 
 const DashboardPageShell = ({ children }: { children: ReactNode }) => (
-  <Box minH={{ base: "calc(100dvh - 66px)", md: "calc(100dvh - 80px)" }} bg="white">
+  <Box
+    minH={{
+      base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
+      md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+    }}
+    bg="white"
+  >
     <RootContentWrapper>{children}</RootContentWrapper>
   </Box>
 );

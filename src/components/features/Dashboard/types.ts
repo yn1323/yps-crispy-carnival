@@ -27,4 +27,11 @@ export type Staff = {
   isLineFollowing: boolean;
 };
 
+export type StaffRegistrationRequest = {
+  _id: Id<"staffRegistrationRequests">;
+  name: string;
+  email: string;
+  createdAt: number;
+};
+
 export type { PaginationStatus } from "convex/browser";

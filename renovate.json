@@ -5,7 +5,7 @@
   "labels": ["renovate"],
   "baseBranchPatterns": ["develop"],
   "automerge": true,
-  "platformAutomerge": true,
+  "platformAutomerge": false,
   "rebaseWhen": "behind-base-branch",
   "minimumReleaseAge": "2 days",
   "prCreation": "not-pending",

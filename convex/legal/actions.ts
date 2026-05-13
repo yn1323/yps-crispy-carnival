@@ -6,13 +6,16 @@ import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
-import { getResendClient } from "../_lib/resend";
+import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { buildStaffLegalConsentEmailHtml, buildStaffLegalConsentLineText } from "../notification/templates";
 
 export const sendStaffConsentEmail = internalAction({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
-    const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
+    const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, {
+      staffId,
+      includeConsented: true,
+    });
     if (!data?.staffEmail) return;
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
@@ -27,18 +30,22 @@ export const sendStaffConsentEmail = internalAction({
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
 
     const resend = getResendClient({ suppressDelivery });
-    await resend.emails.send({
-      from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-      to: data.staffEmail,
-      subject: formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認"),
-      html: buildStaffLegalConsentEmailHtml({
-        staffName: data.staffName,
-        shopName: data.shopName,
-        consentUrl,
-        expiresAt,
-        documents: data.documents,
-      }),
-    });
+    await sendResendEmail(
+      resend,
+      {
+        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+        to: data.staffEmail,
+        subject: formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認"),
+        html: buildStaffLegalConsentEmailHtml({
+          staffName: data.staffName,
+          shopName: data.shopName,
+          consentUrl,
+          expiresAt,
+          documents: data.documents,
+        }),
+      },
+      "legal.sendStaffConsentEmail",
+    );
   },
 });
 

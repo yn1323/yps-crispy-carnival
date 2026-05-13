@@ -11,6 +11,18 @@ type RecordStaffConsentArgs = {
   sourceRecruitmentId?: Id<"recruitments">;
 };
 
+type LegalConsentVersionSnapshot = {
+  termsConsentVersion: string;
+  privacyConsentVersion: string;
+  termsDocumentVersion: string;
+  privacyDocumentVersion: string;
+};
+
+type RecordStaffConsentSnapshotArgs = RecordStaffConsentArgs & {
+  versions: LegalConsentVersionSnapshot;
+  consentedAt: number;
+};
+
 type RecordUserConsentArgs = {
   userId: Id<"users">;
   shopId: Id<"shops">;
@@ -20,6 +32,10 @@ type RecordUserConsentArgs = {
 export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaffConsentArgs) {
   const now = Date.now();
   const versions = getLegalConsentVersions("staff");
+  return await recordStaffLegalConsentSnapshot(ctx, { ...args, versions, consentedAt: now });
+}
+
+export async function recordStaffLegalConsentSnapshot(ctx: MutationCtx, args: RecordStaffConsentSnapshotArgs) {
   const existingState = await ctx.db
     .query("legalConsentStates")
     .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
@@ -28,8 +44,8 @@ export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaf
     subjectType: "staff" as const,
     staffId: args.staffId,
     shopId: args.shopId,
-    ...versions,
-    consentedAt: now,
+    ...args.versions,
+    consentedAt: args.consentedAt,
     method: args.method,
   };
   if (existingState) {
@@ -41,8 +57,8 @@ export async function recordStaffLegalConsent(ctx: MutationCtx, args: RecordStaf
     subjectType: "staff",
     staffId: args.staffId,
     shopId: args.shopId,
-    ...versions,
-    consentedAt: now,
+    ...args.versions,
+    consentedAt: args.consentedAt,
     method: args.method,
     sourceRecruitmentId: args.sourceRecruitmentId,
   });

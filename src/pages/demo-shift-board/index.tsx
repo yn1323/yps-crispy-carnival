@@ -1,6 +1,6 @@
 import { Alert, Box, Container, Heading, Link, List, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { DemoShiftBoardPage } from "@/src/components/features/ShiftBoard/DemoShiftBoardPage";
+import { DemoShiftBoardPage } from "@/src/components/features/Demo/DemoShiftBoardPage";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 export function DemoShiftBoardRoutePage() {

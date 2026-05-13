@@ -50,7 +50,9 @@ export class DashboardPage {
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
     await this.page.getByRole("button", { name: "スタッフを追加" }).click();
-    await expect(this.page.getByRole("dialog", { name: "スタッフを追加" })).toBeVisible();
+    const dialog = this.page.getByRole("dialog", { name: "スタッフを追加" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "自分で入力する" }).click();
 
     const form = this.page.locator("[id='add-staff-form']");
     const nameInputs = form.getByPlaceholder("例：田中 花子");
@@ -62,12 +64,12 @@ export class DashboardPage {
     }
 
     // 余剰行を削除（フォームの初期行数 > 入力数の場合）
-    const deleteButtons = this.page.getByRole("dialog").getByRole("button", { name: "削除" });
+    const deleteButtons = dialog.getByRole("button", { name: "削除" });
     while ((await deleteButtons.count()) > entries.length) {
       await deleteButtons.last().click();
     }
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "スタッフを追加する" }).click();
+    await dialog.getByRole("button", { name: "スタッフを追加する" }).click();
     await expect(this.page.getByText("スタッフを追加しました").first()).toBeVisible();
     await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
   }
@@ -139,6 +141,20 @@ export class DashboardPage {
       .getByRole("button", { name: /削除する|このスタッフを削除/ })
       .click();
     await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
+  }
+
+  async deleteRecruitment() {
+    await this.recruitmentSection()
+      .getByRole("button", { name: /募集操作メニュー/ })
+      .first()
+      .click();
+    await this.page.getByRole("menuitem", { name: "募集を削除" }).click();
+
+    const dialog = this.page.getByRole("alertdialog", { name: /シフト募集を削除/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("本当に削除してよろしいですか？")).toBeVisible();
+    await dialog.getByRole("button", { name: "この募集を削除" }).click();
+    await expect(this.page.getByText("シフト募集を削除しました")).toBeVisible();
   }
 
   async openLineQr(staffName: string) {

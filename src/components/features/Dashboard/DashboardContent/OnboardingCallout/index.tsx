@@ -69,7 +69,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
         position="relative"
       >
         <IconButton
-          aria-label="はじめの確認を閉じる"
+          aria-label="シフトリへようこそを閉じる"
           variant="ghost"
           colorPalette="gray"
           size="sm"
@@ -111,7 +111,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
               {showLabel && (
                 <HStack gap={2.5} wrap="wrap">
                   <Text fontSize="sm" fontWeight="bold" color="teal.800">
-                    はじめの確認
+                    シフトリへようこそ！
                   </Text>
                 </HStack>
               )}
@@ -126,11 +126,16 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
             </Stack>
 
             {step && (
-              <Flex justify="flex-end" flexShrink={0} alignSelf={{ base: "stretch", md: "center" }}>
+              <Flex gap={2} justify="flex-end" flexShrink={0} alignSelf={{ base: "stretch", md: "center" }} wrap="wrap">
                 <Button variant="solid" colorPalette="teal" size="sm" gap={1.5} onClick={() => setRunTour(true)}>
                   <LuMapPinned />
                   {TOUR_BUTTON_LABEL}
                 </Button>
+                {state.stage === "add_staff" && (
+                  <Button variant="outline" colorPalette="teal" size="sm" onClick={handleDismiss}>
+                    チュートリアルを閉じる
+                  </Button>
+                )}
               </Flex>
             )}
           </Flex>

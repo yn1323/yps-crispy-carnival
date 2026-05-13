@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DemoShiftBoardPage } from "./index";
 
 const meta = {
-  title: "Features/ShiftBoard/DemoShiftBoardPage",
+  title: "Features/Demo/DemoShiftBoardPage",
   component: DemoShiftBoardPage,
   parameters: {
     layout: "fullscreen",

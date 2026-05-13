@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DemoLauncherFab } from "./DemoLauncherFab";
 
 const meta = {
-  title: "Features/ShiftBoard/DemoShiftBoardPage/DemoLauncherFab",
+  title: "Features/Demo/DemoShiftBoardPage/DemoLauncherFab",
   component: DemoLauncherFab,
   parameters: { layout: "fullscreen" },
   args: {

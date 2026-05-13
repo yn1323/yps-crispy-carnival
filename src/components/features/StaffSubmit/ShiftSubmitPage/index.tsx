@@ -19,7 +19,7 @@ export const ShiftSubmitPage = ({ data, onSubmit }: Props) => {
         <Empty
           icon={LuCalendarX}
           title="提出締切を過ぎました"
-          description={"変更したい日がある場合は、\nシフト作成担当者に連絡してください。"}
+          description={"提出や変更が必要な場合は、\nシフト作成担当者に連絡してください。"}
           tone="neutral"
           flex={1}
         />

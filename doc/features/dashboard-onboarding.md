@@ -17,6 +17,7 @@
 ### バックエンド（`convex/`）
 
 - `convex/dashboard/queries.ts` — Dashboard上の店舗情報・募集一覧・スタッフ一覧取得
+- `convex/dashboard/mutations.ts` — チュートリアル終了状態のDB保存
 
 ## 画面一覧
 
@@ -33,18 +34,18 @@
 |---|---|---|
 | `api.dashboard.queries.getDashboardShop` | query | 店舗名・営業時間取得 |
 | `api.dashboard.queries.getDashboardRecruitments` | query | 最新募集・提出人数・確定状態から進捗を派生 |
-| `api.dashboard.queries.getDashboardStaffs` | query | owner含むスタッフ数からCallout完了を判定 |
+| `api.dashboard.queries.getDashboardStaffs` | query | Dashboard上のスタッフ一覧取得 |
+| `api.dashboard.mutations.dismissOnboarding` | mutation | チュートリアル終了状態をDB保存 |
 
 ## 表示ルール
 
-- owner含むスタッフ数が2名以上なら表示しない
 - 管理ユーザーの法務再同意が必要な間は、再同意バナーを優先して表示しない
 - 表示中は通常の「今やること」セクションを出さず、「はじめの確認」セクションを同列に表示する
 - オンボーディング表示可否が未確定の間は通常の「今やること」セクションを出さず、リフレッシュ時の一瞬の表示切り替わりを避ける
-- 手動で閉じた場合は現在のフロント状態だけで非表示にする。リロードや再訪時には再表示される
+- 手動で閉じた場合はDBに終了状態を保存し、同じ管理者では別端末でも再表示しない
 - Callout内の「ガイド」ボタンはショートカットではなく、次に触る場所を説明なしのTourで表示するだけにする
 - 2/4はメールを開く案内なので、Dashboard上のガイドボタンは表示しない
 - Tour対象のボタンやカードを押したらTourだけを非表示にし、通常の操作を続行する
 - 3/4は提出内容がシフト表に反映されていることを確認するところまでを案内し、対象のシフト表を開いたら同じセッション内では4/4へ進める
-- 進捗は専用テーブルを持たず、募集件数・提出人数・募集ステータス・スタッフ数から派生する
+- 進捗は専用テーブルを持たず、募集件数・提出人数・募集ステータスから派生する
 - 3/4から4/4への遷移だけは、確定操作を求めないため `sessionStorage` に確認済み募集IDを保持する

@@ -1,7 +1,7 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
-import { LuBell, LuCalendarDays, LuChevronRight, LuMonitorPlay, LuUserPlus } from "react-icons/lu";
+import { LuBell, LuCalendarDays, LuChevronRight, LuMousePointerClick, LuUserPlus } from "react-icons/lu";
 import { Header } from "@/src/components/templates/Header";
 import { Button, type ButtonProps } from "@/src/components/ui/Button";
 import heroPcImage from "./hero-pc.webp";
@@ -86,7 +86,7 @@ export const HeroSection = () => (
 
           <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} w="full" maxW={{ md: "660px" }}>
             <HeroButton icon={LuUserPlus} label="無料ではじめる" tone="primary" to="/signup" />
-            <HeroButton icon={LuMonitorPlay} label="サンプルを見る" tone="secondary" href="/demo/shiftboard" external />
+            <HeroButton icon={LuMousePointerClick} label="デモを試す！" tone="secondary" href="/demo/flow" external />
           </SimpleGrid>
 
           <SimpleGrid display="grid" columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
@@ -119,7 +119,7 @@ const HeroButton = ({ icon, label, tone, to, href, external, ...buttonProps }: H
       <Text
         as="span"
         minW={0}
-        textAlign={{ base: "center", md: "left" }}
+        textAlign="center"
         fontSize={{ base: "md", md: "lg" }}
         whiteSpace={{ base: "normal", md: "nowrap" }}
       >
@@ -134,7 +134,7 @@ const HeroButton = ({ icon, label, tone, to, href, external, ...buttonProps }: H
       asChild={!!to || !!href}
       type="button"
       display="grid"
-      gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "auto minmax(0, 1fr) auto" }}
+      gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "28px minmax(0, 1fr) 28px" }}
       columnGap={{ base: 3, md: 4 }}
       h={{ base: "56px", md: "64px" }}
       w="full"
