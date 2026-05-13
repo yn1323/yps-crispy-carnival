@@ -19,6 +19,13 @@ function writeStoredSession(recruitmentId: string, sessionToken: string): void {
   localStorage.setItem(`yps_session_${recruitmentId}`, JSON.stringify({ sessionToken, recruitmentId }));
 }
 
+function writeStoredAccessSession(recruitmentId: string, sessionToken: string, accessKind: StaffAccessKind): void {
+  localStorage.setItem(
+    `yps_session_${accessKind}_${recruitmentId}`,
+    JSON.stringify({ sessionToken, recruitmentId, accessKind }),
+  );
+}
+
 function deferred<T>(): {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -171,21 +178,36 @@ describe("useStaffSession", () => {
     expect(result.current.recruitmentId).toBe("rec-9");
   });
 
-  it("authenticates an expired token when the same recruitment session is stored on this device", async () => {
-    writeStoredSession("rec-1", "sess-1");
+  it("does not authenticate an expired submit token even when the same recruitment session is stored on this device", async () => {
+    writeStoredAccessSession("rec-1", "sess-1", "submit");
+    writeStoredSession("rec-1", "sess-legacy");
     verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-1" });
 
     const { result } = renderHook(() => useStaffSession("used-token", "submit"));
 
     await waitFor(() => {
-      expect(result.current.status).toBe("authenticated");
+      expect(result.current.status).toBe("expired");
     });
     expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token", accessKind: "submit" });
+    if (result.current.status !== "expired") throw new Error("type guard");
+    expect(result.current.recruitmentId).toBe("rec-1");
+  });
+
+  it("authenticates an expired view token when the same recruitment view session is stored on this device", async () => {
+    writeStoredAccessSession("rec-1", "sess-1", "view");
+    verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-1" });
+
+    const { result } = renderHook(() => useStaffSession("used-token", "view"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("authenticated");
+    });
+    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "used-token", accessKind: "view" });
     if (result.current.status !== "authenticated") throw new Error("type guard");
     expect(result.current.session).toEqual({
       sessionToken: "sess-1",
       recruitmentId: "rec-1",
-      accessKind: "submit",
+      accessKind: "view",
     });
   });
 
