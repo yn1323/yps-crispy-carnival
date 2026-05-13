@@ -262,13 +262,13 @@ export const DashboardContent = ({
               hideActionSection={shouldHideNextActionSection}
             />
             {visibleOnboardingState && (
-              <Stack as="section" aria-label="はじめの確認" gap={{ base: 3, lg: 4 }}>
+              <Stack as="section" aria-label="シフトリへようこそ！" gap={{ base: 3, lg: 4 }}>
                 <HStack gap={2.5} align="center">
                   <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0} color="fg.muted">
                     <LuSparkles />
                   </Box>
                   <Heading as="h2" textStyle="sectionTitle" color="gray.900">
-                    はじめの確認
+                    シフトリへようこそ！
                   </Heading>
                 </HStack>
                 <OnboardingCallout

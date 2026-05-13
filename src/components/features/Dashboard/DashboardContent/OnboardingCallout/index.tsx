@@ -69,7 +69,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
         position="relative"
       >
         <IconButton
-          aria-label="はじめの確認を閉じる"
+          aria-label="シフトリへようこそを閉じる"
           variant="ghost"
           colorPalette="gray"
           size="sm"
@@ -111,7 +111,7 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
               {showLabel && (
                 <HStack gap={2.5} wrap="wrap">
                   <Text fontSize="sm" fontWeight="bold" color="teal.800">
-                    はじめの確認
+                    シフトリへようこそ！
                   </Text>
                 </HStack>
               )}
