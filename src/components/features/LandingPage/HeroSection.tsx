@@ -119,7 +119,7 @@ const HeroButton = ({ icon, label, tone, to, href, external, ...buttonProps }: H
       <Text
         as="span"
         minW={0}
-        textAlign={{ base: "center", md: "left" }}
+        textAlign="center"
         fontSize={{ base: "md", md: "lg" }}
         whiteSpace={{ base: "normal", md: "nowrap" }}
       >
@@ -134,7 +134,7 @@ const HeroButton = ({ icon, label, tone, to, href, external, ...buttonProps }: H
       asChild={!!to || !!href}
       type="button"
       display="grid"
-      gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "auto minmax(0, 1fr) auto" }}
+      gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "28px minmax(0, 1fr) 28px" }}
       columnGap={{ base: 3, md: 4 }}
       h={{ base: "56px", md: "64px" }}
       w="full"
