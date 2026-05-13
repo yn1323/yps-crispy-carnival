@@ -25,11 +25,13 @@ import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
 import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
 import { Route as UnregisteredDemoShiftboardRouteImport } from './routes/_unregistered/demo.shiftboard'
+import { Route as UnregisteredDemoFlowRouteImport } from './routes/_unregistered/demo.flow'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
@@ -112,6 +114,12 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const UnregisteredStaffRegisterRoute =
+  UnregisteredStaffRegisterRouteImport.update({
+    id: '/staff/register',
+    path: '/staff/register',
+    getParentRoute: () => UnregisteredRoute,
+  } as any)
 const UnregisteredShiftsViewRoute = UnregisteredShiftsViewRouteImport.update({
   id: '/shifts/view',
   path: '/shifts/view',
@@ -141,6 +149,11 @@ const UnregisteredDemoShiftboardRoute =
     path: '/demo/shiftboard',
     getParentRoute: () => UnregisteredRoute,
   } as any)
+const UnregisteredDemoFlowRoute = UnregisteredDemoFlowRouteImport.update({
+  id: '/demo/flow',
+  path: '/demo/flow',
+  getParentRoute: () => UnregisteredRoute,
+} as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
@@ -176,11 +189,13 @@ export interface FileRoutesByFullPath {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/demo/flow': typeof UnregisteredDemoFlowRoute
   '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
@@ -200,11 +215,13 @@ export interface FileRoutesByTo {
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/demo/flow': typeof UnregisteredDemoFlowRoute
   '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
@@ -227,11 +244,13 @@ export interface FileRoutesById {
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
+  '/_unregistered/demo/flow': typeof UnregisteredDemoFlowRoute
   '/_unregistered/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
+  '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
@@ -253,11 +272,13 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/shiftboard/$recruitmentId'
+    | '/demo/flow'
     | '/demo/shiftboard'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
+    | '/staff/register'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
   fileRoutesByTo: FileRoutesByTo
@@ -277,11 +298,13 @@ export interface FileRouteTypes {
     | '/terms/manager'
     | '/terms/staff'
     | '/shiftboard/$recruitmentId'
+    | '/demo/flow'
     | '/demo/shiftboard'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
     | '/shifts/view'
+    | '/staff/register'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
   id:
@@ -303,11 +326,13 @@ export interface FileRouteTypes {
     | '/terms_/manager'
     | '/terms_/staff'
     | '/_auth/shiftboard/$recruitmentId'
+    | '/_unregistered/demo/flow'
     | '/_unregistered/demo/shiftboard'
     | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
     | '/_unregistered/shifts/submit'
     | '/_unregistered/shifts/view'
+    | '/_unregistered/staff/register'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
   fileRoutesById: FileRoutesById
@@ -444,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_unregistered/staff/register': {
+      id: '/_unregistered/staff/register'
+      path: '/staff/register'
+      fullPath: '/staff/register'
+      preLoaderRoute: typeof UnregisteredStaffRegisterRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
     '/_unregistered/shifts/view': {
       id: '/_unregistered/shifts/view'
       path: '/shifts/view'
@@ -477,6 +509,13 @@ declare module '@tanstack/react-router' {
       path: '/demo/shiftboard'
       fullPath: '/demo/shiftboard'
       preLoaderRoute: typeof UnregisteredDemoShiftboardRouteImport
+      parentRoute: typeof UnregisteredRoute
+    }
+    '/_unregistered/demo/flow': {
+      id: '/_unregistered/demo/flow'
+      path: '/demo/flow'
+      fullPath: '/demo/flow'
+      preLoaderRoute: typeof UnregisteredDemoFlowRouteImport
       parentRoute: typeof UnregisteredRoute
     }
     '/_auth/shiftboard/$recruitmentId': {
@@ -516,21 +555,25 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface UnregisteredRouteChildren {
+  UnregisteredDemoFlowRoute: typeof UnregisteredDemoFlowRoute
   UnregisteredDemoShiftboardRoute: typeof UnregisteredDemoShiftboardRoute
   UnregisteredLineCallbackRoute: typeof UnregisteredLineCallbackRoute
   UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
   UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
   UnregisteredShiftsViewRoute: typeof UnregisteredShiftsViewRoute
+  UnregisteredStaffRegisterRoute: typeof UnregisteredStaffRegisterRoute
   UnregisteredLegalStaffConsentRoute: typeof UnregisteredLegalStaffConsentRoute
   UnregisteredShiftsSubmitCompletedRoute: typeof UnregisteredShiftsSubmitCompletedRoute
 }
 
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
+  UnregisteredDemoFlowRoute: UnregisteredDemoFlowRoute,
   UnregisteredDemoShiftboardRoute: UnregisteredDemoShiftboardRoute,
   UnregisteredLineCallbackRoute: UnregisteredLineCallbackRoute,
   UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
   UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
   UnregisteredShiftsViewRoute: UnregisteredShiftsViewRoute,
+  UnregisteredStaffRegisterRoute: UnregisteredStaffRegisterRoute,
   UnregisteredLegalStaffConsentRoute: UnregisteredLegalStaffConsentRoute,
   UnregisteredShiftsSubmitCompletedRoute:
     UnregisteredShiftsSubmitCompletedRoute,

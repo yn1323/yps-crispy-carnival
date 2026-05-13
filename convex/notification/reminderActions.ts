@@ -9,7 +9,7 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
-import { getResendClient } from "../_lib/resend";
+import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { buildReminderEmailHtml, buildReminderLineText } from "./templates";
 
 /**
@@ -73,21 +73,25 @@ export const sendReminderEmails = internalAction({
         appUrl: APP_URL,
       });
 
-      await resend.emails.send({
-        from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-        to: staff.email,
-        subject: formatResendSubject(
-          data.shopName,
-          `${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
-        ),
-        html: buildReminderEmailHtml({
-          staffName: staff.name,
-          periodLabel: data.periodLabel,
-          linkExpiresAtLabel,
-          magicLinkUrl,
-          lineCtaHtml,
-        }),
-      });
+      await sendResendEmail(
+        resend,
+        {
+          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+          to: staff.email,
+          subject: formatResendSubject(
+            data.shopName,
+            `${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
+          ),
+          html: buildReminderEmailHtml({
+            staffName: staff.name,
+            periodLabel: data.periodLabel,
+            linkExpiresAtLabel,
+            magicLinkUrl,
+            lineCtaHtml,
+          }),
+        },
+        "notification.sendReminderEmails",
+      );
     }
   },
 });

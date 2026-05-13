@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import {
   clearSession,
-  getLegacySubmitSession,
   getStoredSession,
   type SessionInfo,
   type StaffAccessKind,
@@ -51,10 +50,8 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
         } else if (result.status === "rate_limited") {
           setRateLimited(true);
         } else {
-          if (result.recruitmentId) {
-            const storedSession =
-              getStoredSession(result.recruitmentId, accessKind) ??
-              (accessKind === "submit" ? getLegacySubmitSession(result.recruitmentId) : null);
+          if (result.recruitmentId && accessKind === "view") {
+            const storedSession = getStoredSession(result.recruitmentId, accessKind);
             if (storedSession) {
               setSession(storedSession);
               return;

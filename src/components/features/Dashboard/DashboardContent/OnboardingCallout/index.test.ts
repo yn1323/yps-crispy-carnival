@@ -13,18 +13,6 @@ const ownerOnly = [
   },
 ] as unknown as Staff[];
 
-const twoStaffs = [
-  ...ownerOnly,
-  {
-    _id: "staff-2",
-    name: "スタッフ",
-    email: "staff@example.com",
-    isOwner: false,
-    isLineLinked: false,
-    isLineFollowing: false,
-  },
-] as unknown as Staff[];
-
 const recruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
     _id: "rec-1",
@@ -44,7 +32,7 @@ describe("deriveDashboardOnboardingState", () => {
       stage: "create_recruitment",
       progressLabel: "1/4",
       title: "シフト作成から提出までの流れを体験しましょう",
-      description: "期間を決めてシフトを募集してみましょう。",
+      description: "期間を決めてシフトを募集してみましょう。（作成したシフトはあとで削除可能です）",
     });
   });
 
@@ -114,9 +102,22 @@ describe("deriveDashboardOnboardingState", () => {
     });
   });
 
-  it("owner含む2名以上なら非表示にする", () => {
-    const state = deriveDashboardOnboardingState({ recruitments: [recruitment()], staffs: twoStaffs });
-    expect(state).toEqual({ kind: "hidden", reason: "enough_staffs" });
+  it("スタッフ数が増えても自動では非表示にしない", () => {
+    const state = deriveDashboardOnboardingState({
+      recruitments: [recruitment({ status: "confirmed", responseCount: 1 })],
+      staffs: [
+        ...ownerOnly,
+        {
+          _id: "staff-2",
+          name: "スタッフ",
+          email: "staff@example.com",
+          isOwner: false,
+          isLineLinked: false,
+          isLineFollowing: false,
+        },
+      ] as unknown as Staff[],
+    });
+    expect(state).toMatchObject({ kind: "visible", stage: "add_staff", progressLabel: "4/4" });
   });
 
   it("現在のステージがdismiss済みなら非表示にする", () => {

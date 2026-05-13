@@ -53,9 +53,9 @@ export const CtaSection = () => (
               <CtaButton icon={LuUserPlus} label="無料ではじめる" tone="primary" to="/signup" />
               <CtaButton
                 icon={LuMonitorPlay}
-                label="サンプルを見る"
+                label="ログインなしで体験してみる"
                 tone="secondary"
-                href="/demo/shiftboard"
+                href="/demo/flow"
                 external
               />
             </SimpleGrid>

@@ -6,7 +6,8 @@ export type LegalConsentMethod =
   | "staff_email_link"
   | "line_link_notice"
   | "shift_submit"
-  | "manager_reconsent";
+  | "manager_reconsent"
+  | "staff_registration";
 
 export type LegalDocumentInfo = {
   audience: LegalAudience;

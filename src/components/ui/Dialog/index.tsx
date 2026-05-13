@@ -39,9 +39,11 @@ type DialogProps = {
   role?: "dialog" | "alertdialog";
   submitColorPalette?: string;
   hideFooter?: boolean;
+  footer?: ReactNode;
   maxW?: string;
   maxH?: string;
   formId?: string;
+  modal?: boolean;
 };
 
 export const Dialog = ({
@@ -58,12 +60,14 @@ export const Dialog = ({
   role = "dialog",
   submitColorPalette = "teal",
   hideFooter = false,
+  footer,
   maxW,
   maxH,
   formId,
+  modal = true,
 }: DialogProps) => {
   return (
-    <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center">
+    <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center" modal={modal}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
@@ -76,23 +80,27 @@ export const Dialog = ({
             </ChakraDialog.Body>
             {!hideFooter && (
               <ChakraDialog.Footer flexShrink={0}>
-                <Button variant="outline" onClick={onClose}>
-                  {closeLabel}
-                </Button>
-                {(onSubmit || formId) && (
-                  <Button
-                    colorPalette={submitColorPalette}
-                    {...(formId ? { type: "submit", form: formId } : { onClick: onSubmit })}
-                    loading={isLoading}
-                    disabled={isSubmitDisabled}
-                  >
-                    {submitLabel}
-                  </Button>
+                {footer ?? (
+                  <>
+                    <Button variant="outline" onClick={onClose}>
+                      {closeLabel}
+                    </Button>
+                    {(onSubmit || formId) && (
+                      <Button
+                        colorPalette={submitColorPalette}
+                        {...(formId ? { type: "submit", form: formId } : { onClick: onSubmit })}
+                        loading={isLoading}
+                        disabled={isSubmitDisabled}
+                      >
+                        {submitLabel}
+                      </Button>
+                    )}
+                  </>
                 )}
               </ChakraDialog.Footer>
             )}
             <ChakraDialog.CloseTrigger asChild position="absolute" top="2" insetEnd="2">
-              <CloseButton size="sm" />
+              <CloseButton size="sm" aria-label="閉じる" />
             </ChakraDialog.CloseTrigger>
           </ChakraDialog.Content>
         </ChakraDialog.Positioner>

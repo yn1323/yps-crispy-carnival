@@ -204,24 +204,29 @@ describe("シフト希望回収シナリオ", () => {
     expect(board?.timeRange.editableEndMinutes).toBe(1320);
   });
 
-  it("提出リンクは締切まで複数ブラウザ相当で開けて、別セッションから再提出できる", async () => {
+  it("提出リンクは締切後も確定までは閲覧でき、提出操作だけ締切で止まる", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
     const staff = scenario.staff();
 
-    const { shopId, staffId } = await t.run(async (ctx) => {
+    const { shopId, submittedStaffId, unsubmittedStaffId } = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "manager-multi-browser@example.com",
         shopName: "複数ブラウザ店舗",
       });
-      const staffId = await seedStaff(ctx, {
+      const submittedStaffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "複数ブラウザスタッフ",
         email: "multi-browser@example.com",
       });
-      return { shopId: seeded.shopId, staffId };
+      const unsubmittedStaffId = await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        name: "締切後未提出スタッフ",
+        email: "deadline-unsubmitted@example.com",
+      });
+      return { shopId: seeded.shopId, submittedStaffId, unsubmittedStaffId };
     });
     const recruitmentInput = {
       periodStart: scenarioDate(7),
@@ -230,7 +235,7 @@ describe("シフト希望回収シナリオ", () => {
     };
     const recruitmentId = await asManager.createRecruitment(recruitmentInput);
     const { token } = await t.mutation(internal.notification.mutations.createMagicLink, {
-      staffId,
+      staffId: submittedStaffId,
       shopId,
       recruitmentId,
       accessKind: "submit",
@@ -267,10 +272,44 @@ describe("シフト希望回収シナリオ", () => {
 
     const board = await asManager.getShiftBoardData(recruitmentId);
     expect(board?.requestedSlots).toEqual([
-      { staffId, date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" },
+      { staffId: submittedStaffId, date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" },
     ]);
 
+    const { token: unsubmittedToken } = await t.mutation(internal.notification.mutations.createMagicLink, {
+      staffId: unsubmittedStaffId,
+      shopId,
+      recruitmentId,
+      accessKind: "submit",
+      expiresAt: new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`).getTime(),
+    });
+
     vi.setSystemTime(new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`));
+    await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({ status: "ok", recruitmentId });
+    await expect(
+      staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
+    ).resolves.toMatchObject({
+      isBeforeDeadline: false,
+      hasSubmitted: true,
+      existingRequests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+    });
+    await expect(
+      staff.submitShiftRequests({
+        sessionToken: secondBrowser.sessionToken,
+        recruitmentId,
+        requests: [{ date: recruitmentInput.periodStart, startTime: "14:00", endTime: "21:00" }],
+      }),
+    ).rejects.toThrow("Deadline passed");
+
+    const unsubmittedAfterDeadline = await staff.verifyMagicLink(unsubmittedToken);
+    expect(unsubmittedAfterDeadline.status).toBe("ok");
+    if (unsubmittedAfterDeadline.status !== "ok") {
+      throw new Error("submit link should remain readable until confirmation");
+    }
+    await expect(
+      staff.getSubmissionPageData({ sessionToken: unsubmittedAfterDeadline.sessionToken, recruitmentId }),
+    ).resolves.toMatchObject({ isBeforeDeadline: false, hasSubmitted: false, existingRequests: [] });
+
+    await asManager.confirmRecruitment(recruitmentId);
     await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({ status: "expired", recruitmentId });
     await expect(
       staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),

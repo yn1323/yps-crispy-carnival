@@ -64,10 +64,11 @@ export const getStaffConsentPageData = query({
 });
 
 export const getStaffConsentNotificationDataInternal = internalQuery({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), includeConsented: v.optional(v.boolean()) },
+  handler: async (ctx, { staffId, includeConsented }) => {
     const staff = await ctx.db.get(staffId);
-    if (!staff || staff.isDeleted || (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
+    if (!staff || staff.isDeleted) return null;
+    if (!includeConsented && (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
 
     const shop = await ctx.db.get(staff.shopId);
     if (!shop || shop.isDeleted) return null;

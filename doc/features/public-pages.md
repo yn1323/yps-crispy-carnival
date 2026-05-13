@@ -7,6 +7,9 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 
 - `src/routes/features.tsx` / `src/pages/features/index.tsx` — できることページ
 - `src/routes/faq.tsx` / `src/pages/faq/index.tsx` — よくある質問ページ
+- `src/routes/_unregistered/demo.flow.tsx` / `src/pages/demo-flow/index.tsx` — 募集から確定通知までのフローデモ
+- `src/routes/_unregistered/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長向けシフト表デモ
+- `src/components/features/Demo/` — 公開デモ用コンポーネント
 - `src/components/features/LandingPage/` — 流用元のLPセクションと公開導線
 - `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧
 
@@ -16,6 +19,7 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 |---|---|
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知の紹介 |
 | `/faq` | 導入前によくある質問 |
+| `/demo/flow` | 募集作成、希望提出、調整、確定通知まで試せるフローデモ |
 | `/demo/shiftboard` | 登録なしで試せる店長向けデモ |
 
 ## API一覧
