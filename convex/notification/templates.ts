@@ -309,9 +309,18 @@ type LineInviteEmailParams = {
   staffName: string;
   shopName: string;
   authorizeUrl: string;
+  context?: "default" | "registration_approved";
 };
 
 export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string {
+  const lead =
+    params.context === "registration_approved"
+      ? "スタッフ登録が承認されました。シフトのお知らせをLINEで受け取れるようになります。"
+      : "シフトのお知らせをLINEで受け取れるようになります。";
+  const description =
+    params.context === "registration_approved"
+      ? "続けて、下のボタンからLINE連携をお願いします。"
+      : "下のボタンから連携できます。";
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -324,8 +333,8 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
         </td></tr>
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトのお知らせをLINEで受け取れるようになります。</p>
-          <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">下のボタンから連携できます。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${lead}</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">${description}</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">

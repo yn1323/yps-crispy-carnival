@@ -19,7 +19,7 @@ export type DashboardOnboardingState =
     }
   | {
       kind: "hidden";
-      reason: "dismissed" | "enough_staffs";
+      reason: "dismissed";
       stage?: DashboardOnboardingStage;
     };
 
@@ -32,14 +32,9 @@ type Params = {
 
 export function deriveDashboardOnboardingState({
   recruitments,
-  staffs,
   dismissedStages = [],
   reviewedRecruitmentIds = [],
 }: Params): DashboardOnboardingState {
-  if (staffs.length >= 2) {
-    return { kind: "hidden", reason: "enough_staffs" };
-  }
-
   const latestRecruitment = recruitments[0];
   const state = latestRecruitment
     ? deriveStateWithRecruitment(latestRecruitment, reviewedRecruitmentIds)

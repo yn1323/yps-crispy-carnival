@@ -137,6 +137,7 @@ export const getCurrentUser = authenticatedQuery({
       isNewUser: false as const,
       name: user.name,
       email: user.email,
+      dashboardOnboardingDismissedAt: user.dashboardOnboardingDismissedAt,
     };
   },
 });

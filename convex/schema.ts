@@ -24,6 +24,7 @@ const schema = defineSchema({
     emailNormalized: v.optional(v.string()),
     role: v.union(v.literal("admin"), v.literal("manager")),
     isDeleted: v.boolean(),
+    dashboardOnboardingDismissedAt: v.optional(v.number()),
   }).index("by_authTokenIdentifier", ["authTokenIdentifier"]),
 
   shopMembers: defineTable({
@@ -67,6 +68,34 @@ const schema = defineSchema({
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_lineUserId", ["lineUserId"])
     .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"]),
+
+  shopRegistrationLinks: defineTable({
+    shopId: v.id("shops"),
+    token: v.string(),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_shopId", ["shopId"]),
+
+  staffRegistrationRequests: defineTable({
+    shopId: v.id("shops"),
+    name: v.string(),
+    email: v.string(),
+    emailNormalized: v.string(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    termsConsentVersion: v.string(),
+    privacyConsentVersion: v.string(),
+    termsDocumentVersion: v.string(),
+    privacyDocumentVersion: v.string(),
+    consentedAt: v.number(),
+    approvedStaffId: v.optional(v.id("staffs")),
+    reviewedAt: v.optional(v.number()),
+    reviewedByUserId: v.optional(v.id("users")),
+    createdAt: v.number(),
+  })
+    .index("by_shopId_status", ["shopId", "status"])
+    .index("by_shopId_emailNormalized_status", ["shopId", "emailNormalized", "status"]),
 
   legalConsentStates: defineTable({
     subjectType: v.union(v.literal("user"), v.literal("staff")),

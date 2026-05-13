@@ -39,6 +39,7 @@ type DialogProps = {
   role?: "dialog" | "alertdialog";
   submitColorPalette?: string;
   hideFooter?: boolean;
+  footer?: ReactNode;
   maxW?: string;
   maxH?: string;
   formId?: string;
@@ -58,6 +59,7 @@ export const Dialog = ({
   role = "dialog",
   submitColorPalette = "teal",
   hideFooter = false,
+  footer,
   maxW,
   maxH,
   formId,
@@ -76,18 +78,22 @@ export const Dialog = ({
             </ChakraDialog.Body>
             {!hideFooter && (
               <ChakraDialog.Footer flexShrink={0}>
-                <Button variant="outline" onClick={onClose}>
-                  {closeLabel}
-                </Button>
-                {(onSubmit || formId) && (
-                  <Button
-                    colorPalette={submitColorPalette}
-                    {...(formId ? { type: "submit", form: formId } : { onClick: onSubmit })}
-                    loading={isLoading}
-                    disabled={isSubmitDisabled}
-                  >
-                    {submitLabel}
-                  </Button>
+                {footer ?? (
+                  <>
+                    <Button variant="outline" onClick={onClose}>
+                      {closeLabel}
+                    </Button>
+                    {(onSubmit || formId) && (
+                      <Button
+                        colorPalette={submitColorPalette}
+                        {...(formId ? { type: "submit", form: formId } : { onClick: onSubmit })}
+                        loading={isLoading}
+                        disabled={isSubmitDisabled}
+                      >
+                        {submitLabel}
+                      </Button>
+                    )}
+                  </>
                 )}
               </ChakraDialog.Footer>
             )}

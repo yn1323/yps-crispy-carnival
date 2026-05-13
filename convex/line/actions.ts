@@ -135,8 +135,11 @@ export const refreshQuotaStatus = internalAction({
  * `setup.setupShopAndOwner` / `staff.addStaffs` / `sendInvite` mutation から scheduler 経由で呼ばれる
  */
 export const sendInviteEmail = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: {
+    staffId: v.id("staffs"),
+    context: v.optional(v.union(v.literal("default"), v.literal("registration_approved"))),
+  },
+  handler: async (ctx, { staffId, context }) => {
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
     const suppressDelivery = await ctx.runQuery(
@@ -163,6 +166,7 @@ export const sendInviteEmail = internalAction({
         staffName: data.staffName,
         shopName: data.shopName,
         authorizeUrl,
+        context,
       }),
     });
   },
