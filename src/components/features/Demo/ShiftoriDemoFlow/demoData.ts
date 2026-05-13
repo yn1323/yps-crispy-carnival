@@ -40,13 +40,13 @@ export const STEPS: StepDefinition[] = [
     id: "recruit",
     label: "募集",
     title: "シフトを募集してみよう",
-    description: "まずは期間と締切を決めて、スタッフに希望シフトを集める準備をします。",
+    description: "期間と締切を決めてシフト募集を開始します。",
   },
   {
     id: "submit",
     label: "提出",
     title: "シフトを提出してみよう",
-    description: "スタッフ側の画面で、出勤できる日と時間を入力する流れを確認します。",
+    description: "シフト募集開始メールが届いたら出勤日と時間を入力します。",
   },
   {
     id: "adjust",
@@ -58,7 +58,7 @@ export const STEPS: StepDefinition[] = [
     id: "share",
     label: "共有",
     title: "確定シフトのメールを見てみよう",
-    description: "確定後にスタッフへ届くメールと、確認リンクの見え方を確認します。",
+    description: "確定後にスタッフへ届く通知を確認します。",
   },
 ];
 
