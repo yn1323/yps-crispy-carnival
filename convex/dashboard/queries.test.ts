@@ -105,6 +105,46 @@ describe("dashboard/queries", () => {
       expect(result.page[0].responseCount).toBe(0);
     });
 
+    it("論理削除された募集は除外する", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_rec_deleted",
+          email: "deleted-rec@example.com",
+          shopName: "店舗",
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-04-01",
+          periodEnd: "2026-04-07",
+          deadline: "2026-03-28",
+          status: "open",
+          isDeleted: false,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-05-01",
+          periodEnd: "2026-05-07",
+          deadline: "2026-04-28",
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: true,
+          shiftStartTime: "09:00",
+          shiftEndTime: "22:00",
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_rec_deleted" })
+        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+
+      expect(result.page).toHaveLength(1);
+      expect(result.page[0].periodStart).toBe("2026-04-01");
+      expect(Object.keys(result.page[0])).not.toContain("isDeleted");
+    });
+
     it("responseCount は shiftSubmissions の件数を返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {

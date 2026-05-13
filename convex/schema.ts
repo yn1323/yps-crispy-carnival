@@ -104,6 +104,7 @@ const schema = defineSchema({
     draftSavedAt: v.optional(v.number()),
   })
     .index("by_shopId", ["shopId"])
+    .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
     .index("by_shopId_status", ["shopId", "status"]),
 
   shiftSubmissionSlots: defineTable({

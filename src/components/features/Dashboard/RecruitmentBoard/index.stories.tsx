@@ -21,6 +21,7 @@ export const Variants: Story = {
     canLoadMore: false,
     onCreateClick: () => {},
     onOpenShiftBoard: () => {},
+    onDeleteRecruitment: () => {},
     onLoadMore: () => {},
   },
   render: () => (
@@ -35,6 +36,7 @@ export const Variants: Story = {
           canLoadMore={false}
           onCreateClick={() => {}}
           onOpenShiftBoard={() => {}}
+          onDeleteRecruitment={() => {}}
           onLoadMore={() => {}}
         />
       </Stack>
@@ -48,6 +50,7 @@ export const Variants: Story = {
           canLoadMore={true}
           onCreateClick={() => {}}
           onOpenShiftBoard={() => {}}
+          onDeleteRecruitment={() => {}}
           onLoadMore={() => {}}
         />
       </Stack>
@@ -61,6 +64,7 @@ export const Variants: Story = {
           canLoadMore={false}
           onCreateClick={() => {}}
           onOpenShiftBoard={() => {}}
+          onDeleteRecruitment={() => {}}
           onLoadMore={() => {}}
         />
       </Stack>
