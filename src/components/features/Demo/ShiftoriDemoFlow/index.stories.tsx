@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type DemoStep, ShiftoriDemoFlow } from "./index";
 
 const meta = {
-  title: "Mock/ShiftoriDemoFlow",
+  title: "Features/Demo/ShiftoriDemoFlow",
   component: ShiftoriDemoFlow,
   parameters: {
     layout: "fullscreen",

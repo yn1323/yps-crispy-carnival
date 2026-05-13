@@ -9,8 +9,8 @@ import { toaster } from "@/src/components/ui/toaster";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
-import { ConfirmShiftContent } from "../ConfirmShiftContent";
-import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../mocks";
+import { ConfirmShiftContent } from "../../ShiftBoard/ConfirmShiftContent";
+import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../../ShiftBoard/mocks";
 import { DemoIntroTour } from "./DemoIntroTour";
 import { DemoLauncherFab } from "./DemoLauncherFab";
 
