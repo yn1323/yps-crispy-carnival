@@ -1,12 +1,13 @@
 import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useState } from "react";
-import { LuSparkles } from "react-icons/lu";
+import { useEffect, useState } from "react";
+import { LuKeyboard, LuSparkles } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
@@ -21,8 +22,9 @@ import { LegalReconsentBanner } from "../LegalReconsentBanner";
 import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
+import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRoster } from "../StaffRoster";
-import type { PaginationStatus, Recruitment, Staff } from "../types";
+import type { PaginationStatus, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { OnboardingCallout } from "./OnboardingCallout";
 import {
   type DashboardOnboardingStage,
@@ -30,6 +32,12 @@ import {
 } from "./OnboardingCallout/deriveDashboardOnboardingState";
 
 const REVIEWED_RECRUITMENT_STORAGE_KEY = "dashboardOnboardingReviewedRecruitments";
+const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
+  "create_recruitment",
+  "submit_self",
+  "review_submission",
+  "add_staff",
+];
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
@@ -52,6 +60,8 @@ type Props = {
   staffStatus: PaginationStatus;
   canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
+  pendingStaffRequests?: StaffRegistrationRequest[];
+  isDashboardOnboardingDismissed?: boolean;
 };
 
 export const DashboardContent = ({
@@ -66,6 +76,8 @@ export const DashboardContent = ({
   staffStatus,
   canLoadMoreStaffs,
   loadMoreStaffs,
+  pendingStaffRequests = [],
+  isDashboardOnboardingDismissed = false,
 }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
@@ -85,13 +97,20 @@ export const DashboardContent = ({
   const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
   const [lineQrLoading, setLineQrLoading] = useState(false);
   const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
+  const [staffModalMode, setStaffModalMode] = useState<"qr" | "manual">("qr");
+  const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
+  const [registrationUrlLoading, setRegistrationUrlLoading] = useState(false);
+  const [rejectRequestTarget, setRejectRequestTarget] = useState<StaffRegistrationRequest | null>(null);
   const [legalConsentSubmitting, setLegalConsentSubmitting] = useState(false);
   const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
+  const [autoDismissedOnboarding, setAutoDismissedOnboarding] = useState(false);
   const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
+  const shouldTreatOnboardingDismissed =
+    isDashboardOnboardingDismissed || autoDismissedOnboarding || pendingStaffRequests.length > 0;
   const onboardingState = deriveDashboardOnboardingState({
     recruitments,
     staffs,
-    dismissedStages: dismissedOnboardingStages,
+    dismissedStages: shouldTreatOnboardingDismissed ? COMPLETED_ONBOARDING_STAGES : dismissedOnboardingStages,
     reviewedRecruitmentIds,
   });
   const visibleOnboardingState =
@@ -115,6 +134,17 @@ export const DashboardContent = ({
   const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
   const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
+  const ensureShopRegistrationLink = useMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
+  const approveStaffRequest = useMutation(api.staffRegistration.mutations.approveRequest);
+  const rejectStaffRequest = useMutation(api.staffRegistration.mutations.rejectRequest);
+  const dismissOnboarding = useMutation(api.dashboard.mutations.dismissOnboarding);
+
+  useEffect(() => {
+    if (pendingStaffRequests.length === 0 || isDashboardOnboardingDismissed || autoDismissedOnboarding) return;
+    setAutoDismissedOnboarding(true);
+    setDismissedOnboardingStages(COMPLETED_ONBOARDING_STAGES);
+    dismissOnboarding({}).catch(showErrorToast);
+  }, [autoDismissedOnboarding, dismissOnboarding, isDashboardOnboardingDismissed, pendingStaffRequests.length]);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
     if (visibleOnboardingState?.stage === "review_submission" && recruitments[0]?._id === recruitmentId) {
@@ -188,6 +218,53 @@ export const DashboardContent = ({
       await addStaffs({ entries: data.entries });
       staffModal.close();
       toaster.create({ title: "スタッフを追加しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleOpenStaffModal = async () => {
+    setStaffModalMode("qr");
+    staffModal.open();
+    setRegistrationUrlLoading(true);
+    try {
+      const result = await ensureShopRegistrationLink({});
+      setRegistrationUrl(result.registrationUrl);
+    } catch (error) {
+      showErrorToast(error);
+    } finally {
+      setRegistrationUrlLoading(false);
+    }
+  };
+
+  const handleApproveStaffRequest = async (request: StaffRegistrationRequest) => {
+    try {
+      await approveStaffRequest({ requestId: request._id });
+      toaster.create({ title: "スタッフ申請を承認しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleRejectStaffRequestClick = (request: StaffRegistrationRequest) => {
+    setRejectRequestTarget(request);
+  };
+
+  const handleRejectStaffRequest = async () => {
+    if (!rejectRequestTarget) return;
+    try {
+      await rejectStaffRequest({ requestId: rejectRequestTarget._id });
+      setRejectRequestTarget(null);
+      toaster.create({ title: "スタッフ申請を却下しました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
+  const handleDismissOnboarding = async (stage: DashboardOnboardingStage) => {
+    setDismissedOnboardingStages((current) => (current.includes(stage) ? current : [...current, stage]));
+    try {
+      await dismissOnboarding({});
     } catch (error) {
       showErrorToast(error);
     }
@@ -285,6 +362,9 @@ export const DashboardContent = ({
               onEditClick={editShopModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onCreateRecruitment={recruitmentModal.open}
+              pendingStaffRequests={pendingStaffRequests}
+              onApproveStaffRequest={handleApproveStaffRequest}
+              onRejectStaffRequest={handleRejectStaffRequestClick}
               hideActionSection={shouldHideNextActionSection}
             />
             {visibleOnboardingState && (
@@ -300,9 +380,7 @@ export const DashboardContent = ({
                 <OnboardingCallout
                   state={visibleOnboardingState}
                   showLabel={false}
-                  onDismiss={(stage) =>
-                    setDismissedOnboardingStages((current) => (current.includes(stage) ? current : [...current, stage]))
-                  }
+                  onDismiss={handleDismissOnboarding}
                 />
               </Stack>
             )}
@@ -320,7 +398,7 @@ export const DashboardContent = ({
               staffs={staffs}
               status={staffStatus}
               canLoadMore={canLoadMoreStaffs}
-              onAddClick={staffModal.open}
+              onAddClick={handleOpenStaffModal}
               onEdit={handleEditClick}
               onDelete={handleDeleteClick}
               onShowLineQr={handleShowLineQr}
@@ -361,13 +439,44 @@ export const DashboardContent = ({
         title="スタッフを追加"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
-        formId="add-staff-form"
-        submitLabel="スタッフを追加する"
+        formId={staffModalMode === "manual" ? "add-staff-form" : undefined}
+        submitLabel={staffModalMode === "manual" ? "スタッフを追加する" : undefined}
         onClose={staffModal.close}
+        closeLabel={staffModalMode === "manual" ? "キャンセル" : "閉じる"}
+        footer={
+          staffModalMode === "qr" ? (
+            <Button onClick={() => setStaffModalMode("manual")} variant="ghost" size="sm" colorPalette="gray" gap={1.5}>
+              <LuKeyboard />
+              自分で入力する
+            </Button>
+          ) : undefined
+        }
         maxW="640px"
         maxH="85dvh"
       >
-        <AddStaffForm onSubmit={handleAddStaffs} />
+        {staffModalMode === "qr" ? (
+          <StaffRegistrationLinkPanel registrationUrl={registrationUrl} isLoading={registrationUrlLoading} />
+        ) : (
+          <AddStaffForm onSubmit={handleAddStaffs} />
+        )}
+      </Dialog>
+
+      <Dialog
+        title="スタッフ申請を却下"
+        isOpen={rejectRequestTarget !== null}
+        onOpenChange={({ open }) => {
+          if (!open) setRejectRequestTarget(null);
+        }}
+        onClose={() => setRejectRequestTarget(null)}
+        onSubmit={handleRejectStaffRequest}
+        submitLabel="この申請を却下"
+        role="alertdialog"
+        submitColorPalette="red"
+      >
+        <Text>「{rejectRequestTarget?.name}」さんの参加申請を却下しますか？</Text>
+        <Text fontSize="sm" color="gray.600">
+          却下してもスタッフには通知されません。必要な場合は店長から直接案内してください。
+        </Text>
       </Dialog>
 
       <Dialog

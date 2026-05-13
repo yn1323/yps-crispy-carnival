@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { mockRecruitments, mockStaffs } from "../storyMocks";
-import type { Recruitment, Staff } from "../types";
+import type { Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { DashboardContent } from "./index";
 
 const noop = () => {};
@@ -39,6 +39,21 @@ const ownerAndStaff = [
     isLineFollowing: false,
   },
 ] as unknown as Staff[];
+
+const pendingStaffRequests = [
+  {
+    _id: "staff-registration-request-1",
+    name: "田中 花子",
+    email: "hanako@example.com",
+    createdAt: Date.now(),
+  },
+  {
+    _id: "staff-registration-request-2",
+    name: "佐藤 太郎",
+    email: "taro@example.com",
+    createdAt: Date.now(),
+  },
+] as unknown as StaffRegistrationRequest[];
 
 const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
@@ -187,10 +202,10 @@ const onboardingFlowVariants = [
   },
   {
     id: "done",
-    label: "通常表示 スタッフ追加済み",
+    label: "4/4 スタッフ追加済み",
     recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
     staffs: ownerAndStaff,
-    expectedProgress: null,
+    expectedProgress: "4/4",
   },
 ] satisfies Array<{
   id: string;
@@ -261,6 +276,35 @@ export const DismissedOnboardingShowsNextAction: Story = {
 
     assertText(root, "今やること", "閉じた後の通常アクション見出し");
     assertNoText(root, "シフトリへようこそ！", "閉じた後のオンボーディング非表示");
+  },
+};
+
+export const PendingRequestsShowNextActionDuringOnboarding: Story = {
+  args: {
+    ...dashboardBaseArgs,
+    recruitments: [],
+    staffs: ownerOnly,
+    pendingStaffRequests,
+  },
+  render: () => (
+    <Box data-testid="pending-requests-onboarding-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        recruitments={[]}
+        staffs={ownerOnly}
+        pendingStaffRequests={pendingStaffRequests}
+      />
+    </Box>
+  ),
+  play: async ({ canvasElement }) => {
+    const root = requireElement(canvasElement, '[data-testid="pending-requests-onboarding-root"]');
+    await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
+
+    assertText(root, "今やること", "承認待ちがある時の通常アクション見出し");
+    assertText(root, "スタッフ参加申請", "承認待ちリストの見出し");
+    assertText(root, "田中 花子", "承認待ちスタッフ名");
+    assertText(root, "hanako@example.com", "承認待ちスタッフメール");
+    assertNoText(root, "シフトリへようこそ！", "承認待ちがある時のオンボーディング非表示");
   },
 };
 

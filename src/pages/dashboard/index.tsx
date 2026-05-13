@@ -29,6 +29,10 @@ export function DashboardPage() {
   const staffs = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, skipPagination ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
   });
+  const pendingStaffRequests = useQuery(
+    api.staffRegistration.queries.getPendingRequests,
+    shop === undefined || shop === null ? "skip" : {},
+  );
 
   const canLoadMoreRecruitments =
     recruitments.results.length > visibleRecruitmentCount ||
@@ -76,6 +80,10 @@ export function DashboardPage() {
           staffStatus={staffs.status}
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
+          pendingStaffRequests={pendingStaffRequests ?? []}
+          isDashboardOnboardingDismissed={Boolean(
+            currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
+          )}
           managerLegalConsentStatus={managerLegalConsentStatus}
           ownerProfileDefaults={{
             name: currentUser?.name ?? "",
