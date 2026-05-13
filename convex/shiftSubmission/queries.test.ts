@@ -175,7 +175,7 @@ describe("shiftSubmission/queries", () => {
       expect(pageData?.previousWeeklyPattern).toBeNull();
     });
 
-    it("締切後は有効な提出sessionがあっても提出画面データを返さない", async () => {
+    it("提出済みスタッフは締切後でも確定前なら提出内容を閲覧できる", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
       await seedSubmission(t, {
@@ -193,7 +193,33 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData).toBeNull();
+      expect(pageData).toMatchObject({
+        isBeforeDeadline: false,
+        hasSubmitted: true,
+        existingRequests: [{ date: "2026-04-21", startTime: "10:00", endTime: "18:00" }],
+        previousWeeklyPattern: null,
+      });
+    });
+
+    it("未提出スタッフは締切後でも確定前なら締切後状態のデータを取得できる", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { deadline: "2026-01-01" });
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData).toMatchObject({
+        isBeforeDeadline: false,
+        hasSubmitted: false,
+        existingRequests: [],
+        previousWeeklyPattern: null,
+      });
     });
 
     it("募集確定後は有効な提出sessionがあっても提出画面データを返さない", async () => {
