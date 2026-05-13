@@ -204,6 +204,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             colorPalette="teal"
             borderRadius="lg"
             fontWeight="semibold"
+            data-submit-action="primary"
             onClick={onFormSubmit}
             loading={isSubmitting}
           >

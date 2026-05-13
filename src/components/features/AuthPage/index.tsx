@@ -24,7 +24,7 @@ import { useForm } from "react-hook-form";
 import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { z } from "zod";
-import { Header } from "@/src/components/templates/Header";
+import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import loginIllustration from "./login.webp";
@@ -331,7 +331,7 @@ export function AuthContent({
         display="flex"
         alignItems="center"
         px={{ base: 4, md: 8 }}
-        pt={{ base: "66px", md: "80px" }}
+        pt={HEADER_HEIGHT}
         pb={0}
       >
         <Grid

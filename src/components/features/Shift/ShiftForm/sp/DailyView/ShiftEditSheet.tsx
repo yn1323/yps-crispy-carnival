@@ -145,6 +145,7 @@ export const ShiftEditSheet = ({
       onClose={() => onOpenChange({ open: false })}
       onSubmit={onSubmit}
       submitLabel="確定"
+      modal={false}
     >
       <VStack gap={4} align="stretch">
         <Flex align="center" gap={2}>

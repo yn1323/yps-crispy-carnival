@@ -34,7 +34,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
           borderColor={isLight ? "whiteAlpha.900" : undefined}
         >
           <Flex
-            boxSize={9}
+            boxSize={8}
             borderRadius="full"
             bg={isLight ? "teal.600" : "white"}
             color={isLight ? "white" : "teal.600"}
@@ -42,7 +42,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
             justify="center"
             flexShrink={0}
           >
-            <Icon as={LuUserRound} boxSize={6} />
+            <Icon as={LuUserRound} boxSize={5} />
           </Flex>
           <Text
             color={isLight ? "gray.900" : "white"}

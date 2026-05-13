@@ -6,7 +6,7 @@ import { Button } from "@/src/components/ui/Button";
 import { UserMenu } from "./UserMenu";
 
 export const HEADER_BG_IMAGE = "linear-gradient(to bottom, #C5E9E5 0%, #E6F7F5 93%, rgba(230, 247, 245, 0) 100%)";
-export const HEADER_HEIGHT = { base: "66px", md: "80px" } as const;
+export const HEADER_HEIGHT = { base: "56px", md: "56px" } as const;
 export const STAFF_CONTENT_MAX_W = "1024px";
 export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
@@ -55,7 +55,7 @@ export const Header = (props: HeaderProps = {}) => {
 
   return (
     <HeaderShell>
-      <HeaderBrand to="/dashboard" />
+      <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" />
       <UserMenu tone="light" />
     </HeaderShell>
   );
@@ -78,7 +78,7 @@ const HeaderShell = ({
   maxW = "7xl",
   minH = HEADER_HEIGHT,
   px,
-  py = { base: 3, md: 4 },
+  py = 2,
   justify = "space-between",
   bgImage = HEADER_BG_IMAGE,
 }: HeaderShellProps) => (
@@ -110,7 +110,7 @@ const HeaderBrand = ({ to, ariaLabel, logoSize, fontSize }: HeaderBrandProps) =>
   <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
     <RouterLink to={to} aria-label={ariaLabel}>
       <Flex align="center" gap={3}>
-        <Image src="/logo192.webp" alt="シフトリ" boxSize={logoSize ?? { base: 9, md: 10 }} objectFit="contain" />
+        <Image src="/logo192.webp" alt="シフトリ" boxSize={logoSize ?? 10} objectFit="contain" />
         <Text
           color="gray.950"
           fontSize={fontSize ?? { base: "xl", md: "2xl" }}
@@ -142,11 +142,11 @@ const PublicHeaderActions = ({ showLinks, showLogin }: { showLinks: boolean; sho
               {item.label}
             </Link>
           ))}
-        {showLogin && <PublicLoginButton h="48px" px={6} />}
+        {showLogin && <PublicLoginButton h="40px" px={5} />}
       </Flex>
     )}
 
-    {showLogin && <PublicLoginButton display={{ base: "inline-flex", md: "none" }} h="42px" px={5} />}
+    {showLogin && <PublicLoginButton display={{ base: "inline-flex", md: "none" }} h="40px" px={5} />}
   </>
 );
 

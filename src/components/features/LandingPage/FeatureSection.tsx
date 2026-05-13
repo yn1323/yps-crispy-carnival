@@ -1,4 +1,6 @@
-import { Box, Container, Flex, Heading, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 import featureCollectImage from "./feature-collect.webp";
 import featureSendImage from "./feature-send.webp";
 import shiftFormImage from "./hero-pc.webp";
@@ -75,14 +77,47 @@ export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
             で 希望回収から確定までひとつに
           </Heading>
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
-            未提出確認、シフト表の作成、スタッフへの通知まで、同じ流れで進められます。
+            未提出確認、シフト表の作成、スタッフへの通知まで、シフトリ1つで進められます。
           </Text>
         </VStack>
 
-        <VStack gap={{ base: 4, md: 6 }} w="full">
-          {featureCards.map((card) => (
-            <CapabilityCard key={card.number} {...card} />
-          ))}
+        <VStack gap={{ base: 6, md: 8 }} w="full">
+          <VStack gap={{ base: 4, md: 6 }} w="full">
+            {featureCards.map((card) => (
+              <CapabilityCard key={card.number} {...card} />
+            ))}
+          </VStack>
+
+          <Button
+            asChild
+            colorPalette="teal"
+            display="grid"
+            gridTemplateColumns={{ base: "24px minmax(0, 1fr) 24px", md: "28px minmax(0, 1fr) 28px" }}
+            columnGap={{ base: 3, md: 4 }}
+            borderRadius="full"
+            h={{ base: "56px", md: "64px" }}
+            px={{ base: 5, md: 6 }}
+            w={{ base: "full", sm: "auto" }}
+            minW={{ sm: "420px", md: "460px" }}
+            maxW={{ base: "360px", sm: "none" }}
+            mt={{ base: 2, md: 4 }}
+            fontWeight="bold"
+            whiteSpace="normal"
+          >
+            <a href="/demo/flow" target="_blank" rel="noopener noreferrer">
+              <Icon as={LuMousePointerClick} boxSize={{ base: 5, md: 6 }} justifySelf="center" />
+              <Text
+                as="span"
+                minW={0}
+                textAlign="center"
+                fontSize={{ base: "md", md: "lg" }}
+                whiteSpace={{ base: "normal", md: "nowrap" }}
+              >
+                シフト作成の流れを体験する
+              </Text>
+              <Icon as={LuChevronRight} boxSize={5} justifySelf="center" />
+            </a>
+          </Button>
         </VStack>
       </VStack>
     </Container>
