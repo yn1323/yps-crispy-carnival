@@ -12,6 +12,7 @@ import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
 
 const CONVEX_ENV_KEYS = ["RESEND_API_KEY", "APP_URL", "CLERK_JWT_ISSUER_DOMAIN"] as const;
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const main = () => {
   config(); // .env を読み込み
@@ -31,7 +32,7 @@ const main = () => {
     }
 
     try {
-      execFileSync("npx", ["convex", "env", "set", key, value], {
+      execFileSync(pnpmCommand, ["exec", "convex", "env", "set", key, value], {
         stdio: "pipe",
         cwd: process.cwd(),
       });
