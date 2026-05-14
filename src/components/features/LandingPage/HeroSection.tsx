@@ -74,9 +74,9 @@ export const HeroSection = () => (
               </Heading>
 
               <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
-                希望回収からシフト作成・通知まで、LINEでひとつに。
+                紙やLINEで集めて、Excelに転記。そんなシフト作成をもっとラクに。
                 <Box as="span" display="block">
-                  小さなお店向けのシフト管理ツールです。
+                  シフトリは、店舗名と営業時間などの基本情報だけではじめられる、かんたんなシフト作成ツールです。
                 </Box>
               </Text>
             </VStack>

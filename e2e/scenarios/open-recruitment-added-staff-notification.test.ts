@@ -2,7 +2,7 @@ import { expect, test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
 import { waitForMagicLinkToken } from "../helpers/notificationTokens";
-import { seedOwnerScenario } from "../helpers/scenarioSeeds";
+import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
 
@@ -26,7 +26,7 @@ test.describe("募集中の追加スタッフ通知", () => {
 
   test("募集中にスタッフを追加すると、そのスタッフの希望提出リンクが発行される", async ({ page }) => {
     const dates = getNextWeekDates();
-    const seed = seedOwnerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
+    const seed = seedManagerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
     const dashboard = new DashboardPage(page);
     const submitPage = new StaffSubmitPage(page);
 
@@ -55,7 +55,7 @@ test.describe("募集中の追加スタッフ通知", () => {
 
   test("LINE follow時に募集中シフトの希望提出リンクが発行される", async ({ page }) => {
     const dates = getNextWeekDates();
-    const seed = seedOwnerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
+    const seed = seedManagerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", { dates });
     const submitPage = new StaffSubmitPage(page);
 
     await test.step("Step 1: LINE follow相当の状態更新を行う", async () => {

@@ -13,7 +13,7 @@ const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   continueCursor: string;
 };
 
-async function getOwnerShop(ctx: {
+async function getManagerShop(ctx: {
   db: GenericDatabaseReader<DataModel>;
   identity: { subject: string } | null;
   user: Doc<"users"> | null;
@@ -32,7 +32,7 @@ async function getOwnerShop(ctx: {
 export const getDashboardShop = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    const shop = await getOwnerShop(ctx);
+    const shop = await getManagerShop(ctx);
     if (!shop) return null;
 
     return {
@@ -47,7 +47,7 @@ export const getDashboardRecruitments = authenticatedQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
     if (!ctx.identity) throw new ConvexError("Unauthenticated");
-    const shop = await getOwnerShop(ctx);
+    const shop = await getManagerShop(ctx);
     if (!shop) return EMPTY_PAGE;
 
     const paginatedResult = await ctx.db
@@ -92,7 +92,7 @@ export const getDashboardStaffs = authenticatedQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
     if (!ctx.identity) throw new ConvexError("Unauthenticated");
-    const shop = await getOwnerShop(ctx);
+    const shop = await getManagerShop(ctx);
     if (!shop) return EMPTY_PAGE;
 
     const paginatedResult = await ctx.db
@@ -107,7 +107,7 @@ export const getDashboardStaffs = authenticatedQuery({
           _id: s._id,
           name: s.name,
           email: s.email,
-          isOwner: s.userId === ctx.user?._id,
+          isManager: s.userId === ctx.user?._id,
           isLineLinked: Boolean(lineAccount?.lineUserId),
           isLineFollowing: Boolean(lineAccount?.following),
         };

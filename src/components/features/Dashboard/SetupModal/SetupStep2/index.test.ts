@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { step2Schema } from "./index";
 
-describe("step2Schema (ownerProfile)", () => {
+describe("step2Schema (managerProfile)", () => {
   const validData = {
     name: "山田 太郎",
     email: "yamada@example.com",

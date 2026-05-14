@@ -17,24 +17,24 @@ const managerLegalConsentReady = {
   },
 };
 
-const ownerOnly = [
+const managerOnly = [
   {
-    _id: "staff-owner",
+    _id: "staff-manager",
     name: "田中太郎",
     email: "tanaka@example.com",
-    isOwner: true,
+    isManager: true,
     isLineLinked: true,
     isLineFollowing: true,
   },
 ] as unknown as Staff[];
 
-const ownerAndStaff = [
-  ...ownerOnly,
+const managerAndStaff = [
+  ...managerOnly,
   {
     _id: "staff-2",
     name: "佐藤花子",
     email: "sato@example.com",
-    isOwner: false,
+    isManager: false,
     isLineLinked: false,
     isLineFollowing: false,
   },
@@ -138,7 +138,7 @@ export const Empty: Story = {
     staffStatus: "Exhausted",
     canLoadMoreStaffs: false,
     loadMoreStaffs: noop,
-    ownerProfileDefaults: {
+    managerProfileDefaults: {
       name: "山田 太郎",
       email: "yamada@example.com",
     },
@@ -176,35 +176,35 @@ const onboardingFlowVariants = [
     id: "step-1",
     label: "1/4 募集作成前",
     recruitments: [],
-    staffs: ownerOnly,
+    staffs: managerOnly,
     expectedProgress: "1/4",
   },
   {
     id: "step-2",
     label: "2/4 募集作成後",
     recruitments: [onboardingRecruitment()],
-    staffs: ownerOnly,
+    staffs: managerOnly,
     expectedProgress: "2/4",
   },
   {
     id: "step-3",
     label: "3/4 提出後",
     recruitments: [onboardingRecruitment({ responseCount: 1 })],
-    staffs: ownerOnly,
+    staffs: managerOnly,
     expectedProgress: "3/4",
   },
   {
     id: "step-4",
     label: "4/4 シフト確認後",
     recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
-    staffs: ownerOnly,
+    staffs: managerOnly,
     expectedProgress: "4/4",
   },
   {
     id: "done",
     label: "4/4 スタッフ追加済み",
     recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
-    staffs: ownerAndStaff,
+    staffs: managerAndStaff,
     expectedProgress: "4/4",
   },
 ] satisfies Array<{
@@ -219,7 +219,7 @@ export const OnboardingFlowStates: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
-    staffs: ownerOnly,
+    staffs: managerOnly,
   },
   render: () => (
     <Box minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
@@ -254,11 +254,11 @@ export const DismissedOnboardingShowsNextAction: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
-    staffs: ownerOnly,
+    staffs: managerOnly,
   },
   render: () => (
     <Box data-testid="onboarding-dismissal-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
-      <DashboardContent {...dashboardBaseArgs} recruitments={[]} staffs={ownerOnly} />
+      <DashboardContent {...dashboardBaseArgs} recruitments={[]} staffs={managerOnly} />
     </Box>
   ),
   play: async ({ canvasElement }) => {
@@ -283,7 +283,7 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
-    staffs: ownerOnly,
+    staffs: managerOnly,
     pendingStaffRequests,
   },
   render: () => (
@@ -291,7 +291,7 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
       <DashboardContent
         {...dashboardBaseArgs}
         recruitments={[]}
-        staffs={ownerOnly}
+        staffs={managerOnly}
         pendingStaffRequests={pendingStaffRequests}
       />
     </Box>

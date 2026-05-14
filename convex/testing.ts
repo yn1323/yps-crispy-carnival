@@ -75,10 +75,10 @@ async function findActiveStaffByEmail(ctx: TestCtx, staffEmail: string, shopId?:
   return staffs.find((staff) => !staff.isDeleted) ?? null;
 }
 
-async function findOwnerShopByAuthTokenIdentifier(ctx: TestCtx, ownerAuthTokenIdentifier: string) {
+async function findManagerShopByAuthTokenIdentifier(ctx: TestCtx, managerAuthTokenIdentifier: string) {
   const user = await ctx.db
     .query("users")
-    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", ownerAuthTokenIdentifier))
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", managerAuthTokenIdentifier))
     .order("desc")
     .first();
   if (!user || user.isDeleted) return null;
@@ -257,10 +257,10 @@ async function deleteShopGraph(ctx: MutationCtx, shopId: Id<"shops">) {
   await ctx.db.delete(shopId);
 }
 
-async function resetOwnerScenarioDataForAuth(ctx: MutationCtx, ownerAuthTokenIdentifier: string) {
+async function resetManagerScenarioDataForAuth(ctx: MutationCtx, managerAuthTokenIdentifier: string) {
   const users = await ctx.db
     .query("users")
-    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", ownerAuthTokenIdentifier))
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", managerAuthTokenIdentifier))
     .collect();
   for (const user of users) {
     const memberships = await ctx.db
@@ -281,36 +281,36 @@ async function resetOwnerScenarioDataForAuth(ctx: MutationCtx, ownerAuthTokenIde
   }
 }
 
-export const resetOwnerScenarioData = internalMutation({
+export const resetManagerScenarioData = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
+    managerAuthTokenIdentifier: v.string(),
   },
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
-    if (!args.ownerAuthTokenIdentifier) throw new Error("ownerAuthTokenIdentifier is required");
-    await resetOwnerScenarioDataForAuth(ctx, args.ownerAuthTokenIdentifier);
+    if (!args.managerAuthTokenIdentifier) throw new Error("managerAuthTokenIdentifier is required");
+    await resetManagerScenarioDataForAuth(ctx, args.managerAuthTokenIdentifier);
     return { reset: true };
   },
 });
 
-async function createOwnerScenario(
+async function createManagerScenario(
   ctx: MutationCtx,
   args: {
-    ownerAuthTokenIdentifier: string;
-    ownerEmail?: string;
+    managerAuthTokenIdentifier: string;
+    managerEmail?: string;
     shopName: string;
     managerLegalConsentState?: LegalConsentState;
     managerStaffLegalConsentState?: LegalConsentState;
   },
 ) {
   assertE2EHelpersEnabled();
-  if (!args.ownerAuthTokenIdentifier) throw new Error("ownerAuthTokenIdentifier is required");
-  await resetOwnerScenarioDataForAuth(ctx, args.ownerAuthTokenIdentifier);
+  if (!args.managerAuthTokenIdentifier) throw new Error("managerAuthTokenIdentifier is required");
+  await resetManagerScenarioDataForAuth(ctx, args.managerAuthTokenIdentifier);
 
   const userId = await ctx.db.insert("users", {
-    authTokenIdentifier: args.ownerAuthTokenIdentifier,
+    authTokenIdentifier: args.managerAuthTokenIdentifier,
     name: DEFAULT_MANAGER.name,
-    email: args.ownerEmail ?? DEFAULT_MANAGER.email,
+    email: args.managerEmail ?? DEFAULT_MANAGER.email,
     role: "manager",
     isDeleted: false,
   });
@@ -323,7 +323,7 @@ async function createOwnerScenario(
   await ctx.db.insert("shopMembers", {
     shopId,
     userId,
-    role: "owner",
+    role: "manager",
     isDeleted: false,
   });
   await seedLegalConsentState(ctx, {
@@ -492,7 +492,7 @@ export const clearAllTables = internalMutation(async ({ db }) => {
  */
 export const seedShiftData = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.optional(v.string()),
     staffAssignments: v.array(
       v.object({
         staffName: v.string(),
@@ -510,8 +510,8 @@ export const seedShiftData = internalMutation({
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
 
-    const shop = args.ownerAuthTokenIdentifier
-      ? await findOwnerShopByAuthTokenIdentifier(ctx, args.ownerAuthTokenIdentifier)
+    const shop = args.managerAuthTokenIdentifier
+      ? await findManagerShopByAuthTokenIdentifier(ctx, args.managerAuthTokenIdentifier)
       : await ctx.db.query("shops").order("desc").first();
     if (!shop) throw new Error("No shop found");
 
@@ -867,13 +867,13 @@ export const seedSubmitTestData = internalMutation({
 
 export const seedDashboardPaginationScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { shopId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "ページネーションテスト店舗",
     });
 
@@ -912,14 +912,14 @@ export const seedDashboardPaginationScenario = internalMutation({
 
 export const seedLegalManagerConsentScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
     legalConsentState: legalConsentStateValidator,
   },
   handler: async (ctx, args) => {
-    const { shopId, userId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId, userId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "法務同意テスト店舗",
       managerLegalConsentState: args.legalConsentState,
     });
@@ -993,14 +993,14 @@ export const seedLegalStaffSubmitScenario = internalMutation({
 
 export const seedNotificationSubmitScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "通知募集テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
@@ -1017,14 +1017,14 @@ export const seedNotificationSubmitScenario = internalMutation({
 
 export const seedOpenRecruitmentNotificationScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "追加通知テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
@@ -1035,14 +1035,14 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
 
 export const seedNotificationReminderScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "通知催促テスト店舗",
     });
     const remindedStaffId = await createStaff(ctx, {
@@ -1079,14 +1079,14 @@ export const seedNotificationReminderScenario = internalMutation({
 
 export const seedNotificationConfirmationViewScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "確定シフト閲覧テスト店舗",
     });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "confirmed" });
@@ -1112,13 +1112,13 @@ export const seedNotificationConfirmationViewScenario = internalMutation({
 
 export const seedLineLinkScenario = internalMutation({
   args: {
-    ownerAuthTokenIdentifier: v.string(),
-    ownerEmail: v.optional(v.string()),
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { shopId, managerStaffId } = await createOwnerScenario(ctx, {
-      ownerAuthTokenIdentifier: args.ownerAuthTokenIdentifier,
-      ownerEmail: args.ownerEmail,
+    const { shopId, managerStaffId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
       shopName: "LINE連携テスト店舗",
     });
 

@@ -1,7 +1,7 @@
 import { test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
 import { getNextWeekDates } from "../helpers/date";
-import { seedOwnerScenario } from "../helpers/scenarioSeeds";
+import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { StaffViewPage } from "../pages/StaffViewPage";
 
 const MANAGER = {
@@ -24,7 +24,7 @@ test.describe("通知URL起点の確定シフト閲覧", () => {
 
   test("確定URLで閲覧し、使用済みURLから再発行した新URLでも閲覧できる", async ({ browser, page }) => {
     const dates = getNextWeekDates();
-    const seed = seedOwnerScenario<ConfirmationScenarioSeed>("testing:seedNotificationConfirmationViewScenario", {
+    const seed = seedManagerScenario<ConfirmationScenarioSeed>("testing:seedNotificationConfirmationViewScenario", {
       dates,
     });
     const staffView = new StaffViewPage(page);

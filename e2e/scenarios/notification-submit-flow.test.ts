@@ -1,6 +1,6 @@
 import { test } from "../fixtures/e2eTest";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
-import { seedOwnerScenario } from "../helpers/scenarioSeeds";
+import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
@@ -17,9 +17,9 @@ type SubmitScenarioSeed = {
 test.describe("通知URL起点のシフト募集", () => {
   test.setTimeout(45_000);
 
-  test("募集開始で発行されたURLから提出し、店長画面に再編集まで反映される", async ({ page }) => {
+  test("募集開始で発行されたURLから提出し、シフト担当者画面に再編集まで反映される", async ({ page }) => {
     const dates = getNextWeekDates();
-    const seed = seedOwnerScenario<SubmitScenarioSeed>("testing:seedNotificationSubmitScenario", { dates });
+    const seed = seedManagerScenario<SubmitScenarioSeed>("testing:seedNotificationSubmitScenario", { dates });
     const dashboard = new DashboardPage(page);
     const submitPage = new StaffSubmitPage(page);
     const shiftBoard = new ShiftBoardPage(page);
@@ -33,14 +33,14 @@ test.describe("通知URL起点のシフト募集", () => {
       await submitPage.expectCompletionVisible();
     });
 
-    await test.step("Step 3: 店長画面に提出内容が反映される", async () => {
+    await test.step("Step 3: シフト担当者画面に提出内容が反映される", async () => {
       await dashboard.goto();
       await dashboard.openShiftBoard();
       await shiftBoard.expectOnShiftBoard();
       await shiftBoard.expectOverviewStaffTimeCount(MANAGER.name, 1);
     });
 
-    await test.step("Step 4: スタッフが再編集し、店長画面にも更新後の内容が反映される", async () => {
+    await test.step("Step 4: スタッフが再編集し、シフト担当者画面にも更新後の内容が反映される", async () => {
       await submitPage.goto(seed.token);
       await submitPage.expectFormVisible();
       await submitPage.expectSubmittedBadge();

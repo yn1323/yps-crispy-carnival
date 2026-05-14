@@ -58,7 +58,7 @@ export const ForgotPasswordReset: Story = {
   args: {
     mode: "forgot-password",
     forgotStep: "reset",
-    forgotEmail: "owner@example.com",
+    forgotEmail: "manager@example.com",
   },
 };
 

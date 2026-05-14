@@ -41,7 +41,7 @@ const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
 
 type Props = {
   shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
-  ownerProfileDefaults?: {
+  managerProfileDefaults?: {
     name: string;
     email: string;
   };
@@ -66,7 +66,7 @@ type Props = {
 
 export const DashboardContent = ({
   shop,
-  ownerProfileDefaults,
+  managerProfileDefaults,
   managerLegalConsentStatus,
   recruitments,
   recruitmentStatus,
@@ -124,7 +124,7 @@ export const DashboardContent = ({
       )}のシフト募集を削除`
     : "シフト募集を削除";
 
-  const setupShopAndOwner = useMutation(api.setup.mutations.setupShopAndOwner);
+  const setupShopAndManager = useMutation(api.setup.mutations.setupShopAndManager);
   const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
   const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
   const deleteRecruitmentMut = useMutation(api.recruitment.mutations.deleteRecruitment);
@@ -160,12 +160,12 @@ export const DashboardContent = ({
 
   const handleSetupComplete = async (data: SetupData) => {
     try {
-      await setupShopAndOwner({
+      await setupShopAndManager({
         shopName: data.shopName,
         shiftStartTime: data.shiftStartTime,
         shiftEndTime: data.shiftEndTime,
-        ownerName: data.name,
-        ownerEmail: data.email,
+        managerName: data.name,
+        managerEmail: data.email,
         acceptedLegal: data.acceptedLegal as true,
       });
       toaster.create({ title: "セットアップが完了しました", type: "success" });
@@ -475,7 +475,7 @@ export const DashboardContent = ({
       >
         <Text>「{rejectRequestTarget?.name}」さんの参加申請を却下しますか？</Text>
         <Text fontSize="sm" color="gray.600">
-          却下してもスタッフには通知されません。必要な場合は店長から直接案内してください。
+          却下してもスタッフには通知されません。必要な場合はシフト担当者から直接案内してください。
         </Text>
       </Dialog>
 
@@ -558,7 +558,7 @@ export const DashboardContent = ({
           isOpen={setupModal.isOpen}
           onOpenChange={setupModal.onOpenChange}
           onComplete={handleSetupComplete}
-          ownerProfileDefaults={ownerProfileDefaults}
+          managerProfileDefaults={managerProfileDefaults}
         />
       )}
     </>

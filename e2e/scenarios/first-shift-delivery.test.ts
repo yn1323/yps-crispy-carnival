@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures/e2eTest";
 import { convexRun } from "../helpers/convex";
 import { getNextWeekDates } from "../helpers/date";
-import { getE2EOwnerAuthTokenIdentifier, resetCurrentOwnerScenarioData } from "../helpers/scenarioSeeds";
+import { getE2EManagerAuthTokenIdentifier, resetCurrentManagerScenarioData } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
 
@@ -33,7 +33,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
   });
 
   test("初回セットアップからシフト確定まで", async ({ page }) => {
-    resetCurrentOwnerScenarioData();
+    resetCurrentManagerScenarioData();
 
     await test.step("Step 1: 初回セットアップを完了する", async () => {
       await dashboard.goto();
@@ -41,8 +41,8 @@ test.describe("田中さんの初めてのシフト確定", () => {
         shopName: "テスト居酒屋",
         shiftStartTime: "10:00",
         shiftEndTime: "23:00",
-        ownerName: "田中太郎",
-        ownerEmail: "tanaka@example.com",
+        managerName: "田中太郎",
+        managerEmail: "tanaka@example.com",
       });
       await dashboard.expectSetupComplete();
     });
@@ -106,7 +106,7 @@ test.describe("田中さんの初めてのシフト確定", () => {
     });
 
     convexRun("testing:seedShiftData", {
-      ownerAuthTokenIdentifier: getE2EOwnerAuthTokenIdentifier(),
+      managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(),
       staffAssignments: STAFF_ASSIGNMENTS,
       dates: dates.dates,
     });

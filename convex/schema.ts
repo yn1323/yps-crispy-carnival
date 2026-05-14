@@ -30,7 +30,7 @@ const schema = defineSchema({
   shopMembers: defineTable({
     shopId: v.id("shops"),
     userId: v.id("users"),
-    role: v.union(v.literal("owner"), v.literal("manager")),
+    role: v.literal("manager"),
     isDeleted: v.boolean(),
   })
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])

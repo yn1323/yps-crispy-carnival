@@ -4,7 +4,7 @@ import { managerQuery } from "../_lib/functions";
 import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service";
 
 /**
- * 店舗のスタッフごとのLINE連携状況を返す（店長UI用）
+ * 店舗のスタッフごとのLINE連携状況を返す（シフト担当者UI用）
  */
 export const getLinkStatusByShop = managerQuery({
   args: {},

@@ -3,8 +3,8 @@ import type { IconType } from "react-icons";
 import { LuArrowRight, LuBell, LuCalendarCheck, LuMessageCircle } from "react-icons/lu";
 import issueCheckSubmissionImage from "./issue-check-submission.webp";
 import issueCollectImage from "./issue-collect.webp";
-import issueNotifyChangeImage from "./issue-notify-change.webp";
 import issueRewriteExcelImage from "./issue-rewrite-excel.webp";
+import issueToolsImage from "./issue-tools.webp";
 
 const problemCards = [
   { number: "01", title: "希望を集める", image: issueCollectImage, alt: "LINEやメモで集まった希望を見返すイメージ" },
@@ -15,7 +15,7 @@ const problemCards = [
     alt: "提出状況を確認して未提出者を把握するイメージ",
   },
   { number: "03", title: "表に転記する", image: issueRewriteExcelImage, alt: "集めた希望を表に転記するイメージ" },
-  { number: "04", title: "変更を伝える", image: issueNotifyChangeImage, alt: "完成後の変更を共有するイメージ" },
+  { number: "04", title: "ツールの設定が多い", image: issueToolsImage, alt: "ツールの設定が多いイメージ" },
 ];
 
 const solutionSteps = [

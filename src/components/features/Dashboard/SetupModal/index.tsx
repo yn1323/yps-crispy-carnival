@@ -23,7 +23,7 @@ type Props = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onComplete: (data: SetupData) => void;
-  ownerProfileDefaults?: Pick<Step2Data, "name" | "email">;
+  managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
 };
 
 const INITIAL_STEP1: Step1Data = { shopName: "", shiftStartTime: "", shiftEndTime: "" };
@@ -60,7 +60,7 @@ const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
   </HStack>
 );
 
-export const SetupModal = ({ isOpen, onOpenChange, onComplete, ownerProfileDefaults }: Props) => {
+export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDefaults }: Props) => {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [step1Data, setStep1Data] = useState<Step1Data>(INITIAL_STEP1);
   const isMobile = useBreakpointValue({ base: true, lg: false });
@@ -122,7 +122,7 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, ownerProfileDefau
               {currentStep === 1 ? (
                 <SetupStep1 defaultValues={step1Data} onNext={handleStep1Next} />
               ) : (
-                <SetupStep2 defaultValues={ownerProfileDefaults} onSubmit={handleStep2Submit} />
+                <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
               )}
             </ChakraDialog.Body>
 

@@ -13,22 +13,22 @@ describe("管理者セットアップシナリオ", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("初回セットアップで店舗・管理者・owner staff・同意・初期positionが揃い、ダッシュボードに反映される", async () => {
+  it("初回セットアップで店舗・管理者・manager staff・同意・初期positionが揃い、ダッシュボードに反映される", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager({
       subject: SETUP_MANAGER_SUBJECT,
       name: "山田 太郎",
-      email: "owner@example.com",
+      email: "manager@example.com",
     });
 
-    // Arrange / Act: 初回ユーザーがセットアップ画面から店舗とowner情報を登録する。
-    const shopId = await asManager.setupShopAndOwner({
+    // Arrange / Act: 初回ユーザーがセットアップ画面から店舗とmanager情報を登録する。
+    const shopId = await asManager.setupShopAndManager({
       shopName: "初回セットアップ店舗",
       shiftStartTime: "09:30",
       shiftEndTime: "22:30",
-      ownerName: "山田 太郎",
-      ownerEmail: "owner@example.com",
+      managerName: "山田 太郎",
+      managerEmail: "manager@example.com",
       acceptedLegal: true,
     });
 
@@ -39,13 +39,13 @@ describe("管理者セットアップシナリオ", () => {
       asManager.getDashboardStaffs(),
       asManager.getManagerConsentStatus(),
     ]);
-    expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "owner@example.com" });
+    expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
     expect(shop).toEqual({
       name: "初回セットアップ店舗",
       shiftStartTime: "09:30",
       shiftEndTime: "22:30",
     });
-    expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "owner@example.com", isOwner: true }]);
+    expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);
 
     const state = await t.run(async (ctx) => {
@@ -53,7 +53,7 @@ describe("管理者セットアップシナリオ", () => {
         .query("positions")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
         .collect();
-      const ownerStaff = await ctx.db
+      const managerStaff = await ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
         .first();
@@ -61,30 +61,30 @@ describe("管理者セットアップシナリオ", () => {
         .query("legalConsentEvents")
         .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
         .collect();
-      return { positions, ownerStaff, legalEvents };
+      return { positions, managerStaff, legalEvents };
     });
     expect(state.positions).toMatchObject([{ name: "シフト", isDefault: true, isDeleted: false }]);
     expect(state.legalEvents).toMatchObject([{ method: "manager_setup" }]);
-    if (!state.ownerStaff) throw new Error("owner staff was not created");
+    if (!state.managerStaff) throw new Error("manager staff was not created");
 
     const scheduled = await readScheduledFunctions(t);
-    expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: state.ownerStaff._id })).toBe(true);
+    expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: state.managerStaff._id })).toBe(true);
 
-    // Act: owner自身のスタッフ情報を編集する。
+    // Act: manager自身のスタッフ情報を編集する。
     await asManager.editStaff({
-      staffId: state.ownerStaff._id,
+      staffId: state.managerStaff._id,
       name: "山田 太郎 更新",
-      email: "owner-updated@example.com",
+      email: "manager-updated@example.com",
     });
 
     // Assert: スタッフ表示名と管理者プロフィールが同期される。
     const updatedUser = await asManager.getCurrentUser();
     const updatedStaffPage = await asManager.getDashboardStaffs();
-    expect(updatedUser).toEqual({ isNewUser: false, name: "山田 太郎 更新", email: "owner-updated@example.com" });
+    expect(updatedUser).toEqual({ isNewUser: false, name: "山田 太郎 更新", email: "manager-updated@example.com" });
     expect(updatedStaffPage.page[0]).toMatchObject({
       name: "山田 太郎 更新",
-      email: "owner-updated@example.com",
-      isOwner: true,
+      email: "manager-updated@example.com",
+      isManager: true,
     });
   });
 });

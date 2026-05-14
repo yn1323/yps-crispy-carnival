@@ -36,5 +36,5 @@
 | `internal.legal.mutations.createStaffConsentToken` | internalMutation | 30日有効のスタッフ同意トークン発行 |
 | `internal.legal.actions.sendStaffConsentEmail` | internalAction | スタッフ追加時の同意依頼メール送信 |
 | `internal.legal.actions.sendStaffConsentLine` | internalAction | LINE連携後の未同意スタッフへの同意案内 |
-| `api.setup.mutations.setupShopAndOwner` | mutation | 管理ユーザー同意を含めた店舗初期セットアップ |
+| `api.setup.mutations.setupShopAndManager` | mutation | 管理ユーザー同意を含めた店舗初期セットアップ |
 | `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 未同意スタッフの提出時同意を記録 |

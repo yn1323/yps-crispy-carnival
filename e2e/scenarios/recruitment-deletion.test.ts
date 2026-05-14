@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { test } from "../fixtures/e2eTest";
 import { getNextWeekDates } from "../helpers/date";
-import { resetCurrentOwnerScenarioData } from "../helpers/scenarioSeeds";
+import { resetCurrentManagerScenarioData } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
 
@@ -24,7 +24,7 @@ test.describe("シフト募集削除", () => {
   });
 
   test("未確定・確定済みの募集をダッシュボードから削除できる", async () => {
-    resetCurrentOwnerScenarioData();
+    resetCurrentManagerScenarioData();
 
     await test.step("Step 1: 店舗とスタッフを準備する", async () => {
       await dashboard.goto();
@@ -32,8 +32,8 @@ test.describe("シフト募集削除", () => {
         shopName: "募集削除テスト店舗",
         shiftStartTime: "10:00",
         shiftEndTime: "22:00",
-        ownerName: "募集削除オーナー",
-        ownerEmail: "recruitment-delete-owner@example.com",
+        managerName: "募集削除管理者",
+        managerEmail: "recruitment-delete-manager@example.com",
       });
       await dashboard.expectSetupComplete();
       await dashboard.addStaffs([{ name: "削除確認スタッフ", email: "recruitment-delete-staff@example.com" }]);

@@ -1,6 +1,6 @@
 import { test } from "../fixtures/e2eTest";
 import { convexRunJson } from "../helpers/convex";
-import { seedOwnerScenario } from "../helpers/scenarioSeeds";
+import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { StaffLegalConsentPage } from "../pages/StaffLegalConsentPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
@@ -19,7 +19,7 @@ test.describe("法務同意フロー", () => {
   test("管理者はダッシュボード上で再同意できる", async ({ page }) => {
     const dashboard = new DashboardPage(page);
 
-    seedOwnerScenario("testing:seedLegalManagerConsentScenario", {
+    seedManagerScenario("testing:seedLegalManagerConsentScenario", {
       legalConsentState: "oldRequired",
     });
     await dashboard.goto();
