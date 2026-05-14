@@ -17,7 +17,7 @@ type ResolveDisplayShiftLineParams = {
 
 /**
  * シフト表セルに表示する緑ラインの優先順位を決める。
- * 下書き保存後にスタッフが再提出した希望は点線で別表示し、店長が保存した判断を勝手に上書きしない。
+ * 下書き保存後にスタッフが再提出した希望は点線で別表示し、シフト担当者が保存した判断を勝手に上書きしない。
  */
 export const resolveDisplayShiftLine = ({
   hasDraftSaved,
@@ -33,7 +33,7 @@ export const resolveDisplayShiftLine = ({
     return { type: "none" };
   }
 
-  // 点線は最新希望を常に表示し、緑ラインは下書き保存時点の店長判断を優先する。
+  // 点線は最新希望を常に表示し、緑ラインは下書き保存時点のシフト担当者判断を優先する。
   if (!hasDraftSaved || !wasSubmittedAtDraft) {
     return { type: "request", start: currentRequest.startTime, end: currentRequest.endTime };
   }

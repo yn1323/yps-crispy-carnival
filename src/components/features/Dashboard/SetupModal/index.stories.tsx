@@ -11,7 +11,7 @@ const meta = {
     isOpen: true,
     onOpenChange: () => {},
     onComplete: () => {},
-    ownerProfileDefaults: {
+    managerProfileDefaults: {
       name: "山田 太郎",
       email: "yamada@example.com",
     },

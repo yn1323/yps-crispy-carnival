@@ -13,7 +13,7 @@ type Props = {
 
 export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvite }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
-  const avatarPalette = staff.isOwner ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
+  const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const hasEmail = staff.email.length > 0;
   const canShowLineQr = !isLineActive;
@@ -27,9 +27,9 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
       px={{ base: 3, lg: 4 }}
       py={3.5}
       align="center"
-      bg={staff.isOwner ? "teal.50/50" : "transparent"}
+      bg={staff.isManager ? "teal.50/50" : "transparent"}
       transition="background-color 150ms ease"
-      _hover={{ bg: staff.isOwner ? "teal.50" : "blackAlpha.50" }}
+      _hover={{ bg: staff.isManager ? "teal.50" : "blackAlpha.50" }}
     >
       <Flex
         boxSize="40px"
@@ -50,9 +50,9 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
           <Text fontWeight={500} color="gray.900" truncate>
             {staff.name}
           </Text>
-          {staff.isOwner && (
+          {staff.isManager && (
             <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-              オーナー
+              管理者
             </Badge>
           )}
           {isLineActive && (
@@ -104,11 +104,11 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
               </Menu.Item>
               <Menu.Item
                 value="delete"
-                color={staff.isOwner ? "fg.muted" : "fg.error"}
-                cursor={staff.isOwner ? "not-allowed" : "pointer"}
-                disabled={staff.isOwner}
+                color={staff.isManager ? "fg.muted" : "fg.error"}
+                cursor={staff.isManager ? "not-allowed" : "pointer"}
+                disabled={staff.isManager}
                 onClick={() => {
-                  if (!staff.isOwner) onDelete(staff);
+                  if (!staff.isManager) onDelete(staff);
                 }}
               >
                 <LuTrash2 />

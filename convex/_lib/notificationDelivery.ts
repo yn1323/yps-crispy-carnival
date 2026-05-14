@@ -17,18 +17,18 @@ export function isNotificationDeliverySuppressed(options: SuppressionOptions = {
 
 /**
  * dry-run 対象店舗の判定。
- * E2E や検証用アカウントでは owner email にランダム suffix が付くことがあるため、
+ * E2E や検証用アカウントでは manager email にランダム suffix が付くことがあるため、
  * 完全一致ではなく部分一致で運用側の allowlist に寄せる。
  */
-export function isDryRunOwnerEmail(ownerEmail: string | undefined | null): boolean {
-  const normalizedOwnerEmail = ownerEmail?.trim().toLowerCase();
-  if (!normalizedOwnerEmail) return false;
+export function isDryRunManagerEmail(managerEmail: string | undefined | null): boolean {
+  const normalizedManagerEmail = managerEmail?.trim().toLowerCase();
+  if (!normalizedManagerEmail) return false;
 
   return (process.env.NOTIFICATION_DRY_RUN_USER_EMAILS ?? "")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean)
-    .some((entry) => normalizedOwnerEmail.includes(entry));
+    .some((entry) => normalizedManagerEmail.includes(entry));
 }
 
 export function logSuppressedNotification(kind: string, metadata: Record<string, unknown>): void {

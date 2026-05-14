@@ -14,7 +14,7 @@ export const createShopSchema = z
 
 export type CreateShopInput = z.infer<typeof createShopSchema>;
 
-export const ownerProfileSchema = z.object({
+export const managerProfileSchema = z.object({
   name: z.string().min(1, "名前を入力してください"),
   email: z.string().min(1, "メールアドレスを入力してください").email("正しいメールアドレスを入力してください"),
   acceptedLegal: z.boolean().refine((value) => value, {
@@ -22,4 +22,4 @@ export const ownerProfileSchema = z.object({
   }),
 });
 
-export type OwnerProfileInput = z.infer<typeof ownerProfileSchema>;
+export type ManagerProfileInput = z.infer<typeof managerProfileSchema>;

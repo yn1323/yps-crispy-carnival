@@ -47,7 +47,7 @@ describe("LINE通知連携シナリオ", () => {
       deadline: scenarioDate(3),
     });
 
-    // Act: 店長がLINE連携トークンを発行し、スタッフが連携を完了する。
+    // Act: シフト担当者がLINE連携トークンを発行し、スタッフが連携を完了する。
     const link = await asManager.generateLineLinkToken(staffId);
     expect(link.token).toBeTypeOf("string");
     const validation = await line.validateLinkToken(link.token);

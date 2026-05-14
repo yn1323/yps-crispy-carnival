@@ -62,7 +62,7 @@ describe("シフト希望回収シナリオ", () => {
       deadline: scenarioDate(3),
     };
 
-    // Act: 店長が募集を作成する。
+    // Act: シフト担当者が募集を作成する。
     const recruitmentId = await asManager.createRecruitment(recruitmentInput);
 
     // Assert: 募集作成直後の通知予約とダッシュボード集計が整合する。

@@ -19,7 +19,7 @@ describe("スタッフ参加QRシナリオ", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("店舗QRから参加申請し、店長承認後にスタッフ一覧・法務同意・通知予約へ反映される", async () => {
+  it("店舗QRから参加申請し、シフト担当者承認後にスタッフ一覧・法務同意・通知予約へ反映される", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);

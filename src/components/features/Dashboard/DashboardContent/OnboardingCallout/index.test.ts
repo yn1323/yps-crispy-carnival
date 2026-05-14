@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Recruitment, Staff } from "../../types";
 import { deriveDashboardOnboardingState } from "./deriveDashboardOnboardingState";
 
-const ownerOnly = [
+const managerOnly = [
   {
-    _id: "staff-owner",
-    name: "店長",
-    email: "owner@example.com",
-    isOwner: true,
+    _id: "staff-manager",
+    name: "シフト担当者",
+    email: "manager@example.com",
+    isManager: true,
     isLineLinked: false,
     isLineFollowing: false,
   },
@@ -26,7 +26,7 @@ const recruitment = (overrides: Partial<Recruitment> = {}) =>
 
 describe("deriveDashboardOnboardingState", () => {
   it("募集がない場合は募集作成を案内する", () => {
-    const state = deriveDashboardOnboardingState({ recruitments: [], staffs: ownerOnly });
+    const state = deriveDashboardOnboardingState({ recruitments: [], staffs: managerOnly });
     expect(state).toMatchObject({
       kind: "visible",
       stage: "create_recruitment",
@@ -37,7 +37,7 @@ describe("deriveDashboardOnboardingState", () => {
   });
 
   it("募集作成後、提出がない場合はメールからの提出を案内する", () => {
-    const state = deriveDashboardOnboardingState({ recruitments: [recruitment()], staffs: ownerOnly });
+    const state = deriveDashboardOnboardingState({ recruitments: [recruitment()], staffs: managerOnly });
     expect(state).toMatchObject({
       kind: "visible",
       stage: "submit_self",
@@ -51,7 +51,7 @@ describe("deriveDashboardOnboardingState", () => {
   it("提出後、未確定の場合はシフト確認を案内する", () => {
     const state = deriveDashboardOnboardingState({
       recruitments: [recruitment({ responseCount: 1 })],
-      staffs: ownerOnly,
+      staffs: managerOnly,
     });
     expect(state).toMatchObject({
       kind: "visible",
@@ -65,7 +65,7 @@ describe("deriveDashboardOnboardingState", () => {
   it("提出後にシフト表を確認済みならスタッフ追加を案内する", () => {
     const state = deriveDashboardOnboardingState({
       recruitments: [recruitment({ responseCount: 1 })],
-      staffs: ownerOnly,
+      staffs: managerOnly,
       reviewedRecruitmentIds: ["rec-1"],
     });
     expect(state).toMatchObject({
@@ -80,7 +80,7 @@ describe("deriveDashboardOnboardingState", () => {
   it("提出がない募集は確認済みIDがあってもメールからの提出を案内する", () => {
     const state = deriveDashboardOnboardingState({
       recruitments: [recruitment()],
-      staffs: ownerOnly,
+      staffs: managerOnly,
       reviewedRecruitmentIds: ["rec-1"],
     });
     expect(state).toMatchObject({
@@ -93,7 +93,7 @@ describe("deriveDashboardOnboardingState", () => {
   it("確定済みの募集はスタッフ追加を案内する", () => {
     const state = deriveDashboardOnboardingState({
       recruitments: [recruitment({ status: "confirmed", responseCount: 1 })],
-      staffs: ownerOnly,
+      staffs: managerOnly,
     });
     expect(state).toMatchObject({
       kind: "visible",
@@ -106,12 +106,12 @@ describe("deriveDashboardOnboardingState", () => {
     const state = deriveDashboardOnboardingState({
       recruitments: [recruitment({ status: "confirmed", responseCount: 1 })],
       staffs: [
-        ...ownerOnly,
+        ...managerOnly,
         {
           _id: "staff-2",
           name: "スタッフ",
           email: "staff@example.com",
-          isOwner: false,
+          isManager: false,
           isLineLinked: false,
           isLineFollowing: false,
         },
@@ -123,7 +123,7 @@ describe("deriveDashboardOnboardingState", () => {
   it("現在のステージがdismiss済みなら非表示にする", () => {
     const state = deriveDashboardOnboardingState({
       recruitments: [recruitment()],
-      staffs: ownerOnly,
+      staffs: managerOnly,
       dismissedStages: ["submit_self"],
     });
     expect(state).toEqual({ kind: "hidden", reason: "dismissed", stage: "submit_self" });
