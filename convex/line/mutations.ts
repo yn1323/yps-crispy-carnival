@@ -10,7 +10,7 @@ import { LINE_LINK_TOKEN_TTL_MS } from "../constants";
 import { findStaffLineAccountByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
 
 /**
- * 店長UI: 指定スタッフに紐づくLINE連携トークンを発行
+ * シフト担当者UI: 指定スタッフに紐づくLINE連携トークンを発行
  * QRコード/連携用URLの土台。1スタッフにつき複数発行可（直近の有効トークンが使われる）
  *
  * 戻り値の `authorizeUrl` は LINE_LOGIN_CHANNEL_ID 未設定時は null（モック/開発時の安全弁）

@@ -55,7 +55,7 @@ describe("line/mutations", () => {
       await expect(t.mutation(api.line.mutations.generateLinkToken, { staffId })).rejects.toThrow();
     });
 
-    it("認証済み店長は自店舗スタッフにトークンを発行できる", async () => {
+    it("認証済みシフト担当者は自店舗スタッフにトークンを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);
 
@@ -258,13 +258,13 @@ describe("line/mutations", () => {
       );
       expect(accounts).toHaveLength(1);
       expect(accounts[0].staffId).toBe(staffId);
-      const oldOwner = await t.run(async (ctx) =>
+      const oldManager = await t.run(async (ctx) =>
         ctx.db
           .query("staffLineAccounts")
           .withIndex("by_staffId", (q) => q.eq("staffId", otherStaffId))
           .first(),
       );
-      expect(oldOwner?.isDeleted).toBe(true);
+      expect(oldManager?.isDeleted).toBe(true);
     });
   });
 

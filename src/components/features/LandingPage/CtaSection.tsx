@@ -68,7 +68,9 @@ export const CtaSection = () => (
           </SimpleGrid>
 
           <Text maxW="640px" color="whiteAlpha.900" textStyle="bodySm" lineHeight="1.8">
-            現在は正式リリースに向けて準備中です。料金プランは今後ご案内します。
+            小さなお店が使いやすい無料枠を用意する予定です。
+            <br />
+            必要な機能が増えたときだけ、有料プランをご検討いただけます。
           </Text>
         </VStack>
       </Box>

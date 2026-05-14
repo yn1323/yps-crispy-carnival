@@ -31,7 +31,7 @@ export const StaffRoster = ({
   onLoadMore,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
-  const sorted = [...staffs].sort((a, b) => Number(b.isOwner) - Number(a.isOwner));
+  const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
 
   return (
     <Stack as="section" aria-label="スタッフ一覧" gap={{ base: 4, lg: 5 }}>

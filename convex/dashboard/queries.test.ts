@@ -289,7 +289,7 @@ describe("dashboard/queries", () => {
         "email",
         "isLineFollowing",
         "isLineLinked",
-        "isOwner",
+        "isManager",
         "name",
       ]);
     });

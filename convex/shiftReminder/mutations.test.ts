@@ -10,8 +10,8 @@ import { modules, schema } from "../_test/setup.test-helper";
 async function setupTestData(t: TestConvex<typeof schema>) {
   return t.run(async (ctx) => {
     const { shopId } = await seedManagerShop(ctx, {
-      subject: "user_owner",
-      email: "owner@example.com",
+      subject: "user_manager",
+      email: "manager@example.com",
       shopName: "テスト店舗",
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
@@ -73,7 +73,7 @@ describe("shiftReminder/mutations", () => {
 
       await expect(
         t
-          .withIdentity({ subject: "user_owner" })
+          .withIdentity({ subject: "user_manager" })
           .mutation(api.shiftReminder.mutations.sendReminderEmails, { recruitmentId }),
       ).rejects.toThrow("募集中のシフトだけ、催促を送れます");
     });
@@ -83,7 +83,7 @@ describe("shiftReminder/mutations", () => {
       const { recruitmentId } = await setupTestData(t);
 
       await t
-        .withIdentity({ subject: "user_owner" })
+        .withIdentity({ subject: "user_manager" })
         .mutation(api.shiftReminder.mutations.sendReminderEmails, { recruitmentId });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
@@ -98,7 +98,7 @@ describe("shiftReminder/mutations", () => {
         await ctx.db.patch(recruitmentId, { lastReminderSentAt: previous });
       });
 
-      await t.withIdentity({ subject: "user_owner" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
         recruitmentId,
       });
       const second = await t.run(async (ctx) => ctx.db.get(recruitmentId));

@@ -2,7 +2,7 @@ import { minutesToTime, timeToMinutes } from "./time";
 import type { LinkedResizeTarget, PositionSegment, ShiftData } from "./types";
 
 // このファイルは ShiftForm の純粋操作だけを扱う。
-// requestedTime はスタッフ提出の原本なので、店長の編集操作では positions だけを更新する。
+// requestedTime はスタッフ提出の原本なので、シフト担当者の編集操作では positions だけを更新する。
 
 // === シフト検索ユーティリティ ===
 

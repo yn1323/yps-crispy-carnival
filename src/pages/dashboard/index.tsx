@@ -86,7 +86,7 @@ export function DashboardPage() {
             currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
           )}
           managerLegalConsentStatus={managerLegalConsentStatus}
-          ownerProfileDefaults={{
+          managerProfileDefaults={{
             name: currentUser?.name ?? "",
             email: currentUser?.email ?? "",
           }}
