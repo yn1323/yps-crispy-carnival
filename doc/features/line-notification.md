@@ -23,7 +23,7 @@
 ### フロントエンド（`src/`）
 
 - `src/routes/_unregistered/line.callback.tsx` — OAuth コールバックページ
-- `src/components/features/Line/LineLinkQrDialog/` — 店長UI: QR / URL 表示
+- `src/components/features/Line/LineLinkQrDialog/` — シフト担当者UI: QR / URL 表示
 - `src/components/features/Line/LineInviteConfirmContent/` — 個別連携依頼確認モーダル中身
 - `src/components/features/Line/LineCallbackPage/` — コールバック完了 / エラー UI
 - `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — `…` メニューに LINE 連携項目追加
@@ -33,7 +33,7 @@
 
 | 画面 | 役割 |
 |---|---|
-| 店長ダッシュボード（既存）| StaffRow メニュー経由で連携リンク表示 / 個別連携依頼 |
+| シフト担当者ダッシュボード（既存）| StaffRow メニュー経由で連携リンク表示 / 個別連携依頼 |
 | LineLinkQrDialog | QR 表示 + URL コピー |
 | 連携依頼確認ダイアログ（個別） | 送信前の確認 |
 | `/line/callback` | OAuth 完了画面（成功 / 期限切れ / レート超過 / エラー） |
@@ -43,7 +43,7 @@
 
 | API | 種別 | 用途 |
 |---|---|---|
-| `api.line.mutations.generateLinkToken` | mutation | 店長UIから連携用QR/URL発行 |
+| `api.line.mutations.generateLinkToken` | mutation | シフト担当者UIから連携用QR/URL発行 |
 | `api.line.mutations.sendInvite` | mutation | 個別スタッフへ連携依頼メール |
 | `api.line.queries.getLinkStatusByShop` | query | 店舗のスタッフごと連携状況 |
 | `api.line.queries.getQuotaStatus` | query | Quota 状態（normal / exceeded） |
@@ -84,10 +84,10 @@
 
 ## 初回セットアップ・追加スタッフへの通知
 
-店舗初回セットアップ時に、店長ユーザーのメールアドレスへ LINE 連携依頼メールを送る。スタッフ追加時にも、スタッフ向け利用規約/プライバシーポリシー同意依頼メールとは別に LINE 連携依頼メールを送る。シフト募集中にスタッフを追加した場合、追加スタッフにも希望提出リンクをメールで送る。LINEログイン完了時に友だち追加済み、またはWebhook followで `lineFollowing` が `true` になった場合は、同じ対象募集の希望提出リンクをLINEで送る。
+店舗初回セットアップ時に、シフト担当者ユーザーのメールアドレスへ LINE 連携依頼メールを送る。スタッフ追加時にも、スタッフ向け利用規約/プライバシーポリシー同意依頼メールとは別に LINE 連携依頼メールを送る。シフト募集中にスタッフを追加した場合、追加スタッフにも希望提出リンクをメールで送る。LINEログイン完了時に友だち追加済み、またはWebhook followで `lineFollowing` が `true` になった場合は、同じ対象募集の希望提出リンクをLINEで送る。
 
 - 対象募集: `status === "open"`、未削除、締切前または締切当日
-- 店長向けLINE連携依頼メール: `setup.mutations.setupShopAndOwner` から初回登録した店長スタッフ行に対して `internal.line.actions.sendInviteEmail` をスケジュール
+- シフト担当者向けLINE連携依頼メール: `setup.mutations.setupShopAndManager` から初回登録したシフト担当者スタッフ行に対して `internal.line.actions.sendInviteEmail` をスケジュール
 - スタッフ向けLINE連携依頼メール: `staff.mutations.addStaffs` から追加スタッフごとに `internal.line.actions.sendInviteEmail` をスケジュール
 - メール通知: `staff.mutations.addStaffs` から追加スタッフごとに `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff` をスケジュール
 - LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
