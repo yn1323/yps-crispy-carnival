@@ -59,7 +59,7 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading }: Props
       <Stack gap={1.5}>
         <Text fontSize="sm" color="gray.700" lineHeight="tall">
           QRコードまたは、URLからスタッフ追加が可能です。人数が多い場合、QRコード・URLから登録いただくのがおすすめです。
-          オーナー自らスタッフを追加することも可能です。
+          シフト担当者が直接スタッフを追加することも可能です。
         </Text>
       </Stack>
 

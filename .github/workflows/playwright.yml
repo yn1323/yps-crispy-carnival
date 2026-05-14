@@ -86,7 +86,8 @@ jobs:
               const json = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
               const suites = json.suites || [];
               let passed = 0, failed = 0, skipped = 0;
-              const rows = [];
+              const allRows = [];
+              const failedRows = [];
 
               function collectTests(suites) {
                 for (const suite of suites) {
@@ -97,7 +98,9 @@ jobs:
                       else if (status === 'unexpected') failed++;
                       else if (status === 'skipped') skipped++;
                       const icon = status === 'expected' ? '✅' : status === 'unexpected' ? '❌' : '⏭';
-                      rows.push(`| ${icon} | ${spec.title} |`);
+                      const row = `| ${icon} | ${spec.title} |`;
+                      allRows.push(row);
+                      if (status === 'unexpected') failedRows.push(row);
                     }
                   }
                   if (suite.suites) collectTests(suite.suites);
@@ -106,8 +109,11 @@ jobs:
               collectTests(suites);
 
               summary = `\n\n**${passed} passed** / **${failed} failed** / **${skipped} skipped**\n\n`;
-              if (rows.length > 0) {
-                summary += `| Status | Test |\n|--------|------|\n${rows.join('\n')}`;
+              if (failedRows.length > 0) {
+                summary += `### 失敗したテスト\n\n| Status | Test |\n|--------|------|\n${failedRows.join('\n')}\n\n`;
+              }
+              if (allRows.length > 0) {
+                summary += `<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test |\n|--------|------|\n${allRows.join('\n')}\n\n</details>`;
               }
             } catch (e) {
               summary = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';

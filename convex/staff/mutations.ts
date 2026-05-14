@@ -92,7 +92,7 @@ export const editStaff = managerMutation({
       ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
     ];
     if (staff.userId === ctx.user._id) {
-      // owner 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
+      // manager 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
       patches.push(
         ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
       );

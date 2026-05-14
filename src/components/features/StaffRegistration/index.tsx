@@ -65,7 +65,7 @@ export function StaffRegistrationPage({
             登録リンクを確認できません
           </Heading>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            リンクが無効になっている可能性があります。店長に新しい登録リンクを確認してください。
+            リンクが無効になっている可能性があります。シフト担当者に新しい登録リンクを確認してください。
           </Text>
         </Stack>
       </RegistrationShell>
@@ -78,7 +78,7 @@ export function StaffRegistrationPage({
         <Empty
           icon={LuCheck}
           title="申請を送りました"
-          description="店長が承認すると、シフト提出の案内がメールで届きます。"
+          description="シフト担当者が承認すると、シフト提出の案内がメールで届きます。"
           tone="success"
           iconVariant="circle"
           size="lg"
@@ -97,7 +97,7 @@ export function StaffRegistrationPage({
               申請内容を確認してください
             </Heading>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              店長が承認すると、このメールアドレスにシフト提出の案内が届きます。
+              シフト担当者が承認すると、このメールアドレスにシフト提出の案内が届きます。
             </Text>
           </Stack>
 
@@ -143,7 +143,7 @@ export function StaffRegistrationPage({
               {data.shopName} のシフト提出に参加します
             </Heading>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              シフトリは、お店から届くリンクで希望シフトを提出できるサービスです。名前と連絡先を登録すると、店長の確認後に案内が届きます。
+              シフトリは、お店から届くリンクで希望シフトを提出できるサービスです。名前と連絡先を登録すると、シフト担当者の確認後に案内が届きます。
             </Text>
           </Stack>
         </Stack>

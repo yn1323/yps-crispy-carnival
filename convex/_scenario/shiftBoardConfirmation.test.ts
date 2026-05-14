@@ -68,7 +68,7 @@ describe("シフト表作成・確定シナリオ", () => {
       requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
     });
 
-    // Act: 店長が提出済み希望を元に下書き保存する。
+    // Act: シフト担当者が提出済み希望を元に下書き保存する。
     vi.setSystemTime(SCENARIO_NOW + 2_000);
     await asManager.saveShiftAssignments({
       recruitmentId,
@@ -114,7 +114,7 @@ describe("シフト表作成・確定シナリオ", () => {
       true,
     );
 
-    // Act: 店長がシフトを確定する。
+    // Act: シフト担当者がシフトを確定する。
     vi.setSystemTime(SCENARIO_NOW + 4_000);
     await asManager.confirmRecruitment(recruitmentId);
 

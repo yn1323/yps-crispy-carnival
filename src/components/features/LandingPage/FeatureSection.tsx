@@ -4,9 +4,10 @@ import { Button } from "@/src/components/ui/Button";
 import featureCollectImage from "./feature-collect.webp";
 import featureSendImage from "./feature-send.webp";
 import shiftFormImage from "./hero-pc.webp";
+import howtoEasyStartImage from "./howto-easy-start.webp";
 import howtoNoticeImage from "./howto-notice.webp";
 
-type FeatureVisualType = "collect" | "notice" | "shift" | "notify";
+type FeatureVisualType = "start" | "collect" | "notice" | "shift" | "notify";
 
 const featureCards: {
   number: string;
@@ -17,25 +18,31 @@ const featureCards: {
 }[] = [
   {
     number: "1",
+    title: "かんたんにはじめる",
+    body: "店舗名と営業時間など基本情報だけではじめられます。",
+    visual: "start",
+  },
+  {
+    number: "2",
     title: "希望を集める",
     body: "スタッフはいつものLINEから提出。専用アプリなしで始められます。",
     visual: "collect",
   },
   {
-    number: "2",
+    number: "3",
     title: "未提出に気づく",
     body: "作成中に未提出者を確認。必要な人だけに声をかけられます。",
     visual: "notice",
   },
   {
-    number: "3",
+    number: "4",
     title: "シフト表を作る",
     body: "希望を見ながら日別に作成。転記せず、そのまま調整できます。",
     visual: "shift",
     featured: true,
   },
   {
-    number: "4",
+    number: "5",
     title: "確定シフトを届ける",
     body: "完成したシフトをLINE・メールで通知。送り直しの手間を減らします。",
     visual: "notify",
@@ -77,7 +84,7 @@ export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
             で 希望回収から確定までひとつに
           </Heading>
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
-            未提出確認、シフト表の作成、スタッフへの通知まで、シフトリ1つで進められます。
+            基本情報の設定から未提出確認、シフト表の作成、スタッフへの通知まで、シフトリ1つで進められます。
           </Text>
         </VStack>
 
@@ -150,8 +157,8 @@ const CapabilityCard = ({
       px={{ base: 5, md: 9 }}
       py={{ base: 6, md: featured ? 8 : 6, lg: 5, xl: 0 }}
       h={{
-        lg: "280px",
-        xl: "300px",
+        lg: hasVisual ? "280px" : "auto",
+        xl: hasVisual ? "300px" : "auto",
       }}
       boxShadow="0 18px 42px rgba(15, 23, 42, 0.06)"
       overflow="hidden"
@@ -189,6 +196,7 @@ const CapabilityCard = ({
 };
 
 const featureImageVisuals: Partial<Record<FeatureVisualType, string>> = {
+  start: howtoEasyStartImage,
   collect: featureCollectImage,
   notice: howtoNoticeImage,
   notify: featureSendImage,

@@ -9,8 +9,8 @@ const setupArgs = {
   shopName: "テスト店舗",
   shiftStartTime: "09:00",
   shiftEndTime: "22:00",
-  ownerName: "山田 太郎",
-  ownerEmail: "yamada@example.com",
+  managerName: "山田 太郎",
+  managerEmail: "yamada@example.com",
   acceptedLegal: true as const,
 };
 
@@ -18,16 +18,16 @@ describe("setup/mutations", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  describe("setupShopAndOwner", () => {
+  describe("setupShopAndManager", () => {
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
-      await expect(t.mutation(api.setup.mutations.setupShopAndOwner, setupArgs)).rejects.toThrow();
+      await expect(t.mutation(api.setup.mutations.setupShopAndManager, setupArgs)).rejects.toThrow();
     });
 
     it("同意なしではエラー", async () => {
       const t = convexTest(schema, modules);
       await expect(
-        t.withIdentity({ subject: "user_without_legal" }).mutation(api.setup.mutations.setupShopAndOwner, {
+        t.withIdentity({ subject: "user_without_legal" }).mutation(api.setup.mutations.setupShopAndManager, {
           ...setupArgs,
           acceptedLegal: false as true,
         }),
@@ -42,7 +42,7 @@ describe("setup/mutations", () => {
         email: "new@example.com",
       });
 
-      const shopId = await asUser.mutation(api.setup.mutations.setupShopAndOwner, setupArgs);
+      const shopId = await asUser.mutation(api.setup.mutations.setupShopAndManager, setupArgs);
       expect(shopId).toBeDefined();
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
@@ -109,7 +109,7 @@ describe("setup/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "user_existing" }).mutation(api.setup.mutations.setupShopAndOwner, setupArgs),
+        t.withIdentity({ subject: "user_existing" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs),
       ).rejects.toThrow(ConvexError);
     });
 
@@ -120,7 +120,7 @@ describe("setup/mutations", () => {
         await seedUser(ctx, "user_has_record", "old@example.com");
       });
 
-      await t.withIdentity({ subject: "user_has_record" }).mutation(api.setup.mutations.setupShopAndOwner, setupArgs);
+      await t.withIdentity({ subject: "user_has_record" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs);
 
       const user = await t.run(async (ctx) =>
         ctx.db

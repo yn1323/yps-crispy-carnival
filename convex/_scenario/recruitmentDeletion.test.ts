@@ -77,7 +77,7 @@ describe("シフト募集削除シナリオ", () => {
     expect(await staff.getShiftViewData({ sessionToken: viewAuth.sessionToken, recruitmentId })).not.toBeNull();
     expect(await t.query(internal.notification.queries.getConfirmationEmailData, { recruitmentId })).not.toBeNull();
 
-    // Act: 店長が募集を削除する。
+    // Act: シフト担当者が募集を削除する。
     await asManager.deleteRecruitment(recruitmentId);
 
     // Assert: 管理画面とスタッフ向け導線では削除済み募集として扱われる。

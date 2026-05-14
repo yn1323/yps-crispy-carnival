@@ -22,7 +22,7 @@ export type Staff = {
   _id: Id<"staffs">;
   name: string;
   email: string;
-  isOwner: boolean;
+  isManager: boolean;
   isLineLinked: boolean;
   isLineFollowing: boolean;
 };

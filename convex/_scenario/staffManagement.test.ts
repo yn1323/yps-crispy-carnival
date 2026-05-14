@@ -40,7 +40,7 @@ describe("スタッフ管理シナリオ", () => {
       deadline: scenarioDate(3),
     });
 
-    // Act: 店長がスタッフを追加する。
+    // Act: シフト担当者がスタッフを追加する。
     const [staffId] = await asManager.addStaffs([{ name: "追加スタッフ", email: "new-staff@example.com" }]);
 
     // Assert: 一覧表示と追加直後の通知予約が更新される。
@@ -85,7 +85,7 @@ describe("スタッフ管理シナリオ", () => {
       });
     });
 
-    // Act: 店長がスタッフを削除する。
+    // Act: シフト担当者がスタッフを削除する。
     await asManager.deleteStaff(staffId);
 
     // Assert: スタッフと関連トークン/セッション/LINE連携が無効化される。

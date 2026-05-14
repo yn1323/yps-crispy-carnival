@@ -11,8 +11,8 @@ export class DashboardPage {
     shopName: string;
     shiftStartTime: string;
     shiftEndTime: string;
-    ownerName: string;
-    ownerEmail: string;
+    managerName: string;
+    managerEmail: string;
   }) {
     await this.page.getByRole("button", { name: /お店を登録する/ }).click();
     await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
@@ -21,12 +21,12 @@ export class DashboardPage {
     await this.selectTime("シフト終了時間", data.shiftEndTime);
     await this.page.getByRole("button", { name: "次へ" }).click();
 
-    const ownerDialog = this.page.getByRole("dialog", { name: "あなたの名前を登録" });
-    await expect(ownerDialog).toBeVisible();
-    await ownerDialog.getByLabel("あなたの名前").fill(data.ownerName);
-    await ownerDialog.getByLabel("メールアドレス").fill(data.ownerEmail);
-    await ownerDialog.locator("[data-scope='checkbox'][data-part='control']").click();
-    await ownerDialog.getByRole("button", { name: "お店を登録する" }).click();
+    const managerDialog = this.page.getByRole("dialog", { name: "あなたの名前を登録" });
+    await expect(managerDialog).toBeVisible();
+    await managerDialog.getByLabel("あなたの名前").fill(data.managerName);
+    await managerDialog.getByLabel("メールアドレス").fill(data.managerEmail);
+    await managerDialog.locator("[data-scope='checkbox'][data-part='control']").click();
+    await managerDialog.getByRole("button", { name: "お店を登録する" }).click();
   }
 
   async expectSetupComplete() {

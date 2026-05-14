@@ -1,34 +1,5 @@
 import { Accordion, Box, Container, Heading, Text, VStack } from "@chakra-ui/react";
-
-const faqs = [
-  {
-    question: "本当に無料で使えますか？",
-    answer: [
-      "はい。正式リリース前の先行利用として、現在は無料でお試しいただけます。",
-      "料金プランは今後ご案内します。",
-    ],
-  },
-  {
-    question: "登録なしでサンプルを見られますか？",
-    answer: ["はい。サンプルページは登録なしで確認できます。", "実際に使いはじめる場合は、お店の登録が必要です。"],
-  },
-  {
-    question: "スタッフもアカウント登録が必要ですか？",
-    answer: ["スタッフは専用アプリのインストールなしで、いつものLINEから希望シフトを提出できます。"],
-  },
-  {
-    question: "LINE公式アカウントは必要ですか？",
-    answer: ["必要ありません。", "シフトリ専用のLINEアカウントから通知が届くため、お店側で準備する必要はありません。"],
-  },
-  {
-    question: "スマホでも使えますか？",
-    answer: ["スタッフの希望提出はスマホから利用できます。", "シフト作成や管理はPCでの利用をおすすめしています。"],
-  },
-  {
-    question: "小さなお店でも使えますか？",
-    answer: ["はい。少人数のお店でも使いやすいように、必要な機能をシンプルにまとめています。"],
-  },
-];
+import { faqs } from "./faqs";
 
 type FaqSectionProps = {
   headingAs?: "h1" | "h2";
@@ -56,8 +27,8 @@ export const FaqSection = ({ headingAs = "h2" }: FaqSectionProps) => (
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
             {faqs.map((faq) => (
               <Accordion.Item
-                key={faq.question}
-                value={faq.question}
+                key={faq.q}
+                value={faq.q}
                 bg="white"
                 borderWidth="1px"
                 borderColor="gray.200"
@@ -75,14 +46,14 @@ export const FaqSection = ({ headingAs = "h2" }: FaqSectionProps) => (
                   _hover={{ bg: "teal.50" }}
                 >
                   <Text as="span" flex="1" color="teal.700" textStyle={{ base: "md", md: "md" }} fontWeight="bold">
-                    {faq.question}
+                    {faq.q}
                   </Text>
                   <Accordion.ItemIndicator color="teal.600" />
                 </Accordion.ItemTrigger>
                 <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
                   <Accordion.ItemBody px={{ base: 5, md: 8 }} py={{ base: 5, md: 6 }}>
                     <VStack align="stretch" gap={2}>
-                      {faq.answer.map((line) => (
+                      {faq.a.split("\n").map((line) => (
                         <Text key={line} color="gray.900" textStyle="bodySm" lineHeight="1.8">
                           {line}
                         </Text>

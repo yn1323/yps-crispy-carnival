@@ -44,8 +44,10 @@ export function createScenario(t: ScenarioTest) {
       const asManager = t.withIdentity(typeof identity === "string" ? { subject: identity } : identity);
 
       return {
-        setupShopAndOwner(args: ShopSettingsInput & { ownerName: string; ownerEmail: string; acceptedLegal: true }) {
-          return asManager.mutation(api.setup.mutations.setupShopAndOwner, args);
+        setupShopAndManager(
+          args: ShopSettingsInput & { managerName: string; managerEmail: string; acceptedLegal: true },
+        ) {
+          return asManager.mutation(api.setup.mutations.setupShopAndManager, args);
         },
         createRecruitment(args: RecruitmentInput) {
           return asManager.mutation(api.recruitment.mutations.createRecruitment, args);

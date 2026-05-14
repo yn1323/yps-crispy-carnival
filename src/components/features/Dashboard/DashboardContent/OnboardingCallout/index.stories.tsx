@@ -5,12 +5,12 @@ import type { Recruitment, Staff } from "../../types";
 import { type DashboardOnboardingStage, deriveDashboardOnboardingState } from "./deriveDashboardOnboardingState";
 import { OnboardingCallout } from "./index";
 
-const ownerOnly = [
+const managerOnly = [
   {
-    _id: "staff-owner",
-    name: "店長",
-    email: "owner@example.com",
-    isOwner: true,
+    _id: "staff-manager",
+    name: "シフト担当者",
+    email: "manager@example.com",
+    isManager: true,
     isLineLinked: false,
     isLineFollowing: false,
   },
@@ -35,28 +35,28 @@ const variants = [
     label: "募集作成前",
     props: {
       recruitments: [],
-      staffs: ownerOnly,
+      staffs: managerOnly,
     },
   },
   {
     label: "自分で提出する",
     props: {
       recruitments: [baseRecruitment],
-      staffs: ownerOnly,
+      staffs: managerOnly,
     },
   },
   {
     label: "提出確認",
     props: {
       recruitments: [{ ...baseRecruitment, responseCount: 1 } as Recruitment],
-      staffs: ownerOnly,
+      staffs: managerOnly,
     },
   },
   {
     label: "スタッフ追加",
     props: {
       recruitments: [{ ...baseRecruitment, responseCount: 1 } as Recruitment],
-      staffs: ownerOnly,
+      staffs: managerOnly,
       reviewedRecruitmentIds: ["rec-1"],
     },
   },
@@ -81,7 +81,7 @@ const meta = {
   parameters: { layout: "fullscreen" },
   args: {
     recruitments: [],
-    staffs: ownerOnly,
+    staffs: managerOnly,
   },
 } satisfies Meta<typeof OnboardingCalloutStory>;
 
@@ -91,7 +91,7 @@ type Story = StoryObj<typeof meta>;
 export const Variants: Story = {
   args: {
     recruitments: [],
-    staffs: ownerOnly,
+    staffs: managerOnly,
   },
   render: () => (
     <Box minH="100vh" bg="white" p={{ base: 4, md: 8 }}>
