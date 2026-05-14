@@ -1,6 +1,6 @@
 import { test } from "../fixtures/e2eTest";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
-import { seedOwnerScenario } from "../helpers/scenarioSeeds";
+import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
@@ -19,18 +19,18 @@ test.describe("通知URL起点のシフト提出催促", () => {
 
   test("催促で発行された未提出者URLから提出し、未提出表示が解消される", async ({ page }) => {
     const dates = getNextWeekDates();
-    const seed = seedOwnerScenario<ReminderScenarioSeed>("testing:seedNotificationReminderScenario", { dates });
+    const seed = seedManagerScenario<ReminderScenarioSeed>("testing:seedNotificationReminderScenario", { dates });
     const dashboard = new DashboardPage(page);
     const submitPage = new StaffSubmitPage(page);
     const shiftBoard = new ShiftBoardPage(page);
 
-    await test.step("Step 3: 店長が未提出者に催促を送る", async () => {
+    await test.step("Step 3: シフト担当者が未提出者に催促を送る", async () => {
       await dashboard.goto();
       await dashboard.openShiftBoard();
       await shiftBoard.sendReminders(1);
     });
 
-    await test.step("Step 4: 催促URLから未提出スタッフが提出し、店長画面の未提出表示が消える", async () => {
+    await test.step("Step 4: 催促URLから未提出スタッフが提出し、シフト担当者画面の未提出表示が消える", async () => {
       await submitPage.goto(seed.reminderToken);
       await submitPage.expectFormVisible();
       await submitPage.toggleDay(formatDateWithWeekday(dates.dates[1]));

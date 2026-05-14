@@ -11,8 +11,8 @@ import { modules, schema } from "../_test/setup.test-helper";
 async function setupTestData(t: TestConvex<typeof schema>) {
   const result = await t.run(async (ctx) => {
     const { shopId } = await seedManagerShop(ctx, {
-      subject: "user_owner",
-      email: "owner@example.com",
+      subject: "user_manager",
+      email: "manager@example.com",
       shopName: "テスト店舗",
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
@@ -80,9 +80,9 @@ describe("shiftBoard/mutations", () => {
     it("正常にシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
-      const asOwner = t.withIdentity({ subject: "user_owner" });
+      const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
@@ -107,9 +107,9 @@ describe("shiftBoard/mutations", () => {
           shiftEndTime: "22:30",
         });
       });
-      const asOwner = t.withIdentity({ subject: "user_owner" });
+      const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "05:30", endTime: "06:30" },
@@ -129,9 +129,9 @@ describe("shiftBoard/mutations", () => {
     it("空のassignmentsで保存できる（全員休み）", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
-      const asOwner = t.withIdentity({ subject: "user_owner" });
+      const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [],
       });
@@ -150,9 +150,9 @@ describe("shiftBoard/mutations", () => {
     it("保存時にdraftSavedAtを更新する", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
-      const asOwner = t.withIdentity({ subject: "user_owner" });
+      const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
@@ -164,7 +164,7 @@ describe("shiftBoard/mutations", () => {
     it("既存の割当がある場合は全削除して置き換える", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
-      const asOwner = t.withIdentity({ subject: "user_owner" });
+      const asManager = t.withIdentity({ subject: "user_manager" });
 
       await t.run(async (ctx) => {
         const recruitment = await ctx.db.get(recruitmentId);
@@ -195,7 +195,7 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await asOwner.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+      await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "17:00" }],
       });
@@ -214,7 +214,7 @@ describe("shiftBoard/mutations", () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
-      await t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "14:00" },
@@ -236,7 +236,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [
             { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00" },
@@ -251,7 +251,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -263,7 +263,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "18:00", endTime: "10:00" }],
         }),
@@ -275,7 +275,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "10:00" }],
         }),
@@ -287,7 +287,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "07:00", endTime: "15:00" }],
         }),
@@ -305,7 +305,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "05:00", endTime: "06:30" }],
         }),
@@ -323,7 +323,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "21:30", endTime: "23:00" }],
         }),
@@ -338,7 +338,7 @@ describe("shiftBoard/mutations", () => {
         const user = await ctx.db
           .query("users")
           .withIndex("by_authTokenIdentifier", (q) =>
-            q.eq("authTokenIdentifier", testAuthTokenIdentifier("user_owner")),
+            q.eq("authTokenIdentifier", testAuthTokenIdentifier("user_manager")),
           )
           .first();
         if (!user) throw new Error("user not found");
@@ -356,7 +356,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "user_owner" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: deletedStaffId, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -384,7 +384,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId } = await setupTestData(t);
 
       await t
-        .withIdentity({ subject: "user_owner" })
+        .withIdentity({ subject: "user_manager" })
         .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));

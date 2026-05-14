@@ -34,7 +34,7 @@ export function DemoShiftBoardRoutePage() {
             </Alert.Root>
 
             <Text color="fg.muted" lineHeight={1.7}>
-              シフトリは、少人数のお店のシフト管理をラクにする無料ツールです。このデモでは、店長の操作画面を会員登録なしで試せます。
+              シフトリは、少人数のお店のシフト管理をラクにする無料ツールです。このデモでは、店長・シフト担当者の操作画面を会員登録なしで試せます。
             </Text>
 
             <Box>

@@ -164,7 +164,7 @@ describe("recruitment/mutations", () => {
     });
 
     it("他店舗の募集は削除できない", async () => {
-      const { t, recruitmentId } = await setupRecruitment({ subject: "user_delete_owner" });
+      const { t, recruitmentId } = await setupRecruitment({ subject: "user_delete_manager" });
       await t.run(async (ctx) => {
         await seedManagerShop(ctx, {
           subject: "user_delete_other",

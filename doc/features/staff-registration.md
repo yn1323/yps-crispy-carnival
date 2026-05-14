@@ -1,6 +1,6 @@
 # スタッフ参加QR・承認導線
 
-店長がスタッフの名前とメールアドレスを集めて入力する負担を減らすため、店舗専用QR/URLからスタッフ本人が参加申請できる機能。申請は店長の承認後に正式スタッフとして登録され、法務同意と通知導線へ接続する。
+シフト担当者がスタッフの名前とメールアドレスを集めて入力する負担を減らすため、店舗専用QR/URLからスタッフ本人が参加申請できる機能。申請はシフト担当者の承認後に正式スタッフとして登録され、法務同意と通知導線へ接続する。
 
 ## 関連ファイル
 
@@ -10,7 +10,7 @@
 - `convex/line/actions.ts` / `convex/notification/templates.ts` — 承認後LINE連携メール文脈
 - `src/pages/staff-registration/` — スタッフ登録ページ
 - `src/components/features/StaffRegistration/` — 登録フォーム、メールtypo警告、確認表示
-- `src/components/features/Dashboard/StaffRegistrationLinkPanel/` — 店長向けQR/URL表示
+- `src/components/features/Dashboard/StaffRegistrationLinkPanel/` — シフト担当者向けQR/URL表示
 - `src/components/features/Dashboard/PendingStaffRegistrationList/` — 「今やること」内の承認/却下リスト
 
 ## 画面一覧
@@ -27,7 +27,7 @@
 |---|---|---|
 | `api.staffRegistration.queries.getRegistrationPageData` | query | 登録ページの店舗名と法務文書情報を取得 |
 | `api.staffRegistration.mutations.submitRegistrationRequest` | mutation | スタッフ本人の参加申請を作成 |
-| `api.staffRegistration.queries.getPendingRequests` | query | 店長向けに自店舗の承認待ち申請を取得 |
+| `api.staffRegistration.queries.getPendingRequests` | query | シフト担当者向けに自店舗の承認待ち申請を取得 |
 | `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う |
 | `api.staffRegistration.mutations.rejectRequest` | mutation | 申請を却下する |
 | `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 店舗固定の登録リンクを作成/取得 |

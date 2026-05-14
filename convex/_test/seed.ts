@@ -26,12 +26,12 @@ export async function seedShop(ctx: MutationCtx, name = "テスト店舗") {
 
 export async function seedShopMembership(
   ctx: MutationCtx,
-  args: { userId: Id<"users">; shopId: Id<"shops">; role?: "owner" | "manager"; isDeleted?: boolean },
+  args: { userId: Id<"users">; shopId: Id<"shops">; role?: "manager"; isDeleted?: boolean },
 ) {
   return await ctx.db.insert("shopMembers", {
     userId: args.userId,
     shopId: args.shopId,
-    role: args.role ?? "owner",
+    role: args.role ?? "manager",
     isDeleted: args.isDeleted ?? false,
   });
 }
@@ -54,7 +54,7 @@ export async function seedManagerShop(
   await seedShopMembership(ctx, {
     userId,
     shopId,
-    role: "owner",
+    role: "manager",
     isDeleted: args.membershipDeleted ?? false,
   });
   return { userId, shopId };

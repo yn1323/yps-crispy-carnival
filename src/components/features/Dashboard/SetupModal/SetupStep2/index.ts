@@ -1,1 +1,1 @@
-export { type OwnerProfileInput as Step2Data, ownerProfileSchema as step2Schema } from "@/convex/setup/schemas";
+export { type ManagerProfileInput as Step2Data, managerProfileSchema as step2Schema } from "@/convex/setup/schemas";

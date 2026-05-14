@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { isDryRunOwnerEmail, isNotificationDeliverySuppressed } from "./notificationDelivery";
+import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./notificationDelivery";
 
 describe("isNotificationDeliverySuppressed", () => {
   afterEach(() => {
@@ -34,7 +34,7 @@ describe("isNotificationDeliverySuppressed", () => {
   });
 });
 
-describe("isDryRunOwnerEmail", () => {
+describe("isDryRunManagerEmail", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -42,27 +42,27 @@ describe("isDryRunOwnerEmail", () => {
   it("matches NOTIFICATION_DRY_RUN_USER_EMAILS entries as case-insensitive substrings after trimming", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com, Test2@example.com ");
 
-    expect(isDryRunOwnerEmail(" e2e-user-1@test.com ")).toBe(true);
-    expect(isDryRunOwnerEmail(" preview-e2e-user-1@test.com ")).toBe(true);
-    expect(isDryRunOwnerEmail(" TEST2@example.com ")).toBe(true);
+    expect(isDryRunManagerEmail(" e2e-user-1@test.com ")).toBe(true);
+    expect(isDryRunManagerEmail(" preview-e2e-user-1@test.com ")).toBe(true);
+    expect(isDryRunManagerEmail(" TEST2@example.com ")).toBe(true);
   });
 
-  it("matches owner email domains listed in NOTIFICATION_DRY_RUN_USER_EMAILS", () => {
+  it("matches manager email domains listed in NOTIFICATION_DRY_RUN_USER_EMAILS", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com,example.net");
 
-    expect(isDryRunOwnerEmail("manager@example.com")).toBe(true);
+    expect(isDryRunManagerEmail("manager@example.com")).toBe(true);
   });
 
-  it("matches owner email domains with an @ prefix", () => {
+  it("matches manager email domains with an @ prefix", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@example.com");
 
-    expect(isDryRunOwnerEmail("manager@example.com")).toBe(true);
+    expect(isDryRunManagerEmail("manager@example.com")).toBe(true);
   });
 
-  it("does not match owner emails outside NOTIFICATION_DRY_RUN_USER_EMAILS", () => {
+  it("does not match manager emails outside NOTIFICATION_DRY_RUN_USER_EMAILS", () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com,test2");
 
-    expect(isDryRunOwnerEmail("manager@example.com")).toBe(false);
+    expect(isDryRunManagerEmail("manager@example.com")).toBe(false);
   });
 });
 
@@ -71,12 +71,12 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     vi.unstubAllEnvs();
   });
 
-  it("returns true when the shop owner's users.email domain is configured for dry-run", async () => {
+  it("returns true when the shop manager's users.email domain is configured for dry-run", async () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
-        subject: "owner_1",
+        subject: "manager_1",
         email: "manager@example.com",
         shopName: "Shop",
       });
@@ -88,12 +88,12 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     ).resolves.toBe(true);
   });
 
-  it("returns false when the shop owner's users.email is not configured for dry-run", async () => {
+  it("returns false when the shop manager's users.email is not configured for dry-run", async () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "e2e-user-1@test.com,test2");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
-        subject: "owner_2",
+        subject: "manager_2",
         email: "manager@example.com",
         shopName: "Shop",
       });
@@ -106,28 +106,28 @@ describe("isNotificationDeliverySuppressedForShop", () => {
   });
 });
 
-describe("E2E owner seed email", () => {
+describe("E2E manager seed email", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("stores the provided E2E owner email on users.email but keeps the manager staff email unchanged", async () => {
+  it("stores the provided E2E manager email on users.email but keeps the manager staff email unchanged", async () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
     const t = convexTest(schema, modules);
     const result = await t.mutation(internal.testing.seedLineLinkScenario, {
-      ownerAuthTokenIdentifier: "owner_e2e",
-      ownerEmail: "e2e-user-1@test.com",
+      managerAuthTokenIdentifier: "manager_e2e",
+      managerEmail: "e2e-user-1@test.com",
     });
 
     const stored = await t.run(async (ctx) => {
-      const owner = await ctx.db
+      const manager = await ctx.db
         .query("users")
-        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", "owner_e2e"))
+        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", "manager_e2e"))
         .first();
       const staff = await ctx.db.get(result.staffId);
-      return { ownerEmail: owner?.email, staffEmail: staff?.email };
+      return { managerEmail: manager?.email, staffEmail: staff?.email };
     });
 
-    expect(stored).toEqual({ ownerEmail: "e2e-user-1@test.com", staffEmail: "tanaka@example.com" });
+    expect(stored).toEqual({ managerEmail: "e2e-user-1@test.com", staffEmail: "tanaka@example.com" });
   });
 });
