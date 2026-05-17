@@ -27,6 +27,7 @@ const make = (over: Partial<Recruitment>): Recruitment => ({
   periodStart: "2026-05-01",
   periodEnd: "2026-05-07",
   deadline: inDays(7),
+  shopClosedDates: [],
   status: "open",
   responseCount: 5,
   ...over,

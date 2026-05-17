@@ -41,7 +41,7 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
 ```
 
 - `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
-- `ui`プロジェクト: Storybook + Playwright（ブラウザモード）でのインタラクションテスト
+- `ui`プロジェクト: Storybook + Playwright（ブラウザモード）での UI Component Test / Behavior Test
 - `convex`プロジェクト: `convex/**/*.test.ts` の Convex Function Test / Scenario Test
 
 ## Git Worktree運用
@@ -73,7 +73,9 @@ pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
    - index.stories.tsx（必須）
    - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
 - UIパターンごとにindex.stories.tsxに記載すること（細かすぎないよう注意！）。後工程でVRTに利用します
-- 複雑な動きがある場合、index.stories.tsxに操作テストを記載すること
+- 複雑な動きがある場合、index.stories.tsxに Behavior Test（振る舞いテスト）として play function を記載すること
+- Behavior Test では、押せる / 進める / エラーが見える / 確認文言が出る、などユーザー操作後の振る舞いを `expect` で検証すること
+- Behavior Test を追加・変更した場合、その Story を VRT 撮影対象にするか最後に必ず判断すること。振る舞いだけの検証なら `chromatic.disableSnapshot` を設定する
 
 ### フロントエンド（UIなしロジック）
 
@@ -178,6 +180,7 @@ import { bar } from "@/convex/...";
 ### Storybook
 
 - `@storybook/react-vite`を使用（`@storybook/react`ではない）
+- `storybook/test` の `expect` を使う。Storybookをブラウザで開いたときに壊れるため、storiesから `vitest` の `expect` を直接importしない
 - `@storybook/test`パッケージはインストールされていない。`fn()`は使わず、コールバックは `() => {}` で直接指定する
 - stories は各コンポーネントと同階層に配置（`.stories.tsx`）
 
@@ -186,6 +189,7 @@ import { bar } from "@/convex/...";
 - VRTは無料枠で毎月のキャプチャ数に限りがあります。小さなコンポーネントはVariants Storyを作成し、1つのStoryにまとめたいです。
   大きいコンポーネントはそのままでOK。
   操作用のStoryが必要なら、Interactive Storyを別途作成すること。（小さいコンポーネントのみ）
+- Behavior Test は VRT と目的が異なる。追加時は、VRTで撮るのか、`chromatic.disableSnapshot` で撮らないのかを必ず決めること
 
 ## コーディング
 

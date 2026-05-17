@@ -12,6 +12,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
+import type { CreateRecruitmentData } from "../CreateRecruitmentForm/index";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
@@ -40,7 +41,12 @@ const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
 ];
 
 type Props = {
-  shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
+  shop: {
+    name: string;
+    shiftStartTime: string;
+    shiftEndTime: string;
+    regularClosedDays: EditShopFormData["regularClosedDays"];
+  } | null;
   managerProfileDefaults?: {
     name: string;
     email: string;
@@ -174,7 +180,7 @@ export const DashboardContent = ({
     }
   };
 
-  const handleCreateRecruitment = async (data: { periodStart: string; periodEnd: string; deadline: string }) => {
+  const handleCreateRecruitment = async (data: CreateRecruitmentData) => {
     try {
       await createRecruitment(data);
       recruitmentModal.close();
@@ -415,11 +421,22 @@ export const DashboardContent = ({
         title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
-        formId="create-recruitment-form"
-        submitLabel="募集をつくる"
         onClose={recruitmentModal.close}
+        hideFooter
+        maxW={{ base: "100vw", md: "760px" }}
+        maxH={{ base: "100dvh", md: "90dvh" }}
+        contentProps={{
+          h: { base: "100dvh", md: "auto" },
+          borderRadius: { base: 0, md: "l3" },
+          my: { base: 0, md: "var(--dialog-base-margin)" },
+        }}
+        bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
       >
-        <CreateRecruitmentForm onSubmit={handleCreateRecruitment} />
+        <CreateRecruitmentForm
+          regularClosedDays={shop?.regularClosedDays ?? []}
+          onSubmit={handleCreateRecruitment}
+          onCancel={recruitmentModal.close}
+        />
       </Dialog>
 
       <Dialog
@@ -504,6 +521,7 @@ export const DashboardContent = ({
               shopName: shop.name,
               shiftStartTime: shop.shiftStartTime,
               shiftEndTime: shop.shiftEndTime,
+              regularClosedDays: shop.regularClosedDays,
             }}
             onSubmit={handleUpdateShop}
           />

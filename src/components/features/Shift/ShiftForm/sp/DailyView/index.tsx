@@ -21,9 +21,9 @@ const STRIPE_STYLE = {
 
 const SWIPE_THRESHOLD = 50;
 
-const dayColor = (iso: string, holidays: string[]): string => {
+const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
-  if (day === 0 || holidays.includes(iso)) return "#ef4444";
+  if (day === 0) return "#ef4444";
   if (day === 6) return "#3b82f6";
   return "#3f3f46";
 };
@@ -51,6 +51,7 @@ export const SPDailyView = () => {
   const setSelectedDate = useSetAtom(selectedDateAtom);
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
+  const isShopClosedDate = holidays.includes(selectedDate);
 
   const editDialog = useDialog();
   const detailDialog = useDialog();
@@ -88,6 +89,7 @@ export const SPDailyView = () => {
 
   const handleCardTap = useCallback(
     (staffId: string) => {
+      if (isShopClosedDate) return;
       setSelectedStaffId(staffId);
       if (isReadOnly) {
         detailDialog.open();
@@ -95,7 +97,7 @@ export const SPDailyView = () => {
         editDialog.open();
       }
     },
-    [isReadOnly, detailDialog, editDialog],
+    [isShopClosedDate, isReadOnly, detailDialog, editDialog],
   );
 
   const handleStaffDialogOpenChange = useCallback(
@@ -168,6 +170,7 @@ export const SPDailyView = () => {
           {dates.map((iso) => {
             const d = dayjs(iso);
             const active = iso === selectedDate;
+            const isClosed = holidays.includes(iso);
             return (
               <Box
                 key={iso}
@@ -179,7 +182,7 @@ export const SPDailyView = () => {
                 borderRadius="md"
                 borderWidth="1px"
                 borderColor={active ? "teal.400" : "gray.200"}
-                bg={active ? "teal.50" : "white"}
+                bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
                 <Box
@@ -191,14 +194,14 @@ export const SPDailyView = () => {
                 >
                   {d.date()}
                 </Box>
-                <Box
-                  textStyle="2xs"
-                  mt="2px"
-                  fontWeight={active ? 700 : 500}
-                  style={{ color: dayColor(iso, holidays) }}
-                >
+                <Box textStyle="2xs" mt="2px" fontWeight={active ? 700 : 500} style={{ color: dayColor(iso) }}>
                   {getWeekdayLabel(iso)}
                 </Box>
+                {isClosed && (
+                  <Box textStyle="2xs" mt="1px" fontWeight={700} color="gray.500">
+                    休
+                  </Box>
+                )}
               </Box>
             );
           })}
@@ -212,52 +215,68 @@ export const SPDailyView = () => {
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {sd.month() + 1}月{sd.date()}日
             </Box>
-            <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(selectedDate, holidays) }}>
+            <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(selectedDate) }}>
               ({getWeekdayLabel(selectedDate)})
             </Box>
+            {isShopClosedDate && (
+              <Box px={2} py={0.5} borderRadius="full" bg="gray.100" color="gray.600" textStyle="2xs" fontWeight={700}>
+                定休日
+              </Box>
+            )}
           </Flex>
         </Box>
       )}
 
       {/* セクション */}
       <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3} data-tour="shift-grid">
-        <Stack gap={4}>
-          {workRows.length > 0 && (
-            <Box>
-              <SectionHeader label="出勤あり" count={workRows.length} />
-              <Stack gap={2}>
-                {workRows.map(({ staff, shift }) => (
-                  <SPDailyCard
-                    key={staff.id}
-                    staff={staff}
-                    shift={shift}
-                    timeRange={timeRange}
-                    onTap={() => handleCardTap(staff.id)}
-                  />
-                ))}
-              </Stack>
+        {isShopClosedDate ? (
+          <Flex minH="240px" align="center" justify="center" direction="column" gap={2} px={4}>
+            <Box textStyle="md" fontWeight={700} color="gray.700">
+              定休日
             </Box>
-          )}
-          {offRows.length > 0 && (
-            <Box>
-              <SectionHeader
-                label="希望なし・未提出"
-                count={offRows.length}
-                hint={isReadOnly ? undefined : "タップで追加"}
-              />
-              <Stack gap="6px">
-                {offRows.map(({ staff }) => (
-                  <SPOffCard
-                    key={staff.id}
-                    staff={staff}
-                    onTap={() => handleCardTap(staff.id)}
-                    isReadOnly={isReadOnly}
-                  />
-                ))}
-              </Stack>
+            <Box textStyle="sm" color="fg.muted" textAlign="center" lineHeight={1.7}>
+              この日はお店のお休みとして設定されているため、シフトは登録できません。
             </Box>
-          )}
-        </Stack>
+          </Flex>
+        ) : (
+          <Stack gap={4}>
+            {workRows.length > 0 && (
+              <Box>
+                <SectionHeader label="出勤あり" count={workRows.length} />
+                <Stack gap={2}>
+                  {workRows.map(({ staff, shift }) => (
+                    <SPDailyCard
+                      key={staff.id}
+                      staff={staff}
+                      shift={shift}
+                      timeRange={timeRange}
+                      onTap={() => handleCardTap(staff.id)}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            )}
+            {offRows.length > 0 && (
+              <Box>
+                <SectionHeader
+                  label="希望なし・未提出"
+                  count={offRows.length}
+                  hint={isReadOnly ? undefined : "タップで追加"}
+                />
+                <Stack gap="6px">
+                  {offRows.map(({ staff }) => (
+                    <SPOffCard
+                      key={staff.id}
+                      staff={staff}
+                      onTap={() => handleCardTap(staff.id)}
+                      isReadOnly={isReadOnly}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </Stack>
+        )}
       </Box>
 
       {/* Dialogs */}

@@ -80,6 +80,7 @@ describe("法務同意シナリオ", () => {
         periodStart: scenarioDate(7),
         periodEnd: scenarioDate(9),
         deadline: scenarioDate(3),
+        shopClosedDates: [],
         status: "open",
         isDeleted: false,
         shiftStartTime: "09:00",
