@@ -42,6 +42,7 @@ const saturdayColumnSelector = "& table tr > :last-child";
 const dayTriggerPartSelector = "[data-part=table-cell-trigger]";
 const calendarTableSelector = "& table";
 const calendarCellSelector = "& th, & td";
+const selectedDaySelector = `${dayTriggerSelector}[data-selected]`;
 
 export const CalendarPicker = ({
   selectionMode,
@@ -102,7 +103,13 @@ export const CalendarPicker = ({
         [`${saturdayColumnSelector} ${dayTriggerPartSelector}`]: {
           color: "blue.600",
         },
-        [`${dayTriggerSelector}[data-selected]`]: {
+        [selectedDaySelector]: {
+          color: "white",
+        },
+        [`${sundayColumnSelector} ${selectedDaySelector}`]: {
+          color: "white",
+        },
+        [`${saturdayColumnSelector} ${selectedDaySelector}`]: {
           color: "white",
         },
         ...(highlightSelectableDates
