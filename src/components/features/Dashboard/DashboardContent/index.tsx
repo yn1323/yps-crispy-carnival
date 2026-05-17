@@ -498,25 +498,25 @@ export const DashboardContent = ({
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
       </Dialog>
 
-      <Dialog
+      <StepperDialog
         title="店舗設定"
         isOpen={editShopModal.isOpen}
         onOpenChange={editShopModal.onOpenChange}
-        formId="edit-shop-form"
-        submitLabel="変更を保存"
         onClose={editShopModal.close}
       >
         {shop && (
           <EditShopForm
+            key={editShopModal.isOpen ? "edit-shop-open" : "edit-shop-closed"}
             defaultValues={{
               shopName: shop.name,
               regularClosedDays: shop.regularClosedDays,
               submissionPattern: shop.submissionPattern,
             }}
             onSubmit={handleUpdateShop}
+            onCancel={editShopModal.close}
           />
         )}
-      </Dialog>
+      </StepperDialog>
 
       <Dialog
         title="スタッフを削除"

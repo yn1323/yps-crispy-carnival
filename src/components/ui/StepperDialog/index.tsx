@@ -68,6 +68,7 @@ export const StepperDialog = ({
     contentProps={{
       h: { base: "100dvh", md: "auto" },
       borderRadius: { base: 0, md: "l3" },
+      overflow: "hidden",
       my: { base: 0, md: "var(--dialog-base-margin)" },
       ...contentProps,
     }}
@@ -195,7 +196,7 @@ export const StepperDialogContent = <TStep extends string>({
         </Flex>
       </Box>
 
-      <StepperDialogActionBar>{actions}</StepperDialogActionBar>
+      <StepperDialogActionBar key={currentStep}>{actions}</StepperDialogActionBar>
     </Flex>
   );
 };

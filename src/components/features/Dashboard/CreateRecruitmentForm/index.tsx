@@ -33,21 +33,21 @@ const steps: StepperDialogStep<Step>[] = [
     label: "期間",
     icon: LuCalendarDays,
     title: "シフト期間を選択",
-    description: "今月と来月のカレンダーから、開始日と終了日を選んでください。",
+    description: "募集する期間の開始日と終了日を選んでください。",
   },
   {
     value: "holidays",
     label: "お休み",
     icon: LuStore,
     title: "お店のお休みを選択",
-    description: "シフト募集期間の中で、お店を開けない日があれば選びます。設定しない場合はスキップできます。",
+    description: "お休みの日を設定してください。",
   },
   {
     value: "deadline",
     label: "提出期限",
     icon: LuTimer,
     title: "提出締切日を選択",
-    description: "スタッフが希望シフトを提出できる締切日を選んでください。",
+    description: "シフト提出の締切日を選んでください。",
   },
   {
     value: "confirm",
@@ -106,21 +106,6 @@ const getHolidaySummary = (holidays: string[]): { value: string; detail?: string
   };
 };
 
-const getSubmissionPatternSummary = (pattern: ShiftSubmissionPattern): { value: string; detail?: string } => {
-  if (pattern.kind === "dateOnly") {
-    return { value: "日ごと", detail: "出勤できる日だけ集めます" };
-  }
-  if (pattern.kind === "shiftType") {
-    const detail = pattern.options
-      .slice(0, 3)
-      .map((option) => `${option.name} ${option.startTime}〜${option.endTime}`)
-      .join(", ");
-    const hiddenCount = pattern.options.length - 3;
-    return { value: "勤務区分", detail: hiddenCount > 0 ? `${detail} ほか${hiddenCount}件` : detail };
-  }
-  return { value: "時間指定", detail: `${pattern.startTime}〜${pattern.endTime}の範囲で集めます` };
-};
-
 const isDeadlineInRange = (deadline: string, today: string, periodStart?: string): boolean => {
   if (!deadline) return false;
   if (deadline < today) return false;
@@ -129,11 +114,11 @@ const isDeadlineInRange = (deadline: string, today: string, periodStart?: string
 };
 
 const SummaryLine = ({ label, value, detail }: { label: string; value: string; detail?: string }) => (
-  <Flex gap={3} py={2} justify="flex-start" align="baseline">
+  <Flex gap={3} minH={{ base: "64px", md: "72px" }} py={3} justify="flex-start" align="center">
     <Text w="50%" fontSize="sm" color="fg.muted">
       {label}
     </Text>
-    <Stack w="50%" gap={0.5} align="stretch">
+    <Stack w="50%" gap={0.5} align="stretch" justify="center">
       <Text fontSize="sm" fontWeight="semibold" color="gray.900" textAlign="left">
         {value}
       </Text>
@@ -146,13 +131,7 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
   </Flex>
 );
 
-export const CreateRecruitmentForm = ({
-  defaultValues,
-  regularClosedDays = [],
-  submissionPattern = { kind: "dateOnly" },
-  onSubmit,
-  onCancel,
-}: Props) => {
+export const CreateRecruitmentForm = ({ defaultValues, regularClosedDays = [], onSubmit, onCancel }: Props) => {
   const today = dayjs().format("YYYY-MM-DD");
   const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
   const [currentStep, setCurrentStep] = useState<Step>("period");
@@ -203,7 +182,6 @@ export const CreateRecruitmentForm = ({
   const deadlineDesktopMonths = getCalendarMonthCount(today, deadlineMax);
   const holidayInitialFocus = toMonthStartDateValue(periodStart);
   const holidaySummary = getHolidaySummary(selectedHolidays);
-  const submissionPatternSummary = getSubmissionPatternSummary(submissionPattern);
 
   useEffect(() => {
     setSelectedHolidays((current) => {
@@ -432,28 +410,15 @@ export const CreateRecruitmentForm = ({
         )}
 
         {currentStep === "confirm" && (
-          <>
-            <Box borderWidth={1} borderColor="border.default" borderRadius="md" bg="white">
-              <Box px={4} py={3}>
-                <SummaryLine label="シフト期間" value={periodLabel} />
-                <Separator />
-                <SummaryLine label="日数" value={periodDays > 0 ? `${periodDays}日` : "未選択"} />
-                <Separator />
-                <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
-                <Separator />
-                <SummaryLine
-                  label="提出方法"
-                  value={submissionPatternSummary.value}
-                  detail={submissionPatternSummary.detail}
-                />
-                <Separator />
-                <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
-              </Box>
-            </Box>
-            <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
-              提出方法は募集作成時点の店舗設定で固定されます。
-            </Text>
-          </>
+          <Box px={{ base: 0, md: 8 }}>
+            <Stack gap={0}>
+              <SummaryLine label="シフト期間" value={periodLabel} />
+              <Separator />
+              <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
+              <Separator />
+              <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
+            </Stack>
+          </Box>
         )}
       </StepperDialogContent>
     </form>
