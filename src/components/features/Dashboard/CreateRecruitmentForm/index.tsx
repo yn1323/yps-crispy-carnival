@@ -1,18 +1,4 @@
-import {
-  Box,
-  DatePicker,
-  type DateValue,
-  Field,
-  Flex,
-  HStack,
-  Icon,
-  parseDate,
-  Separator,
-  SimpleGrid,
-  Stack,
-  Text,
-  useBreakpointValue,
-} from "@chakra-ui/react";
+import { Box, type DateValue, Field, Flex, HStack, Icon, parseDate, Separator, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
 import type { ComponentType } from "react";
@@ -20,7 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuCalendarCheck, LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
+import { CalendarPicker } from "./CalendarPicker";
 import {
   type CreateRecruitmentData,
   createRecruitmentFormSchema,
@@ -56,6 +43,47 @@ const toDateValue = (date?: string): DateValue | undefined => {
 
 const toDateValues = (dates: string[]): DateValue[] =>
   dates.map(toDateValue).filter((date): date is DateValue => !!date);
+
+const getCalendarMonthCount = (start?: string, end?: string): 1 | 2 => {
+  if (!start || !end) return 1;
+  return dayjs(start).isSame(end, "month") ? 1 : 2;
+};
+
+const toMonthStartDateValue = (date?: string): DateValue | undefined => {
+  if (!date) return undefined;
+  return parseDate(dayjs(date).startOf("month").format("YYYY-MM-DD"));
+};
+
+const formatCompactDateList = (dates: string[]): string =>
+  dates
+    .map((date, index) => {
+      const previous = dates[index - 1];
+      const shouldShowMonth = !previous || !dayjs(date).isSame(previous, "month");
+      const format = shouldShowMonth ? "M/D" : "D";
+      return `${dayjs(date).format(format)}(${getWeekdayLabel(date)})`;
+    })
+    .join(", ");
+
+const getHolidaySummary = (holidays: string[]): { value: string; detail?: string } => {
+  const sortedHolidays = [...holidays].sort();
+  if (sortedHolidays.length === 0) {
+    return { value: "なし" };
+  }
+
+  const visibleHolidays = formatCompactDateList(sortedHolidays.slice(0, 3));
+  const hiddenCount = sortedHolidays.length - 3;
+  return {
+    value: `${sortedHolidays.length}日`,
+    detail: hiddenCount > 0 ? `${visibleHolidays} ほか${hiddenCount}日` : visibleHolidays,
+  };
+};
+
+const isDeadlineInRange = (deadline: string, today: string, periodStart?: string): boolean => {
+  if (!deadline) return false;
+  if (deadline < today) return false;
+  if (periodStart && deadline >= periodStart) return false;
+  return true;
+};
 
 const StepIndicator = ({ currentStep }: { currentStep: Step }) => {
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
@@ -100,71 +128,6 @@ const StepIndicator = ({ currentStep }: { currentStep: Step }) => {
   );
 };
 
-type CalendarPickerProps = {
-  selectionMode: "range" | "multiple" | "single";
-  value: DateValue[];
-  min?: DateValue;
-  max?: DateValue;
-  defaultFocusedValue?: DateValue;
-  desktopMonths?: 1 | 2;
-  onValueChange: (value: DateValue[]) => void;
-};
-
-const CalendarPicker = ({
-  selectionMode,
-  value,
-  min,
-  max,
-  defaultFocusedValue,
-  desktopMonths = 1,
-  onValueChange,
-}: CalendarPickerProps) => {
-  const monthCount = useBreakpointValue({ base: 1, md: desktopMonths }) ?? 1;
-
-  return (
-    <DatePicker.Root
-      inline
-      selectionMode={selectionMode}
-      value={value}
-      min={min}
-      max={max}
-      defaultFocusedValue={defaultFocusedValue}
-      locale="ja-JP"
-      timeZone="Asia/Tokyo"
-      startOfWeek={0}
-      numOfMonths={monthCount}
-      closeOnSelect={false}
-      hideOutsideDays
-      onValueChange={(details) => onValueChange(details.value)}
-      size="sm"
-      colorPalette="teal"
-      p={{ base: 3, md: 4 }}
-      borderWidth={1}
-      borderColor="border.default"
-      borderRadius="md"
-      bg="white"
-      w="full"
-    >
-      <DatePicker.View view="day">
-        <DatePicker.Header mb={3} />
-        <SimpleGrid columns={{ base: 1, md: monthCount }} gap={{ base: 3, md: 5 }}>
-          {Array.from({ length: monthCount }).map((_, index) => (
-            <DatePicker.DayTable key={index} offset={index} w="full" />
-          ))}
-        </SimpleGrid>
-      </DatePicker.View>
-      <DatePicker.View view="month">
-        <DatePicker.Header mb={3} />
-        <DatePicker.MonthTable />
-      </DatePicker.View>
-      <DatePicker.View view="year">
-        <DatePicker.Header mb={3} />
-        <DatePicker.YearTable />
-      </DatePicker.View>
-    </DatePicker.Root>
-  );
-};
-
 const StepTitle = ({ icon, title, description }: { icon: ComponentType; title: string; description: string }) => (
   <HStack gap={3} align="flex-start">
     <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.600" align="center" justify="center">
@@ -181,21 +144,21 @@ const StepTitle = ({ icon, title, description }: { icon: ComponentType; title: s
   </HStack>
 );
 
-const SummaryLine = ({ label, value }: { label: string; value: string }) => (
-  <Flex gap={3} py={2} justify={{ base: "space-between", md: "flex-start" }} align="baseline">
-    <Text w={{ base: "auto", md: "50%" }} fontSize="sm" color="fg.muted">
+const SummaryLine = ({ label, value, detail }: { label: string; value: string; detail?: string }) => (
+  <Flex gap={3} py={2} justify="flex-start" align="baseline">
+    <Text w="50%" fontSize="sm" color="fg.muted">
       {label}
     </Text>
-    <Text
-      w={{ base: "auto", md: "50%" }}
-      ml={{ base: "auto", md: 0 }}
-      fontSize="sm"
-      fontWeight="semibold"
-      color="gray.900"
-      textAlign={{ base: "right", md: "left" }}
-    >
-      {value}
-    </Text>
+    <Stack w="50%" gap={0.5} align="stretch">
+      <Text fontSize="sm" fontWeight="semibold" color="gray.900" textAlign="left">
+        {value}
+      </Text>
+      {detail && (
+        <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
+          {detail}
+        </Text>
+      )}
+    </Stack>
   </Flex>
 );
 
@@ -228,8 +191,10 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
   const periodStart = watch("periodStart");
   const periodEnd = watch("periodEnd");
   const deadline = watch("deadline");
+  const hasPeriodError = !!errors.periodStart || !!errors.periodEnd;
 
   const periodDays = getInclusiveDateCount(periodStart, periodEnd);
+  const allPeriodDaysAreHolidays = periodDays > 0 && selectedHolidays.length >= periodDays;
   const periodLabel =
     periodStart && periodEnd
       ? `${formatDateWithWeekday(periodStart)} 〜 ${formatDateWithWeekday(periodEnd)}`
@@ -243,11 +208,20 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
   const holidayMax = toDateValue(periodEnd);
   const deadlineMin = useMemo(() => parseDate(today), [today]);
   const deadlineMaxValue = toDateValue(deadlineMax);
-  const holidayDesktopMonths = periodStart && periodEnd && !dayjs(periodStart).isSame(periodEnd, "month") ? 2 : 1;
+  const holidayDesktopMonths = getCalendarMonthCount(periodStart, periodEnd);
+  const deadlineDesktopMonths = getCalendarMonthCount(today, deadlineMax);
+  const holidayInitialFocus = toMonthStartDateValue(periodStart);
+  const holidaySummary = getHolidaySummary(selectedHolidays);
 
   useEffect(() => {
     setSelectedHolidays((current) => pruneHolidaysInRange(current, periodStart, periodEnd));
   }, [periodStart, periodEnd]);
+
+  useEffect(() => {
+    if (!deadline || isDeadlineInRange(deadline, today, periodStart)) return;
+    setValue("deadline", "", { shouldDirty: true });
+    clearErrors("deadline");
+  }, [clearErrors, deadline, periodStart, setValue, today]);
 
   const handlePeriodChange = (value: DateValue[]) => {
     const nextValue = value.slice(0, 2);
@@ -268,9 +242,6 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
     const nextDeadline = value[0] ? toIso(value[0]) : "";
     setValue("deadline", nextDeadline, { shouldDirty: true });
     clearErrors("deadline");
-    if (nextDeadline) {
-      setCurrentStep("confirm");
-    }
   };
 
   const validatePeriodStep = () => {
@@ -300,7 +271,30 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
   };
 
   const goToDeadline = () => {
+    if (allPeriodDaysAreHolidays) return;
     setCurrentStep("deadline");
+  };
+
+  const validateDeadlineStep = () => {
+    if (!deadline) {
+      setError("deadline", { message: "提出締切日を選択してください" });
+      return false;
+    }
+    if (deadline < today) {
+      setError("deadline", { message: "締切日は今日以降にしてください" });
+      return false;
+    }
+    if (periodStart && deadline >= periodStart) {
+      setError("deadline", { message: "締切日は開始日より前にしてください" });
+      return false;
+    }
+    clearErrors("deadline");
+    return true;
+  };
+
+  const goToConfirm = () => {
+    if (!validateDeadlineStep()) return;
+    setCurrentStep("confirm");
   };
 
   const submitForm = handleSubmit((data) => {
@@ -346,10 +340,12 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
                   </Text>
                 </Box>
               </Field.Root>
-              <Field.Root invalid={!!errors.periodStart || !!errors.periodEnd}>
-                {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
-                {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
-              </Field.Root>
+              {hasPeriodError && (
+                <Field.Root invalid>
+                  {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
+                  {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
+                </Field.Root>
+              )}
             </Stack>
           )}
 
@@ -365,9 +361,16 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
                 value={toDateValues(selectedHolidays)}
                 min={holidayMin}
                 max={holidayMax}
+                defaultFocusedValue={holidayInitialFocus}
                 desktopMonths={holidayDesktopMonths}
+                highlightSelectableDates
                 onValueChange={handleHolidayChange}
               />
+              {allPeriodDaysAreHolidays && (
+                <Field.Root invalid>
+                  <Field.ErrorText>シフト期間のすべてをお休みにはできません</Field.ErrorText>
+                </Field.Root>
+              )}
             </Stack>
           )}
 
@@ -376,22 +379,18 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
               <StepTitle
                 icon={LuTimer}
                 title="提出締切日を選択"
-                description="スタッフが希望シフトを提出できる締切日を選びます。日付を選ぶと確認へ進みます。"
+                description="スタッフが希望シフトを提出できる締切日を選んでください。"
               />
               <Field.Root invalid={!!errors.deadline}>
-                <Field.Label>提出締切日</Field.Label>
                 <CalendarPicker
                   selectionMode="single"
                   value={toDateValues(deadline ? [deadline] : [])}
                   min={deadlineMin}
                   max={deadlineMaxValue}
+                  defaultFocusedValue={periodInitialFocus}
+                  desktopMonths={deadlineDesktopMonths}
                   onValueChange={handleDeadlineChange}
                 />
-                {deadlineMax && (
-                  <Text mt={1} fontSize="xs" color="fg.muted">
-                    締切日は開始日の前日（{formatDateWithWeekday(deadlineMax)}）まで選べます。
-                  </Text>
-                )}
                 {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
               </Field.Root>
             </Stack>
@@ -410,10 +409,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
                   <Separator />
                   <SummaryLine label="日数" value={periodDays > 0 ? `${periodDays}日` : "未選択"} />
                   <Separator />
-                  <SummaryLine
-                    label="お店のお休み"
-                    value={selectedHolidays.length > 0 ? `${selectedHolidays.length}日` : "設定なし"}
-                  />
+                  <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
                   <Separator />
                   <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
                 </Box>
@@ -453,14 +449,9 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
                 <LuChevronLeft />
                 戻る
               </Button>
-              <HStack gap={2} flex={{ base: 1, md: "unset" }} justify="flex-end">
-                <Button type="button" variant="ghost" colorPalette="gray" onClick={goToDeadline}>
-                  スキップ
-                </Button>
-                <Button type="button" colorPalette="teal" onClick={goToDeadline}>
-                  次へ
-                </Button>
-              </HStack>
+              <Button type="button" colorPalette="teal" onClick={goToDeadline} flex={{ base: 1, md: "unset" }}>
+                次へ
+              </Button>
             </Flex>
           )}
 
@@ -475,9 +466,9 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
                 <LuChevronLeft />
                 戻る
               </Button>
-              <Text fontSize="sm" color="fg.muted" alignSelf="center" textAlign="right">
-                日付を選ぶと確認へ進みます
-              </Text>
+              <Button type="button" colorPalette="teal" onClick={goToConfirm} flex={{ base: 1, md: "unset" }}>
+                確認へ
+              </Button>
             </Flex>
           )}
 
