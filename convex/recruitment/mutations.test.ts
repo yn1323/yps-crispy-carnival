@@ -76,6 +76,56 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.shiftEndTime).toBe("22:00");
     });
 
+    it("定休日を昇順ユニークにして保存できる", async () => {
+      const { t } = setupShop();
+      const args = {
+        ...validArgs(),
+        shopClosedDates: [futureDate(10), futureDate(8), futureDate(10)],
+      };
+
+      const recruitmentId = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.recruitment.mutations.createRecruitment, args);
+
+      const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      expect(recruitment?.shopClosedDates).toEqual([futureDate(8), futureDate(10)]);
+    });
+
+    it("期間外の定休日はエラー", async () => {
+      const { t } = setupShop();
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          shopClosedDates: [futureDate(15)],
+        }),
+      ).rejects.toThrow("定休日は募集期間内の日付を選んでください");
+    });
+
+    it("募集期間のすべてを定休日にするとエラー", async () => {
+      const { t } = setupShop();
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          periodStart: futureDate(7),
+          periodEnd: futureDate(8),
+          deadline: futureDate(3),
+          shopClosedDates: [futureDate(7), futureDate(8)],
+        }),
+      ).rejects.toThrow("シフト期間のすべてを定休日にはできません");
+    });
+
+    it("日付形式が不正な定休日はエラー", async () => {
+      const { t } = setupShop();
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          shopClosedDates: ["2026/04/01"],
+        }),
+      ).rejects.toThrow("定休日の日付形式が正しくありません");
+    });
+
     it("締切日が過去の場合エラーをthrow", async () => {
       const { t } = setupShop();
 

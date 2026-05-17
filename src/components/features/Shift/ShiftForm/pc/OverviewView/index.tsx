@@ -25,9 +25,9 @@ const toDateInfo = (cell: { iso: string; inRange: boolean }): DateInfo => {
   };
 };
 
-const dayColor = (iso: string, holidays: string[]): string => {
+const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
-  if (day === 0 || holidays.includes(iso)) return "#ef4444";
+  if (day === 0) return "#ef4444";
   if (day === 6) return "#3b82f6";
   return "#3f3f46";
 };
@@ -224,7 +224,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                 <Box textStyle="numeric" color="gray.700" fontWeight={600}>
                   {d.label}
                 </Box>
-                <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
+                <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso) }}>
                   {d.wk}
                 </Box>
                 {isClosed && (

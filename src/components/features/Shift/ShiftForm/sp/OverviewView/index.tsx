@@ -26,9 +26,9 @@ const buildDateInfos = (dates: string[]): DateInfo[] =>
     };
   });
 
-const dayColor = (iso: string, holidays: string[]): string => {
+const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
-  if (day === 0 || holidays.includes(iso)) return "#ef4444";
+  if (day === 0) return "#ef4444";
   if (day === 6) return "#3b82f6";
   return "#3f3f46";
 };
@@ -145,7 +145,7 @@ export const SPOverviewView = () => {
                           >
                             {d.label}
                           </Box>
-                          <Box textStyle="2xs" fontWeight={700} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
+                          <Box textStyle="2xs" fontWeight={700} mt="2px" style={{ color: dayColor(d.iso) }}>
                             {d.wk}
                           </Box>
                           {isClosed && (

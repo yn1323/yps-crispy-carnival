@@ -132,7 +132,7 @@ const schema = defineSchema({
     periodStart: v.string(), // "2026-01-20"
     periodEnd: v.string(), // "2026-01-26"
     deadline: v.string(), // "2026-01-17"
-    shopClosedDates: v.optional(v.array(v.string())), // 募集期間内でお店を開けない日
+    shopClosedDates: v.array(v.string()), // 募集期間内でお店を開けない日
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),

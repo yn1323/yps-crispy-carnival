@@ -21,9 +21,9 @@ const STRIPE_STYLE = {
 
 const SWIPE_THRESHOLD = 50;
 
-const dayColor = (iso: string, holidays: string[]): string => {
+const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
-  if (day === 0 || holidays.includes(iso)) return "#ef4444";
+  if (day === 0) return "#ef4444";
   if (day === 6) return "#3b82f6";
   return "#3f3f46";
 };
@@ -194,12 +194,7 @@ export const SPDailyView = () => {
                 >
                   {d.date()}
                 </Box>
-                <Box
-                  textStyle="2xs"
-                  mt="2px"
-                  fontWeight={active ? 700 : 500}
-                  style={{ color: dayColor(iso, holidays) }}
-                >
+                <Box textStyle="2xs" mt="2px" fontWeight={active ? 700 : 500} style={{ color: dayColor(iso) }}>
                   {getWeekdayLabel(iso)}
                 </Box>
                 {isClosed && (
@@ -220,7 +215,7 @@ export const SPDailyView = () => {
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {sd.month() + 1}月{sd.date()}日
             </Box>
-            <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(selectedDate, holidays) }}>
+            <Box textStyle="sm" fontWeight={600} style={{ color: dayColor(selectedDate) }}>
               ({getWeekdayLabel(selectedDate)})
             </Box>
             {isShopClosedDate && (
