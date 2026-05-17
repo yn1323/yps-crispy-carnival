@@ -30,6 +30,7 @@ export const setupShopAndManager = authenticatedMutation({
       name: args.shopName,
       shiftStartTime: args.shiftStartTime,
       shiftEndTime: args.shiftEndTime,
+      regularClosedDays: [],
       isDeleted: false,
     });
 

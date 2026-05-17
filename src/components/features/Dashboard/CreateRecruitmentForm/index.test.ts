@@ -1,12 +1,29 @@
 import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
-import { createRecruitmentFormSchema, createRecruitmentSchema } from "./index";
+import { createRecruitmentFormSchema, createRecruitmentSchema, deriveShopClosedDatesFromRegularDays } from "./index";
+
+describe("deriveShopClosedDatesFromRegularDays", () => {
+  it("期間内の定休日曜日を日付リストに展開する", () => {
+    expect(deriveShopClosedDatesFromRegularDays("2026-06-01", "2026-06-14", ["mon", "wed"])).toEqual([
+      "2026-06-01",
+      "2026-06-03",
+      "2026-06-08",
+      "2026-06-10",
+    ]);
+  });
+
+  it("定休日未設定や不正な期間では空配列を返す", () => {
+    expect(deriveShopClosedDatesFromRegularDays("2026-06-01", "2026-06-07", [])).toEqual([]);
+    expect(deriveShopClosedDatesFromRegularDays("2026-06-07", "2026-06-01", ["mon"])).toEqual([]);
+  });
+});
 
 describe("createRecruitmentSchema", () => {
   const validData = {
     periodStart: "2026-04-01",
     periodEnd: "2026-04-30",
     deadline: "2026-03-25",
+    shopClosedDates: [],
   };
 
   it("有効なデータを受け入れる", () => {
@@ -93,7 +110,16 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
     periodStart: dayAfterTomorrow,
     periodEnd: dayjs().add(10, "day").format("YYYY-MM-DD"),
     deadline: tomorrow,
+    shopClosedDates: [],
   };
+
+  it("お店のお休みを含むデータを受け入れる", () => {
+    const result = createRecruitmentFormSchema.safeParse({
+      ...validData,
+      shopClosedDates: [dayjs().add(4, "day").format("YYYY-MM-DD")],
+    });
+    expect(result.success).toBe(true);
+  });
 
   it("有効なデータを受け入れる", () => {
     const result = createRecruitmentFormSchema.safeParse(validData);

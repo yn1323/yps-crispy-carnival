@@ -41,6 +41,7 @@ export const getSubmissionPageData = staffSessionQuery({
       periodStart: recruitment.periodStart,
       periodEnd: recruitment.periodEnd,
       deadline: recruitment.deadline,
+      shopClosedDates: recruitment.shopClosedDates ?? [],
       isBeforeDeadline,
       hasSubmitted: submission !== null,
       existingRequests: slots.map((r) => ({

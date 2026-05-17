@@ -1,5 +1,5 @@
 import { Dialog as ChakraDialog, CloseButton, Portal } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 
@@ -40,10 +40,12 @@ type DialogProps = {
   submitColorPalette?: string;
   hideFooter?: boolean;
   footer?: ReactNode;
-  maxW?: string;
-  maxH?: string;
+  maxW?: ComponentProps<typeof ChakraDialog.Content>["maxW"];
+  maxH?: ComponentProps<typeof ChakraDialog.Content>["maxH"];
   formId?: string;
   modal?: boolean;
+  contentProps?: ComponentProps<typeof ChakraDialog.Content>;
+  bodyProps?: ComponentProps<typeof ChakraDialog.Body>;
 };
 
 export const Dialog = ({
@@ -65,17 +67,25 @@ export const Dialog = ({
   maxH,
   formId,
   modal = true,
+  contentProps,
+  bodyProps,
 }: DialogProps) => {
   return (
     <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center" modal={modal}>
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner>
-          <ChakraDialog.Content maxW={maxW} maxH={maxH} display={maxH ? "flex" : undefined} flexDirection="column">
+          <ChakraDialog.Content
+            maxW={maxW}
+            maxH={maxH}
+            display={maxH ? "flex" : undefined}
+            flexDirection="column"
+            {...contentProps}
+          >
             <ChakraDialog.Header flexShrink={0}>
               <ChakraDialog.Title>{title}</ChakraDialog.Title>
             </ChakraDialog.Header>
-            <ChakraDialog.Body flex={maxH ? 1 : undefined} overflowY={maxH ? "auto" : undefined}>
+            <ChakraDialog.Body flex={maxH ? 1 : undefined} overflowY={maxH ? "auto" : undefined} {...bodyProps}>
               {children}
             </ChakraDialog.Body>
             {!hideFooter && (

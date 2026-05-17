@@ -7,7 +7,10 @@ import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
-async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlinePassed?: boolean }) {
+async function setupTestData(
+  t: TestConvex<typeof schema>,
+  options?: { deadlinePassed?: boolean; shopClosedDates?: string[] },
+) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
     const staffId = await ctx.db.insert("staffs", {
@@ -32,6 +35,7 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { deadlineP
       periodStart: "2026-04-07",
       periodEnd: "2026-04-13",
       deadline: options?.deadlinePassed ? "2026-01-01" : "2026-12-31",
+      shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
       shiftStartTime: "09:00",
@@ -98,6 +102,7 @@ describe("shiftSubmission/mutations", () => {
           periodStart: "2026-05-01",
           periodEnd: "2026-05-07",
           deadline: "2026-12-31",
+          shopClosedDates: [],
           status: "open",
           isDeleted: false,
           shiftStartTime: "09:00",
@@ -157,6 +162,20 @@ describe("shiftSubmission/mutations", () => {
       expect(submission).not.toBeNull();
       expect(submission?.firstSubmittedAt).toBeTypeOf("number");
       expect(submission?.submittedAt).toBeTypeOf("number");
+    });
+
+    it("定休日の日付には希望シフトを提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, { shopClosedDates: ["2026-04-09"] });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: [{ date: "2026-04-09", startTime: "10:00", endTime: "15:00" }],
+        }),
+      ).rejects.toThrow("定休日には希望シフトを提出できません");
     });
 
     it("全休み提出（空配列）でshiftSubmissionのみ作成", async () => {

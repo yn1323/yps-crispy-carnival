@@ -44,6 +44,7 @@ describe("管理者セットアップシナリオ", () => {
       name: "初回セットアップ店舗",
       shiftStartTime: "09:30",
       shiftEndTime: "22:30",
+      regularClosedDays: [],
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

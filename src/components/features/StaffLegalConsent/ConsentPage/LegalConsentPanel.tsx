@@ -51,15 +51,17 @@ export function LegalConsentPanel({ data, checked, error, isSubmitting, onChecke
           <Checkbox.Root
             colorPalette="teal"
             checked={checked}
+            cursor="pointer"
             onCheckedChange={(details) => onCheckedChange(details.checked === true)}
           >
             <Checkbox.HiddenInput />
             <Checkbox.Control
               bg="white"
               borderColor="gray.300"
+              cursor="pointer"
               _checked={{ bg: "teal.500", borderColor: "teal.500" }}
             />
-            <Checkbox.Label fontSize="sm" lineHeight={1.7}>
+            <Checkbox.Label fontSize="sm" lineHeight={1.7} cursor="pointer">
               <LegalLink href={data.documents.terms.path}>利用規約</LegalLink>と
               <LegalLink href={data.documents.privacy.path}>プライバシーポリシー</LegalLink>
               に同意します

@@ -149,6 +149,7 @@ describe("staffRegistration/mutations", () => {
         periodStart: "2026-06-01",
         periodEnd: "2026-06-07",
         deadline: "2026-05-30",
+        shopClosedDates: [],
         status: "open",
         isDeleted: false,
         shiftStartTime: "09:00",

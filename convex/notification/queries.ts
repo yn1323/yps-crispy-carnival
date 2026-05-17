@@ -43,6 +43,7 @@ export const getConfirmationEmailData = internalQuery({
 
     // 期間内の全日付を生成
     const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
+    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
 
     // スタッフごとにシフト情報をグループ化
     const staffEntries = await Promise.all(
@@ -57,7 +58,9 @@ export const getConfirmationEmailData = internalQuery({
         const lineAccount = await getStaffLineAccount(ctx, staff._id);
 
         const shifts = dates.map((date) => {
-          const timeLabel = buildShiftTimeLabel(assignmentsByDate.get(date) ?? []);
+          const timeLabel = shopClosedDateSet.has(date)
+            ? "定休日"
+            : buildShiftTimeLabel(assignmentsByDate.get(date) ?? []);
           return {
             date: formatDateLabel(date),
             timeLabel,

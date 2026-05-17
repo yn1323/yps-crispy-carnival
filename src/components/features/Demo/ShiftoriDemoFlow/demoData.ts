@@ -66,6 +66,7 @@ export const DEFAULT_RECRUITMENT: CreateRecruitmentData = {
   periodStart: PERIOD_START,
   periodEnd: PERIOD_END,
   deadline: DEADLINE,
+  shopClosedDates: [],
 };
 
 export const SUBMISSION_DATA: SubmissionData = {
@@ -74,6 +75,7 @@ export const SUBMISSION_DATA: SubmissionData = {
   periodStart: PERIOD_START,
   periodEnd: PERIOD_END,
   deadline: DEADLINE,
+  shopClosedDates: [],
   isBeforeDeadline: true,
   hasSubmitted: false,
   existingRequests: [

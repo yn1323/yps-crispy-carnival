@@ -168,6 +168,7 @@ describe("シフト表作成・確定シナリオ", () => {
         periodStart: scenarioDate(7),
         periodEnd: scenarioDate(9),
         deadline: scenarioDate(3),
+        shopClosedDates: [],
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: false,

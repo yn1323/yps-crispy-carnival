@@ -17,6 +17,7 @@
 |---|---|---|---|---|
 | Logic UT | `pnpm test:logic`, `src/**/*.test.ts` | 純粋ロジックの退行検知 | 日付、時刻、配列加工、schema、表示変換、フォーム固有の純粋validation | DB、React表示、Convex接続 |
 | UI Component Test | `pnpm test:ui`, `*.stories.tsx` | Storybook 上の表示・軽い操作確認 | 代表状態、空/エラー/長文状態、重要な操作の play test | 業務フロー全体、DB状態検証 |
+| Behavior Test（振る舞いテスト） | `pnpm test:ui`, `*.stories.tsx` の play function | Storybook 上でユーザー操作・画面遷移・エラー表示・確認文言をシナリオとして保証する | 押せる、進める、エラーが見える、確認文言が出る、SP/PC差分、日付・入力の重要エッジケース | DB状態検証、API副作用、実認証、ピクセルパーフェクトな見た目差分 |
 | VRT | Chromatic / Storybook | 見た目差分検知 | 代表パターン、variants、状態別Story | ロジック検証、業務状態遷移 |
 | Convex Function Test | `pnpm test:convex`, `convex/{useCase}/*.test.ts` | query/mutation 単体の契約確認 | 認証、認可、IDOR、論理削除、返り値制限、副作用、空データ | 複数ドメインをまたぐ長い業務フロー |
 | Convex Scenario Test | `pnpm test:convex`, `convex/_scenario/*.test.ts` | 複雑な業務状態遷移の検証 | 複数 mutation/query の連続実行、集計、スナップショット、最終DB状態、エッジケース | ブラウザ操作、見た目、実 Convex deployment 接続 |
@@ -132,11 +133,14 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - 日付・時刻・タイムゾーンずれ・丸め・ソートは厚めに書く。
 - React / Convex に依存しないコードを優先して切り出し、ここで検証する。
 
-### UI Component Test / VRT
+### UI Component Test / Behavior Test / VRT
 
 - UI の代表状態を Storybook に置く。
 - 小さいコンポーネントは Variants Story にまとめ、VRT キャプチャ数を抑える。
 - 操作が重要な小さいコンポーネントは Interactive Story を分ける。
+- Behavior Test は Storybook の play function で、ユーザー操作後の振る舞いを検証する。`expect` による明示的な期待値を書き、表示される要素は `findBy...` で待つ。
+- Behavior Test は、日付境界、SP/PC差分、任意ステップ、エラー表示、確認画面など、画面だけで保証できる重要エッジケースを対象にする。
+- Behavior Test を追加・変更するときは、その Story を VRT 撮影対象にするかを最後に必ず判断する。振る舞いだけを見たい場合は `parameters: { chromatic: { disableSnapshot: true } }` を付ける。見た目の退行も守りたい場合は、VRT対象として残すか、別の静的Storyに代表状態を切り出す。
 - DB や業務フロー全体は検証しない。
 
 ### Convex Function Test
@@ -177,6 +181,7 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 
 - 純粋関数だけで検証できる: Logic UT
 - UI の見た目や単体操作を確認したい: UI Component Test / VRT
+- Storybook 上でユーザー操作後の振る舞い、エラー、確認文言、SP/PC差分を確認したい: Behavior Test
 - query/mutation 単体の契約を確認したい: Convex Function Test
 - 複数の Convex 関数をまたいだ業務状態遷移を確認したい: Convex Scenario Test
 - 実ブラウザ・認証・実 Convex backend との接続を確認したい: E2E

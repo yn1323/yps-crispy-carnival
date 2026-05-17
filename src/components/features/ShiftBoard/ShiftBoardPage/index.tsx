@@ -29,6 +29,7 @@ function generatePeriodLabel(dates: string[]): string {
 
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
 function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] {
+  const shopClosedDateSet = new Set(data.recruitment.shopClosedDates);
   const positions = data.positions.length > 0 ? data.positions : [];
   const defaultPosition = positions.find((position) => position.isDefault) ?? positions[0];
   const fallbackPosition = defaultPosition
@@ -56,6 +57,18 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
 
   for (const staff of staffs) {
     for (const date of dates) {
+      if (shopClosedDateSet.has(date)) {
+        shifts.push({
+          id: `shift-${staff.id}-${date}`,
+          staffId: staff.id,
+          staffName: staff.name,
+          date,
+          requestedTime: null,
+          positions: [],
+        });
+        continue;
+      }
+
       const key = `${staff.id}-${date}`;
       const assignments = (assignmentMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
       const request = requestMap.get(key);
@@ -151,6 +164,10 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const handleShiftsChange = useCallback((shifts: ShiftData[]) => {
     shiftsRef.current = shifts;
   }, []);
+  const shopClosedDateSet = useMemo(
+    () => new Set(data.recruitment.shopClosedDates),
+    [data.recruitment.shopClosedDates],
+  );
 
   const confirmModal = useDialog();
   const reminderModal = useDialog();
@@ -168,8 +185,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, [sendReminderEmailsMutation, recruitmentId, reminderModal]);
 
   const buildAssignments = useCallback(() => {
-    return shiftsRef.current.flatMap((s) =>
-      s.positions
+    return shiftsRef.current.flatMap((s) => {
+      if (shopClosedDateSet.has(s.date)) return [];
+      return s.positions
         .filter((position) => position.positionId !== BREAK_POSITION.id)
         .map((position) => ({
           staffId: s.staffId as Id<"staffs">,
@@ -179,9 +197,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           ...(position.positionId !== DEFAULT_POSITION.id
             ? { positionId: position.positionId as Id<"positions"> }
             : {}),
-        })),
-    );
-  }, []);
+        }));
+    });
+  }, [shopClosedDateSet]);
 
   const handleConfirm = useCallback(async () => {
     try {
@@ -253,6 +271,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           initialShifts={initialShifts}
           dates={dates}
           timeRange={data.timeRange}
+          holidays={data.recruitment.shopClosedDates}
           onShiftsChange={handleShiftsChange}
           isConfirmed={isConfirmed}
           onSaveDraft={performSaveDraft}

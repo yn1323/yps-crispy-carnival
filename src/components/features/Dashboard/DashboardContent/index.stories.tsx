@@ -8,7 +8,7 @@ import { DashboardContent } from "./index";
 
 const noop = () => {};
 
-const shop = { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" };
+const shop = { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00", regularClosedDays: [] };
 const managerLegalConsentReady = {
   required: false,
   documents: {
@@ -61,6 +61,7 @@ const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
     periodStart: "2026-06-01",
     periodEnd: "2026-06-07",
     deadline: "2026-05-28",
+    shopClosedDates: [],
     status: "open",
     responseCount: 0,
     ...overrides,
