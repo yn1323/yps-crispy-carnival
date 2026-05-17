@@ -17,6 +17,7 @@ import {
   getDateRange,
 } from "@/src/domains/shift/date";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
+import { minutesToTime } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
@@ -43,6 +44,11 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
   for (const r of data.requestedSlots) {
     requestMap.set(`${r.staffId}-${r.date}`, { startTime: r.startTime, endTime: r.endTime });
   }
+  const requestedDateSet = new Set(data.requestedDates.map((r) => `${r.staffId}-${r.date}`));
+  const fullDayRequest = {
+    startTime: minutesToTime(data.timeRange.editableStartMinutes ?? data.timeRange.start * 60),
+    endTime: minutesToTime(data.timeRange.editableEndMinutes ?? data.timeRange.end * 60),
+  };
 
   const assignmentMap = new Map<string, Array<{ startTime: string; endTime: string; positionId: Id<"positions"> }>>();
   for (const item of data.shiftAssignments) {
@@ -71,7 +77,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
 
       const key = `${staff.id}-${date}`;
       const assignments = (assignmentMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
-      const request = requestMap.get(key);
+      const request = requestMap.get(key) ?? (requestedDateSet.has(key) ? fullDayRequest : undefined);
       const savedAssignment =
         assignments.length > 0
           ? {

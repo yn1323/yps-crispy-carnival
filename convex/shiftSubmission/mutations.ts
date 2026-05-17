@@ -1,11 +1,117 @@
 import { ConvexError, v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
+import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
-import { submitShiftRequestsSchema } from "./schemas";
+import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
+
+type NormalizedShiftRequest = { date: string; startTime: string; endTime: string };
+type NormalizedSubmissionInput = {
+  slots: NormalizedShiftRequest[];
+  dates: string[];
+};
+
+const shiftSubmissionInputValidator = v.union(
+  v.object({
+    kind: v.literal("time"),
+    requests: v.array(
+      v.object({
+        date: v.string(),
+        startTime: v.string(),
+        endTime: v.string(),
+      }),
+    ),
+  }),
+  v.object({
+    kind: v.literal("dateOnly"),
+    workingDates: v.array(v.string()),
+  }),
+  v.object({
+    kind: v.literal("shiftType"),
+    selections: v.array(v.object({ date: v.string(), optionId: v.string() })),
+  }),
+);
+
+function assertValidDateForSubmission(
+  date: string,
+  recruitment: Doc<"recruitments">,
+  requestedDates: Set<string>,
+  shopClosedDateSet: Set<string>,
+) {
+  if (requestedDates.has(date)) {
+    throw new ConvexError("同じ日の希望シフトは1件だけ登録できます");
+  }
+  requestedDates.add(date);
+
+  if (date < recruitment.periodStart || date > recruitment.periodEnd) {
+    throw new ConvexError("Date out of range");
+  }
+  if (shopClosedDateSet.has(date)) {
+    throw new ConvexError("定休日には希望シフトを提出できません");
+  }
+}
+
+function validateTimeRequest(req: NormalizedShiftRequest, timeRange: { startTime: string; endTime: string }) {
+  if (timeToMinutes(req.startTime) >= timeToMinutes(req.endTime)) {
+    throw new ConvexError("Invalid time range");
+  }
+  if (
+    timeToMinutes(req.startTime) < timeToMinutes(timeRange.startTime) ||
+    timeToMinutes(req.endTime) > timeToMinutes(timeRange.endTime)
+  ) {
+    throw new ConvexError("Invalid time range");
+  }
+}
+
+function normalizeSubmissionInput(
+  input: SubmitShiftSelection,
+  recruitment: Doc<"recruitments">,
+  pattern: ShiftSubmissionPattern,
+): NormalizedSubmissionInput {
+  if (input.kind !== pattern.kind) {
+    throw new ConvexError("提出方法がこの募集の設定と一致しません");
+  }
+
+  const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
+  const requestedDates = new Set<string>();
+
+  if (input.kind === "time") {
+    if (pattern.kind !== "time") {
+      throw new ConvexError("提出方法がこの募集の設定と一致しません");
+    }
+    for (const req of input.requests) {
+      assertValidDateForSubmission(req.date, recruitment, requestedDates, shopClosedDateSet);
+      validateTimeRequest(req, pattern);
+    }
+    return { slots: input.requests, dates: [] };
+  }
+
+  if (input.kind === "dateOnly") {
+    const dates = input.workingDates.map((date) => {
+      assertValidDateForSubmission(date, recruitment, requestedDates, shopClosedDateSet);
+      return date;
+    });
+    return { slots: [], dates };
+  }
+
+  if (pattern.kind !== "shiftType") {
+    throw new ConvexError("提出方法がこの募集の設定と一致しません");
+  }
+
+  const optionMap = new Map(pattern.options.map((option) => [option.id, option]));
+  const slots = input.selections.map((selection) => {
+    assertValidDateForSubmission(selection.date, recruitment, requestedDates, shopClosedDateSet);
+    const option = optionMap.get(selection.optionId);
+    if (!option) {
+      throw new ConvexError("勤務区分が見つかりません");
+    }
+    return { date: selection.date, startTime: option.startTime, endTime: option.endTime };
+  });
+  return { slots, dates: [] };
+}
 
 /**
  * シフト希望を提出（新規 or 修正）
@@ -15,13 +121,16 @@ export const submitShiftRequests = staffSessionMutation({
   args: {
     recruitmentId: v.id("recruitments"),
     acceptedLegal: v.optional(v.boolean()),
-    requests: v.array(
-      v.object({
-        date: v.string(),
-        startTime: v.string(),
-        endTime: v.string(),
-      }),
+    requests: v.optional(
+      v.array(
+        v.object({
+          date: v.string(),
+          startTime: v.string(),
+          endTime: v.string(),
+        }),
+      ),
     ),
+    submission: v.optional(shiftSubmissionInputValidator),
   },
   handler: async (ctx, args) => {
     const rateLimitResult = await rateLimit(ctx, {
@@ -49,8 +158,18 @@ export const submitShiftRequests = staffSessionMutation({
       throw new ConvexError("Deadline passed");
     }
 
-    const parsed = submitShiftRequestsSchema.safeParse({ requests: args.requests });
+    const pattern = getSubmissionPattern(recruitment.submissionPattern, {
+      startTime: recruitment.shiftStartTime,
+      endTime: recruitment.shiftEndTime,
+    });
+    const rawSubmission = args.submission ?? { kind: "time", requests: args.requests ?? [] };
+    const parsed = submitShiftSelectionSchema.safeParse(rawSubmission);
     if (!parsed.success) {
+      throw new ConvexError("Invalid request data");
+    }
+    const normalizedSubmission = normalizeSubmissionInput(parsed.data, recruitment, pattern);
+    const parsedRequests = submitShiftRequestsSchema.safeParse({ requests: normalizedSubmission.slots });
+    if (!parsedRequests.success) {
       throw new ConvexError("Invalid request data");
     }
 
@@ -67,33 +186,6 @@ export const submitShiftRequests = staffSessionMutation({
       });
     }
 
-    const requestedDates = new Set<string>();
-    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
-    for (const req of args.requests) {
-      if (requestedDates.has(req.date)) {
-        throw new ConvexError("同じ日の希望シフトは1件だけ登録できます");
-      }
-      requestedDates.add(req.date);
-
-      if (req.date < recruitment.periodStart || req.date > recruitment.periodEnd) {
-        throw new ConvexError("Date out of range");
-      }
-      if (shopClosedDateSet.has(req.date)) {
-        throw new ConvexError("定休日には希望シフトを提出できません");
-      }
-      if (timeToMinutes(req.startTime) >= timeToMinutes(req.endTime)) {
-        throw new ConvexError("Invalid time range");
-      }
-      const shiftStartTime = recruitment.shiftStartTime;
-      const shiftEndTime = recruitment.shiftEndTime;
-      if (
-        timeToMinutes(req.startTime) < timeToMinutes(shiftStartTime) ||
-        timeToMinutes(req.endTime) > timeToMinutes(shiftEndTime)
-      ) {
-        throw new ConvexError("Invalid time range");
-      }
-    }
-
     const now = Date.now();
     const existingSubmission = await ctx.db
       .query("shiftSubmissions")
@@ -107,10 +199,19 @@ export const submitShiftRequests = staffSessionMutation({
         q.eq("recruitmentId", args.recruitmentId).eq("staffId", ctx.staff._id),
       )
       .collect();
+    const existingDates = await ctx.db
+      .query("shiftSubmissionDates")
+      .withIndex("by_recruitmentId_staffId", (q) =>
+        q.eq("recruitmentId", args.recruitmentId).eq("staffId", ctx.staff._id),
+      )
+      .collect();
 
     // 再提出は差分更新ではなく全置換。休みの日は明細を作らないため、
     // shiftSubmissions 側の存在が「提出済み」の正になる。
-    await Promise.all(existingSlots.map((r) => ctx.db.delete(r._id)));
+    await Promise.all([
+      ...existingSlots.map((r) => ctx.db.delete(r._id)),
+      ...existingDates.map((r) => ctx.db.delete(r._id)),
+    ]);
 
     let submissionId: Id<"shiftSubmissions">;
     if (existingSubmission) {
@@ -130,7 +231,7 @@ export const submitShiftRequests = staffSessionMutation({
     }
 
     await Promise.all([
-      ...args.requests.map((r) =>
+      ...normalizedSubmission.slots.map((r) =>
         ctx.db.insert("shiftSubmissionSlots", {
           submissionId,
           recruitmentId: args.recruitmentId,
@@ -138,6 +239,14 @@ export const submitShiftRequests = staffSessionMutation({
           date: r.date,
           startTime: r.startTime,
           endTime: r.endTime,
+        }),
+      ),
+      ...normalizedSubmission.dates.map((date) =>
+        ctx.db.insert("shiftSubmissionDates", {
+          submissionId,
+          recruitmentId: args.recruitmentId,
+          staffId: ctx.staff._id,
+          date,
         }),
       ),
     ]);

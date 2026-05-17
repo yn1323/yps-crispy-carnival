@@ -28,20 +28,40 @@ type ShiftRequest = {
   endTime: string;
 };
 
+type SubmitShiftSelectionInput =
+  | { kind: "time"; requests: ShiftRequest[] }
+  | { kind: "dateOnly"; workingDates: string[] }
+  | { kind: "shiftType"; selections: Array<{ date: string; optionId: string }> };
+
 type ShiftAssignment = ShiftRequest & {
   staffId: Id<"staffs">;
   positionId?: Id<"positions">;
 };
 
+type ShiftSubmissionPattern =
+  | { kind: "time"; startTime: string; endTime: string }
+  | { kind: "dateOnly" }
+  | { kind: "shiftType"; options: ShiftTypeOption[] };
+
 type ShopSettingsInput = {
   shopName: string;
-  shiftStartTime: string;
-  shiftEndTime: string;
+  submissionPattern?: ShiftSubmissionPattern;
 };
 
 type UpdateShopSettingsInput = ShopSettingsInput & {
   regularClosedDays: Array<"sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat">;
 };
+
+type ShiftTypeOption = {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  sortOrder: number;
+};
+
+const resolveSubmissionPattern = (args: ShopSettingsInput): ShiftSubmissionPattern =>
+  args.submissionPattern ?? { kind: "time", startTime: "09:00", endTime: "22:00" };
 
 export function createScenario(t: ScenarioTest) {
   return {
@@ -52,7 +72,13 @@ export function createScenario(t: ScenarioTest) {
         setupShopAndManager(
           args: ShopSettingsInput & { managerName: string; managerEmail: string; acceptedLegal: true },
         ) {
-          return asManager.mutation(api.setup.mutations.setupShopAndManager, args);
+          return asManager.mutation(api.setup.mutations.setupShopAndManager, {
+            shopName: args.shopName,
+            submissionPattern: resolveSubmissionPattern(args),
+            managerName: args.managerName,
+            managerEmail: args.managerEmail,
+            acceptedLegal: args.acceptedLegal,
+          });
         },
         createRecruitment(args: RecruitmentInput) {
           return asManager.mutation(api.recruitment.mutations.createRecruitment, {
@@ -64,7 +90,11 @@ export function createScenario(t: ScenarioTest) {
           return asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId });
         },
         updateShopSettings(args: UpdateShopSettingsInput) {
-          return asManager.mutation(api.shop.mutations.updateShopSettings, args);
+          return asManager.mutation(api.shop.mutations.updateShopSettings, {
+            shopName: args.shopName,
+            regularClosedDays: args.regularClosedDays,
+            submissionPattern: resolveSubmissionPattern(args),
+          });
         },
         addStaffs(entries: StaffEntry[]) {
           return asManager.mutation(api.staff.mutations.addStaffs, { entries });
@@ -122,9 +152,14 @@ export function createScenario(t: ScenarioTest) {
           sessionToken: string;
           recruitmentId: Id<"recruitments">;
           acceptedLegal?: boolean;
-          requests: ShiftRequest[];
+          requests?: ShiftRequest[];
+          submission?: SubmitShiftSelectionInput;
         }) {
-          return t.mutation(api.shiftSubmission.mutations.submitShiftRequests, { ...args, accessKind: "submit" });
+          return t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+            ...args,
+            requests: args.requests ?? [],
+            accessKind: "submit",
+          });
         },
         getShiftViewData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
           return t.query(api.shiftView.queries.getShiftViewData, { ...args, accessKind: "view" });

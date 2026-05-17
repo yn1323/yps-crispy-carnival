@@ -26,6 +26,10 @@ export type ShiftBoardData = {
     startTime: string;
     endTime: string;
   }>;
+  requestedDates: Array<{
+    staffId: Id<"staffs">;
+    date: string;
+  }>;
   shiftAssignments: Array<{
     staffId: Id<"staffs">;
     date: string;

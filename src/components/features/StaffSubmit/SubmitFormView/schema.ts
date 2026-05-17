@@ -4,6 +4,7 @@ import { timeToMinutes } from "@/src/domains/shift/time";
 
 const dayEntrySchema = shiftRequestSchema.extend({
   isWorking: z.boolean(),
+  optionId: z.string().optional(),
 });
 
 const workingDaySchema = dayEntrySchema.refine(

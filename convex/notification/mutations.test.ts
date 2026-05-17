@@ -20,8 +20,7 @@ describe("notification/mutations", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const staffId = await ctx.db.insert("staffs", {
           shopId,
@@ -71,8 +70,7 @@ describe("notification/mutations", () => {
           shopClosedDates: [],
           status: "open",
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const staffId = await ctx.db.insert("staffs", {
           shopId,

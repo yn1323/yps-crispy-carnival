@@ -5,6 +5,7 @@ import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from
 import { APP_URL } from "./_lib/config";
 import { getDeadlineCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
+import { getSubmissionPattern } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS, LINE_LINK_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
@@ -316,8 +317,7 @@ async function createManagerScenario(
   });
   const shopId = await ctx.db.insert("shops", {
     name: args.shopName,
-    shiftStartTime: "09:00",
-    shiftEndTime: "22:00",
+    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
     isDeleted: false,
   });
@@ -401,8 +401,7 @@ async function createRecruitment(
     status: args.status,
     confirmedAt: args.status === "confirmed" ? Date.now() : undefined,
     isDeleted: false,
-    shiftStartTime: "09:00",
-    shiftEndTime: "22:00",
+    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   });
 }
 
@@ -594,8 +593,10 @@ export const seedPaginationTestData = internalMutation({
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: shop.shiftStartTime,
-        shiftEndTime: shop.shiftEndTime,
+        submissionPattern: getSubmissionPattern(shop.submissionPattern, {
+          startTime: shop.shiftStartTime,
+          endTime: shop.shiftEndTime,
+        }),
       });
     }
 
@@ -798,8 +799,7 @@ export const seedSubmitTestData = internalMutation({
 
     const shopId = await ctx.db.insert("shops", {
       name: "テスト居酒屋さくら",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       regularClosedDays: [],
       isDeleted: false,
     });
@@ -823,8 +823,7 @@ export const seedSubmitTestData = internalMutation({
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
 
     // magic link token
@@ -907,8 +906,7 @@ export const seedDashboardPaginationScenario = internalMutation({
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
     }
 
@@ -941,8 +939,7 @@ export const seedLegalStaffConsentPageScenario = internalMutation({
     assertE2EHelpersEnabled();
     const shopId = await ctx.db.insert("shops", {
       name: "法務同意テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       regularClosedDays: [],
       isDeleted: false,
     });
@@ -973,8 +970,7 @@ export const seedLegalStaffSubmitScenario = internalMutation({
     assertE2EHelpersEnabled();
     const shopId = await ctx.db.insert("shops", {
       name: "法務同意テスト店舗",
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       regularClosedDays: [],
       isDeleted: false,
     });
@@ -992,8 +988,7 @@ export const seedLegalStaffSubmitScenario = internalMutation({
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
     const token = await createMagicLink(ctx, { staffId, shopId, recruitmentId, accessKind: "submit" });
     return { token, shopId, staffId, recruitmentId };

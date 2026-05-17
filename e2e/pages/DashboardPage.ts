@@ -11,16 +11,23 @@ export class DashboardPage {
 
   async completeSetup(data: {
     shopName: string;
-    shiftStartTime: string;
-    shiftEndTime: string;
+    shiftStartTime?: string;
+    shiftEndTime?: string;
     managerName: string;
     managerEmail: string;
   }) {
     await this.page.getByRole("button", { name: /お店を登録する/ }).click({ noWaitAfter: true });
     await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
     await this.page.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
-    await this.selectTime("シフト開始時間", data.shiftStartTime);
-    await this.selectTime("シフト終了時間", data.shiftEndTime);
+    if (data.shiftStartTime !== undefined || data.shiftEndTime !== undefined) {
+      await this.page.getByRole("button", { name: /時間指定/ }).click();
+      if (data.shiftStartTime !== undefined) {
+        await this.selectTime("シフト開始時間", data.shiftStartTime);
+      }
+      if (data.shiftEndTime !== undefined) {
+        await this.selectTime("シフト終了時間", data.shiftEndTime);
+      }
+    }
     await this.page.getByRole("button", { name: "次へ" }).click();
 
     const managerDialog = this.page.getByRole("dialog", { name: "あなたの名前を登録" });
@@ -219,9 +226,11 @@ export class DashboardPage {
       await nameInput.fill(data.shopName);
     }
     if (data.shiftStartTime !== undefined) {
+      await this.page.getByRole("button", { name: /時間指定/ }).click();
       await this.selectTime("シフト開始時間", data.shiftStartTime);
     }
     if (data.shiftEndTime !== undefined) {
+      await this.page.getByRole("button", { name: /時間指定/ }).click();
       await this.selectTime("シフト終了時間", data.shiftEndTime);
     }
 

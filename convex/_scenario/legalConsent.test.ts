@@ -83,8 +83,7 @@ describe("法務同意シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await seedSession(ctx, {
         sessionToken: "scenario-submit-legal-session",

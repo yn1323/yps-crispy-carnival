@@ -5,7 +5,7 @@ import type { ComponentType } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuCalendarCheck, LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
-import type { RegularClosedDay } from "@/convex/shop/schemas";
+import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import { CalendarPicker } from "./CalendarPicker";
@@ -22,6 +22,7 @@ type Step = "period" | "holidays" | "deadline" | "confirm";
 type Props = {
   defaultValues?: CreateRecruitmentData;
   regularClosedDays?: RegularClosedDay[];
+  submissionPattern?: ShiftSubmissionPattern;
   onSubmit: (data: CreateRecruitmentData) => void;
   onCancel?: () => void;
 };
@@ -79,6 +80,21 @@ const getHolidaySummary = (holidays: string[]): { value: string; detail?: string
     value: `${sortedHolidays.length}日`,
     detail: hiddenCount > 0 ? `${visibleHolidays} ほか${hiddenCount}日` : visibleHolidays,
   };
+};
+
+const getSubmissionPatternSummary = (pattern: ShiftSubmissionPattern): { value: string; detail?: string } => {
+  if (pattern.kind === "dateOnly") {
+    return { value: "日ごと", detail: "出勤できる日だけ集めます" };
+  }
+  if (pattern.kind === "shiftType") {
+    const detail = pattern.options
+      .slice(0, 3)
+      .map((option) => `${option.name} ${option.startTime}〜${option.endTime}`)
+      .join(", ");
+    const hiddenCount = pattern.options.length - 3;
+    return { value: "勤務区分", detail: hiddenCount > 0 ? `${detail} ほか${hiddenCount}件` : detail };
+  }
+  return { value: "時間指定", detail: `${pattern.startTime}〜${pattern.endTime}の範囲で集めます` };
 };
 
 const isDeadlineInRange = (deadline: string, today: string, periodStart?: string): boolean => {
@@ -165,7 +181,13 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
   </Flex>
 );
 
-export const CreateRecruitmentForm = ({ defaultValues, regularClosedDays = [], onSubmit, onCancel }: Props) => {
+export const CreateRecruitmentForm = ({
+  defaultValues,
+  regularClosedDays = [],
+  submissionPattern = { kind: "dateOnly" },
+  onSubmit,
+  onCancel,
+}: Props) => {
   const today = dayjs().format("YYYY-MM-DD");
   const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
   const [currentStep, setCurrentStep] = useState<Step>("period");
@@ -216,6 +238,7 @@ export const CreateRecruitmentForm = ({ defaultValues, regularClosedDays = [], o
   const deadlineDesktopMonths = getCalendarMonthCount(today, deadlineMax);
   const holidayInitialFocus = toMonthStartDateValue(periodStart);
   const holidaySummary = getHolidaySummary(selectedHolidays);
+  const submissionPatternSummary = getSubmissionPatternSummary(submissionPattern);
 
   useEffect(() => {
     setSelectedHolidays((current) => {
@@ -423,9 +446,18 @@ export const CreateRecruitmentForm = ({ defaultValues, regularClosedDays = [], o
                   <Separator />
                   <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
                   <Separator />
+                  <SummaryLine
+                    label="提出方法"
+                    value={submissionPatternSummary.value}
+                    detail={submissionPatternSummary.detail}
+                  />
+                  <Separator />
                   <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
                 </Box>
               </Box>
+              <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
+                提出方法は募集作成時点の店舗設定で固定されます。
+              </Text>
             </Stack>
           )}
         </Box>

@@ -7,8 +7,7 @@ import { modules, schema } from "../_test/setup.test-helper";
 
 const setupArgs = {
   shopName: "テスト店舗",
-  shiftStartTime: "09:00",
-  shiftEndTime: "22:00",
+  submissionPattern: { kind: "dateOnly" as const },
   managerName: "山田 太郎",
   managerEmail: "yamada@example.com",
   acceptedLegal: true as const,
@@ -48,6 +47,7 @@ describe("setup/mutations", () => {
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("テスト店舗");
       expect(shop?.regularClosedDays).toEqual([]);
+      expect(shop?.submissionPattern).toEqual({ kind: "dateOnly" });
 
       const user = await t.run(async (ctx) =>
         ctx.db

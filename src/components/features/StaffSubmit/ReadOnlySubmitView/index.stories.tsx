@@ -1,22 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { previousWeeklyPattern, submitStoryBaseData } from "../storyData";
-import { SubmitFormView } from "./index";
+import { submitStoryBaseData, submittedRequests } from "../storyData";
+import { ReadOnlySubmitView } from "./index";
 
 const meta = {
-  title: "features/StaffSubmit/SubmitFormView",
-  component: SubmitFormView,
+  title: "features/StaffSubmit/ReadOnlySubmitView",
+  component: ReadOnlySubmitView,
   parameters: {
     layout: "fullscreen",
   },
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },
-} satisfies Meta<typeof SubmitFormView>;
+} satisfies Meta<typeof ReadOnlySubmitView>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-const noop = async () => {};
 
 const shiftTypePattern = {
   kind: "shiftType" as const,
@@ -26,25 +24,14 @@ const shiftTypePattern = {
   ],
 };
 
-export const PreviousPatternApplied: Story = {
+export const Time: Story = {
   args: {
     data: {
       ...submitStoryBaseData,
-      existingRequests: [
-        { date: "2026-04-07", startTime: "09:00", endTime: "17:00" },
-        { date: "2026-04-09", startTime: "10:00", endTime: "18:00" },
-        { date: "2026-04-11", startTime: "12:00", endTime: "21:00" },
-      ],
-      previousWeeklyPattern,
+      isBeforeDeadline: false,
+      hasSubmitted: true,
+      existingRequests: submittedRequests,
     },
-    onSubmit: noop,
-  },
-};
-
-export const LegalConsentRequired: Story = {
-  args: {
-    data: { ...submitStoryBaseData, legalConsentRequired: true },
-    onSubmit: noop,
   },
 };
 
@@ -54,9 +41,9 @@ export const DateOnly: Story = {
       ...submitStoryBaseData,
       submissionPattern: { kind: "dateOnly" },
       existingSelection: { kind: "dateOnly", workingDates: ["2026-04-07", "2026-04-09"] },
-      shopClosedDates: ["2026-04-10"],
+      isBeforeDeadline: false,
+      hasSubmitted: true,
     },
-    onSubmit: noop,
   },
 };
 
@@ -72,8 +59,8 @@ export const ShiftType: Story = {
           { date: "2026-04-09", optionId: "late" },
         ],
       },
-      shopClosedDates: ["2026-04-10"],
+      isBeforeDeadline: false,
+      hasSubmitted: true,
     },
-    onSubmit: noop,
   },
 };

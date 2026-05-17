@@ -11,6 +11,17 @@ export type PreviousWeeklyPattern = {
   }>;
 };
 
+export type PreviousDateOnlyPattern = {
+  sourceWeekStart: string;
+  weekdays: number[];
+};
+
+type ShiftTypeOptionLike = {
+  id: string;
+  startTime: string;
+  endTime: string;
+};
+
 type TimeRange = {
   startTime: string;
   endTime: string;
@@ -47,4 +58,47 @@ export function buildEntriesFromPreviousWeeklyPattern(
     const previousEntry = buildWorkingEntryFromPreviousWeeklyPattern(date, pattern, timeRange);
     return previousEntry ?? { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
   });
+}
+
+export function buildEntriesFromPreviousWeeklyPatternForShiftTypes(
+  dates: string[],
+  pattern: PreviousWeeklyPattern,
+  timeRange: TimeRange,
+  options: ShiftTypeOptionLike[],
+): DayEntry[] {
+  const optionByTime = new Map(options.map((option) => [`${option.startTime}-${option.endTime}`, option]));
+
+  return dates.map((date) => {
+    const patternDay = pattern.days.find((day) => day.weekday === getDayOfWeek(date));
+    if (!patternDay) {
+      return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
+    }
+
+    const option = optionByTime.get(`${patternDay.startTime}-${patternDay.endTime}`);
+    if (!option) {
+      return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
+    }
+
+    return {
+      date,
+      isWorking: true,
+      startTime: option.startTime,
+      endTime: option.endTime,
+      optionId: option.id,
+    };
+  });
+}
+
+export function buildEntriesFromPreviousDateOnlyPattern(
+  dates: string[],
+  pattern: PreviousDateOnlyPattern,
+  timeRange: TimeRange,
+): DayEntry[] {
+  const weekdaySet = new Set(pattern.weekdays);
+
+  return dates.map((date) =>
+    weekdaySet.has(getDayOfWeek(date))
+      ? { date, isWorking: true, startTime: timeRange.startTime, endTime: timeRange.endTime }
+      : { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime },
+  );
 }

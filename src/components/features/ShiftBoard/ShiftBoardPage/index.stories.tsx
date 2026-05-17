@@ -63,6 +63,7 @@ const mockData: ShiftBoardData = {
     { staffId: "s10" as Id<"staffs">, date: "2026-01-24", startTime: "11:00", endTime: "18:00" },
     { staffId: "s10" as Id<"staffs">, date: "2026-01-26", startTime: "11:00", endTime: "18:00" },
   ],
+  requestedDates: [],
   shiftAssignments: [],
   positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#3b82f6", isDefault: true }],
   timeRange: { start: 9, end: 22, unit: 30 },

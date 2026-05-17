@@ -25,8 +25,7 @@ describe("notification/queries", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const positionId = await ctx.db.insert("positions", {
           shopId,
@@ -81,8 +80,7 @@ describe("notification/queries", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const positionId = await ctx.db.insert("positions", {
           shopId,

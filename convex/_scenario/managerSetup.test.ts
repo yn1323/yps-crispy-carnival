@@ -25,8 +25,7 @@ describe("管理者セットアップシナリオ", () => {
     // Arrange / Act: 初回ユーザーがセットアップ画面から店舗とmanager情報を登録する。
     const shopId = await asManager.setupShopAndManager({
       shopName: "初回セットアップ店舗",
-      shiftStartTime: "09:30",
-      shiftEndTime: "22:30",
+      submissionPattern: { kind: "dateOnly" },
       managerName: "山田 太郎",
       managerEmail: "manager@example.com",
       acceptedLegal: true,
@@ -42,9 +41,8 @@ describe("管理者セットアップシナリオ", () => {
     expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
     expect(shop).toEqual({
       name: "初回セットアップ店舗",
-      shiftStartTime: "09:30",
-      shiftEndTime: "22:30",
       regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" },
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

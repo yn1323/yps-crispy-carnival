@@ -10,7 +10,7 @@ import {
   LuSparkles,
   LuUsers,
 } from "react-icons/lu";
-import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
@@ -20,8 +20,7 @@ import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {
   name: string;
-  shiftStartTime: string;
-  shiftEndTime: string;
+  submissionPattern: ShiftSubmissionPattern;
 };
 
 type Props = {
@@ -34,6 +33,12 @@ type Props = {
   onApproveStaffRequest?: (request: StaffRegistrationRequest) => void;
   onRejectStaffRequest?: (request: StaffRegistrationRequest) => void;
   hideActionSection?: boolean;
+};
+
+const formatSubmissionPatternSummary = (pattern: ShiftSubmissionPattern): string => {
+  if (pattern.kind === "dateOnly") return "日ごと";
+  if (pattern.kind === "time") return `時間指定 ${pattern.startTime}〜${pattern.endTime}`;
+  return `勤務区分 ${pattern.options.length}件`;
 };
 
 export const HeroSummary = ({
@@ -64,10 +69,10 @@ export const HeroSummary = ({
 
             <HStack display={{ base: "none", md: "flex" }} gap={2.5} color="fg.muted" flexShrink={0}>
               <Text fontSize="sm" fontWeight="medium" whiteSpace="nowrap">
-                営業時間
+                提出方法
               </Text>
               <Text fontSize={{ base: "md", lg: "lg" }} whiteSpace="nowrap">
-                {formatShiftTimeRange(shop.shiftStartTime, shop.shiftEndTime)}
+                {formatSubmissionPatternSummary(shop.submissionPattern)}
               </Text>
             </HStack>
           </HStack>
@@ -132,7 +137,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
           お店の情報を登録しましょう
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          お店の名前とシフト時間を入れるだけで始められます。
+          お店の名前とシフト希望の集め方を決めるだけで始められます。
         </Text>
       </Stack>
       <Flex>

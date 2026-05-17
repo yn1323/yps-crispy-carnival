@@ -11,9 +11,8 @@ const meta = {
   args: {
     defaultValues: {
       shopName: "居酒屋たなか",
-      shiftStartTime: "14:00",
-      shiftEndTime: "25:00",
       regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" },
     },
     onSubmit: () => {},
   },
@@ -36,9 +35,8 @@ export const InDialog: Story = {
       <EditShopForm
         defaultValues={{
           shopName: "居酒屋たなか",
-          shiftStartTime: "14:00",
-          shiftEndTime: "25:00",
           regularClosedDays: [],
+          submissionPattern: { kind: "time", startTime: "14:00", endTime: "25:00" },
         }}
         onSubmit={() => {}}
       />
@@ -51,9 +49,14 @@ export const WithRegularClosedDays: Story = {
   args: {
     defaultValues: {
       shopName: "居酒屋たなか",
-      shiftStartTime: "14:00",
-      shiftEndTime: "25:00",
       regularClosedDays: ["mon", "tue"],
+      submissionPattern: {
+        kind: "shiftType",
+        options: [
+          { id: "morning", name: "早番", startTime: "14:00", endTime: "18:00", sortOrder: 0 },
+          { id: "late", name: "遅番", startTime: "18:00", endTime: "25:00", sortOrder: 1 },
+        ],
+      },
     },
   },
 };

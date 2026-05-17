@@ -11,6 +11,11 @@ export type PreviousWeeklyPattern = {
   }>;
 };
 
+export type PreviousDateOnlyPattern = {
+  sourceWeekStart: string;
+  weekdays: number[];
+};
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function dateToUtcMs(date: string): number {
@@ -89,4 +94,35 @@ export async function getPreviousWeeklyPattern(
 
   const days = Array.from(daysByWeekday.values()).sort((a, b) => a.weekday - b.weekday);
   return days.length > 0 ? { sourceWeekStart, days } : null;
+}
+
+export async function getPreviousDateOnlyPattern(
+  ctx: Pick<QueryCtx, "db">,
+  args: {
+    staffId: Id<"staffs">;
+    beforeDate: string;
+  },
+): Promise<PreviousDateOnlyPattern | null> {
+  const latestPastDate = await ctx.db
+    .query("shiftSubmissionDates")
+    .withIndex("by_staffId_date", (q) => q.eq("staffId", args.staffId).lt("date", args.beforeDate))
+    .order("desc")
+    .first();
+
+  if (!latestPastDate) return null;
+
+  const sourceWeekStart = getMondayWeekStart(latestPastDate.date);
+  const sourceWeekEnd = addDays(sourceWeekStart, 6);
+  const dates = await ctx.db
+    .query("shiftSubmissionDates")
+    .withIndex("by_staffId_date", (q) =>
+      q.eq("staffId", args.staffId).gte("date", sourceWeekStart).lte("date", sourceWeekEnd),
+    )
+    .take(32);
+
+  const weekdays = [
+    ...new Set(dates.filter((entry) => entry.date < args.beforeDate).map((entry) => getWeekday(entry.date))),
+  ].sort((a, b) => a - b);
+
+  return weekdays.length > 0 ? { sourceWeekStart, weekdays } : null;
 }

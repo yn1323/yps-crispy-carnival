@@ -1,14 +1,14 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { authenticatedMutation } from "../_lib/functions";
+import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { recordUserLegalConsent } from "../legal/service";
 import { ensureDefaultPosition } from "../position/service";
 
 export const setupShopAndManager = authenticatedMutation({
   args: {
     shopName: v.string(),
-    shiftStartTime: v.string(),
-    shiftEndTime: v.string(),
+    submissionPattern: submissionPatternValidator,
     managerName: v.string(),
     managerEmail: v.string(),
     acceptedLegal: v.literal(true),
@@ -26,11 +26,11 @@ export const setupShopAndManager = authenticatedMutation({
       throw new ConvexError("既に店舗が登録されています");
     }
 
+    const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
     const shopId = await ctx.db.insert("shops", {
       name: args.shopName,
-      shiftStartTime: args.shiftStartTime,
-      shiftEndTime: args.shiftEndTime,
       regularClosedDays: [],
+      submissionPattern,
       isDeleted: false,
     });
 

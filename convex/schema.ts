@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
+import { submissionPatternValidator } from "./_lib/submissionPattern";
 
 const schema = defineSchema({
   ...rateLimitTables,
@@ -9,8 +10,9 @@ const schema = defineSchema({
   // ========================================
   shops: defineTable({
     name: v.string(),
-    shiftStartTime: v.string(), // "14:00"
-    shiftEndTime: v.string(), // "25:00" = 翌1:00
+    // submissionPattern 移行前の店舗時間帯。全環境で移行完了するまで optional で受ける。
+    shiftStartTime: v.optional(v.string()),
+    shiftEndTime: v.optional(v.string()),
     regularClosedDays: v.array(
       v.union(
         v.literal("sun"),
@@ -22,6 +24,7 @@ const schema = defineSchema({
         v.literal("sat"),
       ),
     ),
+    submissionPattern: v.optional(submissionPatternValidator),
     isDeleted: v.boolean(),
   }),
 
@@ -136,9 +139,10 @@ const schema = defineSchema({
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),
-    // 募集作成時点の店舗シフト時間帯スナップショット
-    shiftStartTime: v.string(), // "14:00"
-    shiftEndTime: v.string(), // "25:00" = 翌1:00
+    // submissionPattern 移行前の募集作成時点スナップショット。全環境で移行完了するまで optional で受ける。
+    shiftStartTime: v.optional(v.string()),
+    shiftEndTime: v.optional(v.string()),
+    submissionPattern: v.optional(submissionPatternValidator),
     // 未提出者への催促メール最終送信時刻（24時間クールダウン判定用）
     lastReminderSentAt: v.optional(v.number()),
     // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
@@ -155,6 +159,18 @@ const schema = defineSchema({
     date: v.string(), // "2026-01-20"
     startTime: v.string(), // "10:00"
     endTime: v.string(), // "18:00"
+  })
+    .index("by_submissionId", ["submissionId"])
+    .index("by_recruitmentId", ["recruitmentId"])
+    .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
+    .index("by_staffId", ["staffId"])
+    .index("by_staffId_date", ["staffId", "date"]),
+
+  shiftSubmissionDates: defineTable({
+    submissionId: v.id("shiftSubmissions"),
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    date: v.string(), // "2026-01-20"
   })
     .index("by_submissionId", ["submissionId"])
     .index("by_recruitmentId", ["recruitmentId"])

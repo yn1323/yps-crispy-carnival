@@ -10,6 +10,7 @@ export type DayEntry = {
   isWorking: boolean;
   startTime: string;
   endTime: string;
+  optionId?: string;
 };
 
 type Props = {

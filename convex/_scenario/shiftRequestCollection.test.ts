@@ -171,8 +171,7 @@ describe("シフト希望回収シナリオ", () => {
     const recruitmentId = await asManager.createRecruitment(recruitmentInput);
     await asManager.updateShopSettings({
       shopName: "時間変更店舗",
-      shiftStartTime: "12:00",
-      shiftEndTime: "20:00",
+      submissionPattern: { kind: "time", startTime: "12:00", endTime: "20:00" },
       regularClosedDays: [],
     });
     await t.run(async (ctx) => {
@@ -203,6 +202,169 @@ describe("シフト希望回収シナリオ", () => {
     const board = await asManager.getShiftBoardData(recruitmentId);
     expect(board?.timeRange.editableStartMinutes).toBe(540);
     expect(board?.timeRange.editableEndMinutes).toBe(1320);
+  });
+
+  it("日ごと提出は開始終了時刻なしで提出済み集計とシフト表データまで通る", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const staff = scenario.staff();
+
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manager-date-only@example.com",
+        shopName: "日ごと提出店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        name: "日ごと提出スタッフ",
+        email: "date-only-staff@example.com",
+      });
+      return { shopId: seeded.shopId, staffId };
+    });
+    await asManager.updateShopSettings({
+      shopName: "日ごと提出店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" },
+    });
+    const recruitmentInput = {
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    };
+    const recruitmentId = await asManager.createRecruitment(recruitmentInput);
+    await t.run(async (ctx) => {
+      await seedSession(ctx, {
+        sessionToken: "scenario-date-only-session",
+        staffId,
+        shopId,
+        recruitmentId,
+      });
+    });
+
+    const submissionPage = await staff.getSubmissionPageData({
+      sessionToken: "scenario-date-only-session",
+      recruitmentId,
+    });
+    expect(submissionPage?.submissionPattern).toEqual({ kind: "dateOnly" });
+
+    await staff.submitShiftRequests({
+      sessionToken: "scenario-date-only-session",
+      recruitmentId,
+      acceptedLegal: true,
+      submission: {
+        kind: "dateOnly",
+        workingDates: [recruitmentInput.periodStart, addDays(recruitmentInput.periodStart, 2)],
+      },
+    });
+
+    const [recruitmentsAfterSubmit, board, storage] = await Promise.all([
+      asManager.getDashboardRecruitments(),
+      asManager.getShiftBoardData(recruitmentId),
+      t.run(async (ctx) => {
+        const slots = await ctx.db
+          .query("shiftSubmissionSlots")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect();
+        const dates = await ctx.db
+          .query("shiftSubmissionDates")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect();
+        return { slots, dates };
+      }),
+    ]);
+
+    expect(recruitmentsAfterSubmit.page[0].responseCount).toBe(1);
+    expect(storage.slots).toHaveLength(0);
+    expect(storage.dates.map((entry) => entry.date)).toEqual([
+      recruitmentInput.periodStart,
+      addDays(recruitmentInput.periodStart, 2),
+    ]);
+    expect(board?.requestedSlots).toEqual([]);
+    expect(board?.requestedDates).toEqual([
+      { staffId, date: recruitmentInput.periodStart },
+      { staffId, date: addDays(recruitmentInput.periodStart, 2) },
+    ]);
+  });
+
+  it("募集作成時の提出方法スナップショットで勤務区分提出を時間枠化できる", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const staff = scenario.staff();
+
+    // Arrange: 勤務区分の店舗設定で募集を作成し、その後に店舗設定を日付のみへ変える。
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manager-pattern-snapshot@example.com",
+        shopName: "提出方法スナップショット店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        name: "区分提出スタッフ",
+        email: "pattern-staff@example.com",
+      });
+      return { shopId: seeded.shopId, staffId };
+    });
+    await asManager.updateShopSettings({
+      shopName: "提出方法スナップショット店舗",
+      regularClosedDays: [],
+      submissionPattern: {
+        kind: "shiftType",
+        options: [
+          { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+          { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+        ],
+      },
+    });
+    const recruitmentInput = {
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    };
+    const recruitmentId = await asManager.createRecruitment(recruitmentInput);
+    await asManager.updateShopSettings({
+      shopName: "提出方法スナップショット店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" },
+    });
+    await t.run(async (ctx) => {
+      await seedSession(ctx, {
+        sessionToken: "scenario-pattern-snapshot-session",
+        staffId,
+        shopId,
+        recruitmentId,
+      });
+    });
+
+    // Assert: 提出ページは募集作成時点の勤務区分設定を保持する。
+    const submissionPage = await staff.getSubmissionPageData({
+      sessionToken: "scenario-pattern-snapshot-session",
+      recruitmentId,
+    });
+    expect(submissionPage?.submissionPattern).toEqual({
+      kind: "shiftType",
+      options: [
+        { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+        { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+      ],
+    });
+
+    // Act: 勤務区分IDで提出する。
+    await staff.submitShiftRequests({
+      sessionToken: "scenario-pattern-snapshot-session",
+      recruitmentId,
+      acceptedLegal: true,
+      submission: { kind: "shiftType", selections: [{ date: recruitmentInput.periodStart, optionId: "late" }] },
+    });
+
+    // Assert: シフト表では勤務区分が時間枠として扱われる。
+    const board = await asManager.getShiftBoardData(recruitmentId);
+    expect(board?.requestedSlots).toEqual([
+      { staffId, date: recruitmentInput.periodStart, startTime: "15:00", endTime: "22:00" },
+    ]);
   });
 
   it("提出リンクは締切後も確定までは閲覧でき、提出操作だけ締切で止まる", async () => {

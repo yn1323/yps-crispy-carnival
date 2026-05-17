@@ -1,10 +1,19 @@
-import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Flex, HStack, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Button } from "@/src/components/ui/Button";
+import { LuPlus, LuTrash2 } from "react-icons/lu";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
-import { type EditShopFormData, editShopSchema, minutesToTime, type RegularClosedDay, timeToMinutes } from "./index";
+import {
+  type EditShopFormData,
+  editShopSchema,
+  minutesToTime,
+  type RegularClosedDay,
+  type ShiftSubmissionPattern,
+  type ShiftTypeOption,
+  timeToMinutes,
+} from "./index";
 
 type Props = {
   defaultValues: EditShopFormData;
@@ -45,6 +54,33 @@ function generateTimeOptions(maxMinutes: number): { value: string; label: string
 const ALL_START_OPTIONS = generateTimeOptions(23 * 60 + 30);
 const ALL_END_OPTIONS = generateTimeOptions(29 * 60);
 
+const SUBMISSION_PATTERN_OPTIONS: Array<{
+  kind: ShiftSubmissionPattern["kind"];
+  label: string;
+  description: string;
+}> = [
+  { kind: "time", label: "時間指定", description: "スタッフが日ごとに開始・終了時間を選びます。" },
+  { kind: "dateOnly", label: "日ごと", description: "出勤できる日だけ集め、店舗のシフト時間帯全体で扱います。" },
+  { kind: "shiftType", label: "勤務区分", description: "朝番・遅番など、決めた区分から選んでもらいます。" },
+];
+
+const DEFAULT_TIME_PATTERN: Extract<ShiftSubmissionPattern, { kind: "time" }> = {
+  kind: "time",
+  startTime: "09:00",
+  endTime: "22:00",
+};
+
+const createShiftTypeOption = (index: number): ShiftTypeOption => ({
+  id: `shift-type-${Date.now()}-${index}`,
+  name: "",
+  startTime: "09:00",
+  endTime: "18:00",
+  sortOrder: index,
+});
+
+const normalizeShiftTypeOptions = (options: ShiftTypeOption[]): ShiftTypeOption[] =>
+  options.map((option, index) => ({ ...option, sortOrder: index }));
+
 export const EditShopForm = ({ defaultValues, onSubmit }: Props) => {
   const [regularClosedDays, setRegularClosedDays] = useState<RegularClosedDay[]>(defaultValues.regularClosedDays);
   const {
@@ -58,20 +94,19 @@ export const EditShopForm = ({ defaultValues, onSubmit }: Props) => {
     defaultValues,
   });
 
-  const startTime = watch("shiftStartTime");
-  const endTime = watch("shiftEndTime");
+  const submissionPattern = watch("submissionPattern");
+  const timeStart = submissionPattern.kind === "time" ? submissionPattern.startTime : DEFAULT_TIME_PATTERN.startTime;
+  const timeEnd = submissionPattern.kind === "time" ? submissionPattern.endTime : DEFAULT_TIME_PATTERN.endTime;
 
-  const endTimeOptions = useMemo(() => {
-    if (!startTime) return ALL_END_OPTIONS;
-    const startMin = timeToMinutes(startTime);
+  const timeEndOptions = useMemo(() => {
+    const startMin = timeToMinutes(timeStart);
     return ALL_END_OPTIONS.filter((opt) => timeToMinutes(opt.value) > startMin);
-  }, [startTime]);
+  }, [timeStart]);
 
-  const startTimeOptions = useMemo(() => {
-    if (!endTime) return ALL_START_OPTIONS;
-    const endMin = timeToMinutes(endTime);
+  const timeStartOptions = useMemo(() => {
+    const endMin = timeToMinutes(timeEnd);
     return ALL_START_OPTIONS.filter((opt) => timeToMinutes(opt.value) < endMin);
-  }, [endTime]);
+  }, [timeEnd]);
 
   const toggleRegularClosedDay = (day: RegularClosedDay) => {
     setRegularClosedDays((current) => {
@@ -83,13 +118,78 @@ export const EditShopForm = ({ defaultValues, onSubmit }: Props) => {
   const selectedClosedDayLabels = WEEKDAYS.filter((day) => regularClosedDays.includes(day.value)).map(
     (day) => day.label,
   );
+  const shiftTypeOptions = submissionPattern.kind === "shiftType" ? submissionPattern.options : [];
+
+  const setSubmissionPattern = (next: ShiftSubmissionPattern) => {
+    setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleSubmissionPatternChange = (kind: ShiftSubmissionPattern["kind"]) => {
+    if (kind === "time") {
+      setSubmissionPattern(
+        submissionPattern.kind === "time"
+          ? submissionPattern
+          : { kind: "time", startTime: DEFAULT_TIME_PATTERN.startTime, endTime: DEFAULT_TIME_PATTERN.endTime },
+      );
+      return;
+    }
+    if (kind === "shiftType") {
+      setSubmissionPattern({
+        kind,
+        options:
+          submissionPattern.kind === "shiftType" && submissionPattern.options.length > 0
+            ? submissionPattern.options
+            : [createShiftTypeOption(0)],
+      });
+      return;
+    }
+    setSubmissionPattern({ kind: "dateOnly" });
+  };
+
+  const updateShiftTypeOption = (index: number, patch: Partial<ShiftTypeOption>) => {
+    if (submissionPattern.kind !== "shiftType") return;
+    setSubmissionPattern({
+      kind: "shiftType",
+      options: normalizeShiftTypeOptions(
+        submissionPattern.options.map((option, optionIndex) =>
+          optionIndex === index ? { ...option, ...patch } : option,
+        ),
+      ),
+    });
+  };
+
+  const addShiftTypeOption = () => {
+    if (submissionPattern.kind !== "shiftType") return;
+    setSubmissionPattern({
+      kind: "shiftType",
+      options: normalizeShiftTypeOptions([
+        ...submissionPattern.options,
+        createShiftTypeOption(submissionPattern.options.length),
+      ]),
+    });
+  };
+
+  const removeShiftTypeOption = (index: number) => {
+    if (submissionPattern.kind !== "shiftType") return;
+    setSubmissionPattern({
+      kind: "shiftType",
+      options: normalizeShiftTypeOptions(submissionPattern.options.filter((_, optionIndex) => optionIndex !== index)),
+    });
+  };
 
   return (
     <form
       id="edit-shop-form"
       noValidate
       onSubmit={handleSubmit((data) =>
-        onSubmit({ ...data, regularClosedDays: sortRegularClosedDays(regularClosedDays) }),
+        onSubmit({
+          ...data,
+          regularClosedDays: sortRegularClosedDays(regularClosedDays),
+          submissionPattern:
+            data.submissionPattern.kind === "shiftType"
+              ? { kind: "shiftType", options: normalizeShiftTypeOptions(data.submissionPattern.options) }
+              : data.submissionPattern,
+        }),
       )}
     >
       <Stack gap={5}>
@@ -99,33 +199,145 @@ export const EditShopForm = ({ defaultValues, onSubmit }: Props) => {
           {errors.shopName && <Field.ErrorText>{errors.shopName.message}</Field.ErrorText>}
         </Field.Root>
         <Stack gap={3}>
-          <Stack direction={{ base: "column", lg: "row" }} gap={3}>
-            <Field.Root invalid={!!errors.shiftStartTime}>
-              <Select
-                label="シフト開始時間"
-                items={startTimeOptions}
-                value={startTime}
-                onChange={(value) => setValue("shiftStartTime", value, { shouldValidate: true })}
-                placeholder="選択してください"
-                usePortal={false}
-              />
-              {errors.shiftStartTime && <Field.ErrorText>{errors.shiftStartTime.message}</Field.ErrorText>}
-            </Field.Root>
-            <Field.Root invalid={!!errors.shiftEndTime}>
-              <Select
-                label="シフト終了時間"
-                items={endTimeOptions}
-                value={endTime}
-                onChange={(value) => setValue("shiftEndTime", value, { shouldValidate: true })}
-                placeholder="選択してください"
-                usePortal={false}
-              />
-              {errors.shiftEndTime && <Field.ErrorText>{errors.shiftEndTime.message}</Field.ErrorText>}
-            </Field.Root>
+          <Box>
+            <Text fontSize="sm" fontWeight="medium" color="fg.default">
+              希望シフトの提出方法
+            </Text>
+            <Text mt={1} fontSize="xs" color="fg.muted" lineHeight="tall">
+              次に作成する募集から、この方法でスタッフに希望を出してもらいます。
+            </Text>
+          </Box>
+          <Stack gap={2}>
+            {SUBMISSION_PATTERN_OPTIONS.map((option) => {
+              const isSelected = submissionPattern.kind === option.kind;
+              return (
+                <Button
+                  key={option.kind}
+                  type="button"
+                  h="auto"
+                  justifyContent="flex-start"
+                  textAlign="left"
+                  variant="outline"
+                  borderColor={isSelected ? "teal.500" : "border.default"}
+                  bg={isSelected ? "teal.50" : "white"}
+                  color="fg.default"
+                  px={4}
+                  py={3}
+                  onClick={() => handleSubmissionPatternChange(option.kind)}
+                  _hover={{ bg: isSelected ? "teal.50" : "gray.50" }}
+                >
+                  <Stack gap={1} align="flex-start">
+                    <Text fontSize="sm" fontWeight="semibold">
+                      {option.label}
+                    </Text>
+                    <Text fontSize="xs" color="fg.muted" whiteSpace="normal" lineHeight="tall">
+                      {option.description}
+                    </Text>
+                  </Stack>
+                </Button>
+              );
+            })}
           </Stack>
-          <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-            仕込みや片付けも含めて、スタッフが働く可能性のある時間を選んでください。あとから変更できます。
-          </Text>
+
+          {submissionPattern.kind === "time" && (
+            <Stack direction={{ base: "column", lg: "row" }} gap={3}>
+              <Field.Root invalid={!!errors.submissionPattern}>
+                <Select
+                  label="シフト開始時間"
+                  items={timeStartOptions}
+                  value={submissionPattern.startTime}
+                  onChange={(value) =>
+                    setSubmissionPattern({ ...submissionPattern, startTime: value || DEFAULT_TIME_PATTERN.startTime })
+                  }
+                  placeholder="選択してください"
+                  usePortal={false}
+                />
+              </Field.Root>
+              <Field.Root invalid={!!errors.submissionPattern}>
+                <Select
+                  label="シフト終了時間"
+                  items={timeEndOptions}
+                  value={submissionPattern.endTime}
+                  onChange={(value) =>
+                    setSubmissionPattern({ ...submissionPattern, endTime: value || DEFAULT_TIME_PATTERN.endTime })
+                  }
+                  placeholder="選択してください"
+                  usePortal={false}
+                />
+              </Field.Root>
+            </Stack>
+          )}
+
+          {submissionPattern.kind === "shiftType" && (
+            <Stack gap={3} p={3} borderWidth={1} borderColor="border.default" borderRadius="md" bg="gray.50">
+              {shiftTypeOptions.length === 0 ? (
+                <Text fontSize="xs" color="fg.muted">
+                  勤務区分を追加してください。
+                </Text>
+              ) : (
+                <Stack gap={3}>
+                  {shiftTypeOptions.map((option, index) => {
+                    const optionEndOptions = ALL_END_OPTIONS.filter(
+                      (item) => timeToMinutes(item.value) > timeToMinutes(option.startTime),
+                    );
+                    const optionStartOptions = ALL_START_OPTIONS.filter(
+                      (item) => timeToMinutes(item.value) < timeToMinutes(option.endTime),
+                    );
+                    return (
+                      <SimpleGrid key={option.id} columns={{ base: 1, md: 4 }} gap={2} alignItems="end">
+                        <Field.Root>
+                          <Field.Label>区分名</Field.Label>
+                          <Input
+                            value={option.name}
+                            placeholder="例: 早番"
+                            bg="white"
+                            onChange={(event) => updateShiftTypeOption(index, { name: event.target.value })}
+                          />
+                        </Field.Root>
+                        <Select
+                          label="開始"
+                          items={optionStartOptions}
+                          value={option.startTime}
+                          onChange={(value) => updateShiftTypeOption(index, { startTime: value })}
+                          placeholder="開始"
+                          usePortal={false}
+                        />
+                        <Select
+                          label="終了"
+                          items={optionEndOptions}
+                          value={option.endTime}
+                          onChange={(value) => updateShiftTypeOption(index, { endTime: value })}
+                          placeholder="終了"
+                          usePortal={false}
+                        />
+                        <HStack justify={{ base: "flex-end", md: "center" }}>
+                          <IconButton
+                            type="button"
+                            aria-label={`${option.name || "勤務区分"}を削除`}
+                            variant="outline"
+                            colorPalette="gray"
+                            bg="white"
+                            onClick={() => removeShiftTypeOption(index)}
+                          >
+                            <LuTrash2 />
+                          </IconButton>
+                        </HStack>
+                      </SimpleGrid>
+                    );
+                  })}
+                </Stack>
+              )}
+              <Button type="button" variant="outline" bg="white" alignSelf="flex-start" onClick={addShiftTypeOption}>
+                <LuPlus />
+                勤務区分を追加
+              </Button>
+            </Stack>
+          )}
+          {errors.submissionPattern && (
+            <Text fontSize="xs" color="red.600">
+              勤務区分の入力内容を確認してください。
+            </Text>
+          )}
         </Stack>
         <Stack gap={3}>
           <Box>

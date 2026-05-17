@@ -22,6 +22,7 @@ import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
+import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
 import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
 import type * as _lib_validation from "../_lib/validation.js";
@@ -46,6 +47,8 @@ import type * as line_service from "../line/service.js";
 import type * as line_webhook from "../line/webhook.js";
 import type * as migrations_index from "../migrations/index.js";
 import type * as migrations_m001_recruitments_add_shift_times from "../migrations/m001_recruitments_add_shift_times.js";
+import type * as migrations_m002_shops_add_submission_pattern from "../migrations/m002_shops_add_submission_pattern.js";
+import type * as migrations_m003_recruitments_add_submission_pattern from "../migrations/m003_recruitments_add_submission_pattern.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_mutations from "../notification/mutations.js";
 import type * as notification_queries from "../notification/queries.js";
@@ -97,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
   "_lib/staffAccess": typeof _lib_staffAccess;
+  "_lib/submissionPattern": typeof _lib_submissionPattern;
   "_lib/time": typeof _lib_time;
   "_lib/uuid": typeof _lib_uuid;
   "_lib/validation": typeof _lib_validation;
@@ -121,6 +125,8 @@ declare const fullApi: ApiFromModules<{
   "line/webhook": typeof line_webhook;
   "migrations/index": typeof migrations_index;
   "migrations/m001_recruitments_add_shift_times": typeof migrations_m001_recruitments_add_shift_times;
+  "migrations/m002_shops_add_submission_pattern": typeof migrations_m002_shops_add_submission_pattern;
+  "migrations/m003_recruitments_add_submission_pattern": typeof migrations_m003_recruitments_add_submission_pattern;
   "notification/actions": typeof notification_actions;
   "notification/mutations": typeof notification_mutations;
   "notification/queries": typeof notification_queries;

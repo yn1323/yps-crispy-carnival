@@ -23,8 +23,7 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { shopClose
       shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
     const staffId1 = await ctx.db.insert("staffs", {
       shopId,
@@ -104,8 +103,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
-          shiftStartTime: "05:30",
-          shiftEndTime: "22:30",
+          submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
         });
       });
       const asManager = t.withIdentity({ subject: "user_manager" });
@@ -312,8 +310,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
-          shiftStartTime: "05:30",
-          shiftEndTime: "22:30",
+          submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
         });
       });
 
@@ -330,8 +327,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
-          shiftStartTime: "05:30",
-          shiftEndTime: "22:30",
+          submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
         });
       });
 

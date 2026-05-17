@@ -43,9 +43,8 @@ const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
 type Props = {
   shop: {
     name: string;
-    shiftStartTime: string;
-    shiftEndTime: string;
     regularClosedDays: EditShopFormData["regularClosedDays"];
+    submissionPattern: EditShopFormData["submissionPattern"];
   } | null;
   managerProfileDefaults?: {
     name: string;
@@ -168,8 +167,7 @@ export const DashboardContent = ({
     try {
       await setupShopAndManager({
         shopName: data.shopName,
-        shiftStartTime: data.shiftStartTime,
-        shiftEndTime: data.shiftEndTime,
+        submissionPattern: data.submissionPattern,
         managerName: data.name,
         managerEmail: data.email,
         acceptedLegal: data.acceptedLegal as true,
@@ -434,6 +432,7 @@ export const DashboardContent = ({
       >
         <CreateRecruitmentForm
           regularClosedDays={shop?.regularClosedDays ?? []}
+          submissionPattern={shop?.submissionPattern ?? { kind: "dateOnly" }}
           onSubmit={handleCreateRecruitment}
           onCancel={recruitmentModal.close}
         />
@@ -519,9 +518,8 @@ export const DashboardContent = ({
           <EditShopForm
             defaultValues={{
               shopName: shop.name,
-              shiftStartTime: shop.shiftStartTime,
-              shiftEndTime: shop.shiftEndTime,
               regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
             }}
             onSubmit={handleUpdateShop}
           />

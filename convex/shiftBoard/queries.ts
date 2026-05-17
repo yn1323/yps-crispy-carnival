@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
+import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
@@ -7,6 +8,18 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
+
+function getBoardTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
+  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
+  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
+    const starts = pattern.options
+      .map((option) => option.startTime)
+      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    return { startTime: starts[0], endTime: ends[ends.length - 1] };
+  }
+  return { startTime: "09:00", endTime: "22:00" };
+}
 
 export const getShiftBoardData = managerQuery({
   args: {
@@ -21,13 +34,17 @@ export const getShiftBoardData = managerQuery({
       return null;
     }
 
-    const [allStaffs, shiftSlots, shiftAssignments, positions] = await Promise.all([
+    const [allStaffs, shiftSlots, requestedDates, shiftAssignments, positions] = await Promise.all([
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
         .take(SHIFT_BOARD_STAFF_LIMIT),
       ctx.db
         .query("shiftSubmissionSlots")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
+        .take(SHIFT_BOARD_SHIFT_REQUEST_LIMIT),
+      ctx.db
+        .query("shiftSubmissionDates")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
         .take(SHIFT_BOARD_SHIFT_REQUEST_LIMIT),
       ctx.db
@@ -52,8 +69,11 @@ export const getShiftBoardData = managerQuery({
       (shiftAssignments.length > 0 ? Math.max(...shiftAssignments.map((a) => a._creationTime)) : null);
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
-    const startTimeStr = recruitment.shiftStartTime;
-    const endTimeStr = recruitment.shiftEndTime;
+    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
+      startTime: recruitment.shiftStartTime,
+      endTime: recruitment.shiftEndTime,
+    });
+    const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
     const startHour = Math.floor(editableStartMinutes / 60);
@@ -92,6 +112,10 @@ export const getShiftBoardData = managerQuery({
         date: r.date,
         startTime: r.startTime,
         endTime: r.endTime,
+      })),
+      requestedDates: requestedDates.map((r) => ({
+        staffId: r.staffId,
+        date: r.date,
       })),
       shiftAssignments: shiftAssignments.map((a) => ({
         staffId: a.staffId,
