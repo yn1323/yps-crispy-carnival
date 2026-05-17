@@ -274,6 +274,7 @@ describe("shiftSubmission/mutations", () => {
           kind: "shiftType",
           selections: [
             { date: "2026-04-07", optionId: "morning" },
+            { date: "2026-04-07", optionId: "late" },
             { date: "2026-04-09", optionId: "late" },
           ],
         },
@@ -288,8 +289,34 @@ describe("shiftSubmission/mutations", () => {
 
       expect(slots.map(({ date, startTime, endTime, optionId }) => ({ date, startTime, endTime, optionId }))).toEqual([
         { date: "2026-04-07", startTime: "09:00", endTime: "15:00", optionId: "morning" },
+        { date: "2026-04-07", startTime: "15:00", endTime: "22:00", optionId: "late" },
         { date: "2026-04-09", startTime: "15:00", endTime: "22:00", optionId: "late" },
       ]);
+    });
+
+    it("勤務区分提出で同じ日の同じ区分は重複して提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+        },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: {
+            kind: "shiftType",
+            selections: [
+              { date: "2026-04-07", optionId: "morning" },
+              { date: "2026-04-07", optionId: "morning" },
+            ],
+          },
+        }),
+      ).rejects.toThrow("同じ日の勤務区分が重複しています");
     });
 
     it("存在しない勤務区分IDはエラー", async () => {

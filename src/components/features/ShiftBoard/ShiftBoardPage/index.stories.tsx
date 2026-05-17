@@ -29,7 +29,8 @@ const mockData: ShiftBoardData = {
     { _id: "s10" as Id<"staffs">, name: "加藤美穂", isSubmitted: true, wasSubmittedAtDraft: false },
   ],
   requestedSlots: [
-    { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
+    { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "09:00", endTime: "14:00" },
+    { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "15:00", endTime: "21:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-21", startTime: "10:00", endTime: "18:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-22", startTime: "10:00", endTime: "18:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-23", startTime: "10:00", endTime: "14:00" },

@@ -2,11 +2,11 @@ import { Box, Checkbox, Flex, HStack, Icon, Stack, Text, VStack } from "@chakra-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { LuPointer, LuRefreshCw } from "react-icons/lu";
+import { LuPointer, LuRefreshCw, LuX } from "react-icons/lu";
 import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
-import { Button } from "@/src/components/ui/Button";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
@@ -84,18 +84,22 @@ const buildInitialEntries = (dates: string[], data: SubmissionData, shopClosedDa
   }
 
   if (data.submissionPattern.kind === "shiftType" && data.existingSelection.kind === "shiftType") {
-    const selectionMap = new Map(data.existingSelection.selections.map((selection) => [selection.date, selection]));
+    const selectionsByDate = new Map<string, string[]>();
+    for (const selection of data.existingSelection.selections) {
+      selectionsByDate.set(selection.date, [...(selectionsByDate.get(selection.date) ?? []), selection.optionId]);
+    }
     const optionMap = new Map(data.submissionPattern.options.map((option) => [option.id, option]));
     return dates.map((date) => {
-      const selection = selectionMap.get(date);
-      const option = selection ? optionMap.get(selection.optionId) : undefined;
-      const entry = option
+      const optionIds = (selectionsByDate.get(date) ?? []).filter((optionId) => optionMap.has(optionId));
+      const firstOption = optionIds.length > 0 ? optionMap.get(optionIds[0]) : undefined;
+      const entry = firstOption
         ? {
             date,
             isWorking: true,
-            startTime: option.startTime,
-            endTime: option.endTime,
-            optionId: option.id,
+            startTime: firstOption.startTime,
+            endTime: firstOption.endTime,
+            optionId: firstOption.id,
+            optionIds,
           }
         : { date, isWorking: false, startTime: data.timeRange.startTime, endTime: data.timeRange.endTime };
       return shopClosedDateSet.has(date) ? buildRestEntry(entry) : entry;
@@ -107,6 +111,11 @@ const buildInitialEntries = (dates: string[], data: SubmissionData, shopClosedDa
   );
 };
 
+const getSelectedShiftTypeOptionIds = (entry: DayEntry): string[] => {
+  if (entry.optionIds) return entry.optionIds;
+  return entry.optionId ? [entry.optionId] : [];
+};
+
 const buildSubmissionInput = (pattern: ShiftSubmissionPattern, entries: DayEntry[]): SubmitShiftSelectionInput => {
   if (pattern.kind === "dateOnly") {
     return { kind: "dateOnly", workingDates: entries.filter((entry) => entry.isWorking).map((entry) => entry.date) };
@@ -114,9 +123,11 @@ const buildSubmissionInput = (pattern: ShiftSubmissionPattern, entries: DayEntry
   if (pattern.kind === "shiftType") {
     return {
       kind: "shiftType",
-      selections: entries
-        .filter((entry) => entry.isWorking && entry.optionId)
-        .map((entry) => ({ date: entry.date, optionId: entry.optionId as string })),
+      selections: entries.flatMap((entry) => {
+        const optionIds = getSelectedShiftTypeOptionIds(entry);
+        if (!entry.isWorking || optionIds.length === 0) return [];
+        return optionIds.map((optionId) => ({ date: entry.date, optionId }));
+      }),
     };
   }
   return {
@@ -186,6 +197,23 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const handleSetWorking = (index: number) => {
     const entry = entries[index];
     if (shopClosedDateSet.has(entry.date)) return;
+    if (data.submissionPattern.kind === "shiftType") {
+      const firstOption = data.submissionPattern.options[0];
+      if (!firstOption) return;
+      setValue(
+        `entries.${index}`,
+        {
+          date: entry.date,
+          isWorking: true,
+          startTime: firstOption.startTime,
+          endTime: firstOption.endTime,
+          optionId: firstOption.id,
+          optionIds: [firstOption.id],
+        },
+        { shouldDirty: true, shouldValidate: true },
+      );
+      return;
+    }
     if (data.submissionPattern.kind === "dateOnly") {
       setValue(
         `entries.${index}`,
@@ -232,14 +260,24 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
     if (shopClosedDateSet.has(entry.date)) return;
     const option = data.submissionPattern.options.find((item) => item.id === optionId);
     if (!option) return;
+    const selectedIds = getSelectedShiftTypeOptionIds(entry);
+    const nextOptionIds = selectedIds.includes(optionId)
+      ? selectedIds.filter((selectedId) => selectedId !== optionId)
+      : [...selectedIds, optionId];
+    if (nextOptionIds.length === 0) {
+      setValue(`entries.${index}`, buildRestEntry(entry), { shouldDirty: true, shouldValidate: true });
+      return;
+    }
+    const firstOption = data.submissionPattern.options.find((item) => item.id === nextOptionIds[0]) ?? option;
     setValue(
       `entries.${index}`,
       {
         date: entry.date,
         isWorking: true,
-        startTime: option.startTime,
-        endTime: option.endTime,
-        optionId: option.id,
+        startTime: firstOption.startTime,
+        endTime: firstOption.endTime,
+        optionId: firstOption.id,
+        optionIds: nextOptionIds,
       },
       { shouldDirty: true, shouldValidate: true },
     );
@@ -329,6 +367,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
                   key={entry.date}
                   entry={entry}
                   options={data.submissionPattern.options}
+                  onToggleWorking={() => handleSetWorking(index)}
                   onSelect={(optionId) => handleShiftTypeSelect(index, optionId)}
                   onClear={() => handleClear(index)}
                   isShopClosed={isShopClosed}
@@ -418,7 +457,7 @@ export const DateOnlySubmissionDayCard = ({
       px={4}
       align="center"
       justify="space-between"
-      bg={isShopClosed ? "gray.50" : entry.isWorking ? "teal.50" : "white"}
+      bg={isShopClosed ? "gray.100" : entry.isWorking ? "teal.50" : "white"}
       borderRadius="lg"
       borderWidth={1}
       borderColor={entry.isWorking && !isShopClosed ? "teal.600" : "border.default"}
@@ -450,6 +489,7 @@ export const DateOnlySubmissionDayCard = ({
 export const ShiftTypeSubmissionDayCard = ({
   entry,
   options,
+  onToggleWorking,
   onSelect,
   onClear,
   isShopClosed,
@@ -457,6 +497,7 @@ export const ShiftTypeSubmissionDayCard = ({
 }: {
   entry: DayEntry;
   options: ShiftTypeOption[];
+  onToggleWorking?: () => void;
   onSelect?: (optionId: string) => void;
   onClear?: () => void;
   isShopClosed: boolean;
@@ -464,68 +505,143 @@ export const ShiftTypeSubmissionDayCard = ({
 }) => {
   const dateLabel = formatDateWithWeekday(entry.date);
   const dateColor = getDateColor(entry.date);
+  const selectedOptionIds = getSelectedShiftTypeOptionIds(entry);
+  const selectedOptionIdSet = new Set(selectedOptionIds);
   const visibleOptions =
-    isReadOnly && entry.isWorking ? options.filter((option) => option.id === entry.optionId) : options;
+    isReadOnly && entry.isWorking ? options.filter((option) => selectedOptionIdSet.has(option.id)) : options;
+
+  if (isShopClosed) {
+    return (
+      <Flex
+        w="full"
+        h="48px"
+        px={4}
+        align="center"
+        justify="space-between"
+        bg="gray.100"
+        borderRadius="lg"
+        borderWidth={1}
+        borderColor="border.default"
+      >
+        <Text fontSize="sm" fontWeight="medium" color={dateColor}>
+          {dateLabel}
+        </Text>
+        <Box bg="gray.100" px={2.5} py={0.5} borderRadius="full">
+          <Text fontSize="xs" fontWeight="bold" color="gray.500">
+            定休日
+          </Text>
+        </Box>
+      </Flex>
+    );
+  }
+
+  if (!entry.isWorking) {
+    return (
+      <Flex
+        w="full"
+        h="48px"
+        px={4}
+        align="center"
+        justify="space-between"
+        bg="white"
+        borderRadius="lg"
+        borderWidth={1}
+        borderColor="border.default"
+        cursor={isReadOnly ? "default" : "pointer"}
+        role={isReadOnly ? undefined : "button"}
+        aria-label={isReadOnly ? undefined : `${dateLabel}を出勤希望にする`}
+        onClick={isReadOnly ? undefined : onToggleWorking}
+        _hover={isReadOnly ? undefined : { bg: "gray.50" }}
+      >
+        <Text fontSize="sm" fontWeight="medium" color={dateColor}>
+          {dateLabel}
+        </Text>
+        <Box bg="gray.100" px={2.5} py={0.5} borderRadius="full">
+          <Text fontSize="xs" fontWeight="medium" color="fg.muted">
+            休み
+          </Text>
+        </Box>
+      </Flex>
+    );
+  }
 
   return (
-    <Stack
-      w="full"
-      gap={2}
-      p={3}
-      bg={isShopClosed ? "gray.50" : "white"}
-      borderRadius="lg"
-      borderWidth={1}
-      borderColor={entry.isWorking && !isShopClosed ? "teal.600" : "border.default"}
-    >
+    <Stack w="full" gap={3} p={3} bg="teal.50" borderRadius="lg" borderWidth={1} borderColor="teal.600">
       <Flex align="center" justify="space-between">
         <Text fontSize="sm" fontWeight="medium" color={dateColor}>
           {dateLabel}
         </Text>
-        {isShopClosed ? (
-          <Text fontSize="xs" fontWeight="bold" color="gray.500">
-            定休日
-          </Text>
-        ) : isReadOnly ? (
+        {isReadOnly && (
           <Text fontSize="xs" fontWeight="medium" color="fg.muted">
-            {entry.isWorking ? "提出済み" : "休み"}
+            提出済み
           </Text>
-        ) : (
-          <Button type="button" size="xs" variant="ghost" colorPalette="gray" onClick={onClear}>
-            休み
-          </Button>
         )}
       </Flex>
-      {!isShopClosed && visibleOptions.length > 0 && (
-        <HStack gap={2} wrap="wrap">
-          {visibleOptions.map((option) => {
-            const isSelected = entry.optionId === option.id;
-            return (
-              <Button
-                key={option.id}
-                type="button"
-                size="sm"
-                h="auto"
-                minH="40px"
-                px={3}
-                py={1.5}
-                variant={isSelected ? "solid" : "outline"}
-                colorPalette={isSelected ? "teal" : "gray"}
-                bg={isSelected ? undefined : "white"}
-                disabled={isReadOnly}
-                onClick={() => onSelect?.(option.id)}
-              >
-                <Stack gap={0} align="flex-start">
-                  <Text fontSize="xs" fontWeight="semibold">
-                    {option.name}
-                  </Text>
-                  <Text fontSize="2xs">
-                    {formatTime(option.startTime)}〜{formatTime(option.endTime)}
-                  </Text>
-                </Stack>
-              </Button>
-            );
-          })}
-        </HStack>
+      {visibleOptions.length > 0 && (
+        <Flex gap={2} align="center">
+          <HStack gap={2} wrap="wrap" flex={1}>
+            {visibleOptions.map((option) => {
+              const isSelected = selectedOptionIdSet.has(option.id);
+              return (
+                <Button
+                  key={option.id}
+                  type="button"
+                  size="sm"
+                  h="auto"
+                  minH="44px"
+                  px={3}
+                  py={1.5}
+                  variant={isSelected ? "solid" : "outline"}
+                  colorPalette={isSelected ? "teal" : "gray"}
+                  bg={isSelected ? undefined : "white"}
+                  disabled={isReadOnly}
+                  aria-pressed={isSelected}
+                  aria-label={`${dateLabel}の${option.name} ${isSelected ? "選択済み" : "未選択"}`}
+                  onClick={() => onSelect?.(option.id)}
+                >
+                  <Stack gap={0} align="flex-start">
+                    <Text fontSize="xs" fontWeight="semibold">
+                      {option.name}
+                    </Text>
+                    <Text fontSize="2xs">
+                      {formatTime(option.startTime)}〜{formatTime(option.endTime)}
+                    </Text>
+                  </Stack>
+                </Button>
+              );
+            })}
+          </HStack>
+          {!isReadOnly && (
+            <IconButton
+              aria-label={`${dateLabel}を休みに戻す`}
+              size="sm"
+              variant="outline"
+              borderRadius="full"
+              onClick={onClear}
+              colorPalette="gray"
+              bg="white"
+              flexShrink={0}
+            >
+              <LuX />
+            </IconButton>
+          )}
+        </Flex>
+      )}
+      {visibleOptions.length === 0 && !isReadOnly && (
+        <Flex justify="flex-end">
+          <IconButton
+            aria-label={`${dateLabel}を休みに戻す`}
+            size="sm"
+            variant="outline"
+            borderRadius="full"
+            onClick={onClear}
+            colorPalette="gray"
+            bg="white"
+            flexShrink={0}
+          >
+            <LuX />
+          </IconButton>
+        </Flex>
       )}
     </Stack>
   );

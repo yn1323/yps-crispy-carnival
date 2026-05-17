@@ -69,22 +69,24 @@ export function buildEntriesFromPreviousWeeklyPatternForShiftTypes(
   const optionByTime = new Map(options.map((option) => [`${option.startTime}-${option.endTime}`, option]));
 
   return dates.map((date) => {
-    const patternDay = pattern.days.find((day) => day.weekday === getDayOfWeek(date));
-    if (!patternDay) {
+    const optionIds = pattern.days
+      .filter((day) => day.weekday === getDayOfWeek(date))
+      .map((day) => optionByTime.get(`${day.startTime}-${day.endTime}`)?.id)
+      .filter((optionId): optionId is string => !!optionId);
+    if (optionIds.length === 0) {
       return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
     }
 
-    const option = optionByTime.get(`${patternDay.startTime}-${patternDay.endTime}`);
-    if (!option) {
-      return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
-    }
+    const firstOption = options.find((option) => option.id === optionIds[0]);
+    if (!firstOption) return { date, isWorking: false, startTime: timeRange.startTime, endTime: timeRange.endTime };
 
     return {
       date,
       isWorking: true,
-      startTime: option.startTime,
-      endTime: option.endTime,
-      optionId: option.id,
+      startTime: firstOption.startTime,
+      endTime: firstOption.endTime,
+      optionId: firstOption.id,
+      optionIds,
     };
   });
 }

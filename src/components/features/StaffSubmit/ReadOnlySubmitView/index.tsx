@@ -30,18 +30,22 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
       });
     }
     if (data.submissionPattern.kind === "shiftType" && data.existingSelection.kind === "shiftType") {
-      const selectionMap = new Map(data.existingSelection.selections.map((selection) => [selection.date, selection]));
+      const selectionsByDate = new Map<string, string[]>();
+      for (const selection of data.existingSelection.selections) {
+        selectionsByDate.set(selection.date, [...(selectionsByDate.get(selection.date) ?? []), selection.optionId]);
+      }
       const optionMap = new Map(data.submissionPattern.options.map((option) => [option.id, option]));
       return dates.map((date) => {
-        const selection = selectionMap.get(date);
-        const option = selection ? optionMap.get(selection.optionId) : undefined;
-        const entry = option
+        const optionIds = (selectionsByDate.get(date) ?? []).filter((optionId) => optionMap.has(optionId));
+        const firstOption = optionIds.length > 0 ? optionMap.get(optionIds[0]) : undefined;
+        const entry = firstOption
           ? {
               date,
               isWorking: true,
-              startTime: option.startTime,
-              endTime: option.endTime,
-              optionId: option.id,
+              startTime: firstOption.startTime,
+              endTime: firstOption.endTime,
+              optionId: firstOption.id,
+              optionIds,
             }
           : { date, isWorking: false, startTime: data.timeRange.startTime, endTime: data.timeRange.endTime };
         return data.shopClosedDates.includes(entry.date) ? buildRestEntry(entry) : entry;

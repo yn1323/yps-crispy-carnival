@@ -35,23 +35,20 @@ const shiftSubmissionInputValidator = v.union(
   }),
 );
 
-function assertValidDateForSubmission(
-  date: string,
-  recruitment: Doc<"recruitments">,
-  requestedDates: Set<string>,
-  shopClosedDateSet: Set<string>,
-) {
-  if (requestedDates.has(date)) {
-    throw new ConvexError("同じ日の希望シフトは1件だけ登録できます");
-  }
-  requestedDates.add(date);
-
+function assertValidDateForSubmission(date: string, recruitment: Doc<"recruitments">, shopClosedDateSet: Set<string>) {
   if (date < recruitment.periodStart || date > recruitment.periodEnd) {
     throw new ConvexError("Date out of range");
   }
   if (shopClosedDateSet.has(date)) {
     throw new ConvexError("定休日には希望シフトを提出できません");
   }
+}
+
+function assertUniqueDate(date: string, requestedDates: Set<string>) {
+  if (requestedDates.has(date)) {
+    throw new ConvexError("同じ日の希望シフトは1件だけ登録できます");
+  }
+  requestedDates.add(date);
 }
 
 function validateTimeRequest(req: NormalizedShiftRequest, timeRange: { startTime: string; endTime: string }) {
@@ -83,7 +80,8 @@ function normalizeSubmissionInput(
       throw new ConvexError("提出方法がこの募集の設定と一致しません");
     }
     for (const req of input.requests) {
-      assertValidDateForSubmission(req.date, recruitment, requestedDates, shopClosedDateSet);
+      assertUniqueDate(req.date, requestedDates);
+      assertValidDateForSubmission(req.date, recruitment, shopClosedDateSet);
       validateTimeRequest(req, pattern);
     }
     return { slots: input.requests, dates: [] };
@@ -91,7 +89,8 @@ function normalizeSubmissionInput(
 
   if (input.kind === "dateOnly") {
     const dates = input.workingDates.map((date) => {
-      assertValidDateForSubmission(date, recruitment, requestedDates, shopClosedDateSet);
+      assertUniqueDate(date, requestedDates);
+      assertValidDateForSubmission(date, recruitment, shopClosedDateSet);
       return date;
     });
     return { slots: [], dates };
@@ -102,12 +101,18 @@ function normalizeSubmissionInput(
   }
 
   const optionMap = new Map(pattern.options.map((option) => [option.id, option]));
+  const requestedShiftTypeKeys = new Set<string>();
   const slots = input.selections.map((selection) => {
-    assertValidDateForSubmission(selection.date, recruitment, requestedDates, shopClosedDateSet);
+    assertValidDateForSubmission(selection.date, recruitment, shopClosedDateSet);
     const option = optionMap.get(selection.optionId);
     if (!option) {
       throw new ConvexError("勤務区分が見つかりません");
     }
+    const selectionKey = `${selection.date}:${selection.optionId}`;
+    if (requestedShiftTypeKeys.has(selectionKey)) {
+      throw new ConvexError("同じ日の勤務区分が重複しています");
+    }
+    requestedShiftTypeKeys.add(selectionKey);
     return { date: selection.date, startTime: option.startTime, endTime: option.endTime, optionId: option.id };
   });
   return { slots, dates: [] };

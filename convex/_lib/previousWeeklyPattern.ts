@@ -81,18 +81,16 @@ export async function getPreviousWeeklyPattern(
     )
     .take(32);
 
-  const daysByWeekday = new Map<number, { weekday: number; startTime: string; endTime: string }>();
+  const days: Array<{ weekday: number; startTime: string; endTime: string }> = [];
   for (const slot of slots) {
     if (slot.date >= args.beforeDate) continue;
     const clamped = clampSlotToTimeRange(slot, args.timeRange);
     if (!clamped) continue;
     const weekday = getWeekday(slot.date);
-    if (!daysByWeekday.has(weekday)) {
-      daysByWeekday.set(weekday, { weekday, ...clamped });
-    }
+    days.push({ weekday, ...clamped });
   }
 
-  const days = Array.from(daysByWeekday.values()).sort((a, b) => a.weekday - b.weekday);
+  days.sort((a, b) => a.weekday - b.weekday || timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   return days.length > 0 ? { sourceWeekStart, days } : null;
 }
 

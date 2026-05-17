@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { previousWeeklyPattern, submitStoryBaseData } from "../storyData";
 import { SubmitFormView } from "./index";
 
@@ -75,5 +76,41 @@ export const ShiftType: Story = {
       shopClosedDates: ["2026-04-10"],
     },
     onSubmit: noop,
+  },
+};
+
+export const ShiftTypeDefaultRest: Story = {
+  args: {
+    data: {
+      ...submitStoryBaseData,
+      submissionPattern: shiftTypePattern,
+      existingSelection: { kind: "shiftType", selections: [] },
+      shopClosedDates: ["2026-04-10"],
+    },
+    onSubmit: noop,
+  },
+};
+
+export const ShiftTypeInteractive: Story = {
+  args: ShiftTypeDefaultRest.args,
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(await canvas.findByLabelText("4/7(火)を出勤希望にする"));
+    await expect(await canvas.findByLabelText("4/7(火)の早番 選択済み")).toBeInTheDocument();
+    await expect(await canvas.findByLabelText("4/7(火)の遅番 未選択")).toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByLabelText("4/7(火)の遅番 未選択"));
+    await expect(await canvas.findByLabelText("4/7(火)の遅番 選択済み")).toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByLabelText("4/7(火)を休みに戻す"));
+    await expect(await canvas.findByLabelText("4/7(火)を出勤希望にする")).toBeInTheDocument();
+
+    await userEvent.click(await canvas.findByLabelText("4/8(水)を出勤希望にする"));
+    await expect(await canvas.findByLabelText("4/8(水)の早番 選択済み")).toBeInTheDocument();
+    await expect(await canvas.findByLabelText("4/8(水)の遅番 選択済み")).toBeInTheDocument();
   },
 };

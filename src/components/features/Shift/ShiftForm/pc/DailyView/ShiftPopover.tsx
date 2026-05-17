@@ -93,7 +93,11 @@ export const ShiftPopover = ({
           <Box p={3} borderBottom="1px solid" borderColor="gray.100">
             <Flex align="center" gap={2} pr={8}>
               <Text fontWeight="bold" fontSize="sm" color="gray.700">
-                {shift.requestedTime ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}` : "希望: なし"}
+                {(shift.requestedTimes?.length ?? 0) > 0
+                  ? `希望: ${shift.requestedTimes?.map((request) => `${request.start} - ${request.end}`).join(" / ")}`
+                  : shift.requestedTime
+                    ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
+                    : "希望: なし"}
               </Text>
               {!isStaffSubmitted && (
                 <Badge colorPalette="orange" size="sm">

@@ -138,6 +138,7 @@ describe("shiftSubmission/queries", () => {
         staffId,
         slots: [
           { date: "2026-04-07", startTime: "10:00", endTime: "18:00" },
+          { date: "2026-04-07", startTime: "18:00", endTime: "21:00" },
           { date: "2026-04-09", startTime: "12:00", endTime: "20:00" },
         ],
       });
@@ -152,6 +153,7 @@ describe("shiftSubmission/queries", () => {
         sourceWeekStart: "2026-04-06",
         days: [
           { weekday: 2, startTime: "10:00", endTime: "18:00" },
+          { weekday: 2, startTime: "18:00", endTime: "21:00" },
           { weekday: 4, startTime: "12:00", endTime: "20:00" },
         ],
       });
@@ -300,6 +302,7 @@ describe("shiftSubmission/queries", () => {
         staffId,
         slots: [
           { date: "2026-04-21", startTime: "09:00", endTime: "15:00" },
+          { date: "2026-04-21", startTime: "15:00", endTime: "22:00" },
           { date: "2026-04-23", startTime: "15:00", endTime: "22:00" },
         ],
       });
@@ -314,6 +317,7 @@ describe("shiftSubmission/queries", () => {
         kind: "shiftType",
         selections: [
           { date: "2026-04-21", optionId: "morning" },
+          { date: "2026-04-21", optionId: "late" },
           { date: "2026-04-23", optionId: "late" },
         ],
         unmatchedRequests: [],

@@ -2,6 +2,11 @@
 // ドメイン型定義（ShiftForm 統合）
 // ==========================================
 
+export type ShiftTimeRange = {
+  start: string; // "10:00"
+  end: string; // "18:00"
+};
+
 // シフトデータ
 export type ShiftData = {
   id: string;
@@ -9,10 +14,8 @@ export type ShiftData = {
   staffName: string;
   date: string;
   // 希望シフト時間（スタッフ提出、読み取り専用）
-  requestedTime: {
-    start: string; // "10:00"
-    end: string; // "18:00"
-  } | null; // null = 未提出
+  requestedTime: ShiftTimeRange | null; // null = 未提出
+  requestedTimes?: ShiftTimeRange[]; // 勤務区分提出では同じ日に複数の希望時間帯を持てる
   positions: PositionSegment[];
 };
 

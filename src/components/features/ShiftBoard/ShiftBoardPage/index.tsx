@@ -18,15 +18,34 @@ import {
 } from "@/src/domains/shift/date";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
+
+type ShiftRequestRange = { startTime: string; endTime: string };
 
 function generatePeriodLabel(dates: string[]): string {
   if (dates.length === 0) return "";
   return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])} のシフト`;
 }
+
+const getRequestSpan = (requests: ShiftRequestRange[]): ShiftRequestRange | undefined => {
+  if (requests.length === 0) return undefined;
+  const sorted = [...requests].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  return {
+    startTime: sorted[0].startTime,
+    endTime: sorted.reduce(
+      (latest, request) => (request.endTime > latest ? request.endTime : latest),
+      sorted[0].endTime,
+    ),
+  };
+};
+
+const toShiftTimeRange = (request: ShiftRequestRange): ShiftTimeRange => ({
+  start: request.startTime,
+  end: request.endTime,
+});
 
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
 function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] {
@@ -40,9 +59,12 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
     positions.map((position) => [position._id, { id: position._id, name: position.name, color: position.color }]),
   );
 
-  const requestMap = new Map<string, { startTime: string; endTime: string }>();
+  const requestMap = new Map<string, ShiftRequestRange[]>();
   for (const r of data.requestedSlots) {
-    requestMap.set(`${r.staffId}-${r.date}`, { startTime: r.startTime, endTime: r.endTime });
+    const key = `${r.staffId}-${r.date}`;
+    const requests = requestMap.get(key) ?? [];
+    requests.push({ startTime: r.startTime, endTime: r.endTime });
+    requestMap.set(key, requests);
   }
   const requestedDateSet = new Set(data.requestedDates.map((r) => `${r.staffId}-${r.date}`));
   const fullDayRequest = {
@@ -77,7 +99,14 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
 
       const key = `${staff.id}-${date}`;
       const assignments = (assignmentMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
-      const request = requestMap.get(key) ?? (requestedDateSet.has(key) ? fullDayRequest : undefined);
+      const requests = (requestMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
+      const request = getRequestSpan(requests) ?? (requestedDateSet.has(key) ? fullDayRequest : undefined);
+      const requestedTimes =
+        requests.length > 0
+          ? requests.map(toShiftTimeRange)
+          : requestedDateSet.has(key)
+            ? [toShiftTimeRange(fullDayRequest)]
+            : undefined;
       const savedAssignment =
         assignments.length > 0
           ? {
@@ -104,18 +133,27 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
                 end: assignment.endTime,
               };
             })
-          : displayLine.type !== "none"
-            ? [
-                {
-                  id: `seg-${staff.id}-${date}`,
-                  positionId: fallbackPosition.id,
-                  positionName: fallbackPosition.name,
-                  color: fallbackPosition.color,
-                  start: displayLine.start,
-                  end: displayLine.end,
-                },
-              ]
-            : [];
+          : displayLine.type === "request" && requests.length > 0
+            ? requests.map((requestItem, index) => ({
+                id: `seg-${staff.id}-${date}-${index}`,
+                positionId: fallbackPosition.id,
+                positionName: fallbackPosition.name,
+                color: fallbackPosition.color,
+                start: requestItem.startTime,
+                end: requestItem.endTime,
+              }))
+            : displayLine.type !== "none"
+              ? [
+                  {
+                    id: `seg-${staff.id}-${date}`,
+                    positionId: fallbackPosition.id,
+                    positionName: fallbackPosition.name,
+                    color: fallbackPosition.color,
+                    start: displayLine.start,
+                    end: displayLine.end,
+                  },
+                ]
+              : [];
 
       shifts.push({
         id: `shift-${staff.id}-${date}`,
@@ -123,6 +161,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
         staffName: staff.name,
         date,
         requestedTime: request ? { start: request.startTime, end: request.endTime } : null,
+        requestedTimes,
         positions: positionSegments,
       });
     }

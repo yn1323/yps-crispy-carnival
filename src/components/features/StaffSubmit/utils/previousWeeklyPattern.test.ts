@@ -86,7 +86,14 @@ describe("buildEntriesFromPreviousWeeklyPatternForShiftTypes", () => {
   it("前回時間が現在の勤務区分に一致する日だけ区分選択済みにする", () => {
     const entries = buildEntriesFromPreviousWeeklyPatternForShiftTypes(
       ["2026-04-13", "2026-04-14", "2026-04-15"],
-      pattern,
+      {
+        sourceWeekStart: "2026-04-06",
+        days: [
+          { weekday: 1, startTime: "09:00", endTime: "17:00" },
+          { weekday: 1, startTime: "17:00", endTime: "22:00" },
+          { weekday: 3, startTime: "10:00", endTime: "18:00" },
+        ],
+      },
       { startTime: "09:00", endTime: "22:00" },
       [
         { id: "morning", startTime: "09:00", endTime: "17:00" },
@@ -95,7 +102,14 @@ describe("buildEntriesFromPreviousWeeklyPatternForShiftTypes", () => {
     );
 
     expect(entries).toEqual([
-      { date: "2026-04-13", isWorking: true, startTime: "09:00", endTime: "17:00", optionId: "morning" },
+      {
+        date: "2026-04-13",
+        isWorking: true,
+        startTime: "09:00",
+        endTime: "17:00",
+        optionId: "morning",
+        optionIds: ["morning", "late"],
+      },
       { date: "2026-04-14", isWorking: false, startTime: "09:00", endTime: "22:00" },
       { date: "2026-04-15", isWorking: false, startTime: "09:00", endTime: "22:00" },
     ]);
