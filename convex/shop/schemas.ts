@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { timeToMinutes } from "../_lib/time";
+import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 
 export const regularClosedDaySchema = z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]);
 export const regularClosedDaysSchema = z.array(regularClosedDaySchema);
@@ -26,6 +26,23 @@ export function addShiftSubmissionPatternIssues(
   path: (string | number)[] = ["submissionPattern"],
 ) {
   if (pattern.kind === "time") {
+    const startTimeValid = isSupportedShiftTime(pattern.startTime);
+    const endTimeValid = isSupportedShiftTime(pattern.endTime);
+    if (!startTimeValid) {
+      ctx.addIssue({
+        code: "custom",
+        message: "開始時間が正しくありません",
+        path: [...path, "startTime"],
+      });
+    }
+    if (!endTimeValid) {
+      ctx.addIssue({
+        code: "custom",
+        message: "終了時間が正しくありません",
+        path: [...path, "endTime"],
+      });
+    }
+    if (!startTimeValid || !endTimeValid) return;
     if (timeToMinutes(pattern.endTime) <= timeToMinutes(pattern.startTime)) {
       ctx.addIssue({
         code: "custom",
@@ -82,27 +99,45 @@ export function addShiftSubmissionPatternIssues(
       });
     }
 
-    const start = timeToMinutes(option.startTime);
-    const end = timeToMinutes(option.endTime);
-    if (end <= start) {
+    const startTimeValid = isSupportedShiftTime(option.startTime);
+    const endTimeValid = isSupportedShiftTime(option.endTime);
+    if (!startTimeValid) {
       ctx.addIssue({
         code: "custom",
-        message: "終了時間は開始時間より後にしてください",
+        message: "開始時間が正しくありません",
+        path: [...path, "options", index, "startTime"],
+      });
+    }
+    if (!endTimeValid) {
+      ctx.addIssue({
+        code: "custom",
+        message: "終了時間が正しくありません",
         path: [...path, "options", index, "endTime"],
       });
     }
-    const timeKey = `${option.startTime}-${option.endTime}`;
-    if (timeSet.has(timeKey)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "勤務区分の時間帯が重複しています",
-        path: [...path, "options", index, "startTime"],
-      });
+    if (startTimeValid && endTimeValid) {
+      const start = timeToMinutes(option.startTime);
+      const end = timeToMinutes(option.endTime);
+      if (end <= start) {
+        ctx.addIssue({
+          code: "custom",
+          message: "終了時間は開始時間より後にしてください",
+          path: [...path, "options", index, "endTime"],
+        });
+      }
+      const timeKey = `${option.startTime}-${option.endTime}`;
+      if (timeSet.has(timeKey)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "勤務区分の時間帯が重複しています",
+          path: [...path, "options", index, "startTime"],
+        });
+      }
+      timeSet.add(timeKey);
     }
 
     idSet.add(option.id);
     nameSet.add(name);
-    timeSet.add(timeKey);
   });
 }
 

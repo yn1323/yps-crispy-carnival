@@ -43,6 +43,14 @@ describe("editShopSchema", () => {
     }
   });
 
+  it("時間指定の対応範囲外の時刻はエラー", () => {
+    const result = editShopSchema.safeParse({
+      ...validData,
+      submissionPattern: { kind: "time", startTime: "10:00", endTime: "99:00" },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("勤務区分の提出方法を受け入れる", () => {
     const result = editShopSchema.safeParse({
       ...validData,
@@ -88,6 +96,17 @@ describe("editShopSchema", () => {
       submissionPattern: {
         kind: "shiftType",
         options: [{ id: "night", name: "深夜", startTime: "25:00", endTime: "25:00", sortOrder: 0 }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("勤務区分の対応範囲外の時刻はエラー", () => {
+    const result = editShopSchema.safeParse({
+      ...validData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: [{ id: "night", name: "深夜", startTime: "10:00", endTime: "99:00", sortOrder: 0 }],
       },
     });
     expect(result.success).toBe(false);

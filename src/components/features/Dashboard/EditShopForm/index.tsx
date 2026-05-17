@@ -60,7 +60,7 @@ const SUBMISSION_PATTERN_OPTIONS: Array<{
   description: string;
 }> = [
   { kind: "time", label: "時間指定", description: "スタッフが日ごとに開始・終了時間を選びます。" },
-  { kind: "dateOnly", label: "日ごと", description: "出勤できる日だけ集め、店舗のシフト時間帯全体で扱います。" },
+  { kind: "dateOnly", label: "日ごと", description: "出勤できる日だけ集めます。時間は入力させません。" },
   { kind: "shiftType", label: "勤務区分", description: "朝番・遅番など、決めた区分から選んでもらいます。" },
 ];
 

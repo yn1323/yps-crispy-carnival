@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { timeToMinutes } from "./time";
+import { isSupportedShiftTime, timeToMinutes } from "./time";
 
 export type ShiftSubmissionPattern =
   | { kind: "time"; startTime: string; endTime: string }
@@ -34,20 +34,12 @@ export const submissionPatternValidator = v.union(
   v.object({ kind: v.literal("shiftType"), options: v.array(shiftTypeOptionValidator) }),
 );
 
-const TIME_PATTERN = /^\d{1,2}:\d{2}$/;
-
-function isValidTimeString(time: string): boolean {
-  if (!TIME_PATTERN.test(time)) return false;
-  const [hour, minute] = time.split(":").map(Number);
-  return Number.isFinite(hour) && Number.isFinite(minute) && minute >= 0 && minute < 60;
-}
-
 export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | undefined): ShiftSubmissionPattern {
   if (!pattern) return DEFAULT_SUBMISSION_PATTERN;
   if (pattern.kind === "dateOnly") return pattern;
 
   if (pattern.kind === "time") {
-    if (!isValidTimeString(pattern.startTime) || !isValidTimeString(pattern.endTime)) {
+    if (!isSupportedShiftTime(pattern.startTime) || !isSupportedShiftTime(pattern.endTime)) {
       throw new ConvexError("シフト時間が正しくありません");
     }
     if (timeToMinutes(pattern.endTime) <= timeToMinutes(pattern.startTime)) {
@@ -79,7 +71,7 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
     if (!option.name) throw new ConvexError("勤務区分名を入力してください");
     if (idSet.has(option.id)) throw new ConvexError("勤務区分IDが重複しています");
     if (nameSet.has(option.name)) throw new ConvexError(`勤務区分「${option.name}」が重複しています`);
-    if (!isValidTimeString(option.startTime) || !isValidTimeString(option.endTime)) {
+    if (!isSupportedShiftTime(option.startTime) || !isSupportedShiftTime(option.endTime)) {
       throw new ConvexError(`勤務区分「${option.name}」の時間が正しくありません`);
     }
 

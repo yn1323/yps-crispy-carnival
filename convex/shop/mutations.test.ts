@@ -133,6 +133,24 @@ describe("shop/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
+    it("時間指定の対応範囲外の時刻は ConvexError", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          submissionPattern: { kind: "time", startTime: "10:00", endTime: "99:00" },
+        }),
+      ).rejects.toThrow(ConvexError);
+    });
+
     it("既存 recruitments の提出方法スナップショットは更新で変化しない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId } = await t.run(async (ctx) => {
@@ -211,6 +229,16 @@ describe("shop/mutations", () => {
           submissionPattern: {
             kind: "shiftType",
             options: [{ id: "morning", name: "早番", startTime: "bad", endTime: "15:00", sortOrder: 0 }],
+          },
+        }),
+      ).rejects.toThrow(ConvexError);
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          submissionPattern: {
+            kind: "shiftType",
+            options: [{ id: "night", name: "深夜", startTime: "10:00", endTime: "99:00", sortOrder: 0 }],
           },
         }),
       ).rejects.toThrow(ConvexError);
