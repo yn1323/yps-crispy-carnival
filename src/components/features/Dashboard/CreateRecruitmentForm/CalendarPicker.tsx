@@ -92,17 +92,20 @@ export const CalendarPicker = ({
         [dayTriggerSelector]: {
           mx: "auto",
         },
+        [activeDaySelector]: {
+          cursor: "pointer",
+        },
         [sundayColumnSelector]: {
           color: "red.400",
         },
         [`${sundayColumnSelector} ${dayTriggerPartSelector}`]: {
-          color: "red.400",
+          color: "red.600",
         },
         [saturdayColumnSelector]: {
           color: "blue.400",
         },
         [`${saturdayColumnSelector} ${dayTriggerPartSelector}`]: {
-          color: "blue.400",
+          color: "blue.600",
         },
         [selectedDaySelector]: {
           color: "white",
@@ -131,6 +134,7 @@ export const CalendarPicker = ({
               },
               [`${dayTriggerSelector}[data-disabled], ${dayTriggerSelector}[data-outside-range]`]: {
                 bg: "transparent",
+                cursor: "default",
               },
               [`${dayTriggerSelector}[data-disabled]:hover, ${dayTriggerSelector}[data-outside-range]:hover`]: {
                 bg: "transparent",
