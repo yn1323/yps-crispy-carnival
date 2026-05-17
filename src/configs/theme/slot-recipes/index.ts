@@ -1,3 +1,4 @@
+import { datePickerSlotRecipe } from "@chakra-ui/react/theme";
 import { accordionSlotRecipe } from "./accordion";
 import { actionBarSlotRecipe } from "./action-bar";
 import { alertSlotRecipe } from "./alert";
@@ -57,6 +58,7 @@ export const slotRecipes = {
   checkboxCard: checkboxCardSlotRecipe,
   collapsible: collapsibleSlotRecipe,
   dataList: dataListSlotRecipe,
+  datePicker: datePickerSlotRecipe,
   dialog: dialogSlotRecipe,
   drawer: drawerSlotRecipe,
   editable: editableSlotRecipe,

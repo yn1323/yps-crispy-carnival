@@ -19,6 +19,7 @@ type Props = {
   onTimeChange: (field: "startTime" | "endTime", value: string) => void;
   onClear: () => void;
   isReadOnly?: boolean;
+  isShopClosed?: boolean;
   error?: string;
 };
 
@@ -29,6 +30,7 @@ export const DayCard = ({
   onTimeChange,
   onClear,
   isReadOnly = false,
+  isShopClosed = false,
   error,
 }: Props) => {
   const dateColor = getDateColor(entry.date);
@@ -42,7 +44,7 @@ export const DayCard = ({
         px={4}
         align="center"
         justify="space-between"
-        bg="white"
+        bg={isShopClosed ? "gray.50" : "white"}
         borderRadius="lg"
         borderWidth={1}
         borderColor="border.default"
@@ -50,7 +52,11 @@ export const DayCard = ({
         <Text fontSize="sm" fontWeight="medium" color={dateColor}>
           {dateLabel}
         </Text>
-        {entry.isWorking ? (
+        {isShopClosed ? (
+          <Text fontSize="xs" fontWeight="bold" color="gray.500">
+            定休日
+          </Text>
+        ) : entry.isWorking ? (
           <Text fontSize="sm" fontWeight="medium" color="teal.600">
             {formatTime(entry.startTime)} 〜 {formatTime(entry.endTime)}
           </Text>
@@ -59,6 +65,31 @@ export const DayCard = ({
             休み
           </Text>
         )}
+      </Flex>
+    );
+  }
+
+  if (isShopClosed) {
+    return (
+      <Flex
+        w="full"
+        h="48px"
+        px={4}
+        align="center"
+        justify="space-between"
+        bg="gray.50"
+        borderRadius="lg"
+        borderWidth={1}
+        borderColor="border.default"
+      >
+        <Text fontSize="sm" fontWeight="medium" color={dateColor}>
+          {dateLabel}
+        </Text>
+        <Box bg="gray.100" px={2.5} py={0.5} borderRadius="full">
+          <Text fontSize="xs" fontWeight="bold" color="gray.500">
+            定休日
+          </Text>
+        </Box>
       </Flex>
     );
   }

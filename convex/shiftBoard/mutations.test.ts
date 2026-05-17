@@ -8,7 +8,7 @@ import { seedManagerShop, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用にshop + user + recruitment + staffsをセットアップ */
-async function setupTestData(t: TestConvex<typeof schema>) {
+async function setupTestData(t: TestConvex<typeof schema>, options?: { shopClosedDates?: string[] }) {
   const result = await t.run(async (ctx) => {
     const { shopId } = await seedManagerShop(ctx, {
       subject: "user_manager",
@@ -20,6 +20,7 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       periodStart: "2026-01-20",
       periodEnd: "2026-01-26",
       deadline: "2026-01-17",
+      shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
       shiftStartTime: "09:00",
@@ -258,6 +259,18 @@ describe("shiftBoard/mutations", () => {
       ).rejects.toThrow("募集期間内の日付を選んでください");
     });
 
+    it("定休日の日付ではシフト割当を保存できない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [{ staffId: staffId1, date: "2026-01-21", startTime: "10:00", endTime: "18:00" }],
+        }),
+      ).rejects.toThrow("定休日にはシフトを登録できません");
+    });
+
     it("開始時間が終了時間以降でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
@@ -390,6 +403,37 @@ describe("shiftBoard/mutations", () => {
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.status).toBe("confirmed");
       expect(recruitment?.confirmedAt).toBeTypeOf("number");
+    });
+
+    it("定休日に既存シフトが残っている場合は確定できない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
+      await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        if (!recruitment) throw new Error("missing recruitment");
+        const positionId = await ctx.db.insert("positions", {
+          shopId: recruitment.shopId,
+          name: "シフト",
+          color: "#3b82f6",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId: staffId1,
+          date: "2026-01-21",
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          recruitmentId,
+        }),
+      ).rejects.toThrow("定休日にシフトが登録されています");
     });
 
     it("他店舗のrecruitmentではNot foundエラー", async () => {

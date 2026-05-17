@@ -28,12 +28,16 @@ export const saveShiftAssignments = managerMutation({
     const endTimeStr = recruitment.shiftEndTime;
     const shopStartMinutes = timeToMinutes(startTimeStr);
     const shopEndMinutes = timeToMinutes(endTimeStr);
+    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
 
     const rangesByStaffDate = new Map<string, Array<{ start: number; end: number }>>();
     for (const a of args.assignments) {
       const key = `${a.staffId}-${a.date}`;
       if (a.date < recruitment.periodStart || a.date > recruitment.periodEnd) {
         throw new ConvexError("募集期間内の日付を選んでください");
+      }
+      if (shopClosedDateSet.has(a.date)) {
+        throw new ConvexError("定休日にはシフトを登録できません");
       }
 
       const startMinutes = timeToMinutes(a.startTime);
@@ -114,6 +118,15 @@ export const confirmRecruitment = managerMutation({
     }
 
     const isResend = recruitment.status === "confirmed";
+    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
+    const existingAssignments = await ctx.db
+      .query("shiftAssignments")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
+      .take(SHIFT_ASSIGNMENT_LIMIT);
+    const closedDateAssignment = existingAssignments.find((assignment) => shopClosedDateSet.has(assignment.date));
+    if (shopClosedDateSet.size > 0 && closedDateAssignment) {
+      throw new ConvexError("定休日にシフトが登録されています");
+    }
 
     // 再確定も同じ導線で許可する。通知文面だけ変更して、既存スタッフには変更連絡として届ける。
     await ctx.db.patch(args.recruitmentId, {

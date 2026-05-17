@@ -27,7 +27,12 @@ describe("dashboard/queries", () => {
       });
 
       const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardShop, {});
-      expect(result).toEqual({ name: "テスト店舗", shiftStartTime: "09:00", shiftEndTime: "22:00" });
+      expect(result).toEqual({
+        name: "テスト店舗",
+        shiftStartTime: "09:00",
+        shiftEndTime: "22:00",
+        regularClosedDays: [],
+      });
     });
 
     it("論理削除された店舗は null を返す", async () => {
@@ -49,7 +54,7 @@ describe("dashboard/queries", () => {
       });
 
       const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardShop, {});
-      expect(Object.keys(result ?? {}).sort()).toEqual(["name", "shiftEndTime", "shiftStartTime"]);
+      expect(Object.keys(result ?? {}).sort()).toEqual(["name", "regularClosedDays", "shiftEndTime", "shiftStartTime"]);
     });
   });
 
@@ -89,6 +94,7 @@ describe("dashboard/queries", () => {
           periodStart: "2026-04-01",
           periodEnd: "2026-04-07",
           deadline: "2026-03-28",
+          shopClosedDates: [],
           status: "open",
           isDeleted: false,
           shiftStartTime: "09:00",
@@ -118,6 +124,7 @@ describe("dashboard/queries", () => {
           periodStart: "2026-04-01",
           periodEnd: "2026-04-07",
           deadline: "2026-03-28",
+          shopClosedDates: [],
           status: "open",
           isDeleted: false,
           shiftStartTime: "09:00",
@@ -128,6 +135,7 @@ describe("dashboard/queries", () => {
           periodStart: "2026-05-01",
           periodEnd: "2026-05-07",
           deadline: "2026-04-28",
+          shopClosedDates: [],
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: true,
@@ -170,6 +178,7 @@ describe("dashboard/queries", () => {
           periodStart: "2026-04-01",
           periodEnd: "2026-04-07",
           deadline: "2026-03-28",
+          shopClosedDates: [],
           status: "open",
           isDeleted: false,
           shiftStartTime: "09:00",

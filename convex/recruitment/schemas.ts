@@ -5,6 +5,7 @@ export const createRecruitmentSchema = z
     periodStart: z.string().min(1, "入力してください"),
     periodEnd: z.string().min(1, "入力してください"),
     deadline: z.string().min(1, "入力してください"),
+    shopClosedDates: z.array(z.string()),
   })
   .refine((data) => data.periodEnd >= data.periodStart, {
     message: "終了日は開始日以降にしてください",

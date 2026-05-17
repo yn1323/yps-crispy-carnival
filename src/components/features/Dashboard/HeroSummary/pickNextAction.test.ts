@@ -13,6 +13,7 @@ const make = (over: Partial<Recruitment>): Recruitment => ({
   periodStart: "2026-05-01",
   periodEnd: "2026-05-07",
   deadline: "2026-04-25",
+  shopClosedDates: [],
   status: "open",
   responseCount: 0,
   ...over,

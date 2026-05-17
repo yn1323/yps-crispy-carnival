@@ -9,9 +9,9 @@ type Props = {
   holidays?: string[];
 };
 
-const dayColor = (dateStr: string, holidays: string[]): string => {
+const dayColor = (dateStr: string): string => {
   const day = dayjs(dateStr).day();
-  if (day === 0 || holidays.includes(dateStr)) return "#ef4444";
+  if (day === 0) return "#ef4444";
   if (day === 6) return "#3b82f6";
   return "#3f3f46";
 };
@@ -33,6 +33,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
       {dates.map((iso) => {
         const d = dayjs(iso);
         const active = iso === selectedDate;
+        const isClosed = holidays.includes(iso);
         return (
           <Box
             key={iso}
@@ -45,7 +46,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
             borderRadius="md"
             borderWidth="1px"
             borderColor={active ? "teal.300" : "transparent"}
-            bg={active ? "teal.50" : "transparent"}
+            bg={active ? "teal.50" : isClosed ? "gray.50" : "transparent"}
             transition="all 120ms"
             _hover={{ bg: active ? "teal.50" : "gray.50" }}
           >
@@ -53,10 +54,15 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
               <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
                 {d.date()}
               </Box>
-              <Box textStyle="caption" fontWeight={600} style={{ color: dayColor(iso, holidays) }}>
+              <Box textStyle="caption" fontWeight={600} style={{ color: dayColor(iso) }}>
                 ({getWeekdayLabel(iso)})
               </Box>
             </Flex>
+            {isClosed && (
+              <Box mt="2px" textStyle="2xs" fontWeight={700} color="gray.500" textAlign="center">
+                定休日
+              </Box>
+            )}
           </Box>
         );
       })}

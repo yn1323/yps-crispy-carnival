@@ -1,4 +1,6 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 
 export class DashboardPage {
   constructor(private page: Page) {}
@@ -14,7 +16,7 @@ export class DashboardPage {
     managerName: string;
     managerEmail: string;
   }) {
-    await this.page.getByRole("button", { name: /お店を登録する/ }).click();
+    await this.page.getByRole("button", { name: /お店を登録する/ }).click({ noWaitAfter: true });
     await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
     await this.page.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
     await this.selectTime("シフト開始時間", data.shiftStartTime);
@@ -49,7 +51,7 @@ export class DashboardPage {
   }
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
-    await this.page.getByRole("button", { name: "スタッフを追加" }).click();
+    await this.page.getByRole("button", { name: "スタッフを追加" }).click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを追加" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "自分で入力する" }).click();
@@ -75,16 +77,23 @@ export class DashboardPage {
   }
 
   async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
-    await this.page.getByRole("button", { name: "新しい募集をつくる" }).click();
-    await expect(this.page.getByRole("dialog", { name: "新しい募集をつくる" })).toBeVisible();
+    await this.page.getByRole("button", { name: "新しい募集をつくる" }).click({ noWaitAfter: true });
+    const dialog = this.page.getByRole("dialog", { name: "新しい募集をつくる" });
+    await expect(dialog).toBeVisible();
 
-    const form = this.page.locator("[id='create-recruitment-form']");
-    const dateInputs = form.locator("input[type='date']");
-    await dateInputs.nth(0).fill(data.periodStart);
-    await dateInputs.nth(1).fill(data.periodEnd);
-    await dateInputs.nth(2).fill(data.deadline);
+    await this.selectCalendarDate(dialog, data.periodStart);
+    await this.selectCalendarDate(dialog, data.periodEnd);
+    await dialog.getByRole("button", { name: "次へ" }).click();
 
-    await this.page.getByRole("dialog").getByRole("button", { name: "募集をつくる" }).click();
+    await expect(dialog.getByText("お店のお休みを選択")).toBeVisible();
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    await expect(dialog.getByText("提出締切日を選択")).toBeVisible();
+    await this.selectCalendarDate(dialog, data.deadline);
+    await dialog.getByRole("button", { name: "確認へ" }).click();
+
+    await expect(dialog.getByText("内容を確認", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "募集をつくる" }).click();
     await expect(this.page.getByText("募集をつくりました").first()).toBeVisible();
     await expect(this.page.getByText("募集をつくりました").first()).not.toBeVisible();
   }
@@ -201,7 +210,7 @@ export class DashboardPage {
   }
 
   async editShopSettings(data: { shopName?: string; shiftStartTime?: string; shiftEndTime?: string }) {
-    await this.page.getByRole("button", { name: "店舗設定を編集" }).click();
+    await this.page.getByRole("button", { name: "店舗設定を編集" }).click({ noWaitAfter: true });
     await expect(this.page.getByRole("dialog", { name: "店舗設定" })).toBeVisible();
 
     if (data.shopName !== undefined) {
@@ -278,13 +287,34 @@ export class DashboardPage {
 
   private async openStaffMenu(staffName: string) {
     const row = this.staffSection().getByRole("article", { name: `${staffName}のスタッフ情報` });
-    await row.getByRole("button", { name: "スタッフの操作メニュー" }).click();
+    await row.getByRole("button", { name: "スタッフの操作メニュー" }).click({ noWaitAfter: true });
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択
   private async selectTime(label: string, value: string) {
     // Chakra Select は同じ時刻 option が複数のlistboxに出るため、開いたcomboboxのラベルでスコープする。
     await this.page.getByRole("combobox", { name: label }).click();
-    await this.page.getByRole("listbox", { name: label }).getByRole("option", { name: value, exact: true }).click();
+    await this.page
+      .getByRole("listbox", { name: label })
+      .getByRole("option", { name: value, exact: true })
+      .click({ noWaitAfter: true });
   }
+
+  private async selectCalendarDate(scope: Locator, date: string) {
+    const button = scope.getByRole("button", {
+      name: new RegExp(`^Choose ${escapeRegExp(formatCalendarAriaDate(date))}$`),
+    });
+    await expect(button).toBeVisible();
+    await button.click();
+  }
+}
+
+function formatCalendarAriaDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = JAPANESE_WEEKDAYS[new Date(year, month - 1, day).getDay()];
+  return `${year}年${month}月${day}日${weekday}`;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

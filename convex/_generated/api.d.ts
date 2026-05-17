@@ -65,6 +65,7 @@ import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
 import type * as shiftView_queries from "../shiftView/queries.js";
 import type * as shop_mutations from "../shop/mutations.js";
+import type * as shop_schemas from "../shop/schemas.js";
 import type * as staff_mutations from "../staff/mutations.js";
 import type * as staff_schemas from "../staff/schemas.js";
 import type * as staffAuth_mutations from "../staffAuth/mutations.js";
@@ -139,6 +140,7 @@ declare const fullApi: ApiFromModules<{
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;
   "shiftView/queries": typeof shiftView_queries;
   "shop/mutations": typeof shop_mutations;
+  "shop/schemas": typeof shop_schemas;
   "staff/mutations": typeof staff_mutations;
   "staff/schemas": typeof staff_schemas;
   "staffAuth/mutations": typeof staffAuth_mutations;

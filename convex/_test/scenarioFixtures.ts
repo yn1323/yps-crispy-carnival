@@ -14,6 +14,7 @@ type RecruitmentInput = {
   periodStart: string;
   periodEnd: string;
   deadline: string;
+  shopClosedDates?: string[];
 };
 
 type StaffEntry = {
@@ -38,6 +39,10 @@ type ShopSettingsInput = {
   shiftEndTime: string;
 };
 
+type UpdateShopSettingsInput = ShopSettingsInput & {
+  regularClosedDays: Array<"sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat">;
+};
+
 export function createScenario(t: ScenarioTest) {
   return {
     manager(identity: ManagerIdentity) {
@@ -50,12 +55,15 @@ export function createScenario(t: ScenarioTest) {
           return asManager.mutation(api.setup.mutations.setupShopAndManager, args);
         },
         createRecruitment(args: RecruitmentInput) {
-          return asManager.mutation(api.recruitment.mutations.createRecruitment, args);
+          return asManager.mutation(api.recruitment.mutations.createRecruitment, {
+            ...args,
+            shopClosedDates: args.shopClosedDates ?? [],
+          });
         },
         deleteRecruitment(recruitmentId: Id<"recruitments">) {
           return asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId });
         },
-        updateShopSettings(args: ShopSettingsInput) {
+        updateShopSettings(args: UpdateShopSettingsInput) {
           return asManager.mutation(api.shop.mutations.updateShopSettings, args);
         },
         addStaffs(entries: StaffEntry[]) {

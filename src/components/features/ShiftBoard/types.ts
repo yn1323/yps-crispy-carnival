@@ -8,6 +8,7 @@ export type ShiftBoardData = {
     periodStart: string;
     periodEnd: string;
     deadline: string;
+    shopClosedDates: string[];
     status: "open" | "confirmed";
     confirmedAt: number | null;
     lastReminderSentAt: number | null;

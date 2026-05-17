@@ -68,6 +68,7 @@ export const submitShiftRequests = staffSessionMutation({
     }
 
     const requestedDates = new Set<string>();
+    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
     for (const req of args.requests) {
       if (requestedDates.has(req.date)) {
         throw new ConvexError("同じ日の希望シフトは1件だけ登録できます");
@@ -76,6 +77,9 @@ export const submitShiftRequests = staffSessionMutation({
 
       if (req.date < recruitment.periodStart || req.date > recruitment.periodEnd) {
         throw new ConvexError("Date out of range");
+      }
+      if (shopClosedDateSet.has(req.date)) {
+        throw new ConvexError("定休日には希望シフトを提出できません");
       }
       if (timeToMinutes(req.startTime) >= timeToMinutes(req.endTime)) {
         throw new ConvexError("Invalid time range");

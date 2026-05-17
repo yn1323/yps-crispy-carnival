@@ -1,13 +1,36 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { todayJST } from "../_lib/dateFormat";
+import { generateDateRange, todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeShopClosedDates(dates: string[], periodStart: string, periodEnd: string): string[] {
+  const uniqueDates = [...new Set(dates)].sort();
+  const periodDateCount = generateDateRange(periodStart, periodEnd).length;
+
+  for (const date of uniqueDates) {
+    if (!ISO_DATE_PATTERN.test(date)) {
+      throw new ConvexError("定休日の日付形式が正しくありません");
+    }
+    if (date < periodStart || date > periodEnd) {
+      throw new ConvexError("定休日は募集期間内の日付を選んでください");
+    }
+  }
+
+  if (periodDateCount > 0 && uniqueDates.length >= periodDateCount) {
+    throw new ConvexError("シフト期間のすべてを定休日にはできません");
+  }
+
+  return uniqueDates;
+}
 
 export const createRecruitment = managerMutation({
   args: {
     periodStart: v.string(),
     periodEnd: v.string(),
     deadline: v.string(),
+    shopClosedDates: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     const today = todayJST();
@@ -24,12 +47,14 @@ export const createRecruitment = managerMutation({
     if (args.deadline >= args.periodStart) {
       throw new ConvexError("締切日は開始日より前にしてください");
     }
+    const shopClosedDates = normalizeShopClosedDates(args.shopClosedDates, args.periodStart, args.periodEnd);
 
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId: ctx.shop._id,
       periodStart: args.periodStart,
       periodEnd: args.periodEnd,
       deadline: args.deadline,
+      shopClosedDates,
       status: "open",
       isDeleted: false,
       // 作成時点の店舗シフト時間帯をスナップショットとして保存

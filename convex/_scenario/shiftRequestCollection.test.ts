@@ -173,6 +173,7 @@ describe("シフト希望回収シナリオ", () => {
       shopName: "時間変更店舗",
       shiftStartTime: "12:00",
       shiftEndTime: "20:00",
+      regularClosedDays: [],
     });
     await t.run(async (ctx) => {
       await seedSession(ctx, {
