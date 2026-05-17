@@ -140,6 +140,7 @@ const buildSubmissionInput = (pattern: ShiftSubmissionPattern, entries: DayEntry
 
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
+  const latestShiftTypeOptionIdsRef = useRef<string[] | undefined>(undefined);
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
   const shopClosedDateSet = useMemo(() => new Set(data.shopClosedDates), [data.shopClosedDates]);
   const timeOptions = useMemo(
@@ -198,8 +199,17 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
     const entry = entries[index];
     if (shopClosedDateSet.has(entry.date)) return;
     if (data.submissionPattern.kind === "shiftType") {
-      const firstOption = data.submissionPattern.options[0];
+      const validOptionIds = new Set(data.submissionPattern.options.map((option) => option.id));
+      const latestOptionIds = latestShiftTypeOptionIdsRef.current?.filter((optionId) => validOptionIds.has(optionId));
+      const nextOptionIds =
+        latestOptionIds && latestOptionIds.length > 0
+          ? latestOptionIds
+          : data.submissionPattern.options[0]?.id
+            ? [data.submissionPattern.options[0].id]
+            : [];
+      const firstOption = data.submissionPattern.options.find((option) => option.id === nextOptionIds[0]);
       if (!firstOption) return;
+      latestShiftTypeOptionIdsRef.current = nextOptionIds;
       setValue(
         `entries.${index}`,
         {
@@ -208,7 +218,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
           startTime: firstOption.startTime,
           endTime: firstOption.endTime,
           optionId: firstOption.id,
-          optionIds: [firstOption.id],
+          optionIds: nextOptionIds,
         },
         { shouldDirty: true, shouldValidate: true },
       );
@@ -251,6 +261,10 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const handleClear = (index: number) => {
     const entry = entries[index];
     latestWorkingTimeRef.current = { startTime: entry.startTime, endTime: entry.endTime };
+    const selectedOptionIds = getSelectedShiftTypeOptionIds(entry);
+    if (entry.isWorking && selectedOptionIds.length > 0) {
+      latestShiftTypeOptionIdsRef.current = selectedOptionIds;
+    }
     setValue(`entries.${index}`, buildRestEntry(entry), { shouldDirty: true, shouldValidate: true });
   };
 
@@ -265,10 +279,12 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
       ? selectedIds.filter((selectedId) => selectedId !== optionId)
       : [...selectedIds, optionId];
     if (nextOptionIds.length === 0) {
+      latestShiftTypeOptionIdsRef.current = selectedIds;
       setValue(`entries.${index}`, buildRestEntry(entry), { shouldDirty: true, shouldValidate: true });
       return;
     }
     const firstOption = data.submissionPattern.options.find((item) => item.id === nextOptionIds[0]) ?? option;
+    latestShiftTypeOptionIdsRef.current = nextOptionIds;
     setValue(
       `entries.${index}`,
       {
@@ -286,6 +302,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const handleApplyPreviousPattern = () => {
     if (!previousPatternEntries) return;
     latestWorkingTimeRef.current = undefined;
+    latestShiftTypeOptionIdsRef.current = undefined;
     setValue("entries", previousPatternEntries, {
       shouldDirty: true,
       shouldValidate: true,
