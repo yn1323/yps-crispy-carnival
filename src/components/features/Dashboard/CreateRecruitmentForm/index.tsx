@@ -1,12 +1,16 @@
-import { Box, type DateValue, Field, Flex, HStack, Icon, parseDate, Separator, Stack, Text } from "@chakra-ui/react";
+import { Box, type DateValue, Field, Flex, parseDate, Separator, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
-import type { ComponentType } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuCalendarCheck, LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
+import {
+  StepperDialogContent,
+  type StepperDialogStep,
+  StepperDialogStepTitle,
+} from "@/src/components/ui/StepperDialog";
 import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import { CalendarPicker } from "./CalendarPicker";
 import {
@@ -27,11 +31,11 @@ type Props = {
   onCancel?: () => void;
 };
 
-const steps: Array<{ key: Step; label: string }> = [
-  { key: "period", label: "期間" },
-  { key: "holidays", label: "お休み" },
-  { key: "deadline", label: "提出期限" },
-  { key: "confirm", label: "確認" },
+const steps: StepperDialogStep<Step>[] = [
+  { value: "period", label: "期間" },
+  { value: "holidays", label: "お休み" },
+  { value: "deadline", label: "提出期限" },
+  { value: "confirm", label: "確認" },
 ];
 
 const toIso = (date: DateValue): string => date.toString();
@@ -103,65 +107,6 @@ const isDeadlineInRange = (deadline: string, today: string, periodStart?: string
   if (periodStart && deadline >= periodStart) return false;
   return true;
 };
-
-const StepIndicator = ({ currentStep }: { currentStep: Step }) => {
-  const currentIndex = steps.findIndex((step) => step.key === currentStep);
-
-  return (
-    <Flex gap={2} align="center" px={{ base: 4, md: 0 }}>
-      {steps.map((step, index) => {
-        const isDone = index < currentIndex;
-        const isCurrent = index === currentIndex;
-        return (
-          <Flex key={step.key} align="center" flex={1} minW={0}>
-            <HStack gap={2} minW={0}>
-              <Flex
-                w="24px"
-                h="24px"
-                borderRadius="full"
-                align="center"
-                justify="center"
-                bg={isCurrent || isDone ? "teal.500" : "gray.100"}
-                color={isCurrent || isDone ? "white" : "gray.500"}
-                fontSize="xs"
-                fontWeight="bold"
-                flexShrink={0}
-              >
-                {isDone ? "✓" : index + 1}
-              </Flex>
-              <Text
-                display={{ base: isCurrent ? "block" : "none", md: "block" }}
-                fontSize="sm"
-                fontWeight={isCurrent ? "bold" : "semibold"}
-                color={isCurrent ? "gray.900" : isDone ? "teal.700" : "gray.500"}
-                whiteSpace="nowrap"
-              >
-                {step.label}
-              </Text>
-            </HStack>
-            {index < steps.length - 1 && <Box flex={1} h="1px" bg={isDone ? "teal.300" : "gray.200"} mx={2} />}
-          </Flex>
-        );
-      })}
-    </Flex>
-  );
-};
-
-const StepTitle = ({ icon, title, description }: { icon: ComponentType; title: string; description: string }) => (
-  <HStack gap={3} align="flex-start">
-    <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.600" align="center" justify="center">
-      <Icon as={icon} boxSize={5} />
-    </Flex>
-    <Stack gap={1}>
-      <Text fontSize="md" fontWeight="bold" color="gray.900">
-        {title}
-      </Text>
-      <Text fontSize="sm" color="fg.muted" lineHeight={1.7}>
-        {description}
-      </Text>
-    </Stack>
-  </HStack>
-);
 
 const SummaryLine = ({ label, value, detail }: { label: string; value: string; detail?: string }) => (
   <Flex gap={3} py={2} justify="flex-start" align="baseline">
@@ -336,204 +281,183 @@ export const CreateRecruitmentForm = ({
     onSubmit({ ...data, shopClosedDates: selectedHolidays });
   });
 
+  const actions =
+    currentStep === "period" ? (
+      <>
+        <Button type="button" variant="outline" onClick={onCancel} flex={{ base: 1, md: "unset" }}>
+          キャンセル
+        </Button>
+        <Button type="button" colorPalette="teal" onClick={goToHolidays} flex={{ base: 1, md: "unset" }}>
+          次へ
+        </Button>
+      </>
+    ) : currentStep === "holidays" ? (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setCurrentStep("period")}
+          flex={{ base: 1, md: "unset" }}
+        >
+          <LuChevronLeft />
+          戻る
+        </Button>
+        <Button type="button" colorPalette="teal" onClick={goToDeadline} flex={{ base: 1, md: "unset" }}>
+          次へ
+        </Button>
+      </>
+    ) : currentStep === "deadline" ? (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setCurrentStep("holidays")}
+          flex={{ base: 1, md: "unset" }}
+        >
+          <LuChevronLeft />
+          戻る
+        </Button>
+        <Button type="button" colorPalette="teal" onClick={goToConfirm} flex={{ base: 1, md: "unset" }}>
+          確認へ
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setCurrentStep("deadline")}
+          flex={{ base: 1, md: "unset" }}
+        >
+          <LuChevronLeft />
+          戻る
+        </Button>
+        <Button type="submit" colorPalette="teal" loading={isSubmitting} flex={{ base: 1, md: "unset" }}>
+          募集をつくる
+        </Button>
+      </>
+    );
+
   return (
     <form id="create-recruitment-form" onSubmit={submitForm}>
       <input type="hidden" {...register("periodStart")} />
       <input type="hidden" {...register("periodEnd")} />
       <input type="hidden" {...register("deadline")} />
 
-      <Flex minH={{ base: "calc(100dvh - 72px)", md: "auto" }} direction="column">
-        <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
-          <StepIndicator currentStep={currentStep} />
-        </Box>
-
-        <Box flex={1} overflowY="auto" px={{ base: 4, md: 6 }} pb={{ base: 4, md: 6 }}>
-          {currentStep === "period" && (
-            <Stack gap={5}>
-              <StepTitle
-                icon={LuCalendarDays}
-                title="シフト期間を選択"
-                description="今月と来月のカレンダーから、開始日と終了日を選んでください。"
-              />
-              <CalendarPicker
-                selectionMode="range"
-                value={periodValue}
-                min={periodMin}
-                max={periodMax}
-                defaultFocusedValue={periodInitialFocus}
-                desktopMonths={2}
-                onValueChange={handlePeriodChange}
-              />
-              <Field.Root display={{ base: "block", md: "none" }}>
-                <Field.Label>選択中の期間</Field.Label>
-                <Box p={3} borderWidth={1} borderColor="border.default" borderRadius="md" bg="gray.50">
-                  <Text fontSize="sm" fontWeight="semibold">
-                    {periodLabel}
-                  </Text>
-                  <Text mt={1} fontSize="xs" color="fg.muted">
-                    {periodDays > 0 ? `${periodDays}日間` : "カレンダーから開始日と終了日を選んでください"}
-                  </Text>
-                </Box>
-              </Field.Root>
-              {hasPeriodError && (
-                <Field.Root invalid>
-                  {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
-                  {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
-                </Field.Root>
-              )}
-            </Stack>
-          )}
-
-          {currentStep === "holidays" && (
-            <Stack gap={5}>
-              <StepTitle
-                icon={LuStore}
-                title="お店のお休みを選択"
-                description="シフト募集期間の中で、お店を開けない日があれば選びます。設定しない場合はスキップできます。"
-              />
-              <CalendarPicker
-                selectionMode="multiple"
-                value={toDateValues(selectedHolidays)}
-                min={holidayMin}
-                max={holidayMax}
-                defaultFocusedValue={holidayInitialFocus}
-                desktopMonths={holidayDesktopMonths}
-                highlightSelectableDates
-                onValueChange={handleHolidayChange}
-              />
-              {allPeriodDaysAreHolidays && (
-                <Field.Root invalid>
-                  <Field.ErrorText>シフト期間のすべてをお休みにはできません</Field.ErrorText>
-                </Field.Root>
-              )}
-            </Stack>
-          )}
-
-          {currentStep === "deadline" && (
-            <Stack gap={5}>
-              <StepTitle
-                icon={LuTimer}
-                title="提出締切日を選択"
-                description="スタッフが希望シフトを提出できる締切日を選んでください。"
-              />
-              <Field.Root invalid={!!errors.deadline}>
-                <CalendarPicker
-                  selectionMode="single"
-                  value={toDateValues(deadline ? [deadline] : [])}
-                  min={deadlineMin}
-                  max={deadlineMaxValue}
-                  defaultFocusedValue={periodInitialFocus}
-                  desktopMonths={deadlineDesktopMonths}
-                  onValueChange={handleDeadlineChange}
-                />
-                {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
-              </Field.Root>
-            </Stack>
-          )}
-
-          {currentStep === "confirm" && (
-            <Stack gap={5}>
-              <StepTitle
-                icon={LuCalendarCheck}
-                title="内容を確認"
-                description="作成する募集の内容を確認してください。"
-              />
-              <Box borderWidth={1} borderColor="border.default" borderRadius="md" bg="white">
-                <Box px={4} py={3}>
-                  <SummaryLine label="シフト期間" value={periodLabel} />
-                  <Separator />
-                  <SummaryLine label="日数" value={periodDays > 0 ? `${periodDays}日` : "未選択"} />
-                  <Separator />
-                  <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
-                  <Separator />
-                  <SummaryLine
-                    label="提出方法"
-                    value={submissionPatternSummary.value}
-                    detail={submissionPatternSummary.detail}
-                  />
-                  <Separator />
-                  <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
-                </Box>
+      <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
+        {currentStep === "period" && (
+          <Stack gap={5}>
+            <StepperDialogStepTitle
+              icon={LuCalendarDays}
+              title="シフト期間を選択"
+              description="今月と来月のカレンダーから、開始日と終了日を選んでください。"
+            />
+            <CalendarPicker
+              selectionMode="range"
+              value={periodValue}
+              min={periodMin}
+              max={periodMax}
+              defaultFocusedValue={periodInitialFocus}
+              desktopMonths={2}
+              onValueChange={handlePeriodChange}
+            />
+            <Field.Root display={{ base: "block", md: "none" }}>
+              <Field.Label>選択中の期間</Field.Label>
+              <Box p={3} borderWidth={1} borderColor="border.default" borderRadius="md" bg="gray.50">
+                <Text fontSize="sm" fontWeight="semibold">
+                  {periodLabel}
+                </Text>
+                <Text mt={1} fontSize="xs" color="fg.muted">
+                  {periodDays > 0 ? `${periodDays}日間` : "カレンダーから開始日と終了日を選んでください"}
+                </Text>
               </Box>
-              <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
-                提出方法は募集作成時点の店舗設定で固定されます。
-              </Text>
-            </Stack>
-          )}
-        </Box>
+            </Field.Root>
+            {hasPeriodError && (
+              <Field.Root invalid>
+                {errors.periodStart && <Field.ErrorText>{errors.periodStart.message}</Field.ErrorText>}
+                {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
+              </Field.Root>
+            )}
+          </Stack>
+        )}
 
-        <Box
-          position={{ base: "sticky", md: "static" }}
-          bottom={0}
-          px={{ base: 4, md: 6 }}
-          py={4}
-          bg="white"
-          borderTopWidth={1}
-          borderColor="border.default"
-        >
-          {currentStep === "period" && (
-            <Flex justify="space-between" gap={3}>
-              <Button type="button" variant="outline" onClick={onCancel} flex={{ base: 1, md: "unset" }}>
-                キャンセル
-              </Button>
-              <Button type="button" colorPalette="teal" onClick={goToHolidays} flex={{ base: 1, md: "unset" }}>
-                次へ
-              </Button>
-            </Flex>
-          )}
+        {currentStep === "holidays" && (
+          <Stack gap={5}>
+            <StepperDialogStepTitle
+              icon={LuStore}
+              title="お店のお休みを選択"
+              description="シフト募集期間の中で、お店を開けない日があれば選びます。設定しない場合はスキップできます。"
+            />
+            <CalendarPicker
+              selectionMode="multiple"
+              value={toDateValues(selectedHolidays)}
+              min={holidayMin}
+              max={holidayMax}
+              defaultFocusedValue={holidayInitialFocus}
+              desktopMonths={holidayDesktopMonths}
+              highlightSelectableDates
+              onValueChange={handleHolidayChange}
+            />
+            {allPeriodDaysAreHolidays && (
+              <Field.Root invalid>
+                <Field.ErrorText>シフト期間のすべてをお休みにはできません</Field.ErrorText>
+              </Field.Root>
+            )}
+          </Stack>
+        )}
 
-          {currentStep === "holidays" && (
-            <Flex justify="space-between" gap={3}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentStep("period")}
-                flex={{ base: 1, md: "unset" }}
-              >
-                <LuChevronLeft />
-                戻る
-              </Button>
-              <Button type="button" colorPalette="teal" onClick={goToDeadline} flex={{ base: 1, md: "unset" }}>
-                次へ
-              </Button>
-            </Flex>
-          )}
+        {currentStep === "deadline" && (
+          <Stack gap={5}>
+            <StepperDialogStepTitle
+              icon={LuTimer}
+              title="提出締切日を選択"
+              description="スタッフが希望シフトを提出できる締切日を選んでください。"
+            />
+            <Field.Root invalid={!!errors.deadline}>
+              <CalendarPicker
+                selectionMode="single"
+                value={toDateValues(deadline ? [deadline] : [])}
+                min={deadlineMin}
+                max={deadlineMaxValue}
+                defaultFocusedValue={periodInitialFocus}
+                desktopMonths={deadlineDesktopMonths}
+                onValueChange={handleDeadlineChange}
+              />
+              {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
+            </Field.Root>
+          </Stack>
+        )}
 
-          {currentStep === "deadline" && (
-            <Flex justify="space-between" gap={3}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentStep("holidays")}
-                flex={{ base: 1, md: "unset" }}
-              >
-                <LuChevronLeft />
-                戻る
-              </Button>
-              <Button type="button" colorPalette="teal" onClick={goToConfirm} flex={{ base: 1, md: "unset" }}>
-                確認へ
-              </Button>
-            </Flex>
-          )}
-
-          {currentStep === "confirm" && (
-            <Flex justify="space-between" gap={3}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentStep("deadline")}
-                flex={{ base: 1, md: "unset" }}
-              >
-                <LuChevronLeft />
-                戻る
-              </Button>
-              <Button type="submit" colorPalette="teal" loading={isSubmitting} flex={{ base: 1, md: "unset" }}>
-                募集をつくる
-              </Button>
-            </Flex>
-          )}
-        </Box>
-      </Flex>
+        {currentStep === "confirm" && (
+          <Stack gap={5}>
+            <StepperDialogStepTitle
+              icon={LuCalendarCheck}
+              title="内容を確認"
+              description="作成する募集の内容を確認してください。"
+            />
+            <Box borderWidth={1} borderColor="border.default" borderRadius="md" bg="white">
+              <Box px={4} py={3}>
+                <SummaryLine label="シフト期間" value={periodLabel} />
+                <Separator />
+                <SummaryLine label="日数" value={periodDays > 0 ? `${periodDays}日` : "未選択"} />
+                <Separator />
+                <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
+                <Separator />
+                <SummaryLine
+                  label="提出方法"
+                  value={submissionPatternSummary.value}
+                  detail={submissionPatternSummary.detail}
+                />
+                <Separator />
+                <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
+              </Box>
+            </Box>
+            <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
+              提出方法は募集作成時点の店舗設定で固定されます。
+            </Text>
+          </Stack>
+        )}
+      </StepperDialogContent>
     </form>
   );
 };

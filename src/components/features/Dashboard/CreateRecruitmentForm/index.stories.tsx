@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { findByText, getByRole, getByText } from "@testing-library/dom";
 import dayjs from "dayjs";
 import { expect } from "storybook/test";
-import { Dialog } from "@/src/components/ui/Dialog";
+import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { CreateRecruitmentForm } from "./index.tsx";
 
 const meta = {
@@ -21,23 +21,9 @@ type Story = StoryObj<typeof meta>;
 
 export const InDialog: Story = {
   render: () => (
-    <Dialog
-      title="新しい募集をつくる"
-      isOpen={true}
-      onOpenChange={() => {}}
-      onClose={() => {}}
-      hideFooter
-      maxW={{ base: "100vw", md: "760px" }}
-      maxH={{ base: "100dvh", md: "90dvh" }}
-      contentProps={{
-        h: { base: "100dvh", md: "auto" },
-        borderRadius: { base: 0, md: "l3" },
-        my: { base: 0, md: "var(--dialog-base-margin)" },
-      }}
-      bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
-    >
+    <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
       <CreateRecruitmentForm onSubmit={() => {}} onCancel={() => {}} />
-    </Dialog>
+    </StepperDialog>
   ),
 };
 
@@ -46,19 +32,9 @@ export const MobileFullScreen: Story = {
     viewport: { value: "mobile1", isRotated: false },
   },
   render: () => (
-    <Dialog
-      title="新しい募集をつくる"
-      isOpen={true}
-      onOpenChange={() => {}}
-      onClose={() => {}}
-      hideFooter
-      maxW="100vw"
-      maxH="100dvh"
-      contentProps={{ h: "100dvh", borderRadius: 0, my: 0 }}
-      bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
-    >
+    <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
       <CreateRecruitmentForm onSubmit={() => {}} onCancel={() => {}} />
-    </Dialog>
+    </StepperDialog>
   ),
 };
 
@@ -133,23 +109,9 @@ export const InteractiveDefaultRegularClosedDays: Story = {
     chromatic: { disableSnapshot: true },
   },
   render: () => (
-    <Dialog
-      title="新しい募集をつくる"
-      isOpen={true}
-      onOpenChange={() => {}}
-      onClose={() => {}}
-      hideFooter
-      maxW={{ base: "100vw", md: "760px" }}
-      maxH={{ base: "100dvh", md: "90dvh" }}
-      contentProps={{
-        h: { base: "100dvh", md: "auto" },
-        borderRadius: { base: 0, md: "l3" },
-        my: { base: 0, md: "var(--dialog-base-margin)" },
-      }}
-      bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
-    >
+    <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
       <CreateRecruitmentForm regularClosedDays={["mon"]} onSubmit={() => {}} onCancel={() => {}} />
-    </Dialog>
+    </StepperDialog>
   ),
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);

@@ -9,6 +9,7 @@ import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialo
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
@@ -415,20 +416,11 @@ export const DashboardContent = ({
         )}
       </ContentWrapper>
 
-      <Dialog
+      <StepperDialog
         title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
         onClose={recruitmentModal.close}
-        hideFooter
-        maxW={{ base: "100vw", md: "760px" }}
-        maxH={{ base: "100dvh", md: "90dvh" }}
-        contentProps={{
-          h: { base: "100dvh", md: "auto" },
-          borderRadius: { base: 0, md: "l3" },
-          my: { base: 0, md: "var(--dialog-base-margin)" },
-        }}
-        bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
       >
         <CreateRecruitmentForm
           regularClosedDays={shop?.regularClosedDays ?? []}
@@ -436,7 +428,7 @@ export const DashboardContent = ({
           onSubmit={handleCreateRecruitment}
           onCancel={recruitmentModal.close}
         />
-      </Dialog>
+      </StepperDialog>
 
       <Dialog
         title={deleteRecruitmentTitle}
