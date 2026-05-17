@@ -67,6 +67,7 @@ function generateTimeOptions(maxMinutes: number): { value: string; label: string
 
 const ALL_START_OPTIONS = generateTimeOptions(23 * 60 + 30);
 const ALL_END_OPTIONS = generateTimeOptions(29 * 60);
+const DIALOG_SELECT_POSITIONING = { strategy: "fixed" as const, hideWhenDetached: true, sameWidth: true };
 
 const SUBMISSION_PATTERN_OPTIONS: Array<{
   kind: ShiftSubmissionPattern["kind"];
@@ -95,14 +96,14 @@ const steps: StepperDialogStep<Step>[] = [
     label: "集め方",
     icon: LuListChecks,
     title: "希望シフトの集め方",
-    description: "スタッフにどの粒度でシフトを提出してもらいますか？",
+    description: "スタッフのシフトを提出方法を設定します。",
   },
   {
     value: "patternSettings",
     label: "シフト設定",
     icon: LuSettings2,
     title: "シフト設定",
-    description: "選んだ集め方に必要な設定だけ入力します。",
+    description: "スタッフが選択可能な時間帯を設定します。",
   },
   {
     value: "regularClosedDays",
@@ -405,6 +406,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                     }
                     placeholder="選択してください"
                     usePortal={false}
+                    positioning={DIALOG_SELECT_POSITIONING}
                   />
                 </Field.Root>
                 <Field.Root invalid={!!errors.submissionPattern}>
@@ -417,6 +419,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                     }
                     placeholder="選択してください"
                     usePortal={false}
+                    positioning={DIALOG_SELECT_POSITIONING}
                   />
                 </Field.Root>
               </Stack>
@@ -455,6 +458,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                             onChange={(value) => updateShiftTypeOption(index, { startTime: value })}
                             placeholder="開始"
                             usePortal={false}
+                            positioning={DIALOG_SELECT_POSITIONING}
                           />
                           <Select
                             label="終了"
@@ -463,6 +467,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                             onChange={(value) => updateShiftTypeOption(index, { endTime: value })}
                             placeholder="終了"
                             usePortal={false}
+                            positioning={DIALOG_SELECT_POSITIONING}
                           />
                           <HStack justify={{ base: "flex-end", md: "center" }}>
                             <IconButton
@@ -525,9 +530,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
               })}
             </Flex>
             <Text fontSize="xs" color="fg.muted">
-              {selectedClosedDayLabels.length > 0
-                ? `定休日: ${selectedClosedDayLabels.join("・")}`
-                : "定休日は未設定です"}
+              {selectedClosedDayLabels.length > 0 ? `定休日: ${selectedClosedDayLabels.join("・")}` : "定休日なし"}
             </Text>
           </Stack>
         )}

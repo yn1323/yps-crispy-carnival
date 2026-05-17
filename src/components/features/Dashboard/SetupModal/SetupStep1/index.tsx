@@ -39,6 +39,7 @@ function generateTimeOptions(maxMinutes: number): { value: string; label: string
 
 const ALL_START_OPTIONS = generateTimeOptions(23 * 60 + 30);
 const ALL_END_OPTIONS = generateTimeOptions(29 * 60);
+const DIALOG_SELECT_POSITIONING = { strategy: "fixed" as const, hideWhenDetached: true, sameWidth: true };
 const DEFAULT_TIME_PATTERN: Extract<ShiftSubmissionPattern, { kind: "time" }> = {
   kind: "time",
   startTime: "09:00",
@@ -219,6 +220,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
                   }
                   placeholder="選択してください"
                   usePortal={false}
+                  positioning={DIALOG_SELECT_POSITIONING}
                 />
               </Field.Root>
               <Field.Root invalid={!!errors.submissionPattern}>
@@ -231,6 +233,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
                   }
                   placeholder="選択してください"
                   usePortal={false}
+                  positioning={DIALOG_SELECT_POSITIONING}
                 />
               </Field.Root>
             </Stack>
@@ -264,6 +267,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
                         onChange={(value) => updateShiftTypeOption(index, { startTime: value })}
                         placeholder="開始"
                         usePortal={false}
+                        positioning={DIALOG_SELECT_POSITIONING}
                       />
                       <Select
                         label="終了"
@@ -272,6 +276,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
                         onChange={(value) => updateShiftTypeOption(index, { endTime: value })}
                         placeholder="終了"
                         usePortal={false}
+                        positioning={DIALOG_SELECT_POSITIONING}
                       />
                       <HStack justify={{ base: "flex-end", md: "center" }}>
                         <IconButton

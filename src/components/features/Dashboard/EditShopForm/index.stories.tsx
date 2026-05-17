@@ -91,15 +91,17 @@ export const InteractiveStepperFlow: Story = {
     clickButton(root, "次へ");
 
     await findByText(root, "希望シフトの集め方");
-    clickButton(root, "時間ごと");
+    clickButton(root, "時間を自由に設定");
     clickButton(root, "次へ");
 
     await findByText(root, "シフト開始時間");
     expect(getByText(root, "シフト終了時間")).toBeTruthy();
+    getByRole(root, "combobox", { name: "シフト開始時間" }).click();
+    expect(await findByRole(root, "listbox", { name: "シフト開始時間" })).toBeTruthy();
 
     clickButton(root, "戻る");
     await findByText(root, "希望シフトの集め方");
-    clickButton(root, "勤務区分");
+    clickButton(root, "勤務区分から選ぶ");
     clickButton(root, "次へ");
 
     await findByText(root, "勤務区分を追加");
