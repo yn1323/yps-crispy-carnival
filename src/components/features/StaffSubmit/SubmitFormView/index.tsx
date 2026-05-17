@@ -440,7 +440,7 @@ export const DateOnlySubmissionDayCard = ({
           fontWeight="semibold"
           color={isShopClosed ? "gray.500" : entry.isWorking ? "teal.700" : "fg.muted"}
         >
-          {isShopClosed ? "定休日" : entry.isWorking ? "出勤できる" : "休み"}
+          {isShopClosed ? "定休日" : entry.isWorking ? "出勤希望" : "休み"}
         </Text>
       </Box>
     </Flex>
