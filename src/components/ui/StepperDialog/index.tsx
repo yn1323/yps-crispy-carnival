@@ -1,5 +1,5 @@
 import { Box, Flex, HStack, Icon, Text } from "@chakra-ui/react";
-import type { ComponentProps, ElementType, ReactNode } from "react";
+import { type ComponentProps, type ElementType, Fragment, type ReactNode } from "react";
 import { Dialog } from "@/src/components/ui/Dialog";
 
 export type StepperDialogStep<TStep extends string = string> = {
@@ -16,6 +16,7 @@ type StepperDialogProps = Omit<
 > & {
   maxW?: ComponentProps<typeof Dialog>["maxW"];
   maxH?: ComponentProps<typeof Dialog>["maxH"];
+  minH?: ComponentProps<typeof Dialog>["maxH"];
   contentProps?: ComponentProps<typeof Dialog>["contentProps"];
   bodyProps?: ComponentProps<typeof Dialog>["bodyProps"];
 };
@@ -56,6 +57,7 @@ export const StepperDialog = ({
   children,
   maxW = { base: "100vw", md: "760px" },
   maxH = { base: "100dvh", md: "90dvh" },
+  minH = { base: "100dvh", md: "min(480px, 90dvh)" },
   contentProps,
   bodyProps,
   ...dialogProps
@@ -67,6 +69,7 @@ export const StepperDialog = ({
     maxH={maxH}
     contentProps={{
       h: { base: "100dvh", md: "auto" },
+      minH,
       borderRadius: { base: 0, md: "l3" },
       overflow: "hidden",
       my: { base: 0, md: "var(--dialog-base-margin)" },
@@ -76,6 +79,7 @@ export const StepperDialog = ({
       p: 0,
       display: "flex",
       flexDirection: "column",
+      minH: 0,
       overflowY: "hidden",
       ...bodyProps,
     }}
@@ -91,13 +95,13 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
   );
 
   return (
-    <Flex gap={2} align="center" px={{ base: 4, md: 0 }}>
+    <Flex align="center" w="full" px={{ base: 4, md: 0 }}>
       {steps.map((step, index) => {
         const isDone = index < currentIndex;
         const isCurrent = index === currentIndex;
         return (
-          <Flex key={step.value} align="center" flex={1} minW={0}>
-            <HStack gap={2} minW={0}>
+          <Fragment key={step.value}>
+            <HStack gap={2} flexShrink={0} minW={0}>
               <Flex
                 w="24px"
                 h="24px"
@@ -122,8 +126,10 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
                 {step.label}
               </Text>
             </HStack>
-            {index < steps.length - 1 && <Box flex={1} h="1px" bg={isDone ? "teal.300" : "gray.200"} mx={2} />}
-          </Flex>
+            {index < steps.length - 1 && (
+              <Box flex={1} minW={{ base: 3, md: 8 }} h="1px" bg={isDone ? "teal.300" : "gray.200"} mx={4} />
+            )}
+          </Fragment>
         );
       })}
     </Flex>
@@ -178,12 +184,12 @@ export const StepperDialogContent = <TStep extends string>({
   );
 
   return (
-    <Flex minH={{ base: "calc(100dvh - 72px)", md: "auto" }} direction="column">
+    <Flex flex={1} minH={0} direction="column">
       <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
         <StepperDialogSteps steps={steps} currentStep={currentStep} />
       </Box>
 
-      <Box flex={1} overflowY="auto" px={{ base: 4, md: 6 }} pb={{ base: 4, md: 6 }}>
+      <Box flex={1} minH={0} overflowY="auto" px={{ base: 4, md: 8 }} pb={{ base: 4, md: 6 }}>
         <Flex direction="column" gap={5}>
           {shouldShowStepTitle && (
             <StepperDialogStepTitle

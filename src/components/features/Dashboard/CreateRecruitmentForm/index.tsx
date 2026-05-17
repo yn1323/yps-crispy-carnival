@@ -33,7 +33,7 @@ const steps: StepperDialogStep<Step>[] = [
     label: "期間",
     icon: LuCalendarDays,
     title: "シフト期間を選択",
-    description: "募集する期間の開始日と終了日を選んでください。",
+    description: "募集するシフトの開始日と終了日を選んでください。",
   },
   {
     value: "holidays",

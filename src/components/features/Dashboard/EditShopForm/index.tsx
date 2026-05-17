@@ -1,4 +1,4 @@
-import { Box, Field, Flex, HStack, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Flex, Grid, HStack, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -16,8 +16,17 @@ import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import {
+  createDefaultShiftTypeOptions,
+  createShiftTypeOption,
+  DIALOG_SELECT_POSITIONING,
+  getNestedErrorMessage,
+  getShiftTypeOptionErrorMessages,
+  normalizeShiftTypeOptions,
+} from "../submissionPatternForm";
+import {
   type EditShopFormData,
   editShopSchema,
+  MAX_SHIFT_TIME_MINUTES,
   minutesToTime,
   type RegularClosedDay,
   type ShiftSubmissionPattern,
@@ -65,9 +74,8 @@ function generateTimeOptions(maxMinutes: number): { value: string; label: string
   return options;
 }
 
-const ALL_START_OPTIONS = generateTimeOptions(23 * 60 + 30);
-const ALL_END_OPTIONS = generateTimeOptions(29 * 60);
-const DIALOG_SELECT_POSITIONING = { strategy: "fixed" as const, hideWhenDetached: true, sameWidth: true };
+const ALL_START_OPTIONS = generateTimeOptions(MAX_SHIFT_TIME_MINUTES - 30);
+const ALL_END_OPTIONS = generateTimeOptions(MAX_SHIFT_TIME_MINUTES);
 
 const SUBMISSION_PATTERN_OPTIONS: Array<{
   kind: ShiftSubmissionPattern["kind"];
@@ -100,9 +108,9 @@ const steps: StepperDialogStep<Step>[] = [
   },
   {
     value: "patternSettings",
-    label: "シフト設定",
+    label: "勤務時間",
     icon: LuSettings2,
-    title: "シフト設定",
+    title: "勤務時間",
     description: "スタッフが選択可能な時間帯を設定します。",
   },
   {
@@ -110,7 +118,7 @@ const steps: StepperDialogStep<Step>[] = [
     label: "定休日",
     icon: LuCalendarDays,
     title: "定休日",
-    description: "決まった休みがある場合、選択してください。募集ごとに細かく調整することも可能です。",
+    description: "決まったお休みの曜日を設定します。募集期間ごとに細かく調整することも可能です。",
   },
 ];
 
@@ -119,17 +127,6 @@ const DEFAULT_TIME_PATTERN: Extract<ShiftSubmissionPattern, { kind: "time" }> = 
   startTime: "09:00",
   endTime: "22:00",
 };
-
-const createShiftTypeOption = (index: number): ShiftTypeOption => ({
-  id: `shift-type-${Date.now()}-${index}`,
-  name: "",
-  startTime: "09:00",
-  endTime: "18:00",
-  sortOrder: index,
-});
-
-const normalizeShiftTypeOptions = (options: ShiftTypeOption[]): ShiftTypeOption[] =>
-  options.map((option, index) => ({ ...option, sortOrder: index }));
 
 const getNextStep = (step: Step): Step => {
   if (step === "shopName") return "submissionPattern";
@@ -153,6 +150,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
     handleSubmit,
     watch,
     setValue,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<EditShopFormData>({
     resolver: zodResolver(editShopSchema),
@@ -184,6 +182,8 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
     (day) => day.label,
   );
   const shiftTypeOptions = submissionPattern.kind === "shiftType" ? submissionPattern.options : [];
+  const shiftTypeOptionsError = getNestedErrorMessage(errors.submissionPattern, ["options"]);
+  const hasSubmissionPatternError = !!errors.submissionPattern;
 
   const setSubmissionPattern = (next: ShiftSubmissionPattern) => {
     setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true });
@@ -204,7 +204,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
         options:
           submissionPattern.kind === "shiftType" && submissionPattern.options.length > 0
             ? submissionPattern.options
-            : [createShiftTypeOption(0)],
+            : createDefaultShiftTypeOptions(),
       });
       return;
     }
@@ -217,6 +217,12 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
 
   const goToPreviousStep = () => {
     setCurrentStep((step) => getPreviousStep(step));
+  };
+
+  const handlePatternSettingsNext = async () => {
+    const isValid = await trigger("submissionPattern", { shouldFocus: true });
+    if (!isValid) return;
+    goToNextStep();
   };
 
   const updateShiftTypeOption = (index: number, patch: Partial<ShiftTypeOption>) => {
@@ -284,6 +290,16 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
           次へ
         </Button>
       </>
+    ) : currentStep === "patternSettings" ? (
+      <>
+        <Button type="button" variant="outline" onClick={goToPreviousStep} flex={{ base: 1, md: "unset" }}>
+          <LuChevronLeft />
+          戻る
+        </Button>
+        <Button type="button" colorPalette="teal" onClick={handlePatternSettingsNext} flex={{ base: 1, md: "unset" }}>
+          次へ
+        </Button>
+      </>
     ) : currentStep === "regularClosedDays" ? (
       <>
         <Button type="button" variant="outline" onClick={goToPreviousStep} flex={{ base: 1, md: "unset" }}>
@@ -316,6 +332,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
     <form
       id="edit-shop-form"
       noValidate
+      style={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
       }}
@@ -386,10 +403,10 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
             {submissionPattern.kind === "dateOnly" && (
               <Box borderWidth={1} borderColor="border.default" borderRadius="md" bg="gray.50" p={4}>
                 <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-                  追加設定はありません
+                  追加設定なし
                 </Text>
                 <Text mt={1} fontSize="xs" color="fg.muted" lineHeight="tall">
-                  スタッフには、出勤できる日だけ選んでもらいます。
+                  スタッフに出勤できる日のみ選んでもらいます。
                 </Text>
               </Box>
             )}
@@ -426,10 +443,17 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
             )}
 
             {submissionPattern.kind === "shiftType" && (
-              <Stack gap={3} p={3} borderWidth={1} borderColor="border.default" borderRadius="md" bg="gray.50">
+              <Stack
+                gap={3}
+                p={3}
+                borderWidth={1}
+                borderColor={hasSubmissionPatternError ? "red.200" : "border.default"}
+                borderRadius="md"
+                bg="gray.50"
+              >
                 {shiftTypeOptions.length === 0 ? (
-                  <Text fontSize="xs" color="fg.muted">
-                    勤務区分を追加してください。
+                  <Text fontSize="xs" color={shiftTypeOptionsError ? "red.600" : "fg.muted"}>
+                    {shiftTypeOptionsError ?? "勤務区分を追加してください。"}
                   </Text>
                 ) : (
                   <Stack gap={3}>
@@ -440,48 +464,86 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                       const optionStartOptions = ALL_START_OPTIONS.filter(
                         (item) => timeToMinutes(item.value) < timeToMinutes(option.endTime),
                       );
+                      const nameError = getNestedErrorMessage(errors.submissionPattern, ["options", index, "name"]);
+                      const startTimeError = getNestedErrorMessage(errors.submissionPattern, [
+                        "options",
+                        index,
+                        "startTime",
+                      ]);
+                      const endTimeError = getNestedErrorMessage(errors.submissionPattern, [
+                        "options",
+                        index,
+                        "endTime",
+                      ]);
+                      const optionErrorMessages = getShiftTypeOptionErrorMessages(errors.submissionPattern, index);
                       return (
-                        <SimpleGrid key={option.id} columns={{ base: 1, md: 4 }} gap={2} alignItems="end">
-                          <Field.Root>
-                            <Field.Label>区分名</Field.Label>
-                            <Input
-                              value={option.name}
-                              placeholder="例: 早番"
-                              bg="white"
-                              onChange={(event) => updateShiftTypeOption(index, { name: event.target.value })}
-                            />
-                          </Field.Root>
-                          <Select
-                            label="開始"
-                            items={optionStartOptions}
-                            value={option.startTime}
-                            onChange={(value) => updateShiftTypeOption(index, { startTime: value })}
-                            placeholder="開始"
-                            usePortal={false}
-                            positioning={DIALOG_SELECT_POSITIONING}
-                          />
-                          <Select
-                            label="終了"
-                            items={optionEndOptions}
-                            value={option.endTime}
-                            onChange={(value) => updateShiftTypeOption(index, { endTime: value })}
-                            placeholder="終了"
-                            usePortal={false}
-                            positioning={DIALOG_SELECT_POSITIONING}
-                          />
-                          <HStack justify={{ base: "flex-end", md: "center" }}>
-                            <IconButton
-                              type="button"
-                              aria-label={`${option.name || "勤務区分"}を削除`}
-                              variant="outline"
-                              colorPalette="gray"
-                              bg="white"
-                              onClick={() => removeShiftTypeOption(index)}
-                            >
-                              <LuTrash2 />
-                            </IconButton>
-                          </HStack>
-                        </SimpleGrid>
+                        <Stack key={option.id} gap={3}>
+                          <Grid
+                            templateColumns={{
+                              base: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                              md: "minmax(180px, 1fr) minmax(148px, 180px) minmax(148px, 180px) auto",
+                            }}
+                            gap={2}
+                            alignItems="end"
+                          >
+                            <Field.Root invalid={!!nameError} gridColumn={{ base: "1 / -1", md: "auto" }}>
+                              <Field.Label>区分名</Field.Label>
+                              <Input
+                                value={option.name}
+                                placeholder="例: 早番"
+                                bg="white"
+                                onChange={(event) => updateShiftTypeOption(index, { name: event.target.value })}
+                              />
+                            </Field.Root>
+                            <Field.Root invalid={!!startTimeError}>
+                              <Select
+                                label="開始"
+                                items={optionStartOptions}
+                                value={option.startTime}
+                                onChange={(value) => updateShiftTypeOption(index, { startTime: value })}
+                                placeholder="開始"
+                                usePortal={false}
+                                positioning={DIALOG_SELECT_POSITIONING}
+                              />
+                            </Field.Root>
+                            <Field.Root invalid={!!endTimeError}>
+                              <Select
+                                label="終了"
+                                items={optionEndOptions}
+                                value={option.endTime}
+                                onChange={(value) => updateShiftTypeOption(index, { endTime: value })}
+                                placeholder="終了"
+                                usePortal={false}
+                                positioning={DIALOG_SELECT_POSITIONING}
+                              />
+                            </Field.Root>
+                            <HStack justify={{ base: "flex-end", md: "start" }} alignSelf="end">
+                              <IconButton
+                                type="button"
+                                aria-label={`${option.name || "勤務区分"}を削除`}
+                                variant="outline"
+                                colorPalette="red"
+                                bg="white"
+                                color="red.600"
+                                onClick={() => removeShiftTypeOption(index)}
+                              >
+                                <LuTrash2 />
+                              </IconButton>
+                            </HStack>
+                            {optionErrorMessages.length > 0 && (
+                              <Stack gap={1} gridColumn="1 / -1">
+                                {optionErrorMessages.map((message) => (
+                                  <Text key={message} fontSize="xs" color="red.600" lineHeight="short">
+                                    {message}
+                                  </Text>
+                                ))}
+                              </Stack>
+                            )}
+                          </Grid>
+                          {index < shiftTypeOptions.length - 1 && (
+                            <Box aria-hidden="true" h="1px" bg="gray.300" mx={{ base: 2, md: 4 }} />
+                          )}
+                        </Stack>
                       );
                     })}
                   </Stack>
@@ -491,11 +553,6 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                   勤務区分を追加
                 </Button>
               </Stack>
-            )}
-            {errors.submissionPattern && (
-              <Text fontSize="xs" color="red.600">
-                シフト設定の入力内容を確認してください。
-              </Text>
             )}
           </Stack>
         )}

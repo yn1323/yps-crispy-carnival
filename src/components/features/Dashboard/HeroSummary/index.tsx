@@ -10,7 +10,6 @@ import {
   LuSparkles,
   LuUsers,
 } from "react-icons/lu";
-import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
@@ -20,7 +19,6 @@ import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {
   name: string;
-  submissionPattern: ShiftSubmissionPattern;
 };
 
 type Props = {
@@ -33,12 +31,6 @@ type Props = {
   onApproveStaffRequest?: (request: StaffRegistrationRequest) => void;
   onRejectStaffRequest?: (request: StaffRegistrationRequest) => void;
   hideActionSection?: boolean;
-};
-
-const formatSubmissionPatternSummary = (pattern: ShiftSubmissionPattern): string => {
-  if (pattern.kind === "dateOnly") return "日ごと";
-  if (pattern.kind === "time") return `時間指定 ${pattern.startTime}〜${pattern.endTime}`;
-  return `勤務区分 ${pattern.options.length}件`;
 };
 
 export const HeroSummary = ({
@@ -66,15 +58,6 @@ export const HeroSummary = ({
             <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
               {shop.name}
             </Heading>
-
-            <HStack display={{ base: "none", md: "flex" }} gap={2.5} color="fg.muted" flexShrink={0}>
-              <Text fontSize="sm" fontWeight="medium" whiteSpace="nowrap">
-                提出方法
-              </Text>
-              <Text fontSize={{ base: "md", lg: "lg" }} whiteSpace="nowrap">
-                {formatSubmissionPatternSummary(shop.submissionPattern)}
-              </Text>
-            </HStack>
           </HStack>
 
           <Button

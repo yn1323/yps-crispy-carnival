@@ -50,7 +50,6 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
 
   const idSet = new Set<string>();
   const nameSet = new Set<string>();
-  const timeSet = new Set<string>();
   const normalized = pattern.options
     .map((option) => ({
       ...option,
@@ -80,14 +79,9 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
     if (end <= start) {
       throw new ConvexError(`勤務区分「${option.name}」の終了時間は開始時間より後にしてください`);
     }
-    const timeKey = `${option.startTime}-${option.endTime}`;
-    if (timeSet.has(timeKey)) {
-      throw new ConvexError(`勤務区分「${option.name}」の時間帯が重複しています`);
-    }
 
     idSet.add(option.id);
     nameSet.add(option.name);
-    timeSet.add(timeKey);
   }
 
   return { kind: "shiftType", options: normalized.map((option, index) => ({ ...option, sortOrder: index })) };

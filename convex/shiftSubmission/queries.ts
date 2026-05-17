@@ -7,7 +7,7 @@ import { timeToMinutes } from "../_lib/time";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 
-type ExistingRequest = { date: string; startTime: string; endTime: string };
+type ExistingRequest = { date: string; startTime: string; endTime: string; optionId?: string };
 
 function getSubmissionTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
   if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
@@ -31,11 +31,14 @@ function buildExistingSelection(pattern: ShiftSubmissionPattern, requests: Exist
   }
 
   if (pattern.kind === "shiftType") {
+    const optionById = new Map(pattern.options.map((option) => [option.id, option]));
     const optionByTime = new Map(pattern.options.map((option) => [`${option.startTime}-${option.endTime}`, option]));
     const selections: Array<{ date: string; optionId: string }> = [];
     const unmatchedRequests: ExistingRequest[] = [];
     for (const request of requests) {
-      const option = optionByTime.get(`${request.startTime}-${request.endTime}`);
+      const option = request.optionId
+        ? optionById.get(request.optionId)
+        : optionByTime.get(`${request.startTime}-${request.endTime}`);
       if (option) {
         selections.push({ date: request.date, optionId: option.id });
       } else {
@@ -90,6 +93,7 @@ export const getSubmissionPageData = staffSessionQuery({
       date: r.date,
       startTime: r.startTime,
       endTime: r.endTime,
+      ...(r.optionId ? { optionId: r.optionId } : {}),
     }));
     const existingDates = dateEntries.map((entry) => entry.date);
     const timeRange = getSubmissionTimeRange(submissionPattern);

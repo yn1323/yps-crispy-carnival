@@ -1,4 +1,4 @@
-export const MAX_SHIFT_TIME_MINUTES = 29 * 60;
+export const MAX_SHIFT_TIME_MINUTES = 36 * 60;
 
 const TIME_PATTERN = /^\d{1,2}:\d{2}$/;
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { findByRole, findByText, getByRole, getByText } from "@testing-library/dom";
+import { findByRole, findByText, getByDisplayValue, getByRole, getByText } from "@testing-library/dom";
 import { expect } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { EditShopForm } from "./index.tsx";
@@ -105,6 +105,8 @@ export const InteractiveStepperFlow: Story = {
     clickButton(root, "次へ");
 
     await findByText(root, "勤務区分を追加");
+    expect(getByDisplayValue(root, "早番")).toBeTruthy();
+    expect(getByDisplayValue(root, "遅番")).toBeTruthy();
     clickButton(root, "次へ");
 
     expect(await findByRole(root, "button", { name: "変更を保存" })).toBeTruthy();

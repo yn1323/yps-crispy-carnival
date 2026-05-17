@@ -85,7 +85,12 @@ export const Dialog = ({
             <ChakraDialog.Header flexShrink={0}>
               <ChakraDialog.Title>{title}</ChakraDialog.Title>
             </ChakraDialog.Header>
-            <ChakraDialog.Body flex={maxH ? 1 : undefined} overflowY={maxH ? "auto" : undefined} {...bodyProps}>
+            <ChakraDialog.Body
+              flex={maxH ? 1 : undefined}
+              minH={maxH ? 0 : undefined}
+              overflowY={maxH ? "auto" : undefined}
+              {...bodyProps}
+            >
               {children}
             </ChakraDialog.Body>
             {!hideFooter && (

@@ -18,7 +18,6 @@ type Story = StoryObj<typeof meta>;
 
 const SHOP = {
   name: "居酒屋たなか",
-  submissionPattern: { kind: "time" as const, startTime: "14:00", endTime: "25:00" },
 };
 const today = dayjs().format("YYYY-MM-DD");
 const inDays = (n: number) => dayjs().add(n, "day").format("YYYY-MM-DD");

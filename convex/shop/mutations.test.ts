@@ -151,6 +151,26 @@ describe("shop/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
+    it("時間指定は翌12:00まで更新できる", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+        ...validArgs,
+        submissionPattern: { kind: "time", startTime: "00:00", endTime: "36:00" },
+      });
+
+      const shop = await t.run(async (ctx) => ctx.db.get(shopId));
+      expect(shop?.submissionPattern).toEqual({ kind: "time", startTime: "00:00", endTime: "36:00" });
+    });
+
     it("既存 recruitments の提出方法スナップショットは更新で変化しない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId } = await t.run(async (ctx) => {
@@ -242,6 +262,32 @@ describe("shop/mutations", () => {
           },
         }),
       ).rejects.toThrow(ConvexError);
+    });
+
+    it("勤務区分は翌12:00まで更新できる", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        return seeded.shopId;
+      });
+
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+        ...validArgs,
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "night", name: "深夜", startTime: "24:00", endTime: "36:00", sortOrder: 0 }],
+        },
+      });
+
+      const shop = await t.run(async (ctx) => ctx.db.get(shopId));
+      expect(shop?.submissionPattern).toEqual({
+        kind: "shiftType",
+        options: [{ id: "night", name: "深夜", startTime: "24:00", endTime: "36:00", sortOrder: 0 }],
+      });
     });
   });
 });

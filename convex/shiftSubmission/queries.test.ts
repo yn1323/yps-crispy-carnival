@@ -58,7 +58,7 @@ async function seedSubmission(
   args: {
     recruitmentId: Id<"recruitments">;
     staffId: Id<"staffs">;
-    slots: Array<{ date: string; startTime: string; endTime: string }>;
+    slots: Array<{ date: string; startTime: string; endTime: string; optionId?: string }>;
   },
 ) {
   await t.run(async (ctx) => {
@@ -316,6 +316,36 @@ describe("shiftSubmission/queries", () => {
           { date: "2026-04-21", optionId: "morning" },
           { date: "2026-04-23", optionId: "late" },
         ],
+        unmatchedRequests: [],
+      });
+    });
+
+    it("勤務区分の時間帯が同じでも保存済みの optionId を優先して返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "help", name: "ヘルプ", startTime: "09:00", endTime: "15:00", sortOrder: 1 },
+          ],
+        },
+      });
+      await seedSubmission(t, {
+        recruitmentId,
+        staffId,
+        slots: [{ date: "2026-04-21", startTime: "09:00", endTime: "15:00", optionId: "morning" }],
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData?.existingSelection).toEqual({
+        kind: "shiftType",
+        selections: [{ date: "2026-04-21", optionId: "morning" }],
         unmatchedRequests: [],
       });
     });

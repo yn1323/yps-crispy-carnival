@@ -8,7 +8,7 @@ import { timeToMinutes } from "../_lib/time";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
 import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
 
-type NormalizedShiftRequest = { date: string; startTime: string; endTime: string };
+type NormalizedShiftRequest = { date: string; startTime: string; endTime: string; optionId?: string };
 type NormalizedSubmissionInput = {
   slots: NormalizedShiftRequest[];
   dates: string[];
@@ -108,7 +108,7 @@ function normalizeSubmissionInput(
     if (!option) {
       throw new ConvexError("勤務区分が見つかりません");
     }
-    return { date: selection.date, startTime: option.startTime, endTime: option.endTime };
+    return { date: selection.date, startTime: option.startTime, endTime: option.endTime, optionId: option.id };
   });
   return { slots, dates: [] };
 }
@@ -239,6 +239,7 @@ export const submitShiftRequests = staffSessionMutation({
           date: r.date,
           startTime: r.startTime,
           endTime: r.endTime,
+          ...(r.optionId ? { optionId: r.optionId } : {}),
         }),
       ),
       ...normalizedSubmission.dates.map((date) =>

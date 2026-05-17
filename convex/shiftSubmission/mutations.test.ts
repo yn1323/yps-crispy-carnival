@@ -286,9 +286,9 @@ describe("shiftSubmission/mutations", () => {
           .collect(),
       );
 
-      expect(slots.map(({ date, startTime, endTime }) => ({ date, startTime, endTime }))).toEqual([
-        { date: "2026-04-07", startTime: "09:00", endTime: "15:00" },
-        { date: "2026-04-09", startTime: "15:00", endTime: "22:00" },
+      expect(slots.map(({ date, startTime, endTime, optionId }) => ({ date, startTime, endTime, optionId }))).toEqual([
+        { date: "2026-04-07", startTime: "09:00", endTime: "15:00", optionId: "morning" },
+        { date: "2026-04-09", startTime: "15:00", endTime: "22:00", optionId: "late" },
       ]);
     });
 
