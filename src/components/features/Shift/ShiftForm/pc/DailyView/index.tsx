@@ -1,4 +1,4 @@
-import { Box, Flex, Grid } from "@chakra-ui/react";
+import { Box, Flex, Grid, Text } from "@chakra-ui/react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
@@ -16,6 +16,7 @@ export const DailyView = () => {
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
 
   const { dates, isReadOnly, holidays } = config;
+  const isShopClosedDate = holidays.includes(selectedDate);
 
   const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
   const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null);
@@ -62,13 +63,24 @@ export const DailyView = () => {
       <DateRail dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} holidays={holidays} />
       <Flex direction="column" minW={0} minH={0} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />
-        <Box flex={1} minH={0} overflow="hidden">
-          <ShiftGrid
-            onShiftClick={handleShiftClick}
-            onStaffNameClick={() => {}}
-            onPaintClickPopover={handlePaintClickPopover}
-          />
-        </Box>
+        {isShopClosedDate ? (
+          <Flex flex={1} minH={0} bg="gray.50" align="center" justify="center" direction="column" gap={2} px={6}>
+            <Text fontSize="md" fontWeight="bold" color="gray.700">
+              定休日
+            </Text>
+            <Text fontSize="sm" color="fg.muted" textAlign="center">
+              この日はお店のお休みとして設定されているため、シフトは登録できません。
+            </Text>
+          </Flex>
+        ) : (
+          <Box flex={1} minH={0} overflow="hidden">
+            <ShiftGrid
+              onShiftClick={handleShiftClick}
+              onStaffNameClick={() => {}}
+              onPaintClickPopover={handlePaintClickPopover}
+            />
+          </Box>
+        )}
       </Flex>
 
       <ShiftPopover

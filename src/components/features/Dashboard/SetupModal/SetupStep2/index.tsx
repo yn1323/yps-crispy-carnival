@@ -48,13 +48,14 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
           <Checkbox.Root
             colorPalette="teal"
             checked={acceptedLegal}
+            cursor="pointer"
             onCheckedChange={(details) => {
               setValue("acceptedLegal", details.checked === true, { shouldDirty: true, shouldValidate: true });
             }}
           >
             <Checkbox.HiddenInput />
-            <Checkbox.Control />
-            <Checkbox.Label fontSize="sm" lineHeight={1.7}>
+            <Checkbox.Control cursor="pointer" />
+            <Checkbox.Label fontSize="sm" lineHeight={1.7} cursor="pointer">
               <LegalDocumentLink href="/terms/manager">利用規約</LegalDocumentLink>と
               <LegalDocumentLink href="/privacy/manager">プライバシーポリシー</LegalDocumentLink>
               に同意します

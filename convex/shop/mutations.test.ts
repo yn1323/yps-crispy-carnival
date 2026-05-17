@@ -9,6 +9,7 @@ const validArgs = {
   shopName: "新・居酒屋たなか",
   shiftStartTime: "10:00",
   shiftEndTime: "23:00",
+  regularClosedDays: [],
 };
 
 const MANAGER_SUBJECT = "user_manager";
@@ -30,7 +31,7 @@ describe("shop/mutations", () => {
       ).rejects.toThrow();
     });
 
-    it("店舗名とシフト時間帯を更新する", async () => {
+    it("店舗名とシフト時間帯、定休日を更新する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -42,12 +43,16 @@ describe("shop/mutations", () => {
         return seeded.shopId;
       });
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, validArgs);
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+        ...validArgs,
+        regularClosedDays: ["tue", "mon", "mon"],
+      });
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("新・居酒屋たなか");
       expect(shop?.shiftStartTime).toBe("10:00");
       expect(shop?.shiftEndTime).toBe("23:00");
+      expect(shop?.regularClosedDays).toEqual(["mon", "tue"]);
     });
 
     it("店舗名の前後空白をトリムする", async () => {
@@ -131,6 +136,7 @@ describe("shop/mutations", () => {
           periodStart: "2026-05-01",
           periodEnd: "2026-05-07",
           deadline: "2026-04-28",
+          shopClosedDates: [],
           status: "open",
           isDeleted: false,
           shiftStartTime: "14:00",

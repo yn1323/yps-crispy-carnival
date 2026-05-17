@@ -6,6 +6,7 @@ export const submitStoryBaseData: SubmissionData = {
   periodStart: "2026-04-07",
   periodEnd: "2026-04-13",
   deadline: "2026-04-04",
+  shopClosedDates: [],
   isBeforeDeadline: true,
   hasSubmitted: false,
   existingRequests: [],

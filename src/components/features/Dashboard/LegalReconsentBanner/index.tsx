@@ -41,14 +41,15 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
             <Checkbox.Root
               colorPalette="teal"
               checked={checked}
+              cursor="pointer"
               onCheckedChange={(details) => {
                 setChecked(details.checked === true);
                 if (details.checked === true) setError(null);
               }}
             >
               <Checkbox.HiddenInput />
-              <Checkbox.Control />
-              <Checkbox.Label fontSize="sm" lineHeight={1.7} color="teal.950">
+              <Checkbox.Control cursor="pointer" />
+              <Checkbox.Label fontSize="sm" lineHeight={1.7} color="teal.950" cursor="pointer">
                 <LegalDocumentLink href={documents.terms.path}>利用規約</LegalDocumentLink>と
                 <LegalDocumentLink href={documents.privacy.path}>プライバシーポリシー</LegalDocumentLink>
                 に同意します

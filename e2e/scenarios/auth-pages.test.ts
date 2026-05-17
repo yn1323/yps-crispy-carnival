@@ -17,40 +17,40 @@ test.describe("ログイン周り", () => {
       });
 
       await test.step("Step 2: 元の遷移先を保持してログイン画面に移動する", async () => {
-        await authPage.expectLoginVisible();
         await authPage.expectCurrentAuthPath("/login", "/dashboard");
+        await authPage.expectLoginVisible();
       });
     });
 
     test("ログイン・登録・パスワード再設定の導線でredirectが保持される", async () => {
       await test.step("Step 1: redirect付きでログイン画面を開く", async () => {
         await authPage.gotoLogin("/dashboard");
-        await authPage.expectLoginVisible();
         await authPage.expectCurrentAuthPath("/login", "/dashboard");
+        await authPage.expectLoginVisible();
       });
 
       await test.step("Step 2: 新規登録へ移動してもredirectが残る", async () => {
         await authPage.goToSignupFromLogin();
-        await authPage.expectSignupVisible();
         await authPage.expectCurrentAuthPath("/signup", "/dashboard");
+        await authPage.expectSignupVisible();
       });
 
       await test.step("Step 3: ログインへ戻ってもredirectが残る", async () => {
         await authPage.goToLoginFromSignup();
-        await authPage.expectLoginVisible();
         await authPage.expectCurrentAuthPath("/login", "/dashboard");
+        await authPage.expectLoginVisible();
       });
 
       await test.step("Step 4: パスワード再設定へ移動してもredirectが残る", async () => {
         await authPage.goToForgotPasswordFromLogin();
-        await authPage.expectForgotPasswordVisible();
         await authPage.expectCurrentAuthPath("/forgot-password", "/dashboard");
+        await authPage.expectForgotPasswordVisible();
       });
 
       await test.step("Step 5: ログインへ戻ってもredirectが残る", async () => {
         await authPage.goToLoginFromForgotPassword();
-        await authPage.expectLoginVisible();
         await authPage.expectCurrentAuthPath("/login", "/dashboard");
+        await authPage.expectLoginVisible();
       });
     });
 

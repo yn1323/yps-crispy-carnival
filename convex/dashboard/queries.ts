@@ -39,6 +39,7 @@ export const getDashboardShop = authenticatedQuery({
       name: shop.name,
       shiftStartTime: shop.shiftStartTime,
       shiftEndTime: shop.shiftEndTime,
+      regularClosedDays: shop.regularClosedDays,
     };
   },
 });
@@ -75,6 +76,7 @@ export const getDashboardRecruitments = authenticatedQuery({
           periodStart: r.periodStart,
           periodEnd: r.periodEnd,
           deadline: r.deadline,
+          shopClosedDates: r.shopClosedDates ?? [],
           status: r.status,
           responseCount: stats?.submittedCount ?? submissions.length,
         };

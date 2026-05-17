@@ -6,6 +6,7 @@ export type Recruitment = {
   periodStart: string;
   periodEnd: string;
   deadline: string;
+  shopClosedDates: string[];
   status: "open" | "confirmed";
   responseCount: number;
 };
