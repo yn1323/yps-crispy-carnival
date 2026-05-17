@@ -191,13 +191,14 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
               <Checkbox.Root
                 colorPalette="teal"
                 checked={acceptedLegal}
+                cursor="pointer"
                 onCheckedChange={(details) => {
                   setValue("acceptedLegal", details.checked === true, { shouldDirty: true, shouldValidate: true });
                 }}
               >
                 <Checkbox.HiddenInput />
-                <Checkbox.Control />
-                <Checkbox.Label fontSize="sm" lineHeight={1.7}>
+                <Checkbox.Control cursor="pointer" />
+                <Checkbox.Label fontSize="sm" lineHeight={1.7} cursor="pointer">
                   <LegalDocumentLink href={data.legalDocuments.terms.path}>利用規約</LegalDocumentLink>と
                   <LegalDocumentLink href={data.legalDocuments.privacy.path}>プライバシーポリシー</LegalDocumentLink>
                   に同意します
