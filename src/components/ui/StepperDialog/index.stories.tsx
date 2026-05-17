@@ -3,14 +3,38 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { StepperDialog, StepperDialogContent, type StepperDialogStep, StepperDialogStepTitle } from "./index";
+import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "./index";
 
 type DemoStep = "shop" | "rule" | "confirm";
 
 const steps: StepperDialogStep<DemoStep>[] = [
-  { value: "shop", label: "店舗" },
-  { value: "rule", label: "ルール" },
-  { value: "confirm", label: "確認" },
+  {
+    value: "shop",
+    label: "店舗",
+    icon: LuStore,
+    title: "お店の基本情報",
+    description: "店舗名など、管理画面で使う基本情報を確認します。",
+  },
+  {
+    value: "rule",
+    label: "ルール",
+    icon: LuCalendarDays,
+    title: "募集時のルール",
+    description: (
+      <>
+        次に作成する募集から使う提出方法や定休日を設定します。
+        <br />
+        既存の募集には反映されません。
+      </>
+    ),
+  },
+  {
+    value: "confirm",
+    label: "確認",
+    icon: LuTimer,
+    title: "内容を確認",
+    description: "保存すると、次に作成する募集からこの設定が使われます。",
+  },
 ];
 
 const meta = {
@@ -81,11 +105,6 @@ const StepperDialogDemo = ({ initialStep = "shop" }: { initialStep?: DemoStep })
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
         {currentStep === "shop" && (
           <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuStore}
-              title="お店の基本情報"
-              description="店舗名など、管理画面で使う基本情報を確認します。"
-            />
             <Field.Root>
               <Field.Label>お店の名前</Field.Label>
               <Input defaultValue="居酒屋たなか" />
@@ -94,11 +113,6 @@ const StepperDialogDemo = ({ initialStep = "shop" }: { initialStep?: DemoStep })
         )}
         {currentStep === "rule" && (
           <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuCalendarDays}
-              title="募集時のルール"
-              description="次に作成する募集から使う提出方法や定休日を設定します。"
-            />
             <Box borderWidth={1} borderColor="border.default" borderRadius="md" p={4}>
               <Text fontSize="sm" fontWeight="semibold">
                 希望シフトの提出方法
@@ -111,11 +125,6 @@ const StepperDialogDemo = ({ initialStep = "shop" }: { initialStep?: DemoStep })
         )}
         {currentStep === "confirm" && (
           <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuTimer}
-              title="内容を確認"
-              description="保存すると、次に作成する募集からこの設定が使われます。"
-            />
             <Box borderWidth={1} borderColor="border.default" borderRadius="md" p={4}>
               <Text fontSize="sm">店舗名: 居酒屋たなか</Text>
               <Text mt={2} fontSize="sm">

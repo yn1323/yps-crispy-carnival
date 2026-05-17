@@ -5,6 +5,9 @@ import { Dialog } from "@/src/components/ui/Dialog";
 export type StepperDialogStep<TStep extends string = string> = {
   value: TStep;
   label: string;
+  icon?: ElementType;
+  title?: ReactNode;
+  description?: ReactNode;
 };
 
 type StepperDialogProps = Omit<
@@ -28,9 +31,25 @@ type StepperDialogContentProps<TStep extends string> = StepperDialogStepsProps<T
 };
 
 type StepperDialogStepTitleProps = {
-  icon: ElementType;
-  title: string;
-  description: string;
+  icon?: ElementType;
+  title?: ReactNode;
+  description?: ReactNode;
+};
+
+const renderStepDescription = (description: ReactNode) => {
+  if (typeof description === "string") {
+    return (
+      <Text mt={1} fontSize="sm" color="fg.muted" lineHeight={1.7} whiteSpace="pre-line">
+        {description}
+      </Text>
+    );
+  }
+
+  return (
+    <Box mt={1} fontSize="sm" color="fg.muted" lineHeight={1.7}>
+      {description}
+    </Box>
+  );
 };
 
 export const StepperDialog = ({
@@ -112,16 +131,20 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
 
 export const StepperDialogStepTitle = ({ icon, title, description }: StepperDialogStepTitleProps) => (
   <HStack gap={3} align="flex-start">
-    <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.600" align="center" justify="center">
-      <Icon as={icon} boxSize={5} />
-    </Flex>
+    {icon && (
+      <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.600" align="center" justify="center">
+        <Icon as={icon} boxSize={5} />
+      </Flex>
+    )}
     <Box>
-      <Text fontSize="md" fontWeight="bold" color="gray.900">
-        {title}
-      </Text>
-      <Text mt={1} fontSize="sm" color="fg.muted" lineHeight={1.7}>
-        {description}
-      </Text>
+      {typeof title === "string" ? (
+        <Text fontSize="md" fontWeight="bold" color="gray.900">
+          {title}
+        </Text>
+      ) : (
+        title
+      )}
+      {description && renderStepDescription(description)}
     </Box>
   </HStack>
 );
@@ -147,16 +170,32 @@ export const StepperDialogContent = <TStep extends string>({
   currentStep,
   children,
   actions,
-}: StepperDialogContentProps<TStep>) => (
-  <Flex minH={{ base: "calc(100dvh - 72px)", md: "auto" }} direction="column">
-    <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
-      <StepperDialogSteps steps={steps} currentStep={currentStep} />
-    </Box>
+}: StepperDialogContentProps<TStep>) => {
+  const currentStepDetail = steps.find((step) => step.value === currentStep);
+  const shouldShowStepTitle = Boolean(
+    currentStepDetail?.icon || currentStepDetail?.title || currentStepDetail?.description,
+  );
 
-    <Box flex={1} overflowY="auto" px={{ base: 4, md: 6 }} pb={{ base: 4, md: 6 }}>
-      {children}
-    </Box>
+  return (
+    <Flex minH={{ base: "calc(100dvh - 72px)", md: "auto" }} direction="column">
+      <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
+        <StepperDialogSteps steps={steps} currentStep={currentStep} />
+      </Box>
 
-    <StepperDialogActionBar>{actions}</StepperDialogActionBar>
-  </Flex>
-);
+      <Box flex={1} overflowY="auto" px={{ base: 4, md: 6 }} pb={{ base: 4, md: 6 }}>
+        <Flex direction="column" gap={5}>
+          {shouldShowStepTitle && (
+            <StepperDialogStepTitle
+              icon={currentStepDetail?.icon}
+              title={currentStepDetail?.title}
+              description={currentStepDetail?.description}
+            />
+          )}
+          {children}
+        </Flex>
+      </Box>
+
+      <StepperDialogActionBar>{actions}</StepperDialogActionBar>
+    </Flex>
+  );
+};

@@ -6,11 +6,7 @@ import { useForm } from "react-hook-form";
 import { LuCalendarCheck, LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
-import {
-  StepperDialogContent,
-  type StepperDialogStep,
-  StepperDialogStepTitle,
-} from "@/src/components/ui/StepperDialog";
+import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import { CalendarPicker } from "./CalendarPicker";
 import {
@@ -32,10 +28,34 @@ type Props = {
 };
 
 const steps: StepperDialogStep<Step>[] = [
-  { value: "period", label: "期間" },
-  { value: "holidays", label: "お休み" },
-  { value: "deadline", label: "提出期限" },
-  { value: "confirm", label: "確認" },
+  {
+    value: "period",
+    label: "期間",
+    icon: LuCalendarDays,
+    title: "シフト期間を選択",
+    description: "今月と来月のカレンダーから、開始日と終了日を選んでください。",
+  },
+  {
+    value: "holidays",
+    label: "お休み",
+    icon: LuStore,
+    title: "お店のお休みを選択",
+    description: "シフト募集期間の中で、お店を開けない日があれば選びます。設定しない場合はスキップできます。",
+  },
+  {
+    value: "deadline",
+    label: "提出期限",
+    icon: LuTimer,
+    title: "提出締切日を選択",
+    description: "スタッフが希望シフトを提出できる締切日を選んでください。",
+  },
+  {
+    value: "confirm",
+    label: "確認",
+    icon: LuCalendarCheck,
+    title: "内容を確認",
+    description: "作成する募集の内容を確認してください。",
+  },
 ];
 
 const toIso = (date: DateValue): string => date.toString();
@@ -346,12 +366,7 @@ export const CreateRecruitmentForm = ({
 
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
         {currentStep === "period" && (
-          <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuCalendarDays}
-              title="シフト期間を選択"
-              description="今月と来月のカレンダーから、開始日と終了日を選んでください。"
-            />
+          <>
             <CalendarPicker
               selectionMode="range"
               value={periodValue}
@@ -378,16 +393,11 @@ export const CreateRecruitmentForm = ({
                 {errors.periodEnd && <Field.ErrorText>{errors.periodEnd.message}</Field.ErrorText>}
               </Field.Root>
             )}
-          </Stack>
+          </>
         )}
 
         {currentStep === "holidays" && (
-          <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuStore}
-              title="お店のお休みを選択"
-              description="シフト募集期間の中で、お店を開けない日があれば選びます。設定しない場合はスキップできます。"
-            />
+          <>
             <CalendarPicker
               selectionMode="multiple"
               value={toDateValues(selectedHolidays)}
@@ -403,38 +413,26 @@ export const CreateRecruitmentForm = ({
                 <Field.ErrorText>シフト期間のすべてをお休みにはできません</Field.ErrorText>
               </Field.Root>
             )}
-          </Stack>
+          </>
         )}
 
         {currentStep === "deadline" && (
-          <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuTimer}
-              title="提出締切日を選択"
-              description="スタッフが希望シフトを提出できる締切日を選んでください。"
+          <Field.Root invalid={!!errors.deadline}>
+            <CalendarPicker
+              selectionMode="single"
+              value={toDateValues(deadline ? [deadline] : [])}
+              min={deadlineMin}
+              max={deadlineMaxValue}
+              defaultFocusedValue={periodInitialFocus}
+              desktopMonths={deadlineDesktopMonths}
+              onValueChange={handleDeadlineChange}
             />
-            <Field.Root invalid={!!errors.deadline}>
-              <CalendarPicker
-                selectionMode="single"
-                value={toDateValues(deadline ? [deadline] : [])}
-                min={deadlineMin}
-                max={deadlineMaxValue}
-                defaultFocusedValue={periodInitialFocus}
-                desktopMonths={deadlineDesktopMonths}
-                onValueChange={handleDeadlineChange}
-              />
-              {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
-            </Field.Root>
-          </Stack>
+            {errors.deadline && <Field.ErrorText>{errors.deadline.message}</Field.ErrorText>}
+          </Field.Root>
         )}
 
         {currentStep === "confirm" && (
-          <Stack gap={5}>
-            <StepperDialogStepTitle
-              icon={LuCalendarCheck}
-              title="内容を確認"
-              description="作成する募集の内容を確認してください。"
-            />
+          <>
             <Box borderWidth={1} borderColor="border.default" borderRadius="md" bg="white">
               <Box px={4} py={3}>
                 <SummaryLine label="シフト期間" value={periodLabel} />
@@ -455,7 +453,7 @@ export const CreateRecruitmentForm = ({
             <Text fontSize="xs" color="fg.muted" lineHeight={1.6}>
               提出方法は募集作成時点の店舗設定で固定されます。
             </Text>
-          </Stack>
+          </>
         )}
       </StepperDialogContent>
     </form>
