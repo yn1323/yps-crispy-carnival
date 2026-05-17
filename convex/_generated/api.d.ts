@@ -23,6 +23,7 @@ import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
+import type * as _lib_submissionPatternConstants from "../_lib/submissionPatternConstants.js";
 import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
 import type * as _lib_validation from "../_lib/validation.js";
@@ -101,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/resend": typeof _lib_resend;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
+  "_lib/submissionPatternConstants": typeof _lib_submissionPatternConstants;
   "_lib/time": typeof _lib_time;
   "_lib/uuid": typeof _lib_uuid;
   "_lib/validation": typeof _lib_validation;

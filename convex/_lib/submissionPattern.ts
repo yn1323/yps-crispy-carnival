@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { MAX_SHIFT_TYPE_OPTIONS } from "./submissionPatternConstants";
 import { isSupportedShiftTime, timeToMinutes } from "./time";
 
 export type ShiftSubmissionPattern =
@@ -61,8 +62,8 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
   if (normalized.length === 0) {
     throw new ConvexError("勤務区分を1つ以上追加してください");
   }
-  if (normalized.length > 8) {
-    throw new ConvexError("勤務区分は8件まで登録できます");
+  if (normalized.length > MAX_SHIFT_TYPE_OPTIONS) {
+    throw new ConvexError(`勤務区分は${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます`);
   }
 
   for (const option of normalized) {

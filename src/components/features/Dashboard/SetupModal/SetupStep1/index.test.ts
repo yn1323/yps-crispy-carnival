@@ -124,4 +124,24 @@ describe("step1Schema", () => {
       expect(result.error.issues.some((issue) => issue.message === "勤務区分名が重複しています")).toBe(true);
     }
   });
+
+  it("勤務区分は4件まで", () => {
+    const result = step1Schema.safeParse({
+      ...validData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: Array.from({ length: 5 }, (_, index) => ({
+          id: `option-${index}`,
+          name: `区分${index + 1}`,
+          startTime: "09:00",
+          endTime: "18:00",
+          sortOrder: index,
+        })),
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.message === "勤務区分は4件まで登録できます")).toBe(true);
+    }
+  });
 });

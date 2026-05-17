@@ -289,5 +289,32 @@ describe("shop/mutations", () => {
         options: [{ id: "night", name: "深夜", startTime: "24:00", endTime: "36:00", sortOrder: 0 }],
       });
     });
+
+    it("4件を超える勤務区分は更新できない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          submissionPattern: {
+            kind: "shiftType",
+            options: Array.from({ length: 5 }, (_, index) => ({
+              id: `option-${index}`,
+              name: `区分${index + 1}`,
+              startTime: "09:00",
+              endTime: "18:00",
+              sortOrder: index,
+            })),
+          },
+        }),
+      ).rejects.toThrow("勤務区分は4件まで登録できます");
+    });
   });
 });

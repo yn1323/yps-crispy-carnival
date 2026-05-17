@@ -1,5 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { findByRole, findByText, getByDisplayValue, getByRole, getByText } from "@testing-library/dom";
+import {
+  findByRole,
+  findByText,
+  fireEvent,
+  getAllByRole,
+  getByDisplayValue,
+  getByRole,
+  getByText,
+  waitFor,
+} from "@testing-library/dom";
 import { expect } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { EditShopForm } from "./index.tsx";
@@ -107,6 +116,15 @@ export const InteractiveStepperFlow: Story = {
     await findByText(root, "勤務区分を追加");
     expect(getByDisplayValue(root, "早番")).toBeTruthy();
     expect(getByDisplayValue(root, "遅番")).toBeTruthy();
+    clickButton(root, "勤務区分を追加");
+    await waitFor(() => expect(getAllByRole(root, "textbox", { name: "区分名" })).toHaveLength(3));
+    clickButton(root, "勤務区分を追加");
+    await waitFor(() => expect(getAllByRole(root, "textbox", { name: "区分名" })).toHaveLength(4));
+    const shiftTypeNameInputs = getAllByRole(root, "textbox", { name: "区分名" });
+    fireEvent.change(shiftTypeNameInputs[2], { target: { value: "中番" } });
+    fireEvent.change(shiftTypeNameInputs[3], { target: { value: "深夜" } });
+    expect(await findByText(root, "勤務区分は4件まで登録できます。")).toBeTruthy();
+    expect(getByRole(root, "button", { name: /勤務区分を追加/ })).toBeDisabled();
     clickButton(root, "次へ");
 
     expect(await findByRole(root, "button", { name: "変更を保存" })).toBeTruthy();

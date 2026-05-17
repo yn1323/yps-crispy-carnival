@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_SHIFT_TYPE_OPTIONS } from "../_lib/submissionPatternConstants";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
 
 export const regularClosedDaySchema = z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]);
@@ -70,10 +71,10 @@ export function addShiftSubmissionPatternIssues(
     });
     return;
   }
-  if (options.length > 8) {
+  if (options.length > MAX_SHIFT_TYPE_OPTIONS) {
     ctx.addIssue({
       code: "custom",
-      message: "勤務区分は8件まで登録できます",
+      message: `勤務区分は${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます`,
       path: [...path, "options"],
     });
   }

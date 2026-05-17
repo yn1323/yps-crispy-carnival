@@ -15,6 +15,7 @@ import {
 } from "../../submissionPatternForm";
 import {
   MAX_SHIFT_TIME_MINUTES,
+  MAX_SHIFT_TYPE_OPTIONS,
   minutesToTime,
   type ShiftSubmissionPattern,
   type ShiftTypeOption,
@@ -81,6 +82,8 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
   const timeEnd = submissionPattern.kind === "time" ? submissionPattern.endTime : DEFAULT_TIME_PATTERN.endTime;
   const shiftTypeOptionsError = getNestedErrorMessage(errors.submissionPattern, ["options"]);
   const hasSubmissionPatternError = !!errors.submissionPattern;
+  const shiftTypeOptions = submissionPattern.kind === "shiftType" ? submissionPattern.options : [];
+  const canAddShiftTypeOption = shiftTypeOptions.length < MAX_SHIFT_TYPE_OPTIONS;
 
   const timeEndOptions = useMemo(() => {
     const startMin = timeToMinutes(timeStart);
@@ -131,7 +134,7 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
   };
 
   const addShiftTypeOption = () => {
-    if (submissionPattern.kind !== "shiftType") return;
+    if (submissionPattern.kind !== "shiftType" || submissionPattern.options.length >= MAX_SHIFT_TYPE_OPTIONS) return;
     setSubmissionPattern({
       kind: "shiftType",
       options: normalizeShiftTypeOptions([
@@ -340,10 +343,24 @@ export const SetupStep1 = ({ defaultValues, onNext }: Props) => {
                   })
                 )}
               </Stack>
-              <Button type="button" variant="outline" bg="white" alignSelf="flex-start" onClick={addShiftTypeOption}>
-                <LuPlus />
-                勤務区分を追加
-              </Button>
+              <Stack gap={1} align="flex-start">
+                <Button
+                  type="button"
+                  variant="outline"
+                  bg="white"
+                  alignSelf="flex-start"
+                  disabled={!canAddShiftTypeOption}
+                  onClick={addShiftTypeOption}
+                >
+                  <LuPlus />
+                  勤務区分を追加
+                </Button>
+                {!canAddShiftTypeOption && (
+                  <Text fontSize="xs" color="fg.muted">
+                    勤務区分は{MAX_SHIFT_TYPE_OPTIONS}件まで登録できます。
+                  </Text>
+                )}
+              </Stack>
             </Stack>
           )}
         </Stack>

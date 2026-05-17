@@ -27,6 +27,7 @@ import {
   type EditShopFormData,
   editShopSchema,
   MAX_SHIFT_TIME_MINUTES,
+  MAX_SHIFT_TYPE_OPTIONS,
   minutesToTime,
   type RegularClosedDay,
   type ShiftSubmissionPattern,
@@ -184,6 +185,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
   const shiftTypeOptions = submissionPattern.kind === "shiftType" ? submissionPattern.options : [];
   const shiftTypeOptionsError = getNestedErrorMessage(errors.submissionPattern, ["options"]);
   const hasSubmissionPatternError = !!errors.submissionPattern;
+  const canAddShiftTypeOption = shiftTypeOptions.length < MAX_SHIFT_TYPE_OPTIONS;
 
   const setSubmissionPattern = (next: ShiftSubmissionPattern) => {
     setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true });
@@ -238,7 +240,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
   };
 
   const addShiftTypeOption = () => {
-    if (submissionPattern.kind !== "shiftType") return;
+    if (submissionPattern.kind !== "shiftType" || submissionPattern.options.length >= MAX_SHIFT_TYPE_OPTIONS) return;
     setSubmissionPattern({
       kind: "shiftType",
       options: normalizeShiftTypeOptions([
@@ -548,10 +550,24 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                     })}
                   </Stack>
                 )}
-                <Button type="button" variant="outline" bg="white" alignSelf="flex-start" onClick={addShiftTypeOption}>
-                  <LuPlus />
-                  勤務区分を追加
-                </Button>
+                <Stack gap={1} align="flex-start">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    bg="white"
+                    alignSelf="flex-start"
+                    disabled={!canAddShiftTypeOption}
+                    onClick={addShiftTypeOption}
+                  >
+                    <LuPlus />
+                    勤務区分を追加
+                  </Button>
+                  {!canAddShiftTypeOption && (
+                    <Text fontSize="xs" color="fg.muted">
+                      勤務区分は{MAX_SHIFT_TYPE_OPTIONS}件まで登録できます。
+                    </Text>
+                  )}
+                </Stack>
               </Stack>
             )}
           </Stack>

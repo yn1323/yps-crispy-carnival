@@ -170,12 +170,12 @@ describe("editShopSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("勤務区分は8件まで", () => {
+  it("勤務区分は4件まで", () => {
     const result = editShopSchema.safeParse({
       ...validData,
       submissionPattern: {
         kind: "shiftType",
-        options: Array.from({ length: 9 }, (_, index) => ({
+        options: Array.from({ length: 5 }, (_, index) => ({
           id: `option-${index}`,
           name: `区分${index + 1}`,
           startTime: "09:00",
@@ -186,7 +186,7 @@ describe("editShopSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.some((issue) => issue.message === "勤務区分は8件まで登録できます")).toBe(true);
+      expect(result.error.issues.some((issue) => issue.message === "勤務区分は4件まで登録できます")).toBe(true);
     }
   });
 });
