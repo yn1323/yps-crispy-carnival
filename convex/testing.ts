@@ -318,6 +318,7 @@ async function createManagerScenario(
     name: args.shopName,
     shiftStartTime: "09:00",
     shiftEndTime: "22:00",
+    regularClosedDays: [],
     isDeleted: false,
   });
   await ctx.db.insert("shopMembers", {
@@ -396,6 +397,7 @@ async function createRecruitment(
     periodStart: args.dates.periodStart,
     periodEnd: args.dates.periodEnd,
     deadline: args.dates.deadline,
+    shopClosedDates: [],
     status: args.status,
     confirmedAt: args.status === "confirmed" ? Date.now() : undefined,
     isDeleted: false,
@@ -797,6 +799,7 @@ export const seedSubmitTestData = internalMutation({
       name: "テスト居酒屋さくら",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
+      regularClosedDays: [],
       isDeleted: false,
     });
     const staffId = await ctx.db.insert("staffs", {
@@ -816,6 +819,7 @@ export const seedSubmitTestData = internalMutation({
       periodStart: "2026-04-07",
       periodEnd: "2026-04-13",
       deadline: args.deadlinePassed ? "2026-01-01" : "2026-12-31",
+      shopClosedDates: [],
       status: "open",
       isDeleted: false,
       shiftStartTime: "09:00",
@@ -937,6 +941,7 @@ export const seedLegalStaffConsentPageScenario = internalMutation({
       name: "法務同意テスト店舗",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
+      regularClosedDays: [],
       isDeleted: false,
     });
     const staffId = await createStaff(ctx, {
@@ -968,6 +973,7 @@ export const seedLegalStaffSubmitScenario = internalMutation({
       name: "法務同意テスト店舗",
       shiftStartTime: "09:00",
       shiftEndTime: "22:00",
+      regularClosedDays: [],
       isDeleted: false,
     });
     const staffId = await createStaff(ctx, {
@@ -981,6 +987,7 @@ export const seedLegalStaffSubmitScenario = internalMutation({
       periodStart: "2026-04-07",
       periodEnd: "2026-04-13",
       deadline: "2026-12-31",
+      shopClosedDates: [],
       status: "open",
       isDeleted: false,
       shiftStartTime: "09:00",

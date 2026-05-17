@@ -206,6 +206,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
           </Box>
           {wkDates.map((d) => {
             const isClickable = !isReadOnly && d.inRange;
+            const isClosed = holidays.includes(d.iso);
             return (
               <Box
                 as="th"
@@ -217,6 +218,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                   textAlign: "center",
                   cursor: isClickable ? "pointer" : "default",
                   opacity: d.inRange ? 1 : 0.35,
+                  background: isClosed ? "#f4f4f5" : undefined,
                 }}
               >
                 <Box textStyle="numeric" color="gray.700" fontWeight={600}>
@@ -225,6 +227,11 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                 <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso, holidays) }}>
                   {d.wk}
                 </Box>
+                {isClosed && (
+                  <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
+                    定休日
+                  </Box>
+                )}
               </Box>
             );
           })}
@@ -261,11 +268,25 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                 </Flex>
               </Box>
               {wkDates.map((d) => {
-                const asn = d.inRange ? (lookup.get(`${s.id}-${d.iso}`) ?? null) : null;
+                const isClosed = holidays.includes(d.iso);
+                const asn = d.inRange && !isClosed ? (lookup.get(`${s.id}-${d.iso}`) ?? null) : null;
                 if (asn) total += shiftHours(asn);
                 return (
-                  <Box as="td" key={d.iso} style={{ padding: "8px 4px", textAlign: "center", verticalAlign: "middle" }}>
-                    {asn ? (
+                  <Box
+                    as="td"
+                    key={d.iso}
+                    style={{
+                      padding: "8px 4px",
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                      background: isClosed ? "#f4f4f5" : undefined,
+                    }}
+                  >
+                    {isClosed ? (
+                      <Box as="span" color="gray.500" textStyle="caption" fontWeight={700}>
+                        定休日
+                      </Box>
+                    ) : asn ? (
                       <Box
                         as="span"
                         textStyle="numeric"

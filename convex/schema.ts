@@ -11,6 +11,17 @@ const schema = defineSchema({
     name: v.string(),
     shiftStartTime: v.string(), // "14:00"
     shiftEndTime: v.string(), // "25:00" = 翌1:00
+    regularClosedDays: v.array(
+      v.union(
+        v.literal("sun"),
+        v.literal("mon"),
+        v.literal("tue"),
+        v.literal("wed"),
+        v.literal("thu"),
+        v.literal("fri"),
+        v.literal("sat"),
+      ),
+    ),
     isDeleted: v.boolean(),
   }),
 
@@ -121,6 +132,7 @@ const schema = defineSchema({
     periodStart: v.string(), // "2026-01-20"
     periodEnd: v.string(), // "2026-01-26"
     deadline: v.string(), // "2026-01-17"
+    shopClosedDates: v.optional(v.array(v.string())), // 募集期間内でお店を開けない日
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),

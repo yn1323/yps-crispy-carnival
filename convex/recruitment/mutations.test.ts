@@ -18,6 +18,7 @@ describe("recruitment/mutations", () => {
       periodStart: futureDate(7),
       periodEnd: futureDate(14),
       deadline: futureDate(3),
+      shopClosedDates: [],
     });
 
     it("未認証の場合エラーをthrow", async () => {
@@ -94,6 +95,7 @@ describe("recruitment/mutations", () => {
           periodStart: todayJST(),
           periodEnd: futureDate(14),
           deadline: futureDate(3),
+          shopClosedDates: [],
         }),
       ).rejects.toThrow("開始日は明日以降にしてください");
     });
@@ -116,6 +118,7 @@ describe("recruitment/mutations", () => {
           periodStart: "2026-04-01",
           periodEnd: "2026-04-07",
           deadline: "2026-03-28",
+          shopClosedDates: [],
           status: options.status ?? "open",
           ...(options.status === "confirmed" ? { confirmedAt: Date.now() } : {}),
           isDeleted: options.isDeleted ?? false,

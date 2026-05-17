@@ -43,6 +43,8 @@ const dayTriggerPartSelector = "[data-part=table-cell-trigger]";
 const calendarTableSelector = "& table";
 const calendarCellSelector = "& th, & td";
 const selectedDaySelector = `${dayTriggerSelector}[data-selected]`;
+const rangeStartDaySelector = `${dayTriggerSelector}[data-range-start]`;
+const rangeEndDaySelector = `${dayTriggerSelector}[data-range-end]`;
 
 export const CalendarPicker = ({
   selectionMode,
@@ -55,6 +57,7 @@ export const CalendarPicker = ({
   onValueChange,
 }: CalendarPickerProps) => {
   const monthCount = useBreakpointValue({ base: 1, md: desktopMonths }) ?? 1;
+  const shouldHighlightRangeEdges = selectionMode === "range";
 
   return (
     <DatePicker.Root
@@ -92,16 +95,16 @@ export const CalendarPicker = ({
           mx: "auto",
         },
         [sundayColumnSelector]: {
-          color: "red.600",
+          color: "red.400",
         },
         [`${sundayColumnSelector} ${dayTriggerPartSelector}`]: {
-          color: "red.600",
+          color: "red.400",
         },
         [saturdayColumnSelector]: {
-          color: "blue.600",
+          color: "blue.400",
         },
         [`${saturdayColumnSelector} ${dayTriggerPartSelector}`]: {
-          color: "blue.600",
+          color: "blue.400",
         },
         [selectedDaySelector]: {
           color: "white",
@@ -112,6 +115,26 @@ export const CalendarPicker = ({
         [`${saturdayColumnSelector} ${selectedDaySelector}`]: {
           color: "white",
         },
+        ...(shouldHighlightRangeEdges
+          ? {
+              [rangeStartDaySelector]: {
+                bg: "red.100",
+                color: "red.700",
+              },
+              [`${rangeStartDaySelector}:hover`]: {
+                bg: "red.200",
+                color: "red.800",
+              },
+              [rangeEndDaySelector]: {
+                bg: "blue.100",
+                color: "blue.700",
+              },
+              [`${rangeEndDaySelector}:hover`]: {
+                bg: "blue.200",
+                color: "blue.800",
+              },
+            }
+          : {}),
         ...(highlightSelectableDates
           ? {
               [`${activeDaySelector}:not([data-selected])`]: {

@@ -128,6 +128,52 @@ export const InteractiveHolidayEdgeCases: Story = {
   },
 };
 
+export const InteractiveDefaultRegularClosedDays: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  render: () => (
+    <Dialog
+      title="新しい募集をつくる"
+      isOpen={true}
+      onOpenChange={() => {}}
+      onClose={() => {}}
+      hideFooter
+      maxW={{ base: "100vw", md: "760px" }}
+      maxH={{ base: "100dvh", md: "90dvh" }}
+      contentProps={{
+        h: { base: "100dvh", md: "auto" },
+        borderRadius: { base: 0, md: "l3" },
+        my: { base: 0, md: "var(--dialog-base-margin)" },
+      }}
+      bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
+    >
+      <CreateRecruitmentForm regularClosedDays={["mon"]} onSubmit={() => {}} onCancel={() => {}} />
+    </Dialog>
+  ),
+  play: async ({ canvasElement }) => {
+    const root = getTestRoot(canvasElement);
+    const periodStart = nextWeekday(dayjs().add(3, "day"), 1);
+    const periodEnd = periodStart.add(2, "day");
+    const deadline = periodStart.subtract(1, "day");
+
+    await clickDate(root, periodStart);
+    await clickDate(root, periodEnd);
+    clickButton(root, "次へ");
+
+    await findByText(root, "お店のお休みを選択");
+    clickButton(root, "次へ");
+
+    await findByText(root, "提出締切日を選択");
+    await clickDate(root, deadline);
+    clickButton(root, "確認へ");
+
+    await findByText(root, "内容を確認");
+    expect(getByText(root, "1日")).toBeTruthy();
+    expect(await findByText(root, formatDatePreview(periodStart))).toBeTruthy();
+  },
+};
+
 export const InteractiveDeadlineRestriction: Story = {
   parameters: {
     chromatic: { disableSnapshot: true },
@@ -296,6 +342,11 @@ function formatDatePreview(date: dayjs.Dayjs): string {
 
 function getWeekdayLabel(date: dayjs.Dayjs): string {
   return ["日", "月", "火", "水", "木", "金", "土"][date.day()] ?? "";
+}
+
+function nextWeekday(from: dayjs.Dayjs, weekday: number): dayjs.Dayjs {
+  const offset = (weekday - from.day() + 7) % 7;
+  return from.add(offset, "day");
 }
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));

@@ -20,6 +20,7 @@ export type SubmissionData = {
   periodStart: string;
   periodEnd: string;
   deadline: string;
+  shopClosedDates: string[];
   isBeforeDeadline: boolean;
   hasSubmitted: boolean;
   existingRequests: { date: string; startTime: string; endTime: string }[];
@@ -40,6 +41,7 @@ type Props = {
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
+  const shopClosedDateSet = useMemo(() => new Set(data.shopClosedDates), [data.shopClosedDates]);
   const timeOptions = useMemo(
     () => generateTimeOptions(data.timeRange.startTime, data.timeRange.endTime),
     [data.timeRange.startTime, data.timeRange.endTime],
@@ -54,7 +56,9 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   } = useForm<SubmitFormData>({
     resolver: zodResolver(submitFormSchema),
     defaultValues: {
-      entries: buildEntries(dates, data.existingRequests, data.timeRange),
+      entries: buildEntries(dates, data.existingRequests, data.timeRange).map((entry) =>
+        shopClosedDateSet.has(entry.date) ? buildRestEntry(entry) : entry,
+      ),
       acceptedLegal: false,
     },
   });
@@ -64,6 +68,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
 
   const handleSetWorking = (index: number) => {
     const entry = entries[index];
+    if (shopClosedDateSet.has(entry.date)) return;
     const nextEntry = buildWorkingEntry({
       entry,
       timeRange: data.timeRange,
@@ -94,10 +99,16 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const handleApplyPreviousPattern = () => {
     if (!data.previousWeeklyPattern) return;
     latestWorkingTimeRef.current = undefined;
-    setValue("entries", buildEntriesFromPreviousWeeklyPattern(dates, data.previousWeeklyPattern, data.timeRange), {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
+    setValue(
+      "entries",
+      buildEntriesFromPreviousWeeklyPattern(dates, data.previousWeeklyPattern, data.timeRange).map((entry) =>
+        shopClosedDateSet.has(entry.date) ? buildRestEntry(entry) : entry,
+      ),
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      },
+    );
   };
 
   const onFormSubmit = handleSubmit(async (formData) => {
@@ -165,6 +176,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
               onToggleWorking={() => handleSetWorking(index)}
               onTimeChange={(field, value) => handleTimeChange(index, field, value)}
               onClear={() => handleClear(index)}
+              isShopClosed={shopClosedDateSet.has(entry.date)}
               error={errors.entries?.[index]?.endTime?.message}
             />
           ))}

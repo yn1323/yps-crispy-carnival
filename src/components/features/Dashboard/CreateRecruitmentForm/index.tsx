@@ -5,12 +5,14 @@ import type { ComponentType } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuCalendarCheck, LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
+import type { RegularClosedDay } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
 import { CalendarPicker } from "./CalendarPicker";
 import {
   type CreateRecruitmentData,
   createRecruitmentFormSchema,
+  deriveShopClosedDatesFromRegularDays,
   getInclusiveDateCount,
   pruneHolidaysInRange,
 } from "./index";
@@ -19,6 +21,7 @@ type Step = "period" | "holidays" | "deadline" | "confirm";
 
 type Props = {
   defaultValues?: CreateRecruitmentData;
+  regularClosedDays?: RegularClosedDay[];
   onSubmit: (data: CreateRecruitmentData) => void;
   onCancel?: () => void;
 };
@@ -162,14 +165,14 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
   </Flex>
 );
 
-export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Props) => {
+export const CreateRecruitmentForm = ({ defaultValues, regularClosedDays = [], onSubmit, onCancel }: Props) => {
   const today = dayjs().format("YYYY-MM-DD");
   const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
   const [currentStep, setCurrentStep] = useState<Step>("period");
   const [periodValue, setPeriodValue] = useState<DateValue[]>(() =>
     toDateValues([defaultValues?.periodStart, defaultValues?.periodEnd].filter((date): date is string => !!date)),
   );
-  const [selectedHolidays, setSelectedHolidays] = useState<string[]>([]);
+  const [selectedHolidays, setSelectedHolidays] = useState<string[]>(defaultValues?.shopClosedDates ?? []);
 
   const {
     register,
@@ -185,6 +188,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
       periodStart: "",
       periodEnd: "",
       deadline: "",
+      shopClosedDates: [],
     },
   });
 
@@ -214,8 +218,12 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
   const holidaySummary = getHolidaySummary(selectedHolidays);
 
   useEffect(() => {
-    setSelectedHolidays((current) => pruneHolidaysInRange(current, periodStart, periodEnd));
-  }, [periodStart, periodEnd]);
+    setSelectedHolidays((current) => {
+      const nextHolidays = pruneHolidaysInRange(current, periodStart, periodEnd);
+      setValue("shopClosedDates", nextHolidays, { shouldDirty: true });
+      return nextHolidays;
+    });
+  }, [periodStart, periodEnd, setValue]);
 
   useEffect(() => {
     if (!deadline || isDeadlineInRange(deadline, today, periodStart)) return;
@@ -227,15 +235,19 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
     const nextValue = value.slice(0, 2);
     const start = nextValue[0] ? toIso(nextValue[0]) : "";
     const end = nextValue[1] ? toIso(nextValue[1]) : "";
+    const defaultShopClosedDates = deriveShopClosedDatesFromRegularDays(start, end, regularClosedDays);
     setPeriodValue(nextValue);
     setValue("periodStart", start, { shouldDirty: true });
     setValue("periodEnd", end, { shouldDirty: true });
+    setValue("shopClosedDates", defaultShopClosedDates, { shouldDirty: true });
+    setSelectedHolidays(defaultShopClosedDates);
     clearErrors(["periodStart", "periodEnd"]);
   };
 
   const handleHolidayChange = (value: DateValue[]) => {
     const holidays = pruneHolidaysInRange(value.map(toIso), periodStart, periodEnd);
     setSelectedHolidays(holidays);
+    setValue("shopClosedDates", holidays, { shouldDirty: true });
   };
 
   const handleDeadlineChange = (value: DateValue[]) => {
@@ -298,7 +310,7 @@ export const CreateRecruitmentForm = ({ defaultValues, onSubmit, onCancel }: Pro
   };
 
   const submitForm = handleSubmit((data) => {
-    onSubmit(data);
+    onSubmit({ ...data, shopClosedDates: selectedHolidays });
   });
 
   return (

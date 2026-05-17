@@ -6,6 +6,7 @@ import { getDateRange } from "@/src/domains/shift/date";
 import { DayCard } from "../DayCard";
 import type { SubmissionData } from "../SubmitFormView";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
+import { buildRestEntry } from "../utils/dayEntryState";
 import { buildEntries, formatPeriodLabel } from "../utils/timeOptions";
 
 type Props = {
@@ -16,8 +17,11 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
 
   const entries = useMemo(
-    () => buildEntries(dates, data.existingRequests, data.timeRange),
-    [dates, data.existingRequests, data.timeRange],
+    () =>
+      buildEntries(dates, data.existingRequests, data.timeRange).map((entry) =>
+        data.shopClosedDates.includes(entry.date) ? buildRestEntry(entry) : entry,
+      ),
+    [dates, data.existingRequests, data.timeRange, data.shopClosedDates],
   );
 
   return (
@@ -64,6 +68,7 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
               onTimeChange={() => {}}
               onClear={() => {}}
               isReadOnly
+              isShopClosed={data.shopClosedDates.includes(entry.date)}
             />
           ))}
         </VStack>

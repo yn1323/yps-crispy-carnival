@@ -20,6 +20,7 @@ export async function seedShop(ctx: MutationCtx, name = "テスト店舗") {
     name,
     shiftStartTime: "09:00",
     shiftEndTime: "22:00",
+    regularClosedDays: [],
     isDeleted: false,
   });
 }

@@ -47,6 +47,7 @@ describe("setup/mutations", () => {
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("テスト店舗");
+      expect(shop?.regularClosedDays).toEqual([]);
 
       const user = await t.run(async (ctx) =>
         ctx.db

@@ -20,6 +20,7 @@ async function setupTestData(t: TestConvex<typeof schema>) {
       periodStart: "2026-01-20",
       periodEnd: "2026-01-26",
       deadline: "2026-01-17",
+      shopClosedDates: [],
       status: "open",
       isDeleted: false,
       shiftStartTime: "09:00",

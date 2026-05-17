@@ -12,6 +12,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
+import type { CreateRecruitmentData } from "../CreateRecruitmentForm/index";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
@@ -40,7 +41,12 @@ const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
 ];
 
 type Props = {
-  shop: { name: string; shiftStartTime: string; shiftEndTime: string } | null;
+  shop: {
+    name: string;
+    shiftStartTime: string;
+    shiftEndTime: string;
+    regularClosedDays: EditShopFormData["regularClosedDays"];
+  } | null;
   managerProfileDefaults?: {
     name: string;
     email: string;
@@ -174,7 +180,7 @@ export const DashboardContent = ({
     }
   };
 
-  const handleCreateRecruitment = async (data: { periodStart: string; periodEnd: string; deadline: string }) => {
+  const handleCreateRecruitment = async (data: CreateRecruitmentData) => {
     try {
       await createRecruitment(data);
       recruitmentModal.close();
@@ -426,7 +432,11 @@ export const DashboardContent = ({
         }}
         bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
       >
-        <CreateRecruitmentForm onSubmit={handleCreateRecruitment} onCancel={recruitmentModal.close} />
+        <CreateRecruitmentForm
+          regularClosedDays={shop?.regularClosedDays ?? []}
+          onSubmit={handleCreateRecruitment}
+          onCancel={recruitmentModal.close}
+        />
       </Dialog>
 
       <Dialog
@@ -511,6 +521,7 @@ export const DashboardContent = ({
               shopName: shop.name,
               shiftStartTime: shop.shiftStartTime,
               shiftEndTime: shop.shiftEndTime,
+              regularClosedDays: shop.regularClosedDays,
             }}
             onSubmit={handleUpdateShop}
           />

@@ -422,6 +422,7 @@ describe("staffAuth/mutations", () => {
           periodStart: "2026-01-20",
           periodEnd: "2026-01-26",
           deadline: "2026-01-17",
+          shopClosedDates: [],
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
