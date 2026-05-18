@@ -43,6 +43,7 @@ export const DateOnlyView = () => {
   const setShifts = useSetAtom(shiftsAtom);
 
   const { dates, holidays, isReadOnly, positions, staffs, timeRange } = config;
+  const isConfirmedDisplay = config.displayMode === "confirmed";
   const fallbackPosition = positions[0];
   const weeks = useMemo(() => buildDateOnlyWeeks(dates), [dates]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
@@ -103,7 +104,7 @@ export const DateOnlyView = () => {
             <Box as="thead">
               <Box as="tr" bg="gray.50">
                 <StickyHeaderCell left={0}>ユーザー</StickyHeaderCell>
-                <StickyHeaderCell left={STAFF_COL_WIDTH}>希望</StickyHeaderCell>
+                <StickyHeaderCell left={STAFF_COL_WIDTH}>{isConfirmedDisplay ? "確定" : "希望"}</StickyHeaderCell>
                 {visibleDates.map((date) => (
                   <DateHeaderCell key={date.iso} date={date} isClosed={date.inRange && holidays.includes(date.iso)} />
                 ))}
@@ -133,7 +134,7 @@ export const DateOnlyView = () => {
               {staffs.map((staff) => (
                 <Box as="tr" key={staff.id}>
                   <StaffCell staff={staff} />
-                  <RequestCell staff={staff} shifts={shifts} dates={visibleDates} />
+                  <RequestCell staff={staff} shifts={shifts} dates={visibleDates} confirmed={isConfirmedDisplay} />
                   {visibleDates.map((date) => {
                     const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
                     const assigned = hasDateOnlyAssignment(shift);
@@ -320,7 +321,17 @@ const StaffCell = ({ staff }: { staff: StaffType }) => (
   </Box>
 );
 
-const RequestCell = ({ staff, shifts, dates }: { staff: StaffType; shifts: ShiftData[]; dates: DateInfo[] }) => {
+const RequestCell = ({
+  staff,
+  shifts,
+  dates,
+  confirmed,
+}: {
+  staff: StaffType;
+  shifts: ShiftData[];
+  dates: DateInfo[];
+  confirmed: boolean;
+}) => {
   const requestedDates = dates.filter(
     (date) =>
       date.inRange && hasDateOnlyRequest(shifts.find((shift) => shift.staffId === staff.id && shift.date === date.iso)),
@@ -352,7 +363,7 @@ const RequestCell = ({ staff, shifts, dates }: { staff: StaffType; shifts: Shift
           ))
         ) : (
           <RequestBadge bg="#f4f4f5" color="#71717a">
-            希望なし
+            {confirmed ? "勤務なし" : "希望なし"}
           </RequestBadge>
         )}
       </Flex>

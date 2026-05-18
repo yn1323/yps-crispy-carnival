@@ -40,6 +40,7 @@ type ShiftFormProps = {
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
   submissionPattern?: ShiftSubmissionPattern;
+  displayMode?: "request" | "confirmed";
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
   onShiftsChange?: (shifts: ShiftData[]) => void;
@@ -64,6 +65,7 @@ const ShiftFormInner = ({
   allShifts,
   requiredStaffing,
   submissionPattern,
+  displayMode,
   initialViewMode,
   initialSortMode,
   onShiftsChange,
@@ -87,6 +89,7 @@ const ShiftFormInner = ({
     allShifts,
     requiredStaffing,
     submissionPattern,
+    displayMode,
     initialViewMode,
     initialSortMode,
   });

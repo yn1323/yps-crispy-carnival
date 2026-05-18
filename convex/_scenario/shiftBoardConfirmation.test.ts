@@ -151,6 +151,139 @@ describe("シフト表作成・確定シナリオ", () => {
     expect(beforeDraftEntry?.shifts.some((shift) => shift.timeLabel === "11:00-17:00")).toBe(true);
   });
 
+  it("時間指定・日ごと・勤務区分のシフト表を下書き保存し、確定通知と閲覧ページまで通る", async () => {
+    const t = convexTest(schema, modules);
+
+    const cases = [
+      {
+        kind: "time",
+        managerSubject: `${MANAGER_SUBJECT}_board_time`,
+        shopName: "時間指定シフト表店舗",
+        submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+        assignment: { startTime: "10:00", endTime: "18:00" },
+        expected: { startTime: "10:00", endTime: "18:00", optionId: undefined },
+        notificationLabel: "10:00-18:00",
+      },
+      {
+        kind: "dateOnly",
+        managerSubject: `${MANAGER_SUBJECT}_board_date_only`,
+        shopName: "日ごとシフト表店舗",
+        submissionPattern: { kind: "dateOnly" as const },
+        assignment: { startTime: "09:00", endTime: "22:00" },
+        expected: { startTime: "09:00", endTime: "22:00", optionId: undefined },
+        notificationLabel: "出勤",
+      },
+      {
+        kind: "shiftType",
+        managerSubject: `${MANAGER_SUBJECT}_board_shift_type`,
+        shopName: "勤務区分シフト表店舗",
+        submissionPattern: {
+          kind: "shiftType" as const,
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+          ],
+        },
+        assignment: { startTime: "15:00", endTime: "22:00", optionId: "late" },
+        expected: { startTime: "15:00", endTime: "22:00", optionId: "late" },
+        notificationLabel: "遅番（15:00-22:00）",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const scenario = createScenario(t);
+      const asManager = scenario.manager(testCase.managerSubject);
+      const staff = scenario.staff();
+      const { shopId, staffId } = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: testCase.managerSubject,
+          email: `${testCase.kind}-board-manager@example.com`,
+          shopName: testCase.shopName,
+        });
+        const staffId = await seedStaff(ctx, {
+          shopId: seeded.shopId,
+          name: `${testCase.shopName}スタッフ`,
+          email: `${testCase.kind}-board-staff@example.com`,
+        });
+        return { shopId: seeded.shopId, staffId };
+      });
+
+      await asManager.updateShopSettings({
+        shopName: testCase.shopName,
+        regularClosedDays: [],
+        submissionPattern: testCase.submissionPattern,
+      });
+      const recruitmentInput = {
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+      };
+      const recruitmentId = await asManager.createRecruitment(recruitmentInput);
+
+      await asManager.saveShiftAssignments({
+        recruitmentId,
+        assignments: [
+          {
+            staffId,
+            date: recruitmentInput.periodStart,
+            ...testCase.assignment,
+          },
+        ],
+      });
+
+      const savedBoard = await asManager.getShiftBoardData(recruitmentId);
+      expect(savedBoard?.shopId).toBe(shopId);
+      expect(savedBoard?.shiftAssignments).toEqual([
+        expect.objectContaining({
+          staffId,
+          date: recruitmentInput.periodStart,
+          startTime: testCase.expected.startTime,
+          endTime: testCase.expected.endTime,
+          ...(testCase.expected.optionId ? { optionId: testCase.expected.optionId } : {}),
+        }),
+      ]);
+      expect(savedBoard?.recruitment.draftSavedAt).toBeTypeOf("number");
+
+      await asManager.confirmRecruitment(recruitmentId);
+
+      const confirmedBoard = await asManager.getShiftBoardData(recruitmentId);
+      expect(confirmedBoard?.recruitment.status).toBe("confirmed");
+      expect(confirmedBoard?.recruitment.confirmedAt).toBeTypeOf("number");
+      expect(confirmedBoard?.shiftAssignments).toEqual(savedBoard?.shiftAssignments);
+
+      await t.run(async (ctx) => {
+        await seedSession(ctx, {
+          sessionToken: `${testCase.kind}-board-view-session`,
+          staffId,
+          shopId,
+          recruitmentId,
+          accessKind: "view",
+        });
+      });
+      const staffView = await staff.getShiftViewData({
+        sessionToken: `${testCase.kind}-board-view-session`,
+        recruitmentId,
+      });
+      expect(staffView?.submissionPattern).toEqual(testCase.submissionPattern);
+      expect(staffView?.assignments).toEqual([
+        expect.objectContaining({
+          staffId,
+          date: recruitmentInput.periodStart,
+          startTime: testCase.expected.startTime,
+          endTime: testCase.expected.endTime,
+          ...(testCase.expected.optionId ? { optionId: testCase.expected.optionId } : {}),
+        }),
+      ]);
+
+      const confirmationData = await t.query(internal.notification.queries.getConfirmationEmailData, { recruitmentId });
+      const staffEntry = confirmationData?.staffEntries.find((entry) => entry.staffId === staffId);
+      expect(staffEntry?.shifts).toContainEqual({
+        date: "5/17(日)",
+        timeLabel: testCase.notificationLabel,
+      });
+    }
+  });
+
   it("確定済み募集には未提出催促を送れない", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);

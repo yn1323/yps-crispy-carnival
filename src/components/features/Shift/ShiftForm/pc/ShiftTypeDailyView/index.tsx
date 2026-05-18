@@ -30,6 +30,7 @@ export const ShiftTypeDailyView = () => {
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
+  const isConfirmedDisplay = config.displayMode === "confirmed";
   const pattern = submissionPattern?.kind === "shiftType" ? submissionPattern : null;
   const options = useMemo(() => [...(pattern?.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder), [pattern]);
   const fallbackPosition = config.positions[0] ?? DEFAULT_POSITION;
@@ -91,7 +92,7 @@ export const ShiftTypeDailyView = () => {
                 <Box as="thead">
                   <Box as="tr" bg="gray.50">
                     <HeaderCell>スタッフ</HeaderCell>
-                    <HeaderCell>希望</HeaderCell>
+                    <HeaderCell>{isConfirmedDisplay ? "確定" : "希望"}</HeaderCell>
                     {options.map((option, index) => {
                       const optionColor = getShiftTypeOptionColor(index);
                       return (

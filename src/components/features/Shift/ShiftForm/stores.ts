@@ -26,6 +26,7 @@ export const shiftConfigAtom = atom<{
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
   submissionPattern?: ShiftSubmissionPattern;
+  displayMode?: "request" | "confirmed";
 }>({
   shopId: "",
   staffs: [],
@@ -34,6 +35,7 @@ export const shiftConfigAtom = atom<{
   timeRange: { start: 9, end: 22, unit: 30 },
   holidays: [],
   isReadOnly: false,
+  displayMode: "request",
 });
 
 // ==========================================

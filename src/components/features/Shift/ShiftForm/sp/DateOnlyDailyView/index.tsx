@@ -46,6 +46,7 @@ export const SPDateOnlyDailyView = () => {
   const setSelectedDate = useSetAtom(selectedDateAtom);
 
   const { dates, holidays, isReadOnly, positions, timeRange } = config;
+  const isConfirmedDisplay = config.displayMode === "confirmed";
   const fallbackPosition = positions[0];
   const dateInfos = useMemo(() => dates.map((iso) => ({ iso, inRange: true })), [dates]);
   const selectedDateInfo = useMemo(
@@ -156,6 +157,7 @@ export const SPDateOnlyDailyView = () => {
                 row={row}
                 activeDate={activeDate}
                 isReadOnly={isReadOnly}
+                confirmed={isConfirmedDisplay}
                 onToggle={() => handleToggle(row.staff)}
               />
             ))}
@@ -244,14 +246,24 @@ const StaffToggleRow = ({
   row,
   activeDate,
   isReadOnly,
+  confirmed,
   onToggle,
 }: {
   row: StaffDateRow;
   activeDate: string;
   isReadOnly: boolean;
+  confirmed: boolean;
   onToggle: () => void;
 }) => {
-  const status = !row.staff.isSubmitted ? "未提出" : row.requested ? "希望あり" : "希望なし";
+  const status = !row.staff.isSubmitted
+    ? "未提出"
+    : row.requested
+      ? confirmed
+        ? "勤務あり"
+        : "希望あり"
+      : confirmed
+        ? "勤務なし"
+        : "希望なし";
   const statusTone = !row.staff.isSubmitted ? "warning" : row.requested ? "positive" : "muted";
 
   return (

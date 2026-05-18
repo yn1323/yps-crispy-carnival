@@ -25,6 +25,7 @@ type UseShiftFormInitParams = {
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
   submissionPattern?: ShiftSubmissionPattern;
+  displayMode?: "request" | "confirmed";
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
 };
@@ -42,6 +43,7 @@ export const useShiftFormInit = ({
   allShifts,
   requiredStaffing,
   submissionPattern,
+  displayMode = "request",
   initialViewMode,
   initialSortMode,
 }: UseShiftFormInitParams) => {
@@ -81,6 +83,7 @@ export const useShiftFormInit = ({
       allShifts,
       requiredStaffing,
       submissionPattern,
+      displayMode,
     });
   }, [
     shopId,
@@ -94,6 +97,7 @@ export const useShiftFormInit = ({
     allShifts,
     requiredStaffing,
     submissionPattern,
+    displayMode,
     setConfig,
   ]);
 };

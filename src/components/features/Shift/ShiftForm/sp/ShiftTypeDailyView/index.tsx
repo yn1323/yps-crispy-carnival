@@ -33,6 +33,7 @@ export const SPShiftTypeDailyView = () => {
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
+  const isConfirmedDisplay = config.displayMode === "confirmed";
   const pattern = submissionPattern?.kind === "shiftType" ? submissionPattern : null;
   const options = useMemo(() => [...(pattern?.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder), [pattern]);
   const fallbackPosition = config.positions[0] ?? DEFAULT_POSITION;
@@ -145,6 +146,7 @@ export const SPShiftTypeDailyView = () => {
                 staff={staff}
                 shift={shiftByStaffId.get(staff.id)}
                 options={options}
+                isConfirmedDisplay={isConfirmedDisplay}
                 isReadOnly={isReadOnly}
                 onToggle={(option) => handleToggle(staff, option)}
               />
@@ -198,12 +200,14 @@ const StaffShiftTypeCard = ({
   staff,
   shift,
   options,
+  isConfirmedDisplay,
   isReadOnly,
   onToggle,
 }: {
   staff: StaffType;
   shift: ShiftData | undefined;
   options: ShiftTypeOptionLike[];
+  isConfirmedDisplay: boolean;
   isReadOnly: boolean;
   onToggle: (option: ShiftTypeOptionLike) => void;
 }) => {
@@ -217,7 +221,7 @@ const StaffShiftTypeCard = ({
         </Text>
         <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
           <Text textStyle="2xs" color="gray.500" fontWeight={600}>
-            希望
+            {isConfirmedDisplay ? "確定" : "希望"}
           </Text>
           <RequestBadges staff={staff} requestedIds={requestedIds} options={options} />
         </Flex>

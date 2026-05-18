@@ -50,12 +50,11 @@ export const getShiftViewData = staffSessionQuery({
         .take(50),
     ]);
 
-    const { startTime: startTimeStr, endTime: endTimeStr } = getViewTimeRange(
-      getSubmissionPattern(recruitment.submissionPattern, {
-        startTime: recruitment.shiftStartTime,
-        endTime: recruitment.shiftEndTime,
-      }),
-    );
+    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
+      startTime: recruitment.shiftStartTime,
+      endTime: recruitment.shiftEndTime,
+    });
+    const { startTime: startTimeStr, endTime: endTimeStr } = getViewTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
 
@@ -72,7 +71,10 @@ export const getShiftViewData = staffSessionQuery({
         startTime: a.startTime,
         endTime: a.endTime,
         positionId: a.positionId,
+        ...(a.optionId ? { optionId: a.optionId } : {}),
       })),
+      shopClosedDates: recruitment.shopClosedDates ?? [],
+      submissionPattern,
       timeRange: {
         start: Math.floor(editableStartMinutes / 60),
         end: Math.ceil(editableEndMinutes / 60),

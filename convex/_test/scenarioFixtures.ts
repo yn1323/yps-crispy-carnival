@@ -36,6 +36,7 @@ type SubmitShiftSelectionInput =
 type ShiftAssignment = ShiftRequest & {
   staffId: Id<"staffs">;
   positionId?: Id<"positions">;
+  optionId?: string;
 };
 
 type ShiftSubmissionPattern =

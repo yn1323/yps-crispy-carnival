@@ -1,21 +1,41 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatDateLabel, formatPeriodLabel, generateDateRange, todayJST } from "../_lib/dateFormat";
+import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
 type AssignmentTime = {
   startTime: string;
   endTime: string;
+  optionId?: string;
 };
 
-function buildShiftTimeLabel(assignments: AssignmentTime[]) {
+function buildShiftTimeLabel(assignments: AssignmentTime[], pattern: ShiftSubmissionPattern) {
   if (assignments.length === 0) return null;
-  return assignments
-    .slice()
-    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-    .map((assignment) => `${assignment.startTime}-${assignment.endTime}`)
-    .join(" / ");
+  const sortedAssignments = assignments.slice().sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  if (pattern.kind === "dateOnly") {
+    return "出勤";
+  }
+
+  if (pattern.kind === "shiftType") {
+    const optionById = new Map(pattern.options.map((option) => [option.id, option]));
+    return sortedAssignments
+      .map((assignment) => {
+        const option = assignment.optionId
+          ? optionById.get(assignment.optionId)
+          : pattern.options.find(
+              (item) => item.startTime === assignment.startTime && item.endTime === assignment.endTime,
+            );
+        return option
+          ? `${option.name}（${option.startTime}-${option.endTime}）`
+          : `${assignment.startTime}-${assignment.endTime}`;
+      })
+      .join(" / ");
+  }
+
+  return sortedAssignments.map((assignment) => `${assignment.startTime}-${assignment.endTime}`).join(" / ");
 }
 
 /**
@@ -44,6 +64,10 @@ export const getConfirmationEmailData = internalQuery({
     // 期間内の全日付を生成
     const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
     const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
+    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
+      startTime: recruitment.shiftStartTime,
+      endTime: recruitment.shiftEndTime,
+    });
 
     // スタッフごとにシフト情報をグループ化
     const staffEntries = await Promise.all(
@@ -52,7 +76,11 @@ export const getConfirmationEmailData = internalQuery({
         const assignmentsByDate = new Map<string, AssignmentTime[]>();
         for (const assignment of staffAssignments) {
           const items = assignmentsByDate.get(assignment.date) ?? [];
-          items.push({ startTime: assignment.startTime, endTime: assignment.endTime });
+          items.push({
+            startTime: assignment.startTime,
+            endTime: assignment.endTime,
+            ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+          });
           assignmentsByDate.set(assignment.date, items);
         }
         const lineAccount = await getStaffLineAccount(ctx, staff._id);
@@ -60,7 +88,7 @@ export const getConfirmationEmailData = internalQuery({
         const shifts = dates.map((date) => {
           const timeLabel = shopClosedDateSet.has(date)
             ? "定休日"
-            : buildShiftTimeLabel(assignmentsByDate.get(date) ?? []);
+            : buildShiftTimeLabel(assignmentsByDate.get(date) ?? [], submissionPattern);
           return {
             date: formatDateLabel(date),
             timeLabel,
