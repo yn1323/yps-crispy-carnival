@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardData = {
@@ -14,6 +15,7 @@ export type ShiftBoardData = {
     lastReminderSentAt: number | null;
     draftSavedAt: number | null;
   };
+  submissionPattern: ShiftSubmissionPattern;
   staffs: Array<{
     _id: Id<"staffs">;
     name: string;
@@ -25,6 +27,7 @@ export type ShiftBoardData = {
     date: string;
     startTime: string;
     endTime: string;
+    optionId?: string | null;
   }>;
   requestedDates: Array<{
     staffId: Id<"staffs">;
@@ -36,6 +39,7 @@ export type ShiftBoardData = {
     startTime: string;
     endTime: string;
     positionId: Id<"positions">;
+    optionId?: string | null;
   }>;
   positions: Array<{
     _id: Id<"positions">;

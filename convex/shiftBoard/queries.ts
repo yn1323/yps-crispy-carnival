@@ -92,6 +92,7 @@ export const getShiftBoardData = managerQuery({
         lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
         draftSavedAt: effectiveDraftSavedAt,
       },
+      submissionPattern,
       staffs: allStaffs.map((s) => {
         const submission = submissionByStaffId.get(s._id);
         // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
@@ -112,6 +113,7 @@ export const getShiftBoardData = managerQuery({
         date: r.date,
         startTime: r.startTime,
         endTime: r.endTime,
+        ...(r.optionId ? { optionId: r.optionId } : {}),
       })),
       requestedDates: requestedDates.map((r) => ({
         staffId: r.staffId,
@@ -123,6 +125,7 @@ export const getShiftBoardData = managerQuery({
         startTime: a.startTime,
         endTime: a.endTime,
         positionId: a.positionId,
+        ...(a.optionId ? { optionId: a.optionId } : {}),
       })),
       timeRange: {
         start: startHour,

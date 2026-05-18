@@ -28,6 +28,7 @@ export const saveShiftAssignments = managerMutation({
         startTime: v.string(),
         endTime: v.string(),
         positionId: v.optional(v.id("positions")),
+        optionId: v.optional(v.string()),
       }),
     ),
   },
@@ -37,12 +38,15 @@ export const saveShiftAssignments = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(
-      getSubmissionPattern(recruitment.submissionPattern, {
-        startTime: recruitment.shiftStartTime,
-        endTime: recruitment.shiftEndTime,
-      }),
-    );
+    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
+      startTime: recruitment.shiftStartTime,
+      endTime: recruitment.shiftEndTime,
+    });
+    const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(submissionPattern);
+    const shiftTypeOptionById =
+      submissionPattern.kind === "shiftType"
+        ? new Map(submissionPattern.options.map((option) => [option.id, option]))
+        : new Map<string, never>();
     const shopStartMinutes = timeToMinutes(startTimeStr);
     const shopEndMinutes = timeToMinutes(endTimeStr);
     const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
@@ -62,6 +66,21 @@ export const saveShiftAssignments = managerMutation({
 
       if (startMinutes >= endMinutes) {
         throw new ConvexError("終了時間は開始時間より後にしてください");
+      }
+
+      if (submissionPattern.kind === "shiftType") {
+        if (a.optionId === undefined) {
+          throw new ConvexError("勤務区分を選択してください");
+        }
+        const option = shiftTypeOptionById.get(a.optionId);
+        if (!option) {
+          throw new ConvexError("勤務区分が見つかりません");
+        }
+        if (a.startTime !== option.startTime || a.endTime !== option.endTime) {
+          throw new ConvexError("勤務区分の時間と一致しません");
+        }
+      } else if (a.optionId !== undefined) {
+        throw new ConvexError("勤務区分の募集ではありません");
       }
 
       if (startMinutes < shopStartMinutes || endMinutes > shopEndMinutes) {
@@ -116,6 +135,7 @@ export const saveShiftAssignments = managerMutation({
           startTime: assignment.startTime,
           endTime: assignment.endTime,
           positionId: assignment.positionId ?? defaultPositionId,
+          ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
         }),
       ),
     );

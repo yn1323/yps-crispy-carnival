@@ -16,6 +16,7 @@ const mockData: ShiftBoardData = {
     lastReminderSentAt: null,
     draftSavedAt: null,
   },
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [
     { _id: "s1" as Id<"staffs">, name: "鈴木太郎", isSubmitted: true, wasSubmittedAtDraft: false },
     { _id: "s2" as Id<"staffs">, name: "佐藤花子", isSubmitted: true, wasSubmittedAtDraft: false },

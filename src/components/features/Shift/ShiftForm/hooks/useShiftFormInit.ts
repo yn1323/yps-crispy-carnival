@@ -1,5 +1,6 @@
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -23,6 +24,7 @@ type UseShiftFormInitParams = {
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
+  submissionPattern?: ShiftSubmissionPattern;
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
 };
@@ -39,6 +41,7 @@ export const useShiftFormInit = ({
   currentStaffId,
   allShifts,
   requiredStaffing,
+  submissionPattern,
   initialViewMode,
   initialSortMode,
 }: UseShiftFormInitParams) => {
@@ -77,6 +80,7 @@ export const useShiftFormInit = ({
       currentStaffId,
       allShifts,
       requiredStaffing,
+      submissionPattern,
     });
   }, [
     shopId,
@@ -89,6 +93,7 @@ export const useShiftFormInit = ({
     currentStaffId,
     allShifts,
     requiredStaffing,
+    submissionPattern,
     setConfig,
   ]);
 };

@@ -23,7 +23,7 @@ import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
 
-type ShiftRequestRange = { startTime: string; endTime: string };
+type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
 function generatePeriodLabel(dates: string[]): string {
   if (dates.length === 0) return "";
@@ -39,6 +39,7 @@ const getRequestSpan = (requests: ShiftRequestRange[]): ShiftRequestRange | unde
       (latest, request) => (request.endTime > latest ? request.endTime : latest),
       sorted[0].endTime,
     ),
+    optionId: sorted.length === 1 ? sorted[0].optionId : null,
   };
 };
 
@@ -47,8 +48,16 @@ const toShiftTimeRange = (request: ShiftRequestRange): ShiftTimeRange => ({
   end: request.endTime,
 });
 
+const getShiftTypeOptionIdForRange = (
+  request: { startTime: string; endTime: string; optionId: string | null },
+  options: Array<{ id: string; startTime: string; endTime: string }>,
+): string | undefined => {
+  if (request.optionId) return request.optionId;
+  return options.find((option) => option.startTime === request.startTime && option.endTime === request.endTime)?.id;
+};
+
 /** Convexデータ → ShiftForm用 ShiftData[] に変換 */
-function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] {
+export function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string[]): ShiftData[] {
   const shopClosedDateSet = new Set(data.recruitment.shopClosedDates);
   const positions = data.positions.length > 0 ? data.positions : [];
   const defaultPosition = positions.find((position) => position.isDefault) ?? positions[0];
@@ -63,20 +72,29 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
   for (const r of data.requestedSlots) {
     const key = `${r.staffId}-${r.date}`;
     const requests = requestMap.get(key) ?? [];
-    requests.push({ startTime: r.startTime, endTime: r.endTime });
+    requests.push({ startTime: r.startTime, endTime: r.endTime, optionId: r.optionId ?? null });
     requestMap.set(key, requests);
   }
   const requestedDateSet = new Set(data.requestedDates.map((r) => `${r.staffId}-${r.date}`));
   const fullDayRequest = {
     startTime: minutesToTime(data.timeRange.editableStartMinutes ?? data.timeRange.start * 60),
     endTime: minutesToTime(data.timeRange.editableEndMinutes ?? data.timeRange.end * 60),
+    optionId: null,
   };
 
-  const assignmentMap = new Map<string, Array<{ startTime: string; endTime: string; positionId: Id<"positions"> }>>();
+  const assignmentMap = new Map<
+    string,
+    Array<{ startTime: string; endTime: string; positionId: Id<"positions">; optionId: string | null }>
+  >();
   for (const item of data.shiftAssignments) {
     const key = `${item.staffId}-${item.date}`;
     const assignments = assignmentMap.get(key) ?? [];
-    assignments.push({ startTime: item.startTime, endTime: item.endTime, positionId: item.positionId });
+    assignments.push({
+      startTime: item.startTime,
+      endTime: item.endTime,
+      positionId: item.positionId,
+      optionId: item.optionId ?? null,
+    });
     assignmentMap.set(key, assignments);
   }
   const wasSubmittedAtDraftMap = new Map(data.staffs.map((s) => [s._id, s.wasSubmittedAtDraft]));
@@ -100,6 +118,13 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
       const key = `${staff.id}-${date}`;
       const assignments = (assignmentMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
       const requests = (requestMap.get(key) ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
+      const shiftTypeOptions = data.submissionPattern.kind === "shiftType" ? data.submissionPattern.options : [];
+      const requestedShiftTypeOptionIds =
+        data.submissionPattern.kind === "shiftType"
+          ? requests
+              .map((requestItem) => getShiftTypeOptionIdForRange(requestItem, shiftTypeOptions))
+              .filter((optionId): optionId is string => !!optionId)
+          : undefined;
       const request = getRequestSpan(requests) ?? (requestedDateSet.has(key) ? fullDayRequest : undefined);
       const requestedTimes =
         requests.length > 0
@@ -114,6 +139,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
               endTime: assignments[assignments.length - 1].endTime,
             }
           : undefined;
+      const isShiftTypePattern = data.submissionPattern.kind === "shiftType";
       const displayLine = resolveDisplayShiftLine({
         hasDraftSaved: data.recruitment.draftSavedAt !== null,
         savedAssignment,
@@ -124,6 +150,10 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
         assignments.length > 0
           ? assignments.map((assignment, index) => {
               const position = positionById.get(assignment.positionId) ?? fallbackPosition;
+              const shiftTypeOptionId =
+                data.submissionPattern.kind === "shiftType"
+                  ? getShiftTypeOptionIdForRange(assignment, shiftTypeOptions)
+                  : undefined;
               return {
                 id: `seg-${staff.id}-${date}-${index}`,
                 positionId: position.id,
@@ -131,9 +161,10 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
                 color: position.color,
                 start: assignment.startTime,
                 end: assignment.endTime,
+                shiftTypeOptionId,
               };
             })
-          : displayLine.type === "request" && requests.length > 0
+          : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
             ? requests.map((requestItem, index) => ({
                 id: `seg-${staff.id}-${date}-${index}`,
                 positionId: fallbackPosition.id,
@@ -142,7 +173,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
                 start: requestItem.startTime,
                 end: requestItem.endTime,
               }))
-            : displayLine.type !== "none"
+            : !isShiftTypePattern && displayLine.type !== "none"
               ? [
                   {
                     id: `seg-${staff.id}-${date}`,
@@ -162,6 +193,7 @@ function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates: string
         date,
         requestedTime: request ? { start: request.startTime, end: request.endTime } : null,
         requestedTimes,
+        requestedShiftTypeOptionIds,
         positions: positionSegments,
       });
     }
@@ -239,6 +271,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           date: s.date,
           startTime: position.start,
           endTime: position.end,
+          ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
           ...(position.positionId !== DEFAULT_POSITION.id
             ? { positionId: position.positionId as Id<"positions"> }
             : {}),
@@ -317,6 +350,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           dates={dates}
           timeRange={data.timeRange}
           holidays={data.recruitment.shopClosedDates}
+          submissionPattern={data.submissionPattern}
           onShiftsChange={handleShiftsChange}
           isConfirmed={isConfirmed}
           onSaveDraft={performSaveDraft}

@@ -363,7 +363,7 @@ describe("シフト希望回収シナリオ", () => {
     // Assert: シフト表では勤務区分が時間枠として扱われる。
     const board = await asManager.getShiftBoardData(recruitmentId);
     expect(board?.requestedSlots).toEqual([
-      { staffId, date: recruitmentInput.periodStart, startTime: "15:00", endTime: "22:00" },
+      { staffId, date: recruitmentInput.periodStart, startTime: "15:00", endTime: "22:00", optionId: "late" },
     ]);
   });
 

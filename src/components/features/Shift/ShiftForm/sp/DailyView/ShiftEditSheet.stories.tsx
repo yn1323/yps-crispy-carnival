@@ -3,7 +3,7 @@ import { mockPositions, mockShifts, mockShiftsAllPatterns, mockStaffs, mockTimeR
 import { ShiftEditSheet } from "./ShiftEditSheet";
 
 const meta = {
-  title: "Features/Shift/ShiftForm/SP/ShiftEditSheet",
+  title: "Features/Shift/ShiftForm/Time/SP/Sheets/Shift Edit Sheet",
   component: ShiftEditSheet,
   parameters: {
     layout: "fullscreen",

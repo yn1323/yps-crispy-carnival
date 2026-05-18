@@ -2,6 +2,7 @@ import { Box, Flex } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue } from "jotai";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -15,8 +16,12 @@ import { ConfirmButton, ExportButton, SaveButton, UnsubmittedStrip, ViewTabs } f
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { OverviewView } from "./pc/OverviewView";
+import { ShiftTypeDailyView } from "./pc/ShiftTypeDailyView";
+import { ShiftTypeOverviewView } from "./pc/ShiftTypeOverviewView";
 import { SPDailyView } from "./sp/DailyView";
 import { SPOverviewView } from "./sp/OverviewView";
+import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
+import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
 import { shiftsAtom, viewModeAtom } from "./stores";
 
 type ShiftFormProps = {
@@ -31,6 +36,7 @@ type ShiftFormProps = {
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
+  submissionPattern?: ShiftSubmissionPattern;
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
   onShiftsChange?: (shifts: ShiftData[]) => void;
@@ -54,6 +60,7 @@ const ShiftFormInner = ({
   currentStaffId,
   allShifts,
   requiredStaffing,
+  submissionPattern,
   initialViewMode,
   initialSortMode,
   onShiftsChange,
@@ -76,6 +83,7 @@ const ShiftFormInner = ({
     currentStaffId,
     allShifts,
     requiredStaffing,
+    submissionPattern,
     initialViewMode,
     initialSortMode,
   });
@@ -96,6 +104,7 @@ const ShiftFormInner = ({
     onViewModeChangeRef.current?.(viewMode);
   }, [viewMode]);
   const unsubmittedNames = useMemo(() => staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [staffs]);
+  const isShiftTypePattern = submissionPattern?.kind === "shiftType";
 
   return (
     <>
@@ -120,10 +129,10 @@ const ShiftFormInner = ({
           lastSentAtLabel={lastSentAtLabel}
         >
           <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
-            <DailyView />
+            {isShiftTypePattern ? <ShiftTypeDailyView /> : <DailyView />}
           </Box>
           <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-            <OverviewView />
+            {isShiftTypePattern ? <ShiftTypeOverviewView /> : <OverviewView />}
           </Box>
         </Shell>
       </Box>
@@ -147,12 +156,25 @@ const ShiftFormInner = ({
           onRemind={onRemind}
           lastSentAtLabel={lastSentAtLabel}
         >
-          <Box display={viewMode === "daily" ? "block" : "none"} flex={1} overflow="auto">
-            <SPDailyView />
-          </Box>
-          <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-            <SPOverviewView />
-          </Box>
+          {isShiftTypePattern ? (
+            <>
+              <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
+                <SPShiftTypeDailyView />
+              </Box>
+              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
+                <SPShiftTypeOverviewView />
+              </Box>
+            </>
+          ) : (
+            <>
+              <Box display={viewMode === "daily" ? "block" : "none"} flex={1} overflow="auto">
+                <SPDailyView />
+              </Box>
+              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
+                <SPOverviewView />
+              </Box>
+            </>
+          )}
         </Shell>
       </Box>
     </>

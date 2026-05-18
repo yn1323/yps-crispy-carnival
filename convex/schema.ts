@@ -189,6 +189,7 @@ const schema = defineSchema({
     startTime: v.string(), // "10:00"
     endTime: v.string(), // "18:00"
     positionId: v.id("positions"),
+    optionId: v.optional(v.string()), // 勤務区分募集で選択された区分ID
   })
     .index("by_recruitmentId", ["recruitmentId"])
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])

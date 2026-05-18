@@ -108,6 +108,85 @@ describe("shiftBoard/queries", () => {
     expect(result?.requestedSlots).toEqual([]);
   });
 
+  it("勤務区分募集のsnapshotとoptionIdつき希望・割当を返す", async () => {
+    const t = convexTest(schema, modules);
+    const { recruitmentId, staffId, positionId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_shift_type_board", shopName: "テスト店舗" });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "勤務区分スタッフ",
+        email: "shift-type@example.com",
+        isDeleted: false,
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#0d9488",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "17:00", endTime: "21:00", sortOrder: 1 },
+          ],
+        },
+      });
+      const submissionId = await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId,
+        submittedAt: Date.now(),
+      });
+      await ctx.db.insert("shiftSubmissionSlots", {
+        submissionId,
+        recruitmentId,
+        staffId,
+        date: "2026-04-03",
+        startTime: "09:00",
+        endTime: "13:00",
+        optionId: "morning",
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: "2026-04-03",
+        startTime: "17:00",
+        endTime: "21:00",
+        positionId,
+        optionId: "late",
+      });
+      return { recruitmentId, staffId, positionId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_shift_type_board" })
+      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+
+    expect(result?.submissionPattern).toEqual({
+      kind: "shiftType",
+      options: [
+        { id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 },
+        { id: "late", name: "遅番", startTime: "17:00", endTime: "21:00", sortOrder: 1 },
+      ],
+    });
+    expect(result?.requestedSlots).toEqual([
+      { staffId, date: "2026-04-03", startTime: "09:00", endTime: "13:00", optionId: "morning" },
+    ]);
+    expect(result?.shiftAssignments).toEqual([
+      { staffId, date: "2026-04-03", startTime: "17:00", endTime: "21:00", positionId, optionId: "late" },
+    ]);
+  });
+
   it("下書き保存時点で提出済みだったスタッフを返す", async () => {
     const t = convexTest(schema, modules);
     const { recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {

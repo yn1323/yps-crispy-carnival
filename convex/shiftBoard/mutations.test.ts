@@ -98,6 +98,127 @@ describe("shiftBoard/mutations", () => {
       expect(assignments[0].startTime).toBe("10:00");
     });
 
+    it("勤務区分IDつきのシフト割当を保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 },
+              { id: "late", name: "遅番", startTime: "17:00", endTime: "21:00", sortOrder: 1 },
+            ],
+          },
+        });
+      });
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        recruitmentId,
+        assignments: [
+          {
+            staffId: staffId1,
+            date: "2026-01-20",
+            startTime: "09:00",
+            endTime: "13:00",
+            optionId: "morning",
+          },
+        ],
+      });
+
+      const assignments = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect(),
+      );
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0].optionId).toBe("morning");
+    });
+
+    it("勤務区分募集では勤務区分IDなしの割当を保存できない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 }],
+          },
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "09:00",
+              endTime: "13:00",
+            },
+          ],
+        }),
+      ).rejects.toThrow("勤務区分を選択してください");
+    });
+
+    it("存在しない勤務区分IDは保存できない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 }],
+          },
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "09:00",
+              endTime: "13:00",
+              optionId: "late",
+            },
+          ],
+        }),
+      ).rejects.toThrow("勤務区分が見つかりません");
+    });
+
+    it("勤務区分IDと時間が一致しない割当は保存できない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 }],
+          },
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [
+            {
+              staffId: staffId1,
+              date: "2026-01-20",
+              startTime: "10:00",
+              endTime: "14:00",
+              optionId: "morning",
+            },
+          ],
+        }),
+      ).rejects.toThrow("勤務区分の時間と一致しません");
+    });
+
     it("分つきシフト時間の境界内なら保存できる", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
