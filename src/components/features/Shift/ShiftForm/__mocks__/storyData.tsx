@@ -340,6 +340,70 @@ export const mockShiftTypeShifts: ShiftData[] = [
   },
 ];
 
+const dateOnlyDates = [
+  "2026-06-02",
+  "2026-06-03",
+  "2026-06-04",
+  "2026-06-05",
+  "2026-06-06",
+  "2026-06-07",
+  "2026-06-08",
+];
+
+export const mockDateOnlyDates = dateOnlyDates;
+
+const dateOnlyRequest = { start: "09:00", end: "22:00" };
+
+const dateOnlySeg = (staffId: string, date: string) => ({
+  id: `date-only-${staffId}-${date}`,
+  positionId: "default",
+  positionName: "シフト",
+  color: "#0d9488",
+  start: "09:00",
+  end: "22:00",
+});
+
+const dateOnlyShift = ({
+  staffId,
+  staffName,
+  date,
+  requested,
+  assigned,
+}: {
+  staffId: string;
+  staffName: string;
+  date: string;
+  requested: boolean;
+  assigned: boolean;
+}): ShiftData => ({
+  id: `date-only-shift-${staffId}-${date}`,
+  staffId,
+  staffName,
+  date,
+  requestedTime: requested ? dateOnlyRequest : null,
+  requestedTimes: requested ? [dateOnlyRequest] : [],
+  positions: assigned ? [dateOnlySeg(staffId, date)] : [],
+});
+
+export const mockDateOnlyStaffs: StaffType[] = [
+  { id: "staff1", name: "田中 太郎", isSubmitted: true },
+  { id: "staff2", name: "佐藤 花子", isSubmitted: true },
+  { id: "staff3", name: "吉田 三郎", isSubmitted: true },
+  { id: "staff4", name: "山田 一郎", isSubmitted: true },
+  { id: "staff5", name: "鈴木 次郎", isSubmitted: true },
+  { id: "staff6", name: "中村 五郎", isSubmitted: false },
+];
+
+export const mockDateOnlyShifts: ShiftData[] = [
+  dateOnlyShift({ staffId: "staff1", staffName: "田中 太郎", date: "2026-06-02", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff1", staffName: "田中 太郎", date: "2026-06-05", requested: true, assigned: false }),
+  dateOnlyShift({ staffId: "staff2", staffName: "佐藤 花子", date: "2026-06-02", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff2", staffName: "佐藤 花子", date: "2026-06-03", requested: true, assigned: false }),
+  dateOnlyShift({ staffId: "staff3", staffName: "吉田 三郎", date: "2026-06-04", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff4", staffName: "山田 一郎", date: "2026-06-06", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff5", staffName: "鈴木 次郎", date: "2026-06-03", requested: false, assigned: true }),
+];
+
 export const mockRequiredStaffing: RequiredStaffingData[] = [
   {
     dayOfWeek: 3,

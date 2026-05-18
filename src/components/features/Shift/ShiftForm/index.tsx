@@ -1,4 +1,4 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue } from "jotai";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
@@ -15,10 +15,13 @@ import type {
 import { ConfirmButton, ExportButton, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
+import { DateOnlyView } from "./pc/DateOnlyView";
 import { OverviewView } from "./pc/OverviewView";
 import { ShiftTypeDailyView } from "./pc/ShiftTypeDailyView";
 import { ShiftTypeOverviewView } from "./pc/ShiftTypeOverviewView";
 import { SPDailyView } from "./sp/DailyView";
+import { SPDateOnlyDailyView } from "./sp/DateOnlyDailyView";
+import { SPDateOnlyOverviewView } from "./sp/DateOnlyOverviewView";
 import { SPOverviewView } from "./sp/OverviewView";
 import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
@@ -105,6 +108,7 @@ const ShiftFormInner = ({
   }, [viewMode]);
   const unsubmittedNames = useMemo(() => staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [staffs]);
   const isShiftTypePattern = submissionPattern?.kind === "shiftType";
+  const isDateOnlyPattern = submissionPattern?.kind === "dateOnly";
 
   return (
     <>
@@ -127,13 +131,20 @@ const ShiftFormInner = ({
           unsubmittedNames={unsubmittedNames}
           onRemind={onRemind}
           lastSentAtLabel={lastSentAtLabel}
+          singleViewLabel={isDateOnlyPattern ? "日ごと" : undefined}
         >
-          <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
-            {isShiftTypePattern ? <ShiftTypeDailyView /> : <DailyView />}
-          </Box>
-          <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-            {isShiftTypePattern ? <ShiftTypeOverviewView /> : <OverviewView />}
-          </Box>
+          {isDateOnlyPattern ? (
+            <DateOnlyView />
+          ) : (
+            <>
+              <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
+                {isShiftTypePattern ? <ShiftTypeDailyView /> : <DailyView />}
+              </Box>
+              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
+                {isShiftTypePattern ? <ShiftTypeOverviewView /> : <OverviewView />}
+              </Box>
+            </>
+          )}
         </Shell>
       </Box>
       <Box
@@ -156,7 +167,16 @@ const ShiftFormInner = ({
           onRemind={onRemind}
           lastSentAtLabel={lastSentAtLabel}
         >
-          {isShiftTypePattern ? (
+          {isDateOnlyPattern ? (
+            <>
+              <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
+                <SPDateOnlyDailyView />
+              </Box>
+              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
+                <SPDateOnlyOverviewView />
+              </Box>
+            </>
+          ) : isShiftTypePattern ? (
             <>
               <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
                 <SPShiftTypeDailyView />
@@ -192,6 +212,7 @@ type ShellProps = {
   unsubmittedNames: string[];
   onRemind?: () => void;
   lastSentAtLabel?: string;
+  singleViewLabel?: string;
   children: ReactNode;
 };
 
@@ -206,6 +227,7 @@ const Shell = ({
   unsubmittedNames,
   onRemind,
   lastSentAtLabel,
+  singleViewLabel,
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
@@ -218,7 +240,13 @@ const Shell = ({
       gap={compact ? 2 : 3}
       flexShrink={0}
     >
-      <ViewTabs value={viewMode} onChange={setViewMode} />
+      {singleViewLabel ? (
+        <Text py="10px" textStyle="sm" fontWeight={700} color="gray.800">
+          {singleViewLabel}
+        </Text>
+      ) : (
+        <ViewTabs value={viewMode} onChange={setViewMode} />
+      )}
       {!isReadOnly && (
         <Flex ml="auto" gap={2} align="center" py={2} flexShrink={0}>
           <SaveButton compact={compact} onClick={onSaveDraft} />

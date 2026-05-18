@@ -2,6 +2,9 @@ import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import type { ShiftForm } from "..";
 import {
+  mockDateOnlyDates,
+  mockDateOnlyShifts,
+  mockDateOnlyStaffs,
   mockDates,
   mockDatesMidWeekStart,
   mockHalfHourTimeRange,
@@ -83,4 +86,13 @@ export const shiftTypeArgs = {
   dates: mockShiftTypeDates,
   initialShifts: mockShiftTypeShifts,
   submissionPattern: mockShiftTypePattern,
+} satisfies ShiftFormArgs;
+
+export const dateOnlyArgs = {
+  ...baseArgs,
+  staffs: mockDateOnlyStaffs,
+  dates: mockDateOnlyDates,
+  initialShifts: mockDateOnlyShifts,
+  holidays: ["2026-06-07"],
+  submissionPattern: { kind: "dateOnly" },
 } satisfies ShiftFormArgs;
