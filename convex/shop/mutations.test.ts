@@ -233,6 +233,30 @@ describe("shop/mutations", () => {
       });
     });
 
+    it("勤務区分 option id の重複は更新できない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "duplicate", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+              { id: "duplicate", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+            ],
+          },
+        }),
+      ).rejects.toThrow("勤務区分IDが重複しています");
+    });
+
     it("不正な勤務区分時刻は ConvexError", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {

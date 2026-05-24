@@ -6,6 +6,12 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
+function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 describe("シフト表作成・確定シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -151,6 +157,138 @@ describe("シフト表作成・確定シナリオ", () => {
     expect(beforeDraftEntry?.shifts.some((shift) => shift.timeLabel === "11:00-17:00")).toBe(true);
   });
 
+  it("日ごと・勤務区分は下書き保存後の再提出で既存割当を勝手に上書きしない", async () => {
+    const t = convexTest(schema, modules);
+
+    const cases = [
+      {
+        kind: "dateOnly" as const,
+        managerSubject: `${MANAGER_SUBJECT}_draft_date_only`,
+        shopName: "日ごと下書き店舗",
+        submissionPattern: { kind: "dateOnly" as const },
+      },
+      {
+        kind: "shiftType" as const,
+        managerSubject: `${MANAGER_SUBJECT}_draft_shift_type`,
+        shopName: "勤務区分下書き店舗",
+        submissionPattern: {
+          kind: "shiftType" as const,
+          options: [
+            { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+          ],
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const scenario = createScenario(t);
+      const asManager = scenario.manager(testCase.managerSubject);
+      const staff = scenario.staff();
+      const { shopId, staffId } = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: testCase.managerSubject,
+          email: `${testCase.kind}-draft-manager@example.com`,
+          shopName: testCase.shopName,
+        });
+        const staffId = await seedStaff(ctx, {
+          shopId: seeded.shopId,
+          name: `${testCase.shopName}スタッフ`,
+          email: `${testCase.kind}-draft-staff@example.com`,
+        });
+        return { shopId: seeded.shopId, staffId };
+      });
+
+      await asManager.updateShopSettings({
+        shopName: testCase.shopName,
+        regularClosedDays: [],
+        submissionPattern: testCase.submissionPattern,
+      });
+      const recruitmentInput = {
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+      };
+      const recruitmentId = await asManager.createRecruitment(recruitmentInput);
+      await t.run(async (ctx) => {
+        await seedSession(ctx, {
+          sessionToken: `${testCase.kind}-draft-session`,
+          staffId,
+          shopId,
+          recruitmentId,
+        });
+      });
+
+      vi.setSystemTime(SCENARIO_NOW + 1_000);
+      await staff.submitShiftRequests({
+        sessionToken: `${testCase.kind}-draft-session`,
+        recruitmentId,
+        acceptedLegal: true,
+        submission:
+          testCase.kind === "dateOnly"
+            ? { kind: "dateOnly", workingDates: [recruitmentInput.periodStart] }
+            : {
+                kind: "shiftType",
+                selections: [{ date: recruitmentInput.periodStart, optionId: "early" }],
+              },
+      });
+
+      vi.setSystemTime(SCENARIO_NOW + 2_000);
+      await asManager.saveShiftAssignments({
+        recruitmentId,
+        assignments: [
+          {
+            staffId,
+            date: recruitmentInput.periodStart,
+            startTime: "09:00",
+            endTime: testCase.kind === "dateOnly" ? "22:00" : "15:00",
+            ...(testCase.kind === "shiftType" ? { optionId: "early" } : {}),
+          },
+        ],
+      });
+
+      vi.setSystemTime(SCENARIO_NOW + 3_000);
+      await staff.submitShiftRequests({
+        sessionToken: `${testCase.kind}-draft-session`,
+        recruitmentId,
+        submission:
+          testCase.kind === "dateOnly"
+            ? { kind: "dateOnly", workingDates: [addDays(recruitmentInput.periodStart, 2)] }
+            : {
+                kind: "shiftType",
+                selections: [{ date: recruitmentInput.periodStart, optionId: "late" }],
+              },
+      });
+
+      const board = await asManager.getShiftBoardData(recruitmentId);
+      expect(board?.shiftAssignments).toEqual([
+        expect.objectContaining({
+          staffId,
+          date: recruitmentInput.periodStart,
+          startTime: "09:00",
+          endTime: testCase.kind === "dateOnly" ? "22:00" : "15:00",
+          ...(testCase.kind === "shiftType" ? { optionId: "early" } : {}),
+        }),
+      ]);
+
+      if (testCase.kind === "dateOnly") {
+        expect(board?.requestedDates).toEqual([{ staffId, date: addDays(recruitmentInput.periodStart, 2) }]);
+        expect(board?.requestedSlots).toEqual([]);
+      } else {
+        expect(board?.requestedDates).toEqual([]);
+        expect(board?.requestedSlots).toEqual([
+          {
+            staffId,
+            date: recruitmentInput.periodStart,
+            startTime: "15:00",
+            endTime: "22:00",
+            optionId: "late",
+          },
+        ]);
+      }
+    }
+  });
+
   it("時間指定・日ごと・勤務区分のシフト表を下書き保存し、確定通知と閲覧ページまで通る", async () => {
     const t = convexTest(schema, modules);
 
@@ -282,6 +420,42 @@ describe("シフト表作成・確定シナリオ", () => {
         timeLabel: testCase.notificationLabel,
       });
     }
+  });
+
+  it("定休日の日付には業務フロー上もシフト割当を保存できない", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    const { staffId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "closed-date-board-manager@example.com",
+        shopName: "定休日シフト表店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "定休日確認スタッフ",
+        email: "closed-date-board-staff@example.com",
+      });
+      return { shopId, staffId };
+    });
+    const recruitmentInput = {
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(9),
+      deadline: scenarioDate(3),
+    };
+    const recruitmentId = await asManager.createRecruitment({
+      ...recruitmentInput,
+      shopClosedDates: [recruitmentInput.periodStart],
+    });
+
+    await expect(
+      asManager.saveShiftAssignments({
+        recruitmentId,
+        assignments: [{ staffId, date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      }),
+    ).rejects.toThrow("定休日にはシフトを登録できません");
   });
 
   it("確定済み募集には未提出催促を送れない", async () => {
