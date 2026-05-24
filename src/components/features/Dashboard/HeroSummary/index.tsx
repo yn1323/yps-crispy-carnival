@@ -10,7 +10,6 @@ import {
   LuSparkles,
   LuUsers,
 } from "react-icons/lu";
-import { formatShiftTimeRange } from "@/src/components/features/Dashboard/DashboardContent/formatShiftTimeRange";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
@@ -20,8 +19,6 @@ import { type NextAction, pickNextAction } from "./pickNextAction";
 
 type Shop = {
   name: string;
-  shiftStartTime: string;
-  shiftEndTime: string;
 };
 
 type Props = {
@@ -61,15 +58,6 @@ export const HeroSummary = ({
             <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
               {shop.name}
             </Heading>
-
-            <HStack display={{ base: "none", md: "flex" }} gap={2.5} color="fg.muted" flexShrink={0}>
-              <Text fontSize="sm" fontWeight="medium" whiteSpace="nowrap">
-                営業時間
-              </Text>
-              <Text fontSize={{ base: "md", lg: "lg" }} whiteSpace="nowrap">
-                {formatShiftTimeRange(shop.shiftStartTime, shop.shiftEndTime)}
-              </Text>
-            </HStack>
           </HStack>
 
           <Button
@@ -132,7 +120,7 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
           お店の情報を登録しましょう
         </Heading>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          お店の名前とシフト時間を入れるだけで始められます。
+          お店の名前とシフト希望の集め方を決めるだけで始められます。
         </Text>
       </Stack>
       <Flex>

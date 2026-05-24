@@ -3,7 +3,7 @@ import { mockShifts, mockShiftsAllPatterns, mockStaffs } from "../../__mocks__/s
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 
 const meta = {
-  title: "Features/Shift/ShiftForm/SP/ShiftDetailSheet",
+  title: "Features/Shift/ShiftForm/Time/SP/Sheets/Shift Detail Sheet",
   component: ShiftDetailSheet,
   parameters: {
     layout: "fullscreen",

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { UnsubmittedStrip } from "./components";
 
 const meta = {
-  title: "Features/Shift/ShiftForm/UnsubmittedStrip",
+  title: "Features/Shift/ShiftForm/Parts/Unsubmitted Footer",
   component: UnsubmittedStrip,
   parameters: {
     layout: "fullscreen",
@@ -23,6 +23,7 @@ type Story = StoryObj<typeof meta>;
 const sampleNames = ["田中次郎", "小林大輔", "佐藤花子"];
 
 export const Variants: Story = {
+  name: "Variants",
   args: { names: sampleNames },
   render: () => (
     <Box display="flex" flexDirection="column" gap={6}>

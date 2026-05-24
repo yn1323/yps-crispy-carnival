@@ -1,15 +1,13 @@
 import { z } from "zod";
-import { timeToMinutes } from "../_lib/time";
+import { addShiftSubmissionPatternIssues, shiftSubmissionPatternSchema } from "../shop/schemas";
 
 export const createShopSchema = z
   .object({
     shopName: z.string().min(1),
-    shiftStartTime: z.string().min(1),
-    shiftEndTime: z.string().min(1),
+    submissionPattern: shiftSubmissionPatternSchema,
   })
-  .refine((data) => timeToMinutes(data.shiftEndTime) > timeToMinutes(data.shiftStartTime), {
-    message: "終了時間は開始時間より後にしてください",
-    path: ["shiftEndTime"],
+  .superRefine((data, ctx) => {
+    addShiftSubmissionPatternIssues(data.submissionPattern, ctx);
   });
 
 export type CreateShopInput = z.infer<typeof createShopSchema>;

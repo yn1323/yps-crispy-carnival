@@ -18,7 +18,7 @@ const compareByTailGroup = (a: StaffType, b: StaffType) => {
 
 // シフト希望の開始・終了時刻（分）を取得
 const getRequestedMinutes = (staffShifts: ShiftData[]) => {
-  const requested = staffShifts.find((s) => s.requestedTime !== null)?.requestedTime;
+  const requested = staffShifts.flatMap((s) => s.requestedTimes ?? (s.requestedTime ? [s.requestedTime] : []))[0];
   if (!requested) return null;
   return { start: timeToMinutes(requested.start), end: timeToMinutes(requested.end) };
 };

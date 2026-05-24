@@ -3,6 +3,7 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { authenticatedQuery } from "../_lib/functions";
+import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
@@ -37,9 +38,11 @@ export const getDashboardShop = authenticatedQuery({
 
     return {
       name: shop.name,
-      shiftStartTime: shop.shiftStartTime,
-      shiftEndTime: shop.shiftEndTime,
       regularClosedDays: shop.regularClosedDays,
+      submissionPattern: getSubmissionPattern(shop.submissionPattern, {
+        startTime: shop.shiftStartTime,
+        endTime: shop.shiftEndTime,
+      }),
     };
   },
 });

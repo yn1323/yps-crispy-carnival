@@ -130,6 +130,10 @@ convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / polici
 - index.tsに外出しし、index.test.tsにテストを書くこと
 - 常にSubmitボタンはEnabledの状態にする。バリデーションエラーがあれば、Submitボタンは押せるが、エラーで次に進めないような実装方針にしたい。
 
+### 開発環境
+
+- Convex起動、Storybook起動、Vite起動はユーザーが実施しています。新規でコマンドを叩かないでください。
+
 ### 認証
 
 - **Clerk**: アプリ認証（管理者・マネージャー）

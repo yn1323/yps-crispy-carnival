@@ -9,6 +9,7 @@ import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialo
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
@@ -43,9 +44,8 @@ const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
 type Props = {
   shop: {
     name: string;
-    shiftStartTime: string;
-    shiftEndTime: string;
     regularClosedDays: EditShopFormData["regularClosedDays"];
+    submissionPattern: EditShopFormData["submissionPattern"];
   } | null;
   managerProfileDefaults?: {
     name: string;
@@ -168,8 +168,7 @@ export const DashboardContent = ({
     try {
       await setupShopAndManager({
         shopName: data.shopName,
-        shiftStartTime: data.shiftStartTime,
-        shiftEndTime: data.shiftEndTime,
+        submissionPattern: data.submissionPattern,
         managerName: data.name,
         managerEmail: data.email,
         acceptedLegal: data.acceptedLegal as true,
@@ -417,27 +416,19 @@ export const DashboardContent = ({
         )}
       </ContentWrapper>
 
-      <Dialog
+      <StepperDialog
         title="新しい募集をつくる"
         isOpen={recruitmentModal.isOpen}
         onOpenChange={recruitmentModal.onOpenChange}
         onClose={recruitmentModal.close}
-        hideFooter
-        maxW={{ base: "100vw", md: "760px" }}
-        maxH={{ base: "100dvh", md: "90dvh" }}
-        contentProps={{
-          h: { base: "100dvh", md: "auto" },
-          borderRadius: { base: 0, md: "l3" },
-          my: { base: 0, md: "var(--dialog-base-margin)" },
-        }}
-        bodyProps={{ p: 0, display: "flex", flexDirection: "column", overflowY: "hidden" }}
       >
         <CreateRecruitmentForm
           regularClosedDays={shop?.regularClosedDays ?? []}
+          submissionPattern={shop?.submissionPattern ?? { kind: "dateOnly" }}
           onSubmit={handleCreateRecruitment}
           onCancel={recruitmentModal.close}
         />
-      </Dialog>
+      </StepperDialog>
 
       <Dialog
         title={deleteRecruitmentTitle}
@@ -507,26 +498,25 @@ export const DashboardContent = ({
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
       </Dialog>
 
-      <Dialog
+      <StepperDialog
         title="店舗設定"
         isOpen={editShopModal.isOpen}
         onOpenChange={editShopModal.onOpenChange}
-        formId="edit-shop-form"
-        submitLabel="変更を保存"
         onClose={editShopModal.close}
       >
         {shop && (
           <EditShopForm
+            key={editShopModal.isOpen ? "edit-shop-open" : "edit-shop-closed"}
             defaultValues={{
               shopName: shop.name,
-              shiftStartTime: shop.shiftStartTime,
-              shiftEndTime: shop.shiftEndTime,
               regularClosedDays: shop.regularClosedDays,
+              submissionPattern: shop.submissionPattern,
             }}
             onSubmit={handleUpdateShop}
+            onCancel={editShopModal.close}
           />
         )}
-      </Dialog>
+      </StepperDialog>
 
       <Dialog
         title="スタッフを削除"

@@ -38,15 +38,21 @@ export const ShiftBar = ({
   linkedTarget,
 }: ShiftBarProps) => {
   const hourWidth = useAtomValue(hourWidthAtom);
-  const hasRequestedTime = shift.requestedTime !== null;
+  const requestedTimes = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
+  const hasRequestedTime = requestedTimes.length > 0;
 
   if (!hasRequestedTime && shift.positions.length === 0) return null;
 
+  const sortedAllPositions = [...shift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+  const workPositions = sortedAllPositions.filter((p) => !isBreakSegment(p));
+  const breakGaps = computeVisualBreaks(workPositions);
+  const hasWork = workPositions.length > 0;
+
   let barLeft = 0;
   let barWidth = 0;
-  if (shift.requestedTime) {
-    const startMinutes = timeToMinutes(shift.requestedTime.start);
-    const endMinutes = timeToMinutes(shift.requestedTime.end);
+  if (hasRequestedTime) {
+    const startMinutes = Math.min(...requestedTimes.map((request) => timeToMinutes(request.start)));
+    const endMinutes = Math.max(...requestedTimes.map((request) => timeToMinutes(request.end)));
     barLeft = minutesToPixel(startMinutes, timeRange, hourWidth);
     barWidth = minutesToPixel(endMinutes, timeRange, hourWidth) - barLeft;
   } else {
@@ -59,11 +65,6 @@ export const ShiftBar = ({
   const handleMouseEnter = () => onHover(shift.id);
   const handleMouseLeave = () => onHover(null);
 
-  const sortedAllPositions = [...shift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-  const workPositions = sortedAllPositions.filter((p) => !isBreakSegment(p));
-  const breakGaps = computeVisualBreaks(workPositions);
-  const hasWork = workPositions.length > 0;
-
   return (
     <Box
       position="absolute"
@@ -74,29 +75,42 @@ export const ShiftBar = ({
       pointerEvents={isDragging ? "none" : "auto"}
     >
       {/* 希望シフトバー（灰色の点線、「希望: HH:MM-HH:MM」ラベルを左寄せで表示） */}
-      {!isReadOnly && hasRequestedTime && shift.requestedTime && (
-        <Box
-          position="absolute"
-          left={0}
-          right={0}
-          height="28px"
-          bg="gray.50"
-          border="1.5px dashed"
-          borderColor="gray.400"
-          borderRadius="md"
-          top="50%"
-          transform="translateY(-50%)"
-          pointerEvents="none"
-          display="flex"
-          alignItems="center"
-          px="10px"
-          zIndex={1}
-        >
-          <Text textStyle="2xs" fontWeight={600} color="gray.500" whiteSpace="nowrap" fontVariantNumeric="tabular-nums">
-            希望: {shift.requestedTime.start}-{shift.requestedTime.end}
-          </Text>
-        </Box>
-      )}
+      {!isReadOnly &&
+        hasRequestedTime &&
+        requestedTimes.map((request, index) => {
+          const startPx = minutesToPixel(timeToMinutes(request.start), timeRange, hourWidth);
+          const endPx = minutesToPixel(timeToMinutes(request.end), timeRange, hourWidth);
+          return (
+            <Box
+              key={`${request.start}-${request.end}-${index}`}
+              position="absolute"
+              left={`${startPx - barLeft}px`}
+              width={`${endPx - startPx}px`}
+              height="28px"
+              bg="gray.50"
+              border="1.5px dashed"
+              borderColor="gray.400"
+              borderRadius="md"
+              top="50%"
+              transform="translateY(-50%)"
+              pointerEvents="none"
+              display="flex"
+              alignItems="center"
+              px="10px"
+              zIndex={1}
+            >
+              <Text
+                textStyle="2xs"
+                fontWeight={600}
+                color="gray.500"
+                whiteSpace="nowrap"
+                fontVariantNumeric="tabular-nums"
+              >
+                希望: {request.start}-{request.end}
+              </Text>
+            </Box>
+          );
+        })}
 
       {/* 勤務ポジション（teal） */}
       {workPositions.map((pos, index) => {
