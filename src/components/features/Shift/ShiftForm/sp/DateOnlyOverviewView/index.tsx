@@ -205,19 +205,21 @@ const DayRow = ({
       _active={canOpenDaily ? { bg: "gray.50" } : undefined}
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
     >
-      <Box w="54px" flexShrink={0}>
-        <Text
-          textStyle="md"
-          fontWeight={700}
-          color={date.inRange ? "gray.800" : "gray.400"}
-          lineHeight="1.1"
-          fontVariantNumeric="tabular-nums"
-        >
-          {formatDateShort(date.iso)}
-        </Text>
-        <Text textStyle="2xs" mt="2px" fontWeight={700} color={date.inRange ? dayColor(date.iso) : "gray.400"}>
-          {getWeekdayLabel(date.iso)}
-        </Text>
+      <Box w="68px" flexShrink={0}>
+        <Flex align="baseline" gap="4px" whiteSpace="nowrap">
+          <Text
+            textStyle="md"
+            fontWeight={700}
+            color={date.inRange ? "gray.800" : "gray.400"}
+            lineHeight="1.1"
+            fontVariantNumeric="tabular-nums"
+          >
+            {formatDateShort(date.iso)}
+          </Text>
+          <Text textStyle="2xs" fontWeight={700} flexShrink={0} color={date.inRange ? dayColor(date.iso) : "gray.400"}>
+            {getWeekdayLabel(date.iso)}
+          </Text>
+        </Flex>
       </Box>
       <Box flex={1} minW={0} pt="1px">
         {!date.inRange ? (

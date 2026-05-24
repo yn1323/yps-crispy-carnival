@@ -166,19 +166,21 @@ export const SPShiftTypeOverviewView = () => {
                         _active={isReadOnly ? undefined : { bg: "gray.50" }}
                         onClick={isReadOnly ? undefined : () => handleDateTap(date.iso)}
                       >
-                        <Box w="44px" flexShrink={0}>
-                          <Box
-                            textStyle="numeric"
-                            fontWeight={700}
-                            color="gray.800"
-                            lineHeight="1.1"
-                            style={{ fontVariantNumeric: "tabular-nums" }}
-                          >
-                            {date.label}
-                          </Box>
-                          <Box textStyle="2xs" fontWeight={700} mt="2px" style={{ color: dayColor(date.iso) }}>
-                            {date.wk}
-                          </Box>
+                        <Box w="68px" flexShrink={0}>
+                          <Flex align="baseline" gap="4px" whiteSpace="nowrap">
+                            <Box
+                              textStyle="numeric"
+                              fontWeight={700}
+                              color="gray.800"
+                              lineHeight="1.1"
+                              style={{ fontVariantNumeric: "tabular-nums" }}
+                            >
+                              {date.label}
+                            </Box>
+                            <Box textStyle="2xs" fontWeight={700} flexShrink={0} style={{ color: dayColor(date.iso) }}>
+                              {date.wk}
+                            </Box>
+                          </Flex>
                           {isClosed && (
                             <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
                               定休日
