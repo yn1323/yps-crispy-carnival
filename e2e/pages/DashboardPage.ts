@@ -310,7 +310,20 @@ export class DashboardPage {
   }
 
   async expectShopTimeRange(timeRange: string) {
-    await expect(this.page.getByText(timeRange)).toBeVisible();
+    const [startTime, endTime] = timeRange.split("〜");
+    if (!startTime || !endTime) throw new Error(`Invalid time range: ${timeRange}`);
+
+    await this.page.getByRole("button", { name: "店舗設定を編集" }).click({ noWaitAfter: true });
+    const dialog = this.page.getByRole("dialog", { name: "店舗設定" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "次へ" }).click();
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    await expect(dialog.getByRole("combobox", { name: "シフト開始時間" })).toContainText(startTime);
+    await expect(dialog.getByRole("combobox", { name: "シフト終了時間" })).toContainText(endTime);
+
+    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await expect(dialog).not.toBeVisible();
   }
 
   // ページネーション関連
