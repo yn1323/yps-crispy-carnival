@@ -19,12 +19,10 @@ import {
   type PreviousWeeklyPattern,
 } from "../utils/previousWeeklyPattern";
 import { buildEntries, formatPeriodLabel, formatTime, generateTimeOptions, getDateColor } from "../utils/timeOptions";
+import { buildSubmissionInput, type SubmitShiftSelectionInput } from "./buildSubmissionInput";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
-export type SubmitShiftSelectionInput =
-  | { kind: "time"; requests: Array<{ date: string; startTime: string; endTime: string }> }
-  | { kind: "dateOnly"; workingDates: string[] }
-  | { kind: "shiftType"; selections: Array<{ date: string; optionId: string }> };
+export type { SubmitShiftSelectionInput } from "./buildSubmissionInput";
 
 type ExistingSelection =
   | { kind: "time"; requests: Array<{ date: string; startTime: string; endTime: string }> }
@@ -114,28 +112,6 @@ const buildInitialEntries = (dates: string[], data: SubmissionData, shopClosedDa
 const getSelectedShiftTypeOptionIds = (entry: DayEntry): string[] => {
   if (entry.optionIds) return entry.optionIds;
   return entry.optionId ? [entry.optionId] : [];
-};
-
-const buildSubmissionInput = (pattern: ShiftSubmissionPattern, entries: DayEntry[]): SubmitShiftSelectionInput => {
-  if (pattern.kind === "dateOnly") {
-    return { kind: "dateOnly", workingDates: entries.filter((entry) => entry.isWorking).map((entry) => entry.date) };
-  }
-  if (pattern.kind === "shiftType") {
-    return {
-      kind: "shiftType",
-      selections: entries.flatMap((entry) => {
-        const optionIds = getSelectedShiftTypeOptionIds(entry);
-        if (!entry.isWorking || optionIds.length === 0) return [];
-        return optionIds.map((optionId) => ({ date: entry.date, optionId }));
-      }),
-    };
-  }
-  return {
-    kind: "time",
-    requests: entries
-      .filter((entry) => entry.isWorking)
-      .map((entry) => ({ date: entry.date, startTime: entry.startTime, endTime: entry.endTime })),
-  };
 };
 
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
