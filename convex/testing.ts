@@ -5,7 +5,7 @@ import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from
 import { APP_URL } from "./_lib/config";
 import { getDeadlineCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
-import { getSubmissionPattern } from "./_lib/submissionPattern";
+import { getSubmissionPattern, normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS, LINE_LINK_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
@@ -390,18 +390,21 @@ async function createRecruitment(
     shopId: Id<"shops">;
     dates: ScenarioDates;
     status: "open" | "confirmed";
+    shopClosedDates?: string[];
+    submissionPattern?: Parameters<typeof normalizeSubmissionPattern>[0];
   },
 ) {
+  const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
   return await ctx.db.insert("recruitments", {
     shopId: args.shopId,
     periodStart: args.dates.periodStart,
     periodEnd: args.dates.periodEnd,
     deadline: args.dates.deadline,
-    shopClosedDates: [],
+    shopClosedDates: args.shopClosedDates ?? [],
     status: args.status,
     confirmedAt: args.status === "confirmed" ? Date.now() : undefined,
     isDeleted: false,
-    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+    submissionPattern,
   });
 }
 
@@ -793,13 +796,16 @@ export const seedSubmitTestData = internalMutation({
     deadlinePassed: v.optional(v.boolean()),
     hasExistingSubmission: v.optional(v.boolean()),
     legalConsentState: v.optional(legalConsentStateValidator),
+    shopClosedDates: v.optional(v.array(v.string())),
+    submissionPattern: v.optional(submissionPatternValidator),
   },
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
+    const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
 
     const shopId = await ctx.db.insert("shops", {
       name: "テスト居酒屋さくら",
-      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      submissionPattern,
       regularClosedDays: [],
       isDeleted: false,
     });
@@ -820,10 +826,10 @@ export const seedSubmitTestData = internalMutation({
       periodStart: "2026-04-07",
       periodEnd: "2026-04-13",
       deadline: args.deadlinePassed ? "2026-01-01" : "2026-12-31",
-      shopClosedDates: [],
+      shopClosedDates: args.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
-      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      submissionPattern,
     });
 
     // magic link token
