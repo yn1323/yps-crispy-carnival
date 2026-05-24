@@ -25,6 +25,7 @@ type Props = {
   submissionPattern?: ShiftSubmissionPattern;
   onSubmit: (data: CreateRecruitmentData) => void;
   onCancel?: () => void;
+  today?: string;
 };
 
 const steps: StepperDialogStep<Step>[] = [
@@ -131,9 +132,15 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
   </Flex>
 );
 
-export const CreateRecruitmentForm = ({ defaultValues, regularClosedDays = [], onSubmit, onCancel }: Props) => {
-  const today = dayjs().format("YYYY-MM-DD");
-  const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
+export const CreateRecruitmentForm = ({
+  defaultValues,
+  regularClosedDays = [],
+  onSubmit,
+  onCancel,
+  today: todayProp,
+}: Props) => {
+  const today = todayProp ?? dayjs().format("YYYY-MM-DD");
+  const tomorrow = dayjs(today).add(1, "day").format("YYYY-MM-DD");
   const [currentStep, setCurrentStep] = useState<Step>("period");
   const [periodValue, setPeriodValue] = useState<DateValue[]>(() =>
     toDateValues([defaultValues?.periodStart, defaultValues?.periodEnd].filter((date): date is string => !!date)),

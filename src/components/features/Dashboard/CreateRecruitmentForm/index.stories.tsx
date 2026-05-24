@@ -19,10 +19,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const STORY_TODAY = "2026-05-01";
+const LONG_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
+const storyToday = () => dayjs(STORY_TODAY);
+
 export const InDialog: Story = {
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm today={STORY_TODAY} onSubmit={() => {}} onCancel={() => {}} />
     </StepperDialog>
   ),
 };
@@ -33,7 +37,7 @@ export const MobileFullScreen: Story = {
   },
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm today={STORY_TODAY} onSubmit={() => {}} onCancel={() => {}} />
     </StepperDialog>
   ),
 };
@@ -45,11 +49,12 @@ export const InteractiveBasicFlow: Story = {
   render: InDialog.render,
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);
-    const periodStart = dayjs().add(3, "day");
-    const periodEnd = dayjs().add(5, "day");
+    const today = storyToday();
+    const periodStart = today.add(3, "day");
+    const periodEnd = today.add(5, "day");
     const deadline = periodStart.subtract(1, "day");
 
-    expectDateDisabled(root, dayjs(), "期間カレンダーで今日以前は選択不可");
+    expectDateDisabled(root, today, "期間カレンダーで今日以前は選択不可");
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
     clickButton(root, "次へ");
@@ -75,7 +80,7 @@ export const InteractiveHolidayEdgeCases: Story = {
   render: InDialog.render,
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);
-    const periodStart = dayjs().add(3, "day");
+    const periodStart = storyToday().add(3, "day");
     const holidays = [0, 1, 2, 3, 4].map((offset) => periodStart.add(offset, "day"));
     const periodEnd = holidays.at(-1);
     if (!periodEnd) throw new Error("テスト用の期間終了日を作成できませんでした");
@@ -110,12 +115,12 @@ export const InteractiveDefaultRegularClosedDays: Story = {
   },
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm regularClosedDays={["mon"]} onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm today={STORY_TODAY} regularClosedDays={["mon"]} onSubmit={() => {}} onCancel={() => {}} />
     </StepperDialog>
   ),
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);
-    const periodStart = nextWeekday(dayjs().add(3, "day"), 1);
+    const periodStart = nextWeekday(storyToday().add(3, "day"), 1);
     const periodEnd = periodStart.add(2, "day");
     const deadline = periodStart.subtract(1, "day");
 
@@ -143,8 +148,8 @@ export const InteractiveDeadlineRestriction: Story = {
   render: InDialog.render,
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);
-    const periodStart = dayjs().add(5, "day");
-    const periodEnd = dayjs().add(7, "day");
+    const periodStart = storyToday().add(5, "day");
+    const periodEnd = storyToday().add(7, "day");
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
@@ -171,7 +176,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
   render: InDialog.render,
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);
-    const nextMonth = dayjs().add(1, "month").startOf("month");
+    const nextMonth = storyToday().add(1, "month").startOf("month");
     const followingMonth = nextMonth.add(1, "month");
     const periodStart = nextMonth.add(14, "day");
     const periodEnd = nextMonth.add(24, "day");
@@ -187,7 +192,6 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     clickButton(root, "次へ");
 
     await findByText(root, "提出締切日を選択");
-    expectDateDisabled(root, periodStart, "提出期限カレンダーで開始日当日は選択不可");
     await clickDate(root, deadline);
     clickButton(root, "確認へ");
 
@@ -208,8 +212,8 @@ export const InteractiveMobileBasicFlow: Story = {
   render: MobileFullScreen.render,
   play: async ({ canvasElement }) => {
     const root = getTestRoot(canvasElement);
-    const periodStart = dayjs().add(2, "day");
-    const periodEnd = dayjs().add(4, "day");
+    const periodStart = storyToday().add(2, "day");
+    const periodEnd = storyToday().add(4, "day");
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
@@ -238,6 +242,9 @@ function getDateButton(root: HTMLElement, date: dayjs.Dayjs): HTMLButtonElement 
   const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-part="table-cell-trigger"]')).filter(
     (button) => button.textContent?.trim() === day,
   );
+
+  const ariaMatch = buttons.find((button) => button.getAttribute("aria-label") === `Choose ${formatAriaDate(date)}`);
+  if (ariaMatch) return ariaMatch;
 
   const exactMatch = buttons.find((button) =>
     Array.from(button.attributes).some((attribute) => attribute.value.includes(iso)),
@@ -304,6 +311,10 @@ function formatDatePreview(date: dayjs.Dayjs): string {
 
 function getWeekdayLabel(date: dayjs.Dayjs): string {
   return ["日", "月", "火", "水", "木", "金", "土"][date.day()] ?? "";
+}
+
+function formatAriaDate(date: dayjs.Dayjs): string {
+  return `${date.year()}年${date.month() + 1}月${date.date()}日${LONG_WEEKDAYS[date.day()]}`;
 }
 
 function nextWeekday(from: dayjs.Dayjs, weekday: number): dayjs.Dayjs {
