@@ -55,8 +55,8 @@ convex/
 
 ### データ意味論
 
-- 「提出済みかどうか」「回答数」は `shiftSubmissions` を正とする。提出内容の明細は `shiftSubmissionSlots` に持ち、全休み提出では明細が0件になる
-- 募集期間のシフト時刻は `recruitments.shiftStartTime` / `shiftEndTime` のスナップショットを正とする
+- 「提出済みかどうか」「回答数」は `shiftSubmissions` を正とする。時間指定・勤務区分の明細は `shiftSubmissionSlots`、日ごと提出の明細は `shiftSubmissionDates` に持ち、全休み提出では明細が0件になる
+- 募集期間の提出方法は `recruitments.submissionPattern` のスナップショットを正とする。時間指定の開始/終了時刻や勤務区分の時間は提出方法の中に持つ
 - 既存データ互換のフォールバックは残さない。DB再作成前提のリファクタでは新スキーマだけを読む
 - 一覧系 query では必ず上限定数を使う。`.collect()` で無制限に読む前に、index と `take()` / `paginate()` にできないか検討する
 

@@ -76,6 +76,7 @@ export const SUBMISSION_DATA: SubmissionData = {
   periodEnd: PERIOD_END,
   deadline: DEADLINE,
   shopClosedDates: [],
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   isBeforeDeadline: true,
   hasSubmitted: false,
   existingRequests: [
@@ -83,6 +84,14 @@ export const SUBMISSION_DATA: SubmissionData = {
     { date: "2027-06-09", startTime: "11:00", endTime: "17:00" },
     { date: "2027-06-12", startTime: "09:00", endTime: "15:00" },
   ],
+  existingSelection: {
+    kind: "time",
+    requests: [
+      { date: "2027-06-07", startTime: "10:00", endTime: "16:00" },
+      { date: "2027-06-09", startTime: "11:00", endTime: "17:00" },
+      { date: "2027-06-12", startTime: "09:00", endTime: "15:00" },
+    ],
+  },
   legalConsentRequired: false,
   legalDocuments: {
     terms: {
@@ -100,6 +109,7 @@ export const SUBMISSION_DATA: SubmissionData = {
   },
   timeRange: { startTime: "09:00", endTime: "22:00" },
   previousWeeklyPattern: null,
+  previousDateOnlyPattern: null,
 };
 
 type DemoShiftSeed = {

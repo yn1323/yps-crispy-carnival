@@ -30,8 +30,7 @@ async function setupTestData(
       status,
       ...(status === "confirmed" ? { confirmedAt: Date.now() } : {}),
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
     const staffId = await ctx.db.insert("staffs", {
       shopId,
@@ -427,8 +426,7 @@ describe("staffAuth/mutations", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         await ctx.db.insert("staffs", {
           shopId,

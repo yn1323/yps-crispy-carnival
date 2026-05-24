@@ -1,5 +1,6 @@
 import { Provider } from "jotai";
 import type { ReactNode } from "react";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -62,6 +63,16 @@ export const mockHalfHourTimeRange: TimeRange = {
 };
 
 export const mockHolidays = ["2026-02-11"];
+
+export const mockShiftTypePattern: ShiftSubmissionPattern = {
+  kind: "shiftType",
+  options: [
+    { id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 },
+    { id: "middle", name: "中番", startTime: "13:00", endTime: "17:00", sortOrder: 1 },
+    { id: "late", name: "遅番", startTime: "17:00", endTime: "21:00", sortOrder: 2 },
+    { id: "night", name: "夜勤", startTime: "21:00", endTime: "33:00", sortOrder: 3 },
+  ],
+};
 
 // 単純な「勤務」セグメント
 const workSeg = (staffId: string, date: string, start: string, end: string, suffix = "") => ({
@@ -238,6 +249,161 @@ export const mockShiftsHalfHourBusinessHours: ShiftData[] = [
   },
 ];
 
+const shiftTypeDate = "2026-05-21";
+
+export const mockShiftTypeDates = [
+  shiftTypeDate,
+  "2026-05-22",
+  "2026-05-23",
+  "2026-05-24",
+  "2026-05-25",
+  "2026-05-26",
+  "2026-05-27",
+  "2026-05-28",
+];
+
+const shiftTypeSeg = (staffId: string, optionId: string) => {
+  const option = mockShiftTypePattern.options.find((item) => item.id === optionId) ?? mockShiftTypePattern.options[0];
+  return {
+    id: `shift-type-${staffId}-${shiftTypeDate}-${option.id}`,
+    positionId: "default",
+    positionName: "シフト",
+    color: "#0d9488",
+    start: option.startTime,
+    end: option.endTime,
+    shiftTypeOptionId: option.id,
+  };
+};
+
+export const mockShiftTypeStaffs: StaffType[] = [
+  { id: "staff1", name: "田中 太郎", isSubmitted: true },
+  { id: "staff2", name: "佐藤 花子", isSubmitted: true },
+  { id: "staff3", name: "吉田 三郎", isSubmitted: true },
+  { id: "staff4", name: "山田 一郎", isSubmitted: true },
+  { id: "staff5", name: "鈴木 次郎", isSubmitted: true },
+  { id: "staff6", name: "中村 五郎", isSubmitted: false },
+  { id: "staff7", name: "加藤 六郎", isSubmitted: false },
+];
+
+export const mockShiftTypeShifts: ShiftData[] = [
+  {
+    id: `shift-type-staff1-${shiftTypeDate}`,
+    staffId: "staff1",
+    staffName: "田中 太郎",
+    date: shiftTypeDate,
+    requestedTime: { start: "09:00", end: "17:00" },
+    requestedTimes: [
+      { start: "09:00", end: "13:00" },
+      { start: "13:00", end: "17:00" },
+    ],
+    requestedShiftTypeOptionIds: ["morning", "middle"],
+    positions: [shiftTypeSeg("staff1", "morning"), shiftTypeSeg("staff1", "middle")],
+  },
+  {
+    id: `shift-type-staff2-${shiftTypeDate}`,
+    staffId: "staff2",
+    staffName: "佐藤 花子",
+    date: shiftTypeDate,
+    requestedTime: { start: "13:00", end: "17:00" },
+    requestedTimes: [{ start: "13:00", end: "17:00" }],
+    requestedShiftTypeOptionIds: ["middle"],
+    positions: [shiftTypeSeg("staff2", "middle")],
+  },
+  {
+    id: `shift-type-staff3-${shiftTypeDate}`,
+    staffId: "staff3",
+    staffName: "吉田 三郎",
+    date: shiftTypeDate,
+    requestedTime: { start: "17:00", end: "21:00" },
+    requestedTimes: [{ start: "17:00", end: "21:00" }],
+    requestedShiftTypeOptionIds: ["late"],
+    positions: [shiftTypeSeg("staff3", "late")],
+  },
+  {
+    id: `shift-type-staff4-${shiftTypeDate}`,
+    staffId: "staff4",
+    staffName: "山田 一郎",
+    date: shiftTypeDate,
+    requestedTime: { start: "21:00", end: "33:00" },
+    requestedTimes: [{ start: "21:00", end: "33:00" }],
+    requestedShiftTypeOptionIds: ["night"],
+    positions: [shiftTypeSeg("staff4", "night")],
+  },
+  {
+    id: `shift-type-staff5-${shiftTypeDate}`,
+    staffId: "staff5",
+    staffName: "鈴木 次郎",
+    date: shiftTypeDate,
+    requestedTime: null,
+    requestedShiftTypeOptionIds: [],
+    positions: [],
+  },
+];
+
+const dateOnlyDates = [
+  "2026-06-02",
+  "2026-06-03",
+  "2026-06-04",
+  "2026-06-05",
+  "2026-06-06",
+  "2026-06-07",
+  "2026-06-08",
+];
+
+export const mockDateOnlyDates = dateOnlyDates;
+
+const dateOnlyRequest = { start: "09:00", end: "22:00" };
+
+const dateOnlySeg = (staffId: string, date: string) => ({
+  id: `date-only-${staffId}-${date}`,
+  positionId: "default",
+  positionName: "シフト",
+  color: "#0d9488",
+  start: "09:00",
+  end: "22:00",
+});
+
+const dateOnlyShift = ({
+  staffId,
+  staffName,
+  date,
+  requested,
+  assigned,
+}: {
+  staffId: string;
+  staffName: string;
+  date: string;
+  requested: boolean;
+  assigned: boolean;
+}): ShiftData => ({
+  id: `date-only-shift-${staffId}-${date}`,
+  staffId,
+  staffName,
+  date,
+  requestedTime: requested ? dateOnlyRequest : null,
+  requestedTimes: requested ? [dateOnlyRequest] : [],
+  positions: assigned ? [dateOnlySeg(staffId, date)] : [],
+});
+
+export const mockDateOnlyStaffs: StaffType[] = [
+  { id: "staff1", name: "田中 太郎", isSubmitted: true },
+  { id: "staff2", name: "佐藤 花子", isSubmitted: true },
+  { id: "staff3", name: "吉田 三郎", isSubmitted: true },
+  { id: "staff4", name: "山田 一郎", isSubmitted: true },
+  { id: "staff5", name: "鈴木 次郎", isSubmitted: true },
+  { id: "staff6", name: "中村 五郎", isSubmitted: false },
+];
+
+export const mockDateOnlyShifts: ShiftData[] = [
+  dateOnlyShift({ staffId: "staff1", staffName: "田中 太郎", date: "2026-06-02", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff1", staffName: "田中 太郎", date: "2026-06-05", requested: true, assigned: false }),
+  dateOnlyShift({ staffId: "staff2", staffName: "佐藤 花子", date: "2026-06-02", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff2", staffName: "佐藤 花子", date: "2026-06-03", requested: true, assigned: false }),
+  dateOnlyShift({ staffId: "staff3", staffName: "吉田 三郎", date: "2026-06-04", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff4", staffName: "山田 一郎", date: "2026-06-06", requested: true, assigned: true }),
+  dateOnlyShift({ staffId: "staff5", staffName: "鈴木 次郎", date: "2026-06-03", requested: false, assigned: true }),
+];
+
 export const mockRequiredStaffing: RequiredStaffingData[] = [
   {
     dayOfWeek: 3,
@@ -266,6 +432,7 @@ type JotaiStoryWrapperProps = {
     currentStaffId?: string;
     allShifts?: ShiftData[];
     requiredStaffing?: RequiredStaffingData[];
+    submissionPattern?: ShiftSubmissionPattern;
     initialViewMode?: ViewMode;
     initialSortMode?: SortMode;
   };
@@ -290,6 +457,7 @@ function JotaiInitializer({
     currentStaffId: overrides?.currentStaffId,
     allShifts: overrides?.allShifts,
     requiredStaffing: overrides?.requiredStaffing,
+    submissionPattern: overrides?.submissionPattern,
     initialViewMode: overrides?.initialViewMode,
     initialSortMode: overrides?.initialSortMode,
   });

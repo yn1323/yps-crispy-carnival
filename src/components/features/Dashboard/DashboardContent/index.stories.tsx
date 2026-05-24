@@ -8,7 +8,11 @@ import { DashboardContent } from "./index";
 
 const noop = () => {};
 
-const shop = { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00", regularClosedDays: [] };
+const shop = {
+  name: "居酒屋たなか",
+  regularClosedDays: [],
+  submissionPattern: { kind: "time" as const, startTime: "14:00", endTime: "25:00" },
+};
 const managerLegalConsentReady = {
   required: false,
   documents: {

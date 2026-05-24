@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { generateDateRange, todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
+import { getSubmissionPattern } from "../_lib/submissionPattern";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -58,9 +59,10 @@ export const createRecruitment = managerMutation({
       status: "open",
       isDeleted: false,
       // 作成時点の店舗シフト時間帯をスナップショットとして保存
-      // 以降の店舗設定変更があっても、この募集の時間軸は固定される
-      shiftStartTime: ctx.shop.shiftStartTime,
-      shiftEndTime: ctx.shop.shiftEndTime,
+      submissionPattern: getSubmissionPattern(ctx.shop.submissionPattern, {
+        startTime: ctx.shop.shiftStartTime,
+        endTime: ctx.shop.shiftEndTime,
+      }),
     });
     const activeStaffs = await ctx.db
       .query("staffs")

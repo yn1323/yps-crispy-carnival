@@ -17,7 +17,7 @@ import { LuChevronRight, LuClock, LuMonitor, LuMonitorPlay, LuSmartphone, LuUser
 const benefits = [
   { icon: LuClock, label: "1分で登録" },
   { icon: LuSmartphone, label: "専用アプリ不要" },
-  { icon: LuMonitor, label: "サンプルを見られる" },
+  { icon: LuMonitor, label: "無料デモあり" },
 ];
 
 export const CtaSection = () => (
@@ -35,18 +35,13 @@ export const CtaSection = () => (
         <Decorations />
 
         <VStack position="relative" zIndex={1} gap={{ base: 7, md: 10 }} textAlign="center">
-          <VStack gap={{ base: 4, md: 6 }}>
-            <Heading
-              as="h2"
-              fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
-              lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
-            >
-              まずは無料で試せます
-            </Heading>
-            <Text maxW="720px" color="whiteAlpha.950" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
-              希望回収からシフト作成・共有まで、シフトリの使いやすさをそのままお試しください。
-            </Text>
-          </VStack>
+          <Heading
+            as="h2"
+            fontSize={{ base: "2xl", md: "4xl", xl: "5xl" }}
+            lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
+          >
+            まずは無料で試せます
+          </Heading>
 
           <Box w="full" maxW="1080px" borderTopWidth="1px" borderTopColor="whiteAlpha.400" pt={{ base: 6, md: 8 }}>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={{ base: 4, md: 6 }}>
@@ -66,12 +61,6 @@ export const CtaSection = () => (
               <BenefitItem key={benefit.label} icon={benefit.icon} label={benefit.label} />
             ))}
           </SimpleGrid>
-
-          <Text maxW="640px" color="whiteAlpha.900" textStyle="bodySm" lineHeight="1.8">
-            小さなお店が使いやすい無料枠を用意する予定です。
-            <br />
-            必要な機能が増えたときだけ、有料プランをご検討いただけます。
-          </Text>
         </VStack>
       </Box>
     </Container>

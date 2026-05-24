@@ -16,6 +16,7 @@ const mockData: ShiftBoardData = {
     lastReminderSentAt: null,
     draftSavedAt: null,
   },
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   staffs: [
     { _id: "s1" as Id<"staffs">, name: "鈴木太郎", isSubmitted: true, wasSubmittedAtDraft: false },
     { _id: "s2" as Id<"staffs">, name: "佐藤花子", isSubmitted: true, wasSubmittedAtDraft: false },
@@ -29,7 +30,8 @@ const mockData: ShiftBoardData = {
     { _id: "s10" as Id<"staffs">, name: "加藤美穂", isSubmitted: true, wasSubmittedAtDraft: false },
   ],
   requestedSlots: [
-    { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
+    { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "09:00", endTime: "14:00" },
+    { staffId: "s1" as Id<"staffs">, date: "2026-01-20", startTime: "15:00", endTime: "21:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-21", startTime: "10:00", endTime: "18:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-22", startTime: "10:00", endTime: "18:00" },
     { staffId: "s1" as Id<"staffs">, date: "2026-01-23", startTime: "10:00", endTime: "14:00" },
@@ -63,6 +65,7 @@ const mockData: ShiftBoardData = {
     { staffId: "s10" as Id<"staffs">, date: "2026-01-24", startTime: "11:00", endTime: "18:00" },
     { staffId: "s10" as Id<"staffs">, date: "2026-01-26", startTime: "11:00", endTime: "18:00" },
   ],
+  requestedDates: [],
   shiftAssignments: [],
   positions: [{ _id: "position-1" as Id<"positions">, name: "シフト", color: "#3b82f6", isDefault: true }],
   timeRange: { start: 9, end: 22, unit: 30 },

@@ -26,7 +26,7 @@ type Props = {
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
 };
 
-const INITIAL_STEP1: Step1Data = { shopName: "", shiftStartTime: "", shiftEndTime: "" };
+const INITIAL_STEP1: Step1Data = { shopName: "", submissionPattern: { kind: "dateOnly" } };
 
 const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
   <HStack width="full" gap={0} py={3}>

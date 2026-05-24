@@ -1,13 +1,12 @@
 import { LuCalendarX } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
-import type { DayEntry } from "../DayCard";
 import { ReadOnlySubmitView } from "../ReadOnlySubmitView";
-import { type SubmissionData, SubmitFormView } from "../SubmitFormView";
+import { type SubmissionData, SubmitFormView, type SubmitShiftSelectionInput } from "../SubmitFormView";
 import { SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 
 type Props = {
   data: SubmissionData;
-  onSubmit: (entries: DayEntry[], acceptedLegal?: boolean) => Promise<void>;
+  onSubmit: (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => Promise<void>;
 };
 
 export const ShiftSubmitPage = ({ data, onSubmit }: Props) => {

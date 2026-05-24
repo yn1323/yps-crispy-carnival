@@ -1,3 +1,21 @@
+export const MAX_SHIFT_TIME_MINUTES = 36 * 60;
+
+const TIME_PATTERN = /^\d{1,2}:\d{2}$/;
+
+export function isSupportedShiftTime(time: string): boolean {
+  if (!TIME_PATTERN.test(time)) return false;
+  const [hour, minute] = time.split(":").map(Number);
+  const totalMinutes = hour * 60 + minute;
+  return (
+    Number.isFinite(hour) &&
+    Number.isFinite(minute) &&
+    hour >= 0 &&
+    minute >= 0 &&
+    minute < 60 &&
+    totalMinutes <= MAX_SHIFT_TIME_MINUTES
+  );
+}
+
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;

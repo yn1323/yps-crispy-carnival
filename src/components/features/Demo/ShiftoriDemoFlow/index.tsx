@@ -2,8 +2,8 @@ import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { type ReactNode, useState } from "react";
 import { CreateRecruitmentForm } from "@/src/components/features/Dashboard/CreateRecruitmentForm/index.tsx";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import type { DayEntry } from "@/src/components/features/StaffSubmit/DayCard";
 import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
+import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";
@@ -40,7 +40,7 @@ export const ShiftoriDemoFlow = ({ initialStep = "recruit" }: Props) => {
     setStep("submit");
   };
 
-  const handleStaffSubmit = async (_entries: DayEntry[]) => {
+  const handleStaffSubmit = async (_submission: SubmitShiftSelectionInput) => {
     setStep("adjust");
   };
 
@@ -197,7 +197,7 @@ const RecruitStep = ({ onSubmit }: { onSubmit: () => void }) => (
   </Surface>
 );
 
-const SubmitStep = ({ onSubmit }: { onSubmit: (entries: DayEntry[]) => Promise<void> }) => (
+const SubmitStep = ({ onSubmit }: { onSubmit: (submission: SubmitShiftSelectionInput) => Promise<void> }) => (
   <Surface>
     <Flex
       h={{ base: "auto", md: PHONE_SURFACE_HEIGHT }}

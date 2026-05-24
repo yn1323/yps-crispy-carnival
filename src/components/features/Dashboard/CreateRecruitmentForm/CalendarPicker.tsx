@@ -1,5 +1,6 @@
-import { DatePicker, type DateValue, SimpleGrid, Stack, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, DatePicker, type DateValue, Grid, Stack, Text, useBreakpointValue } from "@chakra-ui/react";
 import dayjs from "dayjs";
+import { Fragment } from "react";
 
 export type CalendarPickerSelectionMode = "range" | "multiple" | "single";
 
@@ -56,6 +57,7 @@ export const CalendarPicker = ({
   onValueChange,
 }: CalendarPickerProps) => {
   const monthCount = useBreakpointValue({ base: 1, md: desktopMonths }) ?? 1;
+  const showMonthDivider = monthCount > 1;
 
   return (
     <DatePicker.Root
@@ -145,14 +147,32 @@ export const CalendarPicker = ({
     >
       <DatePicker.View view="day">
         <CalendarHeader />
-        <SimpleGrid columns={{ base: 1, md: monthCount }} gap={{ base: 3, md: 5 }}>
+        <Grid
+          templateColumns={{
+            base: "1fr",
+            md: showMonthDivider ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr)",
+          }}
+          gap={{ base: 3, md: 5 }}
+        >
           {Array.from({ length: monthCount }).map((_, index) => (
-            <Stack key={index} gap={3}>
-              <CalendarMonthTitle offset={index} />
-              <DatePicker.DayTable offset={index} w="full" />
-            </Stack>
+            <Fragment key={index}>
+              {index > 0 && showMonthDivider && (
+                <Box
+                  key={`divider-${index}`}
+                  aria-hidden="true"
+                  alignSelf="stretch"
+                  borderLeftWidth={1}
+                  borderColor="border.default"
+                  my={6}
+                />
+              )}
+              <Stack gap={3} minW={0}>
+                <CalendarMonthTitle offset={index} />
+                <DatePicker.DayTable offset={index} w="full" />
+              </Stack>
+            </Fragment>
           ))}
-        </SimpleGrid>
+        </Grid>
       </DatePicker.View>
     </DatePicker.Root>
   );

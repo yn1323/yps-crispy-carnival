@@ -1,6 +1,29 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
+const CLOSED_DAY_LABELS = {
+  sun: "日曜日",
+  mon: "月曜日",
+  tue: "火曜日",
+  wed: "水曜日",
+  thu: "木曜日",
+  fri: "金曜日",
+  sat: "土曜日",
+} as const;
+
+type RegularClosedDay = keyof typeof CLOSED_DAY_LABELS;
+type SubmissionPatternEdit =
+  | { kind: "dateOnly" }
+  | { kind: "time"; startTime: string; endTime: string }
+  | {
+      kind: "shiftType";
+      options: Array<{ name: string; startTime: string; endTime: string }>;
+    };
+
+type RecruitmentExpectations = {
+  expectedHolidaySummary?: string;
+  expectedHolidayDetail?: string;
+};
 
 export class DashboardPage {
   constructor(private page: Page) {}
@@ -11,16 +34,23 @@ export class DashboardPage {
 
   async completeSetup(data: {
     shopName: string;
-    shiftStartTime: string;
-    shiftEndTime: string;
+    shiftStartTime?: string;
+    shiftEndTime?: string;
     managerName: string;
     managerEmail: string;
   }) {
     await this.page.getByRole("button", { name: /お店を登録する/ }).click({ noWaitAfter: true });
     await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
     await this.page.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
-    await this.selectTime("シフト開始時間", data.shiftStartTime);
-    await this.selectTime("シフト終了時間", data.shiftEndTime);
+    if (data.shiftStartTime !== undefined || data.shiftEndTime !== undefined) {
+      await this.page.getByRole("button", { name: /時間指定/ }).click();
+      if (data.shiftStartTime !== undefined) {
+        await this.selectTime("シフト開始時間", data.shiftStartTime);
+      }
+      if (data.shiftEndTime !== undefined) {
+        await this.selectTime("シフト終了時間", data.shiftEndTime);
+      }
+    }
     await this.page.getByRole("button", { name: "次へ" }).click();
 
     const managerDialog = this.page.getByRole("dialog", { name: "あなたの名前を登録" });
@@ -76,7 +106,10 @@ export class DashboardPage {
     await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
   }
 
-  async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
+  async createRecruitment(
+    data: { periodStart: string; periodEnd: string; deadline: string },
+    expectations: RecruitmentExpectations = {},
+  ) {
     await this.page.getByRole("button", { name: "新しい募集をつくる" }).click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "新しい募集をつくる" });
     await expect(dialog).toBeVisible();
@@ -93,6 +126,13 @@ export class DashboardPage {
     await dialog.getByRole("button", { name: "確認へ" }).click();
 
     await expect(dialog.getByText("内容を確認", { exact: true })).toBeVisible();
+    if (expectations.expectedHolidaySummary) {
+      await expect(dialog.getByText("お店のお休み")).toBeVisible();
+      await expect(dialog.getByText(expectations.expectedHolidaySummary, { exact: true })).toBeVisible();
+    }
+    if (expectations.expectedHolidayDetail) {
+      await expect(dialog.getByText(expectations.expectedHolidayDetail, { exact: true })).toBeVisible();
+    }
     await dialog.getByRole("button", { name: "募集をつくる" }).click();
     await expect(this.page.getByText("募集をつくりました").first()).toBeVisible();
     await expect(this.page.getByText("募集をつくりました").first()).not.toBeVisible();
@@ -209,26 +249,59 @@ export class DashboardPage {
     return this.recruitmentSection().getByRole("button", { name: /希望を見る|シフトを組む|シフトを見る/ });
   }
 
-  async editShopSettings(data: { shopName?: string; shiftStartTime?: string; shiftEndTime?: string }) {
+  async editShopSettings(data: {
+    shopName?: string;
+    shiftStartTime?: string;
+    shiftEndTime?: string;
+    submissionPattern?: SubmissionPatternEdit;
+    regularClosedDays?: RegularClosedDay[];
+  }) {
     await this.page.getByRole("button", { name: "店舗設定を編集" }).click({ noWaitAfter: true });
-    await expect(this.page.getByRole("dialog", { name: "店舗設定" })).toBeVisible();
+    const dialog = this.page.getByRole("dialog", { name: "店舗設定" });
+    await expect(dialog).toBeVisible();
 
     if (data.shopName !== undefined) {
-      const nameInput = this.page.getByLabel(/店舗名|お店の名前/);
+      const nameInput = dialog.getByLabel(/店舗名|お店の名前/);
       await nameInput.clear();
       await nameInput.fill(data.shopName);
     }
-    if (data.shiftStartTime !== undefined) {
-      await this.selectTime("シフト開始時間", data.shiftStartTime);
+
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    const legacyTimePattern =
+      data.shiftStartTime !== undefined || data.shiftEndTime !== undefined
+        ? {
+            kind: "time" as const,
+            startTime: data.shiftStartTime ?? "09:00",
+            endTime: data.shiftEndTime ?? "22:00",
+          }
+        : undefined;
+    const submissionPattern = data.submissionPattern ?? legacyTimePattern;
+    if (submissionPattern) {
+      const patternLabel =
+        submissionPattern.kind === "dateOnly"
+          ? "日付のみ"
+          : submissionPattern.kind === "shiftType"
+            ? "勤務区分から選ぶ"
+            : "時間を自由に設定";
+      await dialog.getByRole("button", { name: new RegExp(patternLabel) }).click();
     }
-    if (data.shiftEndTime !== undefined) {
-      await this.selectTime("シフト終了時間", data.shiftEndTime);
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    if (submissionPattern?.kind === "time") {
+      await this.selectTime("シフト開始時間", submissionPattern.startTime);
+      await this.selectTime("シフト終了時間", submissionPattern.endTime);
+    } else if (submissionPattern?.kind === "shiftType") {
+      await this.configureShiftTypeOptions(dialog, submissionPattern.options);
     }
 
-    await this.page
-      .getByRole("dialog", { name: "店舗設定" })
-      .getByRole("button", { name: /保存する|変更を保存/ })
-      .click();
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    if (data.regularClosedDays) {
+      await this.setRegularClosedDays(dialog, data.regularClosedDays);
+    }
+
+    await dialog.getByRole("button", { name: /保存する|変更を保存/ }).click();
     await expect(this.page.getByText("店舗設定を更新しました")).toBeVisible();
   }
 
@@ -237,7 +310,20 @@ export class DashboardPage {
   }
 
   async expectShopTimeRange(timeRange: string) {
-    await expect(this.page.getByText(timeRange)).toBeVisible();
+    const [startTime, endTime] = timeRange.split("〜");
+    if (!startTime || !endTime) throw new Error(`Invalid time range: ${timeRange}`);
+
+    await this.page.getByRole("button", { name: "店舗設定を編集" }).click({ noWaitAfter: true });
+    const dialog = this.page.getByRole("dialog", { name: "店舗設定" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "次へ" }).click();
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    await expect(dialog.getByRole("combobox", { name: "シフト開始時間" })).toContainText(startTime);
+    await expect(dialog.getByRole("combobox", { name: "シフト終了時間" })).toContainText(endTime);
+
+    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await expect(dialog).not.toBeVisible();
   }
 
   // ページネーション関連
@@ -292,12 +378,45 @@ export class DashboardPage {
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択
   private async selectTime(label: string, value: string) {
+    await this.selectTimeByIndex(label, value, 0);
+  }
+
+  private async selectTimeByIndex(label: string, value: string, index: number) {
     // Chakra Select は同じ時刻 option が複数のlistboxに出るため、開いたcomboboxのラベルでスコープする。
-    await this.page.getByRole("combobox", { name: label }).click();
+    await this.page.getByRole("combobox", { name: label }).nth(index).click();
     await this.page
       .getByRole("listbox", { name: label })
       .getByRole("option", { name: value, exact: true })
       .click({ noWaitAfter: true });
+  }
+
+  private async configureShiftTypeOptions(
+    dialog: Locator,
+    options: Array<{ name: string; startTime: string; endTime: string }>,
+  ) {
+    while ((await dialog.getByLabel("区分名").count()) < options.length) {
+      await dialog.getByRole("button", { name: "勤務区分を追加" }).click();
+    }
+
+    for (let index = 0; index < options.length; index++) {
+      const option = options[index];
+      const nameInput = dialog.getByLabel("区分名").nth(index);
+      await nameInput.clear();
+      await nameInput.fill(option.name);
+      await this.selectTimeByIndex("開始", option.startTime, index);
+      await this.selectTimeByIndex("終了", option.endTime, index);
+    }
+  }
+
+  private async setRegularClosedDays(dialog: Locator, days: RegularClosedDay[]) {
+    const daySet = new Set(days);
+    for (const [day, label] of Object.entries(CLOSED_DAY_LABELS) as Array<[RegularClosedDay, string]>) {
+      const button = dialog.getByRole("button", { name: new RegExp(`^${label}を`) });
+      const isPressed = (await button.getAttribute("aria-pressed")) === "true";
+      if (daySet.has(day) !== isPressed) {
+        await button.click();
+      }
+    }
   }
 
   private async selectCalendarDate(scope: Locator, date: string) {

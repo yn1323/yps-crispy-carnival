@@ -18,8 +18,7 @@ export async function seedUser(ctx: MutationCtx, subject: string, email = `${sub
 export async function seedShop(ctx: MutationCtx, name = "テスト店舗") {
   return await ctx.db.insert("shops", {
     name,
-    shiftStartTime: "09:00",
-    shiftEndTime: "22:00",
+    submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
     isDeleted: false,
   });

@@ -92,9 +92,11 @@ export const ShiftEditSheet = ({
 
   const dateLabel = formatDateWithWeekday(selectedDate);
 
-  const requestLabel = shift?.requestedTime
-    ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
-    : "希望: なし";
+  const requestTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
+  const requestLabel =
+    requestTimes.length > 0
+      ? `希望: ${requestTimes.map((request) => `${request.start} - ${request.end}`).join(" / ")}`
+      : "希望: なし";
 
   const currentShift: ShiftData = shift ?? {
     id: `shift-${staff.id}-${selectedDate}`,

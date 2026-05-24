@@ -71,9 +71,40 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.status).toBe("open");
       expect(recruitment?.isDeleted).toBe(false);
       expect(recruitment?.periodStart).toBe(args.periodStart);
-      // 店舗設定が後から変わっても過去の募集が歪まないよう、作成時点のシフト時間をスナップショットする
-      expect(recruitment?.shiftStartTime).toBe("09:00");
-      expect(recruitment?.shiftEndTime).toBe("22:00");
+      // 店舗設定が後から変わっても過去の募集が歪まないよう、作成時点の提出方法をスナップショットする
+      expect(recruitment?.submissionPattern).toEqual({ kind: "time", startTime: "09:00", endTime: "22:00" });
+    });
+
+    it("店舗の提出方法を募集作成時点でスナップショットする", async () => {
+      const { t, shopId: shopIdPromise } = setupShop();
+      const shopId = await shopIdPromise;
+      await t.run(async (ctx) => {
+        await ctx.db.patch(shopId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "morning", name: "早番", startTime: "09:00", endTime: "14:00", sortOrder: 0 },
+              { id: "late", name: "遅番", startTime: "14:00", endTime: "22:00", sortOrder: 1 },
+            ],
+          },
+        });
+      });
+
+      const recruitmentId = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.recruitment.mutations.createRecruitment, validArgs());
+      await t.run(async (ctx) => {
+        await ctx.db.patch(shopId, { submissionPattern: { kind: "dateOnly" } });
+      });
+
+      const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      expect(recruitment?.submissionPattern).toEqual({
+        kind: "shiftType",
+        options: [
+          { id: "morning", name: "早番", startTime: "09:00", endTime: "14:00", sortOrder: 0 },
+          { id: "late", name: "遅番", startTime: "14:00", endTime: "22:00", sortOrder: 1 },
+        ],
+      });
     });
 
     it("定休日を昇順ユニークにして保存できる", async () => {
@@ -172,8 +203,7 @@ describe("recruitment/mutations", () => {
           status: options.status ?? "open",
           ...(options.status === "confirmed" ? { confirmedAt: Date.now() } : {}),
           isDeleted: options.isDeleted ?? false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
       });
       return { t, recruitmentId, subject };

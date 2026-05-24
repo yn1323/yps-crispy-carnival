@@ -69,7 +69,6 @@ export const Select = ({
 
   return (
     <SelectRoot
-      background="white"
       collection={collection}
       value={selectValue}
       onValueChange={handleValueChange}
@@ -86,7 +85,7 @@ export const Select = ({
         </SelectLabel>
       )}
       <SelectControl>
-        <SelectTrigger>
+        <SelectTrigger bg="white">
           <SelectValueText placeholder={placeholder} />
         </SelectTrigger>
         <SelectIndicatorGroup>

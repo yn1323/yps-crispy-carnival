@@ -70,11 +70,21 @@ export const SPDailyView = () => {
   );
 
   const workRows = useMemo(
-    () => rows.filter((r) => r.shift?.requestedTime || (r.shift?.positions.length ?? 0) > 0),
+    () =>
+      rows.filter(
+        (r) =>
+          r.shift?.requestedTime || (r.shift?.requestedTimes?.length ?? 0) > 0 || (r.shift?.positions.length ?? 0) > 0,
+      ),
     [rows],
   );
   const offRows = useMemo(
-    () => rows.filter((r) => !r.shift?.requestedTime && (r.shift?.positions.length ?? 0) === 0),
+    () =>
+      rows.filter(
+        (r) =>
+          !r.shift?.requestedTime &&
+          (r.shift?.requestedTimes?.length ?? 0) === 0 &&
+          (r.shift?.positions.length ?? 0) === 0,
+      ),
     [rows],
   );
 
@@ -352,7 +362,8 @@ type CardProps = {
 };
 
 const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
-  const hasReq = !!shift?.requestedTime;
+  const requestedTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
+  const hasReq = requestedTimes.length > 0;
   const asn = getAssignedRange(shift);
   const hasAsn = !!asn;
   const mismatch = hasReq && !hasAsn;
@@ -415,17 +426,18 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
         )}
       </Flex>
       <Box position="relative" h="22px" bg="gray.50" borderRadius="md">
-        {hasReq && shift?.requestedTime && (
+        {requestedTimes.map((request, index) => (
           <Box
+            key={`${request.start}-${request.end}-${index}`}
             position="absolute"
             top={0}
             bottom={0}
-            left={`${timeToPct(shift.requestedTime.start, timeRange)}%`}
-            w={`${timeToPct(shift.requestedTime.end, timeRange) - timeToPct(shift.requestedTime.start, timeRange)}%`}
+            left={`${timeToPct(request.start, timeRange)}%`}
+            w={`${timeToPct(request.end, timeRange) - timeToPct(request.start, timeRange)}%`}
             border="1.5px dashed #a1a1aa"
             borderRadius="md"
           />
-        )}
+        ))}
         {workPositions.map((pos) => (
           <Box
             key={pos.id}

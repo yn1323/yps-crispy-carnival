@@ -76,7 +76,7 @@ export const HeroSection = () => (
               <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
                 紙やLINEで集めて、Excelに転記。そんなシフト作成をもっとラクに。
                 <Box as="span" display="block">
-                  シフトリは、店舗名と営業時間などの基本情報だけではじめられる、かんたんなシフト作成ツールです。
+                  シフトリはかんたんなシフト作成ツールです。
                 </Box>
               </Text>
             </VStack>

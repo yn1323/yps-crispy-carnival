@@ -29,9 +29,8 @@ describe("dashboard/queries", () => {
       const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardShop, {});
       expect(result).toEqual({
         name: "テスト店舗",
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
         regularClosedDays: [],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
     });
 
@@ -54,7 +53,7 @@ describe("dashboard/queries", () => {
       });
 
       const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardShop, {});
-      expect(Object.keys(result ?? {}).sort()).toEqual(["name", "regularClosedDays", "shiftEndTime", "shiftStartTime"]);
+      expect(Object.keys(result ?? {}).sort()).toEqual(["name", "regularClosedDays", "submissionPattern"]);
     });
   });
 
@@ -97,8 +96,7 @@ describe("dashboard/queries", () => {
           shopClosedDates: [],
           status: "open",
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
       });
 
@@ -127,8 +125,7 @@ describe("dashboard/queries", () => {
           shopClosedDates: [],
           status: "open",
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         await ctx.db.insert("recruitments", {
           shopId,
@@ -139,8 +136,7 @@ describe("dashboard/queries", () => {
           status: "confirmed",
           confirmedAt: Date.now(),
           isDeleted: true,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
       });
 
@@ -181,8 +177,7 @@ describe("dashboard/queries", () => {
           shopClosedDates: [],
           status: "open",
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const submission1 = await ctx.db.insert("shiftSubmissions", {
           recruitmentId,

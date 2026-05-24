@@ -1,6 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getDateRange } from "@/src/domains/shift/date";
@@ -14,23 +15,35 @@ type Assignment = {
   startTime: string;
   endTime: string;
   positionId: Id<"positions">;
+  optionId?: string | null;
 };
 
 type Props = {
   periodLabel: string;
   periodStart: string;
   periodEnd: string;
+  shopClosedDates?: string[];
+  submissionPattern?: ShiftSubmissionPattern;
   staffs: { _id: Id<"staffs">; name: string }[];
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[];
   assignments: Assignment[];
   timeRange: TimeRange;
 };
 
+function getShiftTypeOptionIdForAssignment(assignment: Assignment, pattern: ShiftSubmissionPattern | undefined) {
+  if (pattern?.kind !== "shiftType") return undefined;
+  if (assignment.optionId) return assignment.optionId;
+  return pattern.options.find(
+    (option) => option.startTime === assignment.startTime && option.endTime === assignment.endTime,
+  )?.id;
+}
+
 function buildShiftData(
   staffs: StaffType[],
   dates: string[],
   assignments: Assignment[],
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[],
+  submissionPattern: ShiftSubmissionPattern | undefined,
 ): ShiftData[] {
   const fallbackPosition = positions.find((position) => position.isDefault) ?? positions[0];
   const positionById = new Map(
@@ -50,20 +63,36 @@ function buildShiftData(
       const assignment = (assignmentMap.get(`${staff.id}-${date}`) ?? []).sort((a, b) =>
         a.startTime.localeCompare(b.startTime),
       );
-      shifts.push({
-        id: `shift-${staff.id}-${date}`,
-        staffId: staff.id,
-        staffName: staff.name,
-        date,
-        requestedTime: null,
-        positions: assignment.map((item, index) => ({
+      const positionSegments = assignment.map((item, index) => {
+        const shiftTypeOptionId = getShiftTypeOptionIdForAssignment(item, submissionPattern);
+        return {
           id: `seg-${staff.id}-${date}-${index}`,
           positionId: item.positionId,
           positionName: positionById.get(item.positionId)?.name ?? fallbackPosition?.name ?? DEFAULT_POSITION.name,
           color: positionById.get(item.positionId)?.color ?? fallbackPosition?.color ?? DEFAULT_POSITION.color,
           start: item.startTime,
           end: item.endTime,
-        })),
+          ...(shiftTypeOptionId ? { shiftTypeOptionId } : {}),
+        };
+      });
+      const requestedTimes = assignment.map((item) => ({ start: item.startTime, end: item.endTime }));
+      const requestedShiftTypeOptionIds =
+        submissionPattern?.kind === "shiftType"
+          ? positionSegments
+              .map((position) => position.shiftTypeOptionId)
+              .filter((optionId): optionId is string => !!optionId)
+          : undefined;
+      const mirrorsAssignmentAsRequest =
+        submissionPattern?.kind === "dateOnly" || submissionPattern?.kind === "shiftType";
+      shifts.push({
+        id: `shift-${staff.id}-${date}`,
+        staffId: staff.id,
+        staffName: staff.name,
+        date,
+        requestedTime: mirrorsAssignmentAsRequest ? (requestedTimes[0] ?? null) : null,
+        requestedTimes: mirrorsAssignmentAsRequest ? requestedTimes : undefined,
+        requestedShiftTypeOptionIds,
+        positions: positionSegments,
       });
     }
   }
@@ -74,6 +103,8 @@ export function ShiftViewPage({
   periodLabel,
   periodStart,
   periodEnd,
+  shopClosedDates = [],
+  submissionPattern,
   staffs,
   positions,
   assignments,
@@ -95,8 +126,8 @@ export function ShiftViewPage({
   );
 
   const initialShifts = useMemo(
-    () => buildShiftData(staffTypes, dates, assignments, positions),
-    [staffTypes, dates, assignments, positions],
+    () => buildShiftData(staffTypes, dates, assignments, positions, submissionPattern),
+    [staffTypes, dates, assignments, positions, submissionPattern],
   );
 
   return (
@@ -115,6 +146,9 @@ export function ShiftViewPage({
           initialShifts={initialShifts}
           dates={dates}
           timeRange={timeRange}
+          holidays={shopClosedDates}
+          submissionPattern={submissionPattern}
+          displayMode="confirmed"
           isReadOnly
         />
       </Box>
