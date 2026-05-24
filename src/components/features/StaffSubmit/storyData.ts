@@ -7,9 +7,11 @@ export const submitStoryBaseData: SubmissionData = {
   periodEnd: "2026-04-13",
   deadline: "2026-04-04",
   shopClosedDates: [],
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   isBeforeDeadline: true,
   hasSubmitted: false,
   existingRequests: [],
+  existingSelection: { kind: "time", requests: [] },
   legalConsentRequired: false,
   legalDocuments: {
     terms: {
@@ -27,6 +29,7 @@ export const submitStoryBaseData: SubmissionData = {
   },
   timeRange: { startTime: "09:00", endTime: "22:00" },
   previousWeeklyPattern: null,
+  previousDateOnlyPattern: null,
 };
 
 export const submittedRequests = [

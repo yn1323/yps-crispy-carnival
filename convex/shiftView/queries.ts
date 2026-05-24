@@ -1,8 +1,21 @@
 import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
+import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
+
+function getViewTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
+  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
+  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
+    const starts = pattern.options
+      .map((option) => option.startTime)
+      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    return { startTime: starts[0], endTime: ends[ends.length - 1] };
+  }
+  return { startTime: "09:00", endTime: "22:00" };
+}
 
 export const getShiftViewData = staffSessionQuery({
   args: { recruitmentId: v.id("recruitments") },
@@ -37,8 +50,11 @@ export const getShiftViewData = staffSessionQuery({
         .take(50),
     ]);
 
-    const startTimeStr = recruitment.shiftStartTime;
-    const endTimeStr = recruitment.shiftEndTime;
+    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
+      startTime: recruitment.shiftStartTime,
+      endTime: recruitment.shiftEndTime,
+    });
+    const { startTime: startTimeStr, endTime: endTimeStr } = getViewTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
 
@@ -55,7 +71,10 @@ export const getShiftViewData = staffSessionQuery({
         startTime: a.startTime,
         endTime: a.endTime,
         positionId: a.positionId,
+        ...(a.optionId ? { optionId: a.optionId } : {}),
       })),
+      shopClosedDates: recruitment.shopClosedDates ?? [],
+      submissionPattern,
       timeRange: {
         start: Math.floor(editableStartMinutes / 60),
         end: Math.ceil(editableEndMinutes / 60),

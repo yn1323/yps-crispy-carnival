@@ -11,10 +11,9 @@ import { migrations } from "./index";
 export const migration = migrations.define({
   table: "recruitments",
   migrateOne: async (ctx, doc) => {
-    // 冪等: 既に両方埋まっていたらスキップ
     if (doc.shiftStartTime !== undefined && doc.shiftEndTime !== undefined) return;
     const shop = await ctx.db.get(doc.shopId);
-    if (!shop) return;
+    if (shop?.shiftStartTime === undefined || shop.shiftEndTime === undefined) return;
     await ctx.db.patch(doc._id, {
       shiftStartTime: shop.shiftStartTime,
       shiftEndTime: shop.shiftEndTime,

@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
@@ -24,6 +25,8 @@ export const shiftConfigAtom = atom<{
   currentStaffId?: string;
   allShifts?: ShiftData[];
   requiredStaffing?: RequiredStaffingData[];
+  submissionPattern?: ShiftSubmissionPattern;
+  displayMode?: "request" | "confirmed";
 }>({
   shopId: "",
   staffs: [],
@@ -32,6 +35,7 @@ export const shiftConfigAtom = atom<{
   timeRange: { start: 9, end: 22, unit: 30 },
   holidays: [],
   isReadOnly: false,
+  displayMode: "request",
 });
 
 // ==========================================

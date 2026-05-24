@@ -10,6 +10,8 @@ export type DayEntry = {
   isWorking: boolean;
   startTime: string;
   endTime: string;
+  optionId?: string;
+  optionIds?: string[];
 };
 
 type Props = {
@@ -44,7 +46,7 @@ export const DayCard = ({
         px={4}
         align="center"
         justify="space-between"
-        bg={isShopClosed ? "gray.50" : "white"}
+        bg={isShopClosed ? "gray.100" : "white"}
         borderRadius="lg"
         borderWidth={1}
         borderColor="border.default"
@@ -53,9 +55,11 @@ export const DayCard = ({
           {dateLabel}
         </Text>
         {isShopClosed ? (
-          <Text fontSize="xs" fontWeight="bold" color="gray.500">
-            定休日
-          </Text>
+          <Box bg="gray.100" px={2.5} py={0.5} borderRadius="full">
+            <Text fontSize="xs" fontWeight="bold" color="gray.500">
+              定休日
+            </Text>
+          </Box>
         ) : entry.isWorking ? (
           <Text fontSize="sm" fontWeight="medium" color="teal.600">
             {formatTime(entry.startTime)} 〜 {formatTime(entry.endTime)}
@@ -77,7 +81,7 @@ export const DayCard = ({
         px={4}
         align="center"
         justify="space-between"
-        bg="gray.50"
+        bg="gray.100"
         borderRadius="lg"
         borderWidth={1}
         borderColor="border.default"

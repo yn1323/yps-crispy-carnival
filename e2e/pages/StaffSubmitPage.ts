@@ -20,7 +20,7 @@ export class StaffSubmitPage {
   }
 
   async expectCompletionVisible() {
-    await expect(this.page).toHaveURL(/\/shifts\/submit\/completed$/);
+    await expect(this.page).toHaveURL(/\/shifts\/submit\/completed(?:\?.*)?$/);
     await expect(this.page.getByText("提出が完了しました")).toBeVisible();
   }
 
@@ -78,9 +78,35 @@ export class StaffSubmitPage {
     await expect(row.getByText("〜")).toBeVisible();
   }
 
+  async expectDateWorking(dateText: string) {
+    const row = this.dateRow(dateText);
+    await expect(row.getByText("出勤希望")).toBeVisible();
+  }
+
   async expectDayOff(dateText: string) {
-    const row = this.page.getByText(dateText, { exact: true }).locator("..");
+    const row = this.dateRow(dateText);
     await expect(row.getByText("休み")).toBeVisible();
+  }
+
+  async expectShopClosed(dateText: string) {
+    const row = this.dateRow(dateText);
+    await expect(row.getByText("定休日")).toBeVisible();
+  }
+
+  async selectShiftTypeDay(dateText: string) {
+    await this.page.getByRole("button", { name: `${dateText}を出勤希望にする` }).click();
+  }
+
+  async toggleShiftTypeOption(dateText: string, optionName: string) {
+    await this.page.getByLabel(`${dateText}の${optionName} 未選択`).click();
+  }
+
+  async expectShiftTypeOptionSelected(dateText: string, optionName: string) {
+    await expect(this.page.getByLabel(`${dateText}の${optionName} 選択済み`)).toBeVisible();
+  }
+
+  private dateRow(dateText: string) {
+    return this.page.getByText(dateText, { exact: true }).locator("..");
   }
 
   private legalConsentCheckbox() {

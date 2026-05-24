@@ -16,6 +16,14 @@ export class ShiftBoardPage {
     await expect(this.page.getByText(/\d{1,2}:\d{2}/).first()).toBeVisible();
   }
 
+  async expectShiftTypeOptionVisible(optionName: string) {
+    await expect(this.page.getByText(optionName, { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  }
+
+  async expectShiftTypeTimeVisible(timeRange: string) {
+    await expect(this.page.getByText(timeRange, { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  }
+
   async switchDateTab(index: number) {
     await this.page.getByRole("tablist", { name: "日付選択" }).getByRole("tab").nth(index).click();
   }

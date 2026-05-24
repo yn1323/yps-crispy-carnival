@@ -58,7 +58,7 @@ export const StaffRow = ({
 }: StaffRowProps) => {
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
-    const hasRequest = staffShifts.some((s) => s.requestedTime !== null);
+    const hasRequest = staffShifts.some((s) => s.requestedTime !== null || (s.requestedTimes?.length ?? 0) > 0);
     if (hasRequest) return "has_request" as const;
     return "no_request" as const;
   };

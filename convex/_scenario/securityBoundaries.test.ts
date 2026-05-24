@@ -95,8 +95,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftAssignments", {
         recruitmentId,
@@ -222,8 +221,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
@@ -310,8 +308,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       return {
         recruitmentId,
@@ -424,8 +421,7 @@ describe("セキュリティ境界シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const otherRecruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -436,8 +432,7 @@ describe("セキュリティ境界シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const deletedRecruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -448,8 +443,7 @@ describe("セキュリティ境界シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: true,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftAssignments", {
         recruitmentId,
@@ -554,8 +548,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const confirmedRecruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -566,8 +559,7 @@ describe("セキュリティ境界シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftAssignments", {
         recruitmentId: confirmedRecruitmentId,
@@ -667,8 +659,7 @@ describe("セキュリティ境界シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const deletedRecruitmentId = await ctx.db.insert("recruitments", {
         shopId: targetShopId,
@@ -679,8 +670,7 @@ describe("セキュリティ境界シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: true,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const openRecruitmentId = await ctx.db.insert("recruitments", {
         shopId: targetShopId,
@@ -690,8 +680,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       return {
         recruitmentId,
@@ -771,8 +760,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await seedSession(ctx, { sessionToken: "deleted-target-session", staffId, shopId, recruitmentId });
       await seedStaffLineAccount(ctx, { staffId, shopId, lineUserId: "U_deleted_target", following: true });

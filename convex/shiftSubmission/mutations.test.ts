@@ -3,13 +3,14 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
 async function setupTestData(
   t: TestConvex<typeof schema>,
-  options?: { deadlinePassed?: boolean; shopClosedDates?: string[] },
+  options?: { deadlinePassed?: boolean; shopClosedDates?: string[]; submissionPattern?: ShiftSubmissionPattern },
 ) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
@@ -38,8 +39,7 @@ async function setupTestData(
       shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: options?.submissionPattern,
     });
     const sessionToken = "test-session-token";
     await ctx.db.insert("sessions", {
@@ -105,8 +105,6 @@ describe("shiftSubmission/mutations", () => {
           shopClosedDates: [],
           status: "open",
           isDeleted: false,
-          shiftStartTime: "09:00",
-          shiftEndTime: "22:00",
         }),
       );
 
@@ -176,6 +174,168 @@ describe("shiftSubmission/mutations", () => {
           requests: [{ date: "2026-04-09", startTime: "10:00", endTime: "15:00" }],
         }),
       ).rejects.toThrow("定休日には希望シフトを提出できません");
+    });
+
+    it("日付のみ提出は日付だけ保存し、時間スロットを作らない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t, {
+        submissionPattern: { kind: "dateOnly" },
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+        submission: { kind: "dateOnly", workingDates: ["2026-04-07", "2026-04-09"] },
+      });
+
+      const [slots, dates] = await t.run(async (ctx) => {
+        const slotRows = await ctx.db
+          .query("shiftSubmissionSlots")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect();
+        const dateRows = await ctx.db
+          .query("shiftSubmissionDates")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect();
+        return [slotRows, dateRows] as const;
+      });
+
+      expect(slots).toHaveLength(0);
+      expect(dates.map(({ date }) => date)).toEqual(["2026-04-07", "2026-04-09"]);
+    });
+
+    it("提出方法と違う入力種類はエラー", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: { kind: "dateOnly" },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "time", requests: validRequests },
+        }),
+      ).rejects.toThrow("提出方法がこの募集の設定と一致しません");
+    });
+
+    it("日付のみ提出で同じ日を重複して提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: { kind: "dateOnly" },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "dateOnly", workingDates: ["2026-04-07", "2026-04-07"] },
+        }),
+      ).rejects.toThrow("同じ日の希望シフトは1件だけ登録できます");
+    });
+
+    it("日付のみ提出でも定休日は提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        shopClosedDates: ["2026-04-09"],
+        submissionPattern: { kind: "dateOnly" },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "dateOnly", workingDates: ["2026-04-09"] },
+        }),
+      ).rejects.toThrow("定休日には希望シフトを提出できません");
+    });
+
+    it("勤務区分提出は選んだ区分の時間で希望枠を作成する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+          ],
+        },
+      });
+
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+        submission: {
+          kind: "shiftType",
+          selections: [
+            { date: "2026-04-07", optionId: "morning" },
+            { date: "2026-04-07", optionId: "late" },
+            { date: "2026-04-09", optionId: "late" },
+          ],
+        },
+      });
+
+      const slots = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissionSlots")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect(),
+      );
+
+      expect(slots.map(({ date, startTime, endTime, optionId }) => ({ date, startTime, endTime, optionId }))).toEqual([
+        { date: "2026-04-07", startTime: "09:00", endTime: "15:00", optionId: "morning" },
+        { date: "2026-04-07", startTime: "15:00", endTime: "22:00", optionId: "late" },
+        { date: "2026-04-09", startTime: "15:00", endTime: "22:00", optionId: "late" },
+      ]);
+    });
+
+    it("勤務区分提出で同じ日の同じ区分は重複して提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+        },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: {
+            kind: "shiftType",
+            selections: [
+              { date: "2026-04-07", optionId: "morning" },
+              { date: "2026-04-07", optionId: "morning" },
+            ],
+          },
+        }),
+      ).rejects.toThrow("同じ日の勤務区分が重複しています");
+    });
+
+    it("存在しない勤務区分IDはエラー", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+        },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "shiftType", selections: [{ date: "2026-04-07", optionId: "late" }] },
+        }),
+      ).rejects.toThrow("勤務区分が見つかりません");
     });
 
     it("全休み提出（空配列）でshiftSubmissionのみ作成", async () => {
