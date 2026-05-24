@@ -164,27 +164,43 @@ export function buildShiftData(data: ShiftBoardData, staffs: StaffType[], dates:
                 shiftTypeOptionId,
               };
             })
-          : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
-            ? requests.map((requestItem, index) => ({
-                id: `seg-${staff.id}-${date}-${index}`,
-                positionId: fallbackPosition.id,
-                positionName: fallbackPosition.name,
-                color: fallbackPosition.color,
-                start: requestItem.startTime,
-                end: requestItem.endTime,
-              }))
-            : !isShiftTypePattern && displayLine.type !== "none"
-              ? [
+          : isShiftTypePattern && displayLine.type === "request" && requests.length > 0
+            ? requests.flatMap((requestItem, index) => {
+                const shiftTypeOptionId = getShiftTypeOptionIdForRange(requestItem, shiftTypeOptions);
+                if (!shiftTypeOptionId) return [];
+                return [
                   {
-                    id: `seg-${staff.id}-${date}`,
+                    id: `seg-${staff.id}-${date}-${index}`,
                     positionId: fallbackPosition.id,
                     positionName: fallbackPosition.name,
                     color: fallbackPosition.color,
-                    start: displayLine.start,
-                    end: displayLine.end,
+                    start: requestItem.startTime,
+                    end: requestItem.endTime,
+                    shiftTypeOptionId,
                   },
-                ]
-              : [];
+                ];
+              })
+            : !isShiftTypePattern && displayLine.type === "request" && requests.length > 0
+              ? requests.map((requestItem, index) => ({
+                  id: `seg-${staff.id}-${date}-${index}`,
+                  positionId: fallbackPosition.id,
+                  positionName: fallbackPosition.name,
+                  color: fallbackPosition.color,
+                  start: requestItem.startTime,
+                  end: requestItem.endTime,
+                }))
+              : !isShiftTypePattern && displayLine.type !== "none"
+                ? [
+                    {
+                      id: `seg-${staff.id}-${date}`,
+                      positionId: fallbackPosition.id,
+                      positionName: fallbackPosition.name,
+                      color: fallbackPosition.color,
+                      start: displayLine.start,
+                      end: displayLine.end,
+                    },
+                  ]
+                : [];
 
       shifts.push({
         id: `shift-${staff.id}-${date}`,

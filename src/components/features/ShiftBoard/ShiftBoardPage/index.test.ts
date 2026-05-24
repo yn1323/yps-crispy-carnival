@@ -31,10 +31,43 @@ const baseData = {
 } satisfies Omit<ShiftBoardData, "submissionPattern" | "requestedSlots">;
 
 describe("buildShiftData", () => {
-  it("勤務区分募集では希望スロットを割当セグメントに変換しない", () => {
+  it("下書き保存前の勤務区分募集では希望スロットを初期割当に変換する", () => {
     const shifts = buildShiftData(
       {
         ...baseData,
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 }],
+        },
+        requestedSlots: [
+          {
+            staffId,
+            date: "2026-05-21",
+            startTime: "09:00",
+            endTime: "13:00",
+            optionId: "morning",
+          },
+        ],
+      },
+      [staff],
+      ["2026-05-21"],
+    );
+
+    expect(shifts[0].requestedShiftTypeOptionIds).toEqual(["morning"]);
+    expect(shifts[0].positions).toEqual([
+      expect.objectContaining({ start: "09:00", end: "13:00", positionId, shiftTypeOptionId: "morning" }),
+    ]);
+  });
+
+  it("下書き保存後に保存時提出済みだった勤務区分希望は割当へ自動反映しない", () => {
+    const shifts = buildShiftData(
+      {
+        ...baseData,
+        recruitment: {
+          ...baseData.recruitment,
+          draftSavedAt: 1_000,
+        },
+        staffs: [{ _id: staffId, name: "田中 太郎", isSubmitted: true, wasSubmittedAtDraft: true }],
         submissionPattern: {
           kind: "shiftType",
           options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "13:00", sortOrder: 0 }],

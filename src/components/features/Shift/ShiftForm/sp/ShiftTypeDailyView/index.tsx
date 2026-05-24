@@ -14,7 +14,11 @@ import {
 } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar } from "../../components";
-import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../../pc/shiftTypeOptionStyles";
+import {
+  getShiftTypeOptionColor,
+  SHIFT_TYPE_REQUEST_STATUS_COLORS,
+  type ShiftTypeOptionColor,
+} from "../../pc/shiftTypeOptionStyles";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
 import { formatShiftTypeTimeRange } from "../../utils/shiftTypeDisplay";
 
@@ -257,14 +261,17 @@ const RequestBadges = ({
 }) => {
   if (!staff.isSubmitted) {
     return (
-      <RequestBadge bg="#fef3c7" color="#b45309">
+      <RequestBadge
+        bg={SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.bg}
+        color={SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.color}
+      >
         未提出
       </RequestBadge>
     );
   }
   if (requestedIds.length === 0) {
     return (
-      <RequestBadge bg="#dbeafe" color="#2563eb">
+      <RequestBadge bg={SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.bg} color={SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.color}>
         休み
       </RequestBadge>
     );

@@ -16,7 +16,11 @@ import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from 
 import { formatShiftTypeTimeRange } from "../../utils/shiftTypeDisplay";
 import { DateRail } from "../DailyView/DateRail";
 import { DayTitle } from "../DailyView/DayTitle";
-import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../shiftTypeOptionStyles";
+import {
+  getShiftTypeOptionColor,
+  SHIFT_TYPE_REQUEST_STATUS_COLORS,
+  type ShiftTypeOptionColor,
+} from "../shiftTypeOptionStyles";
 
 const STAFF_COL_WIDTH = 220;
 const REQUEST_COL_WIDTH = 150;
@@ -216,11 +220,17 @@ const RequestCell = ({
     <Box as="td" px={4} py={2} borderRightWidth="1px" borderColor="gray.100">
       <Flex align="center" gap={1} minW={0} wrap="wrap">
         {!staff.isSubmitted ? (
-          <RequestBadge bg="#fef3c7" color="#b45309">
+          <RequestBadge
+            bg={SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.bg}
+            color={SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.color}
+          >
             未提出
           </RequestBadge>
         ) : requestedIds.length === 0 ? (
-          <RequestBadge bg="#dbeafe" color="#2563eb">
+          <RequestBadge
+            bg={SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.bg}
+            color={SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.color}
+          >
             休み
           </RequestBadge>
         ) : (

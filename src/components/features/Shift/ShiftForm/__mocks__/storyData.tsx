@@ -297,7 +297,7 @@ export const mockShiftTypeShifts: ShiftData[] = [
       { start: "13:00", end: "17:00" },
     ],
     requestedShiftTypeOptionIds: ["morning", "middle"],
-    positions: [shiftTypeSeg("staff1", "morning")],
+    positions: [shiftTypeSeg("staff1", "morning"), shiftTypeSeg("staff1", "middle")],
   },
   {
     id: `shift-type-staff2-${shiftTypeDate}`,
@@ -327,7 +327,7 @@ export const mockShiftTypeShifts: ShiftData[] = [
     requestedTime: { start: "21:00", end: "33:00" },
     requestedTimes: [{ start: "21:00", end: "33:00" }],
     requestedShiftTypeOptionIds: ["night"],
-    positions: [],
+    positions: [shiftTypeSeg("staff4", "night")],
   },
   {
     id: `shift-type-staff5-${shiftTypeDate}`,

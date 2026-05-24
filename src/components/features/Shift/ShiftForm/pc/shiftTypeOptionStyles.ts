@@ -37,3 +37,14 @@ export type ShiftTypeOptionColor = (typeof SHIFT_TYPE_OPTION_COLORS)[number];
 
 export const getShiftTypeOptionColor = (index: number): ShiftTypeOptionColor =>
   SHIFT_TYPE_OPTION_COLORS[index % SHIFT_TYPE_OPTION_COLORS.length];
+
+export const SHIFT_TYPE_REQUEST_STATUS_COLORS = {
+  unsubmitted: {
+    bg: "#fef3c7",
+    color: "#b45309",
+  },
+  rest: {
+    bg: "#f4f4f5",
+    color: "#52525b",
+  },
+} as const;
