@@ -122,7 +122,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
 
   const handleSubmit = async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
     await submitShiftRequests(submission, acceptedLegal);
-    await navigate({ to: "/shifts/submit/completed" });
+    await navigate({ to: "/shifts/submit/completed", search: { shopName: data.shopName } });
   };
 
   return <ShiftSubmitPage data={data} onSubmit={handleSubmit} />;
