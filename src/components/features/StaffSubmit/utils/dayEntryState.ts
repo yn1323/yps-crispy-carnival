@@ -42,5 +42,5 @@ export function buildWorkingEntry({
 
 export function buildRestEntry(entry: DayEntry): DayEntry {
   // 休みに戻しても時間は残し、次に別日を出勤にするときの初期値として使う。
-  return { ...entry, isWorking: false };
+  return { ...entry, isWorking: false, optionId: undefined, optionIds: undefined };
 }

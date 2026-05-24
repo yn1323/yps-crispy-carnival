@@ -145,6 +145,8 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
         periodLabel={data.periodLabel}
         periodStart={data.periodStart}
         periodEnd={data.periodEnd}
+        shopClosedDates={data.shopClosedDates}
+        submissionPattern={data.submissionPattern}
         staffs={data.staffs}
         positions={data.positions}
         assignments={data.assignments}

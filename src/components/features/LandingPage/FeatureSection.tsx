@@ -30,14 +30,14 @@ const featureCards: {
   },
   {
     number: "3",
-    title: "未提出に気づく",
-    body: "作成中に未提出者を確認。必要な人だけに声をかけられます。",
+    title: "未提出の催促",
+    body: "未提出者も一覧で表示。必要な人だけに声をかけられます。",
     visual: "notice",
   },
   {
     number: "4",
     title: "シフト表を作る",
-    body: "希望を見ながら日別に作成。転記せず、そのまま調整できます。",
+    body: "PC・スマホで転記せず、そのまま調整できます。",
     visual: "shift",
     featured: true,
   },

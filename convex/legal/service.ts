@@ -114,10 +114,22 @@ export async function getUserLegalConsentState(ctx: DbCtx, userId: Id<"users">) 
 export async function hasCurrentStaffLegalConsent(ctx: DbCtx, staffId: Id<"staffs">) {
   const state = await getStaffLegalConsentState(ctx, staffId);
   const current = getLegalConsentVersions("staff");
-  return (
+  if (
     state?.termsConsentVersion === current.termsConsentVersion &&
     state?.privacyConsentVersion === current.privacyConsentVersion
-  );
+  ) {
+    return true;
+  }
+  if (state) return false;
+
+  const staff = await ctx.db.get(staffId);
+  if (!staff?.userId) return false;
+  const user = await ctx.db.get(staff.userId);
+  if (!user || user.isDeleted || user.role !== "manager") return false;
+
+  // manager staff は過去データに staff 側の同意 state が無い場合がある。
+  // 紐づく manager ユーザーが現行同意済みなら、スタッフ提出時の再確認は省く。
+  return await hasCurrentUserLegalConsent(ctx, user._id);
 }
 
 export async function hasCurrentUserLegalConsent(ctx: DbCtx, userId: Id<"users">) {

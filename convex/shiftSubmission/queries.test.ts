@@ -3,10 +3,14 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
-async function setupSubmissionPageData(t: TestConvex<typeof schema>) {
+async function setupSubmissionPageData(
+  t: TestConvex<typeof schema>,
+  options?: { submissionPattern?: ShiftSubmissionPattern },
+) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "履歴テスト店舗");
     const staffId = await ctx.db.insert("staffs", {
@@ -34,8 +38,7 @@ async function setupSubmissionPageData(t: TestConvex<typeof schema>) {
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: options?.submissionPattern,
     });
     const sessionToken = "query-history-session";
     await ctx.db.insert("sessions", {
@@ -55,7 +58,7 @@ async function seedSubmission(
   args: {
     recruitmentId: Id<"recruitments">;
     staffId: Id<"staffs">;
-    slots: Array<{ date: string; startTime: string; endTime: string }>;
+    slots: Array<{ date: string; startTime: string; endTime: string; optionId?: string }>;
   },
 ) {
   await t.run(async (ctx) => {
@@ -76,6 +79,32 @@ async function seedSubmission(
   });
 }
 
+async function seedDateOnlySubmission(
+  t: TestConvex<typeof schema>,
+  args: {
+    recruitmentId: Id<"recruitments">;
+    staffId: Id<"staffs">;
+    dates: string[];
+  },
+) {
+  await t.run(async (ctx) => {
+    const submissionId = await ctx.db.insert("shiftSubmissions", {
+      recruitmentId: args.recruitmentId,
+      staffId: args.staffId,
+      firstSubmittedAt: 1000,
+      submittedAt: 1000,
+    });
+    for (const date of args.dates) {
+      await ctx.db.insert("shiftSubmissionDates", {
+        submissionId,
+        recruitmentId: args.recruitmentId,
+        staffId: args.staffId,
+        date,
+      });
+    }
+  });
+}
+
 async function seedRecruitment(
   t: TestConvex<typeof schema>,
   shopId: Id<"shops">,
@@ -90,8 +119,7 @@ async function seedRecruitment(
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
-      shiftStartTime: "09:00",
-      shiftEndTime: "22:00",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     }),
   );
 }
@@ -110,6 +138,7 @@ describe("shiftSubmission/queries", () => {
         staffId,
         slots: [
           { date: "2026-04-07", startTime: "10:00", endTime: "18:00" },
+          { date: "2026-04-07", startTime: "18:00", endTime: "21:00" },
           { date: "2026-04-09", startTime: "12:00", endTime: "20:00" },
         ],
       });
@@ -124,6 +153,7 @@ describe("shiftSubmission/queries", () => {
         sourceWeekStart: "2026-04-06",
         days: [
           { weekday: 2, startTime: "10:00", endTime: "18:00" },
+          { weekday: 2, startTime: "18:00", endTime: "21:00" },
           { weekday: 4, startTime: "12:00", endTime: "20:00" },
         ],
       });
@@ -199,7 +229,128 @@ describe("shiftSubmission/queries", () => {
         isBeforeDeadline: false,
         hasSubmitted: true,
         existingRequests: [{ date: "2026-04-21", startTime: "10:00", endTime: "18:00" }],
+        existingSelection: {
+          kind: "time",
+          requests: [{ date: "2026-04-21", startTime: "10:00", endTime: "18:00" }],
+        },
         previousWeeklyPattern: null,
+      });
+    });
+
+    it("日付のみ提出の既存希望を workingDates として返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
+        submissionPattern: { kind: "dateOnly" },
+      });
+      await seedDateOnlySubmission(t, { recruitmentId, staffId, dates: ["2026-04-21", "2026-04-23"] });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData?.submissionPattern).toEqual({ kind: "dateOnly" });
+      expect(pageData?.existingSelection).toEqual({
+        kind: "dateOnly",
+        workingDates: ["2026-04-21", "2026-04-23"],
+        unmatchedRequests: [],
+      });
+    });
+
+    it("日付のみ提出の前回入力は曜日だけのパターンとして返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
+        submissionPattern: { kind: "dateOnly" },
+      });
+      const previousRecruitmentId = await seedRecruitment(t, shopId, {
+        periodStart: "2026-04-06",
+        periodEnd: "2026-04-12",
+      });
+      await seedDateOnlySubmission(t, {
+        recruitmentId: previousRecruitmentId,
+        staffId,
+        dates: ["2026-04-07", "2026-04-10"],
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData?.previousWeeklyPattern).toBeNull();
+      expect(pageData?.previousDateOnlyPattern).toEqual({
+        sourceWeekStart: "2026-04-06",
+        weekdays: [2, 5],
+      });
+    });
+
+    it("勤務区分提出の既存希望を optionId として返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "late", name: "遅番", startTime: "15:00", endTime: "22:00", sortOrder: 1 },
+          ],
+        },
+      });
+      await seedSubmission(t, {
+        recruitmentId,
+        staffId,
+        slots: [
+          { date: "2026-04-21", startTime: "09:00", endTime: "15:00" },
+          { date: "2026-04-21", startTime: "15:00", endTime: "22:00" },
+          { date: "2026-04-23", startTime: "15:00", endTime: "22:00" },
+        ],
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData?.existingSelection).toEqual({
+        kind: "shiftType",
+        selections: [
+          { date: "2026-04-21", optionId: "morning" },
+          { date: "2026-04-21", optionId: "late" },
+          { date: "2026-04-23", optionId: "late" },
+        ],
+        unmatchedRequests: [],
+      });
+    });
+
+    it("勤務区分の時間帯が同じでも保存済みの optionId を優先して返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [
+            { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
+            { id: "help", name: "ヘルプ", startTime: "09:00", endTime: "15:00", sortOrder: 1 },
+          ],
+        },
+      });
+      await seedSubmission(t, {
+        recruitmentId,
+        staffId,
+        slots: [{ date: "2026-04-21", startTime: "09:00", endTime: "15:00", optionId: "morning" }],
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData?.existingSelection).toEqual({
+        kind: "shiftType",
+        selections: [{ date: "2026-04-21", optionId: "morning" }],
+        unmatchedRequests: [],
       });
     });
 

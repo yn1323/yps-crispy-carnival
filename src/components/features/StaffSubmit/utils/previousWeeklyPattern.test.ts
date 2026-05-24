@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEntriesFromPreviousWeeklyPattern,
+  buildEntriesFromPreviousWeeklyPatternForShiftTypes,
   buildWorkingEntryFromPreviousWeeklyPattern,
   type PreviousWeeklyPattern,
 } from "./previousWeeklyPattern";
@@ -78,5 +79,53 @@ describe("buildWorkingEntryFromPreviousWeeklyPattern", () => {
     });
 
     expect(entry).toBeNull();
+  });
+});
+
+describe("buildEntriesFromPreviousWeeklyPatternForShiftTypes", () => {
+  it("前回時間が現在の勤務区分に一致する日だけ区分選択済みにする", () => {
+    const entries = buildEntriesFromPreviousWeeklyPatternForShiftTypes(
+      ["2026-04-13", "2026-04-14", "2026-04-15"],
+      {
+        sourceWeekStart: "2026-04-06",
+        days: [
+          { weekday: 1, startTime: "09:00", endTime: "17:00" },
+          { weekday: 1, startTime: "17:00", endTime: "22:00" },
+          { weekday: 3, startTime: "10:00", endTime: "18:00" },
+        ],
+      },
+      { startTime: "09:00", endTime: "22:00" },
+      [
+        { id: "morning", startTime: "09:00", endTime: "17:00" },
+        { id: "late", startTime: "17:00", endTime: "22:00" },
+      ],
+    );
+
+    expect(entries).toEqual([
+      {
+        date: "2026-04-13",
+        isWorking: true,
+        startTime: "09:00",
+        endTime: "17:00",
+        optionId: "morning",
+        optionIds: ["morning", "late"],
+      },
+      { date: "2026-04-14", isWorking: false, startTime: "09:00", endTime: "22:00" },
+      { date: "2026-04-15", isWorking: false, startTime: "09:00", endTime: "22:00" },
+    ]);
+  });
+
+  it("一致する勤務区分がない曜日は休みにする", () => {
+    const entries = buildEntriesFromPreviousWeeklyPatternForShiftTypes(
+      ["2026-04-15"],
+      pattern,
+      {
+        startTime: "09:00",
+        endTime: "22:00",
+      },
+      [{ id: "morning", startTime: "09:00", endTime: "17:00" }],
+    );
+
+    expect(entries[0]).toEqual({ date: "2026-04-15", isWorking: false, startTime: "09:00", endTime: "22:00" });
   });
 });

@@ -16,7 +16,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const SHOP = { name: "居酒屋たなか", shiftStartTime: "14:00", shiftEndTime: "25:00" };
+const SHOP = {
+  name: "居酒屋たなか",
+};
 const today = dayjs().format("YYYY-MM-DD");
 const inDays = (n: number) => dayjs().add(n, "day").format("YYYY-MM-DD");
 

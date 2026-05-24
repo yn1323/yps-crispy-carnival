@@ -55,8 +55,7 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
         status: "confirmed",
         confirmedAt: Date.now(),
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftAssignments", {
         recruitmentId,
@@ -149,8 +148,7 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await seedSession(ctx, {
         sessionToken: "scenario-open-view-session",

@@ -70,6 +70,12 @@ export const RecruitmentBoard = ({
           description="期間と締切を決めて、スタッフに希望を聞きましょう。"
           tone="brand"
           variant="section"
+          action={
+            <Button colorPalette="teal" size="md" onClick={onCreateClick} gap={1.5}>
+              <LuPlus />
+              はじめてのシフトを作成する
+            </Button>
+          }
         />
       ) : (
         <Stack gap={{ base: 3, lg: 3.5 }}>

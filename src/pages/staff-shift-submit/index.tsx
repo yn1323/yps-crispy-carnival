@@ -3,8 +3,8 @@ import { useQuery } from "convex/react";
 import { LuCalendarX, LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { DayEntry } from "@/src/components/features/StaffSubmit/DayCard";
 import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
+import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
 import { SubmitPageHeader, SubmitPageLayout } from "@/src/components/features/StaffSubmit/SubmitPageLayout";
 import { useSubmitShiftRequests } from "@/src/components/features/StaffSubmit/useSubmitShiftRequests";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
@@ -120,9 +120,9 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
     );
   }
 
-  const handleSubmit = async (entries: DayEntry[], acceptedLegal?: boolean) => {
-    await submitShiftRequests(entries, acceptedLegal);
-    await navigate({ to: "/shifts/submit/completed" });
+  const handleSubmit = async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
+    await submitShiftRequests(submission, acceptedLegal);
+    await navigate({ to: "/shifts/submit/completed", search: { shopName: data.shopName } });
   };
 
   return <ShiftSubmitPage data={data} onSubmit={handleSubmit} />;
