@@ -119,7 +119,7 @@ const steps: StepperDialogStep<Step>[] = [
     label: "定休日",
     icon: LuCalendarDays,
     title: "定休日",
-    description: "決まったお休みの曜日を設定します。募集期間ごとに細かく調整することも可能です。",
+    description: "お休みの曜日を押してください。また、募集ごとに細かく調整することも可能です。",
   },
 ];
 
@@ -575,6 +575,20 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
 
         {currentStep === "regularClosedDays" && (
           <Stack gap={3}>
+            <Flex
+              gap={{ base: 1, md: 3 }}
+              direction={{ base: "column", md: "row" }}
+              justify="space-between"
+              align={{ base: "flex-start", md: "center" }}
+            >
+              <Text fontSize="sm" fontWeight="semibold" color="gray.900">
+                毎週休みにする曜日
+              </Text>
+              <Text fontSize="xs" color="fg.muted">
+                現在の設定:{" "}
+                {selectedClosedDayLabels.length > 0 ? `毎週 ${selectedClosedDayLabels.join("・")}` : "定休日なし"}
+              </Text>
+            </Flex>
             <Flex gap={2} justify="space-between" align="center">
               {WEEKDAYS.map((day) => {
                 const isClosed = regularClosedDays.includes(day.value);
@@ -602,9 +616,6 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                 );
               })}
             </Flex>
-            <Text fontSize="xs" color="fg.muted">
-              {selectedClosedDayLabels.length > 0 ? `定休日: ${selectedClosedDayLabels.join("・")}` : "定休日なし"}
-            </Text>
           </Stack>
         )}
       </StepperDialogContent>

@@ -88,6 +88,18 @@ export const ShiftTypeWithRegularClosedDays: Story = {
   render: renderInStepperDialog,
 };
 
+export const RegularClosedDaysEmpty: Story = {
+  args: {
+    defaultValues: {
+      shopName: "居酒屋たなか",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" },
+    },
+    initialStep: "regularClosedDays",
+  },
+  render: renderInStepperDialog,
+};
+
 export const InteractiveStepperFlow: Story = {
   parameters: {
     chromatic: { disableSnapshot: true },
@@ -127,6 +139,7 @@ export const InteractiveStepperFlow: Story = {
     expect(getByRole(root, "button", { name: /勤務区分を追加/ })).toBeDisabled();
     clickButton(root, "次へ");
 
+    expect(await findByText(root, "現在の設定: 定休日なし")).toBeTruthy();
     expect(await findByRole(root, "button", { name: "変更を保存" })).toBeTruthy();
   },
 };
