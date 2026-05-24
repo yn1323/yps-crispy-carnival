@@ -82,6 +82,17 @@ describe("setup/mutations", () => {
       expect(staffs[0].name).toBe("山田 太郎");
       expect(staffs[0].email).toBe("yamada@example.com");
       expect(staffs[0].userId).toBe(user?._id);
+      const staffConsentState = await t.run(async (ctx) =>
+        ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffs[0]._id))
+          .first(),
+      );
+      expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
+      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
+      expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
+      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
+      expect(staffConsentState?.method).toBe("manager_setup");
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
@@ -96,6 +107,14 @@ describe("setup/mutations", () => {
       );
       expect(consentEvents).toHaveLength(1);
       expect(consentEvents[0].method).toBe("manager_setup");
+      const staffConsentEvents = await t.run(async (ctx) =>
+        ctx.db
+          .query("legalConsentEvents")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffs[0]._id))
+          .collect(),
+      );
+      expect(staffConsentEvents).toHaveLength(1);
+      expect(staffConsentEvents[0]).toMatchObject({ subjectType: "staff", method: "manager_setup" });
     });
 
     it("既に店舗がある場合エラーをthrow", async () => {

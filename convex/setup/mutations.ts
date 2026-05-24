@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
-import { recordUserLegalConsent } from "../legal/service";
+import { recordStaffLegalConsent, recordUserLegalConsent } from "../legal/service";
 import { ensureDefaultPosition } from "../position/service";
 
 export const setupShopAndManager = authenticatedMutation({
@@ -75,6 +75,13 @@ export const setupShopAndManager = authenticatedMutation({
       emailNormalized: args.managerEmail.trim().toLowerCase(),
       userId,
       isDeleted: false,
+    });
+
+    // 初回セットアップで同意済みの manager は、同時に作られる staff としても提出時の同意確認を不要にする。
+    await recordStaffLegalConsent(ctx, {
+      staffId,
+      shopId,
+      method: "manager_setup",
     });
 
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {

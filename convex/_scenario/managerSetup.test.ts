@@ -1,6 +1,12 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { hasScheduledJob, readScheduledFunctions, SCENARIO_NOW } from "../_test/scenarioBuilders";
+import {
+  hasScheduledJob,
+  readScheduledFunctions,
+  SCENARIO_NOW,
+  scenarioDate,
+  seedSession,
+} from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -63,15 +69,42 @@ describe("管理者セットアップシナリオ", () => {
       return { positions, managerStaff, legalEvents };
     });
     expect(state.positions).toMatchObject([{ name: "シフト", isDefault: true, isDeleted: false }]);
-    expect(state.legalEvents).toMatchObject([{ method: "manager_setup" }]);
+    expect(state.legalEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ subjectType: "user", method: "manager_setup" }),
+        expect.objectContaining({ subjectType: "staff", method: "manager_setup" }),
+      ]),
+    );
     if (!state.managerStaff) throw new Error("manager staff was not created");
+    const managerStaff = state.managerStaff;
+
+    // Assert: manager staff は初回セットアップで staff 向け同意も済んでいるため、提出時の再確認を出さない。
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(9),
+      deadline: scenarioDate(3),
+    });
+    await t.run(async (ctx) => {
+      await seedSession(ctx, {
+        sessionToken: "manager-staff-submit-session",
+        staffId: managerStaff._id,
+        shopId,
+        recruitmentId,
+      });
+    });
+    const staff = scenario.staff();
+    const submissionPageData = await staff.getSubmissionPageData({
+      sessionToken: "manager-staff-submit-session",
+      recruitmentId,
+    });
+    expect(submissionPageData?.legalConsentRequired).toBe(false);
 
     const scheduled = await readScheduledFunctions(t);
-    expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: state.managerStaff._id })).toBe(true);
+    expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: managerStaff._id })).toBe(true);
 
     // Act: manager自身のスタッフ情報を編集する。
     await asManager.editStaff({
-      staffId: state.managerStaff._id,
+      staffId: managerStaff._id,
       name: "山田 太郎 更新",
       email: "manager-updated@example.com",
     });

@@ -5,6 +5,7 @@ import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedSession, seedStaff } f
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { getLegalConsentVersions } from "../legal/documents";
 
 describe("法務同意シナリオ", () => {
   beforeEach(() => {
@@ -119,5 +120,58 @@ describe("法務同意シナリオ", () => {
     expect(legalEvents).toHaveLength(1);
     expect(legalEvents).toMatchObject([{ subjectType: "staff", method: "shift_submit" }]);
     expect(legalEvents[0].sourceRecruitmentId).toBe(ids.recruitmentId);
+  });
+
+  it("既存の manager staff は manager 同意済みなら提出時のスタッフ向け同意欄を出さない", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const staff = scenario.staff();
+
+    const ids = await t.run(async (ctx) => {
+      const { shopId, userId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "existing-manager@example.com",
+        shopName: "既存manager店舗",
+      });
+      const managerVersions = getLegalConsentVersions("manager");
+      await ctx.db.insert("legalConsentStates", {
+        subjectType: "user",
+        userId,
+        shopId,
+        ...managerVersions,
+        consentedAt: Date.now() - 1000,
+        method: "manager_setup",
+      });
+      const managerStaffId = await seedStaff(ctx, {
+        shopId,
+        userId,
+        name: "既存manager",
+        email: "existing-manager@example.com",
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(9),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "dateOnly" },
+      });
+      await seedSession(ctx, {
+        sessionToken: "existing-manager-staff-submit-session",
+        staffId: managerStaffId,
+        shopId,
+        recruitmentId,
+      });
+      return { recruitmentId };
+    });
+
+    const pageData = await staff.getSubmissionPageData({
+      sessionToken: "existing-manager-staff-submit-session",
+      recruitmentId: ids.recruitmentId,
+    });
+
+    expect(pageData?.legalConsentRequired).toBe(false);
   });
 });
