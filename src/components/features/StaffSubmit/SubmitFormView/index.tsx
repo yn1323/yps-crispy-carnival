@@ -275,9 +275,13 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
     const option = data.submissionPattern.options.find((item) => item.id === optionId);
     if (!option) return;
     const selectedIds = getSelectedShiftTypeOptionIds(entry);
+    const validOptionIds = new Set(data.submissionPattern.options.map((item) => item.id));
+    const latestOptionIds = latestShiftTypeOptionIdsRef.current?.filter((id) => validOptionIds.has(id));
     const nextOptionIds = selectedIds.includes(optionId)
       ? selectedIds.filter((selectedId) => selectedId !== optionId)
-      : [...selectedIds, optionId];
+      : !entry.isWorking && latestOptionIds?.includes(optionId)
+        ? latestOptionIds
+        : [...selectedIds, optionId];
     if (nextOptionIds.length === 0) {
       latestShiftTypeOptionIdsRef.current = selectedIds;
       setValue(`entries.${index}`, buildRestEntry(entry), { shouldDirty: true, shouldValidate: true });
@@ -556,7 +560,7 @@ export const ShiftTypeSubmissionDayCard = ({
     return (
       <Flex
         w="full"
-        h="48px"
+        minH="48px"
         px={4}
         align="center"
         justify="space-between"
@@ -583,83 +587,73 @@ export const ShiftTypeSubmissionDayCard = ({
   }
 
   return (
-    <Stack w="full" gap={3} p={3} bg="teal.50" borderRadius="lg" borderWidth={1} borderColor="teal.600">
-      <Flex align="center" justify="space-between">
+    <Flex
+      w="full"
+      minH="64px"
+      px={3}
+      py={2}
+      gap={3}
+      align="center"
+      bg="white"
+      borderRadius="lg"
+      borderWidth={1}
+      borderColor={entry.isWorking ? "teal.500" : "border.default"}
+    >
+      <Flex minW="68px" h="36px" align="center" flexShrink={0}>
         <Text fontSize="sm" fontWeight="medium" color={dateColor}>
           {dateLabel}
         </Text>
-        {isReadOnly && (
-          <Text fontSize="xs" fontWeight="medium" color="fg.muted">
-            提出済み
-          </Text>
-        )}
       </Flex>
-      {visibleOptions.length > 0 && (
-        <Flex gap={2} align="center">
-          <HStack gap={2} wrap="wrap" flex={1}>
-            {visibleOptions.map((option) => {
-              const isSelected = selectedOptionIdSet.has(option.id);
-              return (
-                <Button
-                  key={option.id}
-                  type="button"
-                  size="sm"
-                  h="auto"
-                  minH="44px"
-                  px={3}
-                  py={1.5}
-                  variant={isSelected ? "solid" : "outline"}
-                  colorPalette={isSelected ? "teal" : "gray"}
-                  bg={isSelected ? undefined : "white"}
-                  disabled={isReadOnly}
-                  aria-pressed={isSelected}
-                  aria-label={`${dateLabel}の${option.name} ${isSelected ? "選択済み" : "未選択"}`}
-                  onClick={() => onSelect?.(option.id)}
-                >
-                  <Stack gap={0} align="flex-start">
-                    <Text fontSize="xs" fontWeight="semibold">
-                      {option.name}
-                    </Text>
-                    <Text fontSize="2xs">
-                      {formatTime(option.startTime)}〜{formatTime(option.endTime)}
-                    </Text>
-                  </Stack>
-                </Button>
-              );
-            })}
-          </HStack>
-          {!isReadOnly && (
-            <IconButton
-              aria-label={`${dateLabel}を休みに戻す`}
+
+      <HStack gap={2} wrap="wrap" flex={1} align="center">
+        {visibleOptions.map((option) => {
+          const isSelected = selectedOptionIdSet.has(option.id);
+          return (
+            <Button
+              key={option.id}
+              type="button"
               size="sm"
+              h="36px"
+              minW="88px"
+              px={3}
+              py={1}
               variant="outline"
-              borderRadius="full"
-              onClick={onClear}
-              colorPalette="gray"
-              bg="white"
-              flexShrink={0}
+              colorPalette={isSelected ? "teal" : "gray"}
+              bg={isSelected ? "teal.600" : "white"}
+              borderColor={isSelected ? "teal.600" : "border.default"}
+              color={isSelected ? "white" : undefined}
+              disabled={isReadOnly}
+              aria-pressed={isSelected}
+              aria-label={`${dateLabel}の${option.name} ${isSelected ? "選択済み" : "未選択"}`}
+              onClick={() => onSelect?.(option.id)}
             >
-              <LuX />
-            </IconButton>
-          )}
-        </Flex>
+              <Stack gap={0} align="flex-start">
+                <Text fontSize="xs" fontWeight="semibold" lineHeight={1.1}>
+                  {option.name}
+                </Text>
+                <Text fontSize="2xs" lineHeight={1.1} color={isSelected ? "whiteAlpha.900" : "fg.muted"}>
+                  {formatTime(option.startTime)}〜{formatTime(option.endTime)}
+                </Text>
+              </Stack>
+            </Button>
+          );
+        })}
+      </HStack>
+
+      {entry.isWorking && !isReadOnly && (
+        <IconButton
+          aria-label={`${dateLabel}を休みに戻す`}
+          size="sm"
+          variant="outline"
+          borderRadius="full"
+          onClick={onClear}
+          colorPalette="gray"
+          bg="white"
+          flexShrink={0}
+        >
+          <LuX />
+        </IconButton>
       )}
-      {visibleOptions.length === 0 && !isReadOnly && (
-        <Flex justify="flex-end">
-          <IconButton
-            aria-label={`${dateLabel}を休みに戻す`}
-            size="sm"
-            variant="outline"
-            borderRadius="full"
-            onClick={onClear}
-            colorPalette="gray"
-            bg="white"
-            flexShrink={0}
-          >
-            <LuX />
-          </IconButton>
-        </Flex>
-      )}
-    </Stack>
+    </Flex>
   );
 };
