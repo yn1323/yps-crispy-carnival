@@ -40,7 +40,7 @@ export const STEPS: StepDefinition[] = [
     id: "recruit",
     label: "募集",
     title: "シフトを募集してみよう",
-    description: "期間と締切を決めてシフト募集を開始します。",
+    description: "シフト期間を選んで募集を開始します。",
   },
   {
     id: "submit",
@@ -79,18 +79,10 @@ export const SUBMISSION_DATA: SubmissionData = {
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
   isBeforeDeadline: true,
   hasSubmitted: false,
-  existingRequests: [
-    { date: "2027-06-07", startTime: "10:00", endTime: "16:00" },
-    { date: "2027-06-09", startTime: "11:00", endTime: "17:00" },
-    { date: "2027-06-12", startTime: "09:00", endTime: "15:00" },
-  ],
+  existingRequests: [],
   existingSelection: {
     kind: "time",
-    requests: [
-      { date: "2027-06-07", startTime: "10:00", endTime: "16:00" },
-      { date: "2027-06-09", startTime: "11:00", endTime: "17:00" },
-      { date: "2027-06-12", startTime: "09:00", endTime: "15:00" },
-    ],
+    requests: [],
   },
   legalConsentRequired: false,
   legalDocuments: {
