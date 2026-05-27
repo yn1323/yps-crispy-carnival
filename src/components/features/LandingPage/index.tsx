@@ -6,12 +6,14 @@ import { FeatureSection } from "./FeatureSection";
 import { FooterSection } from "./FooterSection";
 import { HeroSection } from "./HeroSection";
 import { ProblemSection } from "./ProblemSection";
+import { SubmissionMethodsSection } from "./SubmissionMethodsSection";
 
 export const LandingPage = () => (
   <Box bg="white" color="fg">
     <HeroSection />
     <ProblemSection />
     <FeatureSection />
+    <SubmissionMethodsSection />
     <BenefitsSection />
     <CtaSection />
     <FaqSection />
@@ -28,4 +30,5 @@ export {
   FooterSection as Footer,
   HeroSection,
   ProblemSection,
+  SubmissionMethodsSection,
 };
