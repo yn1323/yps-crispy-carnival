@@ -188,7 +188,7 @@ const RecruitStep = ({ onSubmit }: { onSubmit: () => void }) => (
   <Surface>
     <Flex minH="640px" align="center" justify="center" px={{ base: 4, md: 6 }} py={{ base: 8, md: 12 }}>
       <Stack w="full" maxW="620px" gap={6}>
-        <CreateRecruitmentForm defaultValues={DEFAULT_RECRUITMENT} onSubmit={onSubmit} />
+        <CreateRecruitmentForm defaultValues={DEFAULT_RECRUITMENT} displayMode="periodOnly" onSubmit={onSubmit} />
         <Button type="submit" form={FORM_ID} colorPalette="teal" h="48px" fontWeight="bold" data-demo-primary>
           募集をつくる
         </Button>

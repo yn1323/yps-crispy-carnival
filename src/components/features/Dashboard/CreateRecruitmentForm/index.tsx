@@ -23,6 +23,7 @@ type Props = {
   defaultValues?: CreateRecruitmentData;
   regularClosedDays?: RegularClosedDay[];
   submissionPattern?: ShiftSubmissionPattern;
+  displayMode?: "full" | "periodOnly";
   onSubmit: (data: CreateRecruitmentData) => void;
   onCancel?: () => void;
   today?: string;
@@ -135,12 +136,14 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
 export const CreateRecruitmentForm = ({
   defaultValues,
   regularClosedDays = [],
+  displayMode = "full",
   onSubmit,
   onCancel,
   today: todayProp,
 }: Props) => {
   const today = todayProp ?? dayjs().format("YYYY-MM-DD");
   const tomorrow = dayjs(today).add(1, "day").format("YYYY-MM-DD");
+  const isPeriodOnly = displayMode === "periodOnly";
   const [currentStep, setCurrentStep] = useState<Step>("period");
   const [periodValue, setPeriodValue] = useState<DateValue[]>(() =>
     toDateValues([defaultValues?.periodStart, defaultValues?.periodEnd].filter((date): date is string => !!date)),
@@ -203,6 +206,14 @@ export const CreateRecruitmentForm = ({
     setValue("deadline", "", { shouldDirty: true });
     clearErrors("deadline");
   }, [clearErrors, deadline, periodStart, setValue, today]);
+
+  useEffect(() => {
+    if (!isPeriodOnly || !periodStart) return;
+    const fallbackDeadline = dayjs(periodStart).subtract(1, "day").format("YYYY-MM-DD");
+    if (deadline === fallbackDeadline) return;
+    setValue("deadline", fallbackDeadline, { shouldDirty: true });
+    clearErrors("deadline");
+  }, [clearErrors, deadline, isPeriodOnly, periodStart, setValue]);
 
   const handlePeriodChange = (value: DateValue[]) => {
     const nextValue = value.slice(0, 2);
@@ -349,7 +360,12 @@ export const CreateRecruitmentForm = ({
       <input type="hidden" {...register("periodEnd")} />
       <input type="hidden" {...register("deadline")} />
 
-      <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
+      <StepperDialogContent
+        steps={steps}
+        currentStep={currentStep}
+        actions={isPeriodOnly ? undefined : actions}
+        showSteps={!isPeriodOnly}
+      >
         {currentStep === "period" && (
           <>
             <CalendarPicker
