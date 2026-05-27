@@ -2,6 +2,7 @@ import { Box, Container, Flex, Heading, Icon, Image, SimpleGrid, Text, VStack } 
 import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import featureCollectImage from "./feature-collect.webp";
+import featureMakeShiftImage from "./feature-make-shift.webp";
 import featureSendImage from "./feature-send.webp";
 import shiftFormImage from "./hero-pc.webp";
 import howtoEasyStartImage from "./howto-easy-start.webp";
@@ -31,20 +32,20 @@ const featureCards: {
   {
     number: "3",
     title: "未提出の催促",
-    body: "未提出者も一覧で表示。必要な人だけに声をかけられます。",
+    body: "提出忘れも一覧で表示。必要な人だけに声をかけられます。",
     visual: "notice",
   },
   {
     number: "4",
     title: "シフト表を作る",
-    body: "PC・スマホで転記せず、そのまま調整できます。",
+    body: "パソコン、スマホ両方で作成できます。",
     visual: "shift",
     featured: true,
   },
   {
     number: "5",
     title: "確定シフトを届ける",
-    body: "完成したシフトをLINE・メールで通知。送り直しの手間を減らします。",
+    body: "完成したシフトをLINE・メールで一括送信します。",
     visual: "notify",
   },
 ];
@@ -238,7 +239,8 @@ const FeatureVisual = ({ type, featured }: { type: FeatureVisualType; featured?:
 };
 
 const ShiftVisual = () => (
-  <Box position="relative" w="full" maxW={{ base: "320px", md: "460px" }} mx="auto">
+  <Box as="picture" display="block" position="relative" w="full" maxW={{ base: "144px", md: "460px" }} mx="auto">
+    <source media="(max-width: 47.997em)" srcSet={featureMakeShiftImage} />
     <Image src={shiftFormImage} alt="シフト表を作る画面イメージ" w="full" objectFit="contain" loading="lazy" />
   </Box>
 );

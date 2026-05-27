@@ -1,7 +1,7 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { IconType } from "react-icons";
-import { LuBell, LuCalendarDays, LuChevronRight, LuMousePointerClick, LuUserPlus } from "react-icons/lu";
+import { LuBell, LuChevronRight, LuMousePointerClick, LuUserPlus } from "react-icons/lu";
 import { Header } from "@/src/components/templates/Header";
 import { Button, type ButtonProps } from "@/src/components/ui/Button";
 import heroPcImage from "./hero-pc.webp";
@@ -14,15 +14,9 @@ const heroBenefits = [
     body: "専用アプリ不要",
   },
   {
-    icon: LuCalendarDays,
-    title: "簡単作成",
-    body: "AIサポート",
-  },
-  {
     icon: LuBell,
     title: "すぐ共有",
     body: "まとめて通知",
-    hideOnMobile: true,
   },
 ];
 
@@ -60,23 +54,24 @@ export const HeroSection = () => (
             >
               <Heading
                 as="h1"
-                fontSize={{ base: "3xl", sm: "4xl", md: "5xl", xl: "6xl" }}
+                fontSize={{ base: "2xl", sm: "3xl", md: "3xl", xl: "4xl" }}
                 lineHeight={{ base: "2.25rem", sm: "2.75rem", md: "3.75rem", xl: "4.5rem" }}
                 letterSpacing="0"
               >
-                シフト作成を
                 <Box as="span" display="block" color="teal.700">
-                  もっとラク
+                  LINE
                   <Box as="span" color="gray.950">
-                    に
+                    で届けてそのまま提出
+                    <br />
+                    かんたんシフト管理
                   </Box>
                 </Box>
               </Heading>
 
               <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
-                紙やLINEで集めて、Excelに転記。そんなシフト作成をもっとラクに。
+                スタッフはいつものスマホからシフト希望を提出
                 <Box as="span" display="block">
-                  シフトリはかんたんなシフト作成ツールです。
+                  未提出確認・確定通知をまるごとおまかせ
                 </Box>
               </Text>
             </VStack>
@@ -89,7 +84,7 @@ export const HeroSection = () => (
             <HeroButton icon={LuMousePointerClick} label="デモを試す！" tone="secondary" href="/demo/flow" external />
           </SimpleGrid>
 
-          <SimpleGrid display="grid" columns={{ base: 2, md: 3 }} gap={{ base: 3, md: 5 }} w="full" maxW="760px">
+          <SimpleGrid display="grid" columns={2} gap={{ base: 3, md: 5 }} w="full" maxW={{ base: "full", md: "520px" }}>
             {heroBenefits.map((benefit) => (
               <HeroBenefit key={benefit.title} {...benefit} />
             ))}
@@ -167,16 +162,13 @@ const HeroBenefit = ({
   imageSrc,
   title,
   body,
-  hideOnMobile,
 }: {
   icon?: IconType;
   imageSrc?: string;
   title: string;
   body: string;
-  hideOnMobile?: boolean;
 }) => (
   <Flex
-    display={{ base: hideOnMobile ? "none" : "flex", md: "flex" }}
     align="center"
     gap={{ base: 3, md: 4 }}
     bg={{ base: "white", md: "transparent" }}
