@@ -28,7 +28,8 @@ type StepperDialogStepsProps<TStep extends string> = {
 
 type StepperDialogContentProps<TStep extends string> = StepperDialogStepsProps<TStep> & {
   children: ReactNode;
-  actions: ReactNode;
+  actions?: ReactNode;
+  showSteps?: boolean;
 };
 
 type StepperDialogStepTitleProps = {
@@ -177,6 +178,7 @@ export const StepperDialogContent = <TStep extends string>({
   currentStep,
   children,
   actions,
+  showSteps = true,
 }: StepperDialogContentProps<TStep>) => {
   const currentStepDetail = steps.find((step) => step.value === currentStep);
   const shouldShowStepTitle = Boolean(
@@ -185,9 +187,11 @@ export const StepperDialogContent = <TStep extends string>({
 
   return (
     <Flex flex={1} minH={0} direction="column">
-      <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
-        <StepperDialogSteps steps={steps} currentStep={currentStep} />
-      </Box>
+      {showSteps && (
+        <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
+          <StepperDialogSteps steps={steps} currentStep={currentStep} />
+        </Box>
+      )}
 
       <Box flex={1} minH={0} overflowY="auto" px={{ base: 4, md: 8 }} pb={{ base: 4, md: 6 }}>
         <Flex direction="column" gap={5}>
@@ -202,7 +206,7 @@ export const StepperDialogContent = <TStep extends string>({
         </Flex>
       </Box>
 
-      <StepperDialogActionBar key={currentStep}>{actions}</StepperDialogActionBar>
+      {actions && <StepperDialogActionBar key={currentStep}>{actions}</StepperDialogActionBar>}
     </Flex>
   );
 };

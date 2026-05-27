@@ -1,5 +1,7 @@
 import { Box, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { findByText, getAllByText, getByRole, getByText, queryByRole, queryByText } from "@testing-library/dom";
+import { expect } from "storybook/test";
 import { type DemoStep, ShiftoriDemoFlow } from "./index";
 
 const meta = {
@@ -16,6 +18,42 @@ type Story = StoryObj<typeof meta>;
 export const Flow: Story = {
   args: {
     initialStep: "recruit",
+  },
+};
+
+export const RecruitStepSimplifiedBehavior: Story = {
+  args: {
+    initialStep: "recruit",
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    expect(getByText(canvasElement, "シフト期間を選択")).toBeTruthy();
+    expect(queryByRole(canvasElement, "button", { name: "キャンセル" })).toBeNull();
+    expect(queryByRole(canvasElement, "button", { name: "次へ" })).toBeNull();
+    expect(queryByText(canvasElement, "お休み")).toBeNull();
+    expect(queryByText(canvasElement, "提出期限")).toBeNull();
+    expect(queryByText(canvasElement, "確認")).toBeNull();
+    expect(canvasElement.textContent).not.toContain("締切");
+
+    getByRole(canvasElement, "button", { name: "募集をつくる" }).click();
+    await findByText(canvasElement, "シフトを提出してみよう");
+  },
+};
+
+export const SubmitStepDefaultRestBehavior: Story = {
+  args: {
+    initialStep: "submit",
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    expect(getAllByText(canvasElement, "休み")).toHaveLength(7);
+    expect(queryByText(canvasElement, "10:00")).toBeNull();
+    expect(queryByText(canvasElement, "11:00")).toBeNull();
+    expect(queryByText(canvasElement, "15:00")).toBeNull();
   },
 };
 
