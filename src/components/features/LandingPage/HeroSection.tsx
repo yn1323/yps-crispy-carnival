@@ -71,7 +71,7 @@ export const HeroSection = () => (
               <Text maxW="560px" color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
                 スタッフはいつものスマホからシフト希望を提出
                 <Box as="span" display="block">
-                  未提出確認・確定通知をまるごとおまかせ
+                  未提出確認・確定通知もまるごとおまかせ
                 </Box>
               </Text>
             </VStack>
