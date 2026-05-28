@@ -2,12 +2,12 @@ import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { LuInfo } from "react-icons/lu";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
-import { getDateRange } from "@/src/domains/shift/date";
+import { formatDatePeriodWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { DayCard, type DayEntry } from "../DayCard";
 import { DateOnlySubmissionDayCard, ShiftTypeSubmissionDayCard, type SubmissionData } from "../SubmitFormView";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import { buildRestEntry } from "../utils/dayEntryState";
-import { buildEntries, formatPeriodLabel } from "../utils/timeOptions";
+import { buildEntries } from "../utils/timeOptions";
 
 type Props = {
   data: SubmissionData;
@@ -83,7 +83,7 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
       <Box bg="white" w="full" borderBottomWidth={1} borderColor="border.default">
         <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center">
           <Text fontSize="sm" fontWeight="semibold">
-            {formatPeriodLabel(data.periodStart, data.periodEnd)}
+            {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
           </Text>
         </Flex>
       </Box>

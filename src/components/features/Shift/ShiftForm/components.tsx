@@ -1,6 +1,5 @@
 import { Box, Flex } from "@chakra-ui/react";
-import { useState } from "react";
-import { LuChevronDown, LuDownload, LuFileSpreadsheet, LuFileText, LuPrinter, LuSave } from "react-icons/lu";
+import { LuSave } from "react-icons/lu";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
 
 export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (
@@ -225,110 +224,5 @@ export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }:
     >
       {label}
     </button>
-  );
-};
-
-export const ExportButton = ({ compact = false }: { compact?: boolean }) => {
-  const [open, setOpen] = useState(false);
-  const items = [
-    { k: "print", label: "印刷", sub: "バックヤードに貼り出し", icon: <LuPrinter size={16} color="#0f766e" /> },
-    { k: "csv", label: "CSVで書き出し", sub: "給与計算ソフト向け", icon: <LuFileText size={16} color="#0f766e" /> },
-    {
-      k: "excel",
-      label: "Excelで書き出し",
-      sub: ".xlsx ファイル",
-      icon: <LuFileSpreadsheet size={16} color="#0f766e" />,
-    },
-  ];
-  const handleSelect = () => {
-    setOpen(false);
-    alert("Coming Soon");
-  };
-  return (
-    <Box position="relative" display="inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          height: compact ? 28 : 32,
-          padding: compact ? "0 10px" : "0 12px 0 14px",
-          background: "#0d9488",
-          color: "white",
-          border: "none",
-          borderRadius: 6,
-          cursor: "pointer",
-          fontSize: compact ? "var(--chakra-font-sizes-xs)" : "var(--chakra-font-sizes-sm)",
-          fontWeight: 600,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontFamily: "inherit",
-          boxShadow: "0 1px 2px rgba(13,148,136,0.25)",
-        }}
-      >
-        <LuDownload size={compact ? 12 : 14} />
-        {!compact && <span>エクスポート</span>}
-        <LuChevronDown size={compact ? 10 : 12} style={{ marginLeft: 2, opacity: 0.9 }} />
-      </button>
-      {open && (
-        <>
-          <Box onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-          <Box
-            style={{
-              position: "absolute",
-              top: "calc(100% + 6px)",
-              right: 0,
-              zIndex: 11,
-              background: "white",
-              border: "1px solid #e4e4e7",
-              borderRadius: 10,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)",
-              minWidth: 240,
-              padding: 6,
-              fontFamily: "inherit",
-            }}
-          >
-            {items.map((it) => (
-              <Box
-                key={it.k}
-                onClick={handleSelect}
-                _hover={{ bg: "gray.50" }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "9px 10px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                }}
-              >
-                <Box
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 6,
-                    background: "#f0fdfa",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {it.icon}
-                </Box>
-                <Box minW={0} flex={1}>
-                  <Box textStyle="sm" fontWeight={600} color="gray.800">
-                    {it.label}
-                  </Box>
-                  <Box textStyle="caption" color="gray.500" mt="1px">
-                    {it.sub}
-                  </Box>
-                </Box>
-              </Box>
-            ))}
-          </Box>
-        </>
-      )}
-    </Box>
   );
 };

@@ -26,9 +26,9 @@ import {
 import {
   type EditShopFormData,
   editShopSchema,
+  generateShiftTimeOptions,
   MAX_SHIFT_TIME_MINUTES,
   MAX_SHIFT_TYPE_OPTIONS,
-  minutesToTime,
   type RegularClosedDay,
   type ShiftSubmissionPattern,
   type ShiftTypeOption,
@@ -57,26 +57,8 @@ const WEEKDAYS: { value: RegularClosedDay; label: string; ariaLabel: string }[] 
 const sortRegularClosedDays = (days: RegularClosedDay[]) =>
   WEEKDAYS.filter((day) => days.includes(day.value)).map((day) => day.value);
 
-function generateTimeOptions(maxMinutes: number): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [];
-  for (let m = 0; m <= maxMinutes; m += 30) {
-    const value = minutesToTime(m);
-    if (m >= 24 * 60) {
-      const displayH = Math.floor(m / 60) - 24;
-      const displayM = m % 60;
-      options.push({
-        value,
-        label: `翌 ${displayH.toString().padStart(2, "0")}:${displayM.toString().padStart(2, "0")}`,
-      });
-    } else {
-      options.push({ value, label: value });
-    }
-  }
-  return options;
-}
-
-const ALL_START_OPTIONS = generateTimeOptions(MAX_SHIFT_TIME_MINUTES - 30);
-const ALL_END_OPTIONS = generateTimeOptions(MAX_SHIFT_TIME_MINUTES);
+const ALL_START_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES - 30 });
+const ALL_END_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES });
 
 const SUBMISSION_PATTERN_OPTIONS: Array<{
   kind: ShiftSubmissionPattern["kind"];

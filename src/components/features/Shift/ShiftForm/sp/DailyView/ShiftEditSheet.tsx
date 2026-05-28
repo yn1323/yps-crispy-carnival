@@ -9,7 +9,7 @@ import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { normalizePositions, paintPosition } from "@/src/domains/shift/operations";
-import { minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
+import { generateShiftTimeOptions, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
 import { getEditableEndMinutes, getEditableStartMinutes } from "../../utils/timelineGeometry";
@@ -28,12 +28,11 @@ type ShiftEditSheetProps = {
 };
 
 export const generateTimeOptions = (timeRange: TimeRange) => {
-  const options: SelectItemType[] = [];
-  for (let m = getEditableStartMinutes(timeRange); m <= getEditableEndMinutes(timeRange); m += timeRange.unit) {
-    const label = minutesToTime(m);
-    options.push({ value: label, label });
-  }
-  return options;
+  return generateShiftTimeOptions({
+    startMinutes: getEditableStartMinutes(timeRange),
+    endMinutes: getEditableEndMinutes(timeRange),
+    stepMinutes: timeRange.unit,
+  }) satisfies SelectItemType[];
 };
 
 const getStartOptions = (allOptions: SelectItemType[], endTime: string) =>

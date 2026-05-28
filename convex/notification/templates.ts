@@ -1,3 +1,5 @@
+import { formatDateTimeJa } from "../_lib/dateFormat";
+import { formatShiftClockTimeRange } from "../_lib/time";
 import type { LegalDocumentInfo } from "../legal/documents";
 
 type ShiftEntry = {
@@ -9,7 +11,7 @@ type ShiftEntry = {
 
 function shiftTimeLabel(shift: ShiftEntry): string | null {
   if (shift.timeLabel !== undefined) return shift.timeLabel;
-  return shift.startTime && shift.endTime ? `${shift.startTime}-${shift.endTime}` : null;
+  return shift.startTime && shift.endTime ? formatShiftClockTimeRange(shift.startTime, shift.endTime, "-") : null;
 }
 
 /**
@@ -386,16 +388,6 @@ type StaffLegalConsentEmailParams = {
     privacy: LegalDocumentInfo;
   };
 };
-
-function formatDateTimeJa(timestamp: number): string {
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
-}
 
 export function buildStaffLegalConsentEmailHtml(params: StaffLegalConsentEmailParams): string {
   const expiresAtLabel = formatDateTimeJa(params.expiresAt);

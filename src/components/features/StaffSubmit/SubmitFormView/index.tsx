@@ -7,7 +7,8 @@ import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/sche
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
-import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
+import { formatDatePeriodWithWeekday, formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
+import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import { buildRestEntry, buildWorkingEntry, type WorkingTime } from "../utils/dayEntryState";
@@ -18,7 +19,7 @@ import {
   type PreviousDateOnlyPattern,
   type PreviousWeeklyPattern,
 } from "../utils/previousWeeklyPattern";
-import { buildEntries, formatPeriodLabel, formatTime, generateTimeOptions, getDateColor } from "../utils/timeOptions";
+import { buildEntries, generateTimeOptions, getDateColor } from "../utils/timeOptions";
 import { buildSubmissionInput, type SubmitShiftSelectionInput } from "./buildSubmissionInput";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -305,7 +306,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
         <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center">
           <Box>
             <Text fontSize="sm" fontWeight="semibold">
-              {formatPeriodLabel(data.periodStart, data.periodEnd)}
+              {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
             </Text>
             <Text fontSize="xs" color="fg.muted">
               提出締切: {formatDateWithWeekday(data.deadline)}
@@ -608,7 +609,7 @@ export const ShiftTypeSubmissionDayCard = ({
                   {option.name}
                 </Text>
                 <Text fontSize="2xs" lineHeight={1.1} color={isSelected ? "whiteAlpha.900" : "fg.muted"}>
-                  {formatTime(option.startTime)}〜{formatTime(option.endTime)}
+                  {formatShiftClockTimeRange(option.startTime, option.endTime)}
                 </Text>
               </Stack>
             </Button>

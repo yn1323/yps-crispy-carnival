@@ -12,7 +12,7 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
-import { ConfirmButton, ExportButton, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
+import { ConfirmButton, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { DateOnlyView } from "./pc/DateOnlyView";
@@ -254,7 +254,6 @@ const Shell = ({
         <Flex ml="auto" gap={2} align="center" py={2} flexShrink={0}>
           <SaveButton compact={compact} onClick={onSaveDraft} />
           <ConfirmButton compact={compact} isConfirmed={isConfirmed} onClick={onConfirm} />
-          <ExportButton compact={compact} />
         </Flex>
       )}
     </Flex>

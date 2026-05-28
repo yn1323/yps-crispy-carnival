@@ -4,7 +4,10 @@ import React from "react";
 import { z } from "zod";
 import { ChakraProvider } from "../src/components/config/ChakraProvider";
 import { customErrorMap } from "../src/configs/zod/zop-setup";
+import { applyFixedStorybookDate } from "./fixedDate";
 import { withDummyRouter } from "./withDummyRouter";
+
+applyFixedStorybookDate();
 
 const preview: Preview = {
   parameters: {

@@ -1,5 +1,55 @@
 import { describe, expect, test } from "vitest";
-import { buildWeeklyGrid, getWeekStartDate } from "./date";
+import {
+  addDays,
+  buildWeeklyGrid,
+  deriveDatesFromWeekdays,
+  formatCompactDateListWithWeekday,
+  formatDatePeriodWithWeekday,
+  getInclusiveDateCount,
+  getWeekStartDate,
+  isDateInRange,
+  pruneDatesInRange,
+} from "./date";
+
+describe("date helpers", () => {
+  test("日付を加算できる", () => {
+    expect(addDays("2026-06-01", 3)).toBe("2026-06-04");
+  });
+
+  test("開始日と終了日を含む日数を数える", () => {
+    expect(getInclusiveDateCount("2026-06-01", "2026-06-03")).toBe(3);
+    expect(getInclusiveDateCount("", "2026-06-03")).toBe(0);
+    expect(getInclusiveDateCount("2026-06-03", "2026-06-01")).toBe(0);
+  });
+
+  test("日付が範囲内か判定できる", () => {
+    expect(isDateInRange("2026-06-02", "2026-06-01", "2026-06-03")).toBe(true);
+    expect(isDateInRange("2026-06-04", "2026-06-01", "2026-06-03")).toBe(false);
+  });
+
+  test("期間外の日付を除外してソートできる", () => {
+    expect(pruneDatesInRange(["2026-06-04", "2026-06-02", "2026-06-01"], "2026-06-01", "2026-06-03")).toEqual([
+      "2026-06-01",
+      "2026-06-02",
+    ]);
+  });
+
+  test("曜日指定から期間内の日付を展開できる", () => {
+    expect(deriveDatesFromWeekdays("2026-06-01", "2026-06-14", ["mon", "wed"])).toEqual([
+      "2026-06-01",
+      "2026-06-03",
+      "2026-06-08",
+      "2026-06-10",
+    ]);
+  });
+
+  test("曜日付き期間とコンパクトな日付リストを表示できる", () => {
+    expect(formatDatePeriodWithWeekday("2026-06-01", "2026-06-03")).toBe("6/1(月) 〜 6/3(水)");
+    expect(formatCompactDateListWithWeekday(["2026-06-01", "2026-06-03", "2026-07-01"])).toBe(
+      "6/1(月), 3(水), 7/1(水)",
+    );
+  });
+});
 
 describe("getWeekStartDate", () => {
   test("月曜起算（デフォルト）で水曜日の週開始日は直前の月曜日", () => {

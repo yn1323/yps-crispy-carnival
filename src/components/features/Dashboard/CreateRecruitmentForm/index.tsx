@@ -7,7 +7,7 @@ import { LuCalendarCheck, LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
-import { formatDateWithWeekday, getWeekdayLabel } from "@/src/domains/shift/date";
+import { formatCompactDateListWithWeekday, formatDateWithWeekday } from "@/src/domains/shift/date";
 import { CalendarPicker } from "./CalendarPicker";
 import {
   type CreateRecruitmentData,
@@ -84,23 +84,13 @@ const toMonthStartDateValue = (date?: string): DateValue | undefined => {
   return parseDate(dayjs(date).startOf("month").format("YYYY-MM-DD"));
 };
 
-const formatCompactDateList = (dates: string[]): string =>
-  dates
-    .map((date, index) => {
-      const previous = dates[index - 1];
-      const shouldShowMonth = !previous || !dayjs(date).isSame(previous, "month");
-      const format = shouldShowMonth ? "M/D" : "D";
-      return `${dayjs(date).format(format)}(${getWeekdayLabel(date)})`;
-    })
-    .join(", ");
-
 const getHolidaySummary = (holidays: string[]): { value: string; detail?: string } => {
   const sortedHolidays = [...holidays].sort();
   if (sortedHolidays.length === 0) {
     return { value: "なし" };
   }
 
-  const visibleHolidays = formatCompactDateList(sortedHolidays.slice(0, 3));
+  const visibleHolidays = formatCompactDateListWithWeekday(sortedHolidays.slice(0, 3));
   const hiddenCount = sortedHolidays.length - 3;
   return {
     value: `${sortedHolidays.length}日`,

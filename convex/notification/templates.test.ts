@@ -6,7 +6,8 @@ describe("notification/templates", () => {
     const shifts = [
       { date: "1/20(火)", timeLabel: "出勤" },
       { date: "1/21(水)", timeLabel: "遅番（15:00-22:00）" },
-      { date: "1/22(木)", timeLabel: null },
+      { date: "1/22(木)", startTime: "21:00", endTime: "25:00" },
+      { date: "1/23(金)", timeLabel: null },
     ];
 
     const lineText = buildShiftConfirmationLineText({
@@ -28,9 +29,11 @@ describe("notification/templates", () => {
 
     expect(lineText).toContain("1/20(火) 出勤");
     expect(lineText).toContain("1/21(水) 遅番（15:00-22:00）");
-    expect(lineText).toContain("1/22(木) 休み");
+    expect(lineText).toContain("1/22(木) 21:00-翌1:00");
+    expect(lineText).toContain("1/23(金) 休み");
     expect(emailHtml).toContain("出勤");
     expect(emailHtml).toContain("遅番（15:00-22:00）");
+    expect(emailHtml).toContain("21:00-翌1:00");
     expect(emailHtml).toContain("休み");
   });
 });
