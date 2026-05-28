@@ -16,3 +16,16 @@ export const minutesToHoursLabel = (totalMinutes: number): string => {
   const hours = Math.floor(totalMinutes / 60);
   return `${hours}h`;
 };
+
+export const formatShiftClockTime = (time: string): string => {
+  const [hourText, minuteText = "00"] = time.split(":");
+  const hour = Number(hourText);
+  if (!Number.isFinite(hour)) return time;
+
+  const minute = minuteText.padStart(2, "0");
+  if (hour >= 24) return `翌${hour - 24}:${minute}`;
+  return `${hourText.padStart(2, "0")}:${minute}`;
+};
+
+export const formatShiftClockTimeRange = (startTime: string, endTime: string): string =>
+  `${formatShiftClockTime(startTime)}〜${formatShiftClockTime(endTime)}`;

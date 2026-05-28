@@ -8,6 +8,7 @@ import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
+import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import { DayCard, type DayEntry } from "../DayCard";
 import { SubmitPageContent, SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 import { buildRestEntry, buildWorkingEntry, type WorkingTime } from "../utils/dayEntryState";
@@ -18,7 +19,7 @@ import {
   type PreviousDateOnlyPattern,
   type PreviousWeeklyPattern,
 } from "../utils/previousWeeklyPattern";
-import { buildEntries, formatPeriodLabel, formatTime, generateTimeOptions, getDateColor } from "../utils/timeOptions";
+import { buildEntries, formatPeriodLabel, generateTimeOptions, getDateColor } from "../utils/timeOptions";
 import { buildSubmissionInput, type SubmitShiftSelectionInput } from "./buildSubmissionInput";
 import { type SubmitFormData, submitFormSchema } from "./schema";
 
@@ -608,7 +609,7 @@ export const ShiftTypeSubmissionDayCard = ({
                   {option.name}
                 </Text>
                 <Text fontSize="2xs" lineHeight={1.1} color={isSelected ? "whiteAlpha.900" : "fg.muted"}>
-                  {formatTime(option.startTime)}〜{formatTime(option.endTime)}
+                  {formatShiftClockTimeRange(option.startTime, option.endTime)}
                 </Text>
               </Stack>
             </Button>
