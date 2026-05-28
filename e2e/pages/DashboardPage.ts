@@ -40,25 +40,32 @@ export class DashboardPage {
     managerEmail: string;
   }) {
     await this.page.getByRole("button", { name: /お店を登録する/ }).click({ noWaitAfter: true });
-    await expect(this.page.getByRole("dialog", { name: /店舗情報を登録|お店の情報を登録/ })).toBeVisible();
-    await this.page.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
-    if (data.shiftStartTime !== undefined || data.shiftEndTime !== undefined) {
-      await this.page.getByRole("button", { name: /時間指定/ }).click();
+    const dialog = this.page.getByRole("dialog", { name: "初回登録" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel(/店舗名|お店の名前/).fill(data.shopName);
+
+    const setupTimePattern = data.shiftStartTime !== undefined || data.shiftEndTime !== undefined;
+    if (setupTimePattern) {
+      await dialog.getByRole("button", { name: /時間指定/ }).click();
+    }
+
+    await dialog.getByRole("button", { name: "次へ" }).click();
+
+    if (setupTimePattern) {
       if (data.shiftStartTime !== undefined) {
         await this.selectTime("シフト開始時間", data.shiftStartTime);
       }
       if (data.shiftEndTime !== undefined) {
         await this.selectTime("シフト終了時間", data.shiftEndTime);
       }
+      await dialog.getByRole("button", { name: "次へ" }).click();
     }
-    await this.page.getByRole("button", { name: "次へ" }).click();
 
-    const managerDialog = this.page.getByRole("dialog", { name: "あなたの名前を登録" });
-    await expect(managerDialog).toBeVisible();
-    await managerDialog.getByLabel("あなたの名前").fill(data.managerName);
-    await managerDialog.getByLabel("メールアドレス").fill(data.managerEmail);
-    await managerDialog.locator("[data-scope='checkbox'][data-part='control']").click();
-    await managerDialog.getByRole("button", { name: "お店を登録する" }).click();
+    await expect(dialog.getByLabel("あなたの名前")).toBeVisible();
+    await dialog.getByLabel("あなたの名前").fill(data.managerName);
+    await dialog.getByLabel("メールアドレス").fill(data.managerEmail);
+    await dialog.locator("[data-scope='checkbox'][data-part='control']").click();
+    await dialog.getByRole("button", { name: "お店を登録する" }).click();
   }
 
   async expectSetupComplete() {
@@ -81,10 +88,10 @@ export class DashboardPage {
   }
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
-    await this.page.getByRole("button", { name: "スタッフを追加" }).click({ noWaitAfter: true });
-    const dialog = this.page.getByRole("dialog", { name: "スタッフを追加" });
+    await this.page.getByRole("button", { name: "スタッフを招待" }).click({ noWaitAfter: true });
+    const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "自分で入力する" }).click();
+    await dialog.getByRole("button", { name: "スタッフ情報を手入力する" }).click();
 
     const form = this.page.locator("[id='add-staff-form']");
     const nameInputs = form.getByPlaceholder("例：田中 花子");

@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import { addDays, getMondayWeekStart, getWeekday } from "./dateFormat";
 import { timeToMinutes } from "./time";
 
 export type PreviousWeeklyPattern = {
@@ -15,35 +16,6 @@ export type PreviousDateOnlyPattern = {
   sourceWeekStart: string;
   weekdays: number[];
 };
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function dateToUtcMs(date: string): number {
-  const [year, month, day] = date.split("-").map(Number);
-  return Date.UTC(year, month - 1, day);
-}
-
-function formatUtcDate(ms: number): string {
-  const date = new Date(ms);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addDays(date: string, days: number): string {
-  return formatUtcDate(dateToUtcMs(date) + days * MS_PER_DAY);
-}
-
-function getWeekday(date: string): number {
-  return new Date(dateToUtcMs(date)).getUTCDay();
-}
-
-function getMondayWeekStart(date: string): string {
-  const weekday = getWeekday(date);
-  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
-  return addDays(date, mondayOffset);
-}
 
 function clampSlotToTimeRange(
   slot: { startTime: string; endTime: string },

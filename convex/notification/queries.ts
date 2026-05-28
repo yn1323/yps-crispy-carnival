@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatDateLabel, formatPeriodLabel, generateDateRange, todayJST } from "../_lib/dateFormat";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { getSubmissionPattern } from "../_lib/submissionPattern";
+import { buildShiftTimeLabel } from "../_lib/time";
 import { OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
@@ -10,33 +11,6 @@ type AssignmentTime = {
   endTime: string;
   optionId?: string;
 };
-
-function buildShiftTimeLabel(assignments: AssignmentTime[], pattern: ShiftSubmissionPattern) {
-  if (assignments.length === 0) return null;
-  const sortedAssignments = assignments.slice().sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-  if (pattern.kind === "dateOnly") {
-    return "出勤";
-  }
-
-  if (pattern.kind === "shiftType") {
-    const optionById = new Map(pattern.options.map((option) => [option.id, option]));
-    return sortedAssignments
-      .map((assignment) => {
-        const option = assignment.optionId
-          ? optionById.get(assignment.optionId)
-          : pattern.options.find(
-              (item) => item.startTime === assignment.startTime && item.endTime === assignment.endTime,
-            );
-        return option
-          ? `${option.name}（${option.startTime}-${option.endTime}）`
-          : `${assignment.startTime}-${assignment.endTime}`;
-      })
-      .join(" / ");
-  }
-
-  return sortedAssignments.map((assignment) => `${assignment.startTime}-${assignment.endTime}`).join(" / ");
-}
 
 /**
  * シフト確定メール送信に必要なデータを一括取得

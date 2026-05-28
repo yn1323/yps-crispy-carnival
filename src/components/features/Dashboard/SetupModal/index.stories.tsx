@@ -44,29 +44,74 @@ const setInputValue = (input: HTMLInputElement, value: string) => {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 };
 
-const clickButton = async (text: string) => {
+const clickButton = async (text: string, match: "exact" | "includes" = "exact") => {
   const button = await waitForElement(
     () =>
-      Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
-        (candidate) => candidate.textContent?.trim() === text,
+      Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find((candidate) =>
+        match === "exact" ? candidate.textContent?.trim() === text : candidate.textContent?.includes(text),
       ) ?? null,
     `${text} ボタンが見つかりませんでした`,
   );
   button.click();
 };
 
-export const Step2: Story = {
+const inputShopName = async () => {
+  const shopNameInput = await waitForElement(
+    () => document.querySelector<HTMLInputElement>('input[name="shopName"]'),
+    "店舗名の入力欄が見つかりませんでした",
+  );
+  setInputValue(shopNameInput, "居酒屋たなか");
+};
+
+export const DateOnlySkipsSettings: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
   play: async () => {
-    const shopNameInput = await waitForElement(
-      () => document.querySelector<HTMLInputElement>('input[name="shopName"]'),
-      "店舗名の入力欄が見つかりませんでした",
-    );
-    setInputValue(shopNameInput, "居酒屋たなか");
+    await inputShopName();
 
     await clickButton("次へ");
     await waitForElement(
       () => document.querySelector<HTMLInputElement>('input[name="name"]'),
-      "Step2 の入力欄が表示されませんでした",
+      "あなたの名前ステップの入力欄が表示されませんでした",
+    );
+  },
+};
+
+export const TimeSettingsStep: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async () => {
+    await inputShopName();
+    await clickButton("時間指定", "includes");
+    await clickButton("次へ");
+
+    await waitForElement(
+      () =>
+        Array.from(document.querySelectorAll<HTMLElement>("label")).find(
+          (candidate) => candidate.textContent?.trim() === "シフト開始時間",
+        ) ?? null,
+      "勤務時間ステップが表示されませんでした",
+    );
+  },
+};
+
+export const ShiftTypeSettingsStep: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async () => {
+    await inputShopName();
+    await clickButton("勤務区分", "includes");
+    await clickButton("次へ");
+
+    await waitForElement(
+      () =>
+        Array.from(document.querySelectorAll<HTMLElement>("label")).find(
+          (candidate) => candidate.textContent?.trim() === "区分名",
+        ) ?? null,
+      "勤務区分ステップが表示されませんでした",
     );
   },
 };

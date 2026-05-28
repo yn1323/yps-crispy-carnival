@@ -1,19 +1,13 @@
-import {
-  Box,
-  Dialog as ChakraDialog,
-  Circle,
-  Flex,
-  HStack,
-  Icon,
-  Portal,
-  Text,
-  useBreakpointValue,
-} from "@chakra-ui/react";
-import { useCallback, useState } from "react";
-import { LuArrowRight, LuCheck } from "react-icons/lu";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useCallback, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { LuChevronLeft, LuClock3, LuListChecks, LuStore, LuUserRound } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
+import { normalizeShiftTypeOptions } from "../submissionPatternForm";
 import type { Step1Data } from "./SetupStep1";
-import { SetupStep1 } from "./SetupStep1/index.tsx";
+import { step1Schema } from "./SetupStep1";
+import { DEFAULT_TIME_PATTERN, SetupPatternSettingsStep, SetupShopInfoStep } from "./SetupStep1/index.tsx";
 import type { Step2Data } from "./SetupStep2";
 import { SetupStep2 } from "./SetupStep2/index.tsx";
 
@@ -26,126 +20,170 @@ type Props = {
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
 };
 
+type Step = "shopInfo" | "patternSettings" | "manager";
+
 const INITIAL_STEP1: Step1Data = { shopName: "", submissionPattern: { kind: "dateOnly" } };
 
-const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
-  <HStack width="full" gap={0} py={3}>
-    <HStack gap={2} flexShrink={0}>
-      <Circle size={7} bg="teal.solid" color="white" fontSize="xs" fontWeight="semibold">
-        {currentStep > 1 ? <Icon as={LuCheck} boxSize={4} /> : "1"}
-      </Circle>
-      <Text fontSize="sm" fontWeight="semibold" color="teal.solid">
-        お店の情報
-      </Text>
-    </HStack>
-    <Box flex={1} h="2px" bg={currentStep > 1 ? "teal.solid" : "gray.200"} mx={1} />
-    <HStack gap={2} flexShrink={0}>
-      <Circle
-        size={7}
-        bg={currentStep >= 2 ? "teal.solid" : "gray.200"}
-        color={currentStep >= 2 ? "white" : "fg.subtle"}
-        fontSize="xs"
-        fontWeight="semibold"
-      >
-        2
-      </Circle>
-      <Text
-        fontSize="sm"
-        fontWeight={currentStep >= 2 ? "semibold" : "normal"}
-        color={currentStep >= 2 ? "teal.solid" : "fg.subtle"}
-      >
-        あなたの名前
-      </Text>
-    </HStack>
-  </HStack>
-);
+const baseSteps: StepperDialogStep<Step>[] = [
+  {
+    value: "shopInfo",
+    label: "お店",
+    icon: LuStore,
+    title: "お店の情報",
+    description: "お店の名前と、スタッフから希望シフトを集める方法を選びます。",
+  },
+  {
+    value: "patternSettings",
+    label: "勤務時間",
+    icon: LuClock3,
+  },
+  {
+    value: "manager",
+    label: "あなた",
+    icon: LuUserRound,
+    title: "あなたの名前",
+    description: "管理者として表示する名前と連絡先を登録します。",
+  },
+];
+
+const getPatternSettingsStep = (kind: Step1Data["submissionPattern"]["kind"]): StepperDialogStep<Step> => ({
+  value: "patternSettings",
+  label: kind === "shiftType" ? "勤務区分" : "勤務時間",
+  icon: kind === "shiftType" ? LuListChecks : LuClock3,
+  title: kind === "shiftType" ? "勤務区分" : "勤務時間",
+  description:
+    kind === "shiftType"
+      ? "スタッフが選べる早番・遅番などの区分を設定します。"
+      : "スタッフが選択できる開始時間と終了時間の範囲を設定します。",
+});
+
+const normalizeSetupData = (data: Step1Data): Step1Data => ({
+  ...data,
+  submissionPattern:
+    data.submissionPattern.kind === "shiftType"
+      ? { kind: "shiftType", options: normalizeShiftTypeOptions(data.submissionPattern.options) }
+      : data.submissionPattern,
+});
 
 export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDefaults }: Props) => {
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
-  const [step1Data, setStep1Data] = useState<Step1Data>(INITIAL_STEP1);
-  const isMobile = useBreakpointValue({ base: true, lg: false });
+  const [currentStep, setCurrentStep] = useState<Step>("shopInfo");
+  const {
+    getValues,
+    setValue,
+    trigger,
+    watch,
+    formState: { errors },
+  } = useForm<Step1Data>({
+    resolver: zodResolver(step1Schema),
+    defaultValues: INITIAL_STEP1,
+  });
 
-  const handleStep1Next = useCallback((data: Step1Data) => {
-    setStep1Data(data);
-    setCurrentStep(2);
-  }, []);
+  const shopName = watch("shopName");
+  const submissionPattern = watch("submissionPattern");
+  const steps = useMemo(() => {
+    if (submissionPattern.kind === "dateOnly") {
+      return baseSteps.filter((step) => step.value !== "patternSettings");
+    }
+    return baseSteps.map((step) =>
+      step.value === "patternSettings" ? getPatternSettingsStep(submissionPattern.kind) : step,
+    );
+  }, [submissionPattern.kind]);
+
+  const close = useCallback(() => {
+    onOpenChange({ open: false });
+  }, [onOpenChange]);
+
+  const handleShopInfoNext = useCallback(async () => {
+    const isValid = await trigger("shopName", { shouldFocus: true });
+    if (!isValid) return;
+    setCurrentStep(submissionPattern.kind === "dateOnly" ? "manager" : "patternSettings");
+  }, [submissionPattern.kind, trigger]);
+
+  const handlePatternSettingsNext = useCallback(async () => {
+    const isValid = await trigger("submissionPattern", { shouldFocus: true });
+    if (!isValid) return;
+    setCurrentStep("manager");
+  }, [trigger]);
+
+  const handleBack = useCallback(() => {
+    setCurrentStep((step) => {
+      if (step === "manager")
+        return getValues("submissionPattern").kind === "dateOnly" ? "shopInfo" : "patternSettings";
+      return "shopInfo";
+    });
+  }, [getValues]);
 
   const handleStep2Submit = useCallback(
     (data: Step2Data) => {
-      onComplete({ ...step1Data, ...data });
+      onComplete({ ...normalizeSetupData(getValues()), ...data });
     },
-    [onComplete, step1Data],
+    [getValues, onComplete],
   );
 
-  const handleBack = useCallback(() => {
-    setCurrentStep(1);
-  }, []);
-
-  const handleOpenChange = useCallback(
-    (details: { open: boolean }) => {
-      // 強制モーダル: 閉じれない
-      if (!details.open) return;
-      onOpenChange(details);
-    },
-    [onOpenChange],
-  );
-
-  const title = currentStep === 1 ? "お店の情報を登録" : "あなたの名前を登録";
-  const placement = isMobile ? "bottom" : "center";
+  const actions =
+    currentStep === "shopInfo" ? (
+      <>
+        <Button type="button" variant="outline" onClick={close} flex={{ base: 1, md: "unset" }}>
+          閉じる
+        </Button>
+        <Button type="button" colorPalette="teal" onClick={handleShopInfoNext} flex={{ base: 1, md: "unset" }}>
+          次へ
+        </Button>
+      </>
+    ) : currentStep === "patternSettings" ? (
+      <>
+        <Button type="button" variant="outline" onClick={handleBack} flex={{ base: 1, md: "unset" }}>
+          <LuChevronLeft />
+          戻る
+        </Button>
+        <Button type="button" colorPalette="teal" onClick={handlePatternSettingsNext} flex={{ base: 1, md: "unset" }}>
+          次へ
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button type="button" variant="outline" onClick={handleBack} flex={{ base: 1, md: "unset" }}>
+          <LuChevronLeft />
+          戻る
+        </Button>
+        <Button type="submit" form="setup-step2" colorPalette="teal" flex={{ base: 1, md: "unset" }}>
+          お店を登録する
+        </Button>
+      </>
+    );
 
   return (
-    <ChakraDialog.Root
-      open={isOpen}
-      onOpenChange={handleOpenChange}
-      placement={placement}
-      modal={!isMobile}
-      closeOnInteractOutside={false}
-    >
-      <Portal>
-        <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
-          <ChakraDialog.Content
-            borderTopRadius="xl"
-            borderBottomRadius={isMobile ? 0 : "xl"}
-            maxH={isMobile ? "85vh" : undefined}
-            w={isMobile ? "100%" : undefined}
-            maxW={isMobile ? undefined : "480px"}
-            display="flex"
-            flexDirection="column"
-          >
-            <ChakraDialog.Header flexShrink={0} pb={0} flexDirection="column" alignItems="stretch">
-              <ChakraDialog.Title>{title}</ChakraDialog.Title>
-              <Stepper currentStep={currentStep} />
-            </ChakraDialog.Header>
+    <StepperDialog title="初回登録" isOpen={isOpen} onOpenChange={onOpenChange} onClose={close}>
+      <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
+        {currentStep === "shopInfo" && (
+          <SetupShopInfoStep
+            shopName={shopName}
+            submissionPattern={submissionPattern}
+            shopNameError={errors.shopName?.message}
+            onShopNameChange={(value) => setValue("shopName", value, { shouldDirty: true, shouldValidate: true })}
+            onSubmissionPatternChange={(next) =>
+              setValue("submissionPattern", next.kind === "time" ? { ...DEFAULT_TIME_PATTERN, ...next } : next, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          />
+        )}
 
-            <ChakraDialog.Body>
-              {currentStep === 1 ? (
-                <SetupStep1 defaultValues={step1Data} onNext={handleStep1Next} />
-              ) : (
-                <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
-              )}
-            </ChakraDialog.Body>
+        {currentStep === "patternSettings" && (
+          <SetupPatternSettingsStep
+            submissionPattern={submissionPattern}
+            submissionPatternError={errors.submissionPattern}
+            onSubmissionPatternChange={(next) =>
+              setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true })
+            }
+          />
+        )}
 
-            <Flex gap={3} justify="flex-end" px={6} py={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
-              {currentStep === 2 && (
-                <Button variant="outline" onClick={handleBack}>
-                  戻る
-                </Button>
-              )}
-              {currentStep === 1 ? (
-                <Button type="submit" form="setup-step1" colorPalette="teal">
-                  次へ
-                  <Icon as={LuArrowRight} />
-                </Button>
-              ) : (
-                <Button type="submit" form="setup-step2" colorPalette="teal">
-                  お店を登録する
-                </Button>
-              )}
-            </Flex>
-          </ChakraDialog.Content>
-        </ChakraDialog.Positioner>
-      </Portal>
-    </ChakraDialog.Root>
+        {currentStep === "manager" && (
+          <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
+        )}
+      </StepperDialogContent>
+    </StepperDialog>
   );
 };
