@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { LuKeyboard } from "react-icons/lu";
+import { LuUserPlus } from "react-icons/lu";
 import { expect, userEvent, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -26,19 +26,13 @@ const sampleRegistrationUrl = "https://shiftori.example.com/staff/register/shop_
 export const InDialog: Story = {
   render: () => (
     <Dialog
-      title="スタッフを追加"
+      title="スタッフを招待"
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
       submitLabel="スタッフを追加する"
       onClose={() => {}}
       closeLabel="戻る"
-      maxW={{ base: "640px", lg: "calc(100vw - 64px)" }}
-      maxH={{ base: "85dvh", lg: "calc(100dvh - 64px)" }}
-      contentProps={{
-        w: { lg: "calc(100vw - 64px)" },
-        h: { lg: "calc(100dvh - 64px)" },
-      }}
     >
       <AddStaffForm onSubmit={() => {}} />
     </Dialog>
@@ -56,30 +50,25 @@ function StaffAdditionDialogFixture() {
 
   return (
     <Dialog
-      title="スタッフを追加"
+      title="スタッフを招待"
       isOpen={true}
       onOpenChange={() => {}}
       formId={mode === "manual" ? "add-staff-form" : undefined}
       submitLabel={mode === "manual" ? "スタッフを追加する" : undefined}
       onClose={handleBackOrClose}
       closeLabel={mode === "manual" ? "戻る" : "閉じる"}
-      footer={
-        mode === "qr" ? (
-          <Button onClick={() => setMode("manual")} size="sm" colorPalette="teal" gap={1.5}>
-            <LuKeyboard />
-            自分で登録する
-          </Button>
-        ) : undefined
-      }
-      maxW={{ base: "640px", lg: "calc(100vw - 64px)" }}
-      maxH={{ base: "85dvh", lg: "calc(100dvh - 64px)" }}
-      contentProps={{
-        w: { lg: "calc(100vw - 64px)" },
-        h: { lg: "calc(100dvh - 64px)" },
-      }}
+      hideFooter={mode === "qr"}
     >
       {mode === "qr" ? (
-        <StaffRegistrationLinkPanel registrationUrl={sampleRegistrationUrl} />
+        <StaffRegistrationLinkPanel
+          registrationUrl={sampleRegistrationUrl}
+          manualEntryAction={
+            <Button onClick={() => setMode("manual")} size="sm" colorPalette="teal" gap={1.5}>
+              <LuUserPlus />
+              スタッフ情報を手入力する
+            </Button>
+          }
+        />
       ) : (
         <AddStaffForm onSubmit={() => {}} />
       )}
@@ -95,14 +84,14 @@ export const BackToQrFromManual: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
-    await expect(await page.findByText(/QRコードまたは、URLからスタッフ追加が可能です/)).toBeInTheDocument();
+    await expect(await page.findByText(/スタッフにQRコードを読み取ってもらうと/)).toBeInTheDocument();
 
-    await userEvent.click(await page.findByRole("button", { name: "自分で登録する" }));
+    await userEvent.click(await page.findByRole("button", { name: "スタッフ情報を手入力する" }));
     await expect(await page.findByRole("button", { name: "戻る" })).toBeInTheDocument();
     await expect(await page.findByRole("button", { name: "スタッフを追加する" })).toBeInTheDocument();
 
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
-    await expect(await page.findByRole("button", { name: "自分で登録する" })).toBeInTheDocument();
+    await expect(await page.findByRole("button", { name: "スタッフ情報を手入力する" })).toBeInTheDocument();
     expect(page.queryByRole("button", { name: "スタッフを追加する" })).not.toBeInTheDocument();
   },
 };
