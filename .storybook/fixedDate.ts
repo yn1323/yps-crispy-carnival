@@ -28,7 +28,7 @@ export function applyFixedStorybookDate() {
       return new RealDate(args[0] as string | number);
     }
 
-    return new RealDate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    return new RealDate(...args);
   }
 
   Object.setPrototypeOf(StorybookFixedDate, RealDate);
