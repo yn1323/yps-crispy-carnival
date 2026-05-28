@@ -2,6 +2,11 @@ import { Dialog as ChakraDialog, CloseButton, Portal } from "@chakra-ui/react";
 import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
+import {
+  DIALOG_VISUAL_VIEWPORT_HEIGHT,
+  DIALOG_VISUAL_VIEWPORT_OFFSET_TOP,
+  useDialogVisualViewportStyle,
+} from "@/src/hooks/useDialogVisualViewportStyle";
 
 // useDialogフック - Dialog の開閉を制御
 export const useDialog = (defaultOpen = false) => {
@@ -44,6 +49,8 @@ type DialogProps = {
   maxH?: ComponentProps<typeof ChakraDialog.Content>["maxH"];
   formId?: string;
   modal?: boolean;
+  keyboardAwareViewport?: boolean;
+  positionerProps?: ComponentProps<typeof ChakraDialog.Positioner>;
   contentProps?: ComponentProps<typeof ChakraDialog.Content>;
   bodyProps?: ComponentProps<typeof ChakraDialog.Body>;
 };
@@ -67,14 +74,28 @@ export const Dialog = ({
   maxH,
   formId,
   modal = true,
+  keyboardAwareViewport = false,
+  positionerProps,
   contentProps,
   bodyProps,
 }: DialogProps) => {
+  const viewportStyle = useDialogVisualViewportStyle(isOpen && keyboardAwareViewport);
+  const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
+
   return (
     <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center" modal={modal}>
       <Portal>
         <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
+        <ChakraDialog.Positioner
+          h={keyboardAwareViewport ? DIALOG_VISUAL_VIEWPORT_HEIGHT : undefined}
+          maxH={keyboardAwareViewport ? DIALOG_VISUAL_VIEWPORT_HEIGHT : undefined}
+          top={keyboardAwareViewport ? DIALOG_VISUAL_VIEWPORT_OFFSET_TOP : undefined}
+          {...restPositionerProps}
+          style={{
+            ...viewportStyle,
+            ...positionerStyle,
+          }}
+        >
           <ChakraDialog.Content
             maxW={maxW}
             maxH={maxH}

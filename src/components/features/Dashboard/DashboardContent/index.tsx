@@ -1,8 +1,8 @@
-import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useEffect, useState } from "react";
-import { LuKeyboard, LuSparkles } from "react-icons/lu";
+import { LuSparkles, LuUserPlus } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
@@ -242,6 +242,14 @@ export const DashboardContent = ({
     }
   };
 
+  const handleStaffModalBackOrClose = () => {
+    if (staffModalMode === "manual") {
+      setStaffModalMode("qr");
+      return;
+    }
+    staffModal.close();
+  };
+
   const handleApproveStaffRequest = async (request: StaffRegistrationRequest) => {
     try {
       await approveStaffRequest({ requestId: request._id });
@@ -444,26 +452,46 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
-        title="スタッフを追加"
+        title="スタッフを招待"
         isOpen={staffModal.isOpen}
         onOpenChange={staffModal.onOpenChange}
         formId={staffModalMode === "manual" ? "add-staff-form" : undefined}
         submitLabel={staffModalMode === "manual" ? "スタッフを追加する" : undefined}
-        onClose={staffModal.close}
-        closeLabel={staffModalMode === "manual" ? "キャンセル" : "閉じる"}
+        onClose={handleStaffModalBackOrClose}
+        closeLabel={staffModalMode === "manual" ? "戻る" : "閉じる"}
+        hideFooter={staffModalMode === "qr"}
         footer={
-          staffModalMode === "qr" ? (
-            <Button onClick={() => setStaffModalMode("manual")} variant="ghost" size="sm" colorPalette="gray" gap={1.5}>
-              <LuKeyboard />
-              自分で入力する
-            </Button>
+          staffModalMode === "manual" ? (
+            <Flex w="full" align="center" justify="space-between" gap={3}>
+              <Button variant="outline" onClick={handleStaffModalBackOrClose}>
+                戻る
+              </Button>
+              <Button type="submit" form="add-staff-form" colorPalette="teal">
+                スタッフを追加する
+              </Button>
+            </Flex>
           ) : undefined
         }
-        maxW="640px"
-        maxH="85dvh"
+        maxW={{ base: "100vw", lg: "640px" }}
+        maxH={{ base: "100dvh", lg: "85dvh" }}
+        contentProps={{
+          w: "100%",
+          h: { base: "100dvh", lg: "auto" },
+          my: { base: 0, lg: "auto" },
+          borderRadius: { base: 0, lg: "l3" },
+        }}
       >
         {staffModalMode === "qr" ? (
-          <StaffRegistrationLinkPanel registrationUrl={registrationUrl} isLoading={registrationUrlLoading} />
+          <StaffRegistrationLinkPanel
+            registrationUrl={registrationUrl}
+            isLoading={registrationUrlLoading}
+            manualEntryAction={
+              <Button onClick={() => setStaffModalMode("manual")} size="sm" colorPalette="teal" gap={1.5}>
+                <LuUserPlus />
+                スタッフ情報を手入力する
+              </Button>
+            }
+          />
         ) : (
           <AddStaffForm onSubmit={handleAddStaffs} />
         )}

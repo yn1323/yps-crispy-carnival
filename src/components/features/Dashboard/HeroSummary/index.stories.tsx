@@ -90,6 +90,32 @@ export const MetaItemsMobile: Story = {
   ),
 };
 
+export const WelcomeDesktop: Story = {
+  args: {
+    shop: SHOP,
+    recruitments: [],
+    ...NOOP,
+  },
+  render: () => (
+    <Stack maxW="1024px" mx="auto" w="full">
+      <WelcomeHero onSetupClick={() => {}} />
+    </Stack>
+  ),
+};
+
+export const WelcomeMobile: Story = {
+  args: {
+    shop: SHOP,
+    recruitments: [],
+    ...NOOP,
+  },
+  render: () => (
+    <Stack maxW="360px" mx="auto" w="full">
+      <WelcomeHero onSetupClick={() => {}} />
+    </Stack>
+  ),
+};
+
 const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <Stack gap={2}>
     <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">

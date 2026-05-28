@@ -1,6 +1,7 @@
 import { Box, Flex, HStack, Icon, Text } from "@chakra-ui/react";
 import { type ComponentProps, type ElementType, Fragment, type ReactNode } from "react";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { DIALOG_VISUAL_VIEWPORT_HEIGHT } from "@/src/hooks/useDialogVisualViewportStyle";
 
 export type StepperDialogStep<TStep extends string = string> = {
   value: TStep;
@@ -57,8 +58,9 @@ const renderStepDescription = (description: ReactNode) => {
 export const StepperDialog = ({
   children,
   maxW = { base: "100vw", md: "760px" },
-  maxH = { base: "100dvh", md: "90dvh" },
-  minH = { base: "100dvh", md: "min(480px, 90dvh)" },
+  maxH = { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "90dvh" },
+  minH = { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "min(480px, 90dvh)" },
+  keyboardAwareViewport = true,
   contentProps,
   bodyProps,
   ...dialogProps
@@ -66,10 +68,11 @@ export const StepperDialog = ({
   <Dialog
     {...dialogProps}
     hideFooter
+    keyboardAwareViewport={keyboardAwareViewport}
     maxW={maxW}
     maxH={maxH}
     contentProps={{
-      h: { base: "100dvh", md: "auto" },
+      h: { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "auto" },
       minH,
       borderRadius: { base: 0, md: "l3" },
       overflow: "hidden",
@@ -162,7 +165,8 @@ export const StepperDialogActionBar = ({ children }: { children: ReactNode }) =>
     position={{ base: "sticky", md: "static" }}
     bottom={0}
     px={{ base: 4, md: 6 }}
-    py={4}
+    pt={4}
+    pb={{ base: "calc(env(safe-area-inset-bottom) + 1rem)", md: 4 }}
     bg="white"
     borderTopWidth={1}
     borderColor="border.default"

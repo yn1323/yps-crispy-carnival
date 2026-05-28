@@ -3,7 +3,8 @@ import { LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
-import { formatTime, getDateColor } from "../utils/timeOptions";
+import { formatShiftClockTime } from "@/src/domains/shift/time";
+import { getDateColor } from "../utils/timeOptions";
 
 export type DayEntry = {
   date: string;
@@ -62,7 +63,7 @@ export const DayCard = ({
           </Box>
         ) : entry.isWorking ? (
           <Text fontSize="sm" fontWeight="medium" color="teal.600">
-            {formatTime(entry.startTime)} 〜 {formatTime(entry.endTime)}
+            {formatShiftClockTime(entry.startTime)} 〜 {formatShiftClockTime(entry.endTime)}
           </Text>
         ) : (
           <Text fontSize="xs" fontWeight="medium" color="fg.muted">

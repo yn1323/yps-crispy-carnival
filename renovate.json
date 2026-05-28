@@ -10,7 +10,7 @@
   "minimumReleaseAge": "2 days",
   "prCreation": "not-pending",
   "internalChecksFilter": "strict",
-  "schedule": ["* * * * 6"],
+  "schedule": ["* * * * *"],
   "prConcurrentLimit": 10,
   "branchConcurrentLimit": 10,
   "prHourlyLimit": 10,
