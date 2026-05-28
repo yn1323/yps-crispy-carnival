@@ -1,14 +1,4 @@
-import {
-  Box,
-  Dialog as ChakraDialog,
-  Circle,
-  Flex,
-  HStack,
-  Icon,
-  Portal,
-  Text,
-  useBreakpointValue,
-} from "@chakra-ui/react";
+import { Box, Dialog as ChakraDialog, Circle, Flex, HStack, Icon, Portal, Text } from "@chakra-ui/react";
 import { useCallback, useState } from "react";
 import { LuArrowRight, LuCheck } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
@@ -63,7 +53,6 @@ const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
 export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDefaults }: Props) => {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [step1Data, setStep1Data] = useState<Step1Data>(INITIAL_STEP1);
-  const isMobile = useBreakpointValue({ base: true, lg: false });
 
   const handleStep1Next = useCallback((data: Step1Data) => {
     setStep1Data(data);
@@ -91,58 +80,58 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
   );
 
   const title = currentStep === 1 ? "お店の情報を登録" : "あなたの名前を登録";
-  const placement = isMobile ? "bottom" : "center";
 
   return (
-    <ChakraDialog.Root
-      open={isOpen}
-      onOpenChange={handleOpenChange}
-      placement={placement}
-      modal={!isMobile}
-      closeOnInteractOutside={false}
-    >
+    <ChakraDialog.Root open={isOpen} onOpenChange={handleOpenChange} placement="center" closeOnInteractOutside={false}>
       <Portal>
         <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner>
+        <ChakraDialog.Positioner p={0}>
           <ChakraDialog.Content
-            borderTopRadius="xl"
-            borderBottomRadius={isMobile ? 0 : "xl"}
-            maxH={isMobile ? "85vh" : undefined}
-            w={isMobile ? "100%" : undefined}
-            maxW={isMobile ? undefined : "480px"}
+            w="100vw"
+            h="100dvh"
+            maxW="100vw"
+            maxH="100dvh"
+            borderRadius={0}
             display="flex"
             flexDirection="column"
+            overflow="hidden"
           >
-            <ChakraDialog.Header flexShrink={0} pb={0} flexDirection="column" alignItems="stretch">
-              <ChakraDialog.Title>{title}</ChakraDialog.Title>
-              <Stepper currentStep={currentStep} />
+            <ChakraDialog.Header flexShrink={0} p={0} borderBottomWidth={1} borderColor="border.default">
+              <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 8 }} py={{ base: 5, md: 6 }}>
+                <ChakraDialog.Title>{title}</ChakraDialog.Title>
+                <Stepper currentStep={currentStep} />
+              </Box>
             </ChakraDialog.Header>
 
-            <ChakraDialog.Body>
-              {currentStep === 1 ? (
-                <SetupStep1 defaultValues={step1Data} onNext={handleStep1Next} />
-              ) : (
-                <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
-              )}
+            <ChakraDialog.Body flex={1} minH={0} overflowY="auto" p={0}>
+              <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 8 }} py={{ base: 6, md: 8 }}>
+                {currentStep === 1 ? (
+                  <SetupStep1 defaultValues={step1Data} onNext={handleStep1Next} />
+                ) : (
+                  <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
+                )}
+              </Box>
             </ChakraDialog.Body>
 
-            <Flex gap={3} justify="flex-end" px={6} py={4} borderTop="1px solid" borderColor="gray.200" flexShrink={0}>
-              {currentStep === 2 && (
-                <Button variant="outline" onClick={handleBack}>
-                  戻る
-                </Button>
-              )}
-              {currentStep === 1 ? (
-                <Button type="submit" form="setup-step1" colorPalette="teal">
-                  次へ
-                  <Icon as={LuArrowRight} />
-                </Button>
-              ) : (
-                <Button type="submit" form="setup-step2" colorPalette="teal">
-                  お店を登録する
-                </Button>
-              )}
-            </Flex>
+            <Box flexShrink={0} borderTopWidth={1} borderColor="border.default" bg="white">
+              <Flex w="full" maxW="720px" mx="auto" gap={3} justify="flex-end" px={{ base: 5, md: 8 }} py={4}>
+                {currentStep === 2 && (
+                  <Button variant="outline" onClick={handleBack}>
+                    戻る
+                  </Button>
+                )}
+                {currentStep === 1 ? (
+                  <Button type="submit" form="setup-step1" colorPalette="teal">
+                    次へ
+                    <Icon as={LuArrowRight} />
+                  </Button>
+                ) : (
+                  <Button type="submit" form="setup-step2" colorPalette="teal">
+                    お店を登録する
+                  </Button>
+                )}
+              </Flex>
+            </Box>
           </ChakraDialog.Content>
         </ChakraDialog.Positioner>
       </Portal>
