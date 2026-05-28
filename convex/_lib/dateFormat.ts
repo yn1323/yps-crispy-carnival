@@ -4,13 +4,41 @@
  */
 
 const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function dateToUtcMs(date: string): number {
+  const [year, month, day] = date.split("-").map(Number);
+  return Date.UTC(year, month - 1, day);
+}
+
+export function formatUtcDate(ms: number): string {
+  const date = new Date(ms);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function addDays(date: string, days: number): string {
+  return formatUtcDate(dateToUtcMs(date) + days * MS_PER_DAY);
+}
+
+export function getWeekday(date: string): number {
+  return new Date(dateToUtcMs(date)).getUTCDay();
+}
+
+export function getMondayWeekStart(date: string): string {
+  const weekday = getWeekday(date);
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  return addDays(date, mondayOffset);
+}
 
 /** "2026-01-20" → "1/20(月)" */
 export function formatDateLabel(dateStr: string): string {
-  const date = new Date(`${dateStr}T00:00:00`);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const dayName = DAY_NAMES[date.getDay()];
+  const date = new Date(dateToUtcMs(dateStr));
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const dayName = DAY_NAMES[date.getUTCDay()];
   return `${month}/${day}(${dayName})`;
 }
 
@@ -22,9 +50,7 @@ export function formatPeriodLabel(start: string, end: string): string {
 /** deadline の翌日 0:00 の Unix ms を返す（締切日当日はまだ有効）
  * Convex環境はUTCで動作するため T00:00:00 = UTC midnight */
 export function getDeadlineCutoff(deadline: string): number {
-  const date = new Date(`${deadline}T00:00:00`);
-  date.setDate(date.getDate() + 1);
-  return date.getTime();
+  return dateToUtcMs(deadline) + MS_PER_DAY;
 }
 
 /** JST基準の今日の日付を "YYYY-MM-DD" で返す */
@@ -43,17 +69,21 @@ export function formatDateTimeLabel(ms: number): string {
   return `${month}/${day}(${dayName}) ${hours}:${minutes}`;
 }
 
+export function formatDateTimeJa(ms: number): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ms));
+}
+
 /** "2026-01-20", "2026-01-26" → ["2026-01-20", "2026-01-21", ...] */
 export function generateDateRange(start: string, end: string): string[] {
   const dates: string[] = [];
-  const current = new Date(`${start}T00:00:00`);
-  const endDate = new Date(`${end}T00:00:00`);
-  while (current <= endDate) {
-    const y = current.getFullYear();
-    const m = String(current.getMonth() + 1).padStart(2, "0");
-    const d = String(current.getDate()).padStart(2, "0");
-    dates.push(`${y}-${m}-${d}`);
-    current.setDate(current.getDate() + 1);
+  for (let current = dateToUtcMs(start), endMs = dateToUtcMs(end); current <= endMs; current += MS_PER_DAY) {
+    dates.push(formatUtcDate(current));
   }
   return dates;
 }

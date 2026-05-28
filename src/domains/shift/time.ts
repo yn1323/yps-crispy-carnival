@@ -1,3 +1,7 @@
+export const MAX_SHIFT_TIME_MINUTES = 36 * 60;
+
+const TIME_PATTERN = /^\d{1,2}:\d{2}$/;
+
 // 時刻文字列 → 分（"10:30" → 630）
 export const timeToMinutes = (time: string): number => {
   const [hours, minutes] = time.split(":").map(Number);
@@ -17,6 +21,20 @@ export const minutesToHoursLabel = (totalMinutes: number): string => {
   return `${hours}h`;
 };
 
+export const isSupportedShiftTime = (time: string): boolean => {
+  if (!TIME_PATTERN.test(time)) return false;
+  const [hour, minute] = time.split(":").map(Number);
+  const totalMinutes = hour * 60 + minute;
+  return (
+    Number.isFinite(hour) &&
+    Number.isFinite(minute) &&
+    hour >= 0 &&
+    minute >= 0 &&
+    minute < 60 &&
+    totalMinutes <= MAX_SHIFT_TIME_MINUTES
+  );
+};
+
 export const formatShiftClockTime = (time: string): string => {
   const [hourText, minuteText = "00"] = time.split(":");
   const hour = Number(hourText);
@@ -29,3 +47,37 @@ export const formatShiftClockTime = (time: string): string => {
 
 export const formatShiftClockTimeRange = (startTime: string, endTime: string): string =>
   `${formatShiftClockTime(startTime)}〜${formatShiftClockTime(endTime)}`;
+
+export const formatShiftTimeSelectLabel = (time: string): string => {
+  const minutes = timeToMinutes(time);
+  if (!Number.isFinite(minutes)) return time;
+  if (minutes >= 24 * 60) {
+    const displayMinutes = minutes - 24 * 60;
+    return `翌 ${minutesToTime(displayMinutes)}`;
+  }
+  return minutesToTime(minutes);
+};
+
+export type ShiftTimeOption = { value: string; label: string };
+
+export type GenerateShiftTimeOptionsParams = {
+  startMinutes?: number;
+  endMinutes: number;
+  stepMinutes?: number;
+  labelFormatter?: (time: string) => string;
+};
+
+export const generateShiftTimeOptions = ({
+  startMinutes = 0,
+  endMinutes,
+  stepMinutes = 30,
+  labelFormatter = formatShiftTimeSelectLabel,
+}: GenerateShiftTimeOptionsParams): ShiftTimeOption[] => {
+  if (stepMinutes <= 0 || endMinutes < startMinutes) return [];
+  const options: ShiftTimeOption[] = [];
+  for (let minutes = startMinutes; minutes <= endMinutes; minutes += stepMinutes) {
+    const value = minutesToTime(minutes);
+    options.push({ value, label: labelFormatter(value) });
+  }
+  return options;
+};
