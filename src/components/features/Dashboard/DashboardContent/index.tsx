@@ -467,8 +467,12 @@ export const DashboardContent = ({
             </Button>
           ) : undefined
         }
-        maxW="640px"
-        maxH="85dvh"
+        maxW={{ base: "640px", lg: "calc(100vw - 64px)" }}
+        maxH={{ base: "85dvh", lg: "calc(100dvh - 64px)" }}
+        contentProps={{
+          w: { lg: "calc(100vw - 64px)" },
+          h: { lg: "calc(100dvh - 64px)" },
+        }}
       >
         {staffModalMode === "qr" ? (
           <StaffRegistrationLinkPanel registrationUrl={registrationUrl} isLoading={registrationUrlLoading} />

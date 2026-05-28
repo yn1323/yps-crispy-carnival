@@ -33,8 +33,12 @@ export const InDialog: Story = {
       submitLabel="スタッフを追加する"
       onClose={() => {}}
       closeLabel="戻る"
-      maxW="640px"
-      maxH="85dvh"
+      maxW={{ base: "640px", lg: "calc(100vw - 64px)" }}
+      maxH={{ base: "85dvh", lg: "calc(100dvh - 64px)" }}
+      contentProps={{
+        w: { lg: "calc(100vw - 64px)" },
+        h: { lg: "calc(100dvh - 64px)" },
+      }}
     >
       <AddStaffForm onSubmit={() => {}} />
     </Dialog>
@@ -67,8 +71,12 @@ function StaffAdditionDialogFixture() {
           </Button>
         ) : undefined
       }
-      maxW="640px"
-      maxH="85dvh"
+      maxW={{ base: "640px", lg: "calc(100vw - 64px)" }}
+      maxH={{ base: "85dvh", lg: "calc(100dvh - 64px)" }}
+      contentProps={{
+        w: { lg: "calc(100vw - 64px)" },
+        h: { lg: "calc(100dvh - 64px)" },
+      }}
     >
       {mode === "qr" ? (
         <StaffRegistrationLinkPanel registrationUrl={sampleRegistrationUrl} />
