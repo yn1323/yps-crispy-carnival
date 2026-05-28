@@ -23,7 +23,7 @@ const shiftTypePattern = {
   kind: "shiftType" as const,
   options: [
     { id: "morning", name: "早番", startTime: "09:00", endTime: "14:00", sortOrder: 0 },
-    { id: "late", name: "遅番", startTime: "14:00", endTime: "22:00", sortOrder: 1 },
+    { id: "late", name: "遅番", startTime: "14:00", endTime: "25:00", sortOrder: 1 },
   ],
 };
 
@@ -102,6 +102,7 @@ export const ShiftTypeInteractive: Story = {
     await userEvent.click(await canvas.findByLabelText("4/7(火)を出勤希望にする"));
     await expect(await canvas.findByLabelText("4/7(火)の早番 選択済み")).toBeInTheDocument();
     await expect(await canvas.findByLabelText("4/7(火)の遅番 未選択")).toBeInTheDocument();
+    await expect(await canvas.findByText("14:00〜翌1:00")).toBeInTheDocument();
 
     await userEvent.click(await canvas.findByLabelText("4/7(火)の遅番 未選択"));
     await expect(await canvas.findByLabelText("4/7(火)の遅番 選択済み")).toBeInTheDocument();

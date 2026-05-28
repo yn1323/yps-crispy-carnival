@@ -1,5 +1,9 @@
 import dayjs from "dayjs";
 
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
+export const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+export type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
+
 // フロントの日付は "YYYY-MM-DD" 文字列を正とし、Date#toISOString 由来のTZずれを避ける。
 // 開始日から終了日までの日付配列を取得
 export const getDateRange = (startDate: string, endDate: string): string[] => {
@@ -13,6 +17,34 @@ export const getDateRange = (startDate: string, endDate: string): string[] => {
   }
 
   return dates;
+};
+
+export const addDays = (date: string, days: number): string => dayjs(date).add(days, "day").format("YYYY-MM-DD");
+
+export const getInclusiveDateCount = (startDate: string, endDate: string): number => {
+  if (!startDate || !endDate || endDate < startDate) return 0;
+  return dayjs(endDate).diff(dayjs(startDate), "day") + 1;
+};
+
+export const isDateInRange = (date: string, startDate: string, endDate: string): boolean => {
+  if (!date || !startDate || !endDate) return false;
+  return date >= startDate && date <= endDate;
+};
+
+export const pruneDatesInRange = (dates: string[], startDate: string, endDate: string): string[] => {
+  if (!startDate || !endDate) return [];
+  return dates.filter((date) => isDateInRange(date, startDate, endDate)).sort();
+};
+
+export const deriveDatesFromWeekdays = (
+  startDate: string,
+  endDate: string,
+  weekdays: readonly WeekdayKey[],
+): string[] => {
+  if (!startDate || !endDate || endDate < startDate || weekdays.length === 0) return [];
+
+  const weekdaySet = new Set(weekdays);
+  return getDateRange(startDate, endDate).filter((date) => weekdaySet.has(WEEKDAY_KEYS[getDayOfWeek(date)]));
 };
 
 // 期間に含まれる月を取得
@@ -61,9 +93,21 @@ export const formatDateWithWeekday = (date: string): string => {
 
 // 曜日を表示用に取得（"2026-01-27" → "月"）
 export const getWeekdayLabel = (date: string): string => {
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  return weekdays[getDayOfWeek(date)];
+  return WEEKDAY_LABELS[getDayOfWeek(date)];
 };
+
+export const formatDatePeriodWithWeekday = (start: string, end: string, separator = " 〜 "): string =>
+  `${formatDateWithWeekday(start)}${separator}${formatDateWithWeekday(end)}`;
+
+export const formatCompactDateListWithWeekday = (dates: string[]): string =>
+  dates
+    .map((date, index) => {
+      const previous = dates[index - 1];
+      const shouldShowMonth = !previous || !dayjs(date).isSame(previous, "month");
+      const format = shouldShowMonth ? "M/D" : "D";
+      return `${dayjs(date).format(format)}(${getWeekdayLabel(date)})`;
+    })
+    .join(", ");
 
 // 月を表示用にフォーマット（"2026-01" → "1月計"）
 export const formatMonthLabel = (month: string): string => {

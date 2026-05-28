@@ -15,6 +15,16 @@ export type ShiftTypeOption = {
   sortOrder: number;
 };
 
+function compareShiftTypeOptionsByTime(a: ShiftTypeOption, b: ShiftTypeOption): number {
+  const startDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+  if (startDiff !== 0) return startDiff;
+
+  const endDiff = timeToMinutes(a.endTime) - timeToMinutes(b.endTime);
+  if (endDiff !== 0) return endDiff;
+
+  return a.sortOrder - b.sortOrder;
+}
+
 export const DEFAULT_SUBMISSION_PATTERN: ShiftSubmissionPattern = {
   kind: "time",
   startTime: "09:00",
@@ -51,13 +61,11 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
 
   const idSet = new Set<string>();
   const nameSet = new Set<string>();
-  const normalized = pattern.options
-    .map((option) => ({
-      ...option,
-      id: option.id.trim(),
-      name: option.name.trim(),
-    }))
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const normalized = pattern.options.map((option) => ({
+    ...option,
+    id: option.id.trim(),
+    name: option.name.trim(),
+  }));
 
   if (normalized.length === 0) {
     throw new ConvexError("勤務区分を1つ以上追加してください");
@@ -85,7 +93,10 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
     nameSet.add(option.name);
   }
 
-  return { kind: "shiftType", options: normalized.map((option, index) => ({ ...option, sortOrder: index })) };
+  return {
+    kind: "shiftType",
+    options: normalized.sort(compareShiftTypeOptionsByTime).map((option, index) => ({ ...option, sortOrder: index })),
+  };
 }
 
 export function getSubmissionPattern(

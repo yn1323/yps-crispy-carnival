@@ -201,7 +201,7 @@ describe("shop/mutations", () => {
       expect(recruitment?.submissionPattern).toEqual({ kind: "dateOnly" });
     });
 
-    it("勤務区分の提出方法を更新する", async () => {
+    it("勤務区分の提出方法を開始時間・終了時間順で更新する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -217,8 +217,9 @@ describe("shop/mutations", () => {
         submissionPattern: {
           kind: "shiftType",
           options: [
-            { id: "morning", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 1 },
             { id: "late", name: "遅番", startTime: "15:00", endTime: "23:00", sortOrder: 0 },
+            { id: "long-morning", name: "ロング早番", startTime: "10:00", endTime: "18:00", sortOrder: 1 },
+            { id: "morning", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 2 },
           ],
         },
       });
@@ -227,8 +228,9 @@ describe("shop/mutations", () => {
       expect(shop?.submissionPattern).toEqual({
         kind: "shiftType",
         options: [
-          { id: "late", name: "遅番", startTime: "15:00", endTime: "23:00", sortOrder: 0 },
-          { id: "morning", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 1 },
+          { id: "morning", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 0 },
+          { id: "long-morning", name: "ロング早番", startTime: "10:00", endTime: "18:00", sortOrder: 1 },
+          { id: "late", name: "遅番", startTime: "15:00", endTime: "23:00", sortOrder: 2 },
         ],
       });
     });

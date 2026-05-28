@@ -1,4 +1,5 @@
-import { Badge, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Image, Stack, Text } from "@chakra-ui/react";
+import type { ComponentProps } from "react";
 import type { IconType } from "react-icons";
 import {
   LuArrowRight,
@@ -16,6 +17,7 @@ import { formatDateShort } from "@/src/domains/shift/date";
 import { PendingStaffRegistrationList } from "../PendingStaffRegistrationList";
 import type { StaffRegistrationRequest } from "../types";
 import { type NextAction, pickNextAction } from "./pickNextAction";
+import registerStartImage from "./register-start.webp";
 
 type Shop = {
   name: string;
@@ -114,23 +116,41 @@ export const WelcomeHero = ({ onSetupClick }: WelcomeHeroProps) => (
     px={{ base: 5, lg: 7 }}
     py={{ base: 5, lg: 6 }}
   >
-    <Stack gap={4} maxW="520px">
-      <Stack gap={1.5}>
-        <Heading as="h1" textStyle="sectionTitle" color="gray.900" letterSpacing="-0.01em">
-          お店の情報を登録しましょう
-        </Heading>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          お店の名前とシフト希望の集め方を決めるだけで始められます。
-        </Text>
+    <Flex direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "center" }} gap={{ base: 4, md: 8 }}>
+      <Stack gap={4} flex={1} minW={0} maxW={{ md: "520px" }}>
+        <Stack gap={1.5}>
+          <Heading as="h1" textStyle="sectionTitle" color="gray.900" letterSpacing="-0.01em">
+            お店の情報を登録しましょう
+          </Heading>
+          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+            お店の名前とシフト希望の集め方を決めるだけで始められます。
+          </Text>
+        </Stack>
+        <WelcomeHeroImage display={{ base: "flex", md: "none" }} />
+        <Flex justify={{ base: "flex-end", md: "flex-start" }}>
+          <Button colorPalette="teal" size="md" onClick={onSetupClick} gap={1.5}>
+            お店を登録する
+            <LuArrowRight />
+          </Button>
+        </Flex>
       </Stack>
-      <Flex>
-        <Button colorPalette="teal" size="md" onClick={onSetupClick} gap={1.5}>
-          お店を登録する
-          <LuArrowRight />
-        </Button>
-      </Flex>
-    </Stack>
+      <WelcomeHeroImage display={{ base: "none", md: "flex" }} flex={1} justify="flex-end" />
+    </Flex>
   </Box>
+);
+
+const WelcomeHeroImage = (props: ComponentProps<typeof Flex>) => (
+  <Flex align="center" justify="center" {...props}>
+    <Image
+      src={registerStartImage}
+      alt="お店登録の開始画面イメージ"
+      w="full"
+      maxW={{ base: "196px", md: "294px", lg: "336px" }}
+      h="auto"
+      objectFit="contain"
+      loading="lazy"
+    />
+  </Flex>
 );
 
 // ---------- ActionCard ----------

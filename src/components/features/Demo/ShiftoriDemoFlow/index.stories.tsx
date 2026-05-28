@@ -1,6 +1,15 @@
 import { Box, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { findByText, getAllByText, getByRole, getByText, queryByRole, queryByText } from "@testing-library/dom";
+import {
+  findByText,
+  findByTitle,
+  getAllByText,
+  getByRole,
+  getByText,
+  queryByRole,
+  queryByText,
+  waitFor,
+} from "@testing-library/dom";
 import { expect } from "storybook/test";
 import { type DemoStep, ShiftoriDemoFlow } from "./index";
 
@@ -54,6 +63,31 @@ export const SubmitStepDefaultRestBehavior: Story = {
     expect(queryByText(canvasElement, "10:00")).toBeNull();
     expect(queryByText(canvasElement, "11:00")).toBeNull();
     expect(queryByText(canvasElement, "15:00")).toBeNull();
+  },
+};
+
+export const ShareCompleteCtaBehavior: Story = {
+  args: {
+    initialStep: "share",
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    const emailFrame = (await findByTitle(canvasElement, "確定シフトメール")) as HTMLIFrameElement;
+    const emailLink = await waitFor(() => {
+      const link = emailFrame.contentDocument?.querySelector<HTMLAnchorElement>("a[href]");
+      if (!link) throw new Error("確定シフトメール内のリンクが見つかりませんでした");
+      return link;
+    });
+
+    emailLink.click();
+
+    await findByText(document.body, "このまま無料で始められます");
+    expect(queryByText(document.body, "スタッフ登録なしで、募集作成から共有まで試せます。")).toBeNull();
+    expect(getByRole(document.body, "link", { name: /無料ではじめる/ })).toBeTruthy();
+    expect(getByRole(document.body, "button", { name: "もう1回試す" })).toBeTruthy();
+    expect(getByRole(document.body, "button", { name: "デモを閉じる" })).toBeTruthy();
   },
 };
 

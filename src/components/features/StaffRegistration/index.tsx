@@ -106,11 +106,18 @@ export function StaffRegistrationPage({
             <ConfirmRow label="メールアドレス" value={confirmData.email} />
           </Stack>
 
-          <Stack direction={{ base: "column", sm: "row" }} gap={3}>
+          <Stack direction={{ base: "column", sm: "row" }} gap={{ base: 2, sm: 3 }} pt={2}>
             <Button
               type="button"
               variant="outline"
+              colorPalette="gray"
+              size="lg"
+              w="full"
+              minH="48px"
               flex={1}
+              borderRadius="lg"
+              borderColor="gray.300"
+              order={{ base: 2, sm: 1 }}
               disabled={isSubmitting}
               onClick={() => setConfirmData(null)}
             >
@@ -119,7 +126,12 @@ export function StaffRegistrationPage({
             <Button
               type="button"
               colorPalette="teal"
+              size="lg"
+              w="full"
+              minH="48px"
               flex={1}
+              borderRadius="lg"
+              order={{ base: 1, sm: 2 }}
               loading={isSubmitting}
               onClick={() => onSubmit(confirmData)}
             >
