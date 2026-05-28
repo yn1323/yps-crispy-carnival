@@ -63,7 +63,7 @@ export const StaffRoster = ({
             fontWeight="semibold"
           >
             <LuPlus />
-            スタッフを追加
+            スタッフを招待
           </Button>
         </Flex>
       </Flex>

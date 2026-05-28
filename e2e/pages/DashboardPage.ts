@@ -88,10 +88,10 @@ export class DashboardPage {
   }
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
-    await this.page.getByRole("button", { name: "スタッフを追加" }).click({ noWaitAfter: true });
-    const dialog = this.page.getByRole("dialog", { name: "スタッフを追加" });
+    await this.page.getByRole("button", { name: "スタッフを招待" }).click({ noWaitAfter: true });
+    const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "自分で登録する" }).click();
+    await dialog.getByRole("button", { name: "スタッフ情報を手入力する" }).click();
 
     const form = this.page.locator("[id='add-staff-form']");
     const nameInputs = form.getByPlaceholder("例：田中 花子");

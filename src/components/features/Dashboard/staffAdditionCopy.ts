@@ -1,2 +1,1 @@
-export const STAFF_ADDITION_EMAIL_NOTICE =
-  "追加時にシフトリの使い方、LINE連携案内、募集中の希望シフト提出リンクをメールでお送りします。";
+export const STAFF_ADDITION_EMAIL_NOTICE = "登録後、使い方・LINE連携・募集中のシフト提出リンクを案内します。";
