@@ -242,6 +242,14 @@ export const DashboardContent = ({
     }
   };
 
+  const handleStaffModalBackOrClose = () => {
+    if (staffModalMode === "manual") {
+      setStaffModalMode("qr");
+      return;
+    }
+    staffModal.close();
+  };
+
   const handleApproveStaffRequest = async (request: StaffRegistrationRequest) => {
     try {
       await approveStaffRequest({ requestId: request._id });
@@ -449,13 +457,13 @@ export const DashboardContent = ({
         onOpenChange={staffModal.onOpenChange}
         formId={staffModalMode === "manual" ? "add-staff-form" : undefined}
         submitLabel={staffModalMode === "manual" ? "スタッフを追加する" : undefined}
-        onClose={staffModal.close}
-        closeLabel={staffModalMode === "manual" ? "キャンセル" : "閉じる"}
+        onClose={handleStaffModalBackOrClose}
+        closeLabel={staffModalMode === "manual" ? "戻る" : "閉じる"}
         footer={
           staffModalMode === "qr" ? (
-            <Button onClick={() => setStaffModalMode("manual")} variant="ghost" size="sm" colorPalette="gray" gap={1.5}>
+            <Button onClick={() => setStaffModalMode("manual")} size="sm" colorPalette="teal" gap={1.5}>
               <LuKeyboard />
-              自分で入力する
+              自分で登録する
             </Button>
           ) : undefined
         }

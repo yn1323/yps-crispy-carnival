@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LuCheck, LuCopy } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
+import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
 
 type Props = {
   registrationUrl: string | null;
@@ -60,6 +61,9 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading }: Props
         <Text fontSize="sm" color="gray.700" lineHeight="tall">
           QRコードまたは、URLからスタッフ追加が可能です。人数が多い場合、QRコード・URLから登録いただくのがおすすめです。
           シフト担当者が直接スタッフを追加することも可能です。
+        </Text>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          {STAFF_ADDITION_EMAIL_NOTICE}
         </Text>
       </Stack>
 

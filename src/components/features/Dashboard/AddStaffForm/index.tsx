@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { LuPlus, LuX } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
 import { type AddStaffFormData, addStaffSchema } from "./index";
 
 const EMPTY_ENTRY = { name: "", email: "" } as const;
@@ -36,8 +37,8 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   return (
     <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={4}>
-        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-          追加時にシフトリの使い方、LINE連携案内、募集中の希望シフト提出リンクをメールでお送りします。
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          {STAFF_ADDITION_EMAIL_NOTICE}
         </Text>
 
         {rootError && (
