@@ -92,32 +92,32 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner
-          p={0}
-          h={DIALOG_VISUAL_VIEWPORT_HEIGHT}
-          maxH={DIALOG_VISUAL_VIEWPORT_HEIGHT}
-          top={DIALOG_VISUAL_VIEWPORT_OFFSET_TOP}
+          p={{ base: 0, md: 4 }}
+          h={{ base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "100dvh" }}
+          maxH={{ base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "100dvh" }}
+          top={{ base: DIALOG_VISUAL_VIEWPORT_OFFSET_TOP, md: 0 }}
           style={viewportStyle}
         >
           <ChakraDialog.Content
-            w="100vw"
-            h={DIALOG_VISUAL_VIEWPORT_HEIGHT}
-            maxW="100vw"
-            maxH={DIALOG_VISUAL_VIEWPORT_HEIGHT}
-            borderRadius={0}
+            w={{ base: "100vw", md: "full" }}
+            h={{ base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "auto" }}
+            maxW={{ base: "100vw", md: "720px" }}
+            maxH={{ base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "min(90dvh, 760px)" }}
+            borderRadius={{ base: 0, md: "l3" }}
             display="flex"
             flexDirection="column"
             overflow="hidden"
-            my={0}
+            my={{ base: 0, md: "auto" }}
           >
             <ChakraDialog.Header flexShrink={0} p={0} borderBottomWidth={1} borderColor="border.default">
-              <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 8 }} py={{ base: 5, md: 6 }}>
+              <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 6 }} py={{ base: 5, md: 5 }}>
                 <ChakraDialog.Title>{title}</ChakraDialog.Title>
                 <Stepper currentStep={currentStep} />
               </Box>
             </ChakraDialog.Header>
 
             <ChakraDialog.Body flex={1} minH={0} overflowY="auto" p={0}>
-              <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 8 }} py={{ base: 6, md: 8 }}>
+              <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 6 }} py={{ base: 6, md: 5 }}>
                 {currentStep === 1 ? (
                   <SetupStep1 defaultValues={step1Data} onNext={handleStep1Next} />
                 ) : (
@@ -133,7 +133,7 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
                 mx="auto"
                 gap={3}
                 justify="flex-end"
-                px={{ base: 5, md: 8 }}
+                px={{ base: 5, md: 6 }}
                 pt={4}
                 pb={{ base: "calc(env(safe-area-inset-bottom) + 1rem)", md: 4 }}
               >
