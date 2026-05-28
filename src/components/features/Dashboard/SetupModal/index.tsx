@@ -2,6 +2,11 @@ import { Box, Dialog as ChakraDialog, Circle, Flex, HStack, Icon, Portal, Text }
 import { useCallback, useState } from "react";
 import { LuArrowRight, LuCheck } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import {
+  DIALOG_VISUAL_VIEWPORT_HEIGHT,
+  DIALOG_VISUAL_VIEWPORT_OFFSET_TOP,
+  useDialogVisualViewportStyle,
+} from "@/src/hooks/useDialogVisualViewportStyle";
 import type { Step1Data } from "./SetupStep1";
 import { SetupStep1 } from "./SetupStep1/index.tsx";
 import type { Step2Data } from "./SetupStep2";
@@ -53,6 +58,7 @@ const Stepper = ({ currentStep }: { currentStep: 1 | 2 }) => (
 export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDefaults }: Props) => {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [step1Data, setStep1Data] = useState<Step1Data>(INITIAL_STEP1);
+  const viewportStyle = useDialogVisualViewportStyle(isOpen);
 
   const handleStep1Next = useCallback((data: Step1Data) => {
     setStep1Data(data);
@@ -85,16 +91,23 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
     <ChakraDialog.Root open={isOpen} onOpenChange={handleOpenChange} placement="center" closeOnInteractOutside={false}>
       <Portal>
         <ChakraDialog.Backdrop />
-        <ChakraDialog.Positioner p={0}>
+        <ChakraDialog.Positioner
+          p={0}
+          h={DIALOG_VISUAL_VIEWPORT_HEIGHT}
+          maxH={DIALOG_VISUAL_VIEWPORT_HEIGHT}
+          top={DIALOG_VISUAL_VIEWPORT_OFFSET_TOP}
+          style={viewportStyle}
+        >
           <ChakraDialog.Content
             w="100vw"
-            h="100dvh"
+            h={DIALOG_VISUAL_VIEWPORT_HEIGHT}
             maxW="100vw"
-            maxH="100dvh"
+            maxH={DIALOG_VISUAL_VIEWPORT_HEIGHT}
             borderRadius={0}
             display="flex"
             flexDirection="column"
             overflow="hidden"
+            my={0}
           >
             <ChakraDialog.Header flexShrink={0} p={0} borderBottomWidth={1} borderColor="border.default">
               <Box w="full" maxW="720px" mx="auto" px={{ base: 5, md: 8 }} py={{ base: 5, md: 6 }}>
@@ -114,7 +127,16 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
             </ChakraDialog.Body>
 
             <Box flexShrink={0} borderTopWidth={1} borderColor="border.default" bg="white">
-              <Flex w="full" maxW="720px" mx="auto" gap={3} justify="flex-end" px={{ base: 5, md: 8 }} py={4}>
+              <Flex
+                w="full"
+                maxW="720px"
+                mx="auto"
+                gap={3}
+                justify="flex-end"
+                px={{ base: 5, md: 8 }}
+                pt={4}
+                pb={{ base: "calc(env(safe-area-inset-bottom) + 1rem)", md: 4 }}
+              >
                 {currentStep === 2 && (
                   <Button variant="outline" onClick={handleBack}>
                     戻る
