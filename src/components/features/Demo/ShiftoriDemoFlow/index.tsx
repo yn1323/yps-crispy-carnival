@@ -1,5 +1,7 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
+import { LuChevronRight, LuUserPlus } from "react-icons/lu";
 import { CreateRecruitmentForm } from "@/src/components/features/Dashboard/CreateRecruitmentForm/index.tsx";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
@@ -334,6 +336,7 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
             <br />
             お時間あれば再度触ってみて使い心地を試してみてください！
           </Text>
+          <DemoCompleteCta />
           {showCloseHelp && (
             <Box bg="teal.50" borderWidth="1px" borderColor="teal.200" borderRadius="md" px={4} py={3}>
               <Text color="teal.800" fontSize="sm" lineHeight={1.7}>
@@ -346,3 +349,30 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
     </Surface>
   );
 };
+
+const DemoCompleteCta = () => (
+  <Box bg="teal.50" borderWidth="1px" borderColor="teal.200" borderRadius="md" px={4} py={4} mt={2}>
+    <Stack gap={3}>
+      <Text color="teal.900" fontWeight="bold" lineHeight={1.6}>
+        このまま無料で始められます
+      </Text>
+      <Button
+        asChild
+        w="full"
+        h="52px"
+        colorPalette="teal"
+        fontWeight="bold"
+        borderRadius="md"
+        justifyContent="space-between"
+      >
+        <RouterLink to="/signup" search={{ redirect: undefined }}>
+          <Icon as={LuUserPlus} boxSize={5} />
+          <Text as="span" flex={1} textAlign="center">
+            無料ではじめる
+          </Text>
+          <Icon as={LuChevronRight} boxSize={5} />
+        </RouterLink>
+      </Button>
+    </Stack>
+  </Box>
+);
