@@ -95,7 +95,7 @@ export const SetupShopInfoStep = ({
           希望シフトの提出方法
         </Text>
       </Box>
-      <SimpleGrid columns={{ base: 1, md: 3 }} gap={3}>
+      <SimpleGrid columns={3} gap={{ base: 2, md: 3 }}>
         {SUBMISSION_PATTERN_OPTIONS.map((option) => {
           const isSelected = submissionPattern.kind === option.kind;
           return (
@@ -103,7 +103,7 @@ export const SetupShopInfoStep = ({
               key={option.kind}
               type="button"
               h="100%"
-              minH={{ base: "auto", md: "160px" }}
+              minH={{ base: "128px", md: "160px" }}
               variant="outline"
               borderColor={isSelected ? "teal.500" : "border.default"}
               borderWidth={isSelected ? 2 : 1}
@@ -116,11 +116,13 @@ export const SetupShopInfoStep = ({
               _hover={{ bg: isSelected ? "teal.50" : "gray.50" }}
             >
               <Stack gap={0} align="stretch" w="full" h="full" textAlign="left">
-                <HStack
-                  minH={{ base: "48px", md: "72px" }}
+                <Stack
+                  direction={{ base: "column", md: "row" }}
+                  gap={{ base: 1, md: 2 }}
+                  minH={{ base: "56px", md: "72px" }}
                   align="center"
-                  justify={{ base: "flex-start", md: "center" }}
-                  px={{ base: 4, md: 3 }}
+                  justify="center"
+                  px={{ base: 2, md: 3 }}
                   bg={isSelected ? "teal.100" : "gray.50"}
                   borderBottomWidth={1}
                   borderColor={isSelected ? "teal.200" : "border.default"}
@@ -130,13 +132,18 @@ export const SetupShopInfoStep = ({
                   {option.kind === "dateOnly" && <LuCalendarDays />}
                   {option.kind === "time" && <LuClock3 />}
                   {option.kind === "shiftType" && <LuListChecks />}
-                  <Text fontSize="sm">{option.label}</Text>
-                </HStack>
-                <Stack gap={2} p={4} flex={1}>
-                  <Text fontSize="sm" fontWeight="semibold" color="gray.900">
+                  <Text fontSize={{ base: "xs", md: "sm" }} lineHeight="short" textAlign="center">
                     {option.label}
                   </Text>
-                  <Text fontSize="xs" color="fg.muted" whiteSpace="normal" lineHeight="tall">
+                </Stack>
+                <Stack gap={2} p={{ base: 2, md: 4 }} flex={1}>
+                  <Text
+                    fontSize="xs"
+                    color="fg.muted"
+                    whiteSpace="normal"
+                    lineHeight={{ base: "short", md: "tall" }}
+                    textAlign="left"
+                  >
                     {option.description}
                   </Text>
                 </Stack>
