@@ -78,7 +78,7 @@ export function StaffRegistrationPage({
         <Empty
           icon={LuCheck}
           title="申請を送りました"
-          description="シフト担当者が承認すると、シフト提出の案内がメールで届きます。"
+          description="シフト担当者が承認すると、シフト提出の案内がメールで届きます。承認までしばらくおまちください。"
           tone="success"
           iconVariant="circle"
           size="lg"
