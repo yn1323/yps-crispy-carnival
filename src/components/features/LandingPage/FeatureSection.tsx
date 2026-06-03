@@ -32,7 +32,7 @@ const featureCards: {
   {
     number: "3",
     title: "未提出の催促",
-    body: "提出忘れも一覧で表示。必要な人だけに声をかけられます。",
+    body: "提出忘れを一覧で表示。必要な人だけに声をかけられます。",
     visual: "notice",
   },
   {
