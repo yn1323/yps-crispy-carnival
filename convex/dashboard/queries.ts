@@ -59,6 +59,11 @@ export const getDashboardRecruitments = authenticatedQuery({
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
       .order("desc")
       .paginate(args.paginationOpts);
+    const activeStaffs = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .collect();
+    const totalStaffCount = activeStaffs.length;
 
     const page = await Promise.all(
       paginatedResult.page.map(async (r) => {
@@ -82,6 +87,7 @@ export const getDashboardRecruitments = authenticatedQuery({
           shopClosedDates: r.shopClosedDates ?? [],
           status: r.status,
           responseCount: stats?.submittedCount ?? submissions.length,
+          totalStaffCount,
         };
       }),
     );

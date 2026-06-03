@@ -21,6 +21,7 @@ const recruitment = (overrides: Partial<Recruitment> = {}) =>
     deadline: "2026-05-28",
     status: "open",
     responseCount: 0,
+    totalStaffCount: 1,
     ...overrides,
   }) as unknown as Recruitment;
 

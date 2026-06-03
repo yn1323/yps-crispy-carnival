@@ -24,7 +24,7 @@
 |---|---|---|
 | `api.recruitment.mutations.createRecruitment` | mutation | シフト募集を作成し、募集通知を予約する |
 | `api.recruitment.mutations.deleteRecruitment` | mutation | シフト募集を論理削除し、管理画面・スタッフ向け導線から失効させる |
-| `api.dashboard.queries.getDashboardRecruitments` | query | ダッシュボード用の募集一覧を取得する。削除済み募集は返さない |
+| `api.dashboard.queries.getDashboardRecruitments` | query | ダッシュボード用の募集一覧と提出人数/現在の有効スタッフ数を取得する。削除済み募集は返さない |
 | `api.shiftBoard.queries.getShiftBoardData` | query | シフト表画面のデータを取得する。削除済み募集は `null` を返す |
 | `api.shiftBoard.mutations.saveShiftAssignments` | mutation | シフト表の下書き割当を保存する |
 

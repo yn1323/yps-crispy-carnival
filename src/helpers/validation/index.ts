@@ -12,7 +12,7 @@ export const betweenLength = (min: number, max: number) => (val: string, ctx: z.
 };
 
 export const time = (step?: number) => (val: string, ctx: z.RefinementCtx) => {
-  if (!val || val.length !== 5 || !val.includes(":")) {
+  if (val?.length !== 5 || !val.includes(":")) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "時刻を入力してください",
