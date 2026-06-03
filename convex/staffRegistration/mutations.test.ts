@@ -140,7 +140,7 @@ describe("staffRegistration/mutations", () => {
     ).rejects.toThrow("Not found");
   });
 
-  it("承認するとstaffs作成・同意コピー・LINE連携メール・募集中シフト通知を予約する", async () => {
+  it("承認するとstaffs作成・同意コピー・LINE連携メール・募集中シフト通知へ反映し、同意依頼メールは予約しない", async () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, { subject: "manager_approve", email: "manager-approve@example.com" });
@@ -203,7 +203,7 @@ describe("staffRegistration/mutations", () => {
       state.scheduled.some(
         (job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === staffId,
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("却下するとstaffs作成と通知予約をしない", async () => {
