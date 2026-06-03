@@ -71,7 +71,7 @@ describe("スタッフ参加QRシナリオ", () => {
     expect(consentState).toMatchObject({ method: "staff_registration" });
 
     const scheduled = await readScheduledFunctions(t);
-    expect(hasScheduledJob(scheduled, "legal/actions:sendStaffConsentEmail", { staffId })).toBe(true);
+    expect(hasScheduledJob(scheduled, "legal/actions:sendStaffConsentEmail", { staffId })).toBe(false);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId })).toBe(true);
     expect(
       hasScheduledJob(scheduled, "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff", { staffId }),

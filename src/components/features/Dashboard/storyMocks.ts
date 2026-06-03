@@ -10,6 +10,7 @@ export const mockRecruitments = [
     shopClosedDates: [],
     status: "open",
     responseCount: 8,
+    totalStaffCount: 10,
   },
   {
     _id: "rec-2",
@@ -19,6 +20,7 @@ export const mockRecruitments = [
     shopClosedDates: [],
     status: "open",
     responseCount: 10,
+    totalStaffCount: 10,
   },
   {
     _id: "rec-3",
@@ -28,6 +30,7 @@ export const mockRecruitments = [
     shopClosedDates: [],
     status: "confirmed",
     responseCount: 10,
+    totalStaffCount: 10,
   },
 ] as unknown as Recruitment[];
 

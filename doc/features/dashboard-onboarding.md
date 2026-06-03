@@ -33,7 +33,7 @@
 | API | 種別 | 用途 |
 |---|---|---|
 | `api.dashboard.queries.getDashboardShop` | query | 店舗名・営業時間取得 |
-| `api.dashboard.queries.getDashboardRecruitments` | query | 最新募集・提出人数・確定状態から進捗を派生 |
+| `api.dashboard.queries.getDashboardRecruitments` | query | 最新募集・提出人数/現在の有効スタッフ数・確定状態から進捗を派生 |
 | `api.dashboard.queries.getDashboardStaffs` | query | Dashboard上のスタッフ一覧取得 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | チュートリアル終了状態をDB保存 |
 

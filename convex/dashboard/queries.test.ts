@@ -107,6 +107,7 @@ describe("dashboard/queries", () => {
       expect(result.page).toHaveLength(1);
       expect(result.page[0].status).toBe("open");
       expect(result.page[0].responseCount).toBe(0);
+      expect(result.page[0].totalStaffCount).toBe(1);
     });
 
     it("論理削除された募集は除外する", async () => {
@@ -146,10 +147,19 @@ describe("dashboard/queries", () => {
 
       expect(result.page).toHaveLength(1);
       expect(result.page[0].periodStart).toBe("2026-04-01");
-      expect(Object.keys(result.page[0])).not.toContain("isDeleted");
+      expect(Object.keys(result.page[0]).sort()).toEqual([
+        "_id",
+        "deadline",
+        "periodEnd",
+        "periodStart",
+        "responseCount",
+        "shopClosedDates",
+        "status",
+        "totalStaffCount",
+      ]);
     });
 
-    it("responseCount は shiftSubmissions の件数を返す", async () => {
+    it("recruitmentStats がない古い募集では responseCount は shiftSubmissions の件数を返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
@@ -168,6 +178,12 @@ describe("dashboard/queries", () => {
           name: "Staff2",
           email: "s2@example.com",
           isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "Deleted Staff",
+          email: "deleted@example.com",
+          isDeleted: true,
         });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -219,6 +235,65 @@ describe("dashboard/queries", () => {
         .withIdentity({ subject: "user_rc" })
         .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
       expect(result.page[0].responseCount).toBe(2);
+      expect(result.page[0].totalStaffCount).toBe(2);
+    });
+
+    it("recruitmentStats がある場合も totalStaffCount は現在の有効スタッフ数を返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_stats",
+          email: "stats@example.com",
+          shopName: "Stats店舗",
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "Staff1",
+          email: "s1@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "Staff2",
+          email: "s2@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "Staff3",
+          email: "s3@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "Deleted Staff",
+          email: "deleted@example.com",
+          isDeleted: true,
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-04-01",
+          periodEnd: "2026-04-07",
+          deadline: "2026-03-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId,
+          submittedCount: 2,
+          activeStaffCountSnapshot: 1,
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_stats" })
+        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      expect(result.page[0].responseCount).toBe(2);
+      expect(result.page[0].totalStaffCount).toBe(3);
     });
   });
 

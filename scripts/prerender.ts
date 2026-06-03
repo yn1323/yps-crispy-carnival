@@ -195,7 +195,7 @@ async function main(): Promise<void> {
       await page.evaluate(() => {
         for (const sheet of Array.from(document.styleSheets)) {
           const node = sheet.ownerNode as HTMLStyleElement | null;
-          if (!node || node.tagName !== "STYLE") continue;
+          if (node?.tagName !== "STYLE") continue;
           if (node.textContent && node.textContent.length > 0) continue;
           try {
             const css = Array.from(sheet.cssRules)

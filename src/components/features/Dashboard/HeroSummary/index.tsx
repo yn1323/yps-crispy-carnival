@@ -297,7 +297,7 @@ type ActionView = {
 function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionView {
   switch (action.kind) {
     case "past-deadline": {
-      const { periodStart, periodEnd, deadline, responseCount } = action.recruitment;
+      const { periodStart, periodEnd, deadline, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCircleAlert,
         iconBg: "orange.100",
@@ -306,14 +306,14 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         title: "シフトを調整しましょう",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
-          createResponseMeta(responseCount),
+          createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切 ${formatDateShort(deadline)}`, emphasis: true },
         ],
         cta: { label: "シフトを組む", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-today": {
-      const { periodStart, periodEnd, responseCount } = action.recruitment;
+      const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCircleAlert,
         iconBg: "orange.100",
@@ -322,14 +322,14 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         title: "今日中に希望を確認しましょう",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
-          createResponseMeta(responseCount),
+          createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: "今日が締切", emphasis: true },
         ],
         cta: { label: "希望を見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-soon": {
-      const { periodStart, periodEnd, responseCount } = action.recruitment;
+      const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
         iconBg: "teal.100",
@@ -338,14 +338,14 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         title: "シフト希望を確認しましょう",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
-          createResponseMeta(responseCount),
+          createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日`, emphasis: true },
         ],
         cta: { label: "希望を見る", palette: "teal", variant: "outline" },
       };
     }
     case "collecting": {
-      const { periodStart, periodEnd, responseCount } = action.recruitment;
+      const { periodStart, periodEnd, responseCount, totalStaffCount } = action.recruitment;
       return {
         icon: LuCalendarClock,
         iconBg: "teal.50",
@@ -354,7 +354,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         title: "シフト回収中です",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
-          createResponseMeta(responseCount),
+          createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日` },
         ],
         cta: { label: "希望を見る", palette: "teal", variant: "outline" },
@@ -367,6 +367,6 @@ function createPeriodMeta(periodStart: string, periodEnd: string): MetaItem {
   return { icon: LuCalendarDays, label: `${formatDateShort(periodStart)}〜${formatDateShort(periodEnd)}` };
 }
 
-function createResponseMeta(responseCount: number): MetaItem {
-  return { icon: LuUsers, label: `提出${responseCount}人` };
+function createResponseMeta(responseCount: number, totalStaffCount: number): MetaItem {
+  return { icon: LuUsers, label: `提出${responseCount}/${totalStaffCount}人` };
 }

@@ -68,6 +68,7 @@ const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
     shopClosedDates: [],
     status: "open",
     responseCount: 0,
+    totalStaffCount: 1,
     ...overrides,
   }) as unknown as Recruitment;
 

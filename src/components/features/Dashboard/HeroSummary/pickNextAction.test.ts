@@ -16,6 +16,7 @@ const make = (over: Partial<Recruitment>): Recruitment => ({
   shopClosedDates: [],
   status: "open",
   responseCount: 0,
+  totalStaffCount: 1,
   ...over,
 });
 

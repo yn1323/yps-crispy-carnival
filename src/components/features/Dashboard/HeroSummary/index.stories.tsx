@@ -32,14 +32,16 @@ const make = (over: Partial<Recruitment>): Recruitment => ({
   shopClosedDates: [],
   status: "open",
   responseCount: 5,
+  totalStaffCount: 10,
   ...over,
 });
 
-const past = make({ _id: id("past"), deadline: inDays(-3), responseCount: 8 });
-const dueToday = make({ _id: id("today"), deadline: today, responseCount: 4 });
-const dueSoon = make({ _id: id("soon"), deadline: inDays(2), responseCount: 6 });
-const calm = make({ _id: id("calm"), deadline: inDays(10), responseCount: 2 });
-const confirmed = make({ _id: id("conf"), status: "confirmed", deadline: inDays(-30), responseCount: 9 });
+const past = make({ _id: id("past"), deadline: inDays(-3), responseCount: 8, totalStaffCount: 10 });
+const dueToday = make({ _id: id("today"), deadline: today, responseCount: 4, totalStaffCount: 10 });
+const dueSoon = make({ _id: id("soon"), deadline: inDays(2), responseCount: 2, totalStaffCount: 5 });
+const calm = make({ _id: id("calm"), deadline: inDays(10), responseCount: 0, totalStaffCount: 1 });
+const zeroTotal = make({ _id: id("zero-total"), deadline: inDays(10), responseCount: 0, totalStaffCount: 0 });
+const confirmed = make({ _id: id("conf"), status: "confirmed", deadline: inDays(-30), responseCount: 10 });
 
 const NOOP = {
   onEditClick: () => {},
@@ -66,6 +68,9 @@ export const Variants: Story = {
       </Section>
       <Section label="提出待ち (締切まで余裕あり)">
         <HeroSummary shop={SHOP} recruitments={[calm, confirmed]} {...NOOP} />
+      </Section>
+      <Section label="スタッフ未登録">
+        <HeroSummary shop={SHOP} recruitments={[zeroTotal, confirmed]} {...NOOP} />
       </Section>
       <Section label="やることなし (open募集ゼロ)">
         <HeroSummary shop={SHOP} recruitments={[confirmed]} {...NOOP} />

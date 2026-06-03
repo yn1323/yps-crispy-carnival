@@ -1,7 +1,7 @@
 import { Box, Circle, Flex, HStack, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBell, LuCalendarCheck, LuLink, LuMail, LuSmartphone, LuStore, LuUserRoundX } from "react-icons/lu";
-import heroSpImage from "../../LandingPage/hero-sp.webp";
+import { LuBell, LuCalendarCheck, LuLink, LuMail, LuSmartphone, LuStore, LuTabletSmartphone } from "react-icons/lu";
+import heroSpImage from "../LandingPage/hero-sp.webp";
 
 type HeroTopOffset = {
   base: string;
@@ -22,7 +22,7 @@ type GuideItem = {
 const shiftreeDescription = "勤務先のお店がシフト希望の回収や確定シフトの共有に使うシフト管理サービスです。";
 
 const quickPoints: QuickPoint[] = [
-  { icon: LuUserRoundX, label: "アカウント登録不要" },
+  { icon: LuTabletSmartphone, label: "専用アプリ不要" },
   { icon: LuLink, label: "LINE・メールからシフト提出" },
 ];
 
@@ -44,7 +44,7 @@ const guideItems: GuideItem[] = [
   },
   {
     icon: LuSmartphone,
-    title: "登録なしで使えます",
+    title: "専用アプリなしで使えます",
     body: "届いたリンクからシフト希望の提出や確定シフトの確認ができます。",
   },
 ];
