@@ -1,8 +1,8 @@
 import { Box, VStack } from "@chakra-ui/react";
 import { useState } from "react";
+import { StaffGuideContent } from "@/src/components/features/StaffGuideContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { LegalConsentPanel } from "./LegalConsentPanel";
-import { StaffGuideContent } from "./StaffGuideContent";
 
 export type StaffLegalDocumentLinks = {
   terms: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };

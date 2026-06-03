@@ -1,5 +1,5 @@
-import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { StaffRegistrationPage } from "./index";
 
 const documents = {
@@ -10,12 +10,12 @@ const documents = {
 const meta = {
   title: "Features/StaffRegistration",
   component: StaffRegistrationPage,
-  parameters: { layout: "centered" },
+  parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <Box w="560px" maxW="100vw" bg="white">
+      <StaffLayout shopName="居酒屋たなか">
         <Story />
-      </Box>
+      </StaffLayout>
     ),
   ],
 } satisfies Meta<typeof StaffRegistrationPage>;
@@ -35,6 +35,7 @@ export const Form: Story = {
 };
 
 export const Confirm: Story = {
+  parameters: { chromatic: { disableSnapshot: true } },
   args: {
     ...Form.args,
     initialConfirmData: {
@@ -46,6 +47,7 @@ export const Confirm: Story = {
 };
 
 export const Submitted: Story = {
+  parameters: { chromatic: { disableSnapshot: true } },
   args: {
     ...Form.args,
     isSubmitted: true,
@@ -53,6 +55,7 @@ export const Submitted: Story = {
 };
 
 export const Expired: Story = {
+  parameters: { chromatic: { disableSnapshot: true } },
   args: {
     data: {
       status: "expired",

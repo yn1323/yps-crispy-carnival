@@ -14,7 +14,6 @@ export const sendStaffConsentEmail = internalAction({
   handler: async (ctx, { staffId }) => {
     const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, {
       staffId,
-      includeConsented: true,
     });
     if (!data?.staffEmail) return;
     const suppressDelivery = await ctx.runQuery(

@@ -22,6 +22,7 @@ const baseRecruitment = {
   deadline: "2026-05-28",
   status: "open",
   responseCount: 0,
+  totalStaffCount: 1,
 } as unknown as Recruitment;
 
 type StoryProps = {
