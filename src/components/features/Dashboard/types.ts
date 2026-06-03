@@ -9,6 +9,7 @@ export type Recruitment = {
   shopClosedDates: string[];
   status: "open" | "confirmed";
   responseCount: number;
+  totalStaffCount: number;
 };
 
 export type RecruitmentDisplayStatus = "collecting" | "past-deadline" | "confirmed";
