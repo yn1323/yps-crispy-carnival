@@ -1,9 +1,9 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { StaffGuideContent } from "./StaffGuideContent";
+import { StaffGuideContent } from "./index";
 
 const meta = {
-  title: "features/StaffLegalConsent/StaffGuideContent",
+  title: "features/StaffGuideContent",
   component: StaffGuideContent,
   parameters: {
     layout: "fullscreen",

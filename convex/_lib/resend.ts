@@ -1,9 +1,21 @@
-import { type CreateEmailOptions, Resend } from "resend";
+import { type CreateEmailOptions, type CreateEmailRequestOptions, Resend } from "resend";
+import {
+  RESEND_EMAIL_SEND_INTERVAL_MS,
+  RESEND_EMAIL_SEND_TIMEOUT_MS,
+  RESEND_RETRY_DELAY_PADDING_MS,
+} from "../constants";
 import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
 
 type ResendClientOptions = {
   suppressDelivery?: boolean;
 };
+
+type SendEmailResponse = Awaited<ReturnType<Resend["emails"]["send"]>>;
+type SendEmailError = NonNullable<SendEmailResponse["error"]>;
+type SendEmailRequestOptions = CreateEmailRequestOptions & { signal?: AbortSignal };
+
+let resendEmailSendQueue: Promise<void> = Promise.resolve();
+let nextResendEmailSendAt = 0;
 
 export function getResendClient(options: ResendClientOptions = {}): Resend {
   if (isNotificationDeliverySuppressed(options)) {
@@ -28,21 +40,22 @@ export function getResendClient(options: ResendClientOptions = {}): Resend {
 
 export async function sendResendEmail(resend: Resend, payload: CreateEmailOptions, context: string): Promise<string> {
   const maxAttempts = 4;
+  const idempotencyKey = createIdempotencyKey(context);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const result = await resend.emails.send(payload);
+    await waitForResendEmailSendSlot();
+    const result = await sendResendEmailAttempt(resend, payload, idempotencyKey);
     if (!result.error) return result.data.id;
 
-    const retryable = result.error.statusCode === 429 || result.error.statusCode === null;
+    const retryable = isRetryableResendEmailError(result.error);
     const isLastAttempt = attempt === maxAttempts;
-    console.error("Resend email send failed", {
+    logResendEmailFailure({
       context,
       attempt,
-      statusCode: result.error.statusCode,
-      name: result.error.name,
-      message: result.error.message,
-      retryAfter: result.headers?.["retry-after"],
-      rateLimitReset: result.headers?.["ratelimit-reset"],
+      maxAttempts,
+      retryable,
+      error: result.error,
+      headers: result.headers,
     });
 
     if (!retryable || isLastAttempt) {
@@ -55,19 +68,121 @@ export async function sendResendEmail(resend: Resend, payload: CreateEmailOption
   throw new Error("Resend email send failed");
 }
 
+export function resetResendEmailQueueForTest() {
+  resendEmailSendQueue = Promise.resolve();
+  nextResendEmailSendAt = 0;
+}
+
 function countRecipients(to: unknown): number {
   if (Array.isArray(to)) return to.length;
   return typeof to === "string" && to.length > 0 ? 1 : 0;
 }
 
+async function waitForResendEmailSendSlot(): Promise<void> {
+  const previous = resendEmailSendQueue;
+  let release: () => void = () => {};
+  resendEmailSendQueue = new Promise((resolve) => {
+    release = resolve;
+  });
+
+  await previous;
+
+  try {
+    const delayMs = nextResendEmailSendAt - Date.now();
+    if (delayMs > 0) await sleep(delayMs);
+    nextResendEmailSendAt = Date.now() + RESEND_EMAIL_SEND_INTERVAL_MS;
+  } finally {
+    release();
+  }
+}
+
+async function sendResendEmailAttempt(
+  resend: Resend,
+  payload: CreateEmailOptions,
+  idempotencyKey: string,
+): Promise<SendEmailResponse> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const requestOptions: SendEmailRequestOptions = {
+    idempotencyKey,
+    signal: controller.signal,
+  };
+
+  try {
+    return await Promise.race([
+      resend.emails.send(payload, requestOptions).catch((e) => createNetworkErrorResponse(errorMessage(e))),
+      new Promise<SendEmailResponse>((resolve) => {
+        timeoutId = setTimeout(() => {
+          controller.abort();
+          resolve(createNetworkErrorResponse(`Resend email send timed out after ${RESEND_EMAIL_SEND_TIMEOUT_MS}ms`));
+        }, RESEND_EMAIL_SEND_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
+function createNetworkErrorResponse(message: string): SendEmailResponse {
+  return {
+    data: null,
+    error: {
+      name: "application_error",
+      statusCode: null,
+      message,
+    },
+    headers: null,
+  };
+}
+
+function isRetryableResendEmailError(error: SendEmailError): boolean {
+  return error.name === "rate_limit_exceeded" || error.statusCode === null;
+}
+
+function logResendEmailFailure(opts: {
+  context: string;
+  attempt: number;
+  maxAttempts: number;
+  retryable: boolean;
+  error: SendEmailError;
+  headers: Record<string, string> | null;
+}) {
+  const { context, attempt, maxAttempts, retryable, error, headers } = opts;
+  const willRetry = retryable && attempt < maxAttempts;
+  const log = willRetry ? console.warn : console.error;
+  log(willRetry ? "Resend email send will retry" : "Resend email send failed", {
+    context,
+    attempt,
+    maxAttempts,
+    statusCode: error.statusCode,
+    name: error.name,
+    message: error.message,
+    retryAfter: headers?.["retry-after"],
+    rateLimitReset: headers?.["ratelimit-reset"],
+  });
+}
+
 function resolveRetryDelayMs(headers: Record<string, string> | null, attempt: number) {
   const retryAfter = Number(headers?.["retry-after"]);
-  if (Number.isFinite(retryAfter) && retryAfter > 0) return retryAfter * 1000;
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return retryAfter * 1000 + RESEND_RETRY_DELAY_PADDING_MS;
 
   const rateLimitReset = Number(headers?.["ratelimit-reset"]);
-  if (Number.isFinite(rateLimitReset) && rateLimitReset > 0) return rateLimitReset * 1000;
+  if (Number.isFinite(rateLimitReset) && rateLimitReset > 0) {
+    return rateLimitReset * 1000 + RESEND_RETRY_DELAY_PADDING_MS;
+  }
 
-  return attempt * 1000;
+  return attempt * 1000 + RESEND_RETRY_DELAY_PADDING_MS;
+}
+
+function createIdempotencyKey(context: string): string {
+  const normalizedContext = context.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80);
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${normalizedContext}-${Date.now()}-${random}`;
+}
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 function sleep(ms: number) {

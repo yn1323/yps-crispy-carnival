@@ -180,9 +180,6 @@ export const approveRequest = managerMutation({
       reviewedByUserId: ctx.user._id,
     });
 
-    await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
-      staffId,
-    });
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId,
       context: "registration_approved",

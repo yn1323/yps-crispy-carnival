@@ -26,7 +26,7 @@ const statusConfig: Record<
 };
 
 export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDeleteRecruitment }: Props) {
-  const { _id, periodStart, periodEnd, deadline, responseCount } = recruitment;
+  const { _id, periodStart, periodEnd, deadline, responseCount, totalStaffCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
   const { label, colorPalette, accent } = statusConfig[displayStatus];
   const relativeText = relativeDeadline(deadline, displayStatus);
@@ -85,7 +85,7 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
               <Text whiteSpace="nowrap">{relativeText}</Text>
             </HStack>
             <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
-              提出 {responseCount}人
+              提出 {responseCount}/{totalStaffCount}人
             </Text>
           </HStack>
         </Flex>
