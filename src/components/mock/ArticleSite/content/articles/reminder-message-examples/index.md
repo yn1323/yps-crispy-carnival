@@ -1,21 +1,21 @@
 ---
-title: "希望の提出率を上げるリマインドの工夫"
-description: "希望シフトの提出を促すときに、スタッフへ伝わりやすい声かけやリマインドのタイミングを整理します。"
+title: "シフト希望のリマインド文面例"
+description: "希望シフトの提出を促すときに、スタッフへ伝わりやすい文面と送るタイミングを整理します。"
 publishedAt: "2024-03-28"
 updatedAt: "2024-03-28"
 categorySlug: "submit-status"
-categoryLabel: "提出状況の確認"
+categoryLabel: "未提出者の確認・リマインド"
 author: "シフトリ編集部"
 readingMinutes: 4
 keywords: "リマインド, 希望シフト, 提出率"
 relatedSlugs: "reduce-unsubmitted-shift-requests, line-shift-collection-guide"
 featured: false
 canonicalPath: "/articles/reminder-message-examples"
-ogTitle: "希望の提出率を上げるリマインドの工夫"
-ogDescription: "希望シフトの提出率を上げる声かけとリマインドの考え方を整理します。"
+ogTitle: "シフト希望のリマインド文面例"
+ogDescription: "希望シフトの提出率を上げる文面例とリマインドの考え方を整理します。"
 ---
 
-# 希望の提出率を上げるリマインドの工夫
+# シフト希望のリマインド文面例
 
 リマインドは、強く催促するためではなく、提出を忘れているスタッフが動きやすくなるように送るものです。
 

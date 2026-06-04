@@ -1,39 +1,40 @@
 ---
-title: "LINEでシフト希望を集めるときに起きやすい困りごと"
-description: "LINEで希望を集めると便利ですが、伝え方やルールが曖昧だとトラブルのもとに。よくある困りごとと対策をまとめました。"
+title: "LINEでシフト希望を集める方法"
+description: "LINEで希望を集めるときの基本的な流れと、スムーズに進めるためのポイントを紹介します。"
 publishedAt: "2024-05-20"
 updatedAt: "2024-05-20"
 categorySlug: "shift-request"
-categoryLabel: "シフト希望の回収"
+categoryLabel: "LINEでシフト希望を集める"
 author: "シフトリ編集部"
 readingMinutes: 6
 keywords: "LINE, 希望シフト, シフト回収"
-relatedSlugs: "reduce-unsubmitted-shift-requests, simple-shift-sharing-rules, excel-shift-sheet-hard"
+relatedSlugs: "line-shift-request-message-examples, line-shift-request-flow-countermeasures, reduce-unsubmitted-shift-requests"
 featured: true
 canonicalPath: "/articles/line-shift-collection-guide"
-ogTitle: "LINEでシフト希望を集めるときに起きやすい困りごと"
-ogDescription: "LINEでシフト希望を集めるときのよくある困りごとと対策を整理します。"
+ogTitle: "LINEでシフト希望を集める方法"
+ogDescription: "LINEでシフト希望を集める基本の流れと、提出漏れを減らす工夫を整理します。"
 ---
 
-# LINEでシフト希望を集めるときに起きやすい困りごと
+# LINEでシフト希望を集める方法
 
-LINEで希望を集めると手軽ですが、伝え方やルールが曖昧だと提出漏れや確認の手間が増えてしまいます。
+LINEで希望を集めるときは、出してほしい内容と締切を先にそろえておくと確認がしやすくなります。
 
-## LINEで集めるときに起きやすいこと
+## LINEでシフト希望を集める流れ
 
-LINEは手軽に使える反面、ルールが曖昧なままだと提出漏れや確認の手間が増えてしまいます。
+提出依頼、希望の回収、未提出確認、確定共有の順に進めます。最初に流れを決めておくと、毎月同じ形で運用できます。
 
-## 困りごとと対策
+## 提出依頼のポイント
 
 | 困りごと | 対策 |
 | --- | --- |
-| 提出が流れる | 締切やリマインドの伝え方を工夫することで、提出率が上がります |
-| 書き方がバラバラ | テンプレートや例を用意すると、集計がラクになります |
-| 変更の連絡がわかりにくい | 変更ルールを決めておくと、見落としを防げます |
-| 誰が出していないかわからない | 一覧で確認できる仕組みがあると、声かけがスムーズになります |
+| 提出が流れる | 締切と提出方法を短く書く |
+| 書き方がバラバラ | 記入例を一緒に送る |
+| 未提出が分からない | 提出済みの人を一覧で確認する |
 
-## まとめ｜今日からできること
+## 集計しやすくする工夫
 
-ルールを決めても、見やすく、確認しやすくするだけでLINEでのシフト希望の回収はぐっとラクになります。
+日付、時間、休み希望の書き方をそろえると、あとからExcelやシフト表へ写すときの確認が減ります。
 
-> ルールをシンプルにし、確認も見える化することが大切です。
+## まとめ
+
+毎月同じ文面と締切で依頼し、未提出者だけを確認できる状態にしておくことが大切です。
