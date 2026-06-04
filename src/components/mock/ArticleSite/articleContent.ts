@@ -20,8 +20,11 @@ export type CategoryMetadata = {
   breadcrumbLabel: string;
   pointTitle: string;
   pointDescription: string;
+  concerns: string[];
   representativeSlug: string;
   relatedConcernSlugs: string[];
+  ctaTitle: string;
+  ctaDescription: string;
 };
 
 export type ArticleMetadata = {
@@ -146,7 +149,10 @@ const categoryRequiredFields = [
   "breadcrumbLabel",
   "pointTitle",
   "pointDescription",
+  "concerns",
   "representativeSlug",
+  "ctaTitle",
+  "ctaDescription",
 ] as const;
 
 const articleRequiredFields = [
@@ -275,8 +281,11 @@ export function parseCategoryMarkdown(source: string, slug: string): CategoryCon
       breadcrumbLabel: frontmatter.breadcrumbLabel,
       pointTitle: frontmatter.pointTitle,
       pointDescription: frontmatter.pointDescription,
+      concerns: splitList(frontmatter.concerns),
       representativeSlug: frontmatter.representativeSlug,
       relatedConcernSlugs: splitList(frontmatter.relatedConcernSlugs),
+      ctaTitle: frontmatter.ctaTitle,
+      ctaDescription: frontmatter.ctaDescription,
     },
     blocks: parseMarkdownBlocks(bodySource),
   };

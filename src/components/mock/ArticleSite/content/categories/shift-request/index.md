@@ -1,10 +1,13 @@
 ---
 slug: "shift-request"
-title: "シフト希望が集まらない"
-description: "シフト希望の出し方やルール、声かけの工夫など、希望を集めるときによくある悩みとその対策をまとめています。"
-breadcrumbLabel: "シフト希望が集まらない"
+title: "LINEでシフト希望を集める"
+description: "提出依頼の文面、回収ルール、未提出確認の工夫を整理します。"
+breadcrumbLabel: "LINEでシフト希望を集める"
 pointTitle: "このカテゴリのポイント"
-pointDescription: "希望の出し方や締切の伝え方を見直すだけで、提出率は大きく変わります。スタッフにとっても、出しやすい仕組みづくりが大切です。"
+pointDescription: "LINEは手軽ですが、希望が流れたり、書き方がばらついたりしやすい場所でもあります。依頼文、締切、確認方法をそろえると集計しやすくなります。"
+concerns: "提出依頼がトークに流れて見逃される, 希望の書き方がバラバラで集計が大変になる, 途中で出した変更がどれなのか分かりにくくなる, 変更連絡が重なって最新の希望を把握しづらい"
 representativeSlug: "line-shift-collection-guide"
 relatedConcernSlugs: "excel-recording, submit-status, staff-sharing, tool-choice"
+ctaTitle: "LINEで集めたシフト希望を、一覧で確認しませんか？"
+ctaDescription: "シフトリなら、提出状況の確認や未提出者へのリマインドもまとめてかんたんに行えます。"
 ---
