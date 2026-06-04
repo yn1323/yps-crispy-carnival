@@ -57,7 +57,7 @@
     "@hookform/resolvers": "5.2.2",
     "@tanstack/react-router": "1.170.10",
     "@tanstack/router-plugin": "1.168.13",
-    "convex": "1.39.1",
+    "convex": "1.40.0",
     "convex-helpers": "^0.1.114",
     "dayjs": "^1.11.19",
     "jotai": "2.16.1",
