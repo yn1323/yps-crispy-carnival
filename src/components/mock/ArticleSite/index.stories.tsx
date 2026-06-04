@@ -13,7 +13,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const primaryArticleSlug = articles.find((article) => article.meta.featured)?.meta.slug ?? articles[0]?.meta.slug;
-const primaryCategorySlug = categories[0]?.meta.slug;
+const primaryCategorySlug = categories.find((category) => category.meta.slug === "shift-request")?.meta.slug;
 
 export const List: Story = {
   render: () => <ArticleListPage />,

@@ -1,6 +1,6 @@
 ---
-title: "シフト作成の困りごとメモ"
-description: "LINEで希望を集める、Excelに転記する、未提出者に声をかける。毎月のシフト作成でよくある困りごとを、少しずつ整理しています。"
+title: "小さなお店のシフト作成ガイド"
+description: "LINEで希望を集める、Excelに転記する、未提出者に声をかける。毎月のシフト作成で起きやすい困りごとを、わかりやすく整理しています。"
 breadcrumbLabel: "お役立ち情報"
 concernTitle: "よくある困りごとから探す"
 latestTitle: "新着記事"
@@ -10,5 +10,5 @@ ctaPrimaryLabel: "シフトリを見てみる"
 ctaPrimaryHref: "/demo/flow"
 ctaSecondaryLabel: "無料で試してみる"
 ctaSecondaryHref: "/signup"
-concernSlugs: "shift-request, excel-recording, submit-status, staff-sharing, tool-choice"
+concernSlugs: "shift-request, excel-recording, submit-status, shift-planning, staff-sharing, tool-choice"
 ---

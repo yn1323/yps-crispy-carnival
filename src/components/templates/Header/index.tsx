@@ -19,6 +19,10 @@ type PublicHeaderVariantProps = {
   variant: "public";
   showLinks?: boolean;
   showLogin?: boolean;
+  bgImage?: BoxProps["bgImage"];
+  borderBottomWidth?: BoxProps["borderBottomWidth"];
+  borderColor?: BoxProps["borderColor"];
+  boxShadow?: BoxProps["boxShadow"];
 };
 
 type UserHeaderVariantProps = {
@@ -38,7 +42,12 @@ export type HeaderProps = PublicHeaderVariantProps | UserHeaderVariantProps | St
 export const Header = (props: HeaderProps = {}) => {
   if (props.variant === "public") {
     return (
-      <HeaderShell>
+      <HeaderShell
+        bgImage={props.bgImage}
+        borderBottomWidth={props.borderBottomWidth}
+        borderColor={props.borderColor}
+        boxShadow={props.boxShadow}
+      >
         <HeaderBrand to="/" />
         <PublicHeaderActions showLinks={props.showLinks ?? true} showLogin={props.showLogin ?? true} />
       </HeaderShell>
@@ -70,6 +79,9 @@ type HeaderShellProps = {
   py?: ContainerProps["py"];
   justify?: FlexProps["justify"];
   bgImage?: BoxProps["bgImage"];
+  borderBottomWidth?: BoxProps["borderBottomWidth"];
+  borderColor?: BoxProps["borderColor"];
+  boxShadow?: BoxProps["boxShadow"];
 };
 
 const HeaderShell = ({
@@ -81,6 +93,9 @@ const HeaderShell = ({
   py = 2,
   justify = "space-between",
   bgImage = HEADER_BG_IMAGE,
+  borderBottomWidth,
+  borderColor,
+  boxShadow,
 }: HeaderShellProps) => (
   <Box
     as="header"
@@ -89,6 +104,9 @@ const HeaderShell = ({
     top={fixed ? 0 : undefined}
     zIndex="sticky"
     bgImage={bgImage}
+    borderBottomWidth={borderBottomWidth}
+    borderColor={borderColor}
+    boxShadow={boxShadow}
     w="full"
   >
     <Container maxW={maxW} minH={minH} px={px} py={py} display="flex" alignItems="center">

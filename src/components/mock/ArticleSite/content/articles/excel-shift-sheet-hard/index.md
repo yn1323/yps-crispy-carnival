@@ -1,14 +1,14 @@
 ---
 title: "Excelでシフト表を作るのが大変になる理由"
-description: "規則は簡単でも、人数が増えると一気に大変になるExcelシフト表。よくあるつまずきポイントを整理します。"
+description: "規則は簡単でも、人数が増えると一気に大変になるExcelシフト表。転記、共有、最新版管理のつまずきを整理します。"
 publishedAt: "2024-05-15"
 updatedAt: "2024-05-15"
 categorySlug: "excel-recording"
-categoryLabel: "Excel・転記"
+categoryLabel: "Excel・紙のシフト管理"
 author: "シフトリ編集部"
 readingMinutes: 7
 keywords: "Excel, シフト表, 転記"
-relatedSlugs: "line-shift-collection-guide, reduce-unsubmitted-shift-requests, tool-choice-for-small-shop"
+relatedSlugs: "line-to-excel-transcription-tips, line-shift-collection-guide, tool-choice-for-small-shop"
 featured: false
 canonicalPath: "/articles/excel-shift-sheet-hard"
 ogTitle: "Excelでシフト表を作るのが大変になる理由"
