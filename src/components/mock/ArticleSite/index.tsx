@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Badge,
   Box,
   Container,
@@ -17,15 +18,18 @@ import type { IconType } from "react-icons";
 import {
   LuArrowRight,
   LuBookOpen,
+  LuCalendarCheck,
   LuCalendarDays,
+  LuCheck,
+  LuChevronRight,
   LuCircleHelp,
   LuClock3,
   LuFileSpreadsheet,
   LuLink,
-  LuMegaphone,
   LuMessageCircle,
   LuPenLine,
   LuShare2,
+  LuTable2,
 } from "react-icons/lu";
 import { Footer } from "@/src/components/features/LandingPage";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
@@ -55,7 +59,7 @@ export function ArticleListPage(): ReactNode {
       <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 12 }}>
         <VStack align="stretch" gap={{ base: 10, lg: 12 }}>
           <ConcernSection />
-          <ArticleListSection title={sitePage.latestTitle} articles={articles} />
+          <ArticleListSection title={sitePage.latestTitle} articles={articles} mobileLimit={5} />
           <BottomCta />
         </VStack>
       </Container>
@@ -71,14 +75,22 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
   }
 
   const relatedArticles = getRelatedArticles(article);
+  const category = getCategory(article.meta.categorySlug);
+  const shouldShowToc = article.toc.length >= 3;
 
   return (
     <ArticleSiteShell>
       <ArticleHero article={article} />
       <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 10 }}>
-        <Grid templateColumns={{ base: "1fr", lg: "260px minmax(0, 1fr)" }} gap={{ base: 8, lg: 8 }} alignItems="start">
-          <ArticleAside article={article} />
+        <Grid
+          templateColumns={{ base: "1fr", lg: shouldShowToc ? "232px minmax(0, 1fr)" : "minmax(0, 820px)" }}
+          justifyContent="center"
+          gap={{ base: 6, lg: 8 }}
+          alignItems="start"
+        >
+          {shouldShowToc && <ArticleAside article={article} />}
           <VStack align="stretch" gap={{ base: 8, lg: 10 }}>
+            {shouldShowToc && <MobileArticleToc article={article} />}
             <VStack as="article" align="stretch" gap={{ base: 6, lg: 7 }}>
               {article.blocks.map((block, index) => (
                 <ArticleBlock key={`${block.type}-${index}`} block={block} />
@@ -86,7 +98,7 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
             </VStack>
             <ShareBox />
             <RelatedArticles articles={relatedArticles} />
-            <BottomCta compact />
+            <BottomCta category={category} compact />
           </VStack>
         </Grid>
       </Container>
@@ -103,6 +115,9 @@ export function ArticleCategoryPage({ categorySlug }: ArticleSitePageProps): Rea
 
   const representativeArticle = getRepresentativeArticle(category);
   const categoryArticles = getArticlesByCategory(category.meta.slug);
+  const relatedArticles = representativeArticle
+    ? categoryArticles.filter((article) => article.meta.slug !== representativeArticle.meta.slug)
+    : categoryArticles;
   const relatedConcerns = category.meta.relatedConcernSlugs
     .map((slug) => concerns.find((concern) => concern.slug === slug))
     .filter((concern): concern is ConcernContent => Boolean(concern));
@@ -114,7 +129,7 @@ export function ArticleCategoryPage({ categorySlug }: ArticleSitePageProps): Rea
         <VStack align="stretch" gap={{ base: 8, lg: 10 }}>
           <PointBox category={category} />
           {representativeArticle && <RepresentativeArticle article={representativeArticle} />}
-          <CompactArticleList title={`記事一覧（${categoryArticles.length}件）`} articles={categoryArticles} />
+          <CompactArticleList title="関連記事" articles={relatedArticles} />
           <RelatedConcernSection concerns={relatedConcerns} />
         </VStack>
       </Container>
@@ -125,7 +140,13 @@ export function ArticleCategoryPage({ categorySlug }: ArticleSitePageProps): Rea
 function ArticleSiteShell({ children }: { children: ReactNode }): ReactNode {
   return (
     <Box bg="white" color="fg" minH="100vh">
-      <Header variant="public" />
+      <Header
+        variant="public"
+        bgImage="linear-gradient(to bottom, rgba(230, 247, 245, 0.98) 0%, rgba(246, 252, 251, 0.98) 100%)"
+        borderBottomWidth="1px"
+        borderColor="teal.100"
+        boxShadow={{ base: "0 8px 20px rgba(15, 23, 42, 0.04)", md: "none" }}
+      />
       <Box as="main" pt={HEADER_HEIGHT.base}>
         {children}
       </Box>
@@ -211,7 +232,7 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
               {article.meta.updatedAt && <Text>更新日：{formatJapaneseDate(article.meta.updatedAt)}</Text>}
             </HStack>
           </VStack>
-          <HeroIllustration icon={getCategoryIcon(article.meta.categorySlug)} />
+          <HeroIllustration icon={getCategoryIcon(article.meta.categorySlug)} compact />
         </Grid>
       </Container>
     </Box>
@@ -263,7 +284,7 @@ function ConcernSection(): ReactNode {
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
         {sitePage.concernTitle}
       </Heading>
-      <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))", lg: "repeat(5, minmax(0, 1fr))" }} gap={3}>
+      <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" }} gap={4}>
         {concerns.map((concern) => (
           <ConcernCard key={concern.slug} concern={concern} />
         ))}
@@ -276,37 +297,83 @@ function ConcernCard({ concern }: { concern: ConcernContent }): ReactNode {
   const Icon = getCategoryIcon(concern.slug);
 
   return (
-    <Box as="article" borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={4} bg="white">
-      <VStack align="stretch" gap={4} h="full">
-        <IconBadge icon={Icon} />
-        <VStack align="stretch" gap={2} flex="1">
-          <Heading as="h3" fontSize="md" lineHeight="1.55" letterSpacing="0" color="gray.950">
-            {concern.title}
-          </Heading>
-          <Text color="gray.600" textStyle="sm" lineHeight="1.7">
-            {concern.description}
+    <Link
+      href={concern.href}
+      display="block"
+      h="full"
+      color="inherit"
+      textDecoration="none"
+      _hover={{ textDecoration: "none" }}
+    >
+      <Box
+        as="article"
+        h="full"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        p={5}
+        bg="white"
+        transition="border-color 0.2s ease, box-shadow 0.2s ease"
+        _hover={{ borderColor: "gray.300", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)" }}
+      >
+        <VStack align="stretch" gap={{ base: 3, md: 4 }} h="full">
+          <HStack align="center" gap={3}>
+            <IconBadge icon={Icon} compact />
+            <Heading as="h3" flex="1" fontSize="md" lineHeight="1.55" letterSpacing="0" color="gray.950">
+              {concern.title}
+            </Heading>
+            <Box as="span" display={{ base: "block", md: "none" }} color="teal.700">
+              <LuChevronRight size={16} />
+            </Box>
+          </HStack>
+          <VStack align="stretch" gap={2} flex="1">
+            <Heading
+              as="h3"
+              display={{ base: "none", md: "block" }}
+              fontSize="md"
+              lineHeight="1.55"
+              letterSpacing="0"
+              color="gray.950"
+            >
+              {concern.title}
+            </Heading>
+            <Text color="gray.600" textStyle="sm" lineHeight="1.7" lineClamp={{ base: 3, md: undefined }}>
+              {concern.description}
+            </Text>
+          </VStack>
+          <Text display={{ base: "none", md: "block" }} color="teal.700" textStyle="sm" fontWeight="bold">
+            この困りごとを見る
+            <Box as="span" ml={1}>
+              →
+            </Box>
           </Text>
         </VStack>
-        <Link href={concern.href} color="teal.700" textStyle="sm" fontWeight="bold">
-          関連記事を見る
-          <Box as="span" ml={1}>
-            →
-          </Box>
-        </Link>
-      </VStack>
-    </Box>
+      </Box>
+    </Link>
   );
 }
 
-function ArticleListSection({ title, articles }: { title: string; articles: ArticleContent[] }): ReactNode {
+function ArticleListSection({
+  title,
+  articles,
+  mobileLimit,
+}: {
+  title: string;
+  articles: ArticleContent[];
+  mobileLimit?: number;
+}): ReactNode {
   return (
     <VStack as="section" align="stretch" gap={5}>
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
         {title}
       </Heading>
       <VStack align="stretch" gap={0} borderTopWidth="1px" borderColor="gray.200">
-        {articles.map((article) => (
-          <ArticleRow key={article.meta.slug} article={article} />
+        {articles.map((article, index) => (
+          <ArticleRow
+            key={article.meta.slug}
+            article={article}
+            hideOnMobile={mobileLimit !== undefined && index >= mobileLimit}
+          />
         ))}
       </VStack>
       <Button asChild alignSelf="center" variant="outline" borderRadius="full" px={6}>
@@ -319,50 +386,78 @@ function ArticleListSection({ title, articles }: { title: string; articles: Arti
   );
 }
 
-function ArticleRow({ article }: { article: ArticleContent }): ReactNode {
+function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent; hideOnMobile?: boolean }): ReactNode {
   return (
-    <Grid
-      as="article"
-      templateColumns={{ base: "96px minmax(0, 1fr)", md: "144px minmax(0, 1fr)" }}
-      gap={{ base: 4, md: 5 }}
-      py={4}
-      borderBottomWidth="1px"
-      borderColor="gray.200"
-      alignItems="center"
+    <Link
+      href={article.meta.canonicalPath}
+      display={{ base: hideOnMobile ? "none" : "block", md: "block" }}
+      color="inherit"
+      textDecoration="none"
+      _hover={{ textDecoration: "none" }}
     >
-      <ArticleThumb categorySlug={article.meta.categorySlug} />
-      <VStack align="stretch" gap={2}>
-        <Heading as="h3" fontSize={{ base: "md", md: "lg" }} lineHeight="1.55" letterSpacing="0">
-          <Link
-            href={article.meta.canonicalPath}
-            color="gray.950"
-            _hover={{ color: "teal.700", textDecoration: "none" }}
-          >
+      <Grid
+        as="article"
+        templateColumns={{ base: "88px minmax(0, 1fr) auto", md: "128px minmax(0, 1fr) auto" }}
+        gap={{ base: 4, md: 5 }}
+        py={4}
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        alignItems="center"
+        transition="border-color 0.2s ease"
+        _hover={{ borderColor: "gray.300" }}
+      >
+        <ArticleThumb categorySlug={article.meta.categorySlug} />
+        <VStack align="stretch" gap={2}>
+          <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
+            {article.meta.categoryLabel}
+          </Badge>
+          <Heading as="h3" color="gray.950" fontSize={{ base: "md", md: "lg" }} lineHeight="1.55" letterSpacing="0">
             {article.meta.title}
-          </Link>
-        </Heading>
-        <Text display={{ base: "none", md: "block" }} color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={2}>
-          {article.meta.description}
-        </Text>
-        <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">
-          <Text>{formatJapaneseDate(article.meta.publishedAt)}</Text>
-          <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分</MetaItem>
-        </HStack>
-      </VStack>
-    </Grid>
+          </Heading>
+          <Text display={{ base: "none", md: "block" }} color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={2}>
+            {article.meta.description}
+          </Text>
+          <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">
+            <Text>{formatJapaneseDate(article.meta.publishedAt)}</Text>
+            <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分</MetaItem>
+          </HStack>
+        </VStack>
+        <Flex
+          boxSize={8}
+          borderRadius="full"
+          borderWidth="1px"
+          borderColor="gray.200"
+          color="teal.700"
+          align="center"
+          justify="center"
+        >
+          <LuChevronRight size={16} />
+        </Flex>
+      </Grid>
+    </Link>
   );
 }
 
 function PointBox({ category }: { category: CategoryContent }): ReactNode {
   return (
-    <Box bg="green.50" borderWidth="1px" borderColor="green.100" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
-      <VStack align="stretch" gap={2}>
+    <Box bg="teal.50" borderWidth="1px" borderColor="teal.100" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
+      <VStack align="stretch" gap={4}>
         <Text color="green.700" fontWeight="bold">
-          {category.meta.pointTitle}
+          このカテゴリで扱う悩み
         </Text>
         <Text color="gray.700" lineHeight="1.8">
           {category.meta.pointDescription}
         </Text>
+        <Grid as="ul" templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3} listStyleType="none">
+          {category.meta.concerns.map((concern) => (
+            <HStack as="li" key={concern} align="start" gap={2} color="gray.700" textStyle="sm" lineHeight="1.7">
+              <Box as="span" color="teal.700" mt={1}>
+                <LuCheck size={14} />
+              </Box>
+              <Text>{concern}</Text>
+            </HStack>
+          ))}
+        </Grid>
       </VStack>
     </Box>
   );
@@ -372,40 +467,45 @@ function RepresentativeArticle({ article }: { article: ArticleContent }): ReactN
   return (
     <VStack as="section" align="stretch" gap={5}>
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
-        代表的な記事
+        まず読む記事
       </Heading>
-      <Grid
-        as="article"
-        templateColumns={{ base: "1fr", md: "240px minmax(0, 1fr)" }}
-        gap={{ base: 5, md: 7 }}
-        borderWidth="1px"
-        borderColor="gray.200"
-        borderRadius="lg"
-        p={{ base: 4, md: 5 }}
-        alignItems="center"
+      <Link
+        href={article.meta.canonicalPath}
+        display="block"
+        color="inherit"
+        textDecoration="none"
+        _hover={{ textDecoration: "none" }}
       >
-        <ArticleThumb categorySlug={article.meta.categorySlug} large />
-        <VStack align="stretch" gap={3}>
-          <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
-            {article.meta.categoryLabel}
-          </Badge>
-          <Heading as="h3" fontSize={{ base: "xl", lg: "2xl" }} lineHeight="1.45" letterSpacing="0">
-            <Link
-              href={article.meta.canonicalPath}
-              color="gray.950"
-              _hover={{ color: "teal.700", textDecoration: "none" }}
-            >
+        <Grid
+          as="article"
+          templateColumns={{ base: "1fr", md: "240px minmax(0, 1fr)" }}
+          gap={{ base: 5, md: 7 }}
+          borderWidth="1px"
+          borderColor="gray.200"
+          borderRadius="lg"
+          p={{ base: 4, md: 5 }}
+          alignItems="center"
+          transition="border-color 0.2s ease, box-shadow 0.2s ease"
+          _hover={{ borderColor: "gray.300", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)" }}
+        >
+          <ArticleThumb categorySlug={article.meta.categorySlug} large />
+          <VStack align="stretch" gap={3}>
+            <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
+              {article.meta.categoryLabel}
+            </Badge>
+            <Heading as="h3" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }} lineHeight="1.45" letterSpacing="0">
               {article.meta.title}
-            </Link>
-          </Heading>
-          <Text color="gray.700" lineHeight="1.8">
-            {article.meta.description}
-          </Text>
-          <Text color="gray.500" textStyle="sm">
-            {formatJapaneseDate(article.meta.publishedAt)}
-          </Text>
-        </VStack>
-      </Grid>
+            </Heading>
+            <Text color="gray.700" lineHeight="1.8">
+              {article.meta.description}
+            </Text>
+            <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">
+              <Text>{formatJapaneseDate(article.meta.publishedAt)}</Text>
+              <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分</MetaItem>
+            </HStack>
+          </VStack>
+        </Grid>
+      </Link>
     </VStack>
   );
 }
@@ -473,6 +573,7 @@ function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
     <VStack
       align="stretch"
       gap={4}
+      display={{ base: "none", lg: "flex" }}
       position={{ base: "static", lg: "sticky" }}
       top={{ lg: `calc(${HEADER_HEIGHT.md} + 24px)` }}
       borderWidth="1px"
@@ -499,6 +600,48 @@ function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
         ))}
       </VStack>
     </VStack>
+  );
+}
+
+function MobileArticleToc({ article }: { article: ArticleContent }): ReactNode {
+  return (
+    <Accordion.Root collapsible variant="plain" display={{ base: "block", lg: "none" }}>
+      <Accordion.Item
+        value="toc"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="white"
+        overflow="hidden"
+      >
+        <Accordion.ItemTrigger px={4} py={3} cursor="pointer">
+          <HStack flex="1" justify="space-between">
+            <Text fontWeight="bold" color="gray.950">
+              この記事の目次
+            </Text>
+            <Accordion.ItemIndicator color="teal.700" />
+          </HStack>
+        </Accordion.ItemTrigger>
+        <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
+          <Accordion.ItemBody px={4} py={3}>
+            <VStack as="nav" align="stretch" gap={2}>
+              {article.toc.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`#${item.id}`}
+                  color="teal.700"
+                  textStyle="sm"
+                  lineHeight="1.6"
+                  _hover={{ color: "teal.800", textDecoration: "none" }}
+                >
+                  {item.text}
+                </Link>
+              ))}
+            </VStack>
+          </Accordion.ItemBody>
+        </Accordion.ItemContent>
+      </Accordion.Item>
+    </Accordion.Root>
   );
 }
 
@@ -535,7 +678,7 @@ function RelatedArticles({ articles }: { articles: ArticleContent[] }): ReactNod
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
         関連記事
       </Heading>
-      <Grid templateColumns={{ base: "1fr", md: "repeat(3, minmax(0, 1fr))" }} gap={4}>
+      <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={4}>
         {articles.map((article) => (
           <SmallArticleCard key={article.meta.slug} article={article} />
         ))}
@@ -546,53 +689,83 @@ function RelatedArticles({ articles }: { articles: ArticleContent[] }): ReactNod
 
 function SmallArticleCard({ article }: { article: ArticleContent }): ReactNode {
   return (
-    <Box as="article" borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden" bg="white">
-      <ArticleThumb categorySlug={article.meta.categorySlug} compact />
-      <VStack align="stretch" gap={2} p={4}>
-        <Heading as="h3" fontSize="sm" lineHeight="1.55" letterSpacing="0">
-          <Link
-            href={article.meta.canonicalPath}
-            color="gray.950"
-            _hover={{ color: "teal.700", textDecoration: "none" }}
-          >
+    <Link
+      href={article.meta.canonicalPath}
+      display="block"
+      color="inherit"
+      textDecoration="none"
+      _hover={{ textDecoration: "none" }}
+    >
+      <Grid
+        as="article"
+        templateColumns={{ base: "104px minmax(0, 1fr)", md: "128px minmax(0, 1fr)" }}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        overflow="hidden"
+        bg="white"
+        minH="148px"
+        transition="border-color 0.2s ease, box-shadow 0.2s ease"
+        _hover={{ borderColor: "gray.300", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)" }}
+      >
+        <ArticleThumb categorySlug={article.meta.categorySlug} compact inline />
+        <VStack align="stretch" gap={2} p={4}>
+          <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
+            {article.meta.categoryLabel}
+          </Badge>
+          <Heading as="h3" color="gray.950" fontSize="sm" lineHeight="1.55" letterSpacing="0">
             {article.meta.title}
-          </Link>
-        </Heading>
-        <Text color="gray.500" textStyle="sm">
-          {formatJapaneseDate(article.meta.publishedAt)}
-        </Text>
-      </VStack>
-    </Box>
+          </Heading>
+          <Text color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={{ base: 2, md: 1 }}>
+            {article.meta.description}
+          </Text>
+          <HStack gap={3} color="gray.500" textStyle="sm" wrap="wrap">
+            <Text>{formatJapaneseDate(article.meta.publishedAt)}</Text>
+            <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分</MetaItem>
+          </HStack>
+        </VStack>
+      </Grid>
+    </Link>
   );
 }
 
-function BottomCta({ compact = false }: { compact?: boolean }): ReactNode {
+function BottomCta({ category, compact = false }: { category?: CategoryContent; compact?: boolean }): ReactNode {
+  const title = category?.meta.ctaTitle ?? sitePage.ctaTitle;
+  const description = category?.meta.ctaDescription ?? sitePage.ctaDescription;
+
   return (
     <Box
-      bg="blue.50"
+      bg="teal.50"
       borderWidth="1px"
-      borderColor="blue.100"
+      borderColor="teal.100"
       borderRadius="lg"
       px={{ base: 5, lg: 8 }}
       py={{ base: 6, lg: compact ? 6 : 8 }}
     >
       <Grid templateColumns={{ base: "1fr", md: "minmax(0, 1fr) auto" }} gap={6} alignItems="center">
         <VStack align="stretch" gap={2}>
-          <Heading as="h2" color="blue.900" fontSize={{ base: "xl", lg: "2xl" }} lineHeight="1.45" letterSpacing="0">
-            {sitePage.ctaTitle}
+          <Heading as="h2" color="teal.900" fontSize={{ base: "xl", lg: "2xl" }} lineHeight="1.45" letterSpacing="0">
+            {title}
           </Heading>
-          <Text color="blue.900" lineHeight="1.8">
-            {sitePage.ctaDescription}
+          <Text color="teal.900" lineHeight="1.8">
+            {description}
           </Text>
         </VStack>
         <HStack gap={3} wrap="wrap">
-          <Button asChild colorPalette="blue" borderRadius="full" px={5}>
+          <Button asChild colorPalette="teal" borderRadius="full" px={5}>
             <Link href={sitePage.ctaPrimaryHref}>
               {sitePage.ctaPrimaryLabel}
               <LuArrowRight />
             </Link>
           </Button>
-          <Button asChild variant="outline" bg="white" borderRadius="full" px={5}>
+          <Button
+            asChild
+            display={{ base: "none", md: "inline-flex" }}
+            variant="outline"
+            bg="white"
+            borderRadius="full"
+            px={5}
+          >
             <Link href={sitePage.ctaSecondaryHref}>
               {sitePage.ctaSecondaryLabel}
               <LuArrowRight />
@@ -714,34 +887,37 @@ function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }): 
   );
 }
 
-function HeroIllustration({ icon }: { icon: IconType }): ReactNode {
+function HeroIllustration({ icon, compact = false }: { icon: IconType; compact?: boolean }): ReactNode {
   const Icon = icon;
 
   return (
     <Flex
-      minH={{ base: "180px", md: "220px" }}
+      minH={compact ? { base: "132px", md: "160px" } : { base: "180px", md: "220px" }}
+      maxW={compact ? { md: "220px" } : undefined}
+      justifySelf={compact ? { md: "end" } : undefined}
+      w="full"
       borderWidth="1px"
-      borderColor="blue.100"
+      borderColor="teal.100"
       borderRadius="lg"
-      bg="blue.50"
+      bg="teal.50"
       align="center"
       justify="center"
-      color="blue.700"
+      color="teal.700"
       position="relative"
       overflow="hidden"
     >
-      <Box position="absolute" insetX="12%" top="18%" h="1px" bg="blue.100" />
-      <Box position="absolute" left="16%" bottom="20%" w="24%" h="1px" bg="blue.100" />
+      <Box position="absolute" insetX="12%" top="18%" h="1px" bg="teal.100" />
+      <Box position="absolute" left="16%" bottom="20%" w="24%" h="1px" bg="teal.100" />
       <Flex
-        boxSize="88px"
+        boxSize={compact ? "72px" : "88px"}
         borderRadius="full"
         bg="white"
         borderWidth="1px"
-        borderColor="blue.100"
+        borderColor="teal.100"
         align="center"
         justify="center"
       >
-        <Icon size={42} />
+        <Icon size={compact ? 34 : 42} />
       </Flex>
     </Flex>
   );
@@ -751,22 +927,24 @@ function ArticleThumb({
   categorySlug,
   large = false,
   compact = false,
+  inline = false,
 }: {
   categorySlug: string;
   large?: boolean;
   compact?: boolean;
+  inline?: boolean;
 }): ReactNode {
   const Icon = getCategoryIcon(categorySlug);
 
   return (
     <Flex
-      minH={compact ? "112px" : large ? "176px" : { base: "88px", md: "112px" }}
+      minH={compact ? (inline ? "full" : "112px") : large ? "176px" : { base: "88px", md: "112px" }}
       h="full"
       borderRadius={compact ? "0" : "md"}
-      bg="blue.50"
-      borderWidth={compact ? "0 0 1px 0" : "1px"}
-      borderColor="blue.100"
-      color="blue.700"
+      bg="teal.50"
+      borderWidth={compact ? (inline ? "0 1px 0 0" : "0 0 1px 0") : "1px"}
+      borderColor="teal.100"
+      color="teal.700"
       align="center"
       justify="center"
     >
@@ -775,11 +953,21 @@ function ArticleThumb({
   );
 }
 
-function IconBadge({ icon }: { icon: IconType }): ReactNode {
+function IconBadge({ icon, compact = false }: { icon: IconType; compact?: boolean }): ReactNode {
   const Icon = icon;
 
   return (
-    <Flex boxSize={12} borderRadius="full" bg="orange.100" color="orange.700" align="center" justify="center">
+    <Flex
+      boxSize={compact ? { base: 10, md: 12 } : 12}
+      flexShrink={0}
+      borderRadius="full"
+      bg="teal.50"
+      borderWidth="1px"
+      borderColor="teal.100"
+      color="teal.700"
+      align="center"
+      justify="center"
+    >
       <Icon size={24} />
     </Flex>
   );
@@ -828,10 +1016,12 @@ function getCategoryIcon(slug: string): IconType {
   switch (slug) {
     case "excel-recording":
       return LuFileSpreadsheet;
+    case "shift-planning":
+      return LuTable2;
     case "submit-status":
       return LuPenLine;
     case "staff-sharing":
-      return LuMegaphone;
+      return LuCalendarCheck;
     case "tool-choice":
       return LuBookOpen;
     case "shift-request":

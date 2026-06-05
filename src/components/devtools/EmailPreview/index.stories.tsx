@@ -1,11 +1,24 @@
-import { Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ReactNode } from "react";
+import { formatResendSubject } from "@/convex/_lib/emailFormat";
 import {
   buildConfirmationEmailHtml,
+  buildLineCtaSection,
+  buildLineDefaultReplyText,
+  buildLineInviteEmailHtml,
   buildRecruitmentEmailHtml,
+  buildRecruitmentLineText,
   buildReissueEmailHtml,
+  buildReissueLineText,
   buildReminderEmailHtml,
+  buildReminderLineText,
+  buildShiftConfirmationLineText,
   buildStaffLegalConsentEmailHtml,
+  buildStaffLegalConsentLineText,
+  buildStaffRegistrationOwnerDigestEmailHtml,
+  buildStaffRegistrationOwnerDigestLineText,
+  STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "@/convex/notification/templates";
 import { EmailPreview } from ".";
 
@@ -22,12 +35,18 @@ const meta = {
 export default meta;
 
 const fixtures = {
+  shopName: "居酒屋さくら",
+  managerName: "佐藤 店長",
   staffName: "山田 太郎",
   periodLabel: "2026年5月前半（5/1〜5/15）",
   deadline: "4/25(金)",
   magicLinkUrl: "https://example.com/shifts/view?token=preview-token",
-  reissueUrl: "https://example.com/shifts/reissue?staff=preview",
+  submitLinkUrl: "https://example.com/shifts/submit?token=preview-token",
+  reissueUrl: "https://example.com/shifts/reissue?recruitmentId=preview",
   consentUrl: "https://example.com/legal/staff/consent?token=preview-token",
+  authorizeUrl: "https://example.com/line/callback?state=preview-token",
+  dashboardUrl: "https://example.com/dashboard",
+  expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
   shifts: [
     { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
     { date: "5/2(土)", startTime: "17:00", endTime: "22:00" },
@@ -60,121 +79,285 @@ const legalDocuments = {
   },
 } as const;
 
-const Section = ({ label, html }: { label: string; html: string }) => (
-  <Flex direction="column" gap={2}>
-    <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
-      {label}
-    </Text>
-    <EmailPreview html={html} />
-  </Flex>
-);
+type EmailNotificationPreview = {
+  label: string;
+  subject: string;
+  html: string;
+};
 
-const VariantsContainer = ({ children }: { children: React.ReactNode }) => (
-  <Flex direction="row" wrap="wrap" gap={8} p={6} alignItems="flex-start">
+type LineMessagePreview = {
+  label: string;
+  text: string;
+};
+
+const subject = (text: string) => formatResendSubject(fixtures.shopName, text);
+const lineCtaHtml = buildLineCtaSection({ authorizeUrl: fixtures.authorizeUrl, reLink: false });
+
+const emailNotifications: EmailNotificationPreview[] = [
+  {
+    label: "募集開始",
+    subject: subject(`${fixtures.periodLabel} シフト希望の提出をお願いします`),
+    html: buildRecruitmentEmailHtml({
+      staffName: fixtures.staffName,
+      periodLabel: fixtures.periodLabel,
+      deadline: fixtures.deadline,
+      magicLinkUrl: fixtures.submitLinkUrl,
+      lineCtaHtml,
+    }),
+  },
+  {
+    label: "未提出リマインダー",
+    subject: subject(`${fixtures.periodLabel} シフト希望の提出をお待ちしています（${fixtures.deadline}まで）`),
+    html: buildReminderEmailHtml({
+      staffName: fixtures.staffName,
+      periodLabel: fixtures.periodLabel,
+      linkExpiresAtLabel: fixtures.deadline,
+      magicLinkUrl: fixtures.submitLinkUrl,
+      lineCtaHtml,
+    }),
+  },
+  {
+    label: "シフト確定",
+    subject: subject(`${fixtures.periodLabel} シフト確定のお知らせ`),
+    html: buildConfirmationEmailHtml({
+      staffName: fixtures.staffName,
+      periodLabel: fixtures.periodLabel,
+      shifts: fixtures.shifts,
+      magicLinkUrl: fixtures.magicLinkUrl,
+      reissueUrl: fixtures.reissueUrl,
+      isResend: false,
+      lineCtaHtml,
+    }),
+  },
+  {
+    label: "シフト変更通知",
+    subject: subject(`${fixtures.periodLabel} シフト変更のお知らせ`),
+    html: buildConfirmationEmailHtml({
+      staffName: fixtures.staffName,
+      periodLabel: fixtures.periodLabel,
+      shifts: fixtures.shifts,
+      magicLinkUrl: fixtures.magicLinkUrl,
+      reissueUrl: fixtures.reissueUrl,
+      isResend: true,
+      lineCtaHtml,
+    }),
+  },
+  {
+    label: "シフト確定（全休）",
+    subject: subject(`${fixtures.periodLabel} シフト確定のお知らせ`),
+    html: buildConfirmationEmailHtml({
+      staffName: fixtures.staffName,
+      periodLabel: fixtures.periodLabel,
+      shifts: fixtures.shiftsAllRest,
+      magicLinkUrl: fixtures.magicLinkUrl,
+      reissueUrl: fixtures.reissueUrl,
+      isResend: false,
+      lineCtaHtml,
+    }),
+  },
+  {
+    label: "閲覧リンク再発行",
+    subject: subject(`${fixtures.periodLabel} シフト閲覧リンク`),
+    html: buildReissueEmailHtml({
+      staffName: fixtures.staffName,
+      periodLabel: fixtures.periodLabel,
+      magicLinkUrl: fixtures.magicLinkUrl,
+    }),
+  },
+  {
+    label: "LINE連携依頼",
+    subject: subject("シフト通知をLINEで受け取れます"),
+    html: buildLineInviteEmailHtml({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      authorizeUrl: fixtures.authorizeUrl,
+    }),
+  },
+  {
+    label: "LINE連携依頼（参加承認後）",
+    subject: subject("シフト通知をLINEで受け取れます"),
+    html: buildLineInviteEmailHtml({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      authorizeUrl: fixtures.authorizeUrl,
+      context: "registration_approved",
+    }),
+  },
+  {
+    label: "スタッフ法務同意",
+    subject: subject("シフトリの使い方と利用規約・プライバシーポリシーの確認"),
+    html: buildStaffLegalConsentEmailHtml({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      consentUrl: fixtures.consentUrl,
+      expiresAt: fixtures.expiresAt,
+      documents: legalDocuments,
+    }),
+  },
+  {
+    label: "スタッフ参加承認依頼",
+    subject: subject(STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT),
+    html: buildStaffRegistrationOwnerDigestEmailHtml({
+      managerName: fixtures.managerName,
+      dashboardUrl: fixtures.dashboardUrl,
+    }),
+  },
+];
+
+const lineMessages: LineMessagePreview[] = [
+  {
+    label: "募集開始",
+    text: buildRecruitmentLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      periodLabel: fixtures.periodLabel,
+      deadline: fixtures.deadline,
+      magicLinkUrl: fixtures.submitLinkUrl,
+    }),
+  },
+  {
+    label: "未提出リマインダー",
+    text: buildReminderLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      periodLabel: fixtures.periodLabel,
+      linkExpiresAtLabel: fixtures.deadline,
+      magicLinkUrl: fixtures.submitLinkUrl,
+    }),
+  },
+  {
+    label: "シフト確定",
+    text: buildShiftConfirmationLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      periodLabel: fixtures.periodLabel,
+      shifts: fixtures.shifts,
+      magicLinkUrl: fixtures.magicLinkUrl,
+      isResend: false,
+    }),
+  },
+  {
+    label: "シフト変更通知",
+    text: buildShiftConfirmationLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      periodLabel: fixtures.periodLabel,
+      shifts: fixtures.shifts,
+      magicLinkUrl: fixtures.magicLinkUrl,
+      isResend: true,
+    }),
+  },
+  {
+    label: "シフト確定（全休）",
+    text: buildShiftConfirmationLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      periodLabel: fixtures.periodLabel,
+      shifts: fixtures.shiftsAllRest,
+      magicLinkUrl: fixtures.magicLinkUrl,
+      isResend: false,
+    }),
+  },
+  {
+    label: "閲覧リンク再発行",
+    text: buildReissueLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      periodLabel: fixtures.periodLabel,
+      magicLinkUrl: fixtures.magicLinkUrl,
+    }),
+  },
+  {
+    label: "スタッフ法務同意",
+    text: buildStaffLegalConsentLineText({
+      staffName: fixtures.staffName,
+      shopName: fixtures.shopName,
+      consentUrl: fixtures.consentUrl,
+      expiresAt: fixtures.expiresAt,
+    }),
+  },
+  {
+    label: "スタッフ参加承認依頼",
+    text: buildStaffRegistrationOwnerDigestLineText({
+      dashboardUrl: fixtures.dashboardUrl,
+    }),
+  },
+  {
+    label: "Webhook通常返信",
+    text: buildLineDefaultReplyText(),
+  },
+];
+
+const CatalogContainer = ({ children }: { children: ReactNode }) => (
+  <Flex direction="column" gap={6} p={6} bg="gray.50" minH="100vh">
     {children}
   </Flex>
 );
 
-export const Confirmation: StoryObj<typeof meta> = {
+const EmailSection = ({ label, subject, html }: EmailNotificationPreview) => (
+  <Flex direction="column" gap={3} width="480px" maxW="100%">
+    <Box>
+      <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+        {label}
+      </Text>
+      <Text mt={1} fontSize="sm" fontWeight="medium" color="gray.900" lineHeight="short">
+        {subject}
+      </Text>
+    </Box>
+    <EmailPreview html={html} width="100%" />
+  </Flex>
+);
+
+const LineMessageSection = ({ label, text }: LineMessagePreview) => (
+  <Flex
+    direction="column"
+    gap={3}
+    width="360px"
+    maxW="100%"
+    p={4}
+    bg="white"
+    border="1px solid"
+    borderColor="gray.200"
+    borderRadius="md"
+  >
+    <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+      {label}
+    </Text>
+    <Box
+      as="pre"
+      m={0}
+      whiteSpace="pre-wrap"
+      fontFamily="body"
+      fontSize="sm"
+      lineHeight="1.8"
+      color="gray.900"
+      wordBreak="break-word"
+    >
+      {text}
+    </Box>
+  </Flex>
+);
+
+export const EmailNotifications: StoryObj<typeof meta> = {
   render: () => (
-    <VariantsContainer>
-      <Section
-        label="新規確定"
-        html={buildConfirmationEmailHtml({
-          staffName: fixtures.staffName,
-          periodLabel: fixtures.periodLabel,
-          shifts: fixtures.shifts,
-          magicLinkUrl: fixtures.magicLinkUrl,
-          reissueUrl: fixtures.reissueUrl,
-          isResend: false,
-        })}
-      />
-      <Section
-        label="変更通知（再送）"
-        html={buildConfirmationEmailHtml({
-          staffName: fixtures.staffName,
-          periodLabel: fixtures.periodLabel,
-          shifts: fixtures.shifts,
-          magicLinkUrl: fixtures.magicLinkUrl,
-          reissueUrl: fixtures.reissueUrl,
-          isResend: true,
-        })}
-      />
-      <Section
-        label="全休"
-        html={buildConfirmationEmailHtml({
-          staffName: fixtures.staffName,
-          periodLabel: fixtures.periodLabel,
-          shifts: fixtures.shiftsAllRest,
-          magicLinkUrl: fixtures.magicLinkUrl,
-          reissueUrl: fixtures.reissueUrl,
-          isResend: false,
-        })}
-      />
-    </VariantsContainer>
+    <CatalogContainer>
+      <Flex direction="row" wrap="wrap" gap={8} alignItems="flex-start">
+        {emailNotifications.map((notification) => (
+          <EmailSection key={notification.label} {...notification} />
+        ))}
+      </Flex>
+    </CatalogContainer>
   ),
 };
 
-export const Recruitment: StoryObj<typeof meta> = {
+export const LineMessages: StoryObj<typeof meta> = {
   render: () => (
-    <VariantsContainer>
-      <Section
-        label="募集開始"
-        html={buildRecruitmentEmailHtml({
-          staffName: fixtures.staffName,
-          periodLabel: fixtures.periodLabel,
-          deadline: fixtures.deadline,
-          magicLinkUrl: fixtures.magicLinkUrl,
-        })}
-      />
-    </VariantsContainer>
-  ),
-};
-
-export const Reminder: StoryObj<typeof meta> = {
-  render: () => (
-    <VariantsContainer>
-      <Section
-        label="未提出リマインダー"
-        html={buildReminderEmailHtml({
-          staffName: fixtures.staffName,
-          periodLabel: fixtures.periodLabel,
-          linkExpiresAtLabel: "5/6(月) 15:30",
-          magicLinkUrl: fixtures.magicLinkUrl,
-        })}
-      />
-    </VariantsContainer>
-  ),
-};
-
-export const Reissue: StoryObj<typeof meta> = {
-  render: () => (
-    <VariantsContainer>
-      <Section
-        label="リンク再発行"
-        html={buildReissueEmailHtml({
-          staffName: fixtures.staffName,
-          periodLabel: fixtures.periodLabel,
-          magicLinkUrl: fixtures.magicLinkUrl,
-        })}
-      />
-    </VariantsContainer>
-  ),
-};
-
-export const StaffLegalConsent: StoryObj<typeof meta> = {
-  render: () => (
-    <VariantsContainer>
-      <Section
-        label="スタッフ向け案内・規約確認"
-        html={buildStaffLegalConsentEmailHtml({
-          staffName: fixtures.staffName,
-          shopName: "居酒屋さくら",
-          consentUrl: fixtures.consentUrl,
-          expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
-          documents: legalDocuments,
-        })}
-      />
-    </VariantsContainer>
+    <CatalogContainer>
+      <Flex direction="row" wrap="wrap" gap={4} alignItems="flex-start">
+        {lineMessages.map((message) => (
+          <LineMessageSection key={message.label} {...message} />
+        ))}
+      </Flex>
+    </CatalogContainer>
   ),
 };

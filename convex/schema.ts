@@ -109,7 +109,8 @@ const schema = defineSchema({
     createdAt: v.number(),
   })
     .index("by_shopId_status", ["shopId", "status"])
-    .index("by_shopId_emailNormalized_status", ["shopId", "emailNormalized", "status"]),
+    .index("by_shopId_emailNormalized_status", ["shopId", "emailNormalized", "status"])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
 
   legalConsentStates: defineTable({
     subjectType: v.union(v.literal("user"), v.literal("staff")),
