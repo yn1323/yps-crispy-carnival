@@ -21,6 +21,10 @@ ctaPrimaryHref: "/demo/flow"
 ctaSecondaryLabel: "無料で試す"
 ctaSecondaryHref: "/signup"
 concernSlugs: "shift-request, excel-recording"
+landingPreviewTitle: "シフト作成のヒント"
+landingPreviewDescription: "LINE回収やExcel転記などのポイントを整理します。"
+landingPreviewLimit: 2
+landingPreviewLinkLabel: "記事一覧を見る"
 ---`;
 
 const categoryMarkdown = `---
@@ -79,6 +83,25 @@ describe("ArticleSite markdown content", () => {
       title: "小さなお店のシフト作成ガイド",
       concernSlugs: ["shift-request", "excel-recording"],
       ctaPrimaryHref: "/demo/flow",
+      landingPreviewTitle: "シフト作成のヒント",
+      landingPreviewDescription: "LINE回収やExcel転記などのポイントを整理します。",
+      landingPreviewLimit: 2,
+      landingPreviewLinkLabel: "記事一覧を見る",
+    });
+  });
+
+  it("LP preview frontmatter が未指定ならデフォルト値を使う", () => {
+    const markdown = sitePageMarkdown
+      .replace('landingPreviewTitle: "シフト作成のヒント"\n', "")
+      .replace('landingPreviewDescription: "LINE回収やExcel転記などのポイントを整理します。"\n', "")
+      .replace("landingPreviewLimit: 2\n", "")
+      .replace('landingPreviewLinkLabel: "記事一覧を見る"\n', "");
+
+    expect(parseSitePageMarkdown(markdown, "articles")).toMatchObject({
+      landingPreviewTitle: "シフト作成のヒント",
+      landingPreviewDescription: "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。",
+      landingPreviewLimit: 3,
+      landingPreviewLinkLabel: "記事一覧を見る",
     });
   });
 

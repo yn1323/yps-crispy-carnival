@@ -1,4 +1,5 @@
 import { Box } from "@chakra-ui/react";
+import { ArticlePreviewSection } from "./ArticlePreviewSection";
 import { BenefitsSection } from "./BenefitsSection";
 import { CtaSection } from "./CtaSection";
 import { FaqSection } from "./FaqSection";
@@ -16,12 +17,15 @@ export const LandingPage = () => (
     <SubmissionMethodsSection />
     <BenefitsSection />
     <CtaSection />
+    {/* モック段階のためLP本体では非表示 */}
+    {/* <ArticlePreviewSection /> */}
     <FaqSection />
     <FooterSection />
   </Box>
 );
 
 export {
+  ArticlePreviewSection,
   BenefitsSection,
   CtaSection,
   FaqSection,

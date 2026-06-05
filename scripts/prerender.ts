@@ -4,7 +4,7 @@
  * vite build が生成した dist/ に対して、指定ルートをヘッドレス Chromium で
  * レンダリングし、完成後の HTML を静的ファイルとして書き出す。
  *
- * SEO 対象: /, /features, /faq, /privacy, /terms, /demo/shiftboard, /demo/flow
+ * SEO 対象: /, /features, /faq, /articles, /privacy, /terms, /demo/shiftboard, /demo/flow
  *
  * 使い方: pnpm prerender  (vite build 後に呼び出す)
  *
@@ -24,7 +24,7 @@ import { chromium } from "playwright";
 
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
-const ROUTES = ["/", "/features", "/faq", "/privacy", "/terms", "/demo/shiftboard", "/demo/flow"] as const;
+const ROUTES = ["/", "/features", "/faq", "/articles", "/privacy", "/terms", "/demo/shiftboard", "/demo/flow"] as const;
 
 const GOTO_TIMEOUT_MS = 30_000;
 const RENDER_WAIT_TIMEOUT_MS = 15_000;
