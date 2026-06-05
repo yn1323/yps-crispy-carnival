@@ -1,10 +1,10 @@
 ---
-title: "シフト希望の未提出者を減らすには？店長が確認しやすくする工夫"
-description: "未提出の人を見落とさず、作り直しや確認に時間がかかりすぎないようにする工夫をまとめます。"
+title: "シフト希望の未提出者を減らすには？"
+description: "未提出の人を見落とさず、必要な人だけに声をかけるための確認方法をまとめます。"
 publishedAt: "2024-05-08"
 updatedAt: "2024-05-08"
 categorySlug: "submit-status"
-categoryLabel: "提出状況の確認"
+categoryLabel: "未提出者の確認・リマインド"
 author: "シフトリ編集部"
 readingMinutes: 5
 keywords: "未提出, 希望シフト, リマインド"

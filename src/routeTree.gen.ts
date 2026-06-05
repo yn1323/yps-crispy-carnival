@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as FaqRouteImport } from './routes/faq'
+import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -24,7 +25,9 @@ import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
+import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
@@ -76,6 +79,11 @@ const FaqRoute = FaqRouteImport.update({
   path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArticlesRoute = ArticlesRouteImport.update({
+  id: '/articles',
+  path: '/articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UnregisteredRoute = UnregisteredRouteImport.update({
   id: '/_unregistered',
   getParentRoute: () => rootRouteImport,
@@ -109,11 +117,22 @@ const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
   path: '/privacy/manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => ArticlesRoute,
+} as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const ArticlesCategoriesCategorySlugRoute =
+  ArticlesCategoriesCategorySlugRouteImport.update({
+    id: '/categories/$categorySlug',
+    path: '/categories/$categorySlug',
+    getParentRoute: () => ArticlesRoute,
+  } as any)
 const UnregisteredStaffRegisterRoute =
   UnregisteredStaffRegisterRouteImport.update({
     id: '/staff/register',
@@ -175,6 +194,7 @@ const UnregisteredLegalStaffConsentRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/articles': typeof ArticlesRouteWithChildren
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -184,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
@@ -196,11 +217,13 @@ export interface FileRoutesByFullPath {
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
+  '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/articles': typeof ArticlesRouteWithChildren
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -210,6 +233,7 @@ export interface FileRoutesByTo {
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
@@ -222,6 +246,7 @@ export interface FileRoutesByTo {
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
+  '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
@@ -230,6 +255,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
+  '/articles': typeof ArticlesRouteWithChildren
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -239,6 +265,7 @@ export interface FileRoutesById {
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/privacy_/manager': typeof PrivacyManagerRoute
   '/privacy_/staff': typeof PrivacyStaffRoute
   '/terms_/manager': typeof TermsManagerRoute
@@ -251,6 +278,7 @@ export interface FileRoutesById {
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
   '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
+  '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
 }
@@ -258,6 +286,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/articles'
     | '/faq'
     | '/features'
     | '/forgot-password'
@@ -267,6 +296,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/terms'
     | '/dashboard'
+    | '/articles/$slug'
     | '/privacy/manager'
     | '/privacy/staff'
     | '/terms/manager'
@@ -279,11 +309,13 @@ export interface FileRouteTypes {
     | '/shifts/submit'
     | '/shifts/view'
     | '/staff/register'
+    | '/articles/categories/$categorySlug'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/articles'
     | '/faq'
     | '/features'
     | '/forgot-password'
@@ -293,6 +325,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/terms'
     | '/dashboard'
+    | '/articles/$slug'
     | '/privacy/manager'
     | '/privacy/staff'
     | '/terms/manager'
@@ -305,6 +338,7 @@ export interface FileRouteTypes {
     | '/shifts/submit'
     | '/shifts/view'
     | '/staff/register'
+    | '/articles/categories/$categorySlug'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
   id:
@@ -312,6 +346,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_auth'
     | '/_unregistered'
+    | '/articles'
     | '/faq'
     | '/features'
     | '/forgot-password'
@@ -321,6 +356,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/terms'
     | '/_auth/dashboard'
+    | '/articles/$slug'
     | '/privacy_/manager'
     | '/privacy_/staff'
     | '/terms_/manager'
@@ -333,6 +369,7 @@ export interface FileRouteTypes {
     | '/_unregistered/shifts/submit'
     | '/_unregistered/shifts/view'
     | '/_unregistered/staff/register'
+    | '/articles/categories/$categorySlug'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
   fileRoutesById: FileRoutesById
@@ -341,6 +378,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
+  ArticlesRoute: typeof ArticlesRouteWithChildren
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -413,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/articles': {
+      id: '/articles'
+      path: '/articles'
+      fullPath: '/articles'
+      preLoaderRoute: typeof ArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_unregistered': {
       id: '/_unregistered'
       path: ''
@@ -462,12 +507,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/articles/$slug': {
+      id: '/articles/$slug'
+      path: '/$slug'
+      fullPath: '/articles/$slug'
+      preLoaderRoute: typeof ArticlesSlugRouteImport
+      parentRoute: typeof ArticlesRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/articles/categories/$categorySlug': {
+      id: '/articles/categories/$categorySlug'
+      path: '/categories/$categorySlug'
+      fullPath: '/articles/categories/$categorySlug'
+      preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
+      parentRoute: typeof ArticlesRoute
     }
     '/_unregistered/staff/register': {
       id: '/_unregistered/staff/register'
@@ -583,10 +642,25 @@ const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
   UnregisteredRouteChildren,
 )
 
+interface ArticlesRouteChildren {
+  ArticlesSlugRoute: typeof ArticlesSlugRoute
+  ArticlesCategoriesCategorySlugRoute: typeof ArticlesCategoriesCategorySlugRoute
+}
+
+const ArticlesRouteChildren: ArticlesRouteChildren = {
+  ArticlesSlugRoute: ArticlesSlugRoute,
+  ArticlesCategoriesCategorySlugRoute: ArticlesCategoriesCategorySlugRoute,
+}
+
+const ArticlesRouteWithChildren = ArticlesRoute._addFileChildren(
+  ArticlesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
+  ArticlesRoute: ArticlesRouteWithChildren,
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,

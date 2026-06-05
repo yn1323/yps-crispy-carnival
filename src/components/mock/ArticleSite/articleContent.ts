@@ -11,6 +11,10 @@ export type SitePageMetadata = {
   ctaSecondaryLabel: string;
   ctaSecondaryHref: string;
   concernSlugs: string[];
+  landingPreviewTitle: string;
+  landingPreviewDescription: string;
+  landingPreviewLimit: number;
+  landingPreviewLinkLabel: string;
 };
 
 export type CategoryMetadata = {
@@ -20,8 +24,11 @@ export type CategoryMetadata = {
   breadcrumbLabel: string;
   pointTitle: string;
   pointDescription: string;
+  concerns: string[];
   representativeSlug: string;
   relatedConcernSlugs: string[];
+  ctaTitle: string;
+  ctaDescription: string;
 };
 
 export type ArticleMetadata = {
@@ -146,7 +153,10 @@ const categoryRequiredFields = [
   "breadcrumbLabel",
   "pointTitle",
   "pointDescription",
+  "concerns",
   "representativeSlug",
+  "ctaTitle",
+  "ctaDescription",
 ] as const;
 
 const articleRequiredFields = [
@@ -260,6 +270,12 @@ export function parseSitePageMarkdown(source: string, slug: string): SitePageMet
     ctaSecondaryLabel: frontmatter.ctaSecondaryLabel,
     ctaSecondaryHref: frontmatter.ctaSecondaryHref,
     concernSlugs: splitList(frontmatter.concernSlugs),
+    landingPreviewTitle: frontmatter.landingPreviewTitle ?? "シフト作成のヒント",
+    landingPreviewDescription:
+      frontmatter.landingPreviewDescription ??
+      "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。",
+    landingPreviewLimit: parsePositiveInteger(frontmatter.landingPreviewLimit, 3),
+    landingPreviewLinkLabel: frontmatter.landingPreviewLinkLabel ?? "記事一覧を見る",
   };
 }
 
@@ -275,8 +291,11 @@ export function parseCategoryMarkdown(source: string, slug: string): CategoryCon
       breadcrumbLabel: frontmatter.breadcrumbLabel,
       pointTitle: frontmatter.pointTitle,
       pointDescription: frontmatter.pointDescription,
+      concerns: splitList(frontmatter.concerns),
       representativeSlug: frontmatter.representativeSlug,
       relatedConcernSlugs: splitList(frontmatter.relatedConcernSlugs),
+      ctaTitle: frontmatter.ctaTitle,
+      ctaDescription: frontmatter.ctaDescription,
     },
     blocks: parseMarkdownBlocks(bodySource),
   };
@@ -376,6 +395,14 @@ function splitList(value: string | undefined): string[] {
     .split(/[,、]/)
     .map((item) => stripQuotes(item.trim()))
     .filter(Boolean);
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
 }
 
 function parseMarkdownBlocks(source: string): MarkdownBlock[] {

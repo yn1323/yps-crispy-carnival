@@ -5,9 +5,9 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
-import pkg from "./package.json" with { type: "json" };
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+const storybookAppVersion = "0.0.0-vrt";
 
 const logicProject = defineConfig({
   plugins: [
@@ -40,7 +40,7 @@ const uiProject = defineConfig({
     }),
   ],
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(storybookAppVersion),
   },
   resolve: {
     alias: {

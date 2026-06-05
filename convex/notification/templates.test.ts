@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildConfirmationEmailHtml, buildShiftConfirmationLineText } from "./templates";
+import { formatResendSubject } from "../_lib/emailFormat";
+import {
+  buildConfirmationEmailHtml,
+  buildLineDefaultReplyText,
+  buildShiftConfirmationLineText,
+  buildStaffRegistrationOwnerDigestEmailHtml,
+  buildStaffRegistrationOwnerDigestLineText,
+  STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
+} from "./templates";
 
 describe("notification/templates", () => {
   it("確定通知メールとLINEに日ごと・勤務区分ラベルを表示する", () => {
@@ -35,5 +43,34 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain("遅番（15:00-22:00）");
     expect(emailHtml).toContain("21:00-翌1:00");
     expect(emailHtml).toContain("休み");
+  });
+
+  it("スタッフ参加申請のオーナー通知はダッシュボードリンクのみを案内し、申請者情報を含めない", () => {
+    const dashboardUrl = "https://shiftori.app/dashboard";
+    const lineText = buildStaffRegistrationOwnerDigestLineText({ dashboardUrl });
+    const emailHtml = buildStaffRegistrationOwnerDigestEmailHtml({
+      managerName: "店長",
+      dashboardUrl,
+    });
+
+    expect(formatResendSubject("テスト店舗", STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT)).toBe(
+      "【シフトリ：テスト店舗】スタッフの承認依頼が届いています",
+    );
+    expect(lineText).toContain("スタッフの承認依頼が届いています。");
+    expect(lineText).toContain("シフトリのダッシュボードで確認してください。");
+    expect(lineText).toContain(dashboardUrl);
+    expect(emailHtml).toContain("スタッフの承認依頼が届いています。");
+    expect(emailHtml).toContain("シフトリのダッシュボードで確認してください。");
+    expect(emailHtml).toContain("ダッシュボードを確認する");
+    expect(emailHtml).toContain(dashboardUrl);
+    expect(`${lineText}\n${emailHtml}`).not.toContain("申請スタッフ");
+    expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");
+  });
+
+  it("LINEの通常返信文はテンプレートから生成する", () => {
+    const text = buildLineDefaultReplyText();
+
+    expect(text).toContain("シフトリの通知用アカウントです。");
+    expect(text).toContain("メール／LINEのリンクからお願いします。");
   });
 });

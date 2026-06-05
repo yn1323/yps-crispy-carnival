@@ -1,10 +1,13 @@
 ---
 slug: "excel-recording"
-title: "Excel転記が大変"
-description: "紙やLINEの希望を表に写す手間、転記ミス、最新版管理の困りごとを整理します。"
-breadcrumbLabel: "Excel転記が大変"
+title: "Excel・紙のシフト管理"
+description: "紙やLINEで集めた希望をExcelへ転記するときの手間やミスを減らす方法を整理します。"
+breadcrumbLabel: "Excel・紙のシフト管理"
 pointTitle: "このカテゴリのポイント"
-pointDescription: "Excelは自由に作れる一方で、希望回収と確定共有が別管理になると負担が増えます。転記を減らすだけで、確認時間も短くなります。"
+pointDescription: "Excelや紙は始めやすい一方で、希望回収、転記、最新版管理が別々になりがちです。表に写す前後の手間を見直すと、作成時間を減らしやすくなります。"
+concerns: "LINEや紙で集めた希望をExcelへ転記するのに時間がかかる, 入力ミスや見落としに気づきにくい, 最新版のファイルや紙がどれか分からなくなる, 確定後の変更を表と連絡の両方で直す必要がある"
 representativeSlug: "excel-shift-sheet-hard"
 relatedConcernSlugs: "shift-request, submit-status, tool-choice"
+ctaTitle: "Excelへの転記を減らして、希望回収から確定までまとめませんか？"
+ctaDescription: "シフトリなら、スタッフの希望を一覧で確認しながらシフト作成まで進められます。"
 ---
