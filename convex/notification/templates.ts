@@ -378,6 +378,54 @@ export function buildLineCtaSection(params: { authorizeUrl: string; reLink: bool
   </table>`;
 }
 
+export const STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT = "スタッフの承認依頼が届いています";
+
+type StaffRegistrationOwnerDigestParams = {
+  dashboardUrl: string;
+};
+
+export function buildStaffRegistrationOwnerDigestLineText(params: StaffRegistrationOwnerDigestParams): string {
+  return [
+    "スタッフの承認依頼が届いています。",
+    "シフトリのダッシュボードで確認してください。",
+    "",
+    params.dashboardUrl,
+  ].join("\n");
+}
+
+export function buildStaffRegistrationOwnerDigestEmailHtml(
+  params: StaffRegistrationOwnerDigestParams & { managerName: string },
+): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフの承認依頼が届いています。<br/>シフトリのダッシュボードで確認してください。</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
+            </td></tr>
+          </table>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 type StaffLegalConsentEmailParams = {
   staffName: string;
   shopName: string;

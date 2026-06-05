@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import {
   hasScheduledJob,
   MANAGER_SUBJECT,
@@ -24,8 +24,8 @@ describe("スタッフ参加QRシナリオ", () => {
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
 
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, {
+    const { shopId } = await t.run(async (ctx) => {
+      return await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "qr-manager@example.com",
         shopName: "QR登録店舗",
@@ -46,6 +46,16 @@ describe("スタッフ参加QRシナリオ", () => {
       email: "qr-staff@example.com",
       acceptedLegal: true,
     });
+
+    const ownerDigestTargetBeforeApproval = await t.query(
+      internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop,
+      {
+        shopId,
+      },
+    );
+    expect(ownerDigestTargetBeforeApproval?.recipients).toEqual([
+      expect.objectContaining({ email: "qr-manager@example.com" }),
+    ]);
 
     const pending = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
@@ -76,5 +86,11 @@ describe("スタッフ参加QRシナリオ", () => {
     expect(
       hasScheduledJob(scheduled, "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff", { staffId }),
     ).toBe(true);
+
+    await expect(
+      t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
+        shopId,
+      }),
+    ).resolves.toBeNull();
   });
 });
