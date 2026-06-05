@@ -11,6 +11,10 @@ export type SitePageMetadata = {
   ctaSecondaryLabel: string;
   ctaSecondaryHref: string;
   concernSlugs: string[];
+  landingPreviewTitle: string;
+  landingPreviewDescription: string;
+  landingPreviewLimit: number;
+  landingPreviewLinkLabel: string;
 };
 
 export type CategoryMetadata = {
@@ -266,6 +270,12 @@ export function parseSitePageMarkdown(source: string, slug: string): SitePageMet
     ctaSecondaryLabel: frontmatter.ctaSecondaryLabel,
     ctaSecondaryHref: frontmatter.ctaSecondaryHref,
     concernSlugs: splitList(frontmatter.concernSlugs),
+    landingPreviewTitle: frontmatter.landingPreviewTitle ?? "シフト作成のヒント",
+    landingPreviewDescription:
+      frontmatter.landingPreviewDescription ??
+      "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。",
+    landingPreviewLimit: parsePositiveInteger(frontmatter.landingPreviewLimit, 3),
+    landingPreviewLinkLabel: frontmatter.landingPreviewLinkLabel ?? "記事一覧を見る",
   };
 }
 
@@ -385,6 +395,14 @@ function splitList(value: string | undefined): string[] {
     .split(/[,、]/)
     .map((item) => stripQuotes(item.trim()))
     .filter(Boolean);
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
 }
 
 function parseMarkdownBlocks(source: string): MarkdownBlock[] {
