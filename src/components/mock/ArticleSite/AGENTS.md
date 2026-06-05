@@ -34,12 +34,17 @@ ctaPrimaryHref: "/demo/flow"
 ctaSecondaryLabel: "無料で試してみる"
 ctaSecondaryHref: "/signup"
 concernSlugs: "shift-request, excel-recording, submit-status"
+landingPreviewTitle: "シフト作成のヒント"
+landingPreviewDescription: "LPの記事ミニ導線に出す説明文"
+landingPreviewLimit: 3
+landingPreviewLinkLabel: "記事一覧を見る"
 ---
 ```
 
 - `concernSlugs` は一覧トップの「よくある困りごと」に出すカテゴリslugと表示順です。
 - ここにslugを追加しても、対応する `content/categories/{slug}/index.md` がないと表示できません。
 - 一覧トップの新着記事は `publishedAt` の降順で表示されます。
+- `landingPreviewTitle` / `landingPreviewDescription` / `landingPreviewLimit` / `landingPreviewLinkLabel` はLPのFAQ前に出す記事ミニ導線を制御します。記事そのものは `publishedAt` 降順の最新順です。
 
 ## カテゴリ: `content/categories/{categorySlug}/index.md`
 
@@ -142,6 +147,7 @@ ogDescription: "OG説明"
 mdで変えられること:
 
 - 記事一覧トップの文言・CTA・困りごとの表示順
+- LPの記事ミニ導線の見出し・説明文・表示件数・一覧リンク文言
 - カテゴリ名・説明・扱う悩み・カテゴリ別CTA
 - 記事タイトル・説明・カテゴリ・関連記事・本文・読了時間
 

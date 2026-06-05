@@ -28,6 +28,7 @@
 - `src/components/features/Line/LineCallbackPage/` — コールバック完了 / エラー UI
 - `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — `…` メニューに LINE 連携項目追加
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — モーダル接続
+- `src/components/devtools/EmailPreview/` — Storybook でメール文面・LINE本文を VRT 管理
 
 ## 画面一覧
 
