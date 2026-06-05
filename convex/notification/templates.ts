@@ -110,6 +110,13 @@ export function buildReminderLineText(params: {
   ].join("\n");
 }
 
+export function buildLineDefaultReplyText(): string {
+  return [
+    "シフトリの通知用アカウントです。",
+    "シフトの確認や提出は、シフト作成担当者から届くメール／LINEのリンクからお願いします。",
+  ].join("\n");
+}
+
 type ConfirmationEmailParams = {
   staffName: string;
   periodLabel: string;

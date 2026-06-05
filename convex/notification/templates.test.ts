@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatResendSubject } from "../_lib/emailFormat";
 import {
   buildConfirmationEmailHtml,
+  buildLineDefaultReplyText,
   buildShiftConfirmationLineText,
   buildStaffRegistrationOwnerDigestEmailHtml,
   buildStaffRegistrationOwnerDigestLineText,
@@ -64,5 +65,12 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain(dashboardUrl);
     expect(`${lineText}\n${emailHtml}`).not.toContain("申請スタッフ");
     expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");
+  });
+
+  it("LINEの通常返信文はテンプレートから生成する", () => {
+    const text = buildLineDefaultReplyText();
+
+    expect(text).toContain("シフトリの通知用アカウントです。");
+    expect(text).toContain("メール／LINEのリンクからお願いします。");
   });
 });

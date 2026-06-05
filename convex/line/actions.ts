@@ -16,7 +16,7 @@ import {
   replyTextMessage,
 } from "../_lib/lineClient";
 import { getResendClient, sendResendEmail } from "../_lib/resend";
-import { buildLineInviteEmailHtml } from "../notification/templates";
+import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notification/templates";
 
 function getLoginChannelId(): string {
   const v = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -96,12 +96,8 @@ export const sendPushNotification = internalAction({
 export const replyDefaultMessage = internalAction({
   args: { replyToken: v.string() },
   handler: async (_ctx, { replyToken }) => {
-    const text = [
-      "シフトリの通知用アカウントです。",
-      "シフトの確認や提出は、シフト作成担当者から届くメール／LINEのリンクからお願いします。",
-    ].join("\n");
     try {
-      await replyTextMessage(replyToken, text);
+      await replyTextMessage(replyToken, buildLineDefaultReplyText());
     } catch (e) {
       // reply 失敗で Webhook 全体を落とさない
       console.error("LINE reply failed", e);
