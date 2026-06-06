@@ -28,7 +28,7 @@ export const enqueue = internalMutation({
         .first();
       if (existing) {
         if (existing.status === "pending" && existing.nextRunAt <= now) {
-          await ensureProcessPendingScheduled(ctx);
+          await ensureProcessPendingScheduled(ctx, now);
         }
         return { outboxId: existing._id, deduped: true };
       }
@@ -58,22 +58,23 @@ export const enqueue = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
-    await ensureProcessPendingScheduled(ctx);
+    await ensureProcessPendingScheduled(ctx, now);
     return { outboxId, deduped: false };
   },
 });
 
-async function ensureProcessPendingScheduled(ctx: MutationCtx) {
-  // staleなdue pendingが残った場合でも、未実行workerがなければ次enqueueで配送を再開する。
+async function ensureProcessPendingScheduled(ctx: MutationCtx, now: number) {
+  // retry用の未来workerだけでは新規due通知を配送できないため、即時実行できるworkerだけを十分条件にする。
   const scheduledFunctions = await ctx.db.system.query("_scheduled_functions").order("desc").take(100);
-  const hasPendingWorker = scheduledFunctions.some((job) => {
+  const hasDueWorker = scheduledFunctions.some((job) => {
     return (
       job.state.kind === "pending" &&
+      job.scheduledTime <= now &&
       job.name.includes("notificationOutbox/actions") &&
       job.name.includes("processPending")
     );
   });
-  if (!hasPendingWorker) {
+  if (!hasDueWorker) {
     await ctx.scheduler.runAfter(0, internal.notificationOutbox.actions.processPending, {});
   }
 }
