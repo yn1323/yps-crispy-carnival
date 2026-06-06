@@ -106,6 +106,57 @@ describe("recruitment/mutations", () => {
       expect(
         state.scheduled.filter((job) => job.name === "notification/actions:sendRecruitmentNotificationEmails"),
       ).toHaveLength(1);
+      expect(
+        state.scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails"),
+      ).toHaveLength(1);
+    });
+
+    it("提出締切日前日17:00が未来なら自動催促を予約する", async () => {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00+09:00"));
+      const { t } = setupShop();
+      const recruitmentId = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.recruitment.mutations.createRecruitment, {
+          periodStart: "2026-01-10",
+          periodEnd: "2026-01-16",
+          deadline: "2026-01-05",
+          shopClosedDates: [],
+        });
+
+      const state = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+        return { recruitment, scheduled };
+      });
+
+      expect(state.recruitment?.reminderScheduledAt).toBe(new Date("2026-01-04T17:00:00+09:00").getTime());
+      expect(
+        state.scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails"),
+      ).toHaveLength(1);
+    });
+
+    it("提出締切日前日17:00を過ぎている募集では自動催促を予約しない", async () => {
+      vi.setSystemTime(new Date("2026-01-05T00:00:00+09:00"));
+      const { t } = setupShop();
+      const recruitmentId = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.recruitment.mutations.createRecruitment, {
+          periodStart: "2026-01-10",
+          periodEnd: "2026-01-16",
+          deadline: "2026-01-05",
+          shopClosedDates: [],
+        });
+
+      const state = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+        return { recruitment, scheduled };
+      });
+
+      expect(state.recruitment?.reminderScheduledAt).toBeUndefined();
+      expect(
+        state.scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails"),
+      ).toHaveLength(0);
     });
 
     it("同じ期間でも定休日が違う募集は別に作成できる", async () => {

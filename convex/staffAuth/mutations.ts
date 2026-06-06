@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
+import { getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
@@ -70,7 +71,11 @@ export const verifyToken = mutation({
         accessKind === "submit" && recruitment.status === "confirmed" ? "submission_closed" : "invalid_link",
       );
     }
-    // submit リンクは「提出・修正は締切まで、閲覧は確定まで」なので、
+    // submit リンクは締切後の確認用にも使うが、シフト開始日以降は確定シフトリンクへ役割を渡す。
+    if (accessKind === "submit" && now >= getSubmitLinkCutoff(recruitment.periodStart)) {
+      return expired(magicLink.recruitmentId, "submission_closed");
+    }
+    // submit リンクは「提出・修正は締切まで、閲覧はシフト開始日前日まで」なので、
     // 締切由来の magicLink.expiresAt では失効させない。提出可否は submitShiftRequests 側で判定する。
     if (accessKind === "view" && magicLink.expiresAt < now) {
       return expired(magicLink.recruitmentId, "invalid_link");
@@ -111,7 +116,10 @@ export const verifyToken = mutation({
       shopId: magicLink.shopId,
       recruitmentId: magicLink.recruitmentId,
       accessKind,
-      expiresAt: now + STAFF_SESSION_TTL_MS,
+      expiresAt:
+        accessKind === "submit"
+          ? Math.min(now + STAFF_SESSION_TTL_MS, getSubmitLinkCutoff(recruitment.periodStart))
+          : now + STAFF_SESSION_TTL_MS,
     });
     if (accessKind === "view") {
       await ctx.db.patch(magicLink._id, { usedAt: now });

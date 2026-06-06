@@ -55,6 +55,12 @@ async function setupTestData(
 }
 
 describe("staffAuth/mutations", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-10T00:00:00+09:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   describe("verifyToken", () => {
     it("有効なトークンでセッションが作成される", async () => {
       const t = convexTest(schema, modules);
@@ -235,6 +241,46 @@ describe("staffAuth/mutations", () => {
 
       expect(result.status).toBe("ok");
       if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
+    });
+
+    it("submitトークンはシフト開始日以降ならsubmission_closedでexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { periodStart: "2026-01-01" });
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result).toEqual({ status: "expired", reason: "submission_closed", recruitmentId });
+    });
+
+    it("submitセッションは14日より先にシフト開始日が来る場合、開始日前日までに期限を丸める", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken } = await setupTestData(t, {
+        accessKind: "submit",
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") throw new Error("expected submit session");
+      const session = await t.run(async (ctx) =>
+        ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", result.sessionToken))
+          .first(),
+      );
+      expect(session?.expiresAt).toBe(new Date("2026-01-20T00:00:00+09:00").getTime());
     });
 
     it("submitトークンは募集確定後ならexpiredが返る", async () => {

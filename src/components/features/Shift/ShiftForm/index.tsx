@@ -12,7 +12,7 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
-import { ConfirmButton, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
+import { ConfirmButton, type ReminderStatus, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { DateOnlyView } from "./pc/DateOnlyView";
@@ -50,9 +50,8 @@ type ShiftFormProps = {
   isSavingDraft?: boolean;
   isConfirming?: boolean;
   isConfirmed?: boolean;
-  onRemind?: () => void;
-  isReminding?: boolean;
-  lastSentAtLabel?: string;
+  reminderStatus?: ReminderStatus;
+  onOpenUnsubmittedDetails?: () => void;
 };
 
 const ShiftFormInner = ({
@@ -78,9 +77,8 @@ const ShiftFormInner = ({
   isSavingDraft = false,
   isConfirming = false,
   isConfirmed = false,
-  onRemind,
-  isReminding = false,
-  lastSentAtLabel,
+  reminderStatus,
+  onOpenUnsubmittedDetails,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -140,9 +138,8 @@ const ShiftFormInner = ({
           isSavingDraft={isSavingDraft}
           isConfirming={isConfirming}
           unsubmittedNames={unsubmittedNames}
-          onRemind={onRemind}
-          isReminding={isReminding}
-          lastSentAtLabel={lastSentAtLabel}
+          reminderStatus={reminderStatus}
+          onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           singleViewLabel={isDateOnlyPattern ? "日ごと" : undefined}
         >
           {isDateOnlyPattern ? (
@@ -178,9 +175,8 @@ const ShiftFormInner = ({
           isSavingDraft={isSavingDraft}
           isConfirming={isConfirming}
           unsubmittedNames={unsubmittedNames}
-          onRemind={onRemind}
-          isReminding={isReminding}
-          lastSentAtLabel={lastSentAtLabel}
+          reminderStatus={reminderStatus}
+          onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
         >
           {isDateOnlyPattern ? (
             <>
@@ -227,9 +223,8 @@ type ShellProps = {
   isSavingDraft: boolean;
   isConfirming: boolean;
   unsubmittedNames: string[];
-  onRemind?: () => void;
-  isReminding: boolean;
-  lastSentAtLabel?: string;
+  reminderStatus?: ReminderStatus;
+  onOpenUnsubmittedDetails?: () => void;
   singleViewLabel?: string;
   children: ReactNode;
 };
@@ -245,9 +240,8 @@ const Shell = ({
   isSavingDraft,
   isConfirming,
   unsubmittedNames,
-  onRemind,
-  isReminding,
-  lastSentAtLabel,
+  reminderStatus,
+  onOpenUnsubmittedDetails,
   singleViewLabel,
   children,
 }: ShellProps) => (
@@ -279,12 +273,11 @@ const Shell = ({
     <Flex flex={1} minH={0} direction="column">
       {children}
     </Flex>
-    {!isReadOnly && unsubmittedNames.length > 0 && (
+    {!isReadOnly && !isConfirmed && reminderStatus && unsubmittedNames.length > 0 && (
       <UnsubmittedStrip
         names={unsubmittedNames}
-        onRemind={onRemind}
-        isReminding={isReminding}
-        lastSentAtLabel={lastSentAtLabel}
+        reminderStatus={reminderStatus}
+        onOpenDetails={onOpenUnsubmittedDetails}
       />
     )}
   </Flex>

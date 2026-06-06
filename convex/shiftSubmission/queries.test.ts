@@ -1,6 +1,6 @@
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
@@ -125,6 +125,12 @@ async function seedRecruitment(
 }
 
 describe("shiftSubmission/queries", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00+09:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   describe("getSubmissionPageData", () => {
     it("直近のシフトあり週を previousWeeklyPattern として返す", async () => {
       const t = convexTest(schema, modules);
@@ -391,6 +397,22 @@ describe("shiftSubmission/queries", () => {
         existingRequests: [],
         previousWeeklyPattern: null,
       });
+    });
+
+    it("シフト開始日以降は有効な提出sessionがあっても提出受付終了を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { periodStart: "2026-03-01" });
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData).toEqual({ status: "unavailable", reason: "submission_closed" });
     });
 
     it("募集確定後は有効な提出sessionがあっても提出受付終了を返す", async () => {

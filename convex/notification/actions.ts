@@ -6,7 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { formatDeadlineLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -280,16 +280,15 @@ export const sendRecruitmentNotificationEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const expiresAt = getDeadlineCutoff(data.deadline);
+    const expiresAt = getSubmitLinkCutoff(data.periodStart);
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
 
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
-        accessKind: "submit",
         expiresAt,
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
@@ -319,7 +318,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
               staffName: staff.name,
               shopName: data.shopName,
               periodLabel: data.periodLabel,
-              deadline: formatDateLabel(data.deadline),
+              deadline: formatDeadlineLabel(data.deadline),
               magicLinkUrl,
             }),
             suppressDelivery,
@@ -403,7 +402,7 @@ async function buildRecruitmentEmail(opts: {
       html: buildRecruitmentEmailHtml({
         staffName: staff.name,
         periodLabel,
-        deadline: formatDateLabel(deadline),
+        deadline: formatDeadlineLabel(deadline),
         magicLinkUrl,
         lineCtaHtml,
       }),
@@ -431,12 +430,11 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
     );
 
     for (const recruitment of data.recruitments) {
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
-        accessKind: "submit",
-        expiresAt: getDeadlineCutoff(recruitment.deadline),
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
@@ -492,12 +490,11 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
     if (channel !== "line") return;
 
     for (const recruitment of data.recruitments) {
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
-        accessKind: "submit",
-        expiresAt: getDeadlineCutoff(recruitment.deadline),
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
@@ -512,7 +509,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
               staffName: data.staff.name,
               shopName: data.shopName,
               periodLabel: recruitment.periodLabel,
-              deadline: formatDateLabel(recruitment.deadline),
+              deadline: formatDeadlineLabel(recruitment.deadline),
               magicLinkUrl,
             }),
             suppressDelivery,

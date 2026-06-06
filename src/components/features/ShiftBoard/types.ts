@@ -12,6 +12,7 @@ export type ShiftBoardData = {
     shopClosedDates: string[];
     status: "open" | "confirmed";
     confirmedAt: number | null;
+    reminderScheduledAt: number | null;
     lastReminderSentAt: number | null;
     draftSavedAt: number | null;
   };

@@ -25,7 +25,7 @@ export class StaffSubmitPage {
   }
 
   async expectReadOnlyVisible() {
-    await expect(this.page.getByText("提出締切を過ぎたため変更できません")).toBeVisible();
+    await expect(this.page.getByText("締切を過ぎたため変更できません")).toBeVisible();
   }
 
   async expectExpiredVisible() {
@@ -71,6 +71,20 @@ export class StaffSubmitPage {
 
   async submit() {
     await this.page.getByRole("button", { name: /提出|更新/ }).click();
+  }
+
+  async expectLateInitialConfirmVisible() {
+    const dialog = this.page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "提出締切を過ぎています" })).toBeVisible();
+    await expect(
+      dialog.getByText(
+        "提出締切を過ぎています。提出後はこのリンクから変更できません。変更が必要な場合はシフト作成担当者に連絡してください。",
+      ),
+    ).toBeVisible();
+  }
+
+  async confirmLateInitialSubmit() {
+    await this.page.getByRole("dialog").getByRole("button", { name: "この内容で提出する" }).click();
   }
 
   async expectDayWorking(dateText: string) {
