@@ -124,9 +124,18 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
-    it("締切超過でエラー", async () => {
+    it("締切超過でも未提出なら初回提出でき、以降の変更はできない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, { deadlinePassed: true });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).resolves.toBeNull();
 
       await expect(
         t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {

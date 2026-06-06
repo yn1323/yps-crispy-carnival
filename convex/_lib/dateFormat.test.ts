@@ -3,10 +3,12 @@ import {
   addDays,
   formatDateLabel,
   formatDateTimeLabel,
+  formatDeadlineLabel,
   formatPeriodLabel,
   generateDateRange,
   getDeadlineCutoff,
   getMondayWeekStart,
+  getReminderScheduledAt,
   getSubmitLinkCutoff,
   getWeekday,
   todayJST,
@@ -52,6 +54,14 @@ describe("dateFormat", () => {
 
     expect(new Date("2026-06-07T14:59:59.999Z").getTime()).toBeLessThan(cutoff);
     expect(new Date("2026-06-07T15:00:00.000Z").getTime()).toBe(cutoff);
+  });
+
+  it("提出締切ラベルは23:59を明示する", () => {
+    expect(formatDeadlineLabel("2026-06-07")).toBe("6/7(日) 23:59");
+  });
+
+  it("催促通知は提出締切日の前日17:00 JSTに予約する", () => {
+    expect(getReminderScheduledAt("2026-01-05")).toBe(new Date("2026-01-04T08:00:00.000Z").getTime());
   });
 
   it("todayJSTはUTC日付ではなくJST日付を返す", () => {

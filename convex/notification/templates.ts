@@ -64,7 +64,7 @@ export function buildRecruitmentLineText(params: {
     "提出はこちら",
     params.magicLinkUrl,
     "",
-    "提出・修正は締切までです。提出後は、締切後もシフト確定まで内容を確認できます。",
+    "提出・修正は提出締切までです。提出後は、締切後もシフト確定まで内容を確認できます。",
   ].join("\n");
 }
 
@@ -100,13 +100,14 @@ export function buildReminderLineText(params: {
   return [
     `${params.staffName}さん`,
     "",
-    `${params.shopName}\n${params.periodLabel} のシフト希望が、まだ提出されていないようです。`,
-    `提出期限: ${params.linkExpiresAtLabel} まで`,
+    `${params.shopName}\n${params.periodLabel} のシフト希望の提出期限が近づいています。`,
+    "まだ提出されていないようです。できるだけお早めに提出してください。",
+    `提出締切: ${params.linkExpiresAtLabel}`,
     "",
     "提出はこちら",
     params.magicLinkUrl,
     "",
-    "提出・修正は期限までです。提出済みの場合は、期限後もシフト確定まで内容を確認できます。",
+    "提出・修正は提出締切までです。提出済みの場合は、締切後もシフト確定まで内容を確認できます。",
   ].join("\n");
 }
 
@@ -279,13 +280,13 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト希望が、まだ提出されていないようです。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まだ提出していない場合は、こちらから送ってください。</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト希望の提出期限が近づいています。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まだ提出されていないようです。できるだけお早めに提出してください。</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出期限:</strong> ${params.linkExpiresAtLabel} まで
+              <strong>提出締切:</strong> ${params.linkExpiresAtLabel}
             </td></tr>
           </table>
 
@@ -296,9 +297,8 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
             </td></tr>
           </table>
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">以前のメールでお送りしたリンクとは別の新しいリンクです。</p>
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">提出・修正は提出期限まで可能です。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">すでに提出済みの場合は、期限後もシフト確定までリンクから内容を確認できます。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">提出・修正は提出締切まで可能です。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">すでに提出済みの場合は、締切後もシフト確定までリンクから内容を確認できます。</p>
 
           ${params.lineCtaHtml ?? ""}
 

@@ -48,6 +48,11 @@ export function formatPeriodLabel(start: string, end: string): string {
   return `${formatDateLabel(start)}〜${formatDateLabel(end)}`;
 }
 
+/** 提出締切の表示ラベル。締切日は 23:59 JST まで有効。 */
+export function formatDeadlineLabel(deadline: string): string {
+  return `${formatDateLabel(deadline)} 23:59`;
+}
+
 /** deadline の翌日 0:00 JST の Unix ms を返す（締切日当日はまだ有効） */
 export function getDeadlineCutoff(deadline: string): number {
   return dateToUtcMs(deadline) + MS_PER_DAY - JST_OFFSET_MS;
@@ -56,6 +61,11 @@ export function getDeadlineCutoff(deadline: string): number {
 /** 提出リンクの閲覧期限。シフト開始日の 0:00 JST 以降は提出リンクを閉じる。 */
 export function getSubmitLinkCutoff(periodStart: string): number {
   return dateToUtcMs(periodStart) - JST_OFFSET_MS;
+}
+
+/** 提出締切日の前日 17:00 JST の Unix ms を返す。 */
+export function getReminderScheduledAt(deadline: string): number {
+  return getDeadlineCutoff(deadline) - 31 * 60 * 60 * 1000;
 }
 
 /** JST基準の今日の日付を "YYYY-MM-DD" で返す */
