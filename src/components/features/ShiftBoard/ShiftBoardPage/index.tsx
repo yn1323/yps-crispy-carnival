@@ -409,7 +409,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       >
         <RemindUnsubmittedContent
           unsubmittedNames={unsubmittedNames}
-          deadline={formatDateWithWeekday(data.recruitment.deadline)}
+          deadline={`${formatDateWithWeekday(data.recruitment.deadline)} 23:59`}
         />
       </Dialog>
     </Flex>

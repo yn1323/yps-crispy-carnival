@@ -925,6 +925,29 @@ export const seedDashboardPaginationScenario = internalMutation({
   },
 });
 
+export const seedStaffRegistrationReviewScenario = internalMutation({
+  args: {
+    managerAuthTokenIdentifier: v.string(),
+    managerEmail: v.optional(v.string()),
+    shopName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { shopId } = await createManagerScenario(ctx, {
+      managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
+      managerEmail: args.managerEmail,
+      shopName: args.shopName ?? "スタッフ参加申請E2E店舗",
+    });
+    const registrationToken = generateUUID();
+    await ctx.db.insert("shopRegistrationLinks", {
+      shopId,
+      token: registrationToken,
+      createdAt: Date.now(),
+    });
+
+    return { shopId, registrationToken };
+  },
+});
+
 export const seedLegalManagerConsentScenario = internalMutation({
   args: {
     managerAuthTokenIdentifier: v.string(),

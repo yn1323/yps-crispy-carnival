@@ -253,6 +253,38 @@ export class DashboardPage {
     await expect(this.recruitmentOpenButton().first()).toBeVisible();
   }
 
+  async expectStaffRegistrationRequestBanner(count: number) {
+    await expect(this.page.getByText(`スタッフ参加申請が ${count} 件あります`)).toBeVisible();
+  }
+
+  async expectStaffRegistrationRequestBannerHidden() {
+    await expect(this.page.getByText(/スタッフ参加申請が \d+ 件あります/)).not.toBeVisible();
+  }
+
+  async openStaffRegistrationRequests() {
+    await this.page.getByRole("button", { name: "確認する" }).click();
+    await expect(this.staffRegistrationRequestDialog()).toBeVisible();
+  }
+
+  async approveStaffRegistrationRequest(name: string) {
+    const dialog = this.staffRegistrationRequestDialog();
+    await dialog.getByRole("button", { name: `${name}を承認` }).click();
+    await expect(this.page.getByText("スタッフ申請を承認しました")).toBeVisible();
+    await expect(dialog).not.toBeVisible();
+  }
+
+  async rejectStaffRegistrationRequest(name: string) {
+    const dialog = this.staffRegistrationRequestDialog();
+    await dialog.getByRole("button", { name: `${name}を却下` }).click();
+
+    const alertDialog = this.page.getByRole("alertdialog", { name: "スタッフ申請を却下" });
+    await expect(alertDialog).toBeVisible();
+    await alertDialog.getByRole("button", { name: "この申請を却下" }).click();
+
+    await expect(this.page.getByText("スタッフ申請を却下しました")).toBeVisible();
+    await expect(dialog).not.toBeVisible();
+  }
+
   private recruitmentOpenButton() {
     return this.recruitmentSection().getByRole("button", { name: /希望を見る|シフトを組む|シフトを見る/ });
   }
@@ -373,6 +405,10 @@ export class DashboardPage {
 
   private staffSection() {
     return this.page.getByRole("region", { name: "スタッフ一覧" });
+  }
+
+  private staffRegistrationRequestDialog() {
+    return this.page.getByRole("dialog", { name: "スタッフ参加申請" });
   }
 
   private legalReconsentMessage() {

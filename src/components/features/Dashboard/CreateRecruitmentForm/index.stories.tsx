@@ -199,7 +199,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     await findByText(root, "内容を確認");
     expect(getByText(root, "なし")).toBeTruthy();
     expect(await findByText(root, formatDateRangePreview(periodStart, periodEnd))).toBeTruthy();
-    expect(await findByText(root, formatDatePreview(deadline))).toBeTruthy();
+    expect(await findByText(root, formatDeadlinePreview(deadline))).toBeTruthy();
   },
 };
 
@@ -351,6 +351,10 @@ function formatDateRangePreview(start: dayjs.Dayjs, end: dayjs.Dayjs): string {
 
 function formatDatePreview(date: dayjs.Dayjs): string {
   return `${date.format("M/D")}(${getWeekdayLabel(date)})`;
+}
+
+function formatDeadlinePreview(date: dayjs.Dayjs): string {
+  return `${formatDatePreview(date)} 23:59`;
 }
 
 function getWeekdayLabel(date: dayjs.Dayjs): string {

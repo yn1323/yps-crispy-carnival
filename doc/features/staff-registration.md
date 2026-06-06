@@ -12,13 +12,13 @@
 - `src/pages/staff-registration/` — スタッフ登録ページ
 - `src/components/features/StaffRegistration/` — 登録フォーム、メールtypo警告、確認表示
 - `src/components/features/Dashboard/StaffRegistrationLinkPanel/` — シフト担当者向けQR/URL表示
-- `src/components/features/Dashboard/PendingStaffRegistrationList/` — 「今やること」内の承認/却下リスト
+- `src/components/features/Dashboard/StaffRegistrationRequests/` — スタッフ参加申請カード、モーダル、承認/却下リスト
 
 ## 画面一覧
 
 | 画面 | 役割 |
 |---|---|
-| ダッシュボード | 「スタッフを追加」から店舗専用QR/URLを表示し、参加申請を承認/却下する |
+| ダッシュボード | 「スタッフを追加」から店舗専用QR/URLを表示し、参加申請カードからモーダルを開いて承認/却下する |
 | `/staff/register` | スタッフが名前・メール・利用規約/プライバシーポリシー同意を入力して申請する |
 | スタッフ追加モーダル | 既定はQR/URL表示、補助導線として従来の手入力フォームへ切替 |
 

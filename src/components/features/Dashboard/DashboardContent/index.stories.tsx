@@ -292,6 +292,9 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     staffs: managerOnly,
     pendingStaffRequests,
   },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
   render: () => (
     <Box data-testid="pending-requests-onboarding-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
       <DashboardContent
@@ -307,10 +310,23 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
 
     assertText(root, "今やること", "承認待ちがある時の通常アクション見出し");
-    assertText(root, "スタッフ参加申請", "承認待ちリストの見出し");
-    assertText(root, "田中 花子", "承認待ちスタッフ名");
-    assertText(root, "hanako@example.com", "承認待ちスタッフメール");
+    assertText(root, "スタッフ参加申請が 2 件あります", "承認待ちカードの見出し");
+    assertText(root, "確認する", "承認待ちカードのCTA");
+    assertNoText(root, "田中 花子", "カード表示時は申請者名を隠す");
+    assertNoText(root, "hanako@example.com", "カード表示時は申請者メールを隠す");
     assertNoText(root, "シフトリへようこそ！", "承認待ちがある時のオンボーディング非表示");
+
+    const confirmButton = findButtonByText(root, "確認する");
+    confirmButton.click();
+
+    await waitUntil(
+      () => document.body.textContent?.includes("承認してシフト提出、共有できるようにしましょう。") ?? false,
+      "スタッフ参加申請モーダルが表示されませんでした",
+    );
+    assertText(document.body, "田中 花子", "モーダル内の承認待ちスタッフ名");
+    assertText(document.body, "hanako@example.com", "モーダル内の承認待ちスタッフメール");
+    assertText(document.body, "承認", "モーダル内の承認ボタン");
+    assertText(document.body, "却下", "モーダル内の却下ボタン");
   },
 };
 
@@ -346,6 +362,16 @@ function assertNoText(root: Element, text: string, context: string) {
   if (root.textContent?.includes(text)) {
     throw new Error(`${context}: "${text}" が表示されています`);
   }
+}
+
+function findButtonByText(root: Element, text: string) {
+  const button = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((candidate) =>
+    candidate.textContent?.includes(text),
+  );
+  if (!button) {
+    throw new Error(`button "${text}" が見つかりませんでした`);
+  }
+  return button;
 }
 
 async function waitUntil(predicate: () => boolean, failureMessage: string) {

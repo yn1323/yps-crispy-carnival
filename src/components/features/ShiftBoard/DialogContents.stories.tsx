@@ -26,14 +26,14 @@ export const Variants: Story = {
         <ConfirmShiftContent staffCount={10} periodLabel="1/20(月)〜1/26(日)" />
       </VariantBlock>
       <VariantBlock label="未提出者一覧 / 1名">
-        <RemindUnsubmittedContent deadline="5/10(土)" unsubmittedNames={["田中次郎"]} />
+        <RemindUnsubmittedContent deadline="5/10(土) 23:59" unsubmittedNames={["田中次郎"]} />
       </VariantBlock>
       <VariantBlock label="未提出者一覧 / 標準">
-        <RemindUnsubmittedContent deadline="5/10(土)" unsubmittedNames={["田中次郎", "小林大輔", "佐藤花子"]} />
+        <RemindUnsubmittedContent deadline="5/10(土) 23:59" unsubmittedNames={["田中次郎", "小林大輔", "佐藤花子"]} />
       </VariantBlock>
       <VariantBlock label="未提出者一覧 / 多人数">
         <RemindUnsubmittedContent
-          deadline="5/10(土)"
+          deadline="5/10(土) 23:59"
           unsubmittedNames={[
             "田中次郎",
             "小林大輔",
