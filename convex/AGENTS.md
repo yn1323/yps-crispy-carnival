@@ -45,7 +45,7 @@ convex/
 | 領域 | 配置 | ルール |
 |------|------|--------|
 | 通知（メール、LINE、テンプレート、通知用内部query） | `notification/` | `email/` ディレクトリは作らない。メール専用に見えても、通知ドメインとして `notification` に置く |
-| シフト提出催促 | `shiftReminder/mutations.ts` + `notification/reminderActions.ts` / `notification/reminderQueries.ts` | `shiftReminder` は公開コマンドの入口だけにし、送信処理・送信用データ取得は `notification` 側に置く |
+| シフト提出催促 | `notification/reminderActions.ts` / `notification/reminderQueries.ts` | 手動催促 API は持たず、募集作成時に予約した自動催促を `notification` 側で処理する |
 | スタッフ認証・セッション | `staffAuth/` | magic link、session、募集情報取得に限定する。画面固有の閲覧APIを混ぜない |
 | 確定シフト閲覧 | `shiftView/queries.ts` | 通知URLなどからの確定シフト閲覧は `staffAuth` ではなく `shiftView` に置く |
 | 法務同意 | `legal/mutations.ts` + `legal/service.ts` | mutation は API 境界として薄く保ち、他ユースケースから再利用する同意記録ロジックは `service.ts` に置く |
