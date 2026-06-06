@@ -458,6 +458,23 @@ describe("staffAuth/mutations", () => {
       });
       logSpy.mockRestore();
     });
+
+    it("同じメールと募集の短時間連打では再発行通知予約を増やさない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+
+      await t.mutation(api.staffAuth.mutations.requestReissue, {
+        email: "suzuki@example.com",
+        recruitmentId: ids.recruitmentId,
+      });
+      await t.mutation(api.staffAuth.mutations.requestReissue, {
+        email: " SUZUKI@example.com ",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendReissueEmail")).toHaveLength(1);
+    });
   });
 
   describe("requestReissue レートリミット", () => {

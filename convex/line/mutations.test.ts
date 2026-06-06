@@ -401,6 +401,18 @@ describe("line/mutations", () => {
       ).resolves.not.toThrow();
     });
 
+    it("同じスタッフへの短時間連打では送信予約を増やさない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupShop(t);
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await asManager.mutation(api.line.mutations.sendInvite, { staffId });
+      await asManager.mutation(api.line.mutations.sendInvite, { staffId });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
+    });
+
     it("他店舗スタッフへの送信は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
       await setupShop(t);

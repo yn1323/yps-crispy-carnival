@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { managerMutation } from "../_lib/functions";
+import { SUBMIT_ACTION_GUARD_WINDOW_MS } from "../constants";
 
 /**
  * 未提出スタッフへの催促メール送信
@@ -23,8 +24,13 @@ export const sendReminderEmails = managerMutation({
       throw new ConvexError("募集中のシフトだけ、催促を送れます");
     }
 
+    const now = Date.now();
+    if (recruitment.lastReminderSentAt && now - recruitment.lastReminderSentAt < SUBMIT_ACTION_GUARD_WINDOW_MS) {
+      return null;
+    }
+
     await ctx.db.patch(args.recruitmentId, {
-      lastReminderSentAt: Date.now(),
+      lastReminderSentAt: now,
     });
 
     await ctx.scheduler.runAfter(0, internal.notification.reminderActions.sendReminderEmails, {
