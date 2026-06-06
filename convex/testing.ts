@@ -993,9 +993,9 @@ export const seedLegalStaffSubmitScenario = internalMutation({
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
-      periodStart: "2026-04-07",
-      periodEnd: "2026-04-13",
-      deadline: "2026-12-31",
+      periodStart: "2037-04-07",
+      periodEnd: "2037-04-13",
+      deadline: "2037-04-06",
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
