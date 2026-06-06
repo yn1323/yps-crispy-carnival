@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { getDeadlineCutoff } from "../_lib/dateFormat";
+import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
 import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
@@ -76,8 +76,12 @@ export const getSubmissionPageData = staffSessionQuery({
     if (recruitment.status !== "open") {
       return unavailable("submission_closed");
     }
+    const now = Date.now();
+    if (now >= getSubmitLinkCutoff(recruitment.periodStart)) {
+      return unavailable("submission_closed");
+    }
 
-    const isBeforeDeadline = Date.now() < getDeadlineCutoff(recruitment.deadline);
+    const isBeforeDeadline = now < getDeadlineCutoff(recruitment.deadline);
     const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
       startTime: recruitment.shiftStartTime,
       endTime: recruitment.shiftEndTime,

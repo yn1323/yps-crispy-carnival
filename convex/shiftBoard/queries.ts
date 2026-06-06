@@ -89,6 +89,7 @@ export const getShiftBoardData = managerQuery({
         shopClosedDates: recruitment.shopClosedDates ?? [],
         status: recruitment.status,
         confirmedAt: recruitment.confirmedAt ?? null,
+        reminderScheduledAt: recruitment.reminderScheduledAt ?? null,
         lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
         draftSavedAt: effectiveDraftSavedAt,
       },

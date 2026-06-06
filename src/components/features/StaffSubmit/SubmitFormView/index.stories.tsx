@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { previousWeeklyPattern, submitStoryBaseData } from "../storyData";
 import { SubmitFormView } from "./index";
 
@@ -18,6 +18,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const noop = async () => {};
+let lateInitialSubmitCount = 0;
 
 const shiftTypePattern = {
   kind: "shiftType" as const,
@@ -46,6 +47,39 @@ export const LegalConsentRequired: Story = {
   args: {
     data: { ...submitStoryBaseData, legalConsentRequired: true },
     onSubmit: noop,
+  },
+};
+
+export const LateInitialInteractive: Story = {
+  args: {
+    data: { ...submitStoryBaseData, isBeforeDeadline: false, hasSubmitted: false },
+    onSubmit: async () => {
+      lateInitialSubmitCount += 1;
+    },
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    lateInitialSubmitCount = 0;
+    const canvas = within(canvasElement);
+    const screen = within(document.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "希望シフトを提出" }));
+    await expect(await screen.findByText("提出締切を過ぎています")).toBeInTheDocument();
+    await expect(
+      await screen.findByText(
+        "提出締切を過ぎています。提出後はこのリンクから変更できません。変更が必要な場合はシフト作成担当者に連絡してください。",
+      ),
+    ).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "この内容で提出する" })).not.toBeInTheDocument());
+    await expect(lateInitialSubmitCount).toBe(0);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "希望シフトを提出" }));
+    await userEvent.click(await screen.findByRole("button", { name: "この内容で提出する" }));
+    await expect(lateInitialSubmitCount).toBe(1);
   },
 };
 

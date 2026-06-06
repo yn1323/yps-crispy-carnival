@@ -101,6 +101,105 @@ describe("通知配送outboxシナリオ", () => {
     );
   });
 
+  it("自動催促actionは未提出者だけに通常submitリンクを再利用して通知する", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "reminder-manager@example.com",
+        shopName: "自動催促店舗",
+      });
+      const submittedStaffId = await seedStaff(ctx, {
+        shopId,
+        name: "提出済みスタッフ",
+        email: "submitted-reminder@example.com",
+      });
+      const emailStaffId = await seedStaff(ctx, {
+        shopId,
+        name: "催促メールスタッフ",
+        email: "reminder-email@example.com",
+      });
+      const lineStaffId = await seedStaff(ctx, {
+        shopId,
+        name: "催促LINEスタッフ",
+        email: "reminder-line@example.com",
+      });
+      await seedStaffLineAccount(ctx, {
+        shopId,
+        staffId: lineStaffId,
+        lineUserId: "U_reminder_line",
+        following: true,
+      });
+      return { shopId, submittedStaffId, emailStaffId, lineStaffId };
+    });
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+    const linksBeforeReminder = await getMagicLinks(t);
+    const submitTokenByStaff = new Map(
+      linksBeforeReminder
+        .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "submit")
+        .map((link) => [link.staffId, link.token]),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId: ids.submittedStaffId,
+        firstSubmittedAt: Date.now(),
+        submittedAt: Date.now(),
+      });
+    });
+
+    await t.action(internal.notification.reminderActions.sendReminderEmails, { recruitmentId });
+
+    const [jobs, linksAfterReminder] = await Promise.all([getOutboxJobs(t), getMagicLinks(t)]);
+    const reminderJobs = jobs.filter((job) => job.dedupeKey.includes(":reminder:"));
+    expect(reminderJobs.map((job) => job.dedupeKey).sort()).toEqual([
+      `email:reminder:${recruitmentId}:${ids.emailStaffId}`,
+      `line:reminder:${recruitmentId}:${ids.lineStaffId}`,
+    ]);
+    expect(reminderJobs.find((job) => job.staffId === ids.emailStaffId)).toMatchObject({
+      channel: "email",
+      payload: expect.objectContaining({
+        kind: "email",
+        to: "reminder-email@example.com",
+        context: "notification.sendReminderEmails",
+      }),
+    });
+    expect(reminderJobs.find((job) => job.staffId === ids.lineStaffId)).toMatchObject({
+      channel: "line",
+      payload: expect.objectContaining({
+        kind: "line",
+        toUserId: "U_reminder_line",
+        fallbackEmail: expect.objectContaining({
+          dedupeKey: `email:reminder:${recruitmentId}:${ids.lineStaffId}`,
+        }),
+      }),
+    });
+    expect(linksAfterReminder).toHaveLength(linksBeforeReminder.length);
+    expect(
+      new Map(
+        linksAfterReminder
+          .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "submit")
+          .map((link) => [link.staffId, link.token]),
+      ),
+    ).toEqual(submitTokenByStaff);
+
+    const recruitment = await t.run(async (ctx) => await ctx.db.get(recruitmentId));
+    expect(recruitment?.lastReminderSentAt).toBeTypeOf("number");
+
+    await t.action(internal.notification.reminderActions.sendReminderEmails, { recruitmentId });
+    const jobsAfterSecondRun = await getOutboxJobs(t);
+    expect(jobsAfterSecondRun.filter((job) => job.dedupeKey.includes(":reminder:"))).toEqual(reminderJobs);
+  });
+
   it("シフト確定通知actionは確定シフト閲覧用outboxとviewリンクを作る", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);

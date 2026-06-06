@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { generateDateRange, todayJST } from "../_lib/dateFormat";
+import { generateDateRange, getReminderScheduledAt, todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
@@ -67,6 +67,10 @@ export const createRecruitment = managerMutation({
     );
     if (duplicate) return duplicate._id;
 
+    const now = Date.now();
+    const reminderScheduledAt = getReminderScheduledAt(args.deadline);
+    const shouldScheduleReminder = reminderScheduledAt > now;
+
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId: ctx.shop._id,
       periodStart: args.periodStart,
@@ -80,6 +84,7 @@ export const createRecruitment = managerMutation({
         startTime: ctx.shop.shiftStartTime,
         endTime: ctx.shop.shiftEndTime,
       }),
+      ...(shouldScheduleReminder ? { reminderScheduledAt } : {}),
     });
     const activeStaffs = await ctx.db
       .query("staffs")
@@ -90,13 +95,18 @@ export const createRecruitment = managerMutation({
       shopId: ctx.shop._id,
       submittedCount: 0,
       activeStaffCountSnapshot: activeStaffs.length,
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
 
     // 募集作成はDB更新を先に完了させ、通知は action 側で LINE / email / dry-run を振り分ける。
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendRecruitmentNotificationEmails, {
       recruitmentId,
     });
+    if (shouldScheduleReminder) {
+      await ctx.scheduler.runAt(reminderScheduledAt, internal.notification.reminderActions.sendReminderEmails, {
+        recruitmentId,
+      });
+    }
 
     return recruitmentId;
   },

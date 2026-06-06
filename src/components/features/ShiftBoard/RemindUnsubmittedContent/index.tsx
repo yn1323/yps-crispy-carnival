@@ -9,7 +9,7 @@ export const RemindUnsubmittedContent = ({ unsubmittedNames, deadline }: Props) 
   return (
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
-        未提出 {unsubmittedNames.length}名に催促を送ります。
+        未提出のスタッフは {unsubmittedNames.length}名です。
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
         <Text fontSize="sm" mb={2} color="gray.700">

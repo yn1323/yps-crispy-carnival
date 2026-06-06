@@ -95,6 +95,7 @@ describe("セキュリティ境界シナリオ", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
+        reminderScheduledAt: Date.now() + 24 * 60 * 60 * 1000,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftAssignments", {
@@ -220,6 +221,7 @@ describe("セキュリティ境界シナリオ", () => {
         deadline: scenarioDate(3),
         shopClosedDates: [],
         status: "open",
+        reminderScheduledAt: Date.now() + 24 * 60 * 60 * 1000,
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });

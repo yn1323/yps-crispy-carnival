@@ -35,7 +35,7 @@ convex/
 | 機能 | Pages | Features | Convex |
 |------|-------|----------|--------|
 | ダッシュボード | `src/pages/dashboard/` | `Dashboard/*` | `dashboard`, `staff`, `recruitment`, `shop`, `line`, `legal`, `setup` |
-| シフト表 | `src/pages/shift-board/` | `ShiftBoard/*`, `Shift/ShiftForm` | `shiftBoard`, `shiftReminder` |
+| シフト表 | `src/pages/shift-board/` | `ShiftBoard/*`, `Shift/ShiftForm` | `shiftBoard`, `notification` |
 | スタッフ希望提出 | `src/pages/staff-shift-submit/` | `StaffSubmit/*` | `shiftSubmission`, `staffAuth` |
 | スタッフシフト閲覧 | `src/pages/staff-shift-view/` | `StaffView/*`, `Shift/ShiftForm` | `staffAuth` |
 | シフトフォーム | - | `Shift/ShiftForm` | - |

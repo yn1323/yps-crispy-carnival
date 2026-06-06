@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
-import { formatDateLabel, formatPeriodLabel, generateDateRange, todayJST } from "../_lib/dateFormat";
+import { formatDateLabel, formatPeriodLabel, generateDateRange, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { buildShiftTimeLabel } from "../_lib/time";
 import { OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
@@ -20,6 +20,7 @@ export const getConfirmationEmailData = internalQuery({
   handler: async (ctx, { recruitmentId }) => {
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
+    if (recruitment.status !== "confirmed") return null;
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
@@ -97,6 +98,7 @@ export const getRecruitmentEmailData = internalQuery({
   handler: async (ctx, { recruitmentId }) => {
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
+    if (recruitment.status !== "open" || Date.now() >= getSubmitLinkCutoff(recruitment.periodStart)) return null;
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
@@ -110,6 +112,7 @@ export const getRecruitmentEmailData = internalQuery({
       shopId: recruitment.shopId,
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      periodStart: recruitment.periodStart,
       deadline: recruitment.deadline,
       staffEntries: await Promise.all(
         staffs.map(async (s) => {
@@ -139,7 +142,7 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
     const shop = await ctx.db.get(staff.shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const today = todayJST();
+    const now = Date.now();
     const recruitments = await ctx.db
       .query("recruitments")
       .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
@@ -147,10 +150,11 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
       .take(OPEN_RECRUITMENT_NOTIFICATION_LIMIT);
 
     const openRecruitments = recruitments
-      .filter((r) => !r.isDeleted && r.deadline >= today)
+      .filter((r) => !r.isDeleted && now < getSubmitLinkCutoff(r.periodStart))
       .map((r) => ({
         recruitmentId: r._id,
         periodLabel: formatPeriodLabel(r.periodStart, r.periodEnd),
+        periodStart: r.periodStart,
         deadline: r.deadline,
       }));
 

@@ -13,6 +13,7 @@ const mockData: ShiftBoardData = {
     shopClosedDates: [],
     status: "open",
     confirmedAt: null,
+    reminderScheduledAt: Date.UTC(2099, 0, 16, 8),
     lastReminderSentAt: null,
     draftSavedAt: null,
   },

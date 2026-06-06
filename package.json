@@ -12,7 +12,7 @@
     "dev:all": "concurrently -n dev,convex,storybook -c blue,green,magenta \"pnpm dev\" \"pnpm convex:dev\" \"pnpm storybook\"",
     "ngrok:auth": "tsx scripts/setupNgrokAuth.ts",
     "format": "biome check --write",
-    "lint": "biome check",
+    "lint": "biome check && tsx scripts/check-convex-timezone.ts",
     "lint:font-size": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-font-size-tokens.ps1",
     "type-check": "tsc",
     "scaffdog": "scaffdog generate",

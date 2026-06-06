@@ -61,7 +61,7 @@ test.describe("スタッフのシフト希望提出", () => {
   test("日付のみ提出の短いハッピーパス", async () => {
     const token = seedAndGetToken({
       submissionPattern: { kind: "dateOnly" },
-      shopClosedDates: ["2026-04-08"],
+      shopClosedDates: ["2037-04-08"],
     });
 
     await submitPage.goto(token);
@@ -74,6 +74,30 @@ test.describe("スタッフのシフト希望提出", () => {
 
     await submitPage.submit();
     await submitPage.expectCompletionVisible();
+  });
+
+  test("締切後の未提出スタッフは確認後に初回提出でき、再アクセス時は閲覧のみになる", async () => {
+    const token = seedAndGetToken({ deadlinePassed: true });
+
+    await test.step("Step 1: 締切後でも未提出ならフォームを開ける", async () => {
+      await submitPage.goto(token);
+      await submitPage.expectFormVisible();
+      await submitPage.expectUnsubmittedBadge();
+    });
+
+    await test.step("Step 2: 確認Dialogを経由して初回提出する", async () => {
+      await submitPage.toggleDay("4/7(火)");
+      await submitPage.submit();
+      await submitPage.expectLateInitialConfirmVisible();
+      await submitPage.confirmLateInitialSubmit();
+      await submitPage.expectCompletionVisible();
+    });
+
+    await test.step("Step 3: 再アクセスすると閲覧のみになる", async () => {
+      await submitPage.goto(token);
+      await submitPage.expectReadOnlyVisible();
+      await submitPage.expectSubmitButtonNotVisible();
+    });
   });
 
   test("勤務区分提出の短いハッピーパス", async () => {

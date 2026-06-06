@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { APP_URL } from "./_lib/config";
-import { getDeadlineCutoff } from "./_lib/dateFormat";
+import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { getSubmissionPattern, normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
@@ -392,6 +392,7 @@ async function createRecruitment(
     status: "open" | "confirmed";
     shopClosedDates?: string[];
     submissionPattern?: Parameters<typeof normalizeSubmissionPattern>[0];
+    reminderScheduledAt?: number;
   },
 ) {
   const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
@@ -405,6 +406,7 @@ async function createRecruitment(
     confirmedAt: args.status === "confirmed" ? Date.now() : undefined,
     isDeleted: false,
     submissionPattern,
+    ...(args.reminderScheduledAt ? { reminderScheduledAt: args.reminderScheduledAt } : {}),
   });
 }
 
@@ -429,7 +431,7 @@ async function createMagicLink(
     expiresAt:
       args.expiresAt ??
       (args.accessKind === "submit" && recruitment
-        ? getDeadlineCutoff(recruitment.deadline)
+        ? getSubmitLinkCutoff(recruitment.periodStart)
         : Date.now() + MAGIC_LINK_DEFAULT_TTL_MS),
   });
   return token;
@@ -802,6 +804,9 @@ export const seedSubmitTestData = internalMutation({
   handler: async (ctx, args) => {
     assertE2EHelpersEnabled();
     const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
+    const periodStart = "2037-04-07";
+    const periodEnd = "2037-04-13";
+    const deadline = args.deadlinePassed ? "2026-01-01" : "2037-04-06";
 
     const shopId = await ctx.db.insert("shops", {
       name: "テスト居酒屋さくら",
@@ -823,9 +828,9 @@ export const seedSubmitTestData = internalMutation({
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
-      periodStart: "2026-04-07",
-      periodEnd: "2026-04-13",
-      deadline: args.deadlinePassed ? "2026-01-01" : "2026-12-31",
+      periodStart,
+      periodEnd,
+      deadline,
       shopClosedDates: args.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
@@ -840,7 +845,7 @@ export const seedSubmitTestData = internalMutation({
       shopId,
       recruitmentId,
       accessKind: "submit",
-      expiresAt: getDeadlineCutoff(args.deadlinePassed ? "2026-01-01" : "2026-12-31"),
+      expiresAt: getSubmitLinkCutoff(periodStart),
     });
 
     // 既存提出がある場合
@@ -856,7 +861,7 @@ export const seedSubmitTestData = internalMutation({
           submissionId,
           recruitmentId,
           staffId,
-          date: "2026-04-07",
+          date: "2037-04-07",
           startTime: "09:00",
           endTime: "18:00",
         }),
@@ -864,7 +869,7 @@ export const seedSubmitTestData = internalMutation({
           submissionId,
           recruitmentId,
           staffId,
-          date: "2026-04-09",
+          date: "2037-04-09",
           startTime: "10:00",
           endTime: "15:00",
         }),
@@ -988,9 +993,9 @@ export const seedLegalStaffSubmitScenario = internalMutation({
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
-      periodStart: "2026-04-07",
-      periodEnd: "2026-04-13",
-      deadline: "2026-12-31",
+      periodStart: "2037-04-07",
+      periodEnd: "2037-04-13",
+      deadline: "2037-04-06",
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
@@ -1013,7 +1018,12 @@ export const seedNotificationSubmitScenario = internalMutation({
       managerEmail: args.managerEmail,
       shopName: "通知募集テスト店舗",
     });
-    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+    const recruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.dates,
+      status: "open",
+      reminderScheduledAt: Date.now() + 24 * 60 * 60 * 1000,
+    });
     const token = await createMagicLink(ctx, {
       staffId: managerStaffId,
       shopId,
@@ -1037,7 +1047,12 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       managerEmail: args.managerEmail,
       shopName: "追加通知テスト店舗",
     });
-    const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
+    const recruitmentId = await createRecruitment(ctx, {
+      shopId,
+      dates: args.dates,
+      status: "open",
+      reminderScheduledAt: getReminderScheduledAt(args.dates.deadline),
+    });
 
     return { shopId, recruitmentId, staffId: managerStaffId };
   },
@@ -1076,14 +1091,14 @@ export const seedNotificationReminderScenario = internalMutation({
       startTime: "09:00",
       endTime: "18:00",
     });
-    const reminderToken = await createMagicLink(ctx, {
+    const submitToken = await createMagicLink(ctx, {
       staffId: remindedStaffId,
       shopId,
       recruitmentId,
       accessKind: "submit",
     });
 
-    return { shopId, recruitmentId, reminderToken, managerStaffId, remindedStaffId };
+    return { shopId, recruitmentId, submitToken, managerStaffId, remindedStaffId };
   },
 });
 
@@ -1186,7 +1201,9 @@ export const createMagicLinkTokenForLatestRecruitment = internalMutation({
       recruitmentId: recruitment._id,
       accessKind: args.purpose,
       expiresAt:
-        args.purpose === "submit" ? getDeadlineCutoff(recruitment.deadline) : Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
+        args.purpose === "submit"
+          ? getSubmitLinkCutoff(recruitment.periodStart)
+          : Date.now() + MAGIC_LINK_DEFAULT_TTL_MS,
     });
 
     return { token, staffId: staff._id, recruitmentId: recruitment._id };

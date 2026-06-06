@@ -20,6 +20,7 @@ const baseData = {
     shopClosedDates: [],
     status: "open",
     confirmedAt: null,
+    reminderScheduledAt: null,
     lastReminderSentAt: null,
     draftSavedAt: null,
   },

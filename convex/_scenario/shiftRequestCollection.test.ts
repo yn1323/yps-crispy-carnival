@@ -404,7 +404,7 @@ describe("シフト希望回収シナリオ", () => {
     ]);
   });
 
-  it("提出リンクは締切後も確定までは閲覧でき、提出操作だけ締切で止まる", async () => {
+  it("提出リンクは締切後も開始日前なら閲覧でき、未提出は初回提出だけできる", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -434,11 +434,10 @@ describe("シフト希望回収シナリオ", () => {
       deadline: scenarioDate(3),
     };
     const recruitmentId = await asManager.createRecruitment(recruitmentInput);
-    const { token } = await t.mutation(internal.notification.mutations.createMagicLink, {
+    const { token } = await t.mutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
       staffId: submittedStaffId,
       shopId,
       recruitmentId,
-      accessKind: "submit",
       expiresAt: new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`).getTime(),
     });
 
@@ -475,11 +474,10 @@ describe("シフト希望回収シナリオ", () => {
       { staffId: submittedStaffId, date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" },
     ]);
 
-    const { token: unsubmittedToken } = await t.mutation(internal.notification.mutations.createMagicLink, {
+    const { token: unsubmittedToken } = await t.mutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
       staffId: unsubmittedStaffId,
       shopId,
       recruitmentId,
-      accessKind: "submit",
       expiresAt: new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`).getTime(),
     });
 
@@ -508,6 +506,26 @@ describe("シフト希望回収シナリオ", () => {
     await expect(
       staff.getOkSubmissionPageData({ sessionToken: unsubmittedAfterDeadline.sessionToken, recruitmentId }),
     ).resolves.toMatchObject({ isBeforeDeadline: false, hasSubmitted: false, existingRequests: [] });
+    await staff.submitShiftRequests({
+      sessionToken: unsubmittedAfterDeadline.sessionToken,
+      recruitmentId,
+      acceptedLegal: true,
+      requests: [{ date: recruitmentInput.periodStart, startTime: "09:00", endTime: "17:00" }],
+    });
+    await expect(
+      staff.getOkSubmissionPageData({ sessionToken: unsubmittedAfterDeadline.sessionToken, recruitmentId }),
+    ).resolves.toMatchObject({
+      isBeforeDeadline: false,
+      hasSubmitted: true,
+      existingRequests: [{ date: recruitmentInput.periodStart, startTime: "09:00", endTime: "17:00" }],
+    });
+    await expect(
+      staff.submitShiftRequests({
+        sessionToken: unsubmittedAfterDeadline.sessionToken,
+        recruitmentId,
+        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      }),
+    ).rejects.toThrow("Deadline passed");
 
     await asManager.confirmRecruitment(recruitmentId);
     await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({

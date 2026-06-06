@@ -59,18 +59,18 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
 
 type UnsubmittedStripProps = {
   names: string[];
-  onRemind?: () => void;
-  lastSentAtLabel?: string;
-  isReminding?: boolean;
+  reminderStatus: ReminderStatus;
+  onOpenDetails?: () => void;
 };
 
-export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel, isReminding = false }: UnsubmittedStripProps) => {
-  const isDisabled = !onRemind || isReminding;
-  const handleClick = () => {
-    if (isDisabled) return;
-    onRemind?.();
-  };
+export type ReminderStatus = {
+  kind: "scheduled" | "sent" | "none";
+  label: string;
+};
 
+export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: UnsubmittedStripProps) => {
+  const statusColor =
+    reminderStatus.kind === "sent" ? "#047857" : reminderStatus.kind === "scheduled" ? "#92400e" : "#78716c";
   return (
     <>
       <Flex
@@ -104,39 +104,14 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel, isReminding
             </Box>
           ))}
         </Flex>
-        {lastSentAtLabel && (
-          <Box textStyle="caption" flexShrink={0} style={{ color: "#92400e" }}>
-            前回送信: {lastSentAtLabel}
-          </Box>
-        )}
-        <button
-          type="button"
-          onClick={handleClick}
-          disabled={isDisabled}
-          aria-busy={isReminding}
-          style={{
-            height: 26,
-            padding: "0 10px",
-            background: "white",
-            color: isDisabled ? "#a8a29e" : "#b45309",
-            border: `1px solid ${isDisabled ? "#e7e5e4" : "#fcd34d"}`,
-            borderRadius: 6,
-            fontSize: "var(--chakra-font-sizes-xs)",
-            fontWeight: 600,
-            cursor: isDisabled ? "not-allowed" : "pointer",
-            flexShrink: 0,
-            fontFamily: "inherit",
-          }}
-        >
-          {isReminding ? "送信中" : "催促通知を送る"}
-        </button>
+        <Box textStyle="caption" flexShrink={0} style={{ color: statusColor }}>
+          {reminderStatus.label}
+        </Box>
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
         <button
           type="button"
-          onClick={handleClick}
-          disabled={isDisabled}
-          aria-busy={isReminding}
+          onClick={onOpenDetails}
           style={{
             width: "100%",
             display: "flex",
@@ -149,9 +124,8 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel, isReminding
             borderLeft: "none",
             borderRight: "none",
             borderBottom: "none",
-            cursor: isDisabled ? "not-allowed" : "pointer",
+            cursor: onOpenDetails ? "pointer" : "default",
             fontFamily: "inherit",
-            opacity: isDisabled ? 0.65 : 1,
           }}
         >
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
@@ -159,9 +133,9 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel, isReminding
             未提出 {names.length}人
           </span>
           <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
-            {isReminding ? "送信中" : lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップで催促通知を送る"}
+            {reminderStatus.label}
           </span>
-          {!isDisabled && (
+          {onOpenDetails && (
             <span
               style={{ marginLeft: "auto", fontSize: "var(--chakra-font-sizes-md)", color: "#b45309", flexShrink: 0 }}
             >
