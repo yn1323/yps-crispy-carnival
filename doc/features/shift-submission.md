@@ -9,6 +9,7 @@
 | 画面 | `src/pages/staff-shift-submit/index.tsx` |
 | 確定シフト閲覧画面 | `src/pages/staff-shift-view/index.tsx`, `src/components/features/StaffView/ShiftViewPage/` |
 | UI | `src/components/features/StaffSubmit/` |
+| リンク認証 | `convex/staffAuth/mutations.ts`, `src/hooks/useStaffSession.ts`, `src/utils/staffSession.ts` |
 | API | `convex/shiftSubmission/queries.ts`, `convex/shiftSubmission/mutations.ts`, `convex/shiftView/queries.ts` |
 | 通知 | `convex/notification/queries.ts`, `convex/notification/templates.ts` |
 | 提出方法 | `convex/_lib/submissionPattern.ts`, `convex/shop/schemas.ts` |
@@ -26,6 +27,7 @@
 
 | API | 種別 | 概要 |
 |---|---|---|
+| `api.staffAuth.mutations.verifyToken` | mutation | 提出/閲覧リンクを検証し、利用できない場合は失効理由を返す |
 | `api.shiftSubmission.queries.getSubmissionPageData` | query | 提出画面データ、提出方法、既存提出、前回シフトあり週パターンを取得 |
 | `api.shiftSubmission.mutations.submitShiftRequests` | mutation | 提出方法別の入力を保存形式へ変換し、希望シフトを提出・再提出する |
 | `api.shiftView.queries.getShiftViewData` | query | 確定シフト閲覧用に提出方法スナップショット、確定割当、定休日を取得 |
@@ -41,3 +43,4 @@
 - 全休み提出しか履歴がない、または提出経験がないスタッフには「前回と同じシフトを適用」を表示しない。
 - 適用はフォーム入力だけを更新し、提出はスタッフが明示的に押す。
 - 提出リンクは募集が確定するまで開ける。提出・再提出は締切までに制限し、締切後は提出済みなら閲覧のみ、未提出なら締切後案内を表示する。
+- リンク無効、募集削除済み、提出受付終了は提出画面の unavailable 状態として返し、それぞれ専用の Empty 表示に分ける。存在しない token、用途違い、使用済み view link、スタッフ削除済みなどは詳細を出さずリンク無効として扱う。
