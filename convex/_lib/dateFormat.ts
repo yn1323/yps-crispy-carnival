@@ -5,6 +5,7 @@
 
 const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 export function dateToUtcMs(date: string): number {
   const [year, month, day] = date.split("-").map(Number);
@@ -47,10 +48,14 @@ export function formatPeriodLabel(start: string, end: string): string {
   return `${formatDateLabel(start)}〜${formatDateLabel(end)}`;
 }
 
-/** deadline の翌日 0:00 の Unix ms を返す（締切日当日はまだ有効）
- * Convex環境はUTCで動作するため T00:00:00 = UTC midnight */
+/** deadline の翌日 0:00 JST の Unix ms を返す（締切日当日はまだ有効） */
 export function getDeadlineCutoff(deadline: string): number {
-  return dateToUtcMs(deadline) + MS_PER_DAY;
+  return dateToUtcMs(deadline) + MS_PER_DAY - JST_OFFSET_MS;
+}
+
+/** 提出リンクの閲覧期限。シフト開始日の 0:00 JST 以降は提出リンクを閉じる。 */
+export function getSubmitLinkCutoff(periodStart: string): number {
+  return dateToUtcMs(periodStart) - JST_OFFSET_MS;
 }
 
 /** JST基準の今日の日付を "YYYY-MM-DD" で返す */

@@ -33,6 +33,7 @@ export const getReminderEmailData = internalQuery({
       shopId: recruitment.shopId,
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      periodStart: recruitment.periodStart,
       deadline: recruitment.deadline,
       staffEntries: await Promise.all(
         unsubmittedStaffs.map(async (s) => {

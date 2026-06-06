@@ -1,7 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedShop } from "../_test/seed";
@@ -60,6 +60,12 @@ const validRequests = [
 ];
 
 describe("shiftSubmission/mutations", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00+09:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   describe("submitShiftRequests", () => {
     it("セッション期限切れでエラー", async () => {
       const t = convexTest(schema, modules);
@@ -130,6 +136,23 @@ describe("shiftSubmission/mutations", () => {
           requests: [],
         }),
       ).rejects.toThrow("Deadline passed");
+    });
+
+    it("シフト開始日以降は提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { periodStart: "2026-03-01" });
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: [],
+        }),
+      ).rejects.toThrow("Not found");
     });
 
     it("正常にシフト希望を提出できる", async () => {

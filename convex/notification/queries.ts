@@ -110,6 +110,7 @@ export const getRecruitmentEmailData = internalQuery({
       shopId: recruitment.shopId,
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      periodStart: recruitment.periodStart,
       deadline: recruitment.deadline,
       staffEntries: await Promise.all(
         staffs.map(async (s) => {
@@ -151,6 +152,7 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
       .map((r) => ({
         recruitmentId: r._id,
         periodLabel: formatPeriodLabel(r.periodStart, r.periodEnd),
+        periodStart: r.periodStart,
         deadline: r.deadline,
       }));
 

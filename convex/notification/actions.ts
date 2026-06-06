@@ -6,7 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { formatDateLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -280,7 +280,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const expiresAt = getDeadlineCutoff(data.deadline);
+    const expiresAt = getSubmitLinkCutoff(data.periodStart);
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
@@ -436,7 +436,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
         accessKind: "submit",
-        expiresAt: getDeadlineCutoff(recruitment.deadline),
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
@@ -497,7 +497,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
         accessKind: "submit",
-        expiresAt: getDeadlineCutoff(recruitment.deadline),
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 

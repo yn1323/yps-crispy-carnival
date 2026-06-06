@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { formatDateLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -27,7 +27,7 @@ export const sendReminderEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const expiresAt = getDeadlineCutoff(data.deadline);
+    const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const linkExpiresAtLabel = formatDateLabel(data.deadline);
 
     for (const staff of data.staffEntries) {

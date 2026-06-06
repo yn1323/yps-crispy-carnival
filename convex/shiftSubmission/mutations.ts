@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { getDeadlineCutoff } from "../_lib/dateFormat";
+import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
@@ -158,8 +158,13 @@ export const submitShiftRequests = staffSessionMutation({
       throw new ConvexError("Not found");
     }
 
-    // 締切日は終日有効。翌日 0:00 を cutoff にして、表示上の「締切日」と提出可否を揃える。
-    if (Date.now() >= getDeadlineCutoff(recruitment.deadline)) {
+    const now = Date.now();
+    if (now >= getSubmitLinkCutoff(recruitment.periodStart)) {
+      throw new ConvexError("Not found");
+    }
+
+    // 締切日は終日有効。翌日 0:00 JST を cutoff にして、表示上の「締切日」と提出可否を揃える。
+    if (now >= getDeadlineCutoff(recruitment.deadline)) {
       throw new ConvexError("Deadline passed");
     }
 
@@ -191,7 +196,6 @@ export const submitShiftRequests = staffSessionMutation({
       });
     }
 
-    const now = Date.now();
     const existingSubmission = await ctx.db
       .query("shiftSubmissions")
       .withIndex("by_recruitmentId_staffId", (q) =>

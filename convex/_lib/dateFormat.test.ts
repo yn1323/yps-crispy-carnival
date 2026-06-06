@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   addDays,
   formatDateLabel,
@@ -7,7 +7,9 @@ import {
   generateDateRange,
   getDeadlineCutoff,
   getMondayWeekStart,
+  getSubmitLinkCutoff,
   getWeekday,
+  todayJST,
 } from "./dateFormat";
 
 describe("dateFormat", () => {
@@ -30,7 +32,36 @@ describe("dateFormat", () => {
     expect(formatDateTimeLabel(new Date("2026-06-01T15:30:00.000Z").getTime())).toBe("6/2(火) 00:30");
   });
 
-  it("締切日は翌日0時UTCをcutoffにする", () => {
-    expect(getDeadlineCutoff("2026-06-01")).toBe(Date.UTC(2026, 5, 2));
+  it("締切日は翌日0時JSTをcutoffにする", () => {
+    expect(getDeadlineCutoff("2026-06-01")).toBe(Date.UTC(2026, 5, 1, 15));
+  });
+
+  it("締切日は23:59 JSTまで有効で、翌日0:00 JSTから締切後になる", () => {
+    const cutoff = getDeadlineCutoff("2026-06-01");
+
+    expect(new Date("2026-06-01T14:59:59.999Z").getTime()).toBeLessThan(cutoff);
+    expect(new Date("2026-06-01T15:00:00.000Z").getTime()).toBe(cutoff);
+  });
+
+  it("提出リンクはシフト開始日0時JSTをcutoffにする", () => {
+    expect(getSubmitLinkCutoff("2026-06-08")).toBe(Date.UTC(2026, 5, 7, 15));
+  });
+
+  it("提出リンクはシフト開始日前日の23:59 JSTまで有効で、開始日0:00 JSTから閉じる", () => {
+    const cutoff = getSubmitLinkCutoff("2026-06-08");
+
+    expect(new Date("2026-06-07T14:59:59.999Z").getTime()).toBeLessThan(cutoff);
+    expect(new Date("2026-06-07T15:00:00.000Z").getTime()).toBe(cutoff);
+  });
+
+  it("todayJSTはUTC日付ではなくJST日付を返す", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-06-01T15:30:00.000Z"));
+
+      expect(todayJST()).toBe("2026-06-02");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
