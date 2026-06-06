@@ -1,6 +1,6 @@
 "use node";
 
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
@@ -12,11 +12,10 @@ import {
   fetchLineProfile,
   getMessageQuota,
   getMessageQuotaConsumption,
-  pushTextMessage,
   replyTextMessage,
 } from "../_lib/lineClient";
-import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notification/templates";
+import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
 
 function getLoginChannelId(): string {
   const v = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -73,20 +72,6 @@ export const redeemLineToken = action({
     });
     if (finalized.status !== "ok") return { status: finalized.status };
     return { status: friendship.friendFlag ? "ok" : "needs_follow" };
-  },
-});
-
-/**
- * 通知振り分けロジック「LINE経路」分岐の実体
- * メール送信側ループから ctx.scheduler 経由で1スタッフ分ずつ呼ばれる
- */
-export const sendPushNotification = internalAction({
-  args: {
-    lineUserId: v.string(),
-    text: v.string(),
-  },
-  handler: async (_ctx, { lineUserId, text }) => {
-    await pushTextMessage(lineUserId, text);
   },
 });
 
@@ -153,10 +138,11 @@ export const sendInviteEmail = internalAction({
       state: token,
     });
 
-    const resend = getResendClient({ suppressDelivery });
-    await sendResendEmail(
-      resend,
-      {
+    await enqueueEmail(ctx, {
+      shopId: data.shopId,
+      staffId: data.staffId,
+      dedupeKey: `email:lineInvite:${data.staffId}`,
+      payload: emailPayload({
         from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: data.staffEmail,
         subject: formatResendSubject(data.shopName, "シフト通知をLINEで受け取れます"),
@@ -166,28 +152,9 @@ export const sendInviteEmail = internalAction({
           authorizeUrl,
           context,
         }),
-      },
-      "line.sendInviteEmail",
-    );
-  },
-});
-
-/**
- * シフト確定通知の LINE Push 送信（メール側ループから1スタッフずつ呼ばれる）
- * 受け取るのは事前生成されたメッセージ本文。メッセージ生成はメール側で集約。
- */
-export const sendShiftConfirmationPush = internalAction({
-  args: {
-    lineUserId: v.string(),
-    text: v.string(),
-  },
-  handler: async (_ctx, { lineUserId, text }) => {
-    try {
-      await pushTextMessage(lineUserId, text);
-    } catch (e) {
-      // 個別失敗で全体を止めない
-      console.error("LINE push failed", e);
-      throw new ConvexError("LINE push failed");
-    }
+        context: "line.sendInviteEmail",
+        suppressDelivery,
+      }),
+    });
   },
 });

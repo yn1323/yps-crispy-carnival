@@ -553,6 +553,53 @@ describe("shiftBoard/mutations", () => {
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.status).toBe("confirmed");
       expect(recruitment?.confirmedAt).toBeTypeOf("number");
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendShiftConfirmationEmails")).toHaveLength(
+        1,
+      );
+      expect(scheduled[0].args[0]?.isResend).toBe(false);
+    });
+
+    it("確定済み募集へのconfirm intentは通知を増やさない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, intent: "confirm" });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendShiftConfirmationEmails")).toHaveLength(
+        1,
+      );
+    });
+
+    it("確定済み募集へのresend intentは再通知として予約する", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, intent: "resend" });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      const confirmationJobs = scheduled.filter(
+        (job) => job.name === "notification/actions:sendShiftConfirmationEmails",
+      );
+      expect(confirmationJobs).toHaveLength(2);
+      expect(confirmationJobs.map((job) => job.args[0]?.isResend)).toEqual([false, true]);
+    });
+
+    it("未確定募集へのresend intentはエラー", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).rejects.toThrow("確定済みのシフトだけ再通知できます");
     });
 
     it("定休日に既存シフトが残っている場合は確定できない", async () => {

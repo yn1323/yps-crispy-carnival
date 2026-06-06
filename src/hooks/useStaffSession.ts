@@ -6,22 +6,25 @@ import {
   getStoredSession,
   type SessionInfo,
   type StaffAccessKind,
+  type StaffLinkUnavailableReason,
   storeSession,
 } from "@/src/utils/staffSession";
 
 type StaffSessionState =
   | { status: "loading" }
   | { status: "rateLimited" }
-  | { status: "expired"; recruitmentId: string | null }
+  | { status: "expired"; recruitmentId: string | null; reason: StaffLinkUnavailableReason }
   | { status: "networkError"; retry: () => void }
   | { status: "authenticated"; session: SessionInfo; clearSession: () => void };
+
+const DEFAULT_EXPIRED_REASON: StaffLinkUnavailableReason = "invalid_link";
 
 export function useStaffSession(token: string | undefined, accessKind: StaffAccessKind): StaffSessionState {
   const verifyToken = useMutation(api.staffAuth.mutations.verifyToken);
 
   const [session, setSession] = useState<SessionInfo | null>(null);
-  const [expired, setExpired] = useState<{ recruitmentId: string | null } | null>(
-    !token ? { recruitmentId: null } : null,
+  const [expired, setExpired] = useState<{ recruitmentId: string | null; reason: StaffLinkUnavailableReason } | null>(
+    !token ? { recruitmentId: null, reason: DEFAULT_EXPIRED_REASON } : null,
   );
   const [rateLimited, setRateLimited] = useState(false);
   const [networkError, setNetworkError] = useState(false);
@@ -50,14 +53,15 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
         } else if (result.status === "rate_limited") {
           setRateLimited(true);
         } else {
-          if (result.recruitmentId && accessKind === "view") {
+          const reason = result.reason ?? DEFAULT_EXPIRED_REASON;
+          if (result.recruitmentId && accessKind === "view" && reason === "invalid_link") {
             const storedSession = getStoredSession(result.recruitmentId, accessKind);
             if (storedSession) {
               setSession(storedSession);
               return;
             }
           }
-          setExpired({ recruitmentId: result.recruitmentId });
+          setExpired({ recruitmentId: result.recruitmentId, reason });
         }
       })
       .catch(() => {
@@ -75,7 +79,7 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
     if (!token) {
       verifyingRequestKeyRef.current = null;
       setSession(null);
-      setExpired({ recruitmentId: null });
+      setExpired({ recruitmentId: null, reason: DEFAULT_EXPIRED_REASON });
       setRateLimited(false);
       setNetworkError(false);
       return;
@@ -89,7 +93,7 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
 
   if (rateLimited) return { status: "rateLimited" };
   if (networkError) return { status: "networkError", retry };
-  if (expired) return { status: "expired", recruitmentId: expired.recruitmentId };
+  if (expired) return { status: "expired", recruitmentId: expired.recruitmentId, reason: expired.reason };
   if (!session) return { status: "loading" };
 
   return {

@@ -167,11 +167,11 @@ describe("法務同意シナリオ", () => {
       return { recruitmentId };
     });
 
-    const pageData = await staff.getSubmissionPageData({
+    const pageData = await staff.getOkSubmissionPageData({
       sessionToken: "existing-manager-staff-submit-session",
       recruitmentId: ids.recruitmentId,
     });
 
-    expect(pageData?.legalConsentRequired).toBe(false);
+    expect(pageData.legalConsentRequired).toBe(false);
   });
 });

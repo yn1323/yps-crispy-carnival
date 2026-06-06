@@ -6,15 +6,14 @@ import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
 import { RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
-import { pushTextMessage } from "../_lib/lineClient";
 import { selectChannel } from "../_lib/notification";
-import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE } from "../constants";
 import {
   buildStaffRegistrationOwnerDigestEmailHtml,
   buildStaffRegistrationOwnerDigestLineText,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "../notification/templates";
+import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 
 type PendingRequestShopIdsPage = {
   page: Id<"shops">[];
@@ -64,29 +63,43 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
       shopId: data.shopId,
     }),
   ]);
-  const resend = getResendClient({ suppressDelivery });
 
   for (const recipient of data.recipients) {
     const channel = selectChannel({ lineUserId: recipient.lineUserId, lineFollowing: recipient.lineFollowing }, quota);
 
     if (channel === "line" && recipient.lineUserId) {
-      try {
-        await pushTextMessage(
-          recipient.lineUserId,
-          buildStaffRegistrationOwnerDigestLineText({
+      await enqueueLine(ctx, {
+        shopId: data.shopId,
+        dedupeKey: `line:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
+        payload: linePayload({
+          toUserId: recipient.lineUserId,
+          text: buildStaffRegistrationOwnerDigestLineText({
             dashboardUrl: data.dashboardUrl,
           }),
-          { suppressDelivery },
-        );
-        continue;
-      } catch (e) {
-        console.error("LINE push failed; falling back to owner digest email", e);
-      }
+          suppressDelivery,
+          fallbackEmail: {
+            dedupeKey: `email:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
+            payload: emailPayload({
+              from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+              to: recipient.email,
+              subject: formatResendSubject(data.shopName, STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT),
+              html: buildStaffRegistrationOwnerDigestEmailHtml({
+                managerName: recipient.name,
+                dashboardUrl: data.dashboardUrl,
+              }),
+              context: "staffRegistration.sendOwnerDailyDigest",
+              suppressDelivery,
+            }),
+          },
+        }),
+      });
+      continue;
     }
 
-    await sendResendEmail(
-      resend,
-      {
+    await enqueueEmail(ctx, {
+      shopId: data.shopId,
+      dedupeKey: `email:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
+      payload: emailPayload({
         from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
         to: recipient.email,
         subject: formatResendSubject(data.shopName, STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT),
@@ -94,8 +107,9 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
           managerName: recipient.name,
           dashboardUrl: data.dashboardUrl,
         }),
-      },
-      "staffRegistration.sendOwnerDailyDigest",
-    );
+        context: "staffRegistration.sendOwnerDailyDigest",
+        suppressDelivery,
+      }),
+    });
   }
 }

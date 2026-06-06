@@ -6,10 +6,9 @@ import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
-import { pushTextMessage } from "../_lib/lineClient";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
-import { getResendClient, sendResendEmail } from "../_lib/resend";
+import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { buildReminderEmailHtml, buildReminderLineText } from "./templates";
 
 /**
@@ -28,7 +27,6 @@ export const sendReminderEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const resend = getResendClient({ suppressDelivery });
     const expiresAt = getDeadlineCutoff(data.deadline);
     const linkExpiresAtLabel = formatDateLabel(data.deadline);
 
@@ -45,22 +43,52 @@ export const sendReminderEmails = internalAction({
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
       if (channel === "line" && staff.lineUserId) {
-        try {
-          await pushTextMessage(
-            staff.lineUserId,
-            buildReminderLineText({
+        const fallbackEmail = staff.email
+          ? {
+              dedupeKey: `email:reminder:${recruitmentId}:${staff.staffId}`,
+              payload: emailPayload({
+                from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+                to: staff.email,
+                subject: formatResendSubject(
+                  data.shopName,
+                  `${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
+                ),
+                html: buildReminderEmailHtml({
+                  staffName: staff.name,
+                  periodLabel: data.periodLabel,
+                  linkExpiresAtLabel,
+                  magicLinkUrl,
+                  lineCtaHtml: await buildLineCtaForStaff(ctx, {
+                    staffId: staff.staffId,
+                    shopId: data.shopId,
+                    lineUserId: staff.lineUserId,
+                    lineFollowing: staff.lineFollowing,
+                    appUrl: APP_URL,
+                  }),
+                }),
+                context: "notification.sendReminderEmails",
+                suppressDelivery,
+              }),
+            }
+          : undefined;
+        await enqueueLine(ctx, {
+          shopId: data.shopId,
+          staffId: staff.staffId,
+          dedupeKey: `line:reminder:${recruitmentId}:${staff.staffId}`,
+          payload: linePayload({
+            toUserId: staff.lineUserId,
+            text: buildReminderLineText({
               staffName: staff.name,
               shopName: data.shopName,
               periodLabel: data.periodLabel,
               linkExpiresAtLabel,
               magicLinkUrl,
             }),
-            { suppressDelivery },
-          );
-          continue;
-        } catch (e) {
-          console.error("LINE push failed; falling back to email", e);
-        }
+            suppressDelivery,
+            ...(fallbackEmail ? { fallbackEmail } : {}),
+          }),
+        });
+        continue;
       }
 
       if (!staff.email) continue;
@@ -73,9 +101,11 @@ export const sendReminderEmails = internalAction({
         appUrl: APP_URL,
       });
 
-      await sendResendEmail(
-        resend,
-        {
+      await enqueueEmail(ctx, {
+        shopId: data.shopId,
+        staffId: staff.staffId,
+        dedupeKey: `email:reminder:${recruitmentId}:${staff.staffId}`,
+        payload: emailPayload({
           from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: staff.email,
           subject: formatResendSubject(
@@ -89,9 +119,10 @@ export const sendReminderEmails = internalAction({
             magicLinkUrl,
             lineCtaHtml,
           }),
-        },
-        "notification.sendReminderEmails",
-      );
+          context: "notification.sendReminderEmails",
+          suppressDelivery,
+        }),
+      });
     }
   },
 });

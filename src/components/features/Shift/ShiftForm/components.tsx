@@ -61,11 +61,15 @@ type UnsubmittedStripProps = {
   names: string[];
   onRemind?: () => void;
   lastSentAtLabel?: string;
+  isReminding?: boolean;
 };
 
-export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: UnsubmittedStripProps) => {
-  const isDisabled = !onRemind;
-  const handleClick = () => onRemind?.();
+export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel, isReminding = false }: UnsubmittedStripProps) => {
+  const isDisabled = !onRemind || isReminding;
+  const handleClick = () => {
+    if (isDisabled) return;
+    onRemind?.();
+  };
 
   return (
     <>
@@ -109,6 +113,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
           type="button"
           onClick={handleClick}
           disabled={isDisabled}
+          aria-busy={isReminding}
           style={{
             height: 26,
             padding: "0 10px",
@@ -123,7 +128,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
             fontFamily: "inherit",
           }}
         >
-          催促通知を送る
+          {isReminding ? "送信中" : "催促通知を送る"}
         </button>
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
@@ -131,6 +136,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
           type="button"
           onClick={handleClick}
           disabled={isDisabled}
+          aria-busy={isReminding}
           style={{
             width: "100%",
             display: "flex",
@@ -153,7 +159,7 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
             未提出 {names.length}人
           </span>
           <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
-            {lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップで催促通知を送る"}
+            {isReminding ? "送信中" : lastSentAtLabel ? `前回 ${lastSentAtLabel}` : "タップで催促通知を送る"}
           </span>
           {!isDisabled && (
             <span
@@ -168,12 +174,14 @@ export const UnsubmittedStrip = ({ names, onRemind, lastSentAtLabel }: Unsubmitt
   );
 };
 
-type SaveButtonProps = { compact?: boolean; onClick?: () => void };
+type SaveButtonProps = { compact?: boolean; isSaving?: boolean; onClick?: () => void };
 
-export const SaveButton = ({ compact = false, onClick }: SaveButtonProps) => (
+export const SaveButton = ({ compact = false, isSaving = false, onClick }: SaveButtonProps) => (
   <button
     type="button"
-    onClick={onClick}
+    onClick={isSaving ? undefined : onClick}
+    disabled={isSaving}
+    aria-busy={isSaving}
     aria-label="下書き保存"
     style={{
       height: compact ? 28 : 32,
@@ -182,7 +190,7 @@ export const SaveButton = ({ compact = false, onClick }: SaveButtonProps) => (
       color: "#3f3f46",
       border: "1px solid #d4d4d8",
       borderRadius: 6,
-      cursor: "pointer",
+      cursor: isSaving ? "wait" : "pointer",
       fontSize: compact ? "var(--chakra-font-sizes-xs)" : "var(--chakra-font-sizes-sm)",
       fontWeight: 500,
       fontFamily: "inherit",
@@ -191,23 +199,41 @@ export const SaveButton = ({ compact = false, onClick }: SaveButtonProps) => (
       gap: 4,
     }}
   >
-    {compact ? <LuSave size={14} /> : "下書き保存"}
+    {compact ? <LuSave size={14} /> : isSaving ? "保存中" : "下書き保存"}
   </button>
 );
 
 type ConfirmButtonProps = {
   compact?: boolean;
   isConfirmed?: boolean;
+  isConfirming?: boolean;
   onClick?: () => void;
 };
 
-export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }: ConfirmButtonProps) => {
-  const label = compact ? (isConfirmed ? "再通知" : "確定") : isConfirmed ? "もう一度通知" : "シフトを確定して通知";
+export const ConfirmButton = ({
+  compact = false,
+  isConfirmed = false,
+  isConfirming = false,
+  onClick,
+}: ConfirmButtonProps) => {
+  const label = isConfirming
+    ? compact
+      ? "処理中"
+      : "処理中"
+    : compact
+      ? isConfirmed
+        ? "再通知"
+        : "確定"
+      : isConfirmed
+        ? "もう一度通知"
+        : "シフトを確定して通知";
   return (
     <button
       type="button"
       data-tour="confirm-button"
-      onClick={onClick}
+      onClick={isConfirming ? undefined : onClick}
+      disabled={isConfirming}
+      aria-busy={isConfirming}
       style={{
         height: compact ? 28 : 32,
         padding: compact ? "0 12px" : "0 16px",
@@ -215,7 +241,7 @@ export const ConfirmButton = ({ compact = false, isConfirmed = false, onClick }:
         color: isConfirmed ? "#0f766e" : "white",
         border: isConfirmed ? "1px solid #0d9488" : "none",
         borderRadius: 6,
-        cursor: "pointer",
+        cursor: isConfirming ? "wait" : "pointer",
         fontSize: compact ? "var(--chakra-font-sizes-xs)" : "var(--chakra-font-sizes-sm)",
         fontWeight: 600,
         fontFamily: "inherit",

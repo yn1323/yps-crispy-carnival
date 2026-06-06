@@ -2,14 +2,19 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
 import { rateLimit } from "../_lib/rateLimits";
-import {
-  inferAccessKindFromRecruitmentStatus,
-  recruitmentMatchesAccessKind,
-  sessionMatchesAccessKind,
-  staffAccessKindValidator,
-} from "../_lib/staffAccess";
+import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
+
+type ExpiredReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
+
+function expired(recruitmentId: string | null, reason: ExpiredReason) {
+  return {
+    status: "expired" as const,
+    reason,
+    recruitmentId,
+  };
+}
 
 /**
  * マジックリンクトークンを検証し、セッションを発行する
@@ -38,40 +43,40 @@ export const verifyToken = mutation({
       .first();
 
     if (!magicLink || magicLink.revokedAt) {
-      return {
-        status: "expired" as const,
-        recruitmentId: magicLink?.recruitmentId ?? null,
-      };
+      return expired(magicLink?.recruitmentId ?? null, "invalid_link");
     }
 
-    const recruitment = await ctx.db.get(magicLink.recruitmentId);
-    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== magicLink.shopId) {
-      return {
-        status: "expired" as const,
-        recruitmentId: magicLink.recruitmentId,
-      };
+    const [recruitment, staff, shop] = await Promise.all([
+      ctx.db.get(magicLink.recruitmentId),
+      ctx.db.get(magicLink.staffId),
+      ctx.db.get(magicLink.shopId),
+    ]);
+    if (!recruitment || recruitment.shopId !== magicLink.shopId) {
+      return expired(magicLink.recruitmentId, "invalid_link");
+    }
+    if (recruitment.isDeleted) {
+      return expired(magicLink.recruitmentId, "recruitment_deleted");
+    }
+    if (!staff || staff.isDeleted || !shop || shop.isDeleted || staff.shopId !== magicLink.shopId) {
+      return expired(magicLink.recruitmentId, "invalid_link");
     }
 
-    const linkAccessKind = magicLink.accessKind ?? inferAccessKindFromRecruitmentStatus(recruitment.status);
-    if (linkAccessKind !== accessKind || !recruitmentMatchesAccessKind(recruitment.status, accessKind)) {
-      return {
-        status: "expired" as const,
-        recruitmentId: magicLink.recruitmentId,
-      };
+    if (magicLink.accessKind && magicLink.accessKind !== accessKind) {
+      return expired(magicLink.recruitmentId, "invalid_link");
+    }
+    if (!recruitmentMatchesAccessKind(recruitment.status, accessKind)) {
+      return expired(
+        magicLink.recruitmentId,
+        accessKind === "submit" && recruitment.status === "confirmed" ? "submission_closed" : "invalid_link",
+      );
     }
     // submit リンクは「提出・修正は締切まで、閲覧は確定まで」なので、
     // 締切由来の magicLink.expiresAt では失効させない。提出可否は submitShiftRequests 側で判定する。
     if (accessKind === "view" && magicLink.expiresAt < now) {
-      return {
-        status: "expired" as const,
-        recruitmentId: magicLink.recruitmentId,
-      };
+      return expired(magicLink.recruitmentId, "invalid_link");
     }
     if (accessKind === "view" && magicLink.usedAt) {
-      return {
-        status: "expired" as const,
-        recruitmentId: magicLink.recruitmentId,
-      };
+      return expired(magicLink.recruitmentId, "invalid_link");
     }
 
     // 既存の有効なセッションがあればそれを返す
@@ -146,6 +151,11 @@ export const requestReissue = mutation({
       key: `${normalizedEmail}:${recruitmentId}`,
     });
     if (!ok) return logSkip("rate_limited", { emailDomain });
+    const shortLimit = await rateLimit(ctx, {
+      name: "requestReissueShort",
+      key: `${normalizedEmail}:${recruitmentId}`,
+    });
+    if (!shortLimit.ok) return logSkip("duplicate_recent", { emailDomain });
 
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment) return logSkip("recruitment_not_found");

@@ -152,7 +152,7 @@ describe("staffAuth/mutations", () => {
         accessKind: "view",
       });
 
-      expect(result).toEqual({ status: "expired", recruitmentId });
+      expect(result).toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
     });
 
     it("viewトークンをsubmit用途で検証するとexpiredが返る", async () => {
@@ -164,7 +164,25 @@ describe("staffAuth/mutations", () => {
         accessKind: "submit",
       });
 
-      expect(result).toEqual({ status: "expired", recruitmentId });
+      expect(result).toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
+    });
+
+    it("削除済み募集のsubmitトークンはrecruitment_deleted reasonでexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { isDeleted: true });
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result).toEqual({ status: "expired", reason: "recruitment_deleted", recruitmentId });
     });
 
     it("accessKind未設定の使用済みsubmitトークンは締切前なら救済する", async () => {
@@ -234,7 +252,26 @@ describe("staffAuth/mutations", () => {
         accessKind: "submit",
       });
 
-      expect(result).toEqual({ status: "expired", recruitmentId });
+      expect(result).toEqual({ status: "expired", reason: "submission_closed", recruitmentId });
+    });
+
+    it("accessKind未設定のsubmitトークンも募集確定後ならsubmission_closed reasonでexpiredが返る", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
+        accessKind: "submit",
+        legacyAccessKind: true,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "submit",
+      });
+
+      expect(result).toEqual({ status: "expired", reason: "submission_closed", recruitmentId });
     });
 
     it("期限切れトークンでexpiredが返る", async () => {
@@ -261,6 +298,7 @@ describe("staffAuth/mutations", () => {
 
       expect(result.status).toBe("expired");
       expect(result.recruitmentId).toBe(recruitmentId);
+      if (result.status === "expired") expect(result.reason).toBe("invalid_link");
     });
 
     it("存在しないトークンでexpiredが返る", async () => {
@@ -273,6 +311,7 @@ describe("staffAuth/mutations", () => {
 
       expect(result.status).toBe("expired");
       expect(result.recruitmentId).toBeNull();
+      if (result.status === "expired") expect(result.reason).toBe("invalid_link");
     });
   });
 
@@ -457,6 +496,23 @@ describe("staffAuth/mutations", () => {
         recruitmentId: ids.recruitmentId,
       });
       logSpy.mockRestore();
+    });
+
+    it("同じメールと募集の短時間連打では再発行通知予約を増やさない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+
+      await t.mutation(api.staffAuth.mutations.requestReissue, {
+        email: "suzuki@example.com",
+        recruitmentId: ids.recruitmentId,
+      });
+      await t.mutation(api.staffAuth.mutations.requestReissue, {
+        email: " SUZUKI@example.com ",
+        recruitmentId: ids.recruitmentId,
+      });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendReissueEmail")).toHaveLength(1);
     });
   });
 

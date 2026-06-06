@@ -2,6 +2,11 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
+import {
+  notificationChannelValidator,
+  notificationOutboxStatusValidator,
+  notificationPayloadValidator,
+} from "./notificationOutbox/schemas";
 
 const schema = defineSchema({
   ...rateLimitTables,
@@ -297,6 +302,26 @@ const schema = defineSchema({
     status: v.union(v.literal("normal"), v.literal("exceeded")),
     plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
   }),
+
+  notificationOutbox: defineTable({
+    channel: notificationChannelValidator,
+    status: notificationOutboxStatusValidator,
+    dedupeKey: v.string(),
+    shopId: v.id("shops"),
+    staffId: v.optional(v.id("staffs")),
+    payload: notificationPayloadValidator,
+    attemptCount: v.number(),
+    nextRunAt: v.number(),
+    lastError: v.optional(v.string()),
+    processingStartedAt: v.optional(v.number()),
+    sentAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_dedupeKey_status", ["dedupeKey", "status"])
+    .index("by_status_nextRunAt", ["status", "nextRunAt"])
+    .index("by_shopId_status", ["shopId", "status"]),
 
   legalConsentTokens: defineTable({
     staffId: v.id("staffs"),

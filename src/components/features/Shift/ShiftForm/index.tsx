@@ -47,8 +47,11 @@ type ShiftFormProps = {
   onViewModeChange?: (mode: ViewMode) => void;
   onSaveDraft?: () => void;
   onConfirm?: () => void;
+  isSavingDraft?: boolean;
+  isConfirming?: boolean;
   isConfirmed?: boolean;
   onRemind?: () => void;
+  isReminding?: boolean;
   lastSentAtLabel?: string;
 };
 
@@ -72,8 +75,11 @@ const ShiftFormInner = ({
   onViewModeChange,
   onSaveDraft,
   onConfirm,
+  isSavingDraft = false,
+  isConfirming = false,
   isConfirmed = false,
   onRemind,
+  isReminding = false,
   lastSentAtLabel,
 }: ShiftFormProps) => {
   useShiftFormInit({
@@ -131,8 +137,11 @@ const ShiftFormInner = ({
           isConfirmed={isConfirmed}
           onSaveDraft={onSaveDraft}
           onConfirm={onConfirm}
+          isSavingDraft={isSavingDraft}
+          isConfirming={isConfirming}
           unsubmittedNames={unsubmittedNames}
           onRemind={onRemind}
+          isReminding={isReminding}
           lastSentAtLabel={lastSentAtLabel}
           singleViewLabel={isDateOnlyPattern ? "日ごと" : undefined}
         >
@@ -166,8 +175,11 @@ const ShiftFormInner = ({
           isConfirmed={isConfirmed}
           onSaveDraft={onSaveDraft}
           onConfirm={onConfirm}
+          isSavingDraft={isSavingDraft}
+          isConfirming={isConfirming}
           unsubmittedNames={unsubmittedNames}
           onRemind={onRemind}
+          isReminding={isReminding}
           lastSentAtLabel={lastSentAtLabel}
         >
           {isDateOnlyPattern ? (
@@ -212,8 +224,11 @@ type ShellProps = {
   isConfirmed: boolean;
   onSaveDraft?: () => void;
   onConfirm?: () => void;
+  isSavingDraft: boolean;
+  isConfirming: boolean;
   unsubmittedNames: string[];
   onRemind?: () => void;
+  isReminding: boolean;
   lastSentAtLabel?: string;
   singleViewLabel?: string;
   children: ReactNode;
@@ -227,8 +242,11 @@ const Shell = ({
   isConfirmed,
   onSaveDraft,
   onConfirm,
+  isSavingDraft,
+  isConfirming,
   unsubmittedNames,
   onRemind,
+  isReminding,
   lastSentAtLabel,
   singleViewLabel,
   children,
@@ -252,8 +270,8 @@ const Shell = ({
       )}
       {!isReadOnly && (
         <Flex ml="auto" gap={2} align="center" py={2} flexShrink={0}>
-          <SaveButton compact={compact} onClick={onSaveDraft} />
-          <ConfirmButton compact={compact} isConfirmed={isConfirmed} onClick={onConfirm} />
+          <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
+          <ConfirmButton compact={compact} isConfirmed={isConfirmed} isConfirming={isConfirming} onClick={onConfirm} />
         </Flex>
       )}
     </Flex>
@@ -262,7 +280,12 @@ const Shell = ({
       {children}
     </Flex>
     {!isReadOnly && unsubmittedNames.length > 0 && (
-      <UnsubmittedStrip names={unsubmittedNames} onRemind={onRemind} lastSentAtLabel={lastSentAtLabel} />
+      <UnsubmittedStrip
+        names={unsubmittedNames}
+        onRemind={onRemind}
+        isReminding={isReminding}
+        lastSentAtLabel={lastSentAtLabel}
+      />
     )}
   </Flex>
 );

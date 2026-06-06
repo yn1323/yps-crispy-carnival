@@ -93,11 +93,11 @@ describe("管理者セットアップシナリオ", () => {
       });
     });
     const staff = scenario.staff();
-    const submissionPageData = await staff.getSubmissionPageData({
+    const submissionPageData = await staff.getOkSubmissionPageData({
       sessionToken: "manager-staff-submit-session",
       recruitmentId,
     });
-    expect(submissionPageData?.legalConsentRequired).toBe(false);
+    expect(submissionPageData.legalConsentRequired).toBe(false);
 
     const scheduled = await readScheduledFunctions(t);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: managerStaff._id })).toBe(true);
