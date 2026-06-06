@@ -6,6 +6,7 @@ import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
+import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
@@ -227,10 +228,9 @@ type Props = {
 export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useMutation(api.shiftBoard.mutations.confirmRecruitment);
-  const sendReminderEmailsMutation = useMutation(api.shiftReminder.mutations.sendReminderEmails);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
-  const isConfirmed = confirmedAt !== null;
+  const isConfirmed = data.recruitment.status === "confirmed";
 
   const dates = useMemo(
     () => getDateRange(data.recruitment.periodStart, data.recruitment.periodEnd),
@@ -264,9 +264,27 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   );
 
   const confirmModal = useDialog();
-  const reminderModal = useDialog();
+  const unsubmittedDialog = useDialog();
 
   const unsubmittedNames = useMemo(() => data.staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [data.staffs]);
+  const reminderStatus = useMemo<ReminderStatus>(() => {
+    if (data.recruitment.lastReminderSentAt) {
+      return {
+        kind: "sent",
+        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促通知済み`,
+      };
+    }
+    if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
+      return {
+        kind: "scheduled",
+        label: "提出締切の前日17:00に未提出者へ自動で催促します",
+      };
+    }
+    return {
+      kind: "none",
+      label: "自動催促の送信予定はありません",
+    };
+  }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
 
   const buildAssignments = useCallback(() => {
     return shiftsRef.current.flatMap((s) => {
@@ -285,16 +303,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         }));
     });
   }, [shopClosedDateSet]);
-
-  const { run: handleSendReminders, isRunning: isSendingReminders } = useSingleFlight(async () => {
-    try {
-      await sendReminderEmailsMutation({ recruitmentId });
-      reminderModal.close();
-      toaster.create({ title: "催促を送りました", type: "success" });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
     try {
@@ -372,15 +380,10 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           isConfirmed={isConfirmed}
           onSaveDraft={performSaveDraft}
           onConfirm={confirmModal.open}
-          onRemind={isConfirmed ? undefined : reminderModal.open}
           isSavingDraft={isSavingDraft}
           isConfirming={isConfirming}
-          isReminding={isSendingReminders}
-          lastSentAtLabel={
-            data.recruitment.lastReminderSentAt
-              ? formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)
-              : undefined
-          }
+          reminderStatus={reminderStatus}
+          onOpenUnsubmittedDetails={unsubmittedDialog.open}
         />
       </Box>
 
@@ -398,14 +401,11 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       </Dialog>
 
       <Dialog
-        title="未提出のスタッフに催促"
-        isOpen={reminderModal.isOpen}
-        onOpenChange={reminderModal.onOpenChange}
-        onSubmit={handleSendReminders}
-        submitLabel="催促を送る"
-        onClose={reminderModal.close}
-        isLoading={isSendingReminders}
-        isSubmitDisabled={isSendingReminders}
+        title="未提出のスタッフ"
+        isOpen={unsubmittedDialog.isOpen}
+        onOpenChange={unsubmittedDialog.onOpenChange}
+        onClose={unsubmittedDialog.close}
+        closeLabel="閉じる"
       >
         <RemindUnsubmittedContent
           unsubmittedNames={unsubmittedNames}
