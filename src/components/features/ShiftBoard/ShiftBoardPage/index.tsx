@@ -277,7 +277,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
       return {
         kind: "scheduled",
-        label: "提出締切の前日17:00に未提出者へ自動で催促します",
+        label: "締切前日17:00に自動で催促通知を送ります。",
       };
     }
     return {
