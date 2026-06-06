@@ -273,14 +273,6 @@ export const sendInvite = managerMutation({
     });
     if (!shortLimit.ok) return null;
 
-    const { ok } = await rateLimit(ctx, {
-      name: "lineInvite",
-      key: ctx.shop._id,
-    });
-    if (!ok) {
-      throw new ConvexError("送信が集中しています。しばらく待ってからお試しください");
-    }
-
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,
     });

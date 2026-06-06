@@ -413,6 +413,33 @@ describe("line/mutations", () => {
       expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
     });
 
+    it("1店舗で31人へ連続してLINE招待を予約できる", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await setupShop(t);
+      const staffIds = await t.run(async (ctx) => {
+        const ids: Id<"staffs">[] = [];
+        for (let i = 0; i < 31; i++) {
+          ids.push(
+            await ctx.db.insert("staffs", {
+              shopId,
+              name: `スタッフ${i + 1}`,
+              email: `staff-${i + 1}@example.com`,
+              isDeleted: false,
+            }),
+          );
+        }
+        return ids;
+      });
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      for (const staffId of staffIds) {
+        await expect(asManager.mutation(api.line.mutations.sendInvite, { staffId })).resolves.not.toThrow();
+      }
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(31);
+    });
+
     it("他店舗スタッフへの送信は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
       await setupShop(t);

@@ -56,15 +56,6 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 100,
   },
 
-  // LINE 連携依頼メール（個別送信）: shopId をキーに
-  // 30回/時 — 個別ボタンの連打防止
-  lineInvite: {
-    kind: "token bucket",
-    rate: 30,
-    period: HOUR_MS,
-    capacity: 30,
-  },
-
   // LINE 連携依頼メール（個別送信）: shopId+staffId をキーに
   // 1回/分 — 同じスタッフへのダブルクリック送信を抑止
   lineInviteShort: {
