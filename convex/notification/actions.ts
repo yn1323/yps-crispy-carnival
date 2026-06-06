@@ -370,6 +370,7 @@ async function buildRecruitmentEmail(opts: {
   magicLinkUrl: string;
   suppressDelivery: boolean;
   context: string;
+  dedupeKey?: string;
 }): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
   const {
     ctx,
@@ -382,6 +383,7 @@ async function buildRecruitmentEmail(opts: {
     magicLinkUrl,
     suppressDelivery,
     context,
+    dedupeKey,
   } = opts;
   if (!staff.email) return null;
 
@@ -394,7 +396,7 @@ async function buildRecruitmentEmail(opts: {
   });
 
   return {
-    dedupeKey: `email:recruitment:${recruitmentId}:${staff.staffId}`,
+    dedupeKey: dedupeKey ?? `email:recruitment:${recruitmentId}:${staff.staffId}`,
     payload: emailPayload({
       from: formatResendFrom(shopName, RESEND_FROM_EMAIL),
       to: staff.email,
@@ -460,6 +462,74 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
         });
       } catch (e) {
         console.error("Recruitment notification email enqueue failed for added staff", e);
+      }
+    }
+  },
+});
+
+/**
+ * メール変更時: 変更後メールアドレスへ、現在募集中の希望提出リンクを送る。
+ */
+export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internalAction({
+  args: {
+    staffId: v.id("staffs"),
+    expectedEmailNormalized: v.string(),
+    emailChangedAt: v.number(),
+  },
+  handler: async (ctx, { staffId, expectedEmailNormalized, emailChangedAt }) => {
+    const data = await ctx.runQuery(
+      internal.notification.queries.getOpenRecruitmentEmailChangeNotificationDataForStaff,
+      {
+        staffId,
+        expectedEmailNormalized,
+      },
+    );
+    if (!data || data.recruitments.length === 0 || !data.staff.email) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const channel = selectChannel(
+      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
+      quota,
+    );
+    if (channel === "line") return;
+
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+
+    for (const recruitment of data.recruitments) {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId: recruitment.recruitmentId,
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+
+      try {
+        const email = await buildRecruitmentEmail({
+          ctx,
+          shopId: data.shopId,
+          shopName: data.shopName,
+          staff: data.staff,
+          recruitmentId: recruitment.recruitmentId,
+          periodLabel: recruitment.periodLabel,
+          deadline: recruitment.deadline,
+          magicLinkUrl,
+          suppressDelivery,
+          context: "notification.sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+          dedupeKey: `email:openRecruitmentEmailChange:${recruitment.recruitmentId}:${data.staff.staffId}:${emailChangedAt}`,
+        });
+        if (!email) continue;
+        await enqueueEmail(ctx, {
+          shopId: data.shopId,
+          staffId: data.staff.staffId,
+          dedupeKey: email.dedupeKey,
+          payload: email.payload,
+        });
+      } catch (e) {
+        console.error("Recruitment notification email enqueue failed after staff email change", e);
       }
     }
   },

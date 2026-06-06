@@ -1,4 +1,6 @@
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
 import { internalQuery } from "../_generated/server";
 import { formatDateLabel, formatPeriodLabel, generateDateRange, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
@@ -11,6 +13,46 @@ type AssignmentTime = {
   endTime: string;
   optionId?: string;
 };
+
+async function getOpenRecruitmentNotificationDataForStaffInternal(ctx: QueryCtx, staffId: Id<"staffs">) {
+  const staff = await ctx.db.get(staffId);
+  if (!staff || staff.isDeleted) return null;
+
+  const shop = await ctx.db.get(staff.shopId);
+  if (!shop || shop.isDeleted) return null;
+
+  const now = Date.now();
+  const recruitments = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
+    .order("desc")
+    .take(OPEN_RECRUITMENT_NOTIFICATION_LIMIT);
+
+  const openRecruitments = recruitments
+    .filter((r) => !r.isDeleted && now < getSubmitLinkCutoff(r.periodStart))
+    .map((r) => ({
+      recruitmentId: r._id,
+      periodLabel: formatPeriodLabel(r.periodStart, r.periodEnd),
+      periodStart: r.periodStart,
+      deadline: r.deadline,
+    }));
+
+  const lineAccount = await getStaffLineAccount(ctx, staff._id);
+
+  return {
+    shopId: staff.shopId,
+    shopName: shop.name,
+    staff: {
+      staffId: staff._id,
+      name: staff.name,
+      email: staff.email,
+      emailNormalized: staff.emailNormalized,
+      lineUserId: lineAccount?.lineUserId,
+      lineFollowing: lineAccount?.following,
+    },
+    recruitments: openRecruitments,
+  };
+}
 
 /**
  * シフト確定メール送信に必要なデータを一括取得
@@ -136,42 +178,27 @@ export const getRecruitmentEmailData = internalQuery({
 export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
-    const staff = await ctx.db.get(staffId);
-    if (!staff || staff.isDeleted) return null;
+    return await getOpenRecruitmentNotificationDataForStaffInternal(ctx, staffId);
+  },
+});
 
-    const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted) return null;
+/**
+ * メール変更後に現在募集中の希望提出リンクを追送するためのデータを取得する。
+ * 連続更新で古い予約が残っても、現在メールと一致しないものは送らない。
+ */
+export const getOpenRecruitmentEmailChangeNotificationDataForStaff = internalQuery({
+  args: {
+    staffId: v.id("staffs"),
+    expectedEmailNormalized: v.string(),
+  },
+  handler: async (ctx, { staffId, expectedEmailNormalized }) => {
+    const data = await getOpenRecruitmentNotificationDataForStaffInternal(ctx, staffId);
+    if (!data) return null;
 
-    const now = Date.now();
-    const recruitments = await ctx.db
-      .query("recruitments")
-      .withIndex("by_shopId_status", (q) => q.eq("shopId", staff.shopId).eq("status", "open"))
-      .order("desc")
-      .take(OPEN_RECRUITMENT_NOTIFICATION_LIMIT);
+    const currentEmailNormalized = (data.staff.emailNormalized ?? data.staff.email).trim().toLowerCase();
+    if (currentEmailNormalized === "" || currentEmailNormalized !== expectedEmailNormalized) return null;
 
-    const openRecruitments = recruitments
-      .filter((r) => !r.isDeleted && now < getSubmitLinkCutoff(r.periodStart))
-      .map((r) => ({
-        recruitmentId: r._id,
-        periodLabel: formatPeriodLabel(r.periodStart, r.periodEnd),
-        periodStart: r.periodStart,
-        deadline: r.deadline,
-      }));
-
-    const lineAccount = await getStaffLineAccount(ctx, staff._id);
-
-    return {
-      shopId: staff.shopId,
-      shopName: shop.name,
-      staff: {
-        staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        lineUserId: lineAccount?.lineUserId,
-        lineFollowing: lineAccount?.following,
-      },
-      recruitments: openRecruitments,
-    };
+    return data;
   },
 });
 
