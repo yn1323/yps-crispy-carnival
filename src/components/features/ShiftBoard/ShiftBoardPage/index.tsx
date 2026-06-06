@@ -19,6 +19,7 @@ import {
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
 import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
@@ -267,16 +268,6 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const unsubmittedNames = useMemo(() => data.staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [data.staffs]);
 
-  const handleSendReminders = useCallback(async () => {
-    try {
-      await sendReminderEmailsMutation({ recruitmentId });
-      reminderModal.close();
-      toaster.create({ title: "催促を送りました", type: "success" });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  }, [sendReminderEmailsMutation, recruitmentId, reminderModal]);
-
   const buildAssignments = useCallback(() => {
     return shiftsRef.current.flatMap((s) => {
       if (shopClosedDateSet.has(s.date)) return [];
@@ -295,25 +286,35 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     });
   }, [shopClosedDateSet]);
 
-  const handleConfirm = useCallback(async () => {
+  const { run: handleSendReminders, isRunning: isSendingReminders } = useSingleFlight(async () => {
+    try {
+      await sendReminderEmailsMutation({ recruitmentId });
+      reminderModal.close();
+      toaster.create({ title: "催促を送りました", type: "success" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  });
+
+  const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
-      await confirmRecruitmentMutation({ recruitmentId });
+      await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
-  }, [saveShiftAssignments, confirmRecruitmentMutation, recruitmentId, buildAssignments, confirmModal]);
+  });
 
-  const performSaveDraft = useCallback(async () => {
+  const { run: performSaveDraft, isRunning: isSavingDraft } = useSingleFlight(async () => {
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
       toaster.create({ title: "保存しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
-  }, [saveShiftAssignments, recruitmentId, buildAssignments]);
+  });
 
   const confirmTitle = isConfirmed
     ? "確定済みのシフトをもう一度通知しますか？"
@@ -372,6 +373,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           onSaveDraft={performSaveDraft}
           onConfirm={confirmModal.open}
           onRemind={isConfirmed ? undefined : reminderModal.open}
+          isSavingDraft={isSavingDraft}
+          isConfirming={isConfirming}
+          isReminding={isSendingReminders}
           lastSentAtLabel={
             data.recruitment.lastReminderSentAt
               ? formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)
@@ -387,6 +391,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onSubmit={handleConfirm}
         submitLabel="シフトを確定して通知"
         onClose={confirmModal.close}
+        isLoading={isConfirming}
+        isSubmitDisabled={isConfirming}
       >
         <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
       </Dialog>
@@ -398,6 +404,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         onSubmit={handleSendReminders}
         submitLabel="催促を送る"
         onClose={reminderModal.close}
+        isLoading={isSendingReminders}
+        isSubmitDisabled={isSendingReminders}
       >
         <RemindUnsubmittedContent
           unsubmittedNames={unsubmittedNames}

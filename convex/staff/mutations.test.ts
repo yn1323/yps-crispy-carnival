@@ -130,6 +130,70 @@ describe("staff/mutations", () => {
       expect(allStaffs).toHaveLength(2);
     });
 
+    it("同じメールの再実行ではスタッフと通知予約を増やさない", async () => {
+      const t = convexTest(schema, modules);
+
+      const shopId = await t.run(async (ctx) => {
+        const { shopId: id } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return id;
+      });
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      const firstIds = await asManager.mutation(api.staff.mutations.addStaffs, {
+        entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
+      });
+      const secondIds = await asManager.mutation(api.staff.mutations.addStaffs, {
+        entries: [{ name: "田中太郎", email: "Tanaka@Example.com" }],
+      });
+
+      expect(firstIds).toHaveLength(1);
+      expect(secondIds).toHaveLength(0);
+      const state = await t.run(async (ctx) => {
+        const staffs = await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .collect();
+        const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+        return { staffs, scheduled };
+      });
+      expect(state.staffs).toHaveLength(1);
+      expect(state.scheduled.filter((job) => job.name === "legal/actions:sendStaffConsentEmail")).toHaveLength(1);
+      expect(state.scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
+      expect(
+        state.scheduled.filter(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff",
+        ),
+      ).toHaveLength(1);
+    });
+
+    it("emailNormalizedがない既存スタッフもメール重複としてスキップする", async () => {
+      const t = convexTest(schema, modules);
+
+      await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "既存スタッフ",
+          email: "legacy@example.com",
+          isDeleted: false,
+        });
+      });
+
+      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        entries: [{ name: "新規スタッフ", email: "legacy@example.com" }],
+      });
+
+      expect(ids).toHaveLength(0);
+    });
+
     it("追加スタッフ向け通知データは締切前のopen募集だけを返す", async () => {
       const t = convexTest(schema, modules);
 

@@ -176,6 +176,7 @@ describe("useStaffSession", () => {
     });
     if (result.current.status !== "expired") throw new Error("type guard");
     expect(result.current.recruitmentId).toBe("rec-9");
+    expect(result.current.reason).toBe("invalid_link");
   });
 
   it("does not authenticate an expired submit token even when the same recruitment session is stored on this device", async () => {
@@ -209,6 +210,25 @@ describe("useStaffSession", () => {
       recruitmentId: "rec-1",
       accessKind: "view",
     });
+  });
+
+  it("does not authenticate an expired view token from a deleted recruitment even when a view session is stored", async () => {
+    writeStoredAccessSession("rec-1", "sess-1", "view");
+    verifyTokenMock.mockResolvedValueOnce({
+      status: "expired",
+      recruitmentId: "rec-1",
+      reason: "recruitment_deleted",
+    });
+
+    const { result } = renderHook(() => useStaffSession("deleted-recruitment-token", "view"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("expired");
+    });
+    expect(verifyTokenMock).toHaveBeenCalledWith({ token: "deleted-recruitment-token", accessKind: "view" });
+    if (result.current.status !== "expired") throw new Error("type guard");
+    expect(result.current.recruitmentId).toBe("rec-1");
+    expect(result.current.reason).toBe("recruitment_deleted");
   });
 
   it("does not use a legacy submit session for view access", async () => {
@@ -272,6 +292,7 @@ describe("useStaffSession", () => {
     expect(result.current.status).toBe("expired");
     if (result.current.status !== "expired") throw new Error("type guard");
     expect(result.current.recruitmentId).toBeNull();
+    expect(result.current.reason).toBe("invalid_link");
     expect(verifyTokenMock).not.toHaveBeenCalled();
   });
 });

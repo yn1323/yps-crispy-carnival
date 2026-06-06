@@ -267,13 +267,11 @@ export const sendInvite = managerMutation({
       throw new ConvexError("メールアドレスが未登録です");
     }
 
-    const { ok } = await rateLimit(ctx, {
-      name: "lineInvite",
-      key: ctx.shop._id,
+    const shortLimit = await rateLimit(ctx, {
+      name: "lineInviteShort",
+      key: `${ctx.shop._id}:${staff._id}`,
     });
-    if (!ok) {
-      throw new ConvexError("送信が集中しています。しばらく待ってからお試しください");
-    }
+    if (!shortLimit.ok) return null;
 
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,

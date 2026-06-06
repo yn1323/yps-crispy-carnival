@@ -1,17 +1,18 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { LuCalendarX, LuTriangleAlert, LuWifiOff } from "react-icons/lu";
+import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
 import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
-import { SubmitPageHeader, SubmitPageLayout } from "@/src/components/features/StaffSubmit/SubmitPageLayout";
+import { SubmitUnavailableView } from "@/src/components/features/StaffSubmit/SubmitUnavailableView";
 import { useSubmitShiftRequests } from "@/src/components/features/StaffSubmit/useSubmitShiftRequests";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { useStaffSession } from "@/src/hooks/useStaffSession";
 
 type Props = {
@@ -56,34 +57,12 @@ export function StaffShiftSubmitPage({ token }: Props) {
     );
   }
   if (state.status === "expired") {
-    return (
-      <SubmitPageLayout>
-        <SubmitPageHeader shopName="シフト提出" />
-        <Empty
-          icon={LuCalendarX}
-          title="提出締切を過ぎました"
-          description={"変更したい日がある場合は、\nシフト作成担当者に連絡してください。"}
-          tone="neutral"
-          flex={1}
-        />
-      </SubmitPageLayout>
-    );
+    return <SubmitUnavailableView reason={state.reason} />;
   }
 
   return (
     <ErrorBoundary
-      fallback={
-        <SubmitPageLayout>
-          <SubmitPageHeader shopName="シフト提出" />
-          <Empty
-            icon={LuCalendarX}
-            title="提出締切を過ぎました"
-            description={"変更したい日がある場合は、\nシフト作成担当者に連絡してください。"}
-            tone="neutral"
-            flex={1}
-          />
-        </SubmitPageLayout>
-      }
+      fallback={<SubmitUnavailableView reason="invalid_link" />}
       onError={(error) => {
         if (error.message?.includes("ArgumentValidationError")) {
           state.clearSession();
@@ -103,27 +82,19 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
   const submitShiftRequests = useSubmitShiftRequests(session);
+  const { run: handleSubmit } = useSingleFlight(
+    async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
+      if (data?.status !== "ok") return;
+
+      await submitShiftRequests(submission, acceptedLegal);
+      await navigate({ to: "/shifts/submit/completed", search: { shopName: data.data.shopName } });
+    },
+  );
 
   if (data === undefined) return <FullPageSpinner />;
-  if (data === null) {
-    return (
-      <SubmitPageLayout>
-        <SubmitPageHeader shopName="シフト提出" />
-        <Empty
-          icon={LuCalendarX}
-          title="提出締切を過ぎました"
-          description={"変更したい日がある場合は、\nシフト作成担当者に連絡してください。"}
-          tone="neutral"
-          flex={1}
-        />
-      </SubmitPageLayout>
-    );
+  if (data.status === "unavailable") {
+    return <SubmitUnavailableView reason={data.reason} />;
   }
 
-  const handleSubmit = async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
-    await submitShiftRequests(submission, acceptedLegal);
-    await navigate({ to: "/shifts/submit/completed", search: { shopName: data.shopName } });
-  };
-
-  return <ShiftSubmitPage data={data} onSubmit={handleSubmit} />;
+  return <ShiftSubmitPage data={data.data} onSubmit={handleSubmit} />;
 }

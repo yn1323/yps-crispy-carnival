@@ -85,7 +85,7 @@ describe("シフト希望回収シナリオ", () => {
     if (verified.status !== "ok") throw new Error("magic link verification failed");
 
     // Assert: 提出ページには募集作成時点の店舗情報と未提出状態が表示される。
-    const submissionPage = await staff.getSubmissionPageData({
+    const submissionPage = await staff.getOkSubmissionPageData({
       sessionToken: verified.sessionToken,
       recruitmentId,
     });
@@ -184,11 +184,11 @@ describe("シフト希望回収シナリオ", () => {
     });
 
     // Assert: 提出ページは募集作成時点のシフト時間スナップショットを使う。
-    const submissionPage = await staff.getSubmissionPageData({
+    const submissionPage = await staff.getOkSubmissionPageData({
       sessionToken: "scenario-snapshot-session",
       recruitmentId,
     });
-    expect(submissionPage?.timeRange).toEqual({ startTime: "09:00", endTime: "22:00" });
+    expect(submissionPage.timeRange).toEqual({ startTime: "09:00", endTime: "22:00" });
 
     // Act: 変更前スナップショットの時間帯で提出する。
     await staff.submitShiftRequests({
@@ -250,12 +250,12 @@ describe("シフト希望回収シナリオ", () => {
       });
     });
 
-    const submissionPage = await staff.getSubmissionPageData({
+    const submissionPage = await staff.getOkSubmissionPageData({
       sessionToken: "scenario-date-only-session",
       recruitmentId,
     });
-    expect(submissionPage?.submissionPattern).toEqual({ kind: "dateOnly" });
-    expect(submissionPage?.shopClosedDates).toEqual([shopClosedDate]);
+    expect(submissionPage.submissionPattern).toEqual({ kind: "dateOnly" });
+    expect(submissionPage.shopClosedDates).toEqual([shopClosedDate]);
 
     await expect(
       staff.submitShiftRequests({
@@ -365,11 +365,11 @@ describe("シフト希望回収シナリオ", () => {
     });
 
     // Assert: 提出ページは募集作成時点の勤務区分設定を保持する。
-    const submissionPage = await staff.getSubmissionPageData({
+    const submissionPage = await staff.getOkSubmissionPageData({
       sessionToken: "scenario-pattern-snapshot-session",
       recruitmentId,
     });
-    expect(submissionPage?.submissionPattern).toEqual({
+    expect(submissionPage.submissionPattern).toEqual({
       kind: "shiftType",
       options: [
         { id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },
@@ -452,10 +452,10 @@ describe("シフト希望回収シナリオ", () => {
     expect(firstBrowser.sessionToken).not.toBe(secondBrowser.sessionToken);
 
     await expect(
-      staff.getSubmissionPageData({ sessionToken: firstBrowser.sessionToken, recruitmentId }),
+      staff.getOkSubmissionPageData({ sessionToken: firstBrowser.sessionToken, recruitmentId }),
     ).resolves.toMatchObject({ staffName: "複数ブラウザスタッフ", hasSubmitted: false });
     await expect(
-      staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
+      staff.getOkSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
     ).resolves.toMatchObject({ staffName: "複数ブラウザスタッフ", hasSubmitted: false });
 
     await staff.submitShiftRequests({
@@ -486,7 +486,7 @@ describe("シフト希望回収シナリオ", () => {
     vi.setSystemTime(new Date(`${addDays(recruitmentInput.deadline, 1)}T00:00:00.000Z`));
     await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({ status: "ok", recruitmentId });
     await expect(
-      staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
+      staff.getOkSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
     ).resolves.toMatchObject({
       isBeforeDeadline: false,
       hasSubmitted: true,
@@ -506,14 +506,18 @@ describe("シフト希望回収シナリオ", () => {
       throw new Error("submit link should remain readable until confirmation");
     }
     await expect(
-      staff.getSubmissionPageData({ sessionToken: unsubmittedAfterDeadline.sessionToken, recruitmentId }),
+      staff.getOkSubmissionPageData({ sessionToken: unsubmittedAfterDeadline.sessionToken, recruitmentId }),
     ).resolves.toMatchObject({ isBeforeDeadline: false, hasSubmitted: false, existingRequests: [] });
 
     await asManager.confirmRecruitment(recruitmentId);
-    await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({ status: "expired", recruitmentId });
+    await expect(staff.verifyMagicLink(token)).resolves.toMatchObject({
+      status: "expired",
+      reason: "submission_closed",
+      recruitmentId,
+    });
     await expect(
       staff.getSubmissionPageData({ sessionToken: secondBrowser.sessionToken, recruitmentId }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ status: "unavailable", reason: "submission_closed" });
   });
 
   it("過去のシフトあり週を次回募集の前回パターンとして再利用できる", async () => {
@@ -593,11 +597,11 @@ describe("シフト希望回収シナリオ", () => {
     });
 
     // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンが返る。
-    const currentPage = await staff.getSubmissionPageData({
+    const currentPage = await staff.getOkSubmissionPageData({
       sessionToken: "scenario-reuse-current-session",
       recruitmentId: currentRecruitmentId,
     });
-    expect(currentPage?.previousWeeklyPattern).toEqual({
+    expect(currentPage.previousWeeklyPattern).toEqual({
       sourceWeekStart: workedWeekInput.periodStart,
       days: [
         { weekday: 1, startTime: "10:00", endTime: "18:00" },

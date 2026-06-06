@@ -10,6 +10,8 @@ import { useRequestShiftReissue } from "@/src/components/features/StaffView/useR
 import { StaffLayout, StaffNarrowContent } from "@/src/components/templates/StaffLayout";
 import { Empty } from "@/src/components/ui/Empty";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { showErrorToast } from "@/src/components/ui/toaster";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 
 type Props = {
   recruitmentId: string;
@@ -17,22 +19,20 @@ type Props = {
 
 export function StaffShiftReissuePage({ recruitmentId }: Props) {
   const [isDone, setIsDone] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const info = useQuery(api.staffAuth.queries.getRecruitmentInfo, {
     recruitmentId: recruitmentId as Id<"recruitments">,
   });
   const requestReissue = useRequestShiftReissue(recruitmentId);
 
-  const handleSubmit = async (values: ReissueFormValues) => {
-    setIsSubmitting(true);
+  const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(async (values: ReissueFormValues) => {
     try {
       await requestReissue(values);
       setIsDone(true);
-    } finally {
-      setIsSubmitting(false);
+    } catch (error) {
+      showErrorToast(error);
     }
-  };
+  });
 
   if (info === undefined) {
     return <FullPageSpinner />;
