@@ -22,6 +22,7 @@ type Story = StoryObj<typeof meta>;
 const STORY_TODAY = "2026-05-01";
 const LONG_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const storyToday = () => dayjs(STORY_TODAY);
+let doubleSubmitCount = 0;
 
 export const InDialog: Story = {
   render: () => (
@@ -231,6 +232,49 @@ export const InteractiveMobileBasicFlow: Story = {
   },
 };
 
+export const InteractiveDoubleSubmitGuard: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  render: () => (
+    <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
+      <CreateRecruitmentForm
+        today={STORY_TODAY}
+        onSubmit={async () => {
+          doubleSubmitCount += 1;
+          await delay(100);
+        }}
+        onCancel={() => {}}
+      />
+    </StepperDialog>
+  ),
+  play: async ({ canvasElement }) => {
+    doubleSubmitCount = 0;
+    const root = getTestRoot(canvasElement);
+    const periodStart = storyToday().add(2, "day");
+    const periodEnd = storyToday().add(4, "day");
+
+    await clickDate(root, periodStart);
+    await clickDate(root, periodEnd);
+    clickButton(root, "次へ");
+
+    await findByText(root, "お店のお休みを選択");
+    clickButton(root, "次へ");
+
+    await findByText(root, "提出締切日を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    clickButton(root, "確認へ");
+
+    await findByText(root, "内容を確認");
+    const submitButton = getByRole(root, "button", { name: "募集をつくる" });
+    submitButton.click();
+    submitButton.click();
+    await nextFrame();
+
+    expect(doubleSubmitCount).toBe(1);
+  },
+};
+
 function getTestRoot(canvasElement: HTMLElement): HTMLElement {
   return (document.querySelector('[role="dialog"]') as HTMLElement | null) ?? canvasElement;
 }
@@ -323,3 +367,4 @@ function nextWeekday(from: dayjs.Dayjs, weekday: number): dayjs.Dayjs {
 }
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -5,7 +5,7 @@ import { type ReissueFormValues, reissueSchema } from "@/convex/staffAuth/schema
 import { Button } from "@/src/components/ui/Button";
 
 type Props = {
-  onSubmit: (values: ReissueFormValues) => void;
+  onSubmit: (values: ReissueFormValues) => void | Promise<void>;
   isSubmitting: boolean;
 };
 

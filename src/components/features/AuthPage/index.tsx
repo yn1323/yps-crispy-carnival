@@ -27,6 +27,7 @@ import { z } from "zod";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import loginIllustration from "./login.webp";
 import { normalizeAuthRedirect } from "./redirect";
 
@@ -71,8 +72,8 @@ type LoginFormProps = {
   errorMessage?: string;
   isSubmitting?: boolean;
   redirectTo: string;
-  onGoogle: () => void;
-  onSubmit: (values: LoginValues) => void;
+  onGoogle: () => void | Promise<void>;
+  onSubmit: (values: LoginValues) => void | Promise<void>;
 };
 
 type SignupFormProps = {
@@ -80,9 +81,9 @@ type SignupFormProps = {
   isSubmitting?: boolean;
   isVerificationStep?: boolean;
   redirectTo: string;
-  onGoogle: () => void;
-  onSubmit: (values: SignupValues) => void;
-  onVerifyEmail: (values: EmailVerificationValues) => void;
+  onGoogle: () => void | Promise<void>;
+  onSubmit: (values: SignupValues) => void | Promise<void>;
+  onVerifyEmail: (values: EmailVerificationValues) => void | Promise<void>;
 };
 
 type ForgotPasswordFormProps = {
@@ -91,8 +92,8 @@ type ForgotPasswordFormProps = {
   step?: ForgotStep;
   email?: string;
   redirectTo: string;
-  onRequestReset: (values: ForgotRequestValues) => void;
-  onResetPassword: (values: ForgotResetValues) => void;
+  onRequestReset: (values: ForgotRequestValues) => void | Promise<void>;
+  onResetPassword: (values: ForgotResetValues) => void | Promise<void>;
 };
 
 export function AuthPage({ mode, redirect }: AuthPageProps) {
@@ -101,18 +102,9 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
   const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
   const redirectTo = useMemo(() => normalizeAuthRedirect(redirect), [redirect]);
   const [errorMessage, setErrorMessage] = useState<string>();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerificationStep, setIsVerificationStep] = useState(false);
   const [forgotStep, setForgotStep] = useState<ForgotStep>("request");
   const [forgotEmail, setForgotEmail] = useState("");
-
-  if (!authLoaded) {
-    return <FullPageSpinner />;
-  }
-
-  if (isSignedIn) {
-    return <Navigate to={redirectTo} replace />;
-  }
 
   const completeWithSession = async (sessionId: string | null) => {
     if (!sessionId) {
@@ -127,145 +119,146 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
     window.location.assign(redirectTo);
   };
 
-  const handleGoogle = async () => {
-    const resource = mode === "signup" ? signUp : signIn;
-    if (!resource || (!signInLoaded && mode !== "signup") || (!signUpLoaded && mode === "signup")) return;
+  const { run: runAuthAction, isRunning: isSubmitting } = useSingleFlight(async (action: () => Promise<void>) => {
+    await action();
+  });
 
-    setErrorMessage(undefined);
-    setIsSubmitting(true);
-    try {
-      await resource.authenticateWithRedirect({
-        strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: redirectTo,
-      });
-    } catch (error) {
-      setErrorMessage(getClerkErrorMessage(error));
-      setIsSubmitting(false);
-    }
-  };
+  if (!authLoaded) {
+    return <FullPageSpinner />;
+  }
 
-  const handleLogin = async (values: LoginValues) => {
-    if (!signInLoaded) return;
+  if (isSignedIn) {
+    return <Navigate to={redirectTo} replace />;
+  }
 
-    setErrorMessage(undefined);
-    setIsSubmitting(true);
-    try {
-      const result = await signIn.create({
-        strategy: "password",
-        identifier: values.email,
-        password: values.password,
-      });
+  const handleGoogle = () =>
+    runAuthAction(async () => {
+      const resource = mode === "signup" ? signUp : signIn;
+      if (!resource || (!signInLoaded && mode !== "signup") || (!signUpLoaded && mode === "signup")) return;
 
-      if (result.status === "complete") {
-        await completeWithSession(result.createdSessionId);
-        return;
+      setErrorMessage(undefined);
+      try {
+        await resource.authenticateWithRedirect({
+          strategy: "oauth_google",
+          redirectUrl: "/sso-callback",
+          redirectUrlComplete: redirectTo,
+        });
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
       }
+    });
 
-      setErrorMessage("追加の確認が必要です。Googleログインを使うか、時間をおいてもう一度お試しください。");
-    } catch (error) {
-      setErrorMessage(getClerkErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const handleLogin = (values: LoginValues) =>
+    runAuthAction(async () => {
+      if (!signInLoaded) return;
 
-  const handleSignup = async (values: SignupValues) => {
-    if (!signUpLoaded) return;
+      setErrorMessage(undefined);
+      try {
+        const result = await signIn.create({
+          strategy: "password",
+          identifier: values.email,
+          password: values.password,
+        });
 
-    setErrorMessage(undefined);
-    setIsSubmitting(true);
-    try {
-      const result = await signUp.create({
-        emailAddress: values.email,
-        password: values.password,
-      });
+        if (result.status === "complete") {
+          await completeWithSession(result.createdSessionId);
+          return;
+        }
 
-      if (result.status === "complete") {
-        await completeWithSession(result.createdSessionId);
-        return;
+        setErrorMessage("追加の確認が必要です。Googleログインを使うか、時間をおいてもう一度お試しください。");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
       }
+    });
 
-      if (result.unverifiedFields.includes("email_address")) {
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-        setIsVerificationStep(true);
-        return;
+  const handleSignup = (values: SignupValues) =>
+    runAuthAction(async () => {
+      if (!signUpLoaded) return;
+
+      setErrorMessage(undefined);
+      try {
+        const result = await signUp.create({
+          emailAddress: values.email,
+          password: values.password,
+        });
+
+        if (result.status === "complete") {
+          await completeWithSession(result.createdSessionId);
+          return;
+        }
+
+        if (result.unverifiedFields.includes("email_address")) {
+          await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+          setIsVerificationStep(true);
+          return;
+        }
+
+        setErrorMessage("登録に追加情報が必要です。Google登録を使うか、時間をおいてもう一度お試しください。");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
       }
+    });
 
-      setErrorMessage("登録に追加情報が必要です。Google登録を使うか、時間をおいてもう一度お試しください。");
-    } catch (error) {
-      setErrorMessage(getClerkErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const handleVerifyEmail = (values: EmailVerificationValues) =>
+    runAuthAction(async () => {
+      if (!signUpLoaded) return;
 
-  const handleVerifyEmail = async (values: EmailVerificationValues) => {
-    if (!signUpLoaded) return;
+      setErrorMessage(undefined);
+      try {
+        const result = await signUp.attemptEmailAddressVerification({ code: values.code });
+        if (result.status === "complete") {
+          await completeWithSession(result.createdSessionId);
+          return;
+        }
 
-    setErrorMessage(undefined);
-    setIsSubmitting(true);
-    try {
-      const result = await signUp.attemptEmailAddressVerification({ code: values.code });
-      if (result.status === "complete") {
-        await completeWithSession(result.createdSessionId);
-        return;
+        setErrorMessage("メール確認が完了しませんでした。コードを確認してもう一度お試しください。");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
       }
+    });
 
-      setErrorMessage("メール確認が完了しませんでした。コードを確認してもう一度お試しください。");
-    } catch (error) {
-      setErrorMessage(getClerkErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const handleRequestReset = (values: ForgotRequestValues) =>
+    runAuthAction(async () => {
+      if (!signInLoaded) return;
 
-  const handleRequestReset = async (values: ForgotRequestValues) => {
-    if (!signInLoaded) return;
-
-    setErrorMessage(undefined);
-    setIsSubmitting(true);
-    try {
-      await signIn.create({
-        strategy: "reset_password_email_code",
-        identifier: values.email,
-      });
-      setForgotEmail(values.email);
-      setForgotStep("reset");
-    } catch (error) {
-      setErrorMessage(getClerkErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResetPassword = async (values: ForgotResetValues) => {
-    if (!signInLoaded) return;
-
-    setErrorMessage(undefined);
-    setIsSubmitting(true);
-    try {
-      const verified = await signIn.attemptFirstFactor({
-        strategy: "reset_password_email_code",
-        code: values.code,
-      });
-      const result =
-        verified.status === "needs_new_password"
-          ? await verified.resetPassword({ password: values.password })
-          : verified;
-
-      if (result.status === "complete") {
-        await completeWithSession(result.createdSessionId);
-        return;
+      setErrorMessage(undefined);
+      try {
+        await signIn.create({
+          strategy: "reset_password_email_code",
+          identifier: values.email,
+        });
+        setForgotEmail(values.email);
+        setForgotStep("reset");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
       }
+    });
 
-      setErrorMessage("パスワードを再設定できませんでした。コードを確認してもう一度お試しください。");
-    } catch (error) {
-      setErrorMessage(getClerkErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const handleResetPassword = (values: ForgotResetValues) =>
+    runAuthAction(async () => {
+      if (!signInLoaded) return;
+
+      setErrorMessage(undefined);
+      try {
+        const verified = await signIn.attemptFirstFactor({
+          strategy: "reset_password_email_code",
+          code: values.code,
+        });
+        const result =
+          verified.status === "needs_new_password"
+            ? await verified.resetPassword({ password: values.password })
+            : verified;
+
+        if (result.status === "complete") {
+          await completeWithSession(result.createdSessionId);
+          return;
+        }
+
+        setErrorMessage("パスワードを再設定できませんでした。コードを確認してもう一度お試しください。");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
+      }
+    });
 
   return (
     <AuthContent
@@ -294,12 +287,12 @@ type AuthContentProps = {
   forgotStep?: ForgotStep;
   forgotEmail?: string;
   redirectTo?: string;
-  onGoogle: () => void;
-  onLogin: (values: LoginValues) => void;
-  onSignup: (values: SignupValues) => void;
-  onVerifyEmail: (values: EmailVerificationValues) => void;
-  onRequestReset: (values: ForgotRequestValues) => void;
-  onResetPassword: (values: ForgotResetValues) => void;
+  onGoogle: () => void | Promise<void>;
+  onLogin: (values: LoginValues) => void | Promise<void>;
+  onSignup: (values: SignupValues) => void | Promise<void>;
+  onVerifyEmail: (values: EmailVerificationValues) => void | Promise<void>;
+  onRequestReset: (values: ForgotRequestValues) => void | Promise<void>;
+  onResetPassword: (values: ForgotResetValues) => void | Promise<void>;
 };
 
 export function AuthContent({
@@ -658,7 +651,7 @@ const OAuthButton = ({
 }: {
   label: string;
   isSubmitting?: boolean;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
 }) => (
   <Button type="button" size="lg" variant="outline" onClick={onClick} disabled={isSubmitting}>
     <Icon as={FcGoogle} boxSize={5} />

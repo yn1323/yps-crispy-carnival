@@ -9,7 +9,7 @@ import { type AddStaffFormData, addStaffSchema } from "./index";
 const EMPTY_ENTRY = { name: "", email: "" } as const;
 
 type Props = {
-  onSubmit: (data: AddStaffFormData) => void;
+  onSubmit: (data: AddStaffFormData) => void | Promise<void>;
 };
 
 function RemoveButton({ onClick }: { onClick: () => void }) {
