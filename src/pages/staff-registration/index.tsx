@@ -6,6 +6,7 @@ import { StaffRegistrationPage, type StaffRegistrationPageData } from "@/src/com
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 
 type Props = {
   token: string | undefined;
@@ -22,8 +23,25 @@ const expiredRegistrationData: StaffRegistrationPageData = {
 export function StaffRegistrationRoutePage({ token }: Props) {
   const data = useQuery(api.staffRegistration.queries.getRegistrationPageData, token ? { token } : "skip");
   const submit = useMutation(api.staffRegistration.mutations.submitRegistrationRequest);
-  const [isSubmitting, setSubmitting] = useState(false);
   const [isSubmitted, setSubmitted] = useState(false);
+  const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(
+    async (formData: StaffRegistrationFormData) => {
+      if (!token) return;
+
+      try {
+        await submit({
+          token,
+          name: formData.name,
+          email: formData.email,
+          acceptedLegal: formData.acceptedLegal,
+        });
+        setSubmitted(true);
+        toaster.create({ title: "参加申請を送りました", type: "success" });
+      } catch (error) {
+        showErrorToast(error);
+      }
+    },
+  );
 
   if (!token) {
     return (
@@ -37,24 +55,6 @@ export function StaffRegistrationRoutePage({ token }: Props) {
 
   const pageData = data as StaffRegistrationPageData;
   const shopName = pageData.status === "ok" ? pageData.shopName : "スタッフ登録";
-
-  const handleSubmit = async (formData: StaffRegistrationFormData) => {
-    try {
-      setSubmitting(true);
-      await submit({
-        token,
-        name: formData.name,
-        email: formData.email,
-        acceptedLegal: formData.acceptedLegal,
-      });
-      setSubmitted(true);
-      toaster.create({ title: "参加申請を送りました", type: "success" });
-    } catch (error) {
-      showErrorToast(error);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <StaffLayout shopName={shopName}>

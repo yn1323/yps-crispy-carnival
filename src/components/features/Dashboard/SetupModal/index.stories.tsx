@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect } from "storybook/test";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { SetupModal } from "./index";
 
 const meta = {
@@ -20,6 +22,7 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+let doubleSubmitCount = 0;
 
 export const Step1: Story = {};
 
@@ -115,3 +118,58 @@ export const ShiftTypeSettingsStep: Story = {
     );
   },
 };
+
+export const InteractiveDoubleSubmitGuard: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  render: () => <GuardedSetupModalStory />,
+  play: async () => {
+    doubleSubmitCount = 0;
+    await inputShopName();
+    await clickButton("次へ");
+
+    await waitForElement(
+      () => document.querySelector<HTMLInputElement>('input[name="name"]'),
+      "あなたの名前ステップの入力欄が表示されませんでした",
+    );
+    const consentCheckbox = await waitForElement(
+      () => document.querySelector<HTMLInputElement>('input[type="checkbox"]'),
+      "規約同意のチェックボックスが見つかりませんでした",
+    );
+    consentCheckbox.click();
+
+    const submitButton = await waitForElement(
+      () =>
+        Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+          (candidate) => candidate.textContent?.trim() === "お店を登録する",
+        ) ?? null,
+      "お店を登録するボタンが見つかりませんでした",
+    );
+    submitButton.click();
+    submitButton.click();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(doubleSubmitCount).toBe(1);
+  },
+};
+
+function GuardedSetupModalStory() {
+  const { run: handleComplete, isRunning: isSubmitting } = useSingleFlight(async () => {
+    doubleSubmitCount += 1;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+
+  return (
+    <SetupModal
+      isOpen={true}
+      onOpenChange={() => {}}
+      onComplete={handleComplete}
+      isSubmitting={isSubmitting}
+      managerProfileDefaults={{
+        name: "山田 太郎",
+        email: "yamada@example.com",
+      }}
+    />
+  );
+}

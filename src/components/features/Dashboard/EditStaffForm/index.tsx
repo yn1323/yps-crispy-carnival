@@ -6,7 +6,7 @@ import { type EditStaffFormData, editStaffSchema } from "./index";
 
 type Props = {
   staff: Staff;
-  onSubmit: (data: EditStaffFormData) => void;
+  onSubmit: (data: EditStaffFormData) => void | Promise<void>;
 };
 
 export const EditStaffForm = ({ staff, onSubmit }: Props) => {

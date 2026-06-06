@@ -8,6 +8,7 @@ import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/sch
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import { formatCompactDateListWithWeekday, formatDateWithWeekday } from "@/src/domains/shift/date";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { CalendarPicker } from "./CalendarPicker";
 import {
   type CreateRecruitmentData,
@@ -24,7 +25,7 @@ type Props = {
   regularClosedDays?: RegularClosedDay[];
   submissionPattern?: ShiftSubmissionPattern;
   displayMode?: "full" | "periodOnly";
-  onSubmit: (data: CreateRecruitmentData) => void;
+  onSubmit: (data: CreateRecruitmentData) => void | Promise<void>;
   onCancel?: () => void;
   today?: string;
 };
@@ -157,6 +158,7 @@ export const CreateRecruitmentForm = ({
       shopClosedDates: [],
     },
   });
+  const { run: submitOnce, isRunning: isSubmitRunning } = useSingleFlight(onSubmit);
 
   const periodStart = watch("periodStart");
   const periodEnd = watch("periodEnd");
@@ -283,9 +285,10 @@ export const CreateRecruitmentForm = ({
     setCurrentStep("confirm");
   };
 
-  const submitForm = handleSubmit((data) => {
-    onSubmit({ ...data, shopClosedDates: selectedHolidays });
+  const submitForm = handleSubmit(async (data) => {
+    await submitOnce({ ...data, shopClosedDates: selectedHolidays });
   });
+  const submitLoading = isSubmitting || isSubmitRunning;
 
   const actions =
     currentStep === "period" ? (
@@ -338,7 +341,7 @@ export const CreateRecruitmentForm = ({
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="submit" colorPalette="teal" loading={isSubmitting} flex={{ base: 1, md: "unset" }}>
+        <Button type="submit" colorPalette="teal" loading={submitLoading} flex={{ base: 1, md: "unset" }}>
           募集をつくる
         </Button>
       </>

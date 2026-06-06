@@ -6,7 +6,7 @@
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `staffs` 拡張（`lineUserId` / `lineLinkedAt` / `lineFollowing`）+ `lineLinkTokens` / `lineQuotaStatus` テーブル
+- `convex/schema.ts` — `staffs` 拡張（`lineUserId` / `lineLinkedAt` / `lineFollowing`）+ `lineLinkTokens` / `lineQuotaStatus` / `notificationOutbox` テーブル
 - `convex/http.ts` — `/line/webhook` エンドポイント登録
 - `convex/crons.ts` — Quota 日次更新 cron
 - `convex/line/schemas.ts` — Zod スキーマ
@@ -18,6 +18,7 @@
 - `convex/_lib/lineClient.ts` — LINE API ラッパー（push / reply / quota / profile / token / authorizeUrl）
 - `convex/_lib/notification.ts` — `selectChannel`（純粋関数）
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — 既存通知に LINE 振り分け統合
+- `convex/notificationOutbox/` — LINE / メール通知の配送予約、重複排除、再試行 worker
 - `convex/notification/templates.ts` — `buildLineInviteEmailHtml` / `buildLineCtaSection` / `buildShiftConfirmation/Recruitment/ReminderLineText`
 
 ### フロントエンド（`src/`）
@@ -50,7 +51,8 @@
 | `api.line.queries.getQuotaStatus` | query | Quota 状態（normal / exceeded） |
 | `api.line.actions.redeemLineToken` | action | OAuth コールバック処理（state 検証 → code 交換 → 連携完了） |
 | `internal.line.actions.refreshQuotaStatus` | internalAction | cron で Quota DB 更新 |
-| `internal.line.actions.sendInviteEmail` | internalAction | 連携依頼メール送信本体 |
+| `internal.line.actions.sendInviteEmail` | internalAction | 連携依頼メールを通知 outbox へ予約 |
+| `internal.notificationOutbox.actions.processPending` | internalAction | 通知 outbox の pending ジョブを少量ずつ配送 |
 | `internal.line.mutations.dispatchWebhookEvents` | internalMutation | Webhook follow/unfollow/message ディスパッチ |
 | `POST /line/webhook` | httpAction | LINE Messaging API Webhook 受信（署名検証） |
 
@@ -62,7 +64,7 @@
 - スタッフが連携済み（`lineUserId`）かつ友達追加中（`lineFollowing`）→ line
 - それ以外 → email
 
-呼び出し点は既存の `sendShiftConfirmationEmails` / `sendRecruitmentNotificationEmails` / `sendReminderEmails` action のスタッフごとループ内。
+呼び出し点は既存の `sendShiftConfirmationEmails` / `sendRecruitmentNotificationEmails` / `sendReminderEmails` action のスタッフごとループ内。配送は同期送信ではなく `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ処理する。
 
 ## レートリミット
 
@@ -70,7 +72,9 @@
 
 - `lineLinkRedeem`: 5回/分（state先頭8文字キー） — OAuth コールバックのブルートフォース防御
 - `lineWebhook`: 100回/分（global） — Webhook 暴発時のセーフティネット
-- `lineInvite`: 30回/時（shopId キー） — 個別連携依頼メールの連打防止
+- `lineInviteShort`: 3回/分（shopId + staffId キー） — 同じスタッフへの個別連携依頼の短時間連打防止
+
+店舗単位の `lineInvite`（30回/時）は削除済み。1店舗で30人以上に連携依頼する通常運用は outbox に積んで順次配送し、同一スタッフへの短時間重複は `lineInviteShort` と outbox の `dedupeKey` で抑止する。
 
 ## 環境変数
 

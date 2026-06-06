@@ -84,7 +84,10 @@ describe("シフト募集削除シナリオ", () => {
     expect((await asManager.getDashboardRecruitments()).page.map((r) => r._id)).not.toContain(recruitmentId);
     expect(await asManager.getShiftBoardData(recruitmentId)).toBeNull();
     expect(await staff.getRecruitmentInfo(recruitmentId)).toBeNull();
-    expect(await staff.getSubmissionPageData({ sessionToken: submitAuth.sessionToken, recruitmentId })).toBeNull();
+    expect(await staff.getSubmissionPageData({ sessionToken: submitAuth.sessionToken, recruitmentId })).toEqual({
+      status: "unavailable",
+      reason: "recruitment_deleted",
+    });
     expect(await staff.getShiftViewData({ sessionToken: viewAuth.sessionToken, recruitmentId })).toBeNull();
     await expect(
       staff.submitShiftRequests({
@@ -93,8 +96,16 @@ describe("シフト募集削除シナリオ", () => {
         requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "19:00" }],
       }),
     ).rejects.toThrow("Not found");
-    expect(await staff.verifyMagicLink(submitToken)).toMatchObject({ status: "expired", recruitmentId });
-    expect(await staff.verifyMagicLink(viewToken, "view")).toMatchObject({ status: "expired", recruitmentId });
+    expect(await staff.verifyMagicLink(submitToken)).toMatchObject({
+      status: "expired",
+      reason: "recruitment_deleted",
+      recruitmentId,
+    });
+    expect(await staff.verifyMagicLink(viewToken, "view")).toMatchObject({
+      status: "expired",
+      reason: "recruitment_deleted",
+      recruitmentId,
+    });
 
     // Assert: 未実行通知 action や再発行導線が参照する internal query も送信対象を返さない。
     expect(await t.query(internal.notification.queries.getRecruitmentEmailData, { recruitmentId })).toBeNull();

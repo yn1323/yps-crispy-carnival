@@ -149,7 +149,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.previousWeeklyPattern).toEqual({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.previousWeeklyPattern).toEqual({
         sourceWeekStart: "2026-04-06",
         days: [
           { weekday: 2, startTime: "10:00", endTime: "18:00" },
@@ -183,7 +185,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.previousWeeklyPattern).toEqual({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.previousWeeklyPattern).toEqual({
         sourceWeekStart: "2026-04-06",
         days: [{ weekday: 3, startTime: "09:00", endTime: "17:00" }],
       });
@@ -204,7 +208,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.previousWeeklyPattern).toBeNull();
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.previousWeeklyPattern).toBeNull();
     });
 
     it("提出済みスタッフは締切後でも確定前なら提出内容を閲覧できる", async () => {
@@ -225,7 +231,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData).toMatchObject({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data).toMatchObject({
         isBeforeDeadline: false,
         hasSubmitted: true,
         existingRequests: [{ date: "2026-04-21", startTime: "10:00", endTime: "18:00" }],
@@ -250,8 +258,10 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.submissionPattern).toEqual({ kind: "dateOnly" });
-      expect(pageData?.existingSelection).toEqual({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.submissionPattern).toEqual({ kind: "dateOnly" });
+      expect(pageData.data.existingSelection).toEqual({
         kind: "dateOnly",
         workingDates: ["2026-04-21", "2026-04-23"],
         unmatchedRequests: [],
@@ -279,8 +289,10 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.previousWeeklyPattern).toBeNull();
-      expect(pageData?.previousDateOnlyPattern).toEqual({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.previousWeeklyPattern).toBeNull();
+      expect(pageData.data.previousDateOnlyPattern).toEqual({
         sourceWeekStart: "2026-04-06",
         weekdays: [2, 5],
       });
@@ -313,7 +325,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.existingSelection).toEqual({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.existingSelection).toEqual({
         kind: "shiftType",
         selections: [
           { date: "2026-04-21", optionId: "morning" },
@@ -347,7 +361,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData?.existingSelection).toEqual({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data.existingSelection).toEqual({
         kind: "shiftType",
         selections: [{ date: "2026-04-21", optionId: "morning" }],
         unmatchedRequests: [],
@@ -367,7 +383,9 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData).toMatchObject({
+      expect(pageData.status).toBe("ok");
+      if (pageData.status !== "ok") throw new Error("expected submission page data");
+      expect(pageData.data).toMatchObject({
         isBeforeDeadline: false,
         hasSubmitted: false,
         existingRequests: [],
@@ -375,7 +393,7 @@ describe("shiftSubmission/queries", () => {
       });
     });
 
-    it("募集確定後は有効な提出sessionがあっても提出画面データを返さない", async () => {
+    it("募集確定後は有効な提出sessionがあっても提出受付終了を返す", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
       await t.run(async (ctx) => {
@@ -388,7 +406,23 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(pageData).toBeNull();
+      expect(pageData).toEqual({ status: "unavailable", reason: "submission_closed" });
+    });
+
+    it("募集削除後は有効な提出sessionがあっても募集削除済みを返す", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, { isDeleted: true });
+      });
+
+      const pageData = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(pageData).toEqual({ status: "unavailable", reason: "recruitment_deleted" });
     });
   });
 });

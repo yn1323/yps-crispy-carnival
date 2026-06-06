@@ -170,7 +170,8 @@ export class DashboardPage {
     await this.openStaffMenu(staffName);
     await this.page.getByRole("menuitem", { name: "編集" }).click();
 
-    await expect(this.page.getByRole("dialog", { name: "スタッフを編集" })).toBeVisible();
+    const dialog = this.page.getByRole("dialog", { name: "スタッフを編集" });
+    await expect(dialog).toBeVisible();
     const form = this.page.locator("[id='edit-staff-form']");
     const nameInput = form.getByPlaceholder("例：田中 花子");
     const emailInput = form.getByPlaceholder("例：hanako@example.com");
@@ -180,11 +181,11 @@ export class DashboardPage {
     await emailInput.clear();
     await emailInput.fill(newData.email);
 
-    await this.page
-      .getByRole("dialog", { name: "スタッフを編集" })
-      .getByRole("button", { name: /保存する|変更を保存/ })
-      .click();
-    await expect(this.page.getByText("スタッフ情報を更新しました")).toBeVisible();
+    await dialog.getByRole("button", { name: /保存する|変更を保存/ }).click();
+    await expect(dialog).not.toBeVisible();
+    const toast = this.page.getByText("スタッフ情報を更新しました").first();
+    await expect(toast).toBeVisible();
+    await expect(toast).not.toBeVisible();
   }
 
   async deleteStaff(staffName: string) {
