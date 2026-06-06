@@ -623,7 +623,7 @@ describe("セキュリティ境界シナリオ", () => {
         accessKind: "submit",
         recruitmentId: ids.openRecruitmentId,
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ status: "unavailable", reason: "invalid_link" });
   });
 
   it("再発行通知は対象募集の店舗スタッフだけに予約され、内部通知データも店舗不一致を返さない", async () => {
@@ -776,10 +776,13 @@ describe("セキュリティ境界シナリオ", () => {
 
     await asManager.deleteStaff(ids.staffId);
 
-    await expect(staff.verifyMagicLink(magicToken)).resolves.toMatchObject({ status: "expired" });
+    await expect(staff.verifyMagicLink(magicToken)).resolves.toMatchObject({
+      status: "expired",
+      reason: "invalid_link",
+    });
     await expect(
       staff.getSubmissionPageData({ sessionToken: "deleted-target-session", recruitmentId: ids.recruitmentId }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ status: "unavailable", reason: "invalid_link" });
     await expect(
       staff.submitShiftRequests({
         sessionToken: "deleted-target-session",
