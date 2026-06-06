@@ -2,7 +2,6 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { managerMutation } from "../_lib/functions";
-import { STAFF_DUPLICATE_SCAN_LIMIT } from "../constants";
 
 export const addStaffs = managerMutation({
   args: {
@@ -13,20 +12,27 @@ export const addStaffs = managerMutation({
       .map((entry) => ({ name: entry.name.trim(), email: entry.email.trim().toLowerCase() }))
       .filter((e) => e.name !== "");
 
-    const existingStaffs = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId", (q) => q.eq("shopId", ctx.shop._id))
-      .take(STAFF_DUPLICATE_SCAN_LIMIT);
     // email 未入力スタッフは同姓同名でも別人として登録できる業務前提。
     // 重複防止は連絡先として一意に扱える email のみで行う。
-    const existingEmails = new Set(
-      existingStaffs.filter((s) => !s.isDeleted && s.email).map((s) => s.email.trim().toLowerCase()),
-    );
     const insertedEmails = new Set<string>();
 
     const inserted: Id<"staffs">[] = [];
     for (const entry of validEntries) {
-      if (entry.email && (existingEmails.has(entry.email) || insertedEmails.has(entry.email))) continue;
+      const existingStaff = entry.email
+        ? ((await ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+              q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("isDeleted", false),
+            )
+            .first()) ??
+          (await ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_email_isDeleted", (q) =>
+              q.eq("shopId", ctx.shop._id).eq("email", entry.email).eq("isDeleted", false),
+            )
+            .first()))
+        : null;
+      if (entry.email && (existingStaff || insertedEmails.has(entry.email))) continue;
       const id = await ctx.db.insert("staffs", {
         shopId: ctx.shop._id,
         name: entry.name,

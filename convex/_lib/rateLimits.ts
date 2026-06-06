@@ -20,6 +20,15 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 3,
   },
 
+  // リンク再発行リクエスト: email+recruitmentId をキーに
+  // 1回/分 — 連打時の重複送信予約を抑止
+  requestReissueShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
   // シフト希望提出: staffId をキーに
   // 5回/分 — 連打防止
   submitShiftRequests: {
@@ -54,5 +63,14 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: 30,
     period: HOUR_MS,
     capacity: 30,
+  },
+
+  // LINE 連携依頼メール（個別送信）: shopId+staffId をキーに
+  // 1回/分 — 同じスタッフへのダブルクリック送信を抑止
+  lineInviteShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
   },
 });

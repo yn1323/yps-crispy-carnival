@@ -146,6 +146,11 @@ export const requestReissue = mutation({
       key: `${normalizedEmail}:${recruitmentId}`,
     });
     if (!ok) return logSkip("rate_limited", { emailDomain });
+    const shortLimit = await rateLimit(ctx, {
+      name: "requestReissueShort",
+      key: `${normalizedEmail}:${recruitmentId}`,
+    });
+    if (!shortLimit.ok) return logSkip("duplicate_recent", { emailDomain });
 
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment) return logSkip("recruitment_not_found");
