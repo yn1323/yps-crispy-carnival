@@ -12,6 +12,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { useStaffSession } from "@/src/hooks/useStaffSession";
 
 type Props = {
@@ -103,6 +104,14 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
     recruitmentId: session.recruitmentId as Id<"recruitments">,
   });
   const submitShiftRequests = useSubmitShiftRequests(session);
+  const { run: handleSubmit } = useSingleFlight(
+    async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
+      if (!data) return;
+
+      await submitShiftRequests(submission, acceptedLegal);
+      await navigate({ to: "/shifts/submit/completed", search: { shopName: data.shopName } });
+    },
+  );
 
   if (data === undefined) return <FullPageSpinner />;
   if (data === null) {
@@ -119,11 +128,6 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
       </SubmitPageLayout>
     );
   }
-
-  const handleSubmit = async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
-    await submitShiftRequests(submission, acceptedLegal);
-    await navigate({ to: "/shifts/submit/completed", search: { shopName: data.shopName } });
-  };
 
   return <ShiftSubmitPage data={data} onSubmit={handleSubmit} />;
 }

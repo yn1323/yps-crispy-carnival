@@ -12,6 +12,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import type { CreateRecruitmentData } from "../CreateRecruitmentForm/index";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
@@ -107,7 +108,6 @@ export const DashboardContent = ({
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [registrationUrlLoading, setRegistrationUrlLoading] = useState(false);
   const [rejectRequestTarget, setRejectRequestTarget] = useState<StaffRegistrationRequest | null>(null);
-  const [legalConsentSubmitting, setLegalConsentSubmitting] = useState(false);
   const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
   const [autoDismissedOnboarding, setAutoDismissedOnboarding] = useState(false);
   const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
@@ -164,7 +164,7 @@ export const DashboardContent = ({
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
   };
 
-  const handleSetupComplete = async (data: SetupData) => {
+  const { run: handleSetupComplete, isRunning: isSetupSubmitting } = useSingleFlight(async (data: SetupData) => {
     try {
       await setupShopAndManager({
         shopName: data.shopName,
@@ -177,9 +177,9 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
-  const handleCreateRecruitment = async (data: CreateRecruitmentData) => {
+  const { run: handleCreateRecruitment } = useSingleFlight(async (data: CreateRecruitmentData) => {
     try {
       await createRecruitment(data);
       recruitmentModal.close();
@@ -187,14 +187,14 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
   const handleDeleteRecruitmentClick = (recruitment: Recruitment) => {
     setDeleteRecruitmentTarget(recruitment);
     deleteRecruitmentDialog.open();
   };
 
-  const handleDeleteRecruitment = async () => {
+  const { run: handleDeleteRecruitment, isRunning: isDeletingRecruitment } = useSingleFlight(async () => {
     if (!deleteRecruitmentTarget) return;
     try {
       await deleteRecruitmentMut({ recruitmentId: deleteRecruitmentTarget._id });
@@ -204,29 +204,28 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
-  const handleAcceptManagerLegalConsent = async () => {
+  const { run: handleAcceptManagerLegalConsent, isRunning: legalConsentSubmitting } = useSingleFlight(async () => {
     try {
-      setLegalConsentSubmitting(true);
       await acceptManagerLegalConsent({ acceptedLegal: true });
       toaster.create({ title: "同意を記録しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
-    } finally {
-      setLegalConsentSubmitting(false);
     }
-  };
+  });
 
-  const handleAddStaffs = async (data: { entries: Array<{ name: string; email: string }> }) => {
-    try {
-      await addStaffs({ entries: data.entries });
-      staffModal.close();
-      toaster.create({ title: "スタッフを追加しました", type: "success" });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  };
+  const { run: handleAddStaffs, isRunning: isAddingStaffs } = useSingleFlight(
+    async (data: { entries: Array<{ name: string; email: string }> }) => {
+      try {
+        await addStaffs({ entries: data.entries });
+        staffModal.close();
+        toaster.create({ title: "スタッフを追加しました", type: "success" });
+      } catch (error) {
+        showErrorToast(error);
+      }
+    },
+  );
 
   const handleOpenStaffModal = async () => {
     setStaffModalMode("qr");
@@ -250,20 +249,20 @@ export const DashboardContent = ({
     staffModal.close();
   };
 
-  const handleApproveStaffRequest = async (request: StaffRegistrationRequest) => {
+  const { run: handleApproveStaffRequest } = useSingleFlight(async (request: StaffRegistrationRequest) => {
     try {
       await approveStaffRequest({ requestId: request._id });
       toaster.create({ title: "スタッフ申請を承認しました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
   const handleRejectStaffRequestClick = (request: StaffRegistrationRequest) => {
     setRejectRequestTarget(request);
   };
 
-  const handleRejectStaffRequest = async () => {
+  const { run: handleRejectStaffRequest, isRunning: isRejectingStaffRequest } = useSingleFlight(async () => {
     if (!rejectRequestTarget) return;
     try {
       await rejectStaffRequest({ requestId: rejectRequestTarget._id });
@@ -272,7 +271,7 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
   const handleDismissOnboarding = async (stage: DashboardOnboardingStage) => {
     setDismissedOnboardingStages((current) => (current.includes(stage) ? current : [...current, stage]));
@@ -293,7 +292,7 @@ export const DashboardContent = ({
     deleteStaffDialog.open();
   };
 
-  const handleEditStaff = async (data: EditStaffFormData) => {
+  const { run: handleEditStaff, isRunning: isEditingStaff } = useSingleFlight(async (data: EditStaffFormData) => {
     if (!editTarget) return;
     try {
       await editStaffMut({ staffId: editTarget._id, name: data.name, email: data.email });
@@ -302,9 +301,9 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
-  const handleUpdateShop = async (data: EditShopFormData) => {
+  const { run: handleUpdateShop } = useSingleFlight(async (data: EditShopFormData) => {
     try {
       await updateShopSettings(data);
       editShopModal.close();
@@ -312,9 +311,9 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
-  const handleDeleteStaff = async () => {
+  const { run: handleDeleteStaff, isRunning: isDeletingStaff } = useSingleFlight(async () => {
     if (!deleteTarget) return;
     try {
       await deleteStaffMut({ staffId: deleteTarget._id });
@@ -323,7 +322,7 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
   const handleShowLineQr = async (staff: Staff) => {
     setLineQrTarget(staff);
@@ -346,7 +345,7 @@ export const DashboardContent = ({
     lineInviteDialog.open();
   };
 
-  const handleSendLineInviteConfirm = async () => {
+  const { run: handleSendLineInviteConfirm, isRunning: isSendingLineInvite } = useSingleFlight(async () => {
     if (!lineInviteTarget) return;
     try {
       await sendLineInvite({ staffId: lineInviteTarget._id });
@@ -355,7 +354,7 @@ export const DashboardContent = ({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  });
 
   return (
     <>
@@ -447,6 +446,8 @@ export const DashboardContent = ({
         submitLabel="この募集を削除"
         role="alertdialog"
         submitColorPalette="red"
+        isLoading={isDeletingRecruitment}
+        isSubmitDisabled={isDeletingRecruitment}
       >
         <Text>本当に削除してよろしいですか？</Text>
       </Dialog>
@@ -463,10 +464,10 @@ export const DashboardContent = ({
         footer={
           staffModalMode === "manual" ? (
             <Flex w="full" align="center" justify="space-between" gap={3}>
-              <Button variant="outline" onClick={handleStaffModalBackOrClose}>
+              <Button variant="outline" onClick={handleStaffModalBackOrClose} disabled={isAddingStaffs}>
                 戻る
               </Button>
-              <Button type="submit" form="add-staff-form" colorPalette="teal">
+              <Button type="submit" form="add-staff-form" colorPalette="teal" loading={isAddingStaffs}>
                 スタッフを追加する
               </Button>
             </Flex>
@@ -508,6 +509,8 @@ export const DashboardContent = ({
         submitLabel="この申請を却下"
         role="alertdialog"
         submitColorPalette="red"
+        isLoading={isRejectingStaffRequest}
+        isSubmitDisabled={isRejectingStaffRequest}
       >
         <Text>「{rejectRequestTarget?.name}」さんの参加申請を却下しますか？</Text>
         <Text fontSize="sm" color="gray.600">
@@ -522,6 +525,8 @@ export const DashboardContent = ({
         formId="edit-staff-form"
         submitLabel="変更を保存"
         onClose={editStaffModal.close}
+        isLoading={isEditingStaff}
+        isSubmitDisabled={isEditingStaff}
       >
         {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
       </Dialog>
@@ -555,6 +560,8 @@ export const DashboardContent = ({
         submitLabel="このスタッフを削除"
         role="alertdialog"
         submitColorPalette="red"
+        isLoading={isDeletingStaff}
+        isSubmitDisabled={isDeletingStaff}
       >
         <Text>「{deleteTarget?.name}」を削除しますか？</Text>
         <Text fontSize="sm" color="gray.600">
@@ -583,6 +590,8 @@ export const DashboardContent = ({
         onClose={lineInviteDialog.close}
         onSubmit={handleSendLineInviteConfirm}
         submitLabel="送信"
+        isLoading={isSendingLineInvite}
+        isSubmitDisabled={isSendingLineInvite}
       >
         {lineInviteTarget && (
           <LineInviteConfirmContent staffName={lineInviteTarget.name} staffEmail={lineInviteTarget.email} />
@@ -595,6 +604,7 @@ export const DashboardContent = ({
           onOpenChange={setupModal.onOpenChange}
           onComplete={handleSetupComplete}
           managerProfileDefaults={managerProfileDefaults}
+          isSubmitting={isSetupSubmitting}
         />
       )}
     </>

@@ -9,6 +9,7 @@ import { useAcceptStaffLegalConsent } from "@/src/components/features/StaffLegal
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 
 type Props = {
   token: string | undefined;
@@ -35,25 +36,12 @@ const expiredConsentData: StaffLegalConsentPageData = {
 export function StaffLegalConsentRoutePage({ token }: Props) {
   const data = useQuery(api.legal.queries.getStaffConsentPageData, token ? { token } : "skip");
   const accept = useAcceptStaffLegalConsent(token ?? "");
-  const [isSubmitting, setSubmitting] = useState(false);
   const [acceptedData, setAcceptedData] = useState<StaffLegalConsentPageData | null>(null);
+  const pageData = acceptedData ?? (data as StaffLegalConsentPageData | undefined);
+  const { run: handleAccept, isRunning: isSubmitting } = useSingleFlight(async () => {
+    if (!pageData) return;
 
-  if (!token) {
-    return (
-      <StaffLayout shopName="規約の確認">
-        <StaffLegalConsentPage data={expiredConsentData} />
-      </StaffLayout>
-    );
-  }
-
-  if (data === undefined) return <FullPageSpinner />;
-
-  const pageData = acceptedData ?? (data as StaffLegalConsentPageData);
-  const shopName = pageData.status === "expired" ? "規約の確認" : pageData.shopName;
-
-  const handleAccept = async () => {
     try {
-      setSubmitting(true);
       const result = await accept();
       if (result.status === "ok" && pageData.status === "ok") {
         setAcceptedData({
@@ -68,10 +56,22 @@ export function StaffLegalConsentRoutePage({ token }: Props) {
       }
     } catch (error) {
       showErrorToast(error);
-    } finally {
-      setSubmitting(false);
     }
-  };
+  });
+
+  if (!token) {
+    return (
+      <StaffLayout shopName="規約の確認">
+        <StaffLegalConsentPage data={expiredConsentData} />
+      </StaffLayout>
+    );
+  }
+
+  if (data === undefined) return <FullPageSpinner />;
+
+  if (!pageData) return <FullPageSpinner />;
+
+  const shopName = pageData.status === "expired" ? "規約の確認" : pageData.shopName;
 
   return (
     <StaffLayout shopName={shopName}>

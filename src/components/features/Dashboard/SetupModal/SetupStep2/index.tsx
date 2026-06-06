@@ -5,7 +5,7 @@ import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { type Step2Data, step2Schema } from "./index";
 
 type Props = {
-  onSubmit: (data: Step2Data) => void;
+  onSubmit: (data: Step2Data) => void | Promise<void>;
   defaultValues?: Pick<Step2Data, "name" | "email">;
   formId?: string;
 };
