@@ -13,6 +13,22 @@ type ResendClientOptions = {
 type SendEmailResponse = Awaited<ReturnType<Resend["emails"]["send"]>>;
 type SendEmailError = NonNullable<SendEmailResponse["error"]>;
 type SendEmailRequestOptions = CreateEmailRequestOptions & { signal?: AbortSignal };
+type SendResendEmailOptions = {
+  idempotencyKey?: string;
+};
+
+export class ResendEmailError extends Error {
+  constructor(
+    message: string,
+    readonly errorName: string,
+    readonly statusCode: number | null,
+    readonly retryable: boolean,
+    readonly retryAfterMs: number | null,
+  ) {
+    super(message);
+    this.name = "ResendEmailError";
+  }
+}
 
 let resendEmailSendQueue: Promise<void> = Promise.resolve();
 let nextResendEmailSendAt = 0;
@@ -38,9 +54,14 @@ export function getResendClient(options: ResendClientOptions = {}): Resend {
   return new Resend(apiKey);
 }
 
-export async function sendResendEmail(resend: Resend, payload: CreateEmailOptions, context: string): Promise<string> {
+export async function sendResendEmail(
+  resend: Resend,
+  payload: CreateEmailOptions,
+  context: string,
+  options: SendResendEmailOptions = {},
+): Promise<string> {
   const maxAttempts = 4;
-  const idempotencyKey = createIdempotencyKey(context);
+  const idempotencyKey = options.idempotencyKey ?? createIdempotencyKey(context);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     await waitForResendEmailSendSlot();
@@ -59,7 +80,13 @@ export async function sendResendEmail(resend: Resend, payload: CreateEmailOption
     });
 
     if (!retryable || isLastAttempt) {
-      throw new Error(`Resend email send failed: ${result.error.name} ${result.error.message}`);
+      throw new ResendEmailError(
+        `Resend email send failed: ${result.error.name} ${result.error.message}`,
+        result.error.name,
+        result.error.statusCode,
+        retryable,
+        retryable ? resolveRetryDelayMs(result.headers, attempt) : null,
+      );
     }
 
     await sleep(resolveRetryDelayMs(result.headers, attempt));

@@ -5,7 +5,7 @@ import {
   RESEND_EMAIL_SEND_TIMEOUT_MS,
   RESEND_RETRY_DELAY_PADDING_MS,
 } from "../constants";
-import { resetResendEmailQueueForTest, sendResendEmail } from "./resend";
+import { type ResendEmailError, resetResendEmailQueueForTest, sendResendEmail } from "./resend";
 
 const emailPayload = {
   from: "シフトリ <noreply@example.com>",
@@ -42,6 +42,21 @@ describe("sendResendEmail", () => {
 
     await expect(sendResendEmail(createResendMock(send), emailPayload, "test.success")).resolves.toBe("email_123");
     expect(send).toHaveBeenCalledOnce();
+  });
+
+  it("指定したIdempotency-Keyを使う", async () => {
+    const send = vi.fn().mockResolvedValue({
+      data: { id: "email_123" },
+      error: null,
+      headers: { "ratelimit-remaining": "4" },
+    });
+
+    await expect(
+      sendResendEmail(createResendMock(send), emailPayload, "test.stableKey", {
+        idempotencyKey: "notification-outbox-abc123",
+      }),
+    ).resolves.toBe("email_123");
+    expect(send.mock.calls[0][1].idempotencyKey).toBe("notification-outbox-abc123");
   });
 
   it("連続送信は2通目のResendリクエスト開始を送信間隔ぶん待つ", async () => {
@@ -180,6 +195,12 @@ describe("sendResendEmail", () => {
     await vi.advanceTimersByTimeAsync(20_000);
 
     await expectation;
+    await expect(result).rejects.toMatchObject({
+      name: "ResendEmailError",
+      errorName: "rate_limit_exceeded",
+      statusCode: 429,
+      retryable: true,
+    } satisfies Partial<ResendEmailError>);
     expect(send).toHaveBeenCalledTimes(4);
     expect(console.warn).toHaveBeenCalledTimes(3);
     expect(console.error).toHaveBeenCalledOnce();
