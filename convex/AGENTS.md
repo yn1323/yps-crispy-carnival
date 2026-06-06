@@ -60,6 +60,16 @@ convex/
 - 既存データ互換のフォールバックは残さない。DB再作成前提のリファクタでは新スキーマだけを読む
 - 一覧系 query では必ず上限定数を使う。`.collect()` で無制限に読む前に、index と `take()` / `paginate()` にできないか検討する
 
+### 日付・時刻・タイムゾーン
+
+- `YYYY-MM-DD` 文字列は店舗業務上の **JST暦日** として扱う。UTCの暦日に読み替えない。
+- `createdAt` / `updatedAt` / `expiresAt` / `confirmedAt` / `deadlineAt` など `*At` は Unix ms の瞬間値として扱う。
+- Convex本番コードで業務日付を作るときは `convex/_lib/dateFormat.ts` の helper を使う。`new Date().toISOString().slice(0, 10)` や `toISOString().split("T")[0]` で `YYYY-MM-DD` を作らない。
+- `new Date("2026-01-20")` のような日付だけの文字列はUTC解釈になりやすいので、本番コードでは使わない。`dateToUtcMs` や業務意味のある helper を追加して使う。
+- 締切、提出リンク期限、cron のような境界時刻は、helper名またはコメントで「JSTでの仕様」と「UTCで保存/実行される値」を明示する。
+- cron はConvexの実行指定がUTCになる前提で、コメントに `JST 17:00 = UTC 08:00` のように必ず併記する。
+- 直接 `Date.UTC(...)` を使う必要がある場合は、まず `convex/_lib/dateFormat.ts` に業務意味のある helper を追加し、その helper を呼ぶ。
+
 ## Convex 固有の注意事項
 
 - `_` プレフィクスのディレクトリ（`_lib/` 等）はConvexがAPIとして公開しない
