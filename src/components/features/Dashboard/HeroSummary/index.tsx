@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, Heading, HStack, Image, Stack, Text } from "@chakra-ui/react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
   LuArrowRight,
@@ -14,8 +14,6 @@ import {
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
-import { PendingStaffRegistrationList } from "../PendingStaffRegistrationList";
-import type { StaffRegistrationRequest } from "../types";
 import { type NextAction, pickNextAction } from "./pickNextAction";
 import registerStartImage from "./register-start.webp";
 
@@ -29,9 +27,7 @@ type Props = {
   onEditClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
-  pendingStaffRequests?: StaffRegistrationRequest[];
-  onApproveStaffRequest?: (request: StaffRegistrationRequest) => void;
-  onRejectStaffRequest?: (request: StaffRegistrationRequest) => void;
+  staffRegistrationRequestBanner?: ReactNode;
   hideActionSection?: boolean;
 };
 
@@ -41,9 +37,7 @@ export const HeroSummary = ({
   onEditClick,
   onOpenShiftBoard,
   onCreateRecruitment,
-  pendingStaffRequests = [],
-  onApproveStaffRequest,
-  onRejectStaffRequest,
+  staffRegistrationRequestBanner,
   hideActionSection = false,
 }: Props) => {
   const action = pickNextAction(recruitments);
@@ -90,13 +84,7 @@ export const HeroSummary = ({
           </HStack>
 
           <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
-          {onApproveStaffRequest && onRejectStaffRequest && (
-            <PendingStaffRegistrationList
-              requests={pendingStaffRequests}
-              onApprove={onApproveStaffRequest}
-              onReject={onRejectStaffRequest}
-            />
-          )}
+          {staffRegistrationRequestBanner}
         </Stack>
       )}
     </Stack>

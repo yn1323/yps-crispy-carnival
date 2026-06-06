@@ -94,16 +94,26 @@ export const editStaff = managerMutation({
     }
 
     const trimmedName = args.name.trim();
-    const patches = [
-      ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
-    ];
+    const previousEmailNormalized = (staff.emailNormalized ?? staff.email).trim().toLowerCase();
+    const emailChanged = trimmedEmail !== "" && trimmedEmail !== previousEmailNormalized;
+    const emailChangedAt = Date.now();
+    await ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     if (staff.userId === ctx.user._id) {
       // manager 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
-      patches.push(
-        ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
+      await ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
+    }
+
+    if (emailChanged) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange,
+        {
+          staffId: args.staffId,
+          expectedEmailNormalized: trimmedEmail,
+          emailChangedAt,
+        },
       );
     }
-    await Promise.all(patches);
   },
 });
 

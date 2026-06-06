@@ -26,6 +26,7 @@ import { RecruitmentBoard } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
+import { StaffRegistrationRequestBanner, StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster } from "../StaffRoster";
 import type { PaginationStatus, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { OnboardingCallout } from "./OnboardingCallout";
@@ -93,6 +94,7 @@ export const DashboardContent = ({
   const editShopModal = useDialog();
   const deleteRecruitmentDialog = useDialog();
   const deleteStaffDialog = useDialog();
+  const staffRegistrationDialog = useDialog();
   const lineQrDialog = useDialog();
   const lineInviteDialog = useDialog();
   const setupModal = useDialog();
@@ -151,6 +153,11 @@ export const DashboardContent = ({
     setDismissedOnboardingStages(COMPLETED_ONBOARDING_STAGES);
     dismissOnboarding({}).catch(showErrorToast);
   }, [autoDismissedOnboarding, dismissOnboarding, isDashboardOnboardingDismissed, pendingStaffRequests.length]);
+
+  useEffect(() => {
+    if (!staffRegistrationDialog.isOpen || pendingStaffRequests.length > 0) return;
+    staffRegistrationDialog.close();
+  }, [pendingStaffRequests.length, staffRegistrationDialog.close, staffRegistrationDialog.isOpen]);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
     if (visibleOnboardingState?.stage === "review_submission" && recruitments[0]?._id === recruitmentId) {
@@ -249,14 +256,16 @@ export const DashboardContent = ({
     staffModal.close();
   };
 
-  const { run: handleApproveStaffRequest } = useSingleFlight(async (request: StaffRegistrationRequest) => {
-    try {
-      await approveStaffRequest({ requestId: request._id });
-      toaster.create({ title: "スタッフ申請を承認しました", type: "success" });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
+  const { run: handleApproveStaffRequest, isRunning: isApprovingStaffRequest } = useSingleFlight(
+    async (request: StaffRegistrationRequest) => {
+      try {
+        await approveStaffRequest({ requestId: request._id });
+        toaster.create({ title: "スタッフ申請を承認しました", type: "success" });
+      } catch (error) {
+        showErrorToast(error);
+      }
+    },
+  );
 
   const handleRejectStaffRequestClick = (request: StaffRegistrationRequest) => {
     setRejectRequestTarget(request);
@@ -374,9 +383,14 @@ export const DashboardContent = ({
               onEditClick={editShopModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onCreateRecruitment={recruitmentModal.open}
-              pendingStaffRequests={pendingStaffRequests}
-              onApproveStaffRequest={handleApproveStaffRequest}
-              onRejectStaffRequest={handleRejectStaffRequestClick}
+              staffRegistrationRequestBanner={
+                pendingStaffRequests.length > 0 ? (
+                  <StaffRegistrationRequestBanner
+                    requestCount={pendingStaffRequests.length}
+                    onClick={staffRegistrationDialog.open}
+                  />
+                ) : undefined
+              }
               hideActionSection={shouldHideNextActionSection}
             />
             {visibleOnboardingState && (
@@ -497,6 +511,17 @@ export const DashboardContent = ({
           <AddStaffForm onSubmit={handleAddStaffs} />
         )}
       </Dialog>
+
+      <StaffRegistrationRequestDialog
+        isOpen={staffRegistrationDialog.isOpen}
+        onOpenChange={staffRegistrationDialog.onOpenChange}
+        onClose={staffRegistrationDialog.close}
+        requests={pendingStaffRequests}
+        onApprove={handleApproveStaffRequest}
+        onReject={handleRejectStaffRequestClick}
+        isApproving={isApprovingStaffRequest}
+        isRejecting={isRejectingStaffRequest}
+      />
 
       <Dialog
         title="スタッフ申請を却下"

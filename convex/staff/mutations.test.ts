@@ -280,6 +280,9 @@ describe("staff/mutations", () => {
   }
 
   describe("editStaff", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
       const { staffId } = await data;
@@ -294,11 +297,81 @@ describe("staff/mutations", () => {
 
       await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中花子", email: "hanako@example.com" });
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中花子", email: "tanaka@example.com" });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
       expect(staff?.name).toBe("田中花子");
-      expect(staff?.email).toBe("hanako@example.com");
+      expect(staff?.email).toBe("tanaka@example.com");
+    });
+
+    it("メールアドレス変更時は募集中シフト通知の追送actionをスケジュールする", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎", email: "updated@example.com" });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) =>
+            job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange" &&
+            job.args[0]?.staffId === staffId &&
+            job.args[0]?.expectedEmailNormalized === "updated@example.com" &&
+            typeof job.args[0]?.emailChangedAt === "number",
+        ),
+      ).toBe(true);
+    });
+
+    it("名前だけの変更では募集中シフト通知の追送actionをスケジュールしない", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎 更新", email: "tanaka@example.com" });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+        ),
+      ).toBe(false);
+    });
+
+    it("同一メールの大文字小文字・前後空白差分では募集中シフト通知の追送actionをスケジュールしない", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎", email: "  Tanaka@Example.com  " });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+        ),
+      ).toBe(false);
+    });
+
+    it("空メールへの変更では募集中シフト通知の追送actionをスケジュールしない", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        staffId,
+        name: "田中太郎",
+        email: "",
+      });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+        ),
+      ).toBe(false);
     });
 
     it("他店舗のスタッフは編集できない（IDOR）", async () => {
