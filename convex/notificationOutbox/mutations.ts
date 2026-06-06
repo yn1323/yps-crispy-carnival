@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
+import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
 import { NOTIFICATION_OUTBOX_SHOP_ACTIVE_LIMIT, NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE } from "../constants";
 import { notificationChannelValidator, notificationPayloadValidator } from "./schemas";
@@ -19,12 +20,16 @@ export const enqueue = internalMutation({
       throw new ConvexError("Notification channel does not match payload");
     }
 
+    const now = Date.now();
     for (const status of ACTIVE_STATUSES) {
       const existing = await ctx.db
         .query("notificationOutbox")
         .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", args.dedupeKey).eq("status", status))
         .first();
       if (existing) {
+        if (existing.status === "pending" && existing.nextRunAt <= now) {
+          await ensureProcessPendingScheduled(ctx);
+        }
         return { outboxId: existing._id, deduped: true };
       }
     }
@@ -41,11 +46,6 @@ export const enqueue = internalMutation({
       throw new ConvexError("Notification queue is busy. Please try again later.");
     }
 
-    const now = Date.now();
-    const duePendingBeforeInsert = await ctx.db
-      .query("notificationOutbox")
-      .withIndex("by_status_nextRunAt", (q) => q.eq("status", "pending").lte("nextRunAt", now))
-      .first();
     const outboxId = await ctx.db.insert("notificationOutbox", {
       channel: args.channel,
       status: "pending",
@@ -58,12 +58,25 @@ export const enqueue = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
-    if (!duePendingBeforeInsert) {
-      await ctx.scheduler.runAfter(0, internal.notificationOutbox.actions.processPending, {});
-    }
+    await ensureProcessPendingScheduled(ctx);
     return { outboxId, deduped: false };
   },
 });
+
+async function ensureProcessPendingScheduled(ctx: MutationCtx) {
+  // staleなdue pendingが残った場合でも、未実行workerがなければ次enqueueで配送を再開する。
+  const scheduledFunctions = await ctx.db.system.query("_scheduled_functions").order("desc").take(100);
+  const hasPendingWorker = scheduledFunctions.some((job) => {
+    return (
+      job.state.kind === "pending" &&
+      job.name.includes("notificationOutbox/actions") &&
+      job.name.includes("processPending")
+    );
+  });
+  if (!hasPendingWorker) {
+    await ctx.scheduler.runAfter(0, internal.notificationOutbox.actions.processPending, {});
+  }
+}
 
 export const claimDue = internalMutation({
   args: { now: v.number() },

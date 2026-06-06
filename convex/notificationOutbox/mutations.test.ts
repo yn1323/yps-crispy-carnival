@@ -95,6 +95,67 @@ describe("notificationOutbox", () => {
     expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
   });
 
+  it("dueなpendingジョブが残っていてもworker予定がなければ再予約する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:test:stale",
+        shopId,
+        staffId,
+        payload: emailPayload,
+        attemptCount: 0,
+        nextRunAt: Date.now() - 1000,
+        createdAt: Date.now() - 1000,
+        updatedAt: Date.now() - 1000,
+      });
+    });
+
+    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      dedupeKey: "email:test:after-stale",
+      payload: emailPayload,
+    });
+
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
+  });
+
+  it("dueなpendingジョブにdedupeした場合もworker予定がなければ再予約する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const staleJobId = await t.run(async (ctx) => {
+      return await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:test:stale-dedupe",
+        shopId,
+        staffId,
+        payload: emailPayload,
+        attemptCount: 0,
+        nextRunAt: Date.now() - 1000,
+        createdAt: Date.now() - 1000,
+        updatedAt: Date.now() - 1000,
+      });
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      dedupeKey: "email:test:stale-dedupe",
+      payload: emailPayload,
+    });
+
+    expect(result).toEqual({ outboxId: staleJobId, deduped: true });
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
+  });
+
   it("dueなジョブをclaimするとprocessingになりattemptCountが進む", async () => {
     const { t, shopId, staffId } = await setupShop();
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
