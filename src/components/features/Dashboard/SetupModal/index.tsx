@@ -16,8 +16,9 @@ export type SetupData = Step1Data & Step2Data;
 type Props = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  onComplete: (data: SetupData) => void;
+  onComplete: (data: SetupData) => void | Promise<void>;
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
+  isSubmitting?: boolean;
 };
 
 type Step = "shopInfo" | "patternSettings" | "manager";
@@ -65,7 +66,13 @@ const normalizeSetupData = (data: Step1Data): Step1Data => ({
       : data.submissionPattern,
 });
 
-export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDefaults }: Props) => {
+export const SetupModal = ({
+  isOpen,
+  onOpenChange,
+  onComplete,
+  managerProfileDefaults,
+  isSubmitting = false,
+}: Props) => {
   const [currentStep, setCurrentStep] = useState<Step>("shopInfo");
   const {
     getValues,
@@ -114,8 +121,8 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
   }, [getValues]);
 
   const handleStep2Submit = useCallback(
-    (data: Step2Data) => {
-      onComplete({ ...normalizeSetupData(getValues()), ...data });
+    async (data: Step2Data) => {
+      await onComplete({ ...normalizeSetupData(getValues()), ...data });
     },
     [getValues, onComplete],
   );
@@ -146,7 +153,13 @@ export const SetupModal = ({ isOpen, onOpenChange, onComplete, managerProfileDef
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="submit" form="setup-step2" colorPalette="teal" flex={{ base: 1, md: "unset" }}>
+        <Button
+          type="submit"
+          form="setup-step2"
+          colorPalette="teal"
+          loading={isSubmitting}
+          flex={{ base: 1, md: "unset" }}
+        >
           お店を登録する
         </Button>
       </>

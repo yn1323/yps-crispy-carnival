@@ -147,6 +147,7 @@ export const saveShiftAssignments = managerMutation({
 export const confirmRecruitment = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
+    intent: v.optional(v.union(v.literal("confirm"), v.literal("resend"))),
   },
   handler: async (ctx, args) => {
     const recruitment = await ctx.db.get(args.recruitmentId);
@@ -155,6 +156,14 @@ export const confirmRecruitment = managerMutation({
     }
 
     const isResend = recruitment.status === "confirmed";
+    const intent = args.intent ?? "confirm";
+    if (intent === "resend" && !isResend) {
+      throw new ConvexError("確定済みのシフトだけ再通知できます");
+    }
+    if (intent === "confirm" && isResend) {
+      return null;
+    }
+
     const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
     const existingAssignments = await ctx.db
       .query("shiftAssignments")

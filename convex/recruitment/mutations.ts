@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import { generateDateRange, todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
+import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,6 +25,10 @@ function normalizeShopClosedDates(dates: string[], periodStart: string, periodEn
   }
 
   return uniqueDates;
+}
+
+function sameStringArray(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 export const createRecruitment = managerMutation({
@@ -49,6 +54,18 @@ export const createRecruitment = managerMutation({
       throw new ConvexError("締切日は開始日より前にしてください");
     }
     const shopClosedDates = normalizeShopClosedDates(args.shopClosedDates, args.periodStart, args.periodEnd);
+    const existingRecruitments = await ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
+      .take(RECRUITMENT_DUPLICATE_SCAN_LIMIT);
+    const duplicate = existingRecruitments.find(
+      (candidate) =>
+        candidate.periodStart === args.periodStart &&
+        candidate.periodEnd === args.periodEnd &&
+        candidate.deadline === args.deadline &&
+        sameStringArray(candidate.shopClosedDates ?? [], shopClosedDates),
+    );
+    if (duplicate) return duplicate._id;
 
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId: ctx.shop._id,

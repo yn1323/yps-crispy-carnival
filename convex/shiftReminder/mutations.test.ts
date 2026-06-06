@@ -90,21 +90,44 @@ describe("shiftReminder/mutations", () => {
       expect(recruitment?.lastReminderSentAt).toBeTypeOf("number");
     });
 
-    it("既に送信済みでもクールダウンなしで送信できる", async () => {
+    it("直前に送信済みなら通知予約を増やさない", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
-      const previous = Date.now() - 1000;
-      await t.run(async (ctx) => {
-        await ctx.db.patch(recruitmentId, { lastReminderSentAt: previous });
-      });
+      vi.setSystemTime(new Date("2026-04-20T10:00:00+09:00"));
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
         recruitmentId,
       });
-      const second = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
+        recruitmentId,
+      });
+      const state = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+        return { recruitment, scheduled };
+      });
 
-      expect(second?.lastReminderSentAt).toBeTypeOf("number");
-      expect(second?.lastReminderSentAt).toBeGreaterThanOrEqual(previous);
+      expect(state.recruitment?.lastReminderSentAt).toBe(new Date("2026-04-20T10:00:00+09:00").getTime());
+      expect(
+        state.scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails"),
+      ).toHaveLength(1);
+    });
+
+    it("送信から60秒後は再送できる", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+      vi.setSystemTime(new Date("2026-04-20T10:00:00+09:00"));
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
+        recruitmentId,
+      });
+      vi.setSystemTime(new Date("2026-04-20T10:01:00+09:00"));
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftReminder.mutations.sendReminderEmails, {
+        recruitmentId,
+      });
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+
+      expect(scheduled.filter((job) => job.name === "notification/reminderActions:sendReminderEmails")).toHaveLength(2);
     });
   });
 });

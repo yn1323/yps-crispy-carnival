@@ -24,7 +24,19 @@ export type LineTextMessage = { type: "text"; text: string };
 
 type LineDeliveryOptions = {
   suppressDelivery?: boolean;
+  retryKey?: string;
 };
+
+export class LineApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(message);
+    this.name = "LineApiError";
+  }
+}
 
 /** Push 送信。連携済みかつ友達追加中のスタッフに対して使う */
 export async function pushTextMessage(
@@ -42,12 +54,13 @@ export async function pushTextMessage(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${getMessagingAccessToken()}`,
+      ...(options.retryKey ? { "X-Line-Retry-Key": options.retryKey } : {}),
     },
     body: JSON.stringify({ to: toUserId, messages: [{ type: "text", text } satisfies LineTextMessage] }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`LINE push failed: ${res.status} ${body}`);
+    throw new LineApiError(`LINE push failed: ${res.status} ${body}`, res.status, body);
   }
 }
 
@@ -73,7 +86,7 @@ export async function replyTextMessage(
   if (!res.ok) {
     // reply はトークン期限切れ等でも 400 が返る。Webhook 全体は止めない
     const body = await res.text().catch(() => "");
-    throw new Error(`LINE reply failed: ${res.status} ${body}`);
+    throw new LineApiError(`LINE reply failed: ${res.status} ${body}`, res.status, body);
   }
 }
 

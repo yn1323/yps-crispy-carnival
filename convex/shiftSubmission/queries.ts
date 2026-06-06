@@ -8,6 +8,11 @@ import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 
 type ExistingRequest = { date: string; startTime: string; endTime: string; optionId?: string };
+type SubmissionUnavailableReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
+
+function unavailable(reason: SubmissionUnavailableReason) {
+  return { status: "unavailable" as const, reason };
+}
 
 function getSubmissionTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
   if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
@@ -58,14 +63,19 @@ function buildExistingSelection(pattern: ShiftSubmissionPattern, requests: Exist
 export const getSubmissionPageData = staffSessionQuery({
   args: { recruitmentId: v.id("recruitments") },
   handler: async (ctx, { recruitmentId }) => {
-    if (!ctx.staff || !ctx.shop || !ctx.session) return null;
-    if (ctx.session.recruitmentId !== recruitmentId) return null;
+    if (!ctx.staff || !ctx.shop || !ctx.session) return unavailable("invalid_link");
+    if (ctx.session.recruitmentId !== recruitmentId) return unavailable("invalid_link");
 
     const recruitment = await ctx.db.get(recruitmentId);
-    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
-      return null;
+    if (!recruitment || recruitment.shopId !== ctx.shop._id) {
+      return unavailable("invalid_link");
     }
-    if (recruitment.status !== "open") return null;
+    if (recruitment.isDeleted) {
+      return unavailable("recruitment_deleted");
+    }
+    if (recruitment.status !== "open") {
+      return unavailable("submission_closed");
+    }
 
     const isBeforeDeadline = Date.now() < getDeadlineCutoff(recruitment.deadline);
     const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
@@ -99,32 +109,35 @@ export const getSubmissionPageData = staffSessionQuery({
     const timeRange = getSubmissionTimeRange(submissionPattern);
 
     return {
-      shopName: ctx.shop.name,
-      staffName: ctx.staff.name,
-      periodStart: recruitment.periodStart,
-      periodEnd: recruitment.periodEnd,
-      deadline: recruitment.deadline,
-      shopClosedDates: recruitment.shopClosedDates ?? [],
-      submissionPattern,
-      isBeforeDeadline,
-      hasSubmitted: submission !== null,
-      existingRequests,
-      existingSelection: buildExistingSelection(submissionPattern, existingRequests, existingDates),
-      legalConsentRequired: !(await hasCurrentStaffLegalConsent(ctx, ctx.staff._id)),
-      legalDocuments: getLegalDocumentsForAudience("staff"),
-      timeRange,
-      previousWeeklyPattern:
-        isBeforeDeadline && submissionPattern.kind !== "dateOnly"
-          ? await getPreviousWeeklyPattern(ctx, {
-              staffId,
-              beforeDate: recruitment.periodStart,
-              timeRange,
-            })
-          : null,
-      previousDateOnlyPattern:
-        isBeforeDeadline && submissionPattern.kind === "dateOnly"
-          ? await getPreviousDateOnlyPattern(ctx, { staffId, beforeDate: recruitment.periodStart })
-          : null,
+      status: "ok" as const,
+      data: {
+        shopName: ctx.shop.name,
+        staffName: ctx.staff.name,
+        periodStart: recruitment.periodStart,
+        periodEnd: recruitment.periodEnd,
+        deadline: recruitment.deadline,
+        shopClosedDates: recruitment.shopClosedDates ?? [],
+        submissionPattern,
+        isBeforeDeadline,
+        hasSubmitted: submission !== null,
+        existingRequests,
+        existingSelection: buildExistingSelection(submissionPattern, existingRequests, existingDates),
+        legalConsentRequired: !(await hasCurrentStaffLegalConsent(ctx, ctx.staff._id)),
+        legalDocuments: getLegalDocumentsForAudience("staff"),
+        timeRange,
+        previousWeeklyPattern:
+          isBeforeDeadline && submissionPattern.kind !== "dateOnly"
+            ? await getPreviousWeeklyPattern(ctx, {
+                staffId,
+                beforeDate: recruitment.periodStart,
+                timeRange,
+              })
+            : null,
+        previousDateOnlyPattern:
+          isBeforeDeadline && submissionPattern.kind === "dateOnly"
+            ? await getPreviousDateOnlyPattern(ctx, { staffId, beforeDate: recruitment.periodStart })
+            : null,
+      },
     };
   },
 });

@@ -75,6 +75,67 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.submissionPattern).toEqual({ kind: "time", startTime: "09:00", endTime: "22:00" });
     });
 
+    it("同一内容の募集作成は既存募集を返し、統計と通知予約を増やさない", async () => {
+      const { t, shopId: shopIdPromise } = setupShop();
+      const shopId = await shopIdPromise;
+      const args = { ...validArgs(), shopClosedDates: [futureDate(8), futureDate(10)] };
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, args);
+      const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+        ...args,
+        shopClosedDates: [...args.shopClosedDates].reverse(),
+      });
+
+      expect(secondId).toBe(firstId);
+      const state = await t.run(async (ctx) => {
+        const recruitments = await ctx.db
+          .query("recruitments")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .collect();
+        const stats = await ctx.db
+          .query("recruitmentStats")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .collect();
+        const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+        return { recruitments, stats, scheduled };
+      });
+
+      expect(state.recruitments).toHaveLength(1);
+      expect(state.stats).toHaveLength(1);
+      expect(
+        state.scheduled.filter((job) => job.name === "notification/actions:sendRecruitmentNotificationEmails"),
+      ).toHaveLength(1);
+    });
+
+    it("同じ期間でも定休日が違う募集は別に作成できる", async () => {
+      const { t } = setupShop();
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+        ...validArgs(),
+        shopClosedDates: [futureDate(8)],
+      });
+      const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+        ...validArgs(),
+        shopClosedDates: [futureDate(9)],
+      });
+
+      expect(secondId).not.toBe(firstId);
+    });
+
+    it("削除済みの同一募集がある場合は新しく作成できる", async () => {
+      const { t } = setupShop();
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+      const args = validArgs();
+      const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, args);
+      await asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId: firstId });
+
+      const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, args);
+
+      expect(secondId).not.toBe(firstId);
+    });
+
     it("店舗の提出方法を募集作成時点でスナップショットする", async () => {
       const { t, shopId: shopIdPromise } = setupShop();
       const shopId = await shopIdPromise;

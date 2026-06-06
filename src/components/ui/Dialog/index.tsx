@@ -35,7 +35,7 @@ type DialogProps = {
   children: ReactNode;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  onSubmit?: () => void;
+  onSubmit?: () => void | Promise<void>;
   submitLabel?: string;
   onClose?: () => void;
   closeLabel?: string;
