@@ -296,7 +296,7 @@ export class DashboardPage {
   }
 
   private recruitmentOpenButton() {
-    return this.recruitmentSection().getByRole("button", { name: /希望を見る|シフトを組む|シフトを見る/ });
+    return this.recruitmentSection().getByRole("button", { name: /回収状況を見る|シフトを組む|シフトを見る/ });
   }
 
   async editShopSettings(data: {
