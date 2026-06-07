@@ -31,6 +31,12 @@ export const User: Story = {
   args: {},
 };
 
+export const UserWithoutMenu: Story = {
+  args: {
+    showUserMenu: false,
+  },
+};
+
 export const Public: Story = {
   args: {
     variant: "public",
