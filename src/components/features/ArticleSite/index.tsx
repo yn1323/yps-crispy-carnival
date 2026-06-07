@@ -77,15 +77,28 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
   return (
     <ArticleSiteShell>
       <ArticleHero article={article} />
-      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 10 }}>
+      <Container
+        maxW={{ base: "820px", xl: shouldShowToc ? "1300px" : "820px" }}
+        px={{ base: 4, lg: 8, xl: 0 }}
+        py={{ base: 8, lg: 10 }}
+      >
         <Grid
-          templateColumns={{ base: "1fr", lg: shouldShowToc ? "232px minmax(0, 1fr)" : "minmax(0, 820px)" }}
+          templateColumns={{
+            base: "1fr",
+            xl: shouldShowToc ? "minmax(0, 216px) minmax(0, 820px) minmax(0, 216px)" : "minmax(0, 820px)",
+          }}
           justifyContent="center"
-          gap={{ base: 6, lg: 8 }}
+          columnGap={{ xl: 6 }}
           alignItems="start"
         >
           {shouldShowToc && <ArticleAside article={article} />}
-          <VStack align="stretch" gap={{ base: 8, lg: 10 }}>
+          <VStack
+            gridColumn={{ base: "1", xl: shouldShowToc ? "2" : "1" }}
+            align="stretch"
+            gap={{ base: 8, lg: 10 }}
+            w="full"
+            maxW="820px"
+          >
             {shouldShowToc && <MobileArticleToc article={article} />}
             <VStack as="article" align="stretch" gap={{ base: 6, lg: 7 }}>
               {article.blocks.map((block, index) => (
@@ -538,9 +551,13 @@ function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
     <VStack
       align="stretch"
       gap={4}
-      display={{ base: "none", lg: "flex" }}
-      position={{ base: "static", lg: "sticky" }}
-      top={{ lg: `calc(${HEADER_HEIGHT.md} + 24px)` }}
+      display={{ base: "none", xl: "flex" }}
+      gridColumn={{ xl: "1" }}
+      justifySelf={{ xl: "end" }}
+      w="full"
+      maxW="216px"
+      position={{ base: "static", xl: "sticky" }}
+      top={{ xl: `calc(${HEADER_HEIGHT.md} + 24px)` }}
       borderWidth="1px"
       borderColor="gray.200"
       borderRadius="lg"
@@ -570,7 +587,7 @@ function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
 
 function MobileArticleToc({ article }: { article: ArticleContent }): ReactNode {
   return (
-    <Accordion.Root collapsible variant="plain" display={{ base: "block", lg: "none" }}>
+    <Accordion.Root collapsible variant="plain" display={{ base: "block", xl: "none" }}>
       <Accordion.Item
         value="toc"
         borderWidth="1px"
