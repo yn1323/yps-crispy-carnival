@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Article"
+  short_description: "シフトリ向けSEO記事の構成作成と画像準備を支援します"
+  default_prompt: "$write-article を使って、シフトリのSEO記事とカテゴリ・画像素材を作成してください。"
