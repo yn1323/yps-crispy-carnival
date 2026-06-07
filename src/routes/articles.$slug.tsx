@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ArticlePage } from "@/src/components/mock/ArticleSite";
-import { getArticle } from "@/src/components/mock/ArticleSite/articleContent";
+import { ArticlePage } from "@/src/components/features/ArticleSite";
+import { getArticle } from "@/src/components/features/ArticleSite/articleContent";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles/$slug")({

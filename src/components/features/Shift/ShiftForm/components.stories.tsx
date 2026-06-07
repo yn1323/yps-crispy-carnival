@@ -21,35 +21,47 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const sampleNames = ["田中次郎", "小林大輔", "佐藤花子"];
+const scheduledStatus = {
+  kind: "scheduled" as const,
+  label: "提出締切の前日17:00に未提出者へ自動で催促します",
+};
+const sentStatus = {
+  kind: "sent" as const,
+  label: "5/5(月) 14:30 催促通知済み",
+};
+const noneStatus = {
+  kind: "none" as const,
+  label: "自動催促の送信予定はありません",
+};
 
 export const Variants: Story = {
   name: "Variants",
-  args: { names: sampleNames },
+  args: { names: sampleNames, reminderStatus: scheduledStatus },
   render: () => (
     <Box display="flex" flexDirection="column" gap={6}>
       <Box>
         <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          通常（未送信）
+          送信予定あり
         </Box>
-        <UnsubmittedStrip names={sampleNames} onRemind={() => {}} />
+        <UnsubmittedStrip names={sampleNames} reminderStatus={scheduledStatus} onOpenDetails={() => {}} />
       </Box>
       <Box>
         <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          前回送信あり
+          送信済み
         </Box>
-        <UnsubmittedStrip names={sampleNames} onRemind={() => {}} lastSentAtLabel="5/5(月) 14:30" />
+        <UnsubmittedStrip names={sampleNames} reminderStatus={sentStatus} onOpenDetails={() => {}} />
       </Box>
       <Box>
         <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          送信ハンドラ未提供（disabled）
+          送信予定なし
         </Box>
-        <UnsubmittedStrip names={sampleNames} />
+        <UnsubmittedStrip names={sampleNames} reminderStatus={noneStatus} onOpenDetails={() => {}} />
       </Box>
       <Box>
         <Box fontSize="xs" color="gray.500" mb={1} px={5}>
           1名のみ
         </Box>
-        <UnsubmittedStrip names={["田中次郎"]} onRemind={() => {}} />
+        <UnsubmittedStrip names={["田中次郎"]} reminderStatus={scheduledStatus} onOpenDetails={() => {}} />
       </Box>
       <Box>
         <Box fontSize="xs" color="gray.500" mb={1} px={5}>
@@ -68,7 +80,8 @@ export const Variants: Story = {
             "伊藤健一",
             "加藤美穂",
           ]}
-          onRemind={() => {}}
+          reminderStatus={scheduledStatus}
+          onOpenDetails={() => {}}
         />
       </Box>
     </Box>

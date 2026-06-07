@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ArticleCategoryPage } from "@/src/components/mock/ArticleSite";
-import { getCategory } from "@/src/components/mock/ArticleSite/articleContent";
+import { ArticleCategoryPage } from "@/src/components/features/ArticleSite";
+import { getCategory } from "@/src/components/features/ArticleSite/articleContent";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles/categories/$categorySlug")({

@@ -11,27 +11,27 @@ const REMINDED_STAFF = {
 };
 
 type ReminderScenarioSeed = {
-  reminderToken: string;
+  submitToken: string;
 };
 
 test.describe("通知URL起点のシフト提出催促", () => {
   test.setTimeout(45_000);
 
-  test("催促で発行された未提出者URLから提出し、未提出表示が解消される", async ({ page }) => {
+  test("通常submitリンクから提出し、未提出表示が解消される", async ({ page }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<ReminderScenarioSeed>("testing:seedNotificationReminderScenario", { dates });
     const dashboard = new DashboardPage(page);
     const submitPage = new StaffSubmitPage(page);
     const shiftBoard = new ShiftBoardPage(page);
 
-    await test.step("Step 3: シフト担当者が未提出者に催促を送る", async () => {
+    await test.step("Step 3: シフト担当者が未提出者の自動催促予定を確認する", async () => {
       await dashboard.goto();
       await dashboard.openShiftBoard();
-      await shiftBoard.sendReminders(1);
+      await shiftBoard.expectAutomaticReminderInfo();
     });
 
-    await test.step("Step 4: 催促URLから未提出スタッフが提出し、シフト担当者画面の未提出表示が消える", async () => {
-      await submitPage.goto(seed.reminderToken);
+    await test.step("Step 4: 通常submitリンクから未提出スタッフが提出し、シフト担当者画面の未提出表示が消える", async () => {
+      await submitPage.goto(seed.submitToken);
       await submitPage.expectFormVisible();
       await submitPage.toggleDay(formatDateWithWeekday(dates.dates[1]));
       await submitPage.submit();

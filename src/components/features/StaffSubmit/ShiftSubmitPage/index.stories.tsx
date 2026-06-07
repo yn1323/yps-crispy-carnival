@@ -63,7 +63,7 @@ export const StateC_SubmittedExpired: Story = {
   },
 };
 
-export const StateD_Expired: Story = {
+export const StateD_LateInitial: Story = {
   args: {
     onSubmit: noop,
     data: {

@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { formatDeadlineLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -27,17 +27,17 @@ export const sendReminderEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const expiresAt = getDeadlineCutoff(data.deadline);
-    const linkExpiresAtLabel = formatDateLabel(data.deadline);
+    const expiresAt = getSubmitLinkCutoff(data.periodStart);
+    const deadlineLabel = formatDeadlineLabel(data.deadline);
+    let sentCount = 0;
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
 
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
-        accessKind: "submit",
         expiresAt,
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
@@ -49,14 +49,11 @@ export const sendReminderEmails = internalAction({
               payload: emailPayload({
                 from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
                 to: staff.email,
-                subject: formatResendSubject(
-                  data.shopName,
-                  `${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
-                ),
+                subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
                 html: buildReminderEmailHtml({
                   staffName: staff.name,
                   periodLabel: data.periodLabel,
-                  linkExpiresAtLabel,
+                  linkExpiresAtLabel: deadlineLabel,
                   magicLinkUrl,
                   lineCtaHtml: await buildLineCtaForStaff(ctx, {
                     staffId: staff.staffId,
@@ -81,13 +78,14 @@ export const sendReminderEmails = internalAction({
               staffName: staff.name,
               shopName: data.shopName,
               periodLabel: data.periodLabel,
-              linkExpiresAtLabel,
+              linkExpiresAtLabel: deadlineLabel,
               magicLinkUrl,
             }),
             suppressDelivery,
             ...(fallbackEmail ? { fallbackEmail } : {}),
           }),
         });
+        sentCount += 1;
         continue;
       }
 
@@ -108,20 +106,25 @@ export const sendReminderEmails = internalAction({
         payload: emailPayload({
           from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: staff.email,
-          subject: formatResendSubject(
-            data.shopName,
-            `${data.periodLabel} シフト希望の提出をお待ちしています（${linkExpiresAtLabel}まで）`,
-          ),
+          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
           html: buildReminderEmailHtml({
             staffName: staff.name,
             periodLabel: data.periodLabel,
-            linkExpiresAtLabel,
+            linkExpiresAtLabel: deadlineLabel,
             magicLinkUrl,
             lineCtaHtml,
           }),
           context: "notification.sendReminderEmails",
           suppressDelivery,
         }),
+      });
+      sentCount += 1;
+    }
+
+    if (sentCount > 0) {
+      await ctx.runMutation(internal.notification.mutations.markReminderSent, {
+        recruitmentId,
+        sentAt: Date.now(),
       });
     }
   },

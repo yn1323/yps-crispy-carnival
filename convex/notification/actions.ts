@@ -6,7 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDateLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { formatDeadlineLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
@@ -280,16 +280,15 @@ export const sendRecruitmentNotificationEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
-    const expiresAt = getDeadlineCutoff(data.deadline);
+    const expiresAt = getSubmitLinkCutoff(data.periodStart);
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
 
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: staff.staffId,
         shopId: data.shopId,
         recruitmentId,
-        accessKind: "submit",
         expiresAt,
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
@@ -319,7 +318,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
               staffName: staff.name,
               shopName: data.shopName,
               periodLabel: data.periodLabel,
-              deadline: formatDateLabel(data.deadline),
+              deadline: formatDeadlineLabel(data.deadline),
               magicLinkUrl,
             }),
             suppressDelivery,
@@ -371,6 +370,7 @@ async function buildRecruitmentEmail(opts: {
   magicLinkUrl: string;
   suppressDelivery: boolean;
   context: string;
+  dedupeKey?: string;
 }): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
   const {
     ctx,
@@ -383,6 +383,7 @@ async function buildRecruitmentEmail(opts: {
     magicLinkUrl,
     suppressDelivery,
     context,
+    dedupeKey,
   } = opts;
   if (!staff.email) return null;
 
@@ -395,7 +396,7 @@ async function buildRecruitmentEmail(opts: {
   });
 
   return {
-    dedupeKey: `email:recruitment:${recruitmentId}:${staff.staffId}`,
+    dedupeKey: dedupeKey ?? `email:recruitment:${recruitmentId}:${staff.staffId}`,
     payload: emailPayload({
       from: formatResendFrom(shopName, RESEND_FROM_EMAIL),
       to: staff.email,
@@ -403,7 +404,7 @@ async function buildRecruitmentEmail(opts: {
       html: buildRecruitmentEmailHtml({
         staffName: staff.name,
         periodLabel,
-        deadline: formatDateLabel(deadline),
+        deadline: formatDeadlineLabel(deadline),
         magicLinkUrl,
         lineCtaHtml,
       }),
@@ -431,12 +432,11 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
     );
 
     for (const recruitment of data.recruitments) {
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
-        accessKind: "submit",
-        expiresAt: getDeadlineCutoff(recruitment.deadline),
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
@@ -468,6 +468,74 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
 });
 
 /**
+ * メール変更時: 変更後メールアドレスへ、現在募集中の希望提出リンクを送る。
+ */
+export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internalAction({
+  args: {
+    staffId: v.id("staffs"),
+    expectedEmailNormalized: v.string(),
+    emailChangedAt: v.number(),
+  },
+  handler: async (ctx, { staffId, expectedEmailNormalized, emailChangedAt }) => {
+    const data = await ctx.runQuery(
+      internal.notification.queries.getOpenRecruitmentEmailChangeNotificationDataForStaff,
+      {
+        staffId,
+        expectedEmailNormalized,
+      },
+    );
+    if (!data || data.recruitments.length === 0 || !data.staff.email) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const channel = selectChannel(
+      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
+      quota,
+    );
+    if (channel === "line") return;
+
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+
+    for (const recruitment of data.recruitments) {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId: recruitment.recruitmentId,
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+
+      try {
+        const email = await buildRecruitmentEmail({
+          ctx,
+          shopId: data.shopId,
+          shopName: data.shopName,
+          staff: data.staff,
+          recruitmentId: recruitment.recruitmentId,
+          periodLabel: recruitment.periodLabel,
+          deadline: recruitment.deadline,
+          magicLinkUrl,
+          suppressDelivery,
+          context: "notification.sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+          dedupeKey: `email:openRecruitmentEmailChange:${recruitment.recruitmentId}:${data.staff.staffId}:${emailChangedAt}`,
+        });
+        if (!email) continue;
+        await enqueueEmail(ctx, {
+          shopId: data.shopId,
+          staffId: data.staff.staffId,
+          dedupeKey: email.dedupeKey,
+          payload: email.payload,
+        });
+      } catch (e) {
+        console.error("Recruitment notification email enqueue failed after staff email change", e);
+      }
+    }
+  },
+});
+
+/**
  * LINE連携・follow時: 1スタッフへ、現在募集中の希望提出リンクをLINEで送る。
  */
 export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
@@ -492,12 +560,11 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
     if (channel !== "line") return;
 
     for (const recruitment of data.recruitments) {
-      const { token } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
         staffId: data.staff.staffId,
         shopId: data.shopId,
         recruitmentId: recruitment.recruitmentId,
-        accessKind: "submit",
-        expiresAt: getDeadlineCutoff(recruitment.deadline),
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
@@ -512,7 +579,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
               staffName: data.staff.name,
               shopName: data.shopName,
               periodLabel: recruitment.periodLabel,
-              deadline: formatDateLabel(recruitment.deadline),
+              deadline: formatDeadlineLabel(recruitment.deadline),
               magicLinkUrl,
             }),
             suppressDelivery,

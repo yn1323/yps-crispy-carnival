@@ -1,17 +1,11 @@
-import { Box, Spinner, Text, VStack } from "@chakra-ui/react";
+import type { BoxProps } from "@chakra-ui/react";
+import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 
 type Props = {
   message?: string;
-  minH?: string;
+  minH?: BoxProps["minH"];
 };
 
-export const LoadingState = ({ message = "読み込んでいます", minH = "400px" }: Props) => {
-  return (
-    <Box display="flex" justifyContent="center" alignItems="center" minH={minH}>
-      <VStack gap="4">
-        <Spinner size="xl" color="teal.500" />
-        <Text color="fg.muted">{message}</Text>
-      </VStack>
-    </Box>
-  );
-};
+export const LoadingState = ({ message = "Loading...", minH = "400px" }: Props) => (
+  <ShiftoriLoading variant="section" message={message} minH={minH} />
+);

@@ -1,12 +1,13 @@
 import { Box, Checkbox, Flex, HStack, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer, LuRefreshCw, LuX } from "react-icons/lu";
 import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { formatDatePeriodWithWeekday, formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
 import { DayCard, type DayEntry } from "../DayCard";
@@ -118,6 +119,12 @@ const getSelectedShiftTypeOptionIds = (entry: DayEntry): string[] => {
 export const SubmitFormView = ({ data, onSubmit }: Props) => {
   const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
   const latestShiftTypeOptionIdsRef = useRef<string[] | undefined>(undefined);
+  const pendingLateSubmissionRef = useRef<{ submission: SubmitShiftSelectionInput; acceptedLegal?: boolean } | null>(
+    null,
+  );
+  const [isLateSubmitting, setIsLateSubmitting] = useState(false);
+  const lateSubmitDialog = useDialog();
+  const isLateInitialSubmission = !data.isBeforeDeadline && !data.hasSubmitted;
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
   const shopClosedDateSet = useMemo(() => new Set(data.shopClosedDates), [data.shopClosedDates]);
   const timeOptions = useMemo(
@@ -295,8 +302,27 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
       setError("acceptedLegal", { message: "利用規約とプライバシーポリシーに同意してください" });
       return;
     }
-    await onSubmit(buildSubmissionInput(data.submissionPattern, formData.entries), formData.acceptedLegal);
+    const submission = buildSubmissionInput(data.submissionPattern, formData.entries);
+    if (isLateInitialSubmission) {
+      pendingLateSubmissionRef.current = { submission, acceptedLegal: formData.acceptedLegal };
+      lateSubmitDialog.open();
+      return;
+    }
+    await onSubmit(submission, formData.acceptedLegal);
   });
+
+  const handleLateSubmitConfirm = async () => {
+    const pending = pendingLateSubmissionRef.current;
+    if (!pending || isLateSubmitting) return;
+    setIsLateSubmitting(true);
+    try {
+      await onSubmit(pending.submission, pending.acceptedLegal);
+      pendingLateSubmissionRef.current = null;
+      lateSubmitDialog.close();
+    } finally {
+      setIsLateSubmitting(false);
+    }
+  };
 
   return (
     <SubmitPageLayout>
@@ -309,7 +335,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
               {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
             </Text>
             <Text fontSize="xs" color="fg.muted">
-              提出締切: {formatDateWithWeekday(data.deadline)}
+              提出締切: {formatDateWithWeekday(data.deadline)} 23:59
             </Text>
           </Box>
         </Flex>
@@ -424,12 +450,26 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
             fontWeight="semibold"
             data-submit-action="primary"
             onClick={onFormSubmit}
-            loading={isSubmitting}
+            loading={isSubmitting || isLateSubmitting}
           >
             {data.hasSubmitted ? "希望シフトを更新" : "希望シフトを提出"}
           </Button>
         </Box>
       </SubmitPageContent>
+      <Dialog
+        title="提出締切を過ぎています"
+        isOpen={lateSubmitDialog.isOpen}
+        onOpenChange={lateSubmitDialog.onOpenChange}
+        onClose={lateSubmitDialog.close}
+        onSubmit={handleLateSubmitConfirm}
+        submitLabel="この内容で提出する"
+        isLoading={isLateSubmitting}
+        isSubmitDisabled={isLateSubmitting}
+      >
+        <Text fontSize="sm" lineHeight="tall" color="fg.default">
+          提出締切を過ぎています。提出後はこのリンクから変更できません。変更が必要な場合はシフト作成担当者に連絡してください。
+        </Text>
+      </Dialog>
     </SubmitPageLayout>
   );
 };

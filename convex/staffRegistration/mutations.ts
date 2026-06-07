@@ -8,11 +8,8 @@ import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
+import { findActiveStaffByEmail, normalizeEmail } from "../staff/service";
 import { staffRegistrationFormSchema } from "./schemas";
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
 
 function buildRegistrationUrl(token: string) {
   return `${APP_URL}/staff/register?token=${token}`;
@@ -83,19 +80,7 @@ export const submitRegistrationRequest = mutation({
     const name = parsed.data.name;
     const email = normalizeEmail(parsed.data.email);
 
-    const existingStaff =
-      (await ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-          q.eq("shopId", shop._id).eq("emailNormalized", email).eq("isDeleted", false),
-        )
-        .first()) ??
-      (await ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_email_isDeleted", (q) =>
-          q.eq("shopId", shop._id).eq("email", email).eq("isDeleted", false),
-        )
-        .first());
+    const existingStaff = await findActiveStaffByEmail(ctx, shop._id, email);
     if (existingStaff) {
       throw new ConvexError("このメールアドレスはすでに登録されています");
     }
@@ -134,19 +119,7 @@ export const approveRequest = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    const existingStaff =
-      (await ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("emailNormalized", request.emailNormalized).eq("isDeleted", false),
-        )
-        .first()) ??
-      (await ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_email_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("email", request.emailNormalized).eq("isDeleted", false),
-        )
-        .first());
+    const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, request.emailNormalized);
     if (existingStaff) {
       throw new ConvexError("このメールアドレスは既に使用されています");
     }

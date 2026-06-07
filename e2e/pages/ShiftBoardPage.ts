@@ -53,15 +53,11 @@ export class ShiftBoardPage {
     await expect(this.page.getByRole("button", { name: /再通知する|もう一度通知/ })).toBeVisible();
   }
 
-  async sendReminders(staffCount: number) {
-    await this.page.getByRole("button", { name: /催促/ }).click();
-
-    const dialog = this.page.getByRole("dialog", { name: /未提出者に催促通知を送信|未提出のスタッフに催促/ });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText(`未提出 ${staffCount}名`)).toBeVisible();
-
-    await dialog.getByRole("button", { name: /送信する|催促を送る/ }).click();
-    await expect(this.page.getByText(/催促通知を送信しました|催促を送りました/)).toBeVisible();
+  async expectAutomaticReminderInfo() {
+    await expect(
+      this.page.getByText(/提出締切の前日17:00に未提出者へ自動で催促します|自動催促の送信予定はありません/).first(),
+    ).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /催促を送る|催促通知を送る/ })).not.toBeVisible();
   }
 
   async expectNoUnsubmittedReminder() {

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
-import { HeroSummary, WelcomeHero } from ".";
+import { HeroSummary, HeroSummarySkeleton, WelcomeHero } from ".";
 
 const meta = {
   title: "Features/Dashboard/HeroSummary",
@@ -77,6 +77,9 @@ export const Variants: Story = {
       </Section>
       <Section label="初回ログイン時">
         <WelcomeHero onSetupClick={() => {}} />
+      </Section>
+      <Section label="読み込み中">
+        <HeroSummarySkeleton />
       </Section>
     </Stack>
   ),
