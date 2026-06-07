@@ -7,6 +7,7 @@ import {
   Grid,
   Heading,
   HStack,
+  Image,
   Link,
   Separator,
   Table,
@@ -31,7 +32,7 @@ import {
 import { Footer } from "@/src/components/features/LandingPage";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { ArticleConversionCta } from "./ArticleConversionCta";
-import type { ArticleContent, CategoryContent, ConcernContent, MarkdownBlock } from "./articleContent";
+import type { ArticleContent, CategoryContent, ConcernContent, MarkdownBlock, MarkdownImage } from "./articleContent";
 import {
   articles,
   categories,
@@ -171,10 +172,10 @@ function ListHero(): ReactNode {
             <Breadcrumbs items={[{ label: sitePage.breadcrumbLabel }]} />
           </Box>
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-            <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} lineHeight="1.25" letterSpacing="0">
+            <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
               {sitePage.title}
             </Heading>
-            <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9" maxW="680px">
+            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
               {sitePage.description}
             </Text>
           </VStack>
@@ -222,10 +223,10 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
             <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分で読めます</MetaItem>
           </HStack>
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-            <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} lineHeight="1.25" letterSpacing="0">
+            <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
               {article.meta.title}
             </Heading>
-            <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9" maxW="680px">
+            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
               {article.meta.description}
             </Text>
           </VStack>
@@ -257,10 +258,10 @@ function CategoryHero({ category }: { category: CategoryContent }): ReactNode {
             />
           </Box>
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-            <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} lineHeight="1.25" letterSpacing="0">
+            <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
               {category.meta.title}
             </Heading>
-            <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9" maxW="680px">
+            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
               {category.meta.description}
             </Text>
           </VStack>
@@ -419,7 +420,7 @@ function PointBox({ category }: { category: CategoryContent }): ReactNode {
         <Text color="green.700" fontWeight="bold">
           このカテゴリで扱う悩み
         </Text>
-        <Text color="gray.700" lineHeight="1.8">
+        <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
           {category.meta.pointDescription}
         </Text>
         <Grid as="ul" templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3} listStyleType="none">
@@ -467,10 +468,10 @@ function RepresentativeArticle({ article }: { article: ArticleContent }): ReactN
             <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
               {article.meta.categoryLabel}
             </Badge>
-            <Heading as="h3" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }} lineHeight="1.45" letterSpacing="0">
+            <Heading as="h3" color="gray.950" textStyle={{ base: "lg", md: "xl" }} letterSpacing="0">
               {article.meta.title}
             </Heading>
-            <Text color="gray.700" lineHeight="1.8">
+            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
               {article.meta.description}
             </Text>
             <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">
@@ -696,8 +697,7 @@ function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
           id={block.id}
           as={block.level === 2 ? "h2" : "h3"}
           color="gray.950"
-          fontSize={block.level === 2 ? { base: "2xl", lg: "3xl" } : { base: "xl", lg: "2xl" }}
-          lineHeight={block.level === 2 ? { base: "2rem", lg: "2.375rem" } : { base: "1.75rem", lg: "2rem" }}
+          textStyle={block.level === 2 ? "sectionTitle" : { base: "lg", md: "xl" }}
           letterSpacing="0"
           pt={block.level === 2 ? 3 : 1}
           scrollMarginTop={`calc(${HEADER_HEIGHT.md} + 24px)`}
@@ -737,7 +737,7 @@ function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
           py={4}
           borderRadius="md"
         >
-          <Text color="gray.800" fontSize={{ base: "md", lg: "lg" }} lineHeight="1.9" fontWeight="medium">
+          <Text color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" fontWeight="medium">
             {renderInlineText(block.text)}
           </Text>
         </Box>
@@ -768,6 +768,31 @@ function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
             </Table.Body>
           </Table.Root>
         </Box>
+      );
+    case "image":
+      return <ArticleImageFigure image={block.image} />;
+    case "media":
+      return (
+        <Grid
+          as="section"
+          templateColumns={{
+            base: "1fr",
+            md: block.image.width
+              ? block.align === "right"
+                ? `minmax(0, 1fr) ${block.image.width}px`
+                : `${block.image.width}px minmax(0, 1fr)`
+              : "1fr 1fr",
+          }}
+          gap={{ base: 4, md: 6 }}
+          alignItems="start"
+        >
+          <Box order={{ base: block.align === "right" ? 1 : 2, md: block.align === "right" ? 1 : 2 }}>
+            <ArticleText>{renderInlineText(block.text)}</ArticleText>
+          </Box>
+          <Box order={{ base: block.align === "right" ? 2 : 1, md: block.align === "right" ? 2 : 1 }} minW={0}>
+            <ArticleImageFigure image={{ ...block.image, align: "center" }} compact />
+          </Box>
+        </Grid>
       );
     case "horizontalRule":
       return <Separator />;
@@ -859,10 +884,59 @@ function MetaItem({ icon, children }: { icon: IconType; children: ReactNode }): 
 
 function ArticleText({ children, as }: { children: ReactNode; as?: "p" | "li" }): ReactNode {
   return (
-    <Text as={as} color="gray.700" fontSize={{ base: "md", lg: "lg" }} lineHeight="2">
+    <Text as={as} color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
       {children}
     </Text>
   );
+}
+
+function ArticleImageFigure({ image, compact = false }: { image: MarkdownImage; compact?: boolean }): ReactNode {
+  return (
+    <Box
+      as="figure"
+      my={compact ? 0 : { base: 1, lg: 2 }}
+      display="flex"
+      flexDirection="column"
+      alignItems={{ base: "stretch", md: getFigureAlignItems(image.align) }}
+    >
+      <Box
+        overflow="hidden"
+        w={{ base: "full", md: image.width ? `${image.width}px` : "full" }}
+        maxW="full"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="gray.50"
+      >
+        <Image src={image.src} alt={image.alt} w="full" maxH={{ base: "320px", lg: "440px" }} objectFit="contain" />
+      </Box>
+      {image.caption && (
+        <Text
+          as="figcaption"
+          w={{ base: "full", md: image.width ? `${image.width}px` : "full" }}
+          maxW="full"
+          mt={2}
+          color="gray.500"
+          textStyle="sm"
+          lineHeight="1.7"
+          textAlign="center"
+        >
+          {renderInlineText(image.caption)}
+        </Text>
+      )}
+    </Box>
+  );
+}
+
+function getFigureAlignItems(align: MarkdownImage["align"]): "flex-start" | "center" | "flex-end" {
+  switch (align) {
+    case "left":
+      return "flex-start";
+    case "right":
+      return "flex-end";
+    case "center":
+      return "center";
+  }
 }
 
 function ArticleNotFound({ title = "記事が見つかりません" }: { title?: string }): ReactNode {

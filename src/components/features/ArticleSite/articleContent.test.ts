@@ -65,6 +65,14 @@ ogDescription: "LINE回収の困りごとを整理します。"
 
 LINEは便利ですが、集め方のルールが曖昧だと確認が大変になります。
 
+![シフト希望入力画面](/lp/shiftForm.webp "希望提出フォームの例"){width=360 align=right}
+
+::: media align=right width=320
+![シフト希望入力画面](/lp/shiftForm.webp "希望提出フォームの例")
+
+入力場所を1つにまとめると、LINEのトークをさかのぼる手間を減らせます。
+:::
+
 ## LINEで集めるときに起きやすいこと
 
 | 困りごと | 対策 |
@@ -129,11 +137,50 @@ describe("ArticleSite markdown content", () => {
     ]);
     expect(article.blocks.map((block) => block.type)).toEqual([
       "paragraph",
+      "image",
+      "media",
       "heading",
       "table",
       "heading",
       "unorderedList",
     ]);
+    expect(article.blocks[1]).toMatchObject({
+      type: "image",
+      image: {
+        src: "/lp/shiftForm.webp",
+        alt: "シフト希望入力画面",
+        caption: "希望提出フォームの例",
+        width: 360,
+        align: "right",
+      },
+    });
+    expect(article.blocks[2]).toMatchObject({
+      type: "media",
+      align: "right",
+      image: {
+        src: "/lp/shiftForm.webp",
+        alt: "シフト希望入力画面",
+        caption: "希望提出フォームの例",
+        width: 320,
+        align: "right",
+      },
+      text: "入力場所を1つにまとめると、LINEのトークをさかのぼる手間を減らせます。",
+    });
+  });
+
+  it("画像属性が未指定なら中央寄せと幅未指定で扱う", () => {
+    const article = parseArticleMarkdown(
+      articleMarkdown.replace("{width=360 align=right}", ""),
+      "line-shift-collection-guide",
+    );
+
+    expect(article.blocks[1]).toMatchObject({
+      type: "image",
+      image: {
+        width: undefined,
+        align: "center",
+      },
+    });
   });
 
   it("structured data 用の値を作れる", () => {

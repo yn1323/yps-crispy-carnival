@@ -49,6 +49,17 @@ export type ArticleMetadata = {
   ogDescription: string;
 };
 
+export type MarkdownImageAlign = "left" | "center" | "right";
+export type MarkdownMediaAlign = "left" | "right";
+
+export type MarkdownImage = {
+  src: string;
+  alt: string;
+  caption?: string;
+  width?: number;
+  align: MarkdownImageAlign;
+};
+
 export type MarkdownBlock =
   | {
       type: "heading";
@@ -76,6 +87,16 @@ export type MarkdownBlock =
       type: "table";
       headers: string[];
       rows: string[][];
+    }
+  | {
+      type: "image";
+      image: MarkdownImage;
+    }
+  | {
+      type: "media";
+      align: MarkdownMediaAlign;
+      image: MarkdownImage;
+      text: string;
     }
   | {
       type: "horizontalRule";
@@ -132,6 +153,12 @@ const articleModules = import.meta.glob<string>("./content/articles/*/index.md",
   import: "default",
 });
 
+const imageModules = import.meta.glob<string>("./content/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
+
 const pageRequiredFields = [
   "title",
   "description",
@@ -177,14 +204,14 @@ export const sitePage = parseSitePageMarkdown(pageModules["./content/pages/artic
 export const categories = Object.entries(categoryModules)
   .map(([path, source]) => {
     const slug = path.match(/\.\/content\/categories\/([^/]+)\/index\.md$/)?.[1] ?? path;
-    return parseCategoryMarkdown(source, slug);
+    return parseCategoryMarkdown(source, slug, path);
   })
   .sort((a, b) => a.meta.title.localeCompare(b.meta.title, "ja"));
 
 export const articles = Object.entries(articleModules)
   .map(([path, source]) => {
     const slug = path.match(/\.\/content\/articles\/([^/]+)\/index\.md$/)?.[1] ?? path;
-    return parseArticleMarkdown(source, slug);
+    return parseArticleMarkdown(source, slug, path);
   })
   .sort((a, b) => b.meta.publishedAt.localeCompare(a.meta.publishedAt));
 
@@ -279,7 +306,7 @@ export function parseSitePageMarkdown(source: string, slug: string): SitePageMet
   };
 }
 
-export function parseCategoryMarkdown(source: string, slug: string): CategoryContent {
+export function parseCategoryMarkdown(source: string, slug: string, documentPath?: string): CategoryContent {
   const { frontmatter, bodySource } = parseMarkdownDocument(source, slug);
   ensureFields(frontmatter, categoryRequiredFields, slug);
 
@@ -297,11 +324,11 @@ export function parseCategoryMarkdown(source: string, slug: string): CategoryCon
       ctaTitle: frontmatter.ctaTitle,
       ctaDescription: frontmatter.ctaDescription,
     },
-    blocks: parseMarkdownBlocks(bodySource),
+    blocks: parseMarkdownBlocks(bodySource, documentPath),
   };
 }
 
-export function parseArticleMarkdown(source: string, slug: string): ArticleContent {
+export function parseArticleMarkdown(source: string, slug: string, documentPath?: string): ArticleContent {
   const { frontmatter, bodySource } = parseMarkdownDocument(source, slug);
   ensureFields(frontmatter, articleRequiredFields, slug);
 
@@ -323,7 +350,7 @@ export function parseArticleMarkdown(source: string, slug: string): ArticleConte
     ogDescription: frontmatter.ogDescription,
   };
 
-  const blocks = parseMarkdownBlocks(bodySource);
+  const blocks = parseMarkdownBlocks(bodySource, documentPath);
   const toc = blocks
     .filter(
       (block): block is Extract<MarkdownBlock, { type: "heading" }> => block.type === "heading" && block.level === 2,
@@ -405,7 +432,7 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return parsed;
 }
 
-function parseMarkdownBlocks(source: string): MarkdownBlock[] {
+function parseMarkdownBlocks(source: string, documentPath?: string): MarkdownBlock[] {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const blocks: MarkdownBlock[] = [];
   let index = 0;
@@ -427,6 +454,17 @@ function parseMarkdownBlocks(source: string): MarkdownBlock[] {
       continue;
     }
 
+    const media = parseMediaBlock(lines, index, documentPath);
+    if (media) {
+      blocks.push(media.block);
+      index = media.nextIndex;
+      continue;
+    }
+    if (/^:::\s+media(?:\s+.*)?$/.test(line.trim())) {
+      index += 1;
+      continue;
+    }
+
     if (isTableStart(lines, index)) {
       const tableLines: string[] = [];
       while (index < lines.length && /^\|.+\|$/.test((lines[index] ?? "").trim())) {
@@ -434,6 +472,13 @@ function parseMarkdownBlocks(source: string): MarkdownBlock[] {
         index += 1;
       }
       blocks.push(parseTable(tableLines));
+      continue;
+    }
+
+    const image = parseImageLine(line, documentPath);
+    if (image) {
+      blocks.push({ type: "image", image });
+      index += 1;
       continue;
     }
 
@@ -479,7 +524,9 @@ function parseMarkdownBlocks(source: string): MarkdownBlock[] {
       if (
         !currentLine.trim() ||
         /^#{1,3}\s+/.test(currentLine) ||
+        /^:::\s+media(?:\s+.*)?$/.test(currentLine.trim()) ||
         isTableStart(lines, index) ||
+        parseImageLine(currentLine, documentPath) ||
         /^(-{3,}|\*{3,})$/.test(currentLine.trim()) ||
         /^>\s?/.test(currentLine) ||
         /^[-*]\s+/.test(currentLine) ||
@@ -494,6 +541,133 @@ function parseMarkdownBlocks(source: string): MarkdownBlock[] {
   }
 
   return blocks;
+}
+
+function parseMediaBlock(
+  lines: string[],
+  startIndex: number,
+  documentPath?: string,
+): { block: Extract<MarkdownBlock, { type: "media" }>; nextIndex: number } | undefined {
+  const openingMatch = (lines[startIndex] ?? "").trim().match(/^:::\s+media(?:\s+(.+))?$/);
+  if (!openingMatch) {
+    return undefined;
+  }
+
+  const mediaAttributes = parseAttributeString(openingMatch[1] ?? "");
+  const imageLines: MarkdownImage[] = [];
+  const textLines: string[] = [];
+  let index = startIndex + 1;
+
+  while (index < lines.length && !/^:::\s*$/.test((lines[index] ?? "").trim())) {
+    const currentLine = lines[index]?.trimEnd() ?? "";
+    const image = parseImageLine(currentLine, documentPath);
+
+    if (image) {
+      imageLines.push(image);
+    } else if (currentLine.trim()) {
+      textLines.push(currentLine.trim());
+    }
+
+    index += 1;
+  }
+
+  const image = imageLines[0];
+  if (!image) {
+    return undefined;
+  }
+
+  const align = parseMediaAlign(mediaAttributes.align, image.align === "left" ? "left" : "right");
+  return {
+    block: {
+      type: "media",
+      align,
+      image: {
+        ...image,
+        width: parsePositiveInteger(mediaAttributes.width, image.width ?? 0) || image.width,
+        align,
+      },
+      text: textLines.join(" "),
+    },
+    nextIndex: index < lines.length ? index + 1 : index,
+  };
+}
+
+function parseImageLine(line: string, documentPath?: string): MarkdownImage | undefined {
+  const imageMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+["']([^"']+)["'])?\)(?:\{([^}]*)\})?$/);
+  if (!imageMatch) {
+    return undefined;
+  }
+
+  const [, alt, src, caption, attributeSource] = imageMatch;
+  const attributes = parseAttributeString(attributeSource ?? "");
+  return {
+    src: resolveMarkdownImageSrc(src, documentPath),
+    alt: alt.trim(),
+    caption: caption?.trim(),
+    width: parsePositiveInteger(attributes.width, 0) || undefined,
+    align: parseImageAlign(attributes.align, "center"),
+  };
+}
+
+function parseAttributeString(source: string): Record<string, string> {
+  return source.split(/\s+/).reduce<Record<string, string>>((acc, token) => {
+    const separatorIndex = token.indexOf("=");
+    if (separatorIndex === -1) {
+      return acc;
+    }
+
+    const key = token.slice(0, separatorIndex).trim();
+    const value = token.slice(separatorIndex + 1).trim();
+    if (key && value) {
+      acc[key] = stripQuotes(value);
+    }
+    return acc;
+  }, {});
+}
+
+function parseImageAlign(value: string | undefined, fallback: MarkdownImageAlign): MarkdownImageAlign {
+  if (value === "left" || value === "center" || value === "right") {
+    return value;
+  }
+  return fallback;
+}
+
+function parseMediaAlign(value: string | undefined, fallback: MarkdownMediaAlign): MarkdownMediaAlign {
+  if (value === "left" || value === "right") {
+    return value;
+  }
+  return fallback;
+}
+
+function resolveMarkdownImageSrc(src: string, documentPath?: string): string {
+  if (/^(https?:)?\/\//.test(src) || /^(data|blob):/.test(src) || src.startsWith("/")) {
+    return src;
+  }
+
+  if (!documentPath) {
+    return src;
+  }
+
+  const documentDirectory = documentPath.replace(/\/[^/]*$/, "");
+  const normalizedPath = normalizeContentPath(`${documentDirectory}/${src}`);
+  return imageModules[normalizedPath] ?? src;
+}
+
+function normalizeContentPath(path: string): string {
+  const segments: string[] = [];
+
+  for (const segment of path.split("/")) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return `./${segments.join("/")}`;
 }
 
 function isTableStart(lines: string[], index: number): boolean {

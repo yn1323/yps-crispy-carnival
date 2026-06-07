@@ -124,6 +124,9 @@ ogDescription: "OG説明"
 - 引用 `> text`
 - 表
 - 水平線 `---`
+- 画像 `![alt](src "caption")`
+- ArticleSite独自拡張の画像属性 `![alt](src "caption"){width=360 align=right}`
+- ArticleSite独自拡張の横並びブロック `::: media align=right width=360`
 - インラインリンク `[label](href)`
 - 太字 `**text**`
 - インラインコード `` `code` ``
@@ -132,7 +135,36 @@ ogDescription: "OG説明"
 
 - `# 見出し` は本文レンダリングではスキップされます。記事タイトルはfrontmatterの `title` が主です。
 - H2が3つ以上ある記事だけ、記事詳細の目次UIが表示されます。
+- 画像は `/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMarkdownファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
+- 画像の `"caption"` は任意です。指定すると画像下にキャプションとして表示されます。
+- `{width=360 align=right}` と `::: media ...` は標準Markdownではなく、ArticleSite用の独自拡張です。ほかのMarkdownレンダラで同じ表示になるとは限りません。
 - 本文は現時点では仮文章です。作り込みすぎず、SEO記事の構造が伝わる程度にしてください。
+
+### 画像レイアウト拡張
+
+画像単体のサイズと配置を指定できます。
+
+```md
+![シフト希望フォーム](/lp/shiftForm.webp "希望提出の例"){width=360 align=right}
+```
+
+- `width` はpx数値で指定します。未指定なら本文幅いっぱいです。
+- `align` は `left` / `center` / `right` を指定できます。未指定なら `center` です。
+- スマホでは本文幅に収まるように表示されます。
+
+画像の横に短い説明文を置きたい場合は、mediaブロックを使います。
+
+```md
+::: media align=right width=360
+![シフト希望フォーム](/lp/shiftForm.webp "希望提出の例")
+
+LINEのトークに希望が流れてしまう場合は、入力場所を1つにまとめると確認しやすくなります。
+:::
+```
+
+- `align=right` はPCで画像を右、文章を左に置きます。スマホでは文章、画像の順に縦積みします。
+- `align=left` はPCで画像を左、文章を右に置きます。スマホでは画像、文章の順に縦積みします。
+- mediaブロック内の文章は、短い段落向けです。見出し、表、リストなどの複雑な入れ子Markdownは使わないでください。
 
 ## 書き方の方針
 
@@ -140,7 +172,7 @@ ogDescription: "OG説明"
 - カテゴリ名は機能名よりも、店長・管理者が検索しそうな困りごとに寄せます。
 - タイトル・descriptionは具体的にします。例: `LINEでシフト希望を集める方法`、`Excelでシフト表を作るのが大変になる理由`。
 - 本文よりも、タイトル・カテゴリ・description・関連記事の自然さを優先してください。
-- 画像はまだ仮アイコンです。画像パスや画像frontmatterは追加しないでください。
+- 記事本文に必要な画像はMarkdown本文へ追加してください。記事カードやOG画像を制御するfrontmatterはまだ追加しません。
 
 ## mdで変えられること / React側で変えること
 

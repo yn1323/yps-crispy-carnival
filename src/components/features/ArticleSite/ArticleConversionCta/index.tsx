@@ -41,7 +41,7 @@ export function ArticleConversionCta({ compact = false }: ArticleConversionCtaPr
             />
           </Box>
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-            <Heading as="h2" color="gray.950" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.45" letterSpacing="0">
+            <Heading as="h2" color="gray.950" textStyle="sectionTitle" letterSpacing="0">
               <Box as="span" color="teal.700">
                 LINE
               </Box>
@@ -50,7 +50,7 @@ export function ArticleConversionCta({ compact = false }: ArticleConversionCtaPr
                 かんたんシフト管理
               </Box>
             </Heading>
-            <Text color="gray.800" fontSize={{ base: "md", md: "lg" }} lineHeight="1.8" maxW="560px">
+            <Text color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="560px">
               スタッフはいつものスマホからシフト希望を提出
               <Box as="span" display="block">
                 未提出確認・確定通知もまるごとおまかせ
