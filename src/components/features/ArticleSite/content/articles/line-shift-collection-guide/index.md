@@ -2,13 +2,13 @@
 title: "LINEでシフト希望を集める方法"
 description: "LINEで希望を集めるときの基本的な流れと、スムーズに進めるためのポイントを紹介します。"
 publishedAt: "2024-05-20"
-updatedAt: "2024-05-20"
+updatedAt: "2026-06-08"
 categorySlug: "shift-request"
-categoryLabel: "LINEでシフト希望を集める"
+categoryLabel: "シフト希望を集める"
 author: "シフトリ編集部"
 readingMinutes: 6
 keywords: "LINE, 希望シフト, シフト回収"
-relatedSlugs: ""
+relatedSlugs: "shift-type-request-guide"
 featured: true
 canonicalPath: "/articles/line-shift-collection-guide"
 ogTitle: "LINEでシフト希望を集める方法"
