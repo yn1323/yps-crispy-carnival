@@ -27,6 +27,7 @@ type PublicHeaderVariantProps = {
 
 type UserHeaderVariantProps = {
   variant?: "user";
+  showUserMenu?: boolean;
 };
 
 type StaffHeaderVariantProps = {
@@ -65,7 +66,7 @@ export const Header = (props: HeaderProps = {}) => {
   return (
     <HeaderShell>
       <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" />
-      <UserMenu tone="light" />
+      {props.showUserMenu !== false && <UserMenu tone="light" />}
     </HeaderShell>
   );
 };
