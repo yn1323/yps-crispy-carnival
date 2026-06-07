@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { mockRecruitments, mockStaffs } from "../storyMocks";
 import type { Recruitment, Staff, StaffRegistrationRequest } from "../types";
-import { DashboardContent } from "./index";
+import { DashboardContent, DashboardContentSkeleton } from "./index";
 
 const noop = () => {};
 
@@ -130,6 +130,17 @@ export const LegalReconsentRequired: Story = {
       },
     },
   },
+};
+
+export const Loading: Story = {
+  args: {
+    ...Normal.args,
+  },
+  render: () => (
+    <Box minH="100vh" bg="white" p={{ base: 4, lg: 8 }}>
+      <DashboardContentSkeleton />
+    </Box>
+  ),
 };
 
 export const Empty: Story = {
