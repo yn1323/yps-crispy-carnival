@@ -13,7 +13,7 @@ export function FullPageSpinner({ showHeader = false }: Props) {
         <Header showUserMenu={false} />
         <Box pt={HEADER_HEIGHT}>
           <ShiftoriLoading
-            variant="page"
+            variant="section"
             minH={{
               base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
               md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
