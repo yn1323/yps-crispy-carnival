@@ -1,7 +1,7 @@
 import { Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockStaffs, mockStaffsMany } from "@/src/components/features/Dashboard/storyMocks";
-import { StaffRoster } from ".";
+import { StaffRoster, StaffRosterSkeleton } from ".";
 
 const noop = () => {};
 
@@ -77,6 +77,12 @@ export const Variants: Story = {
           onSendLineInvite={noop}
           onLoadMore={noop}
         />
+      </Stack>
+      <Stack gap={3}>
+        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
+          読み込み中
+        </Text>
+        <StaffRosterSkeleton />
       </Stack>
     </Stack>
   ),

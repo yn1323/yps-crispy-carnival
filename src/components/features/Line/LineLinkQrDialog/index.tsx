@@ -1,4 +1,4 @@
-import { Box, Code, HStack, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Box, Code, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { LuCheck, LuCopy } from "react-icons/lu";
@@ -47,14 +47,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
   };
 
   if (isLoading || !authorizeUrl) {
-    return (
-      <Stack align="center" py={10} gap={3}>
-        <Spinner color="teal.500" />
-        <Text fontSize="sm" color="fg.muted">
-          連携用リンクを発行しています
-        </Text>
-      </Stack>
-    );
+    return <LineLinkQrDialogSkeleton />;
   }
 
   return (
@@ -75,7 +68,7 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
             bg="white"
           />
         ) : (
-          <Spinner color="teal.500" />
+          <QrSkeleton />
         )}
         <Text fontSize="xs" color="fg.muted">
           スマホのカメラで読み取ってください
@@ -101,3 +94,24 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
     </Stack>
   );
 };
+
+const QrSkeleton = () => (
+  <Box width="200px" height="200px" borderRadius="md" borderWidth="1px" borderColor="blackAlpha.100" bg="white">
+    <Skeleton width="full" height="full" borderRadius="md" />
+  </Box>
+);
+
+const LineLinkQrDialogSkeleton = () => (
+  <Stack gap={4} aria-busy="true">
+    <Stack gap={2}>
+      <Skeleton h="16px" w="92%" />
+      <Skeleton h="16px" w="64%" />
+    </Stack>
+    <Stack align="center" gap={3}>
+      <QrSkeleton />
+      <Skeleton h="14px" w="152px" />
+    </Stack>
+    <Skeleton h="56px" w="full" borderRadius="md" />
+    <Skeleton h="32px" w="120px" borderRadius="md" />
+  </Stack>
+);

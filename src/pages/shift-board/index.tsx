@@ -1,9 +1,9 @@
-import { Flex, Spinner } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftBoardPage } from "@/src/components/features/ShiftBoard/ShiftBoardPage";
 import { Animation } from "@/src/components/templates/Animation";
+import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 
 type Props = {
   recruitmentId: string;
@@ -15,11 +15,7 @@ export function ShiftBoardRoutePage({ recruitmentId }: Props) {
   });
 
   if (data === undefined) {
-    return (
-      <Flex justify="center" align="center" minH="200px">
-        <Spinner />
-      </Flex>
-    );
+    return <ShiftoriLoading variant="section" minH="200px" />;
   }
 
   if (data === null) return null;

@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
@@ -118,3 +118,45 @@ export const StaffRoster = ({
     </Stack>
   );
 };
+
+export const StaffRosterSkeleton = () => (
+  <Stack as="section" aria-label="スタッフ一覧を読み込み中" gap={{ base: 4, lg: 5 }}>
+    <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
+      <HStack gap={2.5} align="center">
+        <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
+        <Skeleton h={{ base: "28px", lg: "30px" }} w="112px" />
+      </HStack>
+      <Skeleton h="32px" w={{ base: "120px", md: "132px" }} />
+    </Flex>
+
+    <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.50" boxShadow="xs" overflow="hidden">
+      <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <StaffRowSkeleton key={index} isManager={index === 0} />
+        ))}
+      </Stack>
+    </Box>
+  </Stack>
+);
+
+const StaffRowSkeleton = ({ isManager }: { isManager: boolean }) => (
+  <HStack
+    as="article"
+    gap={3}
+    px={{ base: 3, lg: 4 }}
+    py={3.5}
+    align="center"
+    bg={isManager ? "teal.50/50" : "transparent"}
+    minH="68px"
+  >
+    <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
+    <Stack gap={2} flex={1} minW={0}>
+      <HStack gap={2} align="center" wrap="wrap">
+        <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} />
+        {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
+      </HStack>
+      <Skeleton h="16px" w="180px" display={{ base: "none", lg: "block" }} />
+    </Stack>
+    <Skeleton boxSize="32px" borderRadius="md" flexShrink={0} />
+  </HStack>
+);

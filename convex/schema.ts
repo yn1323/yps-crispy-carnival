@@ -54,7 +54,8 @@ const schema = defineSchema({
   })
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_userId_and_isDeleted", ["userId", "isDeleted"])
-    .index("by_userId_and_shopId", ["userId", "shopId"]),
+    .index("by_userId_and_shopId", ["userId", "shopId"])
+    .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
   // ========================================
   // スタッフ

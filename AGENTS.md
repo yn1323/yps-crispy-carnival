@@ -30,6 +30,12 @@ pnpm scaffdog         # コンポーネントの雛形生成
 pnpm convex:dev       # Convex開発サーバー
 ```
 
+### Codex sandboxで失敗しやすいコマンド
+
+- `pnpm lint` は `tsx scripts/check-convex-timezone.ts` が IPC pipe を作るため、Codex sandbox内では `EPERM: operation not permitted ... tsx-*.pipe` で失敗することがある。Biome自体が通っている場合は、同じ `pnpm lint` を権限付きで再実行すること。
+- `pnpm e2e` / Playwright / ブラウザ起動を伴う検証は、Codex sandbox内ではブラウザ起動・IPC・ローカルサーバー接続で失敗しやすい。E2Eを実行する必要がある場合は、最初から権限付き実行を検討し、sandbox由来の失敗なら同じコマンドを権限付きで再実行すること。
+- これらはテスト・lintの失敗とは区別する。`EPERM`、ブラウザ起動不可、IPC/listen失敗など実行環境由来のエラーは、コード修正ではなく実行権限の問題として扱う。
+
 ### 単一テスト実行
 
 ```bash

@@ -1,8 +1,8 @@
-import { Box, Flex, Spinner } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
-import { DashboardContent } from "@/src/components/features/Dashboard/DashboardContent";
+import { DashboardContent, DashboardContentSkeleton } from "@/src/components/features/Dashboard/DashboardContent";
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
@@ -58,12 +58,21 @@ export function DashboardPage() {
     }
   };
 
-  if (shop === undefined) {
+  const isDashboardInitialLoading =
+    shop === undefined ||
+    (shop !== null &&
+      (currentUser === undefined ||
+        managerLegalConsentStatus === undefined ||
+        pendingStaffRequests === undefined ||
+        recruitments.status === "LoadingFirstPage" ||
+        staffs.status === "LoadingFirstPage"));
+
+  if (isDashboardInitialLoading) {
     return (
       <DashboardPageShell>
-        <Flex justify="center" align="center" minH="200px">
-          <Spinner />
-        </Flex>
+        <Animation>
+          <DashboardContentSkeleton />
+        </Animation>
       </DashboardPageShell>
     );
   }
