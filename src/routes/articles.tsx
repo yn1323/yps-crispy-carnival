@@ -4,14 +4,22 @@ import { sitePage } from "@/src/components/features/ArticleSite/articleContent";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles")({
-  head: () => ({
-    links: buildLinks({ canonical: "/articles" }),
-    meta: buildMeta({
-      title: sitePage.title,
-      description: sitePage.description,
-      canonical: "/articles",
-    }),
-  }),
+  head: ({ matches }) => {
+    const leafMatch = matches.at(-1);
+
+    if (leafMatch?.routeId !== "/articles") {
+      return {};
+    }
+
+    return {
+      links: buildLinks({ canonical: "/articles" }),
+      meta: buildMeta({
+        title: sitePage.title,
+        description: sitePage.description,
+        canonical: "/articles",
+      }),
+    };
+  },
   component: ArticlesRoute,
 });
 
