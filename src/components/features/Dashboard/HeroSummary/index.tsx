@@ -1,5 +1,5 @@
-import { Badge, Box, Flex, Heading, HStack, Image, Stack, Text } from "@chakra-ui/react";
-import type { ComponentProps } from "react";
+import { Badge, Box, Flex, Heading, HStack, Image, Skeleton, Stack, Text } from "@chakra-ui/react";
+import type { ComponentProps, ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
   LuArrowRight,
@@ -14,8 +14,6 @@ import {
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
-import { PendingStaffRegistrationList } from "../PendingStaffRegistrationList";
-import type { StaffRegistrationRequest } from "../types";
 import { type NextAction, pickNextAction } from "./pickNextAction";
 import registerStartImage from "./register-start.webp";
 
@@ -29,9 +27,7 @@ type Props = {
   onEditClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
-  pendingStaffRequests?: StaffRegistrationRequest[];
-  onApproveStaffRequest?: (request: StaffRegistrationRequest) => void;
-  onRejectStaffRequest?: (request: StaffRegistrationRequest) => void;
+  staffRegistrationRequestBanner?: ReactNode;
   hideActionSection?: boolean;
 };
 
@@ -41,9 +37,7 @@ export const HeroSummary = ({
   onEditClick,
   onOpenShiftBoard,
   onCreateRecruitment,
-  pendingStaffRequests = [],
-  onApproveStaffRequest,
-  onRejectStaffRequest,
+  staffRegistrationRequestBanner,
   hideActionSection = false,
 }: Props) => {
   const action = pickNextAction(recruitments);
@@ -90,18 +84,59 @@ export const HeroSummary = ({
           </HStack>
 
           <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
-          {onApproveStaffRequest && onRejectStaffRequest && (
-            <PendingStaffRegistrationList
-              requests={pendingStaffRequests}
-              onApprove={onApproveStaffRequest}
-              onReject={onRejectStaffRequest}
-            />
-          )}
+          {staffRegistrationRequestBanner}
         </Stack>
       )}
     </Stack>
   );
 };
+
+export const HeroSummarySkeleton = () => (
+  <Stack gap={{ base: 5, lg: 6 }} aria-label="ダッシュボード概要を読み込み中">
+    <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
+      <Skeleton display={{ base: "none", md: "block" }} h="18px" w="40px" />
+
+      <Flex align="center" justify="space-between" direction="row" gap={4} minW={0}>
+        <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
+        <Skeleton h="32px" w="48px" flexShrink={0} />
+      </Flex>
+    </Stack>
+
+    <Stack gap={{ base: 3, lg: 4 }}>
+      <HStack gap={2.5} align="center">
+        <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
+        <Skeleton h={{ base: "26px", lg: "30px" }} w="112px" />
+      </HStack>
+
+      <Flex
+        bg="teal.50/30"
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor="teal.100"
+        boxShadow="xs"
+        px={{ base: 4, md: 6, lg: 7 }}
+        py={{ base: 5, lg: 6 }}
+        gap={{ base: 4, md: 6 }}
+        align={{ base: "stretch", md: "center" }}
+        direction={{ base: "column", md: "row" }}
+        minH={{ base: "154px", md: "130px" }}
+      >
+        <HStack gap={{ base: 3, md: 5 }} flex={1} minW={0}>
+          <Skeleton boxSize={{ base: "48px", md: "80px" }} borderRadius="full" flexShrink={0} />
+          <Stack gap={3} minW={0} flex={1}>
+            <Skeleton h={{ base: "24px", md: "32px" }} w={{ base: "220px", md: "320px" }} maxW="100%" />
+            <HStack gap={2} wrap="wrap">
+              <Skeleton h="26px" w="112px" borderRadius="full" />
+              <Skeleton h="26px" w="92px" borderRadius="full" />
+              <Skeleton h="26px" w="128px" borderRadius="full" />
+            </HStack>
+          </Stack>
+        </HStack>
+        <Skeleton h={{ base: "36px", md: "40px" }} w={{ base: "100%", md: "132px" }} flexShrink={0} />
+      </Flex>
+    </Stack>
+  </Stack>
+);
 
 type WelcomeHeroProps = {
   onSetupClick: () => void;
@@ -303,7 +338,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: "シフトを調整しましょう",
+        title: "シフトを組んでスタッフに共有しましょう",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
@@ -319,13 +354,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: "今日中に希望を確認しましょう",
+        title: "本日締切日です",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: "今日が締切", emphasis: true },
         ],
-        cta: { label: "希望を見る", palette: "orange", variant: "solid" },
+        cta: { label: "回収状況を見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-soon": {
@@ -335,13 +370,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.100",
         iconFg: "teal.700",
         border: "teal.200",
-        title: "シフト希望を確認しましょう",
+        title: "シフト回収中です。しばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日`, emphasis: true },
         ],
-        cta: { label: "希望を見る", palette: "teal", variant: "outline" },
+        cta: { label: "回収状況を見る", palette: "teal", variant: "outline" },
       };
     }
     case "collecting": {
@@ -351,13 +386,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.50",
         iconFg: "teal.700",
         border: "teal.100",
-        title: "シフト回収中です",
+        title: "シフト回収中です。しばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日` },
         ],
-        cta: { label: "希望を見る", palette: "teal", variant: "outline" },
+        cta: { label: "回収状況を見る", palette: "teal", variant: "outline" },
       };
     }
   }

@@ -432,7 +432,7 @@ export const CreateRecruitmentForm = ({
               <Separator />
               <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
               <Separator />
-              <SummaryLine label="提出締切" value={deadline ? formatDateWithWeekday(deadline) : "未選択"} />
+              <SummaryLine label="提出締切" value={deadline ? `${formatDateWithWeekday(deadline)} 23:59` : "未選択"} />
             </Stack>
           </Box>
         )}

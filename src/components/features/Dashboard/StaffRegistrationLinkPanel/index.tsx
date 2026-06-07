@@ -1,4 +1,4 @@
-import { Box, Code, Flex, HStack, Separator, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Box, Code, Flex, HStack, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -60,14 +60,7 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
   };
 
   if (isLoading || !registrationUrl) {
-    return (
-      <Stack align="center" py={10} gap={3}>
-        <Spinner color="teal.500" />
-        <Text fontSize="sm" color="fg.muted">
-          登録用リンクを準備しています
-        </Text>
-      </Stack>
-    );
+    return <StaffRegistrationLinkPanelSkeleton showManualEntryAction={Boolean(manualEntryAction)} />;
   }
 
   return (
@@ -97,7 +90,7 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
               bg="white"
             />
           ) : (
-            <Spinner color="teal.500" />
+            <QrSkeleton />
           )}
           <Text fontSize="xs" color="fg.muted">
             スタッフに読み取ってもらってください
@@ -168,3 +161,44 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
     </Stack>
   );
 }
+
+const QrSkeleton = () => (
+  <Box width="200px" height="200px" borderRadius="md" borderWidth="1px" borderColor="blackAlpha.100" bg="white">
+    <Skeleton width="full" height="full" borderRadius="md" />
+  </Box>
+);
+
+const StaffRegistrationLinkPanelSkeleton = ({ showManualEntryAction }: { showManualEntryAction: boolean }) => (
+  <Stack gap={5} aria-busy="true">
+    <Stack gap={2}>
+      <Skeleton h="16px" w="94%" />
+      <Skeleton h="16px" w="74%" />
+      <Skeleton h="16px" w="86%" />
+    </Stack>
+
+    <InviteSection title="QRコードで招待">
+      <Stack align="center" gap={2}>
+        <QrSkeleton />
+        <Skeleton h="14px" w="172px" />
+      </Stack>
+    </InviteSection>
+
+    <InviteSection title="招待リンクを共有">
+      <HStack gap={0} align="stretch" minW={0} borderWidth="1px" borderColor="border.default" borderRadius="md">
+        <Skeleton h="40px" flex={1} borderRadius={0} />
+        <Skeleton boxSize="40px" borderRadius={0} />
+      </HStack>
+    </InviteSection>
+
+    {showManualEntryAction && (
+      <>
+        <Separator />
+        <Stack gap={3}>
+          <Skeleton h="16px" w="128px" />
+          <Skeleton h="16px" w="88%" />
+          <Skeleton h="36px" w="144px" borderRadius="md" />
+        </Stack>
+      </>
+    )}
+  </Stack>
+);

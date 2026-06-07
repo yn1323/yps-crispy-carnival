@@ -2,7 +2,7 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, seedUser, testAuthTokenIdentifier } from "../_test/seed";
+import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const setupArgs = {
@@ -131,6 +131,67 @@ describe("setup/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_existing" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs),
       ).rejects.toThrow(ConvexError);
+    });
+
+    it("削除済みmembershipや削除済み店舗は既存店舗として扱わない", async () => {
+      const t = convexTest(schema, modules);
+
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: "user_deleted_membership",
+          email: "deleted-membership@example.com",
+          shopName: "削除済みmembership店舗",
+          membershipDeleted: true,
+        });
+        await seedManagerShop(ctx, {
+          subject: "user_deleted_shop",
+          email: "deleted-shop@example.com",
+          shopName: "削除済み店舗",
+          shopDeleted: true,
+        });
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "user_deleted_membership" })
+          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).resolves.toBeDefined();
+      await expect(
+        t.withIdentity({ subject: "user_deleted_shop" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).resolves.toBeDefined();
+    });
+
+    it("shopMembersはuserIdとshopIdとisDeletedでactive所属を引ける", async () => {
+      const t = convexTest(schema, modules);
+
+      const { userId, activeShopId, deletedShopId } = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "membership_lookup", "lookup@example.com");
+        const activeShopId = await seedShop(ctx, "Active店舗");
+        const deletedShopId = await seedShop(ctx, "Deleted membership店舗");
+        await seedShopMembership(ctx, { userId, shopId: activeShopId });
+        await seedShopMembership(ctx, { userId, shopId: deletedShopId, isDeleted: true });
+        return { userId, activeShopId, deletedShopId };
+      });
+
+      const activeMembership = await t.run(async (ctx) =>
+        ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
+            q.eq("userId", userId).eq("shopId", activeShopId).eq("isDeleted", false),
+          )
+          .first(),
+      );
+      const deletedMembership = await t.run(async (ctx) =>
+        ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
+            q.eq("userId", userId).eq("shopId", deletedShopId).eq("isDeleted", false),
+          )
+          .first(),
+      );
+
+      expect(activeMembership?.shopId).toBe(activeShopId);
+      expect(deletedMembership).toBeNull();
     });
 
     it("既存ユーザーレコードがある場合は名前・メールと同意を更新する", async () => {

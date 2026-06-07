@@ -45,7 +45,7 @@ convex/
 | 領域 | 配置 | ルール |
 |------|------|--------|
 | 通知（メール、LINE、テンプレート、通知用内部query） | `notification/` | `email/` ディレクトリは作らない。メール専用に見えても、通知ドメインとして `notification` に置く |
-| シフト提出催促 | `shiftReminder/mutations.ts` + `notification/reminderActions.ts` / `notification/reminderQueries.ts` | `shiftReminder` は公開コマンドの入口だけにし、送信処理・送信用データ取得は `notification` 側に置く |
+| シフト提出催促 | `notification/reminderActions.ts` / `notification/reminderQueries.ts` | 手動催促 API は持たず、募集作成時に予約した自動催促を `notification` 側で処理する |
 | スタッフ認証・セッション | `staffAuth/` | magic link、session、募集情報取得に限定する。画面固有の閲覧APIを混ぜない |
 | 確定シフト閲覧 | `shiftView/queries.ts` | 通知URLなどからの確定シフト閲覧は `staffAuth` ではなく `shiftView` に置く |
 | 法務同意 | `legal/mutations.ts` + `legal/service.ts` | mutation は API 境界として薄く保ち、他ユースケースから再利用する同意記録ロジックは `service.ts` に置く |
@@ -59,6 +59,16 @@ convex/
 - 募集期間の提出方法は `recruitments.submissionPattern` のスナップショットを正とする。時間指定の開始/終了時刻や勤務区分の時間は提出方法の中に持つ
 - 既存データ互換のフォールバックは残さない。DB再作成前提のリファクタでは新スキーマだけを読む
 - 一覧系 query では必ず上限定数を使う。`.collect()` で無制限に読む前に、index と `take()` / `paginate()` にできないか検討する
+
+### 日付・時刻・タイムゾーン
+
+- `YYYY-MM-DD` 文字列は店舗業務上の **JST暦日** として扱う。UTCの暦日に読み替えない。
+- `createdAt` / `updatedAt` / `expiresAt` / `confirmedAt` / `deadlineAt` など `*At` は Unix ms の瞬間値として扱う。
+- Convex本番コードで業務日付を作るときは `convex/_lib/dateFormat.ts` の helper を使う。`new Date().toISOString().slice(0, 10)` や `toISOString().split("T")[0]` で `YYYY-MM-DD` を作らない。
+- `new Date("2026-01-20")` のような日付だけの文字列はUTC解釈になりやすいので、本番コードでは使わない。`dateToUtcMs` や業務意味のある helper を追加して使う。
+- 締切、提出リンク期限、cron のような境界時刻は、helper名またはコメントで「JSTでの仕様」と「UTCで保存/実行される値」を明示する。
+- cron はConvexの実行指定がUTCになる前提で、コメントに `JST 17:00 = UTC 08:00` のように必ず併記する。
+- 直接 `Date.UTC(...)` を使う必要がある場合は、まず `convex/_lib/dateFormat.ts` に業務意味のある helper を追加し、その helper を呼ぶ。
 
 ## Convex 固有の注意事項
 

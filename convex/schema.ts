@@ -54,7 +54,8 @@ const schema = defineSchema({
   })
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_userId_and_isDeleted", ["userId", "isDeleted"])
-    .index("by_userId_and_shopId", ["userId", "shopId"]),
+    .index("by_userId_and_shopId", ["userId", "shopId"])
+    .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
   // ========================================
   // スタッフ
@@ -149,7 +150,9 @@ const schema = defineSchema({
     shiftStartTime: v.optional(v.string()),
     shiftEndTime: v.optional(v.string()),
     submissionPattern: v.optional(submissionPatternValidator),
-    // 未提出者への催促メール最終送信時刻（24時間クールダウン判定用）
+    // 未提出者への自動催促通知を予約した時刻。既存募集には付与せず、作成時に未来時刻のものだけ保存する。
+    reminderScheduledAt: v.optional(v.number()),
+    // 未提出者への自動催促通知を実際に送信した時刻（UI表示・二重送信防止用）
     lastReminderSentAt: v.optional(v.number()),
     // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
     draftSavedAt: v.optional(v.number()),
@@ -252,6 +255,7 @@ const schema = defineSchema({
   })
     .index("by_token", ["token"])
     .index("by_staffId", ["staffId"])
+    .index("by_staffId_recruitmentId_accessKind", ["staffId", "recruitmentId", "accessKind"])
     .index("by_shopId", ["shopId"])
     .index("by_expiresAt", ["expiresAt"]),
 

@@ -33,7 +33,7 @@ export const AuthGuard = ({ children }: Props) => {
   }
 
   if (!isLoaded) {
-    return <FullPageSpinner />;
+    return <FullPageSpinner showHeader />;
   }
 
   if (!isSignedIn) {
@@ -43,7 +43,7 @@ export const AuthGuard = ({ children }: Props) => {
   }
 
   if (currentUser === undefined) {
-    return <FullPageSpinner />;
+    return <FullPageSpinner showHeader />;
   }
 
   return children;

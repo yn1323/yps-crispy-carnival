@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedManagerShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedManagerShop, seedShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function insertPendingRequest(
@@ -141,6 +141,43 @@ describe("staffRegistration/notificationQueries", () => {
       expect(result?.recipients.map((recipient) => recipient.email)).toEqual(["target-manager@example.com"]);
       expect(result?.recipients.map((recipient) => recipient.email)).not.toContain("staff-only@example.com");
       expect(result?.recipients.map((recipient) => recipient.email)).not.toContain("other-manager@example.com");
+    });
+
+    it("同じmanager userが複数店舗に所属していても対象店舗のmanager staffだけでLINE連携を判定する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "multi_shop_manager",
+          email: "multi-shop@example.com",
+          shopName: "対象店舗",
+        });
+        const otherShopId = await seedShop(ctx, "別店舗");
+        await seedShopMembership(ctx, { shopId: otherShopId, userId: seeded.userId });
+        const otherShopManagerStaffId = await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          userId: seeded.userId,
+          name: "別店舗の管理スタッフ",
+          email: "multi-shop@example.com",
+          emailNormalized: "multi-shop@example.com",
+          isDeleted: false,
+        });
+        await seedStaffLineAccount(ctx, {
+          shopId: otherShopId,
+          staffId: otherShopManagerStaffId,
+          lineUserId: "U_other_shop",
+          following: true,
+        });
+        await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
+        return { shopId: seeded.shopId };
+      });
+
+      const result = await t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
+        shopId,
+      });
+
+      expect(result?.recipients).toEqual([expect.objectContaining({ email: "multi-shop@example.com" })]);
+      expect(result?.recipients[0]).not.toHaveProperty("lineUserId");
+      expect(result?.recipients[0]).not.toHaveProperty("lineFollowing");
     });
 
     it("承認待ちがない店舗、削除済み店舗、削除済みmanager/memberは対象外にする", async () => {

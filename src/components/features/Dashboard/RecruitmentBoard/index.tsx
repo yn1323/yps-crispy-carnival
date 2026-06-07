@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
@@ -109,3 +109,56 @@ export const RecruitmentBoard = ({
     </Stack>
   );
 };
+
+export const RecruitmentBoardSkeleton = () => (
+  <Stack as="section" aria-label="シフト募集を読み込み中" gap={{ base: 4, lg: 5 }}>
+    <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
+      <HStack gap={2.5} align="center">
+        <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
+        <Skeleton h={{ base: "28px", lg: "30px" }} w="112px" />
+      </HStack>
+      <Skeleton h="32px" w={{ base: "148px", md: "164px" }} />
+    </Flex>
+
+    <Stack gap={{ base: 3, lg: 3.5 }}>
+      {Array.from({ length: 3 }).map((_, index) => (
+        <RecruitmentRowSkeleton key={index} />
+      ))}
+    </Stack>
+  </Stack>
+);
+
+const RecruitmentRowSkeleton = () => (
+  <Flex
+    align="stretch"
+    bg="white"
+    borderRadius="xl"
+    overflow="hidden"
+    borderWidth="1px"
+    borderColor="blackAlpha.50"
+    boxShadow="xs"
+    w="full"
+    minH={{ base: "88px", lg: "66px" }}
+  >
+    <Box w="4px" bg="teal.100" flexShrink={0} />
+    <Flex flex={1} minW={0} px={{ base: 3.5, lg: 4 }} py={3} align="stretch" gap={{ base: 2, lg: 3 }}>
+      <Flex
+        flex={1}
+        minW={0}
+        direction={{ base: "column", lg: "row" }}
+        align={{ base: "stretch", lg: "center" }}
+        gap={{ base: 2, lg: 4 }}
+      >
+        <Skeleton h="22px" w={{ base: "152px", lg: "140px" }} flexShrink={0} />
+        <HStack gap={{ base: 2, lg: 5 }} flex={1} minW={0} wrap={{ base: "wrap", lg: "nowrap" }}>
+          <Skeleton h="24px" w="72px" borderRadius="full" flexShrink={0} />
+          <Skeleton h="18px" w="120px" flexShrink={0} />
+          <Skeleton h="18px" w="80px" flexShrink={0} />
+        </HStack>
+      </Flex>
+    </Flex>
+    <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
+      <Skeleton boxSize="32px" borderRadius="md" />
+    </Flex>
+  </Flex>
+);

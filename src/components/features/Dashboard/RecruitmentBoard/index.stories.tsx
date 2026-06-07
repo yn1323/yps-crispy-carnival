@@ -1,7 +1,7 @@
 import { Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockRecruitments } from "@/src/components/features/Dashboard/storyMocks";
-import { RecruitmentBoard } from ".";
+import { RecruitmentBoard, RecruitmentBoardSkeleton } from ".";
 
 const meta = {
   title: "Features/Dashboard/RecruitmentBoard",
@@ -67,6 +67,12 @@ export const Variants: Story = {
           onDeleteRecruitment={() => {}}
           onLoadMore={() => {}}
         />
+      </Stack>
+      <Stack gap={3}>
+        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
+          読み込み中
+        </Text>
+        <RecruitmentBoardSkeleton />
       </Stack>
     </Stack>
   ),

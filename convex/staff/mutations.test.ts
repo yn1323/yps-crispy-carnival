@@ -4,6 +4,7 @@ import { api, internal } from "../_generated/api";
 import { todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { getLegalConsentVersions } from "../legal/documents";
 
 function dateFromToday(daysFromNow: number): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -94,7 +95,7 @@ describe("staff/mutations", () => {
       expect(ids).toHaveLength(1);
     });
 
-    it("既存メールアドレスの重複はスキップする", async () => {
+    it("既存メールアドレスの重複はエラーにしてスタッフを追加しない", async () => {
       const t = convexTest(schema, modules);
 
       const shopId = await t.run(async (ctx) => {
@@ -112,14 +113,14 @@ describe("staff/mutations", () => {
         return id;
       });
 
-      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
-        entries: [
-          { name: "新規スタッフ", email: "new@example.com" },
-          { name: "重複スタッフ", email: "existing@example.com" },
-        ],
-      });
-
-      expect(ids).toHaveLength(1);
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          entries: [
+            { name: "新規スタッフ", email: "new@example.com" },
+            { name: "重複スタッフ", email: "existing@example.com" },
+          ],
+        }),
+      ).rejects.toThrow("このメールアドレスはすでに登録されています");
 
       const allStaffs = await t.run(async (ctx) =>
         ctx.db
@@ -127,10 +128,10 @@ describe("staff/mutations", () => {
           .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
           .collect(),
       );
-      expect(allStaffs).toHaveLength(2);
+      expect(allStaffs).toHaveLength(1);
     });
 
-    it("同じメールの再実行ではスタッフと通知予約を増やさない", async () => {
+    it("同じメールの再実行ではエラーにしてスタッフと通知予約を増やさない", async () => {
       const t = convexTest(schema, modules);
 
       const shopId = await t.run(async (ctx) => {
@@ -146,12 +147,13 @@ describe("staff/mutations", () => {
       const firstIds = await asManager.mutation(api.staff.mutations.addStaffs, {
         entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
       });
-      const secondIds = await asManager.mutation(api.staff.mutations.addStaffs, {
-        entries: [{ name: "田中太郎", email: "Tanaka@Example.com" }],
-      });
+      await expect(
+        asManager.mutation(api.staff.mutations.addStaffs, {
+          entries: [{ name: "田中太郎", email: "Tanaka@Example.com" }],
+        }),
+      ).rejects.toThrow("このメールアドレスはすでに登録されています");
 
       expect(firstIds).toHaveLength(1);
-      expect(secondIds).toHaveLength(0);
       const state = await t.run(async (ctx) => {
         const staffs = await ctx.db
           .query("staffs")
@@ -170,7 +172,7 @@ describe("staff/mutations", () => {
       ).toHaveLength(1);
     });
 
-    it("emailNormalizedがない既存スタッフもメール重複としてスキップする", async () => {
+    it("emailNormalizedがない既存スタッフもメール重複としてエラーにする", async () => {
       const t = convexTest(schema, modules);
 
       await t.run(async (ctx) => {
@@ -187,11 +189,41 @@ describe("staff/mutations", () => {
         });
       });
 
-      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
-        entries: [{ name: "新規スタッフ", email: "legacy@example.com" }],
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          entries: [{ name: "新規スタッフ", email: "legacy@example.com" }],
+        }),
+      ).rejects.toThrow("このメールアドレスはすでに登録されています");
+    });
+
+    it("承認待ち申請と同じメールアドレスはエラーにする", async () => {
+      const t = convexTest(schema, modules);
+
+      await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        const versions = getLegalConsentVersions("staff");
+        const now = Date.now();
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId,
+          name: "承認待ちスタッフ",
+          email: "pending@example.com",
+          emailNormalized: "pending@example.com",
+          status: "pending",
+          ...versions,
+          consentedAt: now,
+          createdAt: now,
+        });
       });
 
-      expect(ids).toHaveLength(0);
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          entries: [{ name: "新規スタッフ", email: "Pending@Example.com" }],
+        }),
+      ).rejects.toThrow("このメールアドレスは承認待ちです");
     });
 
     it("追加スタッフ向け通知データは締切前のopen募集だけを返す", async () => {
@@ -280,6 +312,9 @@ describe("staff/mutations", () => {
   }
 
   describe("editStaff", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
       const { staffId } = await data;
@@ -294,11 +329,81 @@ describe("staff/mutations", () => {
 
       await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中花子", email: "hanako@example.com" });
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中花子", email: "tanaka@example.com" });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
       expect(staff?.name).toBe("田中花子");
-      expect(staff?.email).toBe("hanako@example.com");
+      expect(staff?.email).toBe("tanaka@example.com");
+    });
+
+    it("メールアドレス変更時は募集中シフト通知の追送actionをスケジュールする", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎", email: "updated@example.com" });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) =>
+            job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange" &&
+            job.args[0]?.staffId === staffId &&
+            job.args[0]?.expectedEmailNormalized === "updated@example.com" &&
+            typeof job.args[0]?.emailChangedAt === "number",
+        ),
+      ).toBe(true);
+    });
+
+    it("名前だけの変更では募集中シフト通知の追送actionをスケジュールしない", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎 更新", email: "tanaka@example.com" });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+        ),
+      ).toBe(false);
+    });
+
+    it("同一メールの大文字小文字・前後空白差分では募集中シフト通知の追送actionをスケジュールしない", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎", email: "  Tanaka@Example.com  " });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+        ),
+      ).toBe(false);
+    });
+
+    it("空メールへの変更では募集中シフト通知の追送actionをスケジュールしない", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        staffId,
+        name: "田中太郎",
+        email: "",
+      });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(
+        scheduled.some(
+          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+        ),
+      ).toBe(false);
     });
 
     it("他店舗のスタッフは編集できない（IDOR）", async () => {

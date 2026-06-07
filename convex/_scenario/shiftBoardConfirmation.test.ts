@@ -457,33 +457,4 @@ describe("シフト表作成・確定シナリオ", () => {
       }),
     ).rejects.toThrow("定休日にはシフトを登録できません");
   });
-
-  it("確定済み募集には未提出催促を送れない", async () => {
-    const t = convexTest(schema, modules);
-    const scenario = createScenario(t);
-    const asManager = scenario.manager(MANAGER_SUBJECT);
-
-    // Arrange: 確定済み募集を用意する。
-    const recruitmentId = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
-        subject: MANAGER_SUBJECT,
-        email: "confirmed-manager@example.com",
-        shopName: "確定済み店舗",
-      });
-      return await ctx.db.insert("recruitments", {
-        shopId,
-        periodStart: scenarioDate(7),
-        periodEnd: scenarioDate(9),
-        deadline: scenarioDate(3),
-        shopClosedDates: [],
-        status: "confirmed",
-        confirmedAt: Date.now(),
-        isDeleted: false,
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-      });
-    });
-
-    // Act / Assert: 確定済み募集への催促操作は拒否される。
-    await expect(asManager.sendReminderEmails(recruitmentId)).rejects.toThrow("募集中のシフトだけ");
-  });
 });

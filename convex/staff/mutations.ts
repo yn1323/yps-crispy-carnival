@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { managerMutation } from "../_lib/functions";
+import { findActiveStaffByEmail, normalizeEmail } from "./service";
 
 export const addStaffs = managerMutation({
   args: {
@@ -9,30 +10,37 @@ export const addStaffs = managerMutation({
   },
   handler: async (ctx, args) => {
     const validEntries = args.entries
-      .map((entry) => ({ name: entry.name.trim(), email: entry.email.trim().toLowerCase() }))
+      .map((entry) => ({ name: entry.name.trim(), email: normalizeEmail(entry.email) }))
       .filter((e) => e.name !== "");
 
     // email 未入力スタッフは同姓同名でも別人として登録できる業務前提。
     // 重複防止は連絡先として一意に扱える email のみで行う。
-    const insertedEmails = new Set<string>();
+    const inputEmails = new Set<string>();
+    for (const entry of validEntries) {
+      if (!entry.email) continue;
+      if (inputEmails.has(entry.email)) {
+        throw new ConvexError("同じメールアドレスが入力されています");
+      }
+      inputEmails.add(entry.email);
+
+      const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
+      if (existingStaff) {
+        throw new ConvexError("このメールアドレスはすでに登録されています");
+      }
+
+      const pendingRequest = await ctx.db
+        .query("staffRegistrationRequests")
+        .withIndex("by_shopId_emailNormalized_status", (q) =>
+          q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("status", "pending"),
+        )
+        .first();
+      if (pendingRequest) {
+        throw new ConvexError("このメールアドレスは承認待ちです");
+      }
+    }
 
     const inserted: Id<"staffs">[] = [];
     for (const entry of validEntries) {
-      const existingStaff = entry.email
-        ? ((await ctx.db
-            .query("staffs")
-            .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-              q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("isDeleted", false),
-            )
-            .first()) ??
-          (await ctx.db
-            .query("staffs")
-            .withIndex("by_shopId_email_isDeleted", (q) =>
-              q.eq("shopId", ctx.shop._id).eq("email", entry.email).eq("isDeleted", false),
-            )
-            .first()))
-        : null;
-      if (entry.email && (existingStaff || insertedEmails.has(entry.email))) continue;
       const id = await ctx.db.insert("staffs", {
         shopId: ctx.shop._id,
         name: entry.name,
@@ -41,7 +49,6 @@ export const addStaffs = managerMutation({
         isDeleted: false,
       });
       inserted.push(id);
-      if (entry.email) insertedEmails.add(entry.email);
     }
     for (const staffId of inserted) {
       // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
@@ -94,16 +101,26 @@ export const editStaff = managerMutation({
     }
 
     const trimmedName = args.name.trim();
-    const patches = [
-      ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
-    ];
+    const previousEmailNormalized = (staff.emailNormalized ?? staff.email).trim().toLowerCase();
+    const emailChanged = trimmedEmail !== "" && trimmedEmail !== previousEmailNormalized;
+    const emailChangedAt = Date.now();
+    await ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     if (staff.userId === ctx.user._id) {
       // manager 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
-      patches.push(
-        ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail }),
+      await ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
+    }
+
+    if (emailChanged) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange,
+        {
+          staffId: args.staffId,
+          expectedEmailNormalized: trimmedEmail,
+          emailChangedAt,
+        },
       );
     }
-    await Promise.all(patches);
   },
 });
 

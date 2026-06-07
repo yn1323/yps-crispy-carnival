@@ -112,9 +112,6 @@ export function createScenario(t: ScenarioTest) {
         confirmRecruitment(recruitmentId: Id<"recruitments">) {
           return asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
         },
-        sendReminderEmails(recruitmentId: Id<"recruitments">) {
-          return asManager.mutation(api.shiftReminder.mutations.sendReminderEmails, { recruitmentId });
-        },
         generateLineLinkToken(staffId: Id<"staffs">) {
           return asManager.mutation(api.line.mutations.generateLinkToken, { staffId });
         },
