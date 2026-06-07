@@ -2,7 +2,12 @@ User-agent: *
 Disallow: /dashboard
 Disallow: /shiftboard
 Disallow: /shifts
+Disallow: /staff/register
+Disallow: /line/callback
+Disallow: /legal/staff/consent
+Disallow: /sso-callback
 Disallow: /welcome
+
 Allow: /
 
 Sitemap: https://shiftori.app/sitemap.xml
