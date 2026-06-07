@@ -46,6 +46,22 @@ describe("dashboard/queries", () => {
       expect(result).toBeNull();
     });
 
+    it("削除済みmembershipでは店舗情報を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: "user_deleted_membership",
+          shopName: "削除済みmembership店舗",
+          membershipDeleted: true,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_deleted_membership" })
+        .query(api.dashboard.queries.getDashboardShop, {});
+      expect(result).toBeNull();
+    });
+
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
