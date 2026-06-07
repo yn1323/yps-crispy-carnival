@@ -76,6 +76,7 @@ import type * as shop_mutations from "../shop/mutations.js";
 import type * as shop_schemas from "../shop/schemas.js";
 import type * as staff_mutations from "../staff/mutations.js";
 import type * as staff_schemas from "../staff/schemas.js";
+import type * as staff_service from "../staff/service.js";
 import type * as staffAuth_mutations from "../staffAuth/mutations.js";
 import type * as staffAuth_queries from "../staffAuth/queries.js";
 import type * as staffAuth_schemas from "../staffAuth/schemas.js";
@@ -161,6 +162,7 @@ declare const fullApi: ApiFromModules<{
   "shop/schemas": typeof shop_schemas;
   "staff/mutations": typeof staff_mutations;
   "staff/schemas": typeof staff_schemas;
+  "staff/service": typeof staff_service;
   "staffAuth/mutations": typeof staffAuth_mutations;
   "staffAuth/queries": typeof staffAuth_queries;
   "staffAuth/schemas": typeof staffAuth_schemas;

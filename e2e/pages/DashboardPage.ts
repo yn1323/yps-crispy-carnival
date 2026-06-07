@@ -88,6 +88,18 @@ export class DashboardPage {
   }
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
+    await this.fillAddStaffForm(entries);
+    await expect(this.page.getByText("スタッフを追加しました").first()).toBeVisible();
+    await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
+  }
+
+  async addStaffsAndExpectError(entries: Array<{ name: string; email: string }>, errorMessage: string) {
+    await this.fillAddStaffForm(entries);
+    await expect(this.page.getByText(errorMessage).first()).toBeVisible();
+    await expect(this.page.getByText("スタッフを追加しました").first()).toBeHidden();
+  }
+
+  private async fillAddStaffForm(entries: Array<{ name: string; email: string }>) {
     await this.page.getByRole("button", { name: "スタッフを招待" }).click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
     await expect(dialog).toBeVisible();
@@ -109,8 +121,6 @@ export class DashboardPage {
     }
 
     await dialog.getByRole("button", { name: "スタッフを追加する" }).click();
-    await expect(this.page.getByText("スタッフを追加しました").first()).toBeVisible();
-    await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
   }
 
   async createRecruitment(
