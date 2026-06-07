@@ -8,6 +8,21 @@ export class StaffRegistrationPage {
   }
 
   async submitRequest(data: { name: string; email: string }) {
+    await this.fillRequestForm(data);
+    await this.page.getByRole("button", { name: "申請する" }).click();
+
+    await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeVisible();
+  }
+
+  async submitRequestAndExpectError(data: { name: string; email: string }, errorMessage: string) {
+    await this.fillRequestForm(data);
+    await this.page.getByRole("button", { name: "申請する" }).click();
+
+    await expect(this.page.getByText(errorMessage)).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeHidden();
+  }
+
+  private async fillRequestForm(data: { name: string; email: string }) {
     await expect(this.page.getByRole("heading", { name: "スタッフ登録" })).toBeVisible();
     await this.page.getByLabel("名前").fill(data.name);
     await this.page.getByLabel("メールアドレス").fill(data.email);
@@ -17,8 +32,5 @@ export class StaffRegistrationPage {
     await expect(this.page.getByRole("heading", { name: "申請内容を確認してください" })).toBeVisible();
     await expect(this.page.getByText(data.name)).toBeVisible();
     await expect(this.page.getByText(data.email)).toBeVisible();
-    await this.page.getByRole("button", { name: "申請する" }).click();
-
-    await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeVisible();
   }
 }

@@ -4,7 +4,7 @@
  * vite build が生成した dist/ に対して、指定ルートをヘッドレス Chromium で
  * レンダリングし、完成後の HTML を静的ファイルとして書き出す。
  *
- * SEO 対象: /, /features, /faq, /articles, /privacy, /terms, /demo/shiftboard, /demo/flow
+ * SEO 対象: 固定公開ページ + ArticleSite の記事詳細・カテゴリ詳細
  *
  * 使い方: pnpm prerender  (vite build 後に呼び出す)
  *
@@ -17,14 +17,24 @@
  *   最終出力は `fs.writeFile` で直接書き込む」方式にしている。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { chromium } from "playwright";
 
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
-const ROUTES = ["/", "/features", "/faq", "/articles", "/privacy", "/terms", "/demo/shiftboard", "/demo/flow"] as const;
+const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
+const STATIC_ROUTES = [
+  "/",
+  "/features",
+  "/faq",
+  "/articles",
+  "/privacy",
+  "/terms",
+  "/demo/shiftboard",
+  "/demo/flow",
+] as const;
 
 const GOTO_TIMEOUT_MS = 30_000;
 const RENDER_WAIT_TIMEOUT_MS = 15_000;
@@ -97,6 +107,40 @@ function routeToOutputPath(route: string): string {
   return route === "/" ? join(DIST_DIR, "index.html") : join(DIST_DIR, route.replace(/^\//, ""), "index.html");
 }
 
+async function listContentSlugs(kind: "articles" | "categories"): Promise<string[]> {
+  const contentDir = join(ARTICLE_CONTENT_DIR, kind);
+  const entries = await readdir(contentDir, { withFileTypes: true });
+  const slugs = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) => {
+        try {
+          await readFile(join(contentDir, entry.name, "index.md"));
+          return entry.name;
+        } catch {
+          return undefined;
+        }
+      }),
+  );
+
+  return slugs.filter((slug): slug is string => Boolean(slug)).sort((a, b) => a.localeCompare(b));
+}
+
+async function collectPrerenderRoutes(): Promise<string[]> {
+  const [articleSlugs, categorySlugs] = await Promise.all([
+    listContentSlugs("articles"),
+    listContentSlugs("categories"),
+  ]);
+
+  return Array.from(
+    new Set([
+      ...STATIC_ROUTES,
+      ...articleSlugs.map((slug) => `/articles/${slug}`),
+      ...categorySlugs.map((slug) => `/articles/categories/${slug}`),
+    ]),
+  );
+}
+
 /**
  * レンダリング結果が "空の殻" のまま抜けていないか最低限のサニティチェックを行う。
  * 何かが決定的に壊れている場合 (Clerk 初期化失敗で return null 等) はビルドを失敗させて
@@ -155,6 +199,8 @@ async function main(): Promise<void> {
 
   const baseUrl = `http://127.0.0.1:${port}`;
   console.log(`[prerender] Serving dist/ at ${baseUrl}`);
+  const routes = await collectPrerenderRoutes();
+  console.log(`[prerender] Rendering ${routes.length} route(s)`);
 
   // 3. ヘッドレス Chromium でルートを訪問し HTML を取得
   const browser = await chromium.launch();
@@ -169,7 +215,7 @@ async function main(): Promise<void> {
   const rendered: { outPath: string; html: string }[] = [];
 
   try {
-    for (const route of ROUTES) {
+    for (const route of routes) {
       const url = `${baseUrl}${route}`;
       console.log(`[prerender] Rendering ${route}`);
 

@@ -19,6 +19,10 @@ const staffEmailScopeArgs = {
   shopId: v.optional(v.id("shops")),
   staffEmail: v.string(),
 };
+const staffRegistrationReviewSeedEntryValidator = v.object({
+  name: v.string(),
+  email: v.string(),
+});
 const magicLinkLookupArgs = {
   recruitmentId: v.optional(v.id("recruitments")),
   ...staffEmailScopeArgs,
@@ -930,6 +934,8 @@ export const seedStaffRegistrationReviewScenario = internalMutation({
     managerAuthTokenIdentifier: v.string(),
     managerEmail: v.optional(v.string()),
     shopName: v.optional(v.string()),
+    existingStaff: v.optional(staffRegistrationReviewSeedEntryValidator),
+    pendingRequest: v.optional(staffRegistrationReviewSeedEntryValidator),
   },
   handler: async (ctx, args) => {
     const { shopId } = await createManagerScenario(ctx, {
@@ -943,6 +949,31 @@ export const seedStaffRegistrationReviewScenario = internalMutation({
       token: registrationToken,
       createdAt: Date.now(),
     });
+
+    if (args.existingStaff) {
+      await ctx.db.insert("staffs", {
+        shopId,
+        name: args.existingStaff.name,
+        email: args.existingStaff.email,
+        emailNormalized: args.existingStaff.email.trim().toLowerCase(),
+        isDeleted: false,
+      });
+    }
+
+    if (args.pendingRequest) {
+      const versions = getLegalConsentVersions("staff");
+      const now = Date.now();
+      await ctx.db.insert("staffRegistrationRequests", {
+        shopId,
+        name: args.pendingRequest.name,
+        email: args.pendingRequest.email.trim().toLowerCase(),
+        emailNormalized: args.pendingRequest.email.trim().toLowerCase(),
+        status: "pending",
+        ...versions,
+        consentedAt: now,
+        createdAt: now,
+      });
+    }
 
     return { shopId, registrationToken };
   },

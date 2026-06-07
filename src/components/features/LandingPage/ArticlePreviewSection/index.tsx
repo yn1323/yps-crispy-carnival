@@ -1,7 +1,7 @@
 import { Badge, Box, Container, Flex, Heading, HStack, Icon, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { LuArrowRight, LuClock3 } from "react-icons/lu";
-import type { ArticleContent } from "@/src/components/mock/ArticleSite/articleContent";
-import { articles, sitePage } from "@/src/components/mock/ArticleSite/articleContent";
+import type { ArticleContent } from "@/src/components/features/ArticleSite/articleContent";
+import { articles, sitePage } from "@/src/components/features/ArticleSite/articleContent";
 import { Button } from "@/src/components/ui/Button";
 
 const previewArticles = articles.slice(0, sitePage.landingPreviewLimit);

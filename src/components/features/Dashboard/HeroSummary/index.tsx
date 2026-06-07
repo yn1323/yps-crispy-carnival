@@ -338,7 +338,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: "シフトを調整しましょう",
+        title: "シフトを組んでスタッフに共有しましょう",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
@@ -354,13 +354,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "orange.100",
         iconFg: "orange.600",
         border: "orange.200",
-        title: "今日中に希望を確認しましょう",
+        title: "本日締切日です",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: "今日が締切", emphasis: true },
         ],
-        cta: { label: "希望を見る", palette: "orange", variant: "solid" },
+        cta: { label: "回収状況を見る", palette: "orange", variant: "solid" },
       };
     }
     case "deadline-soon": {
@@ -370,13 +370,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.100",
         iconFg: "teal.700",
         border: "teal.200",
-        title: "シフト希望を確認しましょう",
+        title: "シフト回収中です。しばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日`, emphasis: true },
         ],
-        cta: { label: "希望を見る", palette: "teal", variant: "outline" },
+        cta: { label: "回収状況を見る", palette: "teal", variant: "outline" },
       };
     }
     case "collecting": {
@@ -386,13 +386,13 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         iconBg: "teal.50",
         iconFg: "teal.700",
         border: "teal.100",
-        title: "シフト回収中です",
+        title: "シフト回収中です。しばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
           { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日` },
         ],
-        cta: { label: "希望を見る", palette: "teal", variant: "outline" },
+        cta: { label: "回収状況を見る", palette: "teal", variant: "outline" },
       };
     }
   }

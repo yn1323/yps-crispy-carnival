@@ -108,6 +108,39 @@ describe("staffRegistration/mutations", () => {
     ).rejects.toThrow("このメールアドレスは申請済みです");
   });
 
+  it("既存スタッフと同じメールアドレスでは参加申請できない", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "manager_existing_staff",
+        email: "manager-existing-staff@example.com",
+      });
+      await ctx.db.insert("staffs", {
+        shopId,
+        name: "既存スタッフ",
+        email: "Existing@Example.com",
+        isDeleted: false,
+      });
+    });
+    const link = await t
+      .withIdentity({ subject: "manager_existing_staff" })
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token: link.token,
+        name: "申請スタッフ",
+        email: "existing@example.com",
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("このメールアドレスはすでに登録されています");
+
+    const requests = await t
+      .withIdentity({ subject: "manager_existing_staff" })
+      .query(api.staffRegistration.queries.getPendingRequests, {});
+    expect(requests).toEqual([]);
+  });
+
   it("他店舗のシフト担当者は承認待ち申請を閲覧・承認・却下できない", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
