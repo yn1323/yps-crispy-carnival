@@ -37,23 +37,32 @@ If the article will mention シフトリ behavior, verify the current implementa
 
 2. Inspect existing content.
    - List current article slugs, titles, categories, primary search intents when inferable, and related article opportunities.
+   - For article improvement requests, first audit the target article for generic openings, abstract headings, unsupported product claims, weak examples, missing paper/LINE/Excel operations, and sections that sound true but do not help the reader act.
    - Decide whether to use an existing category or create a new one.
    - If creating a category, create the category Markdown together with the article and update list/category relationships as described in `references/article-site.md`.
    - Check whether the new article/category is covered by `scripts/prerender.ts`, `public/sitemap.xml`, and `public/robots.txt`; update these public artifacts when the article should be publicly reachable.
 
 3. Build an article brief before writing.
    - Include topic, main keyword, primary search intent, reader, pain, scope, out-of-scope items, referenced past articles, difference from past articles, internal link candidates, verified シフトリ features, features intentionally not mentioned, whether to introduce シフトリ, and the introduction temperature.
+   - For improvement requests, also include what to keep, what to cut, what to make more concrete, what the opening scene should be, and how the シフトリ mention will become more natural.
    - Include image plan and placement: which sections need visual breaks, which concepts are clearer as images, and whether 1-3 article images should be created. For implementation requests, do not leave images out silently when the topic would benefit from them.
    - Keep one article to one primary problem and one primary search intent.
    - Treat the brief as scaffolding for thinking and review. Never paste the brief into the public article Markdown.
 
 4. Draft the article.
-   - Start from the reader's concrete problem and a short conclusion.
+   - Start from a concrete scene the reader may recognize, not a definition or category explanation. Name the actual mess: a LINE reply, a paper note, an Excel row, a missing date, an unclear early/late/night choice, or a manager checking who has not replied.
+   - Put a short conclusion near the top: what to decide first, what format to use, or what mistake to avoid.
    - Provide tool-free solutions using paper, Excel, LINE, Google Forms, or process changes where appropriate.
    - Include at least one immediately usable element: table, template, message example, checklist, OK/NG example, Excel example, LINE example, or shift request format.
    - When the user asks to include suitable industries or business types, weave them into examples, tables, messages, and checklists instead of creating a broad industry roundup section unless that is the article's main search intent.
    - Keep paragraphs short for smartphone readers.
+   - Keep individual sentences short. If one sentence contains multiple conditions, split it.
+   - Make H2 headings describe a specific reader problem or decision. Prefer headings like `LINEでは「自由に送って」より返信の型を渡します` over generic headings like `LINEで送る場合`.
+   - Avoid abstract-only advice. Each advice paragraph should say what to do, where it happens, and what work becomes easier: for example, how to write the LINE message, which Excel columns to use, where paper forms become messy, or how to handle later changes.
+   - Mention paper, LINE, Excel, and Google Forms only where they help the reader choose or operate. Do not dismiss them just to introduce シフトリ.
+   - Place シフトリ near the end as one option after the reader can already improve their workflow without it. Keep the tone modest, such as `選択肢のひとつです`, unless the user explicitly asks for stronger product copy.
    - Avoid generic openings like `シフト管理とは`.
+   - Avoid filler phrases such as `重要です`, `効率化しましょう`, `おすすめです`, and `大切です` unless the same paragraph explains the concrete task or failure they refer to.
    - Avoid labor-law topics such as breaks, consecutive workdays, late-night work rules, minors, overtime, legal compliance, and payroll. Do not create articles centered on labor or legal advice.
 
 5. Add images when they help understanding.
@@ -83,7 +92,11 @@ If the article will mention シフトリ behavior, verify the current implementa
 8. Self-review.
    - Apply `references/quality-checklist.md`.
    - Remove filler, duplicated sections, unsupported product claims, and keyword stuffing.
+   - Search the edited article for abstract or salesy words such as `重要`, `効率`, `大切`, `おすすめ`, `自動`, `AI`, `無料`, `完全`, and `ラク`; either remove them or make the surrounding sentence concrete.
+   - Read only the H2 headings in order. They should tell a practical story and reveal the reader's problem without needing the paragraphs.
+   - Check the opening against the "self-recognition" test: a busy shift creator should be able to think `これは自分の現場で起きている` within the first few lines.
    - Confirm the article lets the reader take the next step without using シフトリ.
+   - If the user asked to use web search or said to search when unsure, identify what was actually unknown. Search official or primary sources for those unknowns; if no external facts were needed, say that no web search was necessary and why.
    - Check `git status --short` before the final response and call out unrelated pre-existing dirty files instead of implying they belong to the article work.
 
 ## Output Expectations
