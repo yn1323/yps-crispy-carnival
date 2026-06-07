@@ -43,6 +43,7 @@ If the article will mention シフトリ behavior, verify the current implementa
 
 3. Build an article brief before writing.
    - Include topic, main keyword, primary search intent, reader, pain, scope, out-of-scope items, referenced past articles, difference from past articles, internal link candidates, verified シフトリ features, features intentionally not mentioned, whether to introduce シフトリ, and the introduction temperature.
+   - Include image plan and placement: which sections need visual breaks, which concepts are clearer as images, and whether 1-3 article images should be created. For implementation requests, do not leave images out silently when the topic would benefit from them.
    - Keep one article to one primary problem and one primary search intent.
    - Treat the brief as scaffolding for thinking and review. Never paste the brief into the public article Markdown.
 
@@ -50,14 +51,19 @@ If the article will mention シフトリ behavior, verify the current implementa
    - Start from the reader's concrete problem and a short conclusion.
    - Provide tool-free solutions using paper, Excel, LINE, Google Forms, or process changes where appropriate.
    - Include at least one immediately usable element: table, template, message example, checklist, OK/NG example, Excel example, LINE example, or shift request format.
+   - When the user asks to include suitable industries or business types, weave them into examples, tables, messages, and checklists instead of creating a broad industry roundup section unless that is the article's main search intent.
    - Keep paragraphs short for smartphone readers.
    - Avoid generic openings like `シフト管理とは`.
    - Avoid labor-law topics such as breaks, consecutive workdays, late-night work rules, minors, overtime, legal compliance, and payroll. Do not create articles centered on labor or legal advice.
 
 5. Add images when they help understanding.
+   - For implemented help/SEO articles, default to adding 1-3 useful body images when the article has distinct concepts, workflow steps, templates, or long sections. Skip images only when the article is intentionally text-only or images would be decorative rather than clarifying.
    - Generate article/category images as 256x256 transparent PNGs, convert each to WebP, keep both files co-located with the Markdown, and reference only WebP from Markdown.
    - Do not use these 256x256 images as the OG image unless the user explicitly changes policy. For `og:image` notes, use the same OG asset policy as the landing page.
-   - Follow `references/image-guidelines.md` and run `scripts/convert_article_image.sh`.
+   - Follow `references/image-guidelines.md` and run `scripts/convert_article_image.sh`. Run conversions sequentially, not in parallel, because local temp-file handling can fail under parallel runs.
+   - If using the built-in image generator for transparent assets, first try a flat chroma-key background and remove it locally. If the documented chroma-key helper is unavailable, use ImageMagick background removal as a fallback, then inspect the result visually.
+   - Do not over-optimize tiny edge fringing when the image is readable in the article context and further removal would damage teal fills or line art. Prefer actual ArticleSite rendering over isolated pixel perfection.
+   - Place images near the section they clarify, usually before the table, template, message example, or checklist they support. Use concise alt text and optional captions; keep Markdown references to `.webp` only.
    - Reject and regenerate images that contain text, are not transparent, do not match the sample touch, or are unclear at 256x256.
 
 6. Implement Markdown content.
@@ -70,13 +76,15 @@ If the article will mention シフトリ behavior, verify the current implementa
    - Run the targeted ArticleSite logic test after Markdown/schema changes:
      `pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts`
    - Run `pnpm lint` and `pnpm type-check` when implementation changes are made, or when the user expects a complete repo-ready change.
-   - If image rendering or layout changed, inspect Storybook or the local ArticleSite surface if available; do not start dev/storybook servers unless the user asked, because this repo assumes the user runs them.
+   - If image rendering or layout changed, inspect Storybook or the local ArticleSite surface if available; do not start dev/storybook servers unless the user asked, because this repo assumes the user runs them. If a local server is already running, open the exact article route and verify image count, successful loading, PC layout, and a mobile viewport around 390x844.
+   - Run `pnpm build` when new article images are added or Markdown image paths change, so Vite asset resolution is verified.
    - Run `git diff --check`.
 
 8. Self-review.
    - Apply `references/quality-checklist.md`.
    - Remove filler, duplicated sections, unsupported product claims, and keyword stuffing.
    - Confirm the article lets the reader take the next step without using シフトリ.
+   - Check `git status --short` before the final response and call out unrelated pre-existing dirty files instead of implying they belong to the article work.
 
 ## Output Expectations
 
