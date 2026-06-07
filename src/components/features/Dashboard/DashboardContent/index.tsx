@@ -20,14 +20,14 @@ import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
-import { HeroSummary, WelcomeHero } from "../HeroSummary";
+import { HeroSummary, HeroSummarySkeleton, WelcomeHero } from "../HeroSummary";
 import { LegalReconsentBanner } from "../LegalReconsentBanner";
-import { RecruitmentBoard } from "../RecruitmentBoard";
+import { RecruitmentBoard, RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRegistrationRequestBanner, StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
-import { StaffRoster } from "../StaffRoster";
+import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
 import type { PaginationStatus, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { OnboardingCallout } from "./OnboardingCallout";
 import {
@@ -635,6 +635,14 @@ export const DashboardContent = ({
     </>
   );
 };
+
+export const DashboardContentSkeleton = () => (
+  <ContentWrapper>
+    <HeroSummarySkeleton />
+    <RecruitmentBoardSkeleton />
+    <StaffRosterSkeleton />
+  </ContentWrapper>
+);
 
 function readReviewedRecruitmentIds(): string[] {
   if (typeof window === "undefined") return [];
