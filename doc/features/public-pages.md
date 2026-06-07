@@ -12,8 +12,8 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 - `src/routes/_unregistered/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長・シフト担当者向けシフト表デモ
 - `src/components/features/Demo/` — 公開デモ用コンポーネント
 - `src/components/features/LandingPage/` — 流用元のLPセクションと公開導線
-- `src/components/mock/ArticleSite/` — Markdown管理の記事サイトモックとLP記事ミニ導線のソース
-- `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧
+- `src/components/features/ArticleSite/` — Markdown管理の記事サイトとLP記事ミニ導線のソース
+- `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧。記事詳細・カテゴリ詳細はMarkdownディレクトリから自動収集する
 
 ## 画面一覧
 

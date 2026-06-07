@@ -1,11 +1,11 @@
-# ArticleSite モック編集ガイド
+# ArticleSite 編集ガイド
 
-このディレクトリは、シフトリのSEO向け記事サイトモックです。記事・カテゴリ・一覧トップの文言は主にMarkdownで管理し、レイアウトやSP/PCの見せ方は `index.tsx` で管理します。
+このディレクトリは、シフトリのSEO向け記事サイトです。記事・カテゴリ・一覧トップの文言は主にMarkdownで管理し、レイアウトやSP/PCの見せ方は `index.tsx` で管理します。
 
 ## ファイル構成
 
 ```text
-src/components/mock/ArticleSite/
+src/components/features/ArticleSite/
   content/pages/articles.md              # 記事一覧トップの文言・CTA・カテゴリ表示順
   content/categories/{categorySlug}/index.md
                                           # カテゴリページと困りごとカードの文言
@@ -132,7 +132,7 @@ ogDescription: "OG説明"
 
 - `# 見出し` は本文レンダリングではスキップされます。記事タイトルはfrontmatterの `title` が主です。
 - H2が3つ以上ある記事だけ、記事詳細の目次UIが表示されます。
-- 本文はモック用途なので作り込みすぎず、SEO記事の構造が伝わる程度にしてください。
+- 本文は現時点では仮文章です。作り込みすぎず、SEO記事の構造が伝わる程度にしてください。
 
 ## 書き方の方針
 
@@ -164,9 +164,10 @@ React側で変えること:
 Markdownを追加・編集したら、最低限次を実行してください。
 
 ```bash
-pnpm vitest --project=logic src/components/mock/ArticleSite/articleContent.test.ts
+pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts
 pnpm lint
 pnpm type-check
+pnpm build
 ```
 
-Storybookで確認する場合は `Mock/ArticleSite` の List / Category / Article / Mobile 系Storyを見てください。SP確認は 390x844 程度の幅を目安にします。
+Storybookで確認する場合は `Features/ArticleSite` の List / Category / Article / Mobile 系Storyを見てください。SP確認は 390x844 程度の幅を目安にします。

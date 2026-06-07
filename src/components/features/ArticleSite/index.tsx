@@ -16,7 +16,6 @@ import {
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
-  LuArrowRight,
   LuBookOpen,
   LuCalendarCheck,
   LuCalendarDays,
@@ -25,15 +24,13 @@ import {
   LuCircleHelp,
   LuClock3,
   LuFileSpreadsheet,
-  LuLink,
   LuMessageCircle,
   LuPenLine,
-  LuShare2,
   LuTable2,
 } from "react-icons/lu";
 import { Footer } from "@/src/components/features/LandingPage";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
-import { Button } from "@/src/components/ui/Button";
+import { ArticleConversionCta } from "./ArticleConversionCta";
 import type { ArticleContent, CategoryContent, ConcernContent, MarkdownBlock } from "./articleContent";
 import {
   articles,
@@ -59,8 +56,8 @@ export function ArticleListPage(): ReactNode {
       <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 12 }}>
         <VStack align="stretch" gap={{ base: 10, lg: 12 }}>
           <ConcernSection />
-          <ArticleListSection title={sitePage.latestTitle} articles={articles} mobileLimit={5} />
-          <BottomCta />
+          <ArticleListSection title={sitePage.latestTitle} articles={articles} />
+          <ArticleConversionCta />
         </VStack>
       </Container>
     </ArticleSiteShell>
@@ -75,7 +72,6 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
   }
 
   const relatedArticles = getRelatedArticles(article);
-  const category = getCategory(article.meta.categorySlug);
   const shouldShowToc = article.toc.length >= 3;
 
   return (
@@ -96,9 +92,8 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
                 <ArticleBlock key={`${block.type}-${index}`} block={block} />
               ))}
             </VStack>
-            <ShareBox />
             <RelatedArticles articles={relatedArticles} />
-            <BottomCta category={category} compact />
+            <ArticleConversionCta compact />
           </VStack>
         </Grid>
       </Container>
@@ -131,6 +126,7 @@ export function ArticleCategoryPage({ categorySlug }: ArticleSitePageProps): Rea
           {representativeArticle && <RepresentativeArticle article={representativeArticle} />}
           <CompactArticleList title="関連記事" articles={relatedArticles} />
           <RelatedConcernSection concerns={relatedConcerns} />
+          <ArticleConversionCta />
         </VStack>
       </Container>
     </ArticleSiteShell>
@@ -143,8 +139,6 @@ function ArticleSiteShell({ children }: { children: ReactNode }): ReactNode {
       <Header
         variant="public"
         bgImage="linear-gradient(to bottom, rgba(230, 247, 245, 0.98) 0%, rgba(246, 252, 251, 0.98) 100%)"
-        borderBottomWidth="1px"
-        borderColor="teal.100"
         boxShadow={{ base: "0 8px 20px rgba(15, 23, 42, 0.04)", md: "none" }}
       />
       <Box as="main" pt={HEADER_HEIGHT.base}>
@@ -158,46 +152,44 @@ function ArticleSiteShell({ children }: { children: ReactNode }): ReactNode {
 function ListHero(): ReactNode {
   return (
     <Box borderBottomWidth="1px" borderColor="gray.200" bg="white">
-      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 10, lg: 14 }}>
-        <Grid
-          templateColumns={{ base: "1fr", md: "minmax(0, 1fr) 280px" }}
-          gap={{ base: 8, lg: 12 }}
-          alignItems="center"
-        >
-          <VStack align="stretch" gap={5}>
+      <Container maxW="820px" px={{ base: 4, lg: 0 }} py={{ base: 8, lg: 10 }}>
+        <VStack align="stretch" gap={{ base: 5, md: 6 }}>
+          <Box display={{ base: "none", md: "block" }}>
             <Breadcrumbs items={[{ label: sitePage.breadcrumbLabel }]} />
-            <VStack align="stretch" gap={3}>
-              <Heading
-                as="h1"
-                color="gray.950"
-                fontSize={{ base: "3xl", lg: "4xl" }}
-                lineHeight="1.25"
-                letterSpacing="0"
-              >
-                {sitePage.title}
-              </Heading>
-              <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9">
-                {sitePage.description}
-              </Text>
-            </VStack>
+          </Box>
+          <VStack align="stretch" gap={{ base: 3, md: 4 }}>
+            <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} lineHeight="1.25" letterSpacing="0">
+              {sitePage.title}
+            </Heading>
+            <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9" maxW="680px">
+              {sitePage.description}
+            </Text>
           </VStack>
-          <HeroIllustration icon={LuCircleHelp} />
-        </Grid>
+        </VStack>
       </Container>
     </Box>
   );
 }
 
 function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
+  const shouldShowUpdatedAt = Boolean(article.meta.updatedAt && article.meta.updatedAt !== article.meta.publishedAt);
+
   return (
     <Box borderBottomWidth="1px" borderColor="gray.200" bg="white">
-      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 12 }}>
-        <Grid
-          templateColumns={{ base: "1fr", md: "minmax(0, 1fr) 280px" }}
-          gap={{ base: 8, lg: 12 }}
-          alignItems="center"
-        >
-          <VStack align="stretch" gap={5}>
+      <Container maxW="820px" px={{ base: 4, lg: 0 }} py={{ base: 8, lg: 10 }}>
+        <VStack align="stretch" gap={{ base: 5, md: 6 }}>
+          <Link
+            href="/articles"
+            display={{ base: "inline-flex", md: "none" }}
+            alignSelf="flex-start"
+            color="teal.700"
+            textStyle="sm"
+            fontWeight="bold"
+            _hover={{ color: "teal.800", textDecoration: "none" }}
+          >
+            お役立ち情報へ戻る
+          </Link>
+          <Box display={{ base: "none", md: "block" }}>
             <Breadcrumbs
               items={[
                 { label: sitePage.breadcrumbLabel, href: "/articles" },
@@ -205,35 +197,26 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
                 { label: article.meta.title },
               ]}
             />
-            <HStack gap={3} wrap="wrap">
-              <Badge colorPalette="green" variant="subtle" borderRadius="full" px={3} py={1}>
-                {article.meta.categoryLabel}
-              </Badge>
-              <MetaItem icon={LuCalendarDays}>{formatJapaneseDate(article.meta.publishedAt)}</MetaItem>
-              <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分で読めます</MetaItem>
-            </HStack>
-            <VStack align="stretch" gap={3}>
-              <Heading
-                as="h1"
-                color="gray.950"
-                fontSize={{ base: "3xl", lg: "4xl" }}
-                lineHeight="1.25"
-                letterSpacing="0"
-              >
-                {article.meta.title}
-              </Heading>
-              <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9">
-                {article.meta.description}
-              </Text>
-            </VStack>
-            <HStack gap={3} color="gray.700" textStyle="sm" wrap="wrap">
-              <Text fontWeight="bold">{article.meta.author}</Text>
-              <Text>公開日：{formatJapaneseDate(article.meta.publishedAt)}</Text>
-              {article.meta.updatedAt && <Text>更新日：{formatJapaneseDate(article.meta.updatedAt)}</Text>}
-            </HStack>
+          </Box>
+          <HStack gap={{ base: 2.5, md: 3 }} wrap="wrap" color="gray.700" textStyle="sm">
+            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={3} py={1}>
+              {article.meta.categoryLabel}
+            </Badge>
+            <MetaItem icon={LuCalendarDays}>{formatJapaneseDate(article.meta.publishedAt)}</MetaItem>
+            {shouldShowUpdatedAt && (
+              <MetaItem icon={LuPenLine}>更新 {formatJapaneseDate(article.meta.updatedAt ?? "")}</MetaItem>
+            )}
+            <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分で読めます</MetaItem>
+          </HStack>
+          <VStack align="stretch" gap={{ base: 3, md: 4 }}>
+            <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} lineHeight="1.25" letterSpacing="0">
+              {article.meta.title}
+            </Heading>
+            <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9" maxW="680px">
+              {article.meta.description}
+            </Text>
           </VStack>
-          <HeroIllustration icon={getCategoryIcon(article.meta.categorySlug)} compact />
-        </Grid>
+        </VStack>
       </Container>
     </Box>
   );
@@ -242,37 +225,33 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
 function CategoryHero({ category }: { category: CategoryContent }): ReactNode {
   return (
     <Box borderBottomWidth="1px" borderColor="gray.200" bg="white">
-      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 10, lg: 14 }}>
-        <Grid
-          templateColumns={{ base: "1fr", md: "minmax(0, 1fr) 280px" }}
-          gap={{ base: 8, lg: 12 }}
-          alignItems="center"
-        >
-          <VStack align="stretch" gap={5}>
+      <Container maxW="820px" px={{ base: 4, lg: 0 }} py={{ base: 8, lg: 10 }}>
+        <VStack align="stretch" gap={{ base: 5, md: 6 }}>
+          <Link
+            href="/articles"
+            display={{ base: "inline-flex", md: "none" }}
+            alignSelf="flex-start"
+            color="teal.700"
+            textStyle="sm"
+            fontWeight="bold"
+            _hover={{ color: "teal.800", textDecoration: "none" }}
+          >
+            お役立ち情報へ戻る
+          </Link>
+          <Box display={{ base: "none", md: "block" }}>
             <Breadcrumbs
-              items={[
-                { label: sitePage.breadcrumbLabel, href: "/articles" },
-                { label: "困りごとから探す", href: "/articles" },
-                { label: category.meta.breadcrumbLabel },
-              ]}
+              items={[{ label: sitePage.breadcrumbLabel, href: "/articles" }, { label: category.meta.breadcrumbLabel }]}
             />
-            <VStack align="stretch" gap={3}>
-              <Heading
-                as="h1"
-                color="gray.950"
-                fontSize={{ base: "3xl", lg: "4xl" }}
-                lineHeight="1.25"
-                letterSpacing="0"
-              >
-                {category.meta.title}
-              </Heading>
-              <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9">
-                {category.meta.description}
-              </Text>
-            </VStack>
+          </Box>
+          <VStack align="stretch" gap={{ base: 3, md: 4 }}>
+            <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} lineHeight="1.25" letterSpacing="0">
+              {category.meta.title}
+            </Heading>
+            <Text color="gray.700" fontSize={{ base: "sm", lg: "md" }} lineHeight="1.9" maxW="680px">
+              {category.meta.description}
+            </Text>
           </VStack>
-          <HeroIllustration icon={getCategoryIcon(category.meta.slug)} />
-        </Grid>
+        </VStack>
       </Container>
     </Box>
   );
@@ -353,35 +332,17 @@ function ConcernCard({ concern }: { concern: ConcernContent }): ReactNode {
   );
 }
 
-function ArticleListSection({
-  title,
-  articles,
-  mobileLimit,
-}: {
-  title: string;
-  articles: ArticleContent[];
-  mobileLimit?: number;
-}): ReactNode {
+function ArticleListSection({ title, articles }: { title: string; articles: ArticleContent[] }): ReactNode {
   return (
     <VStack as="section" align="stretch" gap={5}>
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
         {title}
       </Heading>
       <VStack align="stretch" gap={0} borderTopWidth="1px" borderColor="gray.200">
-        {articles.map((article, index) => (
-          <ArticleRow
-            key={article.meta.slug}
-            article={article}
-            hideOnMobile={mobileLimit !== undefined && index >= mobileLimit}
-          />
+        {articles.map((article) => (
+          <ArticleRow key={article.meta.slug} article={article} />
         ))}
       </VStack>
-      <Button asChild alignSelf="center" variant="outline" borderRadius="full" px={6}>
-        <Link href="/articles">
-          記事一覧をもっと見る
-          <LuArrowRight />
-        </Link>
-      </Button>
     </VStack>
   );
 }
@@ -397,7 +358,7 @@ function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent
     >
       <Grid
         as="article"
-        templateColumns={{ base: "88px minmax(0, 1fr) auto", md: "128px minmax(0, 1fr) auto" }}
+        templateColumns={{ base: "112px minmax(0, 1fr) auto", md: "128px minmax(0, 1fr) auto" }}
         gap={{ base: 4, md: 5 }}
         py={4}
         borderBottomWidth="1px"
@@ -414,7 +375,7 @@ function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent
           <Heading as="h3" color="gray.950" fontSize={{ base: "md", md: "lg" }} lineHeight="1.55" letterSpacing="0">
             {article.meta.title}
           </Heading>
-          <Text display={{ base: "none", md: "block" }} color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={2}>
+          <Text hideBelow="md" color="gray.700" textStyle="sm" lineHeight="1.7" lineClamp={2}>
             {article.meta.description}
           </Text>
           <HStack gap={4} color="gray.500" textStyle="sm" wrap="wrap">
@@ -440,7 +401,7 @@ function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent
 
 function PointBox({ category }: { category: CategoryContent }): ReactNode {
   return (
-    <Box bg="teal.50" borderWidth="1px" borderColor="teal.100" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
+    <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
       <VStack align="stretch" gap={4}>
         <Text color="green.700" fontWeight="bold">
           このカテゴリで扱う悩み
@@ -511,6 +472,10 @@ function RepresentativeArticle({ article }: { article: ArticleContent }): ReactN
 }
 
 function CompactArticleList({ title, articles }: { title: string; articles: ArticleContent[] }): ReactNode {
+  if (articles.length === 0) {
+    return null;
+  }
+
   return (
     <VStack as="section" align="stretch" gap={4}>
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
@@ -645,34 +610,11 @@ function MobileArticleToc({ article }: { article: ArticleContent }): ReactNode {
   );
 }
 
-function ShareBox(): ReactNode {
-  return (
-    <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={4} bg="white">
-      <VStack align="stretch" gap={3}>
-        <Text color="gray.700" textStyle="sm" fontWeight="bold">
-          この記事が役に立ったら、シェアして応援してください！
-        </Text>
-        <HStack gap={3}>
-          {[LuShare2, LuMessageCircle, LuLink].map((Icon, index) => (
-            <Flex
-              key={`${index}-${Icon.name}`}
-              boxSize={8}
-              borderRadius="full"
-              bg="teal.50"
-              color="teal.700"
-              align="center"
-              justify="center"
-            >
-              <Icon />
-            </Flex>
-          ))}
-        </HStack>
-      </VStack>
-    </Box>
-  );
-}
-
 function RelatedArticles({ articles }: { articles: ArticleContent[] }): ReactNode {
+  if (articles.length === 0) {
+    return null;
+  }
+
   return (
     <VStack as="section" align="stretch" gap={4}>
       <Heading as="h2" textStyle="sectionTitle" color="gray.950">
@@ -726,54 +668,6 @@ function SmallArticleCard({ article }: { article: ArticleContent }): ReactNode {
         </VStack>
       </Grid>
     </Link>
-  );
-}
-
-function BottomCta({ category, compact = false }: { category?: CategoryContent; compact?: boolean }): ReactNode {
-  const title = category?.meta.ctaTitle ?? sitePage.ctaTitle;
-  const description = category?.meta.ctaDescription ?? sitePage.ctaDescription;
-
-  return (
-    <Box
-      bg="teal.50"
-      borderWidth="1px"
-      borderColor="teal.100"
-      borderRadius="lg"
-      px={{ base: 5, lg: 8 }}
-      py={{ base: 6, lg: compact ? 6 : 8 }}
-    >
-      <Grid templateColumns={{ base: "1fr", md: "minmax(0, 1fr) auto" }} gap={6} alignItems="center">
-        <VStack align="stretch" gap={2}>
-          <Heading as="h2" color="teal.900" fontSize={{ base: "xl", lg: "2xl" }} lineHeight="1.45" letterSpacing="0">
-            {title}
-          </Heading>
-          <Text color="teal.900" lineHeight="1.8">
-            {description}
-          </Text>
-        </VStack>
-        <HStack gap={3} wrap="wrap">
-          <Button asChild colorPalette="teal" borderRadius="full" px={5}>
-            <Link href={sitePage.ctaPrimaryHref}>
-              {sitePage.ctaPrimaryLabel}
-              <LuArrowRight />
-            </Link>
-          </Button>
-          <Button
-            asChild
-            display={{ base: "none", md: "inline-flex" }}
-            variant="outline"
-            bg="white"
-            borderRadius="full"
-            px={5}
-          >
-            <Link href={sitePage.ctaSecondaryHref}>
-              {sitePage.ctaSecondaryLabel}
-              <LuArrowRight />
-            </Link>
-          </Button>
-        </HStack>
-      </Grid>
-    </Box>
   );
 }
 
@@ -887,42 +781,6 @@ function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }): 
   );
 }
 
-function HeroIllustration({ icon, compact = false }: { icon: IconType; compact?: boolean }): ReactNode {
-  const Icon = icon;
-
-  return (
-    <Flex
-      minH={compact ? { base: "132px", md: "160px" } : { base: "180px", md: "220px" }}
-      maxW={compact ? { md: "220px" } : undefined}
-      justifySelf={compact ? { md: "end" } : undefined}
-      w="full"
-      borderWidth="1px"
-      borderColor="teal.100"
-      borderRadius="lg"
-      bg="teal.50"
-      align="center"
-      justify="center"
-      color="teal.700"
-      position="relative"
-      overflow="hidden"
-    >
-      <Box position="absolute" insetX="12%" top="18%" h="1px" bg="teal.100" />
-      <Box position="absolute" left="16%" bottom="20%" w="24%" h="1px" bg="teal.100" />
-      <Flex
-        boxSize={compact ? "72px" : "88px"}
-        borderRadius="full"
-        bg="white"
-        borderWidth="1px"
-        borderColor="teal.100"
-        align="center"
-        justify="center"
-      >
-        <Icon size={compact ? 34 : 42} />
-      </Flex>
-    </Flex>
-  );
-}
-
 function ArticleThumb({
   categorySlug,
   large = false,
@@ -938,12 +796,10 @@ function ArticleThumb({
 
   return (
     <Flex
-      minH={compact ? (inline ? "full" : "112px") : large ? "176px" : { base: "88px", md: "112px" }}
-      h="full"
+      minH={compact ? (inline ? "full" : "112px") : large ? "176px" : { base: "112px", md: "112px" }}
+      h={compact || large ? "full" : { base: "112px", md: "full" }}
       borderRadius={compact ? "0" : "md"}
       bg="teal.50"
-      borderWidth={compact ? (inline ? "0 1px 0 0" : "0 0 1px 0") : "1px"}
-      borderColor="teal.100"
       color="teal.700"
       align="center"
       justify="center"
@@ -963,7 +819,7 @@ function IconBadge({ icon, compact = false }: { icon: IconType; compact?: boolea
       borderRadius="full"
       bg="teal.50"
       borderWidth="1px"
-      borderColor="teal.100"
+      borderColor="gray.200"
       color="teal.700"
       align="center"
       justify="center"
@@ -1004,7 +860,7 @@ function ArticleNotFound({ title = "記事が見つかりません" }: { title?:
             {title}
           </Heading>
           <Text color="gray.700" lineHeight="1.8">
-            指定されたページは、このモックの読み込み対象に含まれていません。
+            指定されたページは、現在の記事一覧に含まれていません。
           </Text>
         </VStack>
       </Container>

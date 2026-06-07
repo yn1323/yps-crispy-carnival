@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ArticleListPage } from "@/src/components/mock/ArticleSite";
-import { sitePage } from "@/src/components/mock/ArticleSite/articleContent";
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
+import { ArticleListPage } from "@/src/components/features/ArticleSite";
+import { sitePage } from "@/src/components/features/ArticleSite/articleContent";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles")({
@@ -12,5 +12,15 @@ export const Route = createFileRoute("/articles")({
       canonical: "/articles",
     }),
   }),
-  component: ArticleListPage,
+  component: ArticlesRoute,
 });
+
+function ArticlesRoute() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  if (pathname === "/articles" || pathname === "/articles/") {
+    return <ArticleListPage />;
+  }
+
+  return <Outlet />;
+}

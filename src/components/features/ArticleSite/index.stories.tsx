@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ArticleCategoryPage, ArticleListPage, ArticlePage, articles, categories } from ".";
 
 const meta = {
-  title: "Mock/ArticleSite",
+  title: "Features/ArticleSite",
   component: ArticleListPage,
   parameters: {
     layout: "fullscreen",

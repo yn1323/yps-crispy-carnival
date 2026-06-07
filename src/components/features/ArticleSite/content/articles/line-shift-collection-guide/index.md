@@ -8,7 +8,7 @@ categoryLabel: "LINEでシフト希望を集める"
 author: "シフトリ編集部"
 readingMinutes: 6
 keywords: "LINE, 希望シフト, シフト回収"
-relatedSlugs: "line-shift-request-message-examples, line-shift-request-flow-countermeasures, reduce-unsubmitted-shift-requests"
+relatedSlugs: ""
 featured: true
 canonicalPath: "/articles/line-shift-collection-guide"
 ogTitle: "LINEでシフト希望を集める方法"
