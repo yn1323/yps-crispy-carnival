@@ -1,9 +1,5 @@
-import { Flex, Spinner } from "@chakra-ui/react";
+import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 
 export function FullPageSpinner() {
-  return (
-    <Flex justify="center" align="center" minH="100vh">
-      <Spinner />
-    </Flex>
-  );
+  return <ShiftoriLoading variant="page" />;
 }
