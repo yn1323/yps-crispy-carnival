@@ -18,6 +18,8 @@ jobs:
           fetch-depth: 0
       - name: Setup
         uses: ./.github/actions/setup
+      - name: Setup Playwright
+        uses: ./.github/actions/playwright
       - name: Storybook Build
         run: pnpm vrt:build
       - name: Capture VRT screenshots
