@@ -14,6 +14,7 @@ jobs:
     env:
       VRT_REPORT_DIR: yps-crispy-carnival-vrt
       VRT_BASELINE_DIR: yps-crispy-carnival-vrt-baselines
+      REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v6
         with:

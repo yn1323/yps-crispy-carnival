@@ -9,5 +9,14 @@
     },
     "concurrency": 4
   },
-  "plugins": {}
+  "plugins": {
+    "reg-keygen-git-hash-plugin": {},
+    "reg-notify-github-plugin": {
+      "clientId": "$REG_SUIT_CLIENT_ID",
+      "prComment": true,
+      "prCommentBehavior": "default",
+      "shortDescription": true,
+      "setCommitStatus": false
+    }
+  }
 }
