@@ -112,13 +112,14 @@ CI/CDパイプラインの構成と運用ルール。
 | `build.yml` | 全push | ビルド確認（Convex dev使用） |
 | `playwright.yml` | PR to develop | E2Eテスト（Convex preview使用） |
 
-### Storybook (`chromatic_*.yml`)
+### Storybook / VRT (`chromatic_*.yml`, `vrt_*.yml`)
 
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
 | `chromatic_pr_on_push.yml` | PR push（draft/renovate除外） | 変更コンポーネントのみChromatic公開 |
 | `chromatic_pr_on_ready.yml` | PR ready for review | 同上 |
 | `chromatic_merged.yml` | push to main/develop | ベースライン自動承認 |
+| `vrt.yml` | 全push | Storycap testrunでPNG生成 → RegSuit比較 → hosting-pagesへレポート公開。main/developのみbaseline更新 |
 
 ## デプロイ順序
 

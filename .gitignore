@@ -14,6 +14,8 @@ count.txt
 
 *storybook.log
 storybook-static
+vrt-actual/
+vrt-work/
 
 # Playwright
 node_modules/
