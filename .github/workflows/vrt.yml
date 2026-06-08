@@ -165,12 +165,9 @@ jobs:
               const deletedItems = json.deletedItems || [];
               const passedItems = json.passedItems || [];
               summary = [
-                '| Snapshot | Count |',
-                '|---|---:|',
-                `| 🔴 Changed | ${items.length} |`,
-                `| ⚪ New | ${newItems.length} |`,
-                `| 🗑️ Deleted | ${deletedItems.length} |`,
-                `| 🟢 Passed | ${passedItems.length} |`,
+                '| 🔴 Changed | ⚪ New | 🗑️ Deleted | 🟢 Passed |',
+                '|---:|---:|---:|---:|',
+                `| ${items.length} | ${newItems.length} | ${deletedItems.length} | ${passedItems.length} |`,
               ].join('\n');
             } catch (error) {
               summary = 'RegSuit result JSON の読み込みに失敗しました';
