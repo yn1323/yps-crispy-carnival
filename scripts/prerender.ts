@@ -64,6 +64,9 @@ const MIME_TYPES: Record<string, string> = {
   ".map": "application/json; charset=utf-8",
 };
 
+const ROUTE_MANAGED_META_NAMES = ["description", "robots", "twitter:title", "twitter:description"];
+const ROUTE_MANAGED_META_PROPERTIES = ["og:title", "og:description", "og:url"];
+
 async function serveStaticFile(res: ServerResponse, pathname: string): Promise<boolean> {
   // Path traversal 防御: 解決後のパスが必ず dist/ 配下であることを確認
   const filePath = resolve(join(DIST_DIR, pathname));
@@ -154,12 +157,32 @@ function assertRenderedHtml(route: string, html: string): void {
     throw new Error(`[prerender] ${route} produced HTML without any <h1> — app likely failed to mount`);
   }
   // Page-specific <title> is managed by TanStack Router's HeadContent.
-  // index.html must not include another static <title>, otherwise SEO tags are duplicated.
+  // When a route does not provide head tags, the fallback tags from index.html should remain.
   const titleCount = (html.match(/<title\b/gi) ?? []).length;
   if (titleCount !== 1) {
     throw new Error(
-      `[prerender] ${route} produced HTML with ${titleCount} <title> tag(s) — expected exactly one route-managed title`,
+      `[prerender] ${route} produced HTML with ${titleCount} <title> tag(s) — expected exactly one title`,
     );
+  }
+  const routeManagedMetaCounts: Record<string, number> = {
+    description: (html.match(/<meta\b[^>]*\bname=["']description["'][^>]*>/gi) ?? []).length,
+    "og:title": (html.match(/<meta\b[^>]*\bproperty=["']og:title["'][^>]*>/gi) ?? []).length,
+    "og:description": (html.match(/<meta\b[^>]*\bproperty=["']og:description["'][^>]*>/gi) ?? []).length,
+    "twitter:title": (html.match(/<meta\b[^>]*\bname=["']twitter:title["'][^>]*>/gi) ?? []).length,
+    "twitter:description": (html.match(/<meta\b[^>]*\bname=["']twitter:description["'][^>]*>/gi) ?? []).length,
+    canonical: (html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi) ?? []).length,
+  };
+  const requiredMeta = ["description", "og:title", "og:description", "twitter:title", "twitter:description"] as const;
+  const invalidRequiredMeta = requiredMeta.find((name) => routeManagedMetaCounts[name] !== 1);
+  if (invalidRequiredMeta) {
+    throw new Error(
+      `[prerender] ${route} produced ${routeManagedMetaCounts[invalidRequiredMeta]} ${invalidRequiredMeta} meta tags — expected exactly one`,
+    );
+  }
+  const duplicatedOptionalMeta = Object.entries(routeManagedMetaCounts).find(([, count]) => count > 1);
+  if (duplicatedOptionalMeta) {
+    const [name, count] = duplicatedOptionalMeta;
+    throw new Error(`[prerender] ${route} produced ${count} ${name} meta tags — expected at most one`);
   }
   // Emotion (Chakra UI) の動的注入スタイルが textContent にダンプされているか確認
   const styleBytes = (html.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) ?? []).reduce((sum, s) => sum + s.length, 0);
@@ -171,7 +194,7 @@ function assertRenderedHtml(route: string, html: string): void {
 }
 
 async function main(): Promise<void> {
-  // 1. 元の空シェルを起動時に一度だけ読み込んでキャッシュ
+  // 1. 元のシェルを起動時に一度だけ読み込んでキャッシュ
   const shellPath = join(DIST_DIR, "index.html");
   const shell = await readFile(shellPath);
   const handler = createShellHandler(shell);
@@ -222,17 +245,88 @@ async function main(): Promise<void> {
       const page = await context.newPage();
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
 
-      // React が #app に描画し、かつ TanStack Router の HeadContent が
-      // ページ固有の <title> を追加するまで待機
+      // React が #app に描画し、head の更新が落ち着くまで待機
       // (Convex の WebSocket が networkidle を妨げるため DOM ベースで待機)
       await page.waitForFunction(
         () => {
           const app = document.getElementById("app");
-          const appReady = app !== null && app.children.length > 0;
-          const headHasRouteTitle = document.querySelectorAll("head > title").length === 1;
-          return appReady && headHasRouteTitle;
+          const appReady = app !== null && app.querySelector("h1") !== null;
+          const headHasTitle = document.querySelectorAll("head > title").length > 0;
+          if (!appReady || !headHasTitle) return false;
+
+          const stateKey = "__PRERENDER_HEAD_STABILITY__";
+          const state = window as unknown as {
+            [stateKey]?: { snapshot: string; stableSince: number };
+          };
+          const snapshot = Array.from(
+            document.head.querySelectorAll('title, meta[name], meta[property], link[rel="canonical"]'),
+          )
+            .map((node) => node.outerHTML)
+            .join("\n");
+          const now = performance.now();
+          if (!state[stateKey] || state[stateKey].snapshot !== snapshot) {
+            state[stateKey] = { snapshot, stableSince: now };
+            return false;
+          }
+          return now - state[stateKey].stableSince >= 100;
         },
         { timeout: RENDER_WAIT_TIMEOUT_MS },
+      );
+
+      await page.evaluate(
+        ({ routeManagedMetaNames, routeManagedMetaProperties }) => {
+          const titleTags = Array.from(document.head.querySelectorAll("title"));
+          const lastTitle = titleTags.at(-1)?.textContent?.trim();
+          if (titleTags[0] && lastTitle) {
+            titleTags[0].textContent = lastTitle;
+          }
+          for (const node of titleTags.slice(1)) {
+            node.remove();
+          }
+
+          const canonicalLinks = Array.from(document.head.querySelectorAll('link[rel="canonical"]'));
+          const lastCanonical = canonicalLinks.at(-1)?.getAttribute("href");
+          if (canonicalLinks[0] && lastCanonical) {
+            canonicalLinks[0].setAttribute("href", lastCanonical);
+          }
+          for (const node of canonicalLinks.slice(1)) {
+            node.remove();
+          }
+          const metaTags = Array.from(document.head.querySelectorAll("meta"));
+
+          for (const name of routeManagedMetaNames) {
+            const matches = metaTags.filter((tag) => tag.getAttribute("name")?.toLowerCase() === name);
+            const lastContent = matches.at(-1)?.getAttribute("content");
+            if (matches[0] && lastContent !== undefined && lastContent !== null) {
+              matches[0].setAttribute("content", lastContent);
+            }
+            for (const node of matches.slice(1)) {
+              node.remove();
+            }
+          }
+          for (const property of routeManagedMetaProperties) {
+            const matches = metaTags.filter((tag) => tag.getAttribute("property")?.toLowerCase() === property);
+            const lastContent = matches.at(-1)?.getAttribute("content");
+            if (matches[0] && lastContent !== undefined && lastContent !== null) {
+              matches[0].setAttribute("content", lastContent);
+            }
+            for (const node of matches.slice(1)) {
+              node.remove();
+            }
+          }
+
+          const titleMeta =
+            document.head.querySelector('meta[name="twitter:title"]') ??
+            document.head.querySelector('meta[property="og:title"]');
+          const title = titleMeta?.getAttribute("content")?.trim();
+          if (title) {
+            document.title = title;
+          }
+        },
+        {
+          routeManagedMetaNames: ROUTE_MANAGED_META_NAMES,
+          routeManagedMetaProperties: ROUTE_MANAGED_META_PROPERTIES,
+        },
       );
 
       // Emotion の speedy mode は CSSStyleSheet.insertRule で CSSOM に直接ルールを挿入するため、

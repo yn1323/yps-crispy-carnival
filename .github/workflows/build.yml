@@ -16,9 +16,11 @@ jobs:
       - name: Build
         run: |
           npx convex dev &
+          convex_pid=$!
+          trap 'kill "$convex_pid" 2>/dev/null || true' EXIT
           sleep 5
           pnpm run build
-          kill %1
+          pnpm prerender
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
