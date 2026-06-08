@@ -75,19 +75,20 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.submissionPattern).toEqual({ kind: "time", startTime: "09:00", endTime: "22:00" });
     });
 
-    it("同一内容の募集作成は既存募集を返し、統計と通知予約を増やさない", async () => {
+    it("同一内容の募集作成はエラーにし、統計と通知予約を増やさない", async () => {
       const { t, shopId: shopIdPromise } = setupShop();
       const shopId = await shopIdPromise;
       const args = { ...validArgs(), shopClosedDates: [futureDate(8), futureDate(10)] };
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, args);
-      const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
-        ...args,
-        shopClosedDates: [...args.shopClosedDates].reverse(),
-      });
+      await asManager.mutation(api.recruitment.mutations.createRecruitment, args);
+      await expect(
+        asManager.mutation(api.recruitment.mutations.createRecruitment, {
+          ...args,
+          shopClosedDates: [...args.shopClosedDates].reverse(),
+        }),
+      ).rejects.toThrow("RECRUITMENT_DUPLICATE");
 
-      expect(secondId).toBe(firstId);
       const state = await t.run(async (ctx) => {
         const recruitments = await ctx.db
           .query("recruitments")

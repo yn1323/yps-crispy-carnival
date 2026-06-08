@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { getWeekdayLabel } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
@@ -12,19 +12,23 @@ type DateInfo = {
   iso: string;
   label: string;
   wk: string;
-  weekIdx: number;
+  inRange: boolean;
 };
 
-const buildDateInfos = (dates: string[]): DateInfo[] =>
-  dates.map((iso, i) => {
-    const d = dayjs(iso);
-    return {
-      iso,
-      label: `${d.month() + 1}/${d.date()}`,
-      wk: getWeekdayLabel(iso),
-      weekIdx: Math.floor(i / 7),
-    };
-  });
+const toDateInfo = (cell: { iso: string; inRange: boolean }): DateInfo => ({
+  iso: cell.iso,
+  label: formatDateShort(cell.iso),
+  wk: getWeekdayLabel(cell.iso),
+  inRange: cell.inRange,
+});
+
+const buildWeeks = (dates: string[]): DateInfo[][] => buildWeeklyGrid(dates).map((week) => week.map(toDateInfo));
+
+const formatWeekLabel = (dates: DateInfo[]): string => {
+  const start = dates[0]?.iso ?? "";
+  const end = dates[dates.length - 1]?.iso ?? start;
+  return start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
+};
 
 const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
@@ -46,14 +50,13 @@ export const SPOverviewView = () => {
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
 
-  const dateInfos = useMemo(() => buildDateInfos(dates), [dates]);
-  const weekCount = Math.max(1, Math.ceil(dateInfos.length / 7));
+  const weeks = useMemo(() => buildWeeks(dates), [dates]);
 
   const initialOpen = useMemo(() => {
     const o: Record<number, boolean> = {};
-    for (let i = 0; i < weekCount; i++) o[i] = true;
+    for (let i = 0; i < weeks.length; i++) o[i] = true;
     return o;
-  }, [weekCount]);
+  }, [weeks.length]);
   const [open, setOpen] = useState(initialOpen);
 
   const lookup = useMemo(() => {
@@ -77,8 +80,7 @@ export const SPOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={2}>
-        {Array.from({ length: weekCount }).map((_, wi) => {
-          const wkDates = dateInfos.filter((d) => d.weekIdx === wi);
+        {weeks.map((wkDates, wi) => {
           if (wkDates.length === 0) return null;
           const isOpen = !!open[wi];
           return (
@@ -113,15 +115,16 @@ export const SPOverviewView = () => {
                   {isOpen ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                 </Flex>
                 <Box textStyle="numeric" fontWeight={700} color="gray.800">
-                  {wkDates[0].label} – {wkDates[wkDates.length - 1].label}
+                  {formatWeekLabel(wkDates)}
                 </Box>
               </Flex>
 
               {isOpen && (
                 <Box>
                   {wkDates.map((d, i) => {
-                    const isClosed = holidays.includes(d.iso);
-                    const working = isClosed ? [] : staffs.filter((s) => lookup.has(`${s.id}-${d.iso}`));
+                    const isClosed = d.inRange && holidays.includes(d.iso);
+                    const working = d.inRange && !isClosed ? staffs.filter((s) => lookup.has(`${s.id}-${d.iso}`)) : [];
+                    const canOpenDaily = !isReadOnly && d.inRange;
                     return (
                       <Flex
                         key={d.iso}
@@ -130,22 +133,27 @@ export const SPOverviewView = () => {
                         py={3}
                         borderTopWidth={i > 0 ? "1px" : "0"}
                         borderColor="gray.100"
-                        bg={isClosed ? "gray.50" : "white"}
-                        cursor={isReadOnly ? "default" : "pointer"}
-                        _active={isReadOnly ? undefined : { bg: "gray.50" }}
-                        onClick={isReadOnly ? undefined : () => handleDateTap(d.iso)}
+                        bg={isClosed || !d.inRange ? "gray.50" : "white"}
+                        cursor={canOpenDaily ? "pointer" : "default"}
+                        _active={canOpenDaily ? { bg: "gray.50" } : undefined}
+                        onClick={canOpenDaily ? () => handleDateTap(d.iso) : undefined}
                       >
                         <Box w="44px" flexShrink={0}>
                           <Box
                             textStyle="numeric"
                             fontWeight={700}
-                            color="gray.800"
+                            color={d.inRange ? "gray.800" : "gray.400"}
                             lineHeight="1.1"
                             style={{ fontVariantNumeric: "tabular-nums" }}
                           >
                             {d.label}
                           </Box>
-                          <Box textStyle="2xs" fontWeight={700} mt="2px" style={{ color: dayColor(d.iso) }}>
+                          <Box
+                            textStyle="2xs"
+                            fontWeight={700}
+                            mt="2px"
+                            style={{ color: d.inRange ? dayColor(d.iso) : "#a1a1aa" }}
+                          >
                             {d.wk}
                           </Box>
                           {isClosed && (
@@ -155,7 +163,11 @@ export const SPOverviewView = () => {
                           )}
                         </Box>
                         <Box flex={1} minW={0}>
-                          {isClosed ? (
+                          {!d.inRange ? (
+                            <Box textStyle="caption" color="gray.400" fontWeight={500}>
+                              期間外
+                            </Box>
+                          ) : isClosed ? (
                             <Box textStyle="caption" color="gray.500" fontWeight={700}>
                               定休日
                             </Box>

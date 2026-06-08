@@ -6,6 +6,7 @@ import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const RECRUITMENT_DUPLICATE_ERROR_CODE = "RECRUITMENT_DUPLICATE";
 
 function normalizeShopClosedDates(dates: string[], periodStart: string, periodEnd: string): string[] {
   const uniqueDates = [...new Set(dates)].sort();
@@ -65,7 +66,7 @@ export const createRecruitment = managerMutation({
         candidate.deadline === args.deadline &&
         sameStringArray(candidate.shopClosedDates ?? [], shopClosedDates),
     );
-    if (duplicate) return duplicate._id;
+    if (duplicate) throw new ConvexError(RECRUITMENT_DUPLICATE_ERROR_CODE);
 
     const now = Date.now();
     const reminderScheduledAt = getReminderScheduledAt(args.deadline);

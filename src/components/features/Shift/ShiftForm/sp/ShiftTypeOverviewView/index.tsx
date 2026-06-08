@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { getWeekdayLabel } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../../pc/shiftTypeOptionStyles";
@@ -13,7 +13,7 @@ type DateInfo = {
   iso: string;
   label: string;
   wk: string;
-  weekIdx: number;
+  inRange: boolean;
 };
 
 type OptionDisplay = {
@@ -21,16 +21,20 @@ type OptionDisplay = {
   color: ShiftTypeOptionColor;
 };
 
-const buildDateInfos = (dates: string[]): DateInfo[] =>
-  dates.map((iso, i) => {
-    const d = dayjs(iso);
-    return {
-      iso,
-      label: `${d.month() + 1}/${d.date()}`,
-      wk: getWeekdayLabel(iso),
-      weekIdx: Math.floor(i / 7),
-    };
-  });
+const toDateInfo = (cell: { iso: string; inRange: boolean }): DateInfo => ({
+  iso: cell.iso,
+  label: formatDateShort(cell.iso),
+  wk: getWeekdayLabel(cell.iso),
+  inRange: cell.inRange,
+});
+
+const buildWeeks = (dates: string[]): DateInfo[][] => buildWeeklyGrid(dates).map((week) => week.map(toDateInfo));
+
+const formatWeekLabel = (dates: DateInfo[]): string => {
+  const start = dates[0]?.iso ?? "";
+  const end = dates[dates.length - 1]?.iso ?? start;
+  return start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
+};
 
 const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
@@ -68,13 +72,12 @@ export const SPShiftTypeOverviewView = () => {
     [options],
   );
 
-  const dateInfos = useMemo(() => buildDateInfos(dates), [dates]);
-  const weekCount = Math.max(1, Math.ceil(dateInfos.length / 7));
+  const weeks = useMemo(() => buildWeeks(dates), [dates]);
   const initialOpen = useMemo(() => {
     const state: Record<number, boolean> = {};
-    for (let index = 0; index < weekCount; index++) state[index] = true;
+    for (let index = 0; index < weeks.length; index++) state[index] = true;
     return state;
-  }, [weekCount]);
+  }, [weeks.length]);
   const [open, setOpen] = useState(initialOpen);
 
   const shiftByStaffDate = useMemo(() => {
@@ -97,8 +100,7 @@ export const SPShiftTypeOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={2}>
-        {Array.from({ length: weekCount }).map((_, weekIndex) => {
-          const weekDates = dateInfos.filter((date) => date.weekIdx === weekIndex);
+        {weeks.map((weekDates, weekIndex) => {
           if (weekDates.length === 0) return null;
           const isOpen = !!open[weekIndex];
           return (
@@ -133,26 +135,28 @@ export const SPShiftTypeOverviewView = () => {
                   {isOpen ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                 </Flex>
                 <Box textStyle="numeric" fontWeight={700} color="gray.800">
-                  {weekDates[0].label} – {weekDates[weekDates.length - 1].label}
+                  {formatWeekLabel(weekDates)}
                 </Box>
               </Flex>
 
               {isOpen && (
                 <Box>
                   {weekDates.map((date, index) => {
-                    const isClosed = holidays.includes(date.iso);
-                    const workingStaffs = isClosed
-                      ? []
-                      : staffs
-                          .map((staff) => {
-                            const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
-                            const assignedOptionIds = getAssignedShiftTypeOptionIdsInOptionOrder(
-                              shift,
-                              sortedOptionIds,
-                            );
-                            return { staff, assignedOptionIds };
-                          })
-                          .filter((item) => item.assignedOptionIds.length > 0);
+                    const isClosed = date.inRange && holidays.includes(date.iso);
+                    const workingStaffs =
+                      !date.inRange || isClosed
+                        ? []
+                        : staffs
+                            .map((staff) => {
+                              const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
+                              const assignedOptionIds = getAssignedShiftTypeOptionIdsInOptionOrder(
+                                shift,
+                                sortedOptionIds,
+                              );
+                              return { staff, assignedOptionIds };
+                            })
+                            .filter((item) => item.assignedOptionIds.length > 0);
+                    const canOpenDaily = !isReadOnly && date.inRange;
                     return (
                       <Flex
                         key={date.iso}
@@ -161,23 +165,28 @@ export const SPShiftTypeOverviewView = () => {
                         py={3}
                         borderTopWidth={index > 0 ? "1px" : "0"}
                         borderColor="gray.100"
-                        bg={isClosed ? "gray.50" : "white"}
-                        cursor={isReadOnly ? "default" : "pointer"}
-                        _active={isReadOnly ? undefined : { bg: "gray.50" }}
-                        onClick={isReadOnly ? undefined : () => handleDateTap(date.iso)}
+                        bg={isClosed || !date.inRange ? "gray.50" : "white"}
+                        cursor={canOpenDaily ? "pointer" : "default"}
+                        _active={canOpenDaily ? { bg: "gray.50" } : undefined}
+                        onClick={canOpenDaily ? () => handleDateTap(date.iso) : undefined}
                       >
                         <Box w="68px" flexShrink={0}>
                           <Flex align="baseline" gap="4px" whiteSpace="nowrap">
                             <Box
                               textStyle="numeric"
                               fontWeight={700}
-                              color="gray.800"
+                              color={date.inRange ? "gray.800" : "gray.400"}
                               lineHeight="1.1"
                               style={{ fontVariantNumeric: "tabular-nums" }}
                             >
                               {date.label}
                             </Box>
-                            <Box textStyle="2xs" fontWeight={700} flexShrink={0} style={{ color: dayColor(date.iso) }}>
+                            <Box
+                              textStyle="2xs"
+                              fontWeight={700}
+                              flexShrink={0}
+                              style={{ color: date.inRange ? dayColor(date.iso) : "#a1a1aa" }}
+                            >
                               {date.wk}
                             </Box>
                           </Flex>
@@ -188,7 +197,11 @@ export const SPShiftTypeOverviewView = () => {
                           )}
                         </Box>
                         <Box flex={1} minW={0}>
-                          {isClosed ? (
+                          {!date.inRange ? (
+                            <Box textStyle="caption" color="gray.400" fontWeight={500}>
+                              期間外
+                            </Box>
+                          ) : isClosed ? (
                             <Box textStyle="caption" color="gray.500" fontWeight={700}>
                               定休日
                             </Box>

@@ -16,6 +16,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import type { CreateRecruitmentData } from "../CreateRecruitmentForm/index";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
+import { getCreateRecruitmentErrorMessage } from "../createRecruitmentErrors";
 import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
@@ -192,6 +193,11 @@ export const DashboardContent = ({
       recruitmentModal.close();
       toaster.create({ title: "募集をつくりました", type: "success" });
     } catch (error) {
+      const message = getCreateRecruitmentErrorMessage(error);
+      if (message) {
+        toaster.create({ title: message, type: "error", duration: Number.POSITIVE_INFINITY });
+        return;
+      }
       showErrorToast(error);
     }
   });

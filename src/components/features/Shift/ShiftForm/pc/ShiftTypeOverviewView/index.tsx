@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { buildWeeklyGrid, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
@@ -134,9 +134,9 @@ const WeekCard = ({
   onDateClick,
   isReadOnly,
 }: WeekCardProps) => {
-  const inRangeDates = wkDates.filter((d) => d.inRange);
-  const rangeLabel =
-    inRangeDates.length > 0 ? `${inRangeDates[0].label} – ${inRangeDates[inRangeDates.length - 1].label}` : "";
+  const start = wkDates[0]?.iso ?? "";
+  const end = wkDates[wkDates.length - 1]?.iso ?? start;
+  const rangeLabel = start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
   return (
     <Box bg="white" borderRadius="lg" borderWidth="1px" borderColor="gray.200" overflow="hidden">
       <Flex
@@ -227,7 +227,7 @@ const WeekTable = ({
           </Box>
           {wkDates.map((d) => {
             const isClickable = !isReadOnly && d.inRange;
-            const isClosed = holidays.includes(d.iso);
+            const isClosed = d.inRange && holidays.includes(d.iso);
             return (
               <Box
                 as="th"
@@ -246,6 +246,11 @@ const WeekTable = ({
                 <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso) }}>
                   {d.wk}
                 </Box>
+                {!d.inRange && (
+                  <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
+                    期間外
+                  </Box>
+                )}
               </Box>
             );
           })}
@@ -260,7 +265,7 @@ const WeekTable = ({
               </Text>
             </Box>
             {wkDates.map((d) => {
-              const isClosed = holidays.includes(d.iso);
+              const isClosed = d.inRange && holidays.includes(d.iso);
               const shift = shiftByStaffDate.get(`${staff.id}-${d.iso}`);
               const assignedOptionIds =
                 d.inRange && !isClosed ? getAssignedShiftTypeOptionIdsInOptionOrder(shift, sortedOptionIds) : [];
