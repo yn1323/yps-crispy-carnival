@@ -183,7 +183,7 @@ jobs:
         uses: mshick/add-pr-comment@v2
         with:
           issue: ${{ needs.prepare.outputs.pull_number }}
-          message-id: vrt-report
+          allow-repeats: true
           message-path: vrt-comment.md
       - name: Fail on VRT diff
         if: ${{ steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
