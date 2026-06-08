@@ -119,9 +119,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `chromatic_pr_on_push.yml` | PR push（draft/renovate除外） | 変更コンポーネントのみChromatic公開 |
 | `chromatic_pr_on_ready.yml` | PR ready for review | 同上 |
 | `chromatic_merged.yml` | push to main/develop | ベースライン自動承認 |
-| `pxdiff_pr_on_push.yml` | 全PR push | 自前PNG生成 → pxdiffへBYOアップロード → PRコメント |
-| `pxdiff_pr_on_ready.yml` | PR ready for review | 同上 |
-| `pxdiff_merged.yml` | push to main/develop | 自前PNG生成 → pxdiffへBYOアップロード → baseline承認 |
+| `pxdiff_on_push.yml` | 全push | 自前PNG生成 → pxdiffへBYOアップロード。main/developのみbaseline承認 |
 
 ## デプロイ順序
 
