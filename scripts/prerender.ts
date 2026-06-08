@@ -20,7 +20,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
 const DIST_DIR = "dist";
 const DIST_ABS = resolve(DIST_DIR);
@@ -39,6 +39,7 @@ const STATIC_ROUTES = [
 const GOTO_TIMEOUT_MS = 30_000;
 const RENDER_WAIT_TIMEOUT_MS = 15_000;
 const MIN_HTML_BYTES = 2_000;
+const MAX_PAGE_EVENTS = 20;
 // Emotion (Chakra UI) は本番ビルドで CSSStyleSheet.insertRule を使うため、
 // ダンプ後のインライン <style> は最低でもこの程度のサイズになるはず
 const MIN_INLINE_STYLE_BYTES = 5_000;
@@ -108,6 +109,49 @@ function createShellHandler(shell: Buffer) {
 
 function routeToOutputPath(route: string): string {
   return route === "/" ? join(DIST_DIR, "index.html") : join(DIST_DIR, route.replace(/^\//, ""), "index.html");
+}
+
+function recordPageEvent(events: string[], event: string): void {
+  events.push(event.length > 1_000 ? `${event.slice(0, 1_000)}...` : event);
+  if (events.length > MAX_PAGE_EVENTS) {
+    events.shift();
+  }
+}
+
+async function buildPageDiagnostics(route: string, page: Page, events: string[]): Promise<string> {
+  let snapshot = "unavailable";
+
+  try {
+    snapshot = JSON.stringify(
+      await page.evaluate(() => {
+        const app = document.getElementById("app");
+        return {
+          url: window.location.href,
+          titleCount: document.querySelectorAll("head > title").length,
+          h1Count: document.querySelectorAll("h1").length,
+          appChildCount: app?.children.length ?? null,
+          appText: app?.textContent?.trim().slice(0, 300) ?? null,
+          headTags: Array.from(
+            document.head.querySelectorAll('title, meta[name], meta[property], link[rel="canonical"]'),
+          )
+            .map((node) => node.outerHTML)
+            .slice(0, 30),
+        };
+      }),
+      null,
+      2,
+    );
+  } catch (err) {
+    snapshot = `failed to read page snapshot: ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  return [
+    `[prerender] ${route} did not become ready before timeout.`,
+    "[prerender] Page snapshot:",
+    snapshot,
+    "[prerender] Recent page events:",
+    events.length > 0 ? events.join("\n") : "(none)",
+  ].join("\n");
 }
 
 async function listContentSlugs(kind: "articles" | "categories"): Promise<string[]> {
@@ -243,35 +287,60 @@ async function main(): Promise<void> {
       console.log(`[prerender] Rendering ${route}`);
 
       const page = await context.newPage();
+      const pageEvents: string[] = [];
+      page.on("pageerror", (err) => {
+        recordPageEvent(pageEvents, `[pageerror] ${err.message}`);
+      });
+      page.on("console", (msg) => {
+        if (msg.type() === "error" || msg.type() === "warning") {
+          recordPageEvent(pageEvents, `[console:${msg.type()}] ${msg.text()}`);
+        }
+      });
+      page.on("requestfailed", (request) => {
+        if (request.url().startsWith(baseUrl)) {
+          recordPageEvent(
+            pageEvents,
+            `[requestfailed] ${request.url()} ${request.failure()?.errorText ?? "unknown failure"}`,
+          );
+        }
+      });
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
 
       // React が #app に描画し、head の更新が落ち着くまで待機
       // (Convex の WebSocket が networkidle を妨げるため DOM ベースで待機)
-      await page.waitForFunction(
-        () => {
-          const app = document.getElementById("app");
-          const appReady = app !== null && app.querySelector("h1") !== null;
-          const headHasTitle = document.querySelectorAll("head > title").length > 0;
-          if (!appReady || !headHasTitle) return false;
+      try {
+        await page.waitForFunction(
+          () => {
+            const app = document.getElementById("app");
+            const appReady = app !== null && app.querySelector("h1") !== null;
+            const headHasTitle = document.querySelectorAll("head > title").length > 0;
+            if (!appReady || !headHasTitle) return false;
 
-          const stateKey = "__PRERENDER_HEAD_STABILITY__";
-          const state = window as unknown as {
-            [stateKey]?: { snapshot: string; stableSince: number };
-          };
-          const snapshot = Array.from(
-            document.head.querySelectorAll('title, meta[name], meta[property], link[rel="canonical"]'),
-          )
-            .map((node) => node.outerHTML)
-            .join("\n");
-          const now = performance.now();
-          if (!state[stateKey] || state[stateKey].snapshot !== snapshot) {
-            state[stateKey] = { snapshot, stableSince: now };
-            return false;
-          }
-          return now - state[stateKey].stableSince >= 100;
-        },
-        { timeout: RENDER_WAIT_TIMEOUT_MS },
-      );
+            const stateKey = "__PRERENDER_HEAD_STABILITY__";
+            const state = window as unknown as {
+              [stateKey]?: { snapshot: string; stableSince: number };
+            };
+            const snapshot = Array.from(
+              document.head.querySelectorAll('title, meta[name], meta[property], link[rel="canonical"]'),
+            )
+              .map((node) => node.outerHTML)
+              .join("\n");
+            const now = performance.now();
+            if (!state[stateKey] || state[stateKey].snapshot !== snapshot) {
+              state[stateKey] = { snapshot, stableSince: now };
+              return false;
+            }
+            return now - state[stateKey].stableSince >= 100;
+          },
+          { timeout: RENDER_WAIT_TIMEOUT_MS },
+        );
+      } catch (err) {
+        throw new Error(
+          `${await buildPageDiagnostics(route, page, pageEvents)}\n[prerender] Original wait error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
 
       await page.evaluate(
         ({ routeManagedMetaNames, routeManagedMetaProperties }) => {
