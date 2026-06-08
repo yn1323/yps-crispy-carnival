@@ -119,7 +119,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `chromatic_pr_on_push.yml` | PR push（draft/renovate除外） | 変更コンポーネントのみChromatic公開 |
 | `chromatic_pr_on_ready.yml` | PR ready for review | 同上 |
 | `chromatic_merged.yml` | push to main/develop | ベースライン自動承認 |
-| `vrt_on_push.yml` | 全push | Storycap testrunでPNG生成 → RegSuit比較 → hosting-pagesへレポート公開。main/developのみbaseline更新 |
+| `vrt.yml` | 全push | Storycap testrunでPNG生成 → RegSuit比較 → hosting-pagesへレポート公開。main/developのみbaseline更新 |
 
 ## デプロイ順序
 

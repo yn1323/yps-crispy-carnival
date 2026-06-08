@@ -1,4 +1,4 @@
-name: vrt_on_push
+name: vrt
 
 on: push
 
@@ -8,7 +8,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  vrt_on_push:
+  vrt:
     runs-on: ubuntu-latest
     environment: Preview
     env:
