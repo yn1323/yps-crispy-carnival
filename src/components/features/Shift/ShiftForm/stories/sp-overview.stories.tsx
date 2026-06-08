@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from "..";
-import { fullscreenParameters, mobileGlobals, overviewCalendarRangeArgs, shiftFormDecorators } from "./shared";
+import {
+  expectVisibleText,
+  fullscreenParameters,
+  mobileGlobals,
+  overviewCalendarRangeArgs,
+  shiftFormDecorators,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Time/SP/Overview",
@@ -16,6 +22,12 @@ export const TimeTwoWeeks: Story = {
   name: "Two Weeks",
   args: overviewCalendarRangeArgs,
   globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    await expectVisibleText(canvasElement, "1/19–1/25");
+    await expectVisibleText(canvasElement, "1/19月期間外");
+    await expectVisibleText(canvasElement, "1/20火期間外");
+    await expectVisibleText(canvasElement, "1/21水");
+  },
 };
 
 export const TimeReadOnly: Story = {

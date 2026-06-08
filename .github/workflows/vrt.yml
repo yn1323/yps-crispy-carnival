@@ -1,0 +1,204 @@
+name: vrt
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  VRT_REPORT_DIR: yps-crispy-carnival-vrt
+  VRT_BASELINE_DIR: yps-crispy-carnival-vrt-baselines
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      pull_number: ${{ steps.destination.outputs.pull_number }}
+      report_key: ${{ steps.destination.outputs.report_key }}
+      baseline_ref: ${{ steps.destination.outputs.baseline_ref }}
+      report_url: ${{ steps.destination.outputs.report_url }}
+      should_update_baseline: ${{ steps.destination.outputs.should_update_baseline }}
+      should_fail_on_diff: ${{ steps.destination.outputs.should_fail_on_diff }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Resolve VRT destination
+        id: destination
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const eventPull = context.payload.pull_request;
+            const branch = eventPull?.head?.ref ?? context.ref.replace('refs/heads/', '');
+            const branchSlug = branch.replace(/[^A-Za-z0-9._-]/g, '-');
+            const isBasePush = !eventPull && (branch === 'develop' || branch === 'main');
+            let pull = eventPull;
+
+            if (!pull && !isBasePush) {
+              const { data: pulls } = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${branch}`,
+                state: 'open',
+                per_page: 1,
+              });
+              pull = pulls[0];
+            }
+
+            const reportKey = pull ? `pr-${pull.number}` : `branches/${branchSlug}`;
+            const baselineRef = pull?.base?.ref ?? (branch === 'main' ? 'main' : 'develop');
+
+            core.setOutput('pull_number', pull?.number ?? '');
+            core.setOutput('report_key', reportKey);
+            core.setOutput('baseline_ref', baselineRef);
+            core.setOutput('should_update_baseline', isBasePush ? 'true' : 'false');
+            core.setOutput('should_fail_on_diff', isBasePush ? 'false' : 'true');
+            core.setOutput(
+              'report_url',
+              `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/${reportKey}/`,
+            );
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Storybook Build
+        run: pnpm vrt:build
+
+  capture:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup Playwright
+        uses: ./.github/actions/playwright
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          sudo fc-cache -f
+      - name: Capture VRT screenshots
+        run: pnpm vrt:capture:shard --shard=${{ matrix.shard }}/4
+      - name: Upload VRT screenshots
+        uses: actions/upload-artifact@v6
+        with:
+          name: vrt-actual-${{ matrix.shard }}
+          path: vrt-actual/
+          retention-days: 3
+
+  compare:
+    needs:
+      - prepare
+      - build
+      - capture
+    runs-on: ubuntu-latest
+    environment: Preview
+    env:
+      REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Checkout VRT Pages
+        run: |
+          git clone --depth 1 --single-branch https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git hosting-pages
+      - name: Download VRT screenshots
+        uses: actions/download-artifact@v6
+        with:
+          pattern: vrt-actual-*
+          path: vrt-actual
+          merge-multiple: true
+      - name: Prepare RegSuit baseline
+        id: baseline
+        run: |
+          mkdir -p vrt-work/baseline
+          if [ -d "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ needs.prepare.outputs.baseline_ref }}" ]; then
+            cp -R "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ needs.prepare.outputs.baseline_ref }}/." vrt-work/baseline/
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build VRT report
+        run: pnpm vrt:report
+      - name: Assert VRT result
+        id: regsuit
+        if: ${{ steps.baseline.outputs.found == 'true' }}
+        continue-on-error: true
+        run: pnpm vrt:assert
+      - name: Deploy VRT report to GitHub Pages
+        if: ${{ !cancelled() && hashFiles('vrt-work/reg/index.html') != '' }}
+        run: |
+          rm -rf "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
+          mkdir -p "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
+          cp -R vrt-work/reg/. "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/"
+
+          if [ "${{ needs.prepare.outputs.should_update_baseline }}" = "true" ]; then
+            rm -rf "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
+            mkdir -p "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
+            cp -R vrt-actual/. "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}/"
+          fi
+
+          cd hosting-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "VRT report for ${{ github.ref_name }}" || exit 0
+          git pull --rebase
+          git push
+      - name: Build VRT comment
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-work/reg/index.html') != '' }}
+        run: |
+          node <<'NODE'
+            const fs = require("node:fs");
+            const reportUrl = '${{ needs.prepare.outputs.report_url }}';
+            const baselineFound = '${{ steps.baseline.outputs.found }}' === 'true';
+            const compareResult = baselineFound ? '${{ steps.regsuit.outcome }}' : 'success';
+            const statusEmoji = compareResult === 'success' ? '✅' : '❌';
+            const statusText = baselineFound ? (compareResult === 'success' ? '成功' : '失敗') : 'baseline未作成';
+
+            let summary = '';
+            try {
+              const json = JSON.parse(fs.readFileSync('vrt-work/reg/out.json', 'utf8'));
+              const items = json.failedItems || json.changedItems || json.items || [];
+              const newItems = json.newItems || [];
+              const deletedItems = json.deletedItems || [];
+              const passedItems = json.passedItems || [];
+              summary = [
+                '| 🔴 Changed | ⚪ New | 🗑️ Deleted | 🟢 Passed |',
+                '|---:|---:|---:|---:|',
+                `| ${items.length} | ${newItems.length} | ${deletedItems.length} | ${passedItems.length} |`,
+              ].join('\n');
+            } catch (error) {
+              summary = 'RegSuit result JSON の読み込みに失敗しました';
+            }
+
+            fs.writeFileSync(
+              'vrt-comment.md',
+              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`,
+            );
+          NODE
+      - name: Comment PR with VRT report
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment.md') != '' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          issue: ${{ needs.prepare.outputs.pull_number }}
+          allow-repeats: true
+          message-path: vrt-comment.md
+      - name: Fail on VRT diff
+        if: ${{ needs.prepare.outputs.should_fail_on_diff == 'true' && steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
+        run: exit 1
