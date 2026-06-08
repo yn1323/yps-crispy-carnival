@@ -1,5 +1,6 @@
 import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
+import { expect, waitFor } from "storybook/test";
 import type { ShiftForm } from "..";
 import {
   mockDateOnlyDates,
@@ -96,3 +97,15 @@ export const dateOnlyArgs = {
   holidays: ["2026-06-07"],
   submissionPattern: { kind: "dateOnly" },
 } satisfies ShiftFormArgs;
+
+const normalizeVisibleText = (value: string): string => value.replace(/\s+/g, "").trim();
+
+const hasVisibleText = (root: HTMLElement, expected: string): boolean =>
+  Array.from(root.querySelectorAll("*")).some((element) => {
+    if (!(element instanceof HTMLElement) || element.getClientRects().length === 0) return false;
+    return normalizeVisibleText(element.textContent ?? "").includes(expected);
+  });
+
+export const expectVisibleText = async (root: HTMLElement, expected: string): Promise<void> => {
+  await waitFor(() => expect(hasVisibleText(root, expected)).toBe(true));
+};
