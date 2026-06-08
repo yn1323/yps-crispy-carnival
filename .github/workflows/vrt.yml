@@ -4,8 +4,7 @@ on: push
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   vrt:
@@ -94,12 +93,11 @@ jobs:
           git commit -m "VRT report for ${{ github.ref_name }}" || exit 0
           git pull --rebase
           git push
-      - name: Comment PR with VRT report
+      - name: Build VRT comment
         if: ${{ !cancelled() && steps.destination.outputs.pull_number != '' && hashFiles('vrt-work/reg/index.html') != '' }}
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
+        run: |
+          node <<'NODE'
+            const fs = require("node:fs");
             const reportUrl = '${{ steps.destination.outputs.report_url }}';
             const baselineFound = '${{ steps.baseline.outputs.found }}' === 'true';
             const compareResult = baselineFound ? '${{ steps.regsuit.outcome }}' : 'success';
@@ -123,12 +121,17 @@ jobs:
               summary = 'RegSuit result JSON の読み込みに失敗しました';
             }
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: Number('${{ steps.destination.outputs.pull_number }}'),
-              body: `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})\n\nデプロイ先: https://github.com/yn1323/hosting-pages`,
-            });
+            fs.writeFileSync(
+              'vrt-comment.md',
+              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`,
+            );
+          NODE
+      - name: Comment PR with VRT report
+        if: ${{ !cancelled() && steps.destination.outputs.pull_number != '' && hashFiles('vrt-comment.md') != '' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: vrt-report
+          message-path: vrt-comment.md
       - name: Fail on VRT diff
         if: ${{ steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
         run: exit 1
