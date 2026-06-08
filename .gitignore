@@ -16,7 +16,6 @@ count.txt
 storybook-static
 vrt-actual/
 vrt-work/
-pxdiff-output.json
 
 # Playwright
 node_modules/
