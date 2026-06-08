@@ -1,6 +1,9 @@
 name: vrt
 
-on: push
+on:
+  push:
+  pull_request:
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -18,6 +21,8 @@ jobs:
       report_key: ${{ steps.destination.outputs.report_key }}
       baseline_ref: ${{ steps.destination.outputs.baseline_ref }}
       report_url: ${{ steps.destination.outputs.report_url }}
+      should_update_baseline: ${{ steps.destination.outputs.should_update_baseline }}
+      should_fail_on_diff: ${{ steps.destination.outputs.should_fail_on_diff }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -28,23 +33,31 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
-            const branch = context.ref.replace('refs/heads/', '');
+            const eventPull = context.payload.pull_request;
+            const branch = eventPull?.head?.ref ?? context.ref.replace('refs/heads/', '');
             const branchSlug = branch.replace(/[^A-Za-z0-9._-]/g, '-');
-            const { data: pulls } = await github.rest.pulls.list({
-              owner,
-              repo,
-              head: `${owner}:${branch}`,
-              state: 'open',
-              per_page: 1,
-            });
+            const isBasePush = !eventPull && (branch === 'develop' || branch === 'main');
+            let pull = eventPull;
 
-            const pull = pulls[0];
+            if (!pull && !isBasePush) {
+              const { data: pulls } = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${branch}`,
+                state: 'open',
+                per_page: 1,
+              });
+              pull = pulls[0];
+            }
+
             const reportKey = pull ? `pr-${pull.number}` : `branches/${branchSlug}`;
-            const baselineRef = branch === 'main' ? 'main' : 'develop';
+            const baselineRef = pull?.base?.ref ?? (branch === 'main' ? 'main' : 'develop');
 
             core.setOutput('pull_number', pull?.number ?? '');
             core.setOutput('report_key', reportKey);
             core.setOutput('baseline_ref', baselineRef);
+            core.setOutput('should_update_baseline', isBasePush ? 'true' : 'false');
+            core.setOutput('should_fail_on_diff', isBasePush ? 'false' : 'true');
             core.setOutput(
               'report_url',
               `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/${reportKey}/`,
@@ -133,7 +146,7 @@ jobs:
           mkdir -p "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
           cp -R vrt-work/reg/. "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/"
 
-          if [ "${{ github.ref_name }}" = "develop" ] || [ "${{ github.ref_name }}" = "main" ]; then
+          if [ "${{ needs.prepare.outputs.should_update_baseline }}" = "true" ]; then
             rm -rf "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
             mkdir -p "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
             cp -R vrt-actual/. "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}/"
@@ -186,5 +199,5 @@ jobs:
           allow-repeats: true
           message-path: vrt-comment.md
       - name: Fail on VRT diff
-        if: ${{ steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
+        if: ${{ needs.prepare.outputs.should_fail_on_diff == 'true' && steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
         run: exit 1
