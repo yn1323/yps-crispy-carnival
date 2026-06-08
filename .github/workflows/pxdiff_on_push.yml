@@ -32,7 +32,7 @@ jobs:
           PXDIFF_AUTO_APPROVE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' }}
           PXDIFF_SUITE: storybook-poc
       - name: Comment pxdiff result on open PR
-        if: always() && (steps.pxdiff.outputs.changed != '0' || steps.pxdiff.outputs.new != '0')
+        if: always() && (steps.pxdiff.outputs.changed != '0' || steps.pxdiff.outputs.new != '0' || steps.pxdiff.outputs.removed != '0')
         uses: actions/github-script@v7
         with:
           script: |
@@ -55,8 +55,9 @@ jobs:
             const diffUrl = '${{ steps.pxdiff.outputs.diff_url }}';
             const changed = '${{ steps.pxdiff.outputs.changed }}';
             const fresh = '${{ steps.pxdiff.outputs.new }}';
+            const removed = '${{ steps.pxdiff.outputs.removed }}';
             const body = [
-              `**pxdiff:** ${changed} changed, ${fresh} new snapshots.`,
+              `**pxdiff:** ${changed} changed, ${fresh} new, ${removed} removed snapshots.`,
               diffUrl ? `[Review diff](${diffUrl})` : 'Review diff URL was not returned by pxdiff.',
             ].join('\n\n');
 
