@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { buildWeeklyGrid, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
+import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
 import { timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
@@ -117,9 +117,9 @@ type WeekCardProps = {
 };
 
 const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateClick, isReadOnly }: WeekCardProps) => {
-  const inRangeDates = wkDates.filter((d) => d.inRange);
-  const rangeLabel =
-    inRangeDates.length > 0 ? `${inRangeDates[0].label} – ${inRangeDates[inRangeDates.length - 1].label}` : "";
+  const start = wkDates[0]?.iso ?? "";
+  const end = wkDates[wkDates.length - 1]?.iso ?? start;
+  const rangeLabel = start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
   return (
     <Box
       bg="white"
@@ -206,7 +206,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
           </Box>
           {wkDates.map((d) => {
             const isClickable = !isReadOnly && d.inRange;
-            const isClosed = holidays.includes(d.iso);
+            const isClosed = d.inRange && holidays.includes(d.iso);
             return (
               <Box
                 as="th"
@@ -230,6 +230,11 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                 {isClosed && (
                   <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
                     定休日
+                  </Box>
+                )}
+                {!d.inRange && (
+                  <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
+                    期間外
                   </Box>
                 )}
               </Box>
@@ -268,7 +273,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                 </Flex>
               </Box>
               {wkDates.map((d) => {
-                const isClosed = holidays.includes(d.iso);
+                const isClosed = d.inRange && holidays.includes(d.iso);
                 const asn = d.inRange && !isClosed ? (lookup.get(`${s.id}-${d.iso}`) ?? null) : null;
                 if (asn) total += shiftHours(asn);
                 return (
