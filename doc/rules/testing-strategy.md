@@ -141,7 +141,7 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - Behavior Test は Storybook の play function で、ユーザー操作後の振る舞いを検証する。`expect` による明示的な期待値を書き、表示される要素は `findBy...` で待つ。
 - Behavior Test は、日付境界、SP/PC差分、任意ステップ、エラー表示、確認画面など、画面だけで保証できる重要エッジケースを対象にする。
 - Behavior Test を追加・変更するときは、その Story を VRT 撮影対象にするかを最後に必ず判断する。振る舞いだけを見たい場合は `parameters: { chromatic: { disableSnapshot: true } }` を付ける。見た目の退行も守りたい場合は、VRT対象として残すか、別の静的Storyに代表状態を切り出す。
-- Storycap testrun + RegSuit のPoCでは `pnpm vrt:capture` で代表StoryのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。既存Storyの `chromatic.disableSnapshot` は互換ヘルパーで `screenshot.skip` として扱う。
+- Storycap testrun + RegSuit では `pnpm vrt:capture` で全StorybookファイルのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。既存Storyの `chromatic.disableSnapshot` は互換ヘルパーで `screenshot.skip` として扱う。
 - DB や業務フロー全体は検証しない。
 
 ### Convex Function Test

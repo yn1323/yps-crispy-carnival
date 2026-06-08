@@ -22,6 +22,11 @@ jobs:
         uses: ./.github/actions/setup
       - name: Setup Playwright
         uses: ./.github/actions/playwright
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          sudo fc-cache -f
       - name: Resolve VRT destination
         id: destination
         uses: actions/github-script@v8
@@ -112,11 +117,13 @@ jobs:
               const deletedItems = json.deletedItems || [];
               const passedItems = json.passedItems || [];
               summary = [
-                `**changed:** ${items.length}`,
-                `**new:** ${newItems.length}`,
-                `**deleted:** ${deletedItems.length}`,
-                `**passed:** ${passedItems.length}`,
-              ].join(' / ');
+                '| Snapshot | Count |',
+                '|---|---:|',
+                `| 🔴 Changed | ${items.length} |`,
+                `| ⚪ New | ${newItems.length} |`,
+                `| 🗑️ Deleted | ${deletedItems.length} |`,
+                `| 🟢 Passed | ${passedItems.length} |`,
+              ].join('\n');
             } catch (error) {
               summary = 'RegSuit result JSON の読み込みに失敗しました';
             }
@@ -130,6 +137,7 @@ jobs:
         if: ${{ !cancelled() && steps.destination.outputs.pull_number != '' && hashFiles('vrt-comment.md') != '' }}
         uses: mshick/add-pr-comment@v2
         with:
+          issue: ${{ steps.destination.outputs.pull_number }}
           message-id: vrt-report
           message-path: vrt-comment.md
       - name: Fail on VRT diff
