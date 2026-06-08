@@ -1,0 +1,51 @@
+name: pxdiff_pr_on_ready
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  checks: write
+
+jobs:
+  pxdiff_pr_on_ready:
+    runs-on: ubuntu-latest
+    environment: Preview
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Storybook Build
+        run: pnpm vrt:build
+      - name: Capture VRT screenshots
+        run: pnpm vrt:capture
+      - name: Upload screenshots to pxdiff
+        id: pxdiff
+        run: pnpm vrt:upload
+        env:
+          PXDIFF_API_KEY: ${{ secrets.PXDIFF_API_KEY }}
+          PXDIFF_SUITE: storybook-poc
+      - name: Comment pxdiff result
+        if: always() && (steps.pxdiff.outputs.changed != '0' || steps.pxdiff.outputs.new != '0')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const diffUrl = '${{ steps.pxdiff.outputs.diff_url }}';
+            const changed = '${{ steps.pxdiff.outputs.changed }}';
+            const fresh = '${{ steps.pxdiff.outputs.new }}';
+            const body = [
+              `**pxdiff:** ${changed} changed, ${fresh} new snapshots.`,
+              diffUrl ? `[Review diff](${diffUrl})` : 'Review diff URL was not returned by pxdiff.',
+            ].join('\n\n');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });

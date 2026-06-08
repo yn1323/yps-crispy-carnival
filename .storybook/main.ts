@@ -4,6 +4,14 @@ import type { StorybookConfig } from "@storybook/react-vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
+const allStories = ["../src/**/*.stories.@(ts|tsx)"];
+const vrtPocStories = [
+  "../src/components/ui/Button/index.stories.tsx",
+  "../src/components/ui/Dialog/index.stories.tsx",
+  "../src/components/features/Dashboard/DashboardContent/index.stories.tsx",
+  "../src/components/features/LandingPage/index.stories.tsx",
+  "../src/components/features/ArticleSite/ArticleConversionCta/index.stories.tsx",
+];
 
 const config: StorybookConfig = {
   refs: {
@@ -11,7 +19,7 @@ const config: StorybookConfig = {
       disable: true,
     },
   },
-  stories: ["../src/**/*.stories.@(ts|tsx)"],
+  stories: process.env.STORYBOOK_VRT_POC === "true" ? vrtPocStories : allStories,
   addons: ["@storybook/addon-docs", "@storybook/addon-vitest"],
   framework: {
     name: "@storybook/react-vite",
