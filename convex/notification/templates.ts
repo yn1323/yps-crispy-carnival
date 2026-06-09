@@ -1,4 +1,5 @@
 import { formatDateTimeJa } from "../_lib/dateFormat";
+import { withOpenExternalBrowser } from "../_lib/lineUrl";
 import { formatShiftClockTimeRange } from "../_lib/time";
 import type { LegalDocumentInfo } from "../legal/documents";
 
@@ -40,7 +41,7 @@ export function buildShiftConfirmationLineText(params: {
     }),
     "",
     `全員分の確認はこちら（24時間有効）`,
-    params.magicLinkUrl,
+    withOpenExternalBrowser(params.magicLinkUrl),
   ];
   return lines.join("\n");
 }
@@ -62,7 +63,7 @@ export function buildRecruitmentLineText(params: {
     `提出締切: ${params.deadline}`,
     "",
     "提出はこちら",
-    params.magicLinkUrl,
+    withOpenExternalBrowser(params.magicLinkUrl),
     "",
     "提出・修正は提出締切までです。提出後は、締切後もシフト確定まで内容を確認できます。",
   ].join("\n");
@@ -83,7 +84,7 @@ export function buildReissueLineText(params: {
     `${params.shopName}\n${params.periodLabel} のシフト閲覧リンクを再発行しました。`,
     "",
     "シフトの確認はこちら（24時間有効）",
-    params.magicLinkUrl,
+    withOpenExternalBrowser(params.magicLinkUrl),
   ].join("\n");
 }
 
@@ -105,7 +106,7 @@ export function buildReminderLineText(params: {
     `提出締切: ${params.linkExpiresAtLabel}`,
     "",
     "提出はこちら",
-    params.magicLinkUrl,
+    withOpenExternalBrowser(params.magicLinkUrl),
     "",
     "提出・修正は提出締切までです。提出済みの場合は、締切後もシフト確定まで内容を確認できます。",
   ].join("\n");
@@ -396,7 +397,7 @@ export function buildStaffRegistrationOwnerDigestLineText(params: StaffRegistrat
     "スタッフの承認依頼が届いています。",
     "シフトリのダッシュボードで確認してください。",
     "",
-    params.dashboardUrl,
+    withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
 }
 
@@ -498,7 +499,7 @@ export function buildStaffLegalConsentLineText(params: {
     "シフトリの使い方と、利用規約・プライバシーポリシーを確認できます。",
     "",
     "確認はこちら",
-    params.consentUrl,
+    withOpenExternalBrowser(params.consentUrl),
     "",
     `リンク有効期限: ${formatDateTimeJa(params.expiresAt)}`,
     "未同意でもシフトのお知らせは引き続き受け取れます。期限が切れた場合はシフト提出時にも同意できます。",
