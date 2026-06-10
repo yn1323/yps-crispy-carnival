@@ -47,6 +47,13 @@ export const ErrorState: Story = {
   },
 };
 
+export const LineInAppBrowser: Story = {
+  args: {
+    mode: "login",
+    isLineBrowser: true,
+  },
+};
+
 export const SignupVerification: Story = {
   args: {
     mode: "signup",

@@ -68,6 +68,10 @@ Quota が未取得の場合は、LINE送信を試みる。LINE Push が失敗し
 
 呼び出し点は既存の `sendShiftConfirmationEmails` / `sendRecruitmentNotificationEmails` / `sendReminderEmails` action のスタッフごとループ内。配送は同期送信ではなく `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ処理する。
 
+## LINE本文URLの外部ブラウザ対応
+
+LINEメッセージ本文に載せるURLには `withOpenExternalBrowser()`（`convex/_lib/lineUrl.ts`）で `openExternalBrowser=1` を一律付与する。LINEアプリ内ブラウザではGoogle OAuthがブロックされる（403: disallowed_useragent）ため、リンクを端末の既定ブラウザで開かせる。適用箇所は `convex/notification/templates.ts` の `build*LineText()` 内部。メールHTML内のURLには付与しない。
+
 ## レートリミット
 
 `convex/_lib/rateLimits.ts`:
