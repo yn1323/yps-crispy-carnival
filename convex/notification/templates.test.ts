@@ -35,6 +35,9 @@ describe("notification/templates", () => {
       isResend: false,
     });
 
+    // LINE内ブラウザのGoogle OAuthブロック回避のため、LINE本文のURLのみ外部ブラウザで開かせる
+    expect(lineText).toContain("https://example.com/shifts/view?token=test&openExternalBrowser=1");
+    expect(emailHtml).not.toContain("openExternalBrowser");
     expect(lineText).toContain("1/20(火) 出勤");
     expect(lineText).toContain("1/21(水) 遅番（15:00-22:00）");
     expect(lineText).toContain("1/22(木) 21:00-翌1:00");
@@ -58,7 +61,7 @@ describe("notification/templates", () => {
     );
     expect(lineText).toContain("スタッフの承認依頼が届いています。");
     expect(lineText).toContain("シフトリのダッシュボードで確認してください。");
-    expect(lineText).toContain(dashboardUrl);
+    expect(lineText).toContain(`${dashboardUrl}?openExternalBrowser=1`);
     expect(emailHtml).toContain("スタッフの承認依頼が届いています。");
     expect(emailHtml).toContain("シフトリのダッシュボードで確認してください。");
     expect(emailHtml).toContain("ダッシュボードを確認する");

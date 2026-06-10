@@ -12,6 +12,12 @@
 - `src/routes/sso-callback.tsx`
 - `src/pages/auth/index.tsx`
 - `src/components/features/AuthPage/index.tsx`
+- `src/utils/inAppBrowser.ts` — LINEアプリ内ブラウザ判定
+- `convex/_lib/lineUrl.ts` — `openExternalBrowser=1` 付与（フロントと共有）
+
+## LINEアプリ内ブラウザ対応
+
+LINEアプリ内ブラウザ（WebView）ではGoogle OAuthがGoogle側でブロックされる（403: disallowed_useragent）。ログイン/新規登録画面ではUAでLINE内ブラウザを検出し、注意バナーを表示したうえで、Googleボタン押下時に `openExternalBrowser=1` 付きURLへ遷移して外部ブラウザで開き直す。メール/パスワード認証はLINE内ブラウザでもそのまま利用できる。
 
 ## 画面一覧
 
