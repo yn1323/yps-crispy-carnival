@@ -24,10 +24,12 @@ import { useForm } from "react-hook-form";
 import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { z } from "zod";
+import { withOpenExternalBrowser } from "@/convex/_lib/lineUrl";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { isLineInAppBrowser } from "@/src/utils/inAppBrowser";
 import loginIllustration from "./login.webp";
 import { normalizeAuthRedirect } from "./redirect";
 
@@ -71,6 +73,7 @@ type ForgotResetValues = z.infer<typeof forgotResetSchema>;
 type LoginFormProps = {
   errorMessage?: string;
   isSubmitting?: boolean;
+  isLineBrowser?: boolean;
   redirectTo: string;
   onGoogle: () => void | Promise<void>;
   onSubmit: (values: LoginValues) => void | Promise<void>;
@@ -80,6 +83,7 @@ type SignupFormProps = {
   errorMessage?: string;
   isSubmitting?: boolean;
   isVerificationStep?: boolean;
+  isLineBrowser?: boolean;
   redirectTo: string;
   onGoogle: () => void | Promise<void>;
   onSubmit: (values: SignupValues) => void | Promise<void>;
@@ -131,8 +135,17 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
     return <Navigate to={redirectTo} replace />;
   }
 
+  const isLineBrowser = isLineInAppBrowser(navigator.userAgent);
+
   const handleGoogle = () =>
     runAuthAction(async () => {
+      // LINE内ブラウザではGoogle OAuthがブロックされる（403: disallowed_useragent）ため、
+      // 現在のページを外部ブラウザで開き直してもらう
+      if (isLineBrowser) {
+        window.location.assign(withOpenExternalBrowser(window.location.href));
+        return;
+      }
+
       const resource = mode === "signup" ? signUp : signIn;
       if (!resource || (!signInLoaded && mode !== "signup") || (!signUpLoaded && mode === "signup")) return;
 
@@ -269,6 +282,7 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
       forgotStep={forgotStep}
       forgotEmail={forgotEmail}
       redirectTo={redirectTo}
+      isLineBrowser={isLineBrowser}
       onGoogle={handleGoogle}
       onLogin={handleLogin}
       onSignup={handleSignup}
@@ -287,6 +301,7 @@ type AuthContentProps = {
   forgotStep?: ForgotStep;
   forgotEmail?: string;
   redirectTo?: string;
+  isLineBrowser?: boolean;
   onGoogle: () => void | Promise<void>;
   onLogin: (values: LoginValues) => void | Promise<void>;
   onSignup: (values: SignupValues) => void | Promise<void>;
@@ -303,6 +318,7 @@ export function AuthContent({
   forgotStep,
   forgotEmail,
   redirectTo = "/dashboard",
+  isLineBrowser,
   onGoogle,
   onLogin,
   onSignup,
@@ -361,6 +377,7 @@ export function AuthContent({
                   <LoginForm
                     errorMessage={errorMessage}
                     isSubmitting={isSubmitting}
+                    isLineBrowser={isLineBrowser}
                     redirectTo={redirectTo}
                     onGoogle={onGoogle}
                     onSubmit={onLogin}
@@ -371,6 +388,7 @@ export function AuthContent({
                     errorMessage={errorMessage}
                     isSubmitting={isSubmitting}
                     isVerificationStep={isVerificationStep}
+                    isLineBrowser={isLineBrowser}
                     redirectTo={redirectTo}
                     onGoogle={onGoogle}
                     onSubmit={onSignup}
@@ -397,7 +415,14 @@ export function AuthContent({
   );
 }
 
-export function LoginForm({ errorMessage, isSubmitting, redirectTo, onGoogle, onSubmit }: LoginFormProps) {
+export function LoginForm({
+  errorMessage,
+  isSubmitting,
+  isLineBrowser,
+  redirectTo,
+  onGoogle,
+  onSubmit,
+}: LoginFormProps) {
   const {
     register,
     handleSubmit,
@@ -406,6 +431,7 @@ export function LoginForm({ errorMessage, isSubmitting, redirectTo, onGoogle, on
 
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
+      {isLineBrowser && <LineBrowserNotice />}
       <OAuthButton isSubmitting={isSubmitting} onClick={onGoogle} label="Googleでログイン" />
       <FormDivider />
       <AuthError message={errorMessage} />
@@ -441,6 +467,7 @@ export function SignupForm({
   errorMessage,
   isSubmitting,
   isVerificationStep,
+  isLineBrowser,
   redirectTo,
   onGoogle,
   onSubmit,
@@ -485,6 +512,7 @@ export function SignupForm({
 
   return (
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
+      {isLineBrowser && <LineBrowserNotice />}
       <OAuthButton isSubmitting={isSubmitting} onClick={onGoogle} label="Googleで登録" />
       <FormDivider />
       <AuthError message={errorMessage} />
@@ -657,6 +685,16 @@ const OAuthButton = ({
     <Icon as={FcGoogle} boxSize={5} />
     {label}
   </Button>
+);
+
+// LINE内ブラウザではGoogle OAuthが使えないため、Googleボタンが外部ブラウザ起動に変わることを案内する
+const LineBrowserNotice = () => (
+  <Alert.Root status="warning" borderRadius="lg">
+    <Alert.Indicator />
+    <Alert.Description>
+      LINEアプリ内ではGoogleログインを利用できません。Googleのボタンを押すと、外部ブラウザでこのページを開き直します。
+    </Alert.Description>
+  </Alert.Root>
 );
 
 const FormDivider = () => (
