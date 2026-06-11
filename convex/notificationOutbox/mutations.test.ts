@@ -195,6 +195,128 @@ describe("notificationOutbox", () => {
     expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
   });
 
+  describe("markSent", () => {
+    async function insertProcessingJob(
+      t: Awaited<ReturnType<typeof setupShop>>["t"],
+      args: { shopId: Id<"shops">; channel: "email" | "line"; dedupeKey: string },
+    ) {
+      return await t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert("notificationOutbox", {
+          channel: args.channel,
+          status: "processing",
+          dedupeKey: args.dedupeKey,
+          shopId: args.shopId,
+          payload:
+            args.channel === "email"
+              ? emailPayload
+              : { kind: "line" as const, toUserId: "U_test", text: "hello", suppressDelivery: true },
+          attemptCount: 1,
+          nextRunAt: now,
+          processingStartedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+    }
+
+    async function collectUsage(t: Awaited<ReturnType<typeof setupShop>>["t"]) {
+      return await t.run(async (ctx) => await ctx.db.query("notificationUsage").collect());
+    }
+
+    beforeEach(() => {
+      // JST 2026-06-15 12:00
+      vi.setSystemTime(new Date("2026-06-15T03:00:00Z"));
+    });
+
+    it("email送信成功でその店舗・月のemailCountが+1される", async () => {
+      const { t, shopId } = await setupShop();
+      const outboxId = await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:sent" });
+
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+
+      const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+      expect(job?.status).toBe("sent");
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(1);
+      expect(usage[0]).toMatchObject({ shopId, month: "2026-06", emailCount: 1, lineCount: 0 });
+    });
+
+    it("LINE送信成功でその店舗・月のlineCountが+1される", async () => {
+      const { t, shopId } = await setupShop();
+      const outboxId = await insertProcessingJob(t, { shopId, channel: "line", dedupeKey: "line:test:sent" });
+
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(1);
+      expect(usage[0]).toMatchObject({ shopId, month: "2026-06", emailCount: 0, lineCount: 1 });
+    });
+
+    it("同月内の複数送信は同一行に累積される", async () => {
+      const { t, shopId } = await setupShop();
+      const outboxIds = [
+        await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:1" }),
+        await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:2" }),
+        await insertProcessingJob(t, { shopId, channel: "line", dedupeKey: "line:test:1" }),
+      ];
+
+      for (const outboxId of outboxIds) {
+        await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+      }
+
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(1);
+      expect(usage[0]).toMatchObject({ shopId, month: "2026-06", emailCount: 2, lineCount: 1 });
+    });
+
+    it("店舗が異なれば別の行にカウントされる", async () => {
+      const { t, shopId } = await setupShop();
+      const otherShopId = await t.run(async (ctx) => {
+        return await ctx.db.insert("shops", {
+          name: "別店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+      });
+      const outboxIds = [
+        await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:a" }),
+        await insertProcessingJob(t, { shopId: otherShopId, channel: "email", dedupeKey: "email:test:b" }),
+      ];
+
+      for (const outboxId of outboxIds) {
+        await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+      }
+
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(2);
+      expect(usage.every((row) => row.emailCount === 1 && row.lineCount === 0)).toBe(true);
+    });
+
+    it("既にsentのジョブを再度markSentしても二重カウントしない", async () => {
+      const { t, shopId } = await setupShop();
+      const outboxId = await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:twice" });
+
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(1);
+      expect(usage[0]).toMatchObject({ emailCount: 1, lineCount: 0 });
+    });
+
+    it("markFailedではカウントされない", async () => {
+      const { t, shopId } = await setupShop();
+      const outboxId = await insertProcessingJob(t, { shopId, channel: "email", dedupeKey: "email:test:failed" });
+
+      await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "boom" });
+
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(0);
+    });
+  });
+
   it("dueなジョブをclaimするとprocessingになりattemptCountが進む", async () => {
     const { t, shopId, staffId } = await setupShop();
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {

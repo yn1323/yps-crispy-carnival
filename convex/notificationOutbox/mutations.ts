@@ -1,7 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
+import { monthJST } from "../_lib/dateFormat";
 import { NOTIFICATION_OUTBOX_SHOP_ACTIVE_LIMIT, NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE } from "../constants";
 import { notificationChannelValidator, notificationPayloadValidator } from "./schemas";
 
@@ -113,6 +115,9 @@ export const claimDue = internalMutation({
 export const markSent = internalMutation({
   args: { outboxId: v.id("notificationOutbox") },
   handler: async (ctx, { outboxId }) => {
+    const job = await ctx.db.get(outboxId);
+    if (!job) return;
+
     const now = Date.now();
     await ctx.db.patch(outboxId, {
       status: "sent",
@@ -120,8 +125,41 @@ export const markSent = internalMutation({
       updatedAt: now,
       lastError: undefined,
     });
+
+    // actionリトライ等で再実行されても使用量を二重カウントしない
+    if (job.status === "sent") return;
+    await incrementNotificationUsage(ctx, job.shopId, job.channel, now);
   },
 });
+
+async function incrementNotificationUsage(
+  ctx: MutationCtx,
+  shopId: Id<"shops">,
+  channel: Doc<"notificationOutbox">["channel"],
+  now: number,
+) {
+  const month = monthJST(now);
+  const usage = await ctx.db
+    .query("notificationUsage")
+    .withIndex("by_shopId_month", (q) => q.eq("shopId", shopId).eq("month", month))
+    .first();
+
+  if (usage) {
+    await ctx.db.patch(usage._id, {
+      ...(channel === "email" ? { emailCount: usage.emailCount + 1 } : { lineCount: usage.lineCount + 1 }),
+      updatedAt: now,
+    });
+    return;
+  }
+
+  await ctx.db.insert("notificationUsage", {
+    shopId,
+    month,
+    emailCount: channel === "email" ? 1 : 0,
+    lineCount: channel === "line" ? 1 : 0,
+    updatedAt: now,
+  });
+}
 
 export const markFailed = internalMutation({
   args: { outboxId: v.id("notificationOutbox"), lastError: v.string() },
