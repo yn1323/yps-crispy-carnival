@@ -2,10 +2,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { initGTM, resetGTM, sendEvent, sendPageView } from ".";
 
+const prerenderFlag = () => window as unknown as { __PRERENDER__?: boolean };
+
 describe("GTM ヘルパー", () => {
   beforeEach(() => {
     resetGTM();
     window.dataLayer = [];
+    delete prerenderFlag().__PRERENDER__;
     for (const el of document.head.querySelectorAll('script[src*="googletagmanager"]')) el.remove();
     for (const el of document.body.querySelectorAll("noscript")) el.remove();
   });
@@ -43,6 +46,14 @@ describe("GTM ヘルパー", () => {
       initGTM("GTM-TEST123");
       const scripts = document.head.querySelectorAll('script[src*="googletagmanager"]');
       expect(scripts.length).toBe(1);
+    });
+
+    it("prerender中は何もしない（タグの焼き込み防止）", () => {
+      prerenderFlag().__PRERENDER__ = true;
+      initGTM("GTM-TEST123");
+      expect(document.head.querySelector('script[src*="googletagmanager"]')).toBeNull();
+      expect(document.body.querySelector("noscript")).toBeNull();
+      expect(window.dataLayer).toEqual([]);
     });
 
     it("prerender済みのGTMタグがある場合はDOMへ二重挿入しない", () => {
