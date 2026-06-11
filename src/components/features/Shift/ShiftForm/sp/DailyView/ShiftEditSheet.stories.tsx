@@ -40,9 +40,7 @@ const baseArgs = {
 };
 
 export const UnsubmittedStaff: Story = {
-  args: {
-    ...baseArgs,
-  },
+  args: baseArgs,
 };
 
 export const NewShift: Story = {

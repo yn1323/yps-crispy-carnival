@@ -37,9 +37,7 @@ const baseArgs = {
 };
 
 export const WithBreak: Story = {
-  args: {
-    ...baseArgs,
-  },
+  args: baseArgs,
 };
 
 export const UnsubmittedStaffNoPositions: Story = {
