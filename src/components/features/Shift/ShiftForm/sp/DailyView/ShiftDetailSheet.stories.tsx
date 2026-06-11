@@ -36,30 +36,16 @@ const baseArgs = {
   onOpenChange: () => {},
 };
 
-export const Variants: Story = {
+export const WithBreak: Story = {
   args: {
     ...baseArgs,
   },
 };
 
-export const NoPositions: Story = {
+export const UnsubmittedStaffNoPositions: Story = {
   args: {
     ...baseArgs,
     staff: unsubmittedStaff,
     shift: emptyUnsubmittedShift,
-  },
-  parameters: {
-    chromatic: { disableSnapshot: true },
-  },
-};
-
-export const UnsubmittedStaff: Story = {
-  args: {
-    ...baseArgs,
-    staff: unsubmittedStaff,
-    shift: emptyUnsubmittedShift,
-  },
-  parameters: {
-    chromatic: { disableSnapshot: true },
   },
 };

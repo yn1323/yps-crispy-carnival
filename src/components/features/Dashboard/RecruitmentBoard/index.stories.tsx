@@ -1,7 +1,9 @@
-import { Stack, Text } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockRecruitments } from "@/src/components/features/Dashboard/storyMocks";
 import { RecruitmentBoard, RecruitmentBoardSkeleton } from ".";
+
+const noop = () => {};
 
 const meta = {
   title: "Features/Dashboard/RecruitmentBoard",
@@ -9,71 +11,43 @@ const meta = {
   parameters: {
     layout: "padded",
   },
+  args: {
+    recruitments: mockRecruitments,
+    status: "Exhausted",
+    canLoadMore: false,
+    onCreateClick: noop,
+    onOpenShiftBoard: noop,
+    onDeleteRecruitment: noop,
+    onLoadMore: noop,
+  },
+  decorators: [
+    (Story) => (
+      <Stack maxW="720px" mx="auto" w="full">
+        <Story />
+      </Stack>
+    ),
+  ],
 } satisfies Meta<typeof RecruitmentBoard>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Variants: Story = {
+export const Default: Story = {};
+
+export const CanLoadMore: Story = {
   args: {
-    recruitments: mockRecruitments,
-    status: "Exhausted",
-    canLoadMore: false,
-    onCreateClick: () => {},
-    onOpenShiftBoard: () => {},
-    onDeleteRecruitment: () => {},
-    onLoadMore: () => {},
+    recruitments: mockRecruitments.slice(0, 2),
+    status: "CanLoadMore",
+    canLoadMore: true,
   },
-  render: () => (
-    <Stack gap={10} maxW="720px" mx="auto" w="full">
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          データあり
-        </Text>
-        <RecruitmentBoard
-          recruitments={mockRecruitments}
-          status="Exhausted"
-          canLoadMore={false}
-          onCreateClick={() => {}}
-          onOpenShiftBoard={() => {}}
-          onDeleteRecruitment={() => {}}
-          onLoadMore={() => {}}
-        />
-      </Stack>
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          もっと見るありの状態
-        </Text>
-        <RecruitmentBoard
-          recruitments={mockRecruitments.slice(0, 2)}
-          status="CanLoadMore"
-          canLoadMore={true}
-          onCreateClick={() => {}}
-          onOpenShiftBoard={() => {}}
-          onDeleteRecruitment={() => {}}
-          onLoadMore={() => {}}
-        />
-      </Stack>
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          空の状態
-        </Text>
-        <RecruitmentBoard
-          recruitments={[]}
-          status="Exhausted"
-          canLoadMore={false}
-          onCreateClick={() => {}}
-          onOpenShiftBoard={() => {}}
-          onDeleteRecruitment={() => {}}
-          onLoadMore={() => {}}
-        />
-      </Stack>
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          読み込み中
-        </Text>
-        <RecruitmentBoardSkeleton />
-      </Stack>
-    </Stack>
-  ),
+};
+
+export const Empty: Story = {
+  args: {
+    recruitments: [],
+  },
+};
+
+export const Loading: Story = {
+  render: () => <RecruitmentBoardSkeleton />,
 };

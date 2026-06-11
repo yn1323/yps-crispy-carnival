@@ -1,4 +1,4 @@
-import { Box, Stack, Text } from "@chakra-ui/react";
+import { Box, Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import type { Recruitment, Staff } from "../../types";
@@ -31,38 +31,6 @@ type StoryProps = {
   reviewedRecruitmentIds?: string[];
 };
 
-const variants = [
-  {
-    label: "募集作成前",
-    props: {
-      recruitments: [],
-      staffs: managerOnly,
-    },
-  },
-  {
-    label: "自分で提出する",
-    props: {
-      recruitments: [baseRecruitment],
-      staffs: managerOnly,
-    },
-  },
-  {
-    label: "提出確認",
-    props: {
-      recruitments: [{ ...baseRecruitment, responseCount: 1 } as Recruitment],
-      staffs: managerOnly,
-    },
-  },
-  {
-    label: "スタッフ追加",
-    props: {
-      recruitments: [{ ...baseRecruitment, responseCount: 1 } as Recruitment],
-      staffs: managerOnly,
-      reviewedRecruitmentIds: ["rec-1"],
-    },
-  },
-] satisfies Array<{ label: string; props: StoryProps }>;
-
 const OnboardingCalloutStory = ({ recruitments, staffs, reviewedRecruitmentIds = [] }: StoryProps) => {
   const [dismissedStages, setDismissedStages] = useState<DashboardOnboardingStage[]>([]);
   const state = deriveDashboardOnboardingState({ recruitments, staffs, dismissedStages, reviewedRecruitmentIds });
@@ -84,28 +52,37 @@ const meta = {
     recruitments: [],
     staffs: managerOnly,
   },
+  decorators: [
+    (Story) => (
+      <Box minH="100vh" bg="white" p={{ base: 4, md: 8 }}>
+        <Stack maxW="960px" mx="auto">
+          <Story />
+        </Stack>
+      </Box>
+    ),
+  ],
 } satisfies Meta<typeof OnboardingCalloutStory>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Variants: Story = {
+export const BeforeRecruitmentCreated: Story = {};
+
+export const SubmitYourself: Story = {
   args: {
-    recruitments: [],
-    staffs: managerOnly,
+    recruitments: [baseRecruitment],
   },
-  render: () => (
-    <Box minH="100vh" bg="white" p={{ base: 4, md: 8 }}>
-      <Stack maxW="960px" mx="auto" gap={{ base: 5, md: 6 }}>
-        {variants.map((variant) => (
-          <Stack key={variant.label} gap={2}>
-            <Text fontSize="sm" fontWeight="bold" color="gray.600">
-              {variant.label}
-            </Text>
-            <OnboardingCalloutStory {...variant.props} />
-          </Stack>
-        ))}
-      </Stack>
-    </Box>
-  ),
+};
+
+export const ReviewSubmission: Story = {
+  args: {
+    recruitments: [{ ...baseRecruitment, responseCount: 1 } as Recruitment],
+  },
+};
+
+export const AddStaff: Story = {
+  args: {
+    recruitments: [{ ...baseRecruitment, responseCount: 1 } as Recruitment],
+    reviewedRecruitmentIds: ["rec-1"],
+  },
 };
