@@ -5,10 +5,11 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedManagerShop, seedShop, seedShopMembership, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { HOUR_MS, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
 
 async function insertPendingRequest(
   ctx: MutationCtx,
-  args: { shopId: Id<"shops">; status?: "pending" | "approved" | "rejected"; email?: string },
+  args: { shopId: Id<"shops">; status?: "pending" | "approved" | "rejected"; email?: string; createdAt?: number },
 ) {
   const email = args.email ?? `${args.status ?? "pending"}@example.com`;
   return await ctx.db.insert("staffRegistrationRequests", {
@@ -22,7 +23,7 @@ async function insertPendingRequest(
     termsDocumentVersion: "terms-doc-v1",
     privacyDocumentVersion: "privacy-doc-v1",
     consentedAt: Date.now(),
-    createdAt: Date.now(),
+    createdAt: args.createdAt ?? Date.now(),
   });
 }
 
@@ -51,6 +52,54 @@ describe("staffRegistration/notificationQueries", () => {
       expect(result.page.map(String)).toEqual([ids.pendingShopId]);
       expect(result.page.map(String)).not.toContain(ids.approvedShopId);
       expect(result.page.map(String)).not.toContain(ids.rejectedShopId);
+    });
+
+    it("最新のpending申請が3日を超えた店舗は返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const recent = await seedManagerShop(ctx, { subject: "recent_shop", shopName: "Recent" });
+        const stale = await seedManagerShop(ctx, { subject: "stale_shop", shopName: "Stale" });
+        await insertPendingRequest(ctx, {
+          shopId: recent.shopId,
+          createdAt: Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS + HOUR_MS,
+        });
+        await insertPendingRequest(ctx, {
+          shopId: stale.shopId,
+          createdAt: Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS - HOUR_MS,
+        });
+        return idsToStrings({ recentShopId: recent.shopId, staleShopId: stale.shopId });
+      });
+
+      const result = await t.query(internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage, {
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+
+      expect(result.page.map(String)).toEqual([ids.recentShopId]);
+      expect(result.page.map(String)).not.toContain(ids.staleShopId);
+    });
+
+    it("3日超の申請と3日以内の申請が混在する店舗は返す（最新申請基準）", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const mixed = await seedManagerShop(ctx, { subject: "mixed_shop", shopName: "Mixed" });
+        await insertPendingRequest(ctx, {
+          shopId: mixed.shopId,
+          email: "old@example.com",
+          createdAt: Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS - HOUR_MS,
+        });
+        await insertPendingRequest(ctx, {
+          shopId: mixed.shopId,
+          email: "new@example.com",
+          createdAt: Date.now() - HOUR_MS,
+        });
+        return idsToStrings({ mixedShopId: mixed.shopId });
+      });
+
+      const result = await t.query(internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage, {
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+
+      expect(result.page.map(String)).toEqual([ids.mixedShopId]);
     });
   });
 
