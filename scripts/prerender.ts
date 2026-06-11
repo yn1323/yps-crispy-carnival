@@ -228,6 +228,14 @@ function assertRenderedHtml(route: string, html: string): void {
     const [name, count] = duplicatedOptionalMeta;
     throw new Error(`[prerender] ${route} produced ${count} ${name} meta tags — expected at most one`);
   }
+  // GTM が prerender 中に起動すると、注入されたタグ (Clarity / GA4 等) が焼き込まれて
+  // 実行時に二重初期化される (initGTM は isPrerendering() で起動を抑止している)。
+  // 計測スクリプトの混入をビルド失敗として検出し、再発を防ぐ。
+  if (/googletagmanager\.com|clarity\.ms/i.test(html)) {
+    throw new Error(
+      `[prerender] ${route} contains baked analytics scripts (googletagmanager.com / clarity.ms) — GTM must not run while prerendering`,
+    );
+  }
   // Emotion (Chakra UI) の動的注入スタイルが textContent にダンプされているか確認
   const styleBytes = (html.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) ?? []).reduce((sum, s) => sum + s.length, 0);
   if (styleBytes < MIN_INLINE_STYLE_BYTES) {
