@@ -198,8 +198,9 @@ describe("notificationOutbox", () => {
   describe("markSent", () => {
     async function insertProcessingJob(
       t: Awaited<ReturnType<typeof setupShop>>["t"],
-      args: { shopId: Id<"shops">; channel: "email" | "line"; dedupeKey: string },
+      args: { shopId: Id<"shops">; channel: "email" | "line"; dedupeKey: string; suppressDelivery?: boolean },
     ) {
+      const suppressDelivery = args.suppressDelivery ?? false;
       return await t.run(async (ctx) => {
         const now = Date.now();
         return await ctx.db.insert("notificationOutbox", {
@@ -209,8 +210,8 @@ describe("notificationOutbox", () => {
           shopId: args.shopId,
           payload:
             args.channel === "email"
-              ? emailPayload
-              : { kind: "line" as const, toUserId: "U_test", text: "hello", suppressDelivery: true },
+              ? { ...emailPayload, suppressDelivery }
+              : { kind: "line" as const, toUserId: "U_test", text: "hello", suppressDelivery },
           attemptCount: 1,
           nextRunAt: now,
           processingStartedAt: now,
@@ -304,6 +305,23 @@ describe("notificationOutbox", () => {
       const usage = await collectUsage(t);
       expect(usage).toHaveLength(1);
       expect(usage[0]).toMatchObject({ emailCount: 1, lineCount: 0 });
+    });
+
+    it("dry-run（suppressDelivery）のジョブはsentになってもカウントされない", async () => {
+      const { t, shopId } = await setupShop();
+      const outboxId = await insertProcessingJob(t, {
+        shopId,
+        channel: "email",
+        dedupeKey: "email:test:dry-run",
+        suppressDelivery: true,
+      });
+
+      await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId });
+
+      const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+      expect(job?.status).toBe("sent");
+      const usage = await collectUsage(t);
+      expect(usage).toHaveLength(0);
     });
 
     it("markFailedではカウントされない", async () => {

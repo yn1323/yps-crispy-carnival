@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
+import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { NOTIFICATION_OUTBOX_SHOP_ACTIVE_LIMIT, NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE } from "../constants";
 import { notificationChannelValidator, notificationPayloadValidator } from "./schemas";
 
@@ -128,6 +129,8 @@ export const markSent = internalMutation({
 
     // actionリトライ等で再実行されても使用量を二重カウントしない
     if (job.status === "sent") return;
+    // dry-run等で実際には配送していないジョブは課金対象外なのでカウントしない（送信時と同じ最終ゲートで判定）
+    if (isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery })) return;
     await incrementNotificationUsage(ctx, job.shopId, job.channel, now);
   },
 });
