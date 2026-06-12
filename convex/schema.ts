@@ -327,6 +327,19 @@ const schema = defineSchema({
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
     .index("by_shopId_status", ["shopId", "status"]),
 
+  // ========================================
+  // 店舗×月（JST）ごとの通知送信数。markSent 時にインクリメントする集約カウンタ
+  // ========================================
+  notificationUsage: defineTable({
+    shopId: v.id("shops"),
+    month: v.string(), // "YYYY-MM"（JST基準）
+    emailCount: v.number(),
+    lineCount: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_shopId_month", ["shopId", "month"])
+    .index("by_month", ["month"]),
+
   legalConsentTokens: defineTable({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),

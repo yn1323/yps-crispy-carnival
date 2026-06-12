@@ -34,7 +34,7 @@
 | `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 店舗固定の登録リンクを作成/取得 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | ダッシュボードチュートリアル終了をDB保存 |
 | `internal.staffRegistration.actions.sendOwnerDailyDigest` | internalAction | 毎日17:00 JSTに承認待ち申請がある店舗のmanager usersへ通知 |
-| `internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage` | internalQuery | 承認待ち申請がある店舗IDをページング取得 |
+| `internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage` | internalQuery | 3日以内に作成された承認待ち申請がある店舗IDをページング取得 |
 | `internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、通知対象manager users、manager staffのLINE連携状態を取得 |
 
 ## 補足
@@ -44,4 +44,5 @@
 - QR登録で同意済みのスタッフには、承認後に法務同意メールを送らない。
 - 手入力追加は従来通り、法務同意メール・LINE連携メール・募集中シフト通知を送る。
 - 承認待ち申請が残っている店舗には、毎日17:00 JSTに店舗のmanager usersへ短い確認通知を送る。manager userに紐づくstaffがLINE連携済みならLINE、未連携・Quota超過・LINE送信失敗時はusers.emailへメールで送る。
+- 通知コスト抑制のため、通知は最新の承認待ち申請から3日間（72時間、`STAFF_REGISTRATION_DIGEST_WINDOW_MS`）だけ送る。日次cronなので最大3回で打ち切られ、4日目以降は承認されていなくても送らない。
 - 承認待ち通知には申請者名・メールアドレス・件数は載せず、ダッシュボードリンクだけを案内する。
