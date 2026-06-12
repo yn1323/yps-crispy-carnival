@@ -9,7 +9,12 @@ import type { SelectItemType } from "@/src/components/ui/Select";
 import { Select } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { normalizePositions, paintPosition } from "@/src/domains/shift/operations";
-import { generateShiftTimeOptions, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
+import {
+  formatShiftClockTimeRange,
+  generateShiftTimeOptions,
+  minutesToTime,
+  timeToMinutes,
+} from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
 import { getEditableEndMinutes, getEditableStartMinutes } from "../../utils/timelineGeometry";
@@ -94,7 +99,7 @@ export const ShiftEditSheet = ({
   const requestTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
   const requestLabel =
     requestTimes.length > 0
-      ? `希望: ${requestTimes.map((request) => `${request.start} - ${request.end}`).join(" / ")}`
+      ? `希望: ${requestTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
       : "希望: なし";
 
   const currentShift: ShiftData = shift ?? {

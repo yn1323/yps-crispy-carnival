@@ -1,6 +1,7 @@
 import { Box, Text, VStack } from "@chakra-ui/react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { formatShiftClockTime } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../constants";
 
@@ -34,7 +35,7 @@ export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenCha
             <VStack gap={2} align="stretch">
               {visibleSegments.map((seg) => (
                 <Text key={seg.id} fontSize="sm" color="gray.700">
-                  {seg.start} - {seg.end}
+                  {formatShiftClockTime(seg.start)} - {formatShiftClockTime(seg.end)}
                 </Text>
               ))}
             </VStack>
