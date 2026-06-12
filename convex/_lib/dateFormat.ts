@@ -73,6 +73,11 @@ export function todayJST(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
 }
 
+/** Unix ms（既定: 現在）が属する月を JST基準で "YYYY-MM" として返す */
+export function monthJST(ms: number = Date.now()): string {
+  return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
+}
+
 /** Unix ms → "M/D(曜) HH:mm"（JST） */
 export function formatDateTimeLabel(ms: number): string {
   const jst = new Date(ms + 9 * 60 * 60 * 1000);
