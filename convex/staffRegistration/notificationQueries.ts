@@ -3,15 +3,21 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalQuery } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
-import { SHIFT_BOARD_STAFF_LIMIT, STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT } from "../constants";
+import {
+  SHIFT_BOARD_STAFF_LIMIT,
+  STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT,
+  STAFF_REGISTRATION_DIGEST_WINDOW_MS,
+} from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
 export const listPendingRequestShopIdsPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
+    // 最新依頼から3日間だけ通知する。3日以内のpendingがある店舗 = 最新pendingが3日以内の店舗
+    const windowStart = Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS;
     const result = await ctx.db
       .query("staffRegistrationRequests")
-      .withIndex("by_status_and_createdAt", (q) => q.eq("status", "pending"))
+      .withIndex("by_status_and_createdAt", (q) => q.eq("status", "pending").gte("createdAt", windowStart))
       .paginate(paginationOpts);
 
     return {
