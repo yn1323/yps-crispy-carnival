@@ -249,6 +249,40 @@ export const mockShiftsHalfHourBusinessHours: ShiftData[] = [
   },
 ];
 
+// ==========================================
+// 深夜営業（24時超え）: 1/26
+// ==========================================
+const overnightDate = "2026-01-26";
+
+export const mockOvernightDates = [overnightDate];
+
+export const mockOvernightTimeRange: TimeRange = { start: 17, end: 29, unit: 30 };
+
+export const mockShiftsOvernight: ShiftData[] = [
+  // A: 翌5:00までの深夜シフト（希望と一致）
+  {
+    id: "overnight-staff1",
+    staffId: "staff1",
+    staffName: "Aさん",
+    date: overnightDate,
+    requestedTime: { start: "21:00", end: "29:00" },
+    positions: [workSeg("staff1", overnightDate, "21:00", "29:00")],
+  },
+  // B: 休憩を挟んで翌2:00までのシフト
+  {
+    id: "overnight-staff2",
+    staffId: "staff2",
+    staffName: "Bさん",
+    date: overnightDate,
+    requestedTime: { start: "18:00", end: "26:00" },
+    positions: [
+      workSeg("staff2", overnightDate, "18:00", "22:00"),
+      breakSeg("staff2", overnightDate, "22:00", "23:00"),
+      workSeg("staff2", overnightDate, "23:00", "26:00"),
+    ],
+  },
+];
+
 const shiftTypeDate = "2026-05-21";
 
 export const mockShiftTypeDates = [

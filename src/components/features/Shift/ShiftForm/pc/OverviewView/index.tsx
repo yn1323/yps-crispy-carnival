@@ -4,7 +4,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
-import { timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
 
@@ -299,7 +299,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                         color="teal.700"
                         style={{ fontVariantNumeric: "tabular-nums" }}
                       >
-                        {asn[0]}–{asn[1]}
+                        {formatShiftClockTime(asn[0])}–{formatShiftClockTime(asn[1])}
                       </Box>
                     ) : (
                       <Box as="span" color={d.inRange ? "gray.300" : "gray.200"} textStyle="caption">
