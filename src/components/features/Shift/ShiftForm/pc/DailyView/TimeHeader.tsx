@@ -31,7 +31,7 @@ export const TimeHeader = ({ timeRange }: TimeHeaderProps) => {
           whiteSpace="nowrap"
           fontVariantNumeric="tabular-nums"
         >
-          {hour}:00
+          {hour >= 24 ? `翌${hour - 24}:00` : `${hour}:00`}
         </Text>
       ))}
     </Box>

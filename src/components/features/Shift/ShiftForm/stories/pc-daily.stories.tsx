@@ -3,8 +3,10 @@ import { ShiftForm } from "..";
 import {
   allPatternsArgs,
   emptyOrAllUnsubmittedArgs,
+  expectVisibleText,
   fullscreenParameters,
   halfHourBusinessHoursArgs,
+  overnightArgs,
   shiftFormDecorators,
 } from "./shared";
 
@@ -26,6 +28,15 @@ export const TimeBasic: Story = {
 export const TimeHalfHourBusinessHours: Story = {
   name: "Half Hour Business Hours",
   args: halfHourBusinessHoursArgs,
+};
+
+export const TimeOvernight: Story = {
+  name: "Overnight",
+  args: overnightArgs,
+  play: async ({ canvasElement }) => {
+    await expectVisibleText(canvasElement, "21:00–翌5:00");
+    await expectVisibleText(canvasElement, "翌5:00");
+  },
 };
 
 export const TimeEmptyOrAllUnsubmitted: Story = {
