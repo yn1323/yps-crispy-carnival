@@ -149,6 +149,7 @@ jobs:
           rm -rf "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
           mkdir -p "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
           cp -R vrt-work/reg/. "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/"
+          echo "${{ github.run_id }}-${{ github.run_attempt }}" > "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
 
           if [ "${{ needs.prepare.outputs.should_update_baseline }}" = "true" ]; then
             rm -rf "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
@@ -196,18 +197,46 @@ jobs:
               ? `\n\n> 🔍 差分を確認してOKであれば、[こちら](${actionsUrl}) の「Review deployments」→「Approve and deploy」をクリックしてください。`
               : '';
 
-            fs.writeFileSync(
-              'vrt-comment.md',
-              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})${approvalNote}\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`,
-            );
+            const buildBody = (reportLine) =>
+              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n${reportLine}${approvalNote}\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`;
+
+            fs.writeFileSync('vrt-comment-pending.md', buildBody('🚀 レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
+            fs.writeFileSync('vrt-comment-final.md', buildBody(`[View Report](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
           NODE
-      - name: Comment PR with VRT report
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment.md') != '' }}
+      - name: Comment PR with VRT report (deploying)
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
         uses: mshick/add-pr-comment@v2
         with:
           issue: ${{ needs.prepare.outputs.pull_number }}
-          allow-repeats: true
-          message-path: vrt-comment.md
+          message-id: vrt-report-${{ github.run_id }}-${{ github.run_attempt }}
+          message-path: vrt-comment-pending.md
+      - name: Wait for hosting-pages deploy
+        id: wait_deploy
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' }}
+        run: |
+          MARKER_URL="${{ needs.prepare.outputs.report_url }}deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+          echo "Polling ${MARKER_URL}"
+          for i in $(seq 1 90); do
+            if curl -sf -o /dev/null "${MARKER_URL}?t=$(date +%s)"; then
+              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+              echo "Deploy confirmed after $((i * 10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
+          echo "::warning::hosting-pages deploy could not be confirmed within 15 minutes"
+      - name: Append deploy warning to VRT comment
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' && steps.wait_deploy.outputs.deploy_status != 'success' }}
+        run: |
+          printf '\n> ⚠️ デプロイ完了を確認できませんでした。リンクが開けない場合は、しばらく待ってから再度お試しください。\n' >> vrt-comment-final.md
+      - name: Update PR comment with VRT report link
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          issue: ${{ needs.prepare.outputs.pull_number }}
+          message-id: vrt-report-${{ github.run_id }}-${{ github.run_attempt }}
+          message-path: vrt-comment-final.md
       - name: Set diff output
         id: diff_check
         if: always()
