@@ -2,7 +2,6 @@ import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ConfirmShiftContent } from "./ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "./RemindUnsubmittedContent";
-import { UnsavedChangesContent } from "./UnsavedChangesContent";
 
 const meta = {
   title: "Features/ShiftBoard/DialogContents",
@@ -36,10 +35,6 @@ export const RemindUnsubmittedStandard: Story = {
   render: () => (
     <RemindUnsubmittedContent deadline="5/10(土) 23:59" unsubmittedNames={["田中次郎", "小林大輔", "佐藤花子"]} />
   ),
-};
-
-export const UnsavedChanges: Story = {
-  render: () => <UnsavedChangesContent />,
 };
 
 export const RemindUnsubmittedMany: Story = {

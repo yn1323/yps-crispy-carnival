@@ -8,7 +8,6 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
@@ -26,7 +25,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
-import { UnsavedChangesContent } from "../UnsavedChangesContent";
+import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
@@ -463,26 +462,13 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         />
       </Dialog>
 
-      <Dialog
-        title="保存していない変更があります"
+      <UnsavedChangesDialog
         isOpen={blocker.status === "blocked"}
-        onOpenChange={({ open }) => {
-          if (!open) blocker.reset?.();
-        }}
-        role="alertdialog"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => blocker.proceed?.()} disabled={isSavingAndLeaving}>
-              保存せず離脱
-            </Button>
-            <Button colorPalette="teal" onClick={handleSaveAndLeave} loading={isSavingAndLeaving}>
-              保存して離脱
-            </Button>
-          </>
-        }
-      >
-        <UnsavedChangesContent />
-      </Dialog>
+        onStay={() => blocker.reset?.()}
+        onLeaveWithoutSaving={() => blocker.proceed?.()}
+        onSaveAndLeave={handleSaveAndLeave}
+        isSaving={isSavingAndLeaving}
+      />
     </Flex>
   );
 };
