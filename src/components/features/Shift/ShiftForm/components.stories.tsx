@@ -34,56 +34,51 @@ const noneStatus = {
   label: "自動催促の送信予定はありません",
 };
 
-export const Variants: Story = {
-  name: "Variants",
-  args: { names: sampleNames, reminderStatus: scheduledStatus },
-  render: () => (
-    <Box display="flex" flexDirection="column" gap={6}>
-      <Box>
-        <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          送信予定あり
-        </Box>
-        <UnsubmittedStrip names={sampleNames} reminderStatus={scheduledStatus} onOpenDetails={() => {}} />
-      </Box>
-      <Box>
-        <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          送信済み
-        </Box>
-        <UnsubmittedStrip names={sampleNames} reminderStatus={sentStatus} onOpenDetails={() => {}} />
-      </Box>
-      <Box>
-        <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          送信予定なし
-        </Box>
-        <UnsubmittedStrip names={sampleNames} reminderStatus={noneStatus} onOpenDetails={() => {}} />
-      </Box>
-      <Box>
-        <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          1名のみ
-        </Box>
-        <UnsubmittedStrip names={["田中次郎"]} reminderStatus={scheduledStatus} onOpenDetails={() => {}} />
-      </Box>
-      <Box>
-        <Box fontSize="xs" color="gray.500" mb={1} px={5}>
-          多数（横スクロール）
-        </Box>
-        <UnsubmittedStrip
-          names={[
-            "田中次郎",
-            "小林大輔",
-            "佐藤花子",
-            "山田太郎",
-            "鈴木一郎",
-            "高橋健太",
-            "中村真理",
-            "渡辺優子",
-            "伊藤健一",
-            "加藤美穂",
-          ]}
-          reminderStatus={scheduledStatus}
-          onOpenDetails={() => {}}
-        />
-      </Box>
-    </Box>
-  ),
+const baseArgs = {
+  names: sampleNames,
+  reminderStatus: scheduledStatus,
+  onOpenDetails: () => {},
+};
+
+export const ReminderScheduled: Story = {
+  args: baseArgs,
+};
+
+export const ReminderSent: Story = {
+  args: {
+    ...baseArgs,
+    reminderStatus: sentStatus,
+  },
+};
+
+export const ReminderNone: Story = {
+  args: {
+    ...baseArgs,
+    reminderStatus: noneStatus,
+  },
+};
+
+export const SingleName: Story = {
+  args: {
+    ...baseArgs,
+    names: ["田中次郎"],
+  },
+};
+
+export const ManyNames: Story = {
+  args: {
+    ...baseArgs,
+    names: [
+      "田中次郎",
+      "小林大輔",
+      "佐藤花子",
+      "山田太郎",
+      "鈴木一郎",
+      "高橋健太",
+      "中村真理",
+      "渡辺優子",
+      "伊藤健一",
+      "加藤美穂",
+    ],
+  },
 };

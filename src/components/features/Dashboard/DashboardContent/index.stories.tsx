@@ -1,4 +1,4 @@
-import { Box, Stack, Text } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
@@ -188,83 +188,56 @@ export const Empty: Story = {
   },
 };
 
-const onboardingFlowVariants = [
-  {
-    id: "step-1",
-    label: "1/4 募集作成前",
-    recruitments: [],
-    staffs: managerOnly,
-    expectedProgress: "1/4",
-  },
-  {
-    id: "step-2",
-    label: "2/4 募集作成後",
-    recruitments: [onboardingRecruitment()],
-    staffs: managerOnly,
-    expectedProgress: "2/4",
-  },
-  {
-    id: "step-3",
-    label: "3/4 提出後",
-    recruitments: [onboardingRecruitment({ responseCount: 1 })],
-    staffs: managerOnly,
-    expectedProgress: "3/4",
-  },
-  {
-    id: "step-4",
-    label: "4/4 シフト確認後",
-    recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
-    staffs: managerOnly,
-    expectedProgress: "4/4",
-  },
-  {
-    id: "done",
-    label: "4/4 スタッフ追加済み",
-    recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
-    staffs: managerAndStaff,
-    expectedProgress: "4/4",
-  },
-] satisfies Array<{
-  id: string;
-  label: string;
-  recruitments: Recruitment[];
-  staffs: Staff[];
-  expectedProgress: string | null;
-}>;
+const onboardingPlay =
+  (label: string, expectedProgress: string) =>
+  async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    assertText(canvasElement, "シフトリへようこそ！", `${label} のオンボーディング見出し`);
+    assertText(canvasElement, expectedProgress, `${label} の進捗表示`);
+  };
 
-export const OnboardingFlowStates: Story = {
+export const OnboardingBeforeRecruitment: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
     staffs: managerOnly,
   },
-  render: () => (
-    <Box minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
-      <Stack maxW="1040px" mx="auto" gap={{ base: 6, md: 8 }}>
-        {onboardingFlowVariants.map((variant) => (
-          <Stack key={variant.id} data-testid={`onboarding-flow-${variant.id}`} gap={3}>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-              {variant.label}
-            </Text>
-            <DashboardContent {...dashboardBaseArgs} recruitments={variant.recruitments} staffs={variant.staffs} />
-          </Stack>
-        ))}
-      </Stack>
-    </Box>
-  ),
-  play: async ({ canvasElement }) => {
-    for (const variant of onboardingFlowVariants) {
-      const section = requireElement(canvasElement, `[data-testid="onboarding-flow-${variant.id}"]`);
-      if (variant.expectedProgress) {
-        assertText(section, "シフトリへようこそ！", `${variant.label} のオンボーディング見出し`);
-        assertText(section, variant.expectedProgress, `${variant.label} の進捗表示`);
-        continue;
-      }
+  play: onboardingPlay("1/4 募集作成前", "1/4"),
+};
 
-      assertText(section, "今やること", `${variant.label} の通常アクション見出し`);
-      assertNoText(section, "シフトリへようこそ！", `${variant.label} のオンボーディング非表示`);
-    }
+export const OnboardingAfterRecruitmentCreated: Story = {
+  args: {
+    ...dashboardBaseArgs,
+    recruitments: [onboardingRecruitment()],
+    staffs: managerOnly,
   },
+  play: onboardingPlay("2/4 募集作成後", "2/4"),
+};
+
+export const OnboardingAfterSubmission: Story = {
+  args: {
+    ...dashboardBaseArgs,
+    recruitments: [onboardingRecruitment({ responseCount: 1 })],
+    staffs: managerOnly,
+  },
+  play: onboardingPlay("3/4 提出後", "3/4"),
+};
+
+export const OnboardingAfterShiftConfirmed: Story = {
+  args: {
+    ...dashboardBaseArgs,
+    recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
+    staffs: managerOnly,
+  },
+  play: onboardingPlay("4/4 シフト確認後", "4/4"),
+};
+
+export const OnboardingStaffAdded: Story = {
+  args: {
+    ...dashboardBaseArgs,
+    recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
+    staffs: managerAndStaff,
+  },
+  play: onboardingPlay("4/4 スタッフ追加済み", "4/4"),
 };
 
 export const DismissedOnboardingShowsNextAction: Story = {
