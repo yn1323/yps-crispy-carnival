@@ -28,6 +28,8 @@ export const SHIFT_BOARD_TIME_UNIT_MINUTES = 30;
 export const STAFF_REGISTRATION_PENDING_LIMIT = 20;
 export const STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE = 100;
 export const STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT = 20;
+// 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronで最大3回）
+export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = 3 * DAY_MS;
 
 export const DEFAULT_POSITION_NAME = "シフト";
 export const DEFAULT_POSITION_COLOR = "#3b82f6";
