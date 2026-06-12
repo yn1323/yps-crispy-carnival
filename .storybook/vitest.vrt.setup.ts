@@ -7,8 +7,32 @@ const VRT_VIEWPORT = {
   height: 1080,
 } as const;
 
+const FREEZE_STYLE_ID = "vrt-freeze-animations";
+
+// fullPageキャプチャはスクロール＆スティッチ方式のため、タイル撮影中に動く要素があると
+// 画像がちぎれる。アニメーションを即時完了させて最終状態で静止させる
+// （animation: none だとfade-in系が初期状態のまま固まるため、duration≒0 + 1回再生にする）
+function freezeAnimations() {
+  if (document.getElementById(FREEZE_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = FREEZE_STYLE_ID;
+  style.textContent = `
+    *, *::before, *::after {
+      animation-duration: 0.001s !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+      scroll-behavior: auto !important;
+      caret-color: transparent !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 beforeEach(async () => {
   await page.viewport(VRT_VIEWPORT.width, VRT_VIEWPORT.height);
+  freezeAnimations();
 });
 
 afterEach(async (context) => {
