@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  deployments: write
 
 env:
   VRT_REPORT_DIR: yps-crispy-carnival-vrt
@@ -106,6 +107,8 @@ jobs:
       - capture
     runs-on: ubuntu-latest
     environment: Preview
+    outputs:
+      has_diff: ${{ steps.diff_check.outputs.has_diff }}
     env:
       REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
     steps:
@@ -187,9 +190,15 @@ jobs:
               summary = 'RegSuit result JSON の読み込みに失敗しました';
             }
 
+            const actionsUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const hasDiff = compareResult !== 'success' && baselineFound;
+            const approvalNote = hasDiff
+              ? `\n\n> 🔍 差分を確認してOKであれば、[こちら](${actionsUrl}) の「Review deployments」→「Approve and deploy」をクリックしてください。`
+              : '';
+
             fs.writeFileSync(
               'vrt-comment.md',
-              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`,
+              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})${approvalNote}\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`,
             );
           NODE
       - name: Comment PR with VRT report
@@ -199,6 +208,25 @@ jobs:
           issue: ${{ needs.prepare.outputs.pull_number }}
           allow-repeats: true
           message-path: vrt-comment.md
-      - name: Fail on VRT diff
-        if: ${{ needs.prepare.outputs.should_fail_on_diff == 'true' && steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
-        run: exit 1
+      - name: Set diff output
+        id: diff_check
+        if: always()
+        run: |
+          if [[ "${{ steps.baseline.outputs.found }}" == "true" && "${{ steps.regsuit.outcome }}" == "failure" ]]; then
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          fi
+
+  approve:
+    needs: [prepare, compare]
+    if: |
+      always() &&
+      needs.compare.result == 'success' &&
+      needs.prepare.outputs.should_fail_on_diff == 'true' &&
+      needs.compare.outputs.has_diff == 'true'
+    environment: vrt-approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: VRT diffs approved
+        run: echo "Visual regression diffs have been reviewed and approved"
