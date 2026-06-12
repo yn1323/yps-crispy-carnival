@@ -1,4 +1,4 @@
-import { Stack, Text } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { mockStaffs, mockStaffsMany } from "@/src/components/features/Dashboard/storyMocks";
 import { StaffRoster, StaffRosterSkeleton } from ".";
@@ -11,12 +11,6 @@ const meta = {
   parameters: {
     layout: "padded",
   },
-} satisfies Meta<typeof StaffRoster>;
-
-export default meta;
-type Story = StoryObj<typeof meta>;
-
-export const Variants: Story = {
   args: {
     staffs: mockStaffs,
     status: "Exhausted",
@@ -28,62 +22,34 @@ export const Variants: Story = {
     onSendLineInvite: noop,
     onLoadMore: noop,
   },
-  render: () => (
-    <Stack gap={10} maxW="720px" mx="auto" w="full">
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          データあり
-        </Text>
-        <StaffRoster
-          staffs={mockStaffs}
-          status="Exhausted"
-          canLoadMore={false}
-          onAddClick={noop}
-          onEdit={noop}
-          onDelete={noop}
-          onShowLineQr={noop}
-          onSendLineInvite={noop}
-          onLoadMore={noop}
-        />
+  decorators: [
+    (Story) => (
+      <Stack maxW="720px" mx="auto" w="full">
+        <Story />
       </Stack>
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          もっと見るありの状態
-        </Text>
-        <StaffRoster
-          staffs={mockStaffsMany}
-          status="CanLoadMore"
-          canLoadMore={true}
-          onAddClick={noop}
-          onEdit={noop}
-          onDelete={noop}
-          onShowLineQr={noop}
-          onSendLineInvite={noop}
-          onLoadMore={noop}
-        />
-      </Stack>
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          空の状態
-        </Text>
-        <StaffRoster
-          staffs={[]}
-          status="Exhausted"
-          canLoadMore={false}
-          onAddClick={noop}
-          onEdit={noop}
-          onDelete={noop}
-          onShowLineQr={noop}
-          onSendLineInvite={noop}
-          onLoadMore={noop}
-        />
-      </Stack>
-      <Stack gap={3}>
-        <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-          読み込み中
-        </Text>
-        <StaffRosterSkeleton />
-      </Stack>
-    </Stack>
-  ),
+    ),
+  ],
+} satisfies Meta<typeof StaffRoster>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {};
+
+export const CanLoadMore: Story = {
+  args: {
+    staffs: mockStaffsMany,
+    status: "CanLoadMore",
+    canLoadMore: true,
+  },
+};
+
+export const Empty: Story = {
+  args: {
+    staffs: [],
+  },
+};
+
+export const Loading: Story = {
+  render: () => <StaffRosterSkeleton />,
 };

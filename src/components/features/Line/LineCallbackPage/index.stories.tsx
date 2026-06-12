@@ -1,4 +1,3 @@
-import { Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LineCallbackPage } from ".";
 
@@ -11,18 +10,26 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Variants: Story = {
+export const Loading: Story = {
+  args: { status: "loading" },
+};
+
+export const Ok: Story = {
   args: { status: "ok" },
-  render: () => (
-    <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-      {(["loading", "ok", "needs_follow", "expired", "rate_limited", "error"] as const).map((s) => (
-        <Stack key={s} gap={1}>
-          <Text px={4} pt={3} fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase">
-            status: {s}
-          </Text>
-          <LineCallbackPage status={s} />
-        </Stack>
-      ))}
-    </Stack>
-  ),
+};
+
+export const NeedsFollow: Story = {
+  args: { status: "needs_follow" },
+};
+
+export const Expired: Story = {
+  args: { status: "expired" },
+};
+
+export const RateLimited: Story = {
+  args: { status: "rate_limited" },
+};
+
+export const ErrorState: Story = {
+  args: { status: "error" },
 };

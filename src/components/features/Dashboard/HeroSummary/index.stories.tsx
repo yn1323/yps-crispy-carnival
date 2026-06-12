@@ -1,4 +1,4 @@
-import { Stack, Text } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -11,6 +11,13 @@ const meta = {
   parameters: {
     layout: "padded",
   },
+  decorators: [
+    (Story) => (
+      <Stack maxW="1024px" mx="auto" w="full">
+        <Story />
+      </Stack>
+    ),
+  ],
 } satisfies Meta<typeof HeroSummary>;
 
 export default meta;
@@ -49,86 +56,94 @@ const NOOP = {
   onCreateRecruitment: () => {},
 };
 
-export const Variants: Story = {
+const baseArgs = {
+  shop: SHOP,
+  ...NOOP,
+};
+
+export const AfterDeadline: Story = {
   args: {
-    shop: SHOP,
-    recruitments: [past],
-    ...NOOP,
+    ...baseArgs,
+    recruitments: [past, confirmed],
   },
-  render: () => (
-    <Stack gap={6} maxW="1024px" mx="auto" w="full">
-      <Section label="締切後・調整待ち">
-        <HeroSummary shop={SHOP} recruitments={[past, confirmed]} {...NOOP} />
-      </Section>
-      <Section label="今日が締切">
-        <HeroSummary shop={SHOP} recruitments={[dueToday, confirmed]} {...NOOP} />
-      </Section>
-      <Section label="締切が近い (3日以内)">
-        <HeroSummary shop={SHOP} recruitments={[dueSoon, confirmed]} {...NOOP} />
-      </Section>
-      <Section label="提出待ち (締切まで余裕あり)">
-        <HeroSummary shop={SHOP} recruitments={[calm, confirmed]} {...NOOP} />
-      </Section>
-      <Section label="スタッフ未登録">
-        <HeroSummary shop={SHOP} recruitments={[zeroTotal, confirmed]} {...NOOP} />
-      </Section>
-      <Section label="やることなし (open募集ゼロ)">
-        <HeroSummary shop={SHOP} recruitments={[confirmed]} {...NOOP} />
-      </Section>
-      <Section label="初回ログイン時">
-        <WelcomeHero onSetupClick={() => {}} />
-      </Section>
-      <Section label="読み込み中">
-        <HeroSummarySkeleton />
-      </Section>
-    </Stack>
-  ),
+};
+
+export const DueToday: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [dueToday, confirmed],
+  },
+};
+
+export const DueSoon: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [dueSoon, confirmed],
+  },
+};
+
+export const WaitingForSubmission: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [calm, confirmed],
+  },
+};
+
+export const NoStaffRegistered: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [zeroTotal, confirmed],
+  },
+};
+
+export const NoOpenRecruitment: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [confirmed],
+  },
+};
+
+export const Loading: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [],
+  },
+  render: () => <HeroSummarySkeleton />,
 };
 
 export const MetaItemsMobile: Story = {
   args: {
-    shop: SHOP,
+    ...baseArgs,
     recruitments: [dueSoon, confirmed],
-    ...NOOP,
   },
-  render: () => (
-    <Stack maxW="360px" mx="auto" w="full">
-      <HeroSummary shop={SHOP} recruitments={[dueSoon, confirmed]} {...NOOP} />
-    </Stack>
-  ),
+  decorators: [
+    (Story) => (
+      <Stack maxW="360px" mx="auto" w="full">
+        <Story />
+      </Stack>
+    ),
+  ],
 };
 
 export const WelcomeDesktop: Story = {
   args: {
-    shop: SHOP,
+    ...baseArgs,
     recruitments: [],
-    ...NOOP,
   },
-  render: () => (
-    <Stack maxW="1024px" mx="auto" w="full">
-      <WelcomeHero onSetupClick={() => {}} />
-    </Stack>
-  ),
+  render: () => <WelcomeHero onSetupClick={() => {}} />,
 };
 
 export const WelcomeMobile: Story = {
   args: {
-    shop: SHOP,
+    ...baseArgs,
     recruitments: [],
-    ...NOOP,
   },
-  render: () => (
-    <Stack maxW="360px" mx="auto" w="full">
-      <WelcomeHero onSetupClick={() => {}} />
-    </Stack>
-  ),
+  decorators: [
+    (Story) => (
+      <Stack maxW="360px" mx="auto" w="full">
+        <Story />
+      </Stack>
+    ),
+  ],
+  render: () => <WelcomeHero onSetupClick={() => {}} />,
 };
-
-const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <Stack gap={2}>
-    <Text fontSize="xs" fontWeight="semibold" color="fg.muted" letterSpacing="0.08em" textTransform="uppercase">
-      {label}
-    </Text>
-    {children}
-  </Stack>
-);

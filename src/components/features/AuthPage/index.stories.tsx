@@ -23,14 +23,22 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Variants: Story = {
-  render: (args) => (
-    <>
-      <AuthContent {...args} mode="login" />
-      <AuthContent {...args} mode="signup" />
-      <AuthContent {...args} mode="forgot-password" />
-    </>
-  ),
+export const Login: Story = {
+  args: {
+    mode: "login",
+  },
+};
+
+export const Signup: Story = {
+  args: {
+    mode: "signup",
+  },
+};
+
+export const ForgotPassword: Story = {
+  args: {
+    mode: "forgot-password",
+  },
 };
 
 export const Loading: Story = {
