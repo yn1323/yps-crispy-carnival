@@ -1,5 +1,5 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useBlocker } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { useCallback, useMemo, useRef } from "react";
 import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
@@ -17,6 +18,7 @@ import {
   formatDateWithWeekday,
   getDateRange,
 } from "@/src/domains/shift/date";
+import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
 import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
@@ -24,6 +26,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
+import { UnsavedChangesContent } from "../UnsavedChangesContent";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
@@ -255,8 +258,16 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const initialShifts = useMemo(() => buildShiftData(data, staffs, dates), [data, staffs, dates]);
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
+  // 最後に保存した（または初期表示した）シフト。dirty判定の基準
+  const baselineShiftsRef = useRef<ShiftData[]>(initialShifts);
+  const isFormInitializedRef = useRef(false);
   const handleShiftsChange = useCallback((shifts: ShiftData[]) => {
     shiftsRef.current = shifts;
+    // ShiftFormはマウント時にatom初期値([])→initialShiftsの順で通知してくる。
+    // initialShifts（参照一致）を受け取って初めてユーザー編集を検知できる状態になる
+    if (shifts === baselineShiftsRef.current) {
+      isFormInitializedRef.current = true;
+    }
   }, []);
   const shopClosedDateSet = useMemo(
     () => new Set(data.recruitment.shopClosedDates),
@@ -286,28 +297,40 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     };
   }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
 
-  const buildAssignments = useCallback(() => {
-    return shiftsRef.current.flatMap((s) => {
-      if (shopClosedDateSet.has(s.date)) return [];
-      return s.positions
-        .filter((position) => position.positionId !== BREAK_POSITION.id)
-        .map((position) => ({
-          staffId: s.staffId as Id<"staffs">,
-          date: s.date,
-          startTime: position.start,
-          endTime: position.end,
-          ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
-          ...(position.positionId !== DEFAULT_POSITION.id
-            ? { positionId: position.positionId as Id<"positions"> }
-            : {}),
-        }));
-    });
-  }, [shopClosedDateSet]);
+  const buildAssignments = useCallback(
+    (shifts: ShiftData[]) => {
+      return shifts.flatMap((s) => {
+        if (shopClosedDateSet.has(s.date)) return [];
+        return s.positions
+          .filter((position) => position.positionId !== BREAK_POSITION.id)
+          .map((position) => ({
+            staffId: s.staffId as Id<"staffs">,
+            date: s.date,
+            startTime: position.start,
+            endTime: position.end,
+            ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
+            ...(position.positionId !== DEFAULT_POSITION.id
+              ? { positionId: position.positionId as Id<"positions"> }
+              : {}),
+          }));
+      });
+    },
+    [shopClosedDateSet],
+  );
+
+  // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
+  const persistCurrentShifts = useCallback(async () => {
+    const shiftsAtSave = shiftsRef.current;
+    await saveShiftAssignments({ recruitmentId, assignments: buildAssignments(shiftsAtSave) });
+    baselineShiftsRef.current = shiftsAtSave;
+  }, [buildAssignments, recruitmentId, saveShiftAssignments]);
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
+    const shiftsAtSave = shiftsRef.current;
     try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
+      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments(shiftsAtSave) });
       await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
+      baselineShiftsRef.current = shiftsAtSave;
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });
     } catch (error) {
@@ -317,9 +340,36 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const { run: performSaveDraft, isRunning: isSavingDraft } = useSingleFlight(async () => {
     try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
+      await persistCurrentShifts();
       toaster.create({ title: "保存しました", type: "success" });
     } catch (error) {
+      showErrorToast(error);
+    }
+  });
+
+  // 未保存の変更（ユーザー編集による割り当ての差分）があるか。
+  // シフト申請の到着などサーバー由来のデータ変化はatomに反映されないため、ここではdirty扱いにならない
+  const hasUnsavedChanges = useCallback(() => {
+    if (!isFormInitializedRef.current) return false;
+    if (shiftsRef.current === baselineShiftsRef.current) return false;
+    return !isAssignmentsEqual(buildAssignments(shiftsRef.current), buildAssignments(baselineShiftsRef.current));
+  }, [buildAssignments]);
+
+  // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
+  // 「保存して離脱」「保存せず離脱」を選ばせる。ダイアログを閉じた場合はその場に留まる
+  const blocker = useBlocker({
+    shouldBlockFn: () => hasUnsavedChanges(),
+    enableBeforeUnload: () => hasUnsavedChanges(),
+    withResolver: true,
+  });
+
+  const { run: handleSaveAndLeave, isRunning: isSavingAndLeaving } = useSingleFlight(async () => {
+    try {
+      await persistCurrentShifts();
+      toaster.create({ title: "保存しました", type: "success" });
+      blocker.proceed?.();
+    } catch (error) {
+      // 保存に失敗した場合はダイアログを開いたまま留まる
       showErrorToast(error);
     }
   });
@@ -411,6 +461,27 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           unsubmittedNames={unsubmittedNames}
           deadline={`${formatDateWithWeekday(data.recruitment.deadline)} 23:59`}
         />
+      </Dialog>
+
+      <Dialog
+        title="保存していない変更があります"
+        isOpen={blocker.status === "blocked"}
+        onOpenChange={({ open }) => {
+          if (!open) blocker.reset?.();
+        }}
+        role="alertdialog"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => blocker.proceed?.()} disabled={isSavingAndLeaving}>
+              保存せず離脱
+            </Button>
+            <Button colorPalette="teal" onClick={handleSaveAndLeave} loading={isSavingAndLeaving}>
+              保存して離脱
+            </Button>
+          </>
+        }
+      >
+        <UnsavedChangesContent />
       </Dialog>
     </Flex>
   );
