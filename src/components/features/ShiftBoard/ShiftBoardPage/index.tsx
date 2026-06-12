@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
@@ -25,6 +26,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
+import { UnsavedChangesContent } from "../UnsavedChangesContent";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
@@ -353,22 +355,23 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     return !isAssignmentsEqual(buildAssignments(shiftsRef.current), buildAssignments(baselineShiftsRef.current));
   }, [buildAssignments]);
 
-  // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更を自動で下書き保存してから遷移する。
-  // 確定済みシフトは自動保存すると確定内容が通知なしに変わってしまうため対象外
-  useBlocker({
-    disabled: isConfirmed,
-    enableBeforeUnload: false,
-    shouldBlockFn: async () => {
-      if (!hasUnsavedChanges()) return false;
-      try {
-        await persistCurrentShifts();
-        toaster.create({ title: "変更を下書き保存しました", type: "success" });
-        return false;
-      } catch (error) {
-        showErrorToast(error);
-        return true;
-      }
-    },
+  // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
+  // 「保存して離脱」「保存せず離脱」を選ばせる。ダイアログを閉じた場合はその場に留まる
+  const blocker = useBlocker({
+    shouldBlockFn: () => hasUnsavedChanges(),
+    enableBeforeUnload: () => hasUnsavedChanges(),
+    withResolver: true,
+  });
+
+  const { run: handleSaveAndLeave, isRunning: isSavingAndLeaving } = useSingleFlight(async () => {
+    try {
+      await persistCurrentShifts();
+      toaster.create({ title: "保存しました", type: "success" });
+      blocker.proceed?.();
+    } catch (error) {
+      // 保存に失敗した場合はダイアログを開いたまま留まる
+      showErrorToast(error);
+    }
   });
 
   const confirmTitle = isConfirmed
@@ -458,6 +461,27 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           unsubmittedNames={unsubmittedNames}
           deadline={`${formatDateWithWeekday(data.recruitment.deadline)} 23:59`}
         />
+      </Dialog>
+
+      <Dialog
+        title="保存していない変更があります"
+        isOpen={blocker.status === "blocked"}
+        onOpenChange={({ open }) => {
+          if (!open) blocker.reset?.();
+        }}
+        role="alertdialog"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => blocker.proceed?.()} disabled={isSavingAndLeaving}>
+              保存せず離脱
+            </Button>
+            <Button colorPalette="teal" onClick={handleSaveAndLeave} loading={isSavingAndLeaving}>
+              保存して離脱
+            </Button>
+          </>
+        }
+      >
+        <UnsavedChangesContent />
       </Dialog>
     </Flex>
   );
