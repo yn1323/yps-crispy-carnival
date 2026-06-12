@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
-import { timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../constants";
 import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
@@ -416,7 +416,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
         )}
         {hasAsn && asn && (
           <Box textStyle="caption" fontWeight={700} color="teal.700" fontVariantNumeric="tabular-nums">
-            {asn[0]}–{asn[1]}
+            {formatShiftClockTime(asn[0])}–{formatShiftClockTime(asn[1])}
           </Box>
         )}
         {!hasReq && !hasAsn && staff.isSubmitted && (

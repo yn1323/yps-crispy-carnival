@@ -10,10 +10,13 @@ import {
   mockDatesMidWeekStart,
   mockHalfHourTimeRange,
   mockHolidays,
+  mockOvernightDates,
+  mockOvernightTimeRange,
   mockPositions,
   mockShifts,
   mockShiftsAllPatterns,
   mockShiftsHalfHourBusinessHours,
+  mockShiftsOvernight,
   mockShiftTypeDates,
   mockShiftTypePattern,
   mockShiftTypeShifts,
@@ -65,6 +68,13 @@ export const halfHourBusinessHoursArgs = {
   dates: ["2026-01-28"],
   initialShifts: mockShiftsHalfHourBusinessHours,
   timeRange: mockHalfHourTimeRange,
+} satisfies ShiftFormArgs;
+
+export const overnightArgs = {
+  ...baseArgs,
+  dates: mockOvernightDates,
+  initialShifts: mockShiftsOvernight,
+  timeRange: mockOvernightTimeRange,
 } satisfies ShiftFormArgs;
 
 export const emptyOrAllUnsubmittedArgs = {

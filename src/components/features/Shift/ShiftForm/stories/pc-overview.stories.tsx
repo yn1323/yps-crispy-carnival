@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from "..";
-import { expectVisibleText, fullscreenParameters, overviewCalendarRangeArgs, shiftFormDecorators } from "./shared";
+import {
+  expectVisibleText,
+  fullscreenParameters,
+  overnightArgs,
+  overviewCalendarRangeArgs,
+  shiftFormDecorators,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Time/PC/Overview",
@@ -25,4 +31,13 @@ export const TimeTwoWeeks: Story = {
 export const TimeReadOnly: Story = {
   name: "Read Only",
   args: { ...overviewCalendarRangeArgs, isReadOnly: true, currentStaffId: "staff1" },
+};
+
+export const TimeOvernight: Story = {
+  name: "Overnight",
+  args: { ...overnightArgs, initialViewMode: "overview" as const },
+  play: async ({ canvasElement }) => {
+    await expectVisibleText(canvasElement, "21:00–翌5:00");
+    await expectVisibleText(canvasElement, "18:00–翌2:00");
+  },
 };
