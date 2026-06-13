@@ -1,6 +1,7 @@
 import { Box, Flex, Stack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
+import { IssueCountBadge } from "../../components";
 
 type Props = {
   dates: string[];
@@ -53,27 +54,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
             transition="all 120ms"
             _hover={{ bg: active ? "teal.50" : "gray.50" }}
           >
-            {issueCount > 0 && (
-              <Flex
-                aria-label={`エラー${issueCount}件`}
-                position="absolute"
-                top="-5px"
-                right="-5px"
-                minW="16px"
-                h="16px"
-                px="4px"
-                align="center"
-                justify="center"
-                borderRadius="full"
-                bg="red.500"
-                color="white"
-                fontSize="10px"
-                fontWeight={700}
-                lineHeight={1}
-              >
-                {issueCount}
-              </Flex>
-            )}
+            {issueCount > 0 && <IssueCountBadge count={issueCount} />}
             <Flex align="baseline" justify="center" gap="3px">
               <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
                 {d.date()}

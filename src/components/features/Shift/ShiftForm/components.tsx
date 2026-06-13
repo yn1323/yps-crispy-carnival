@@ -2,6 +2,34 @@ import { Box, Flex } from "@chakra-ui/react";
 import { LuSave } from "react-icons/lu";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
 
+// 日付チップ（DateRail / SP日付ピッカー）右上に重ねるエラー件数バッジ。
+export const IssueCountBadge = ({ count }: { count: number }) => (
+  <Flex
+    aria-label={`エラー${count}件`}
+    position="absolute"
+    top="-5px"
+    right="-5px"
+    minW="16px"
+    h="16px"
+    px="4px"
+    align="center"
+    justify="center"
+    borderRadius="full"
+    bg="red.500"
+    color="white"
+    fontSize="10px"
+    fontWeight={700}
+    lineHeight={1}
+  >
+    {count}
+  </Flex>
+);
+
+// スタッフ行・カードのエラー印（赤いドット）。
+export const IssueDot = () => (
+  <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />
+);
+
 export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (
   <Box
     style={{

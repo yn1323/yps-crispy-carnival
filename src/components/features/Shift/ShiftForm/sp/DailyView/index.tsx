@@ -7,6 +7,7 @@ import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import { IssueCountBadge, IssueDot } from "../../components";
 import { BREAK_POSITION } from "../../constants";
 import {
   issueCountByDateAtom,
@@ -206,27 +207,7 @@ export const SPDailyView = () => {
                 bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
-                {issueCount > 0 && (
-                  <Flex
-                    aria-label={`エラー${issueCount}件`}
-                    position="absolute"
-                    top="-5px"
-                    right="-5px"
-                    minW="16px"
-                    h="16px"
-                    px="4px"
-                    align="center"
-                    justify="center"
-                    borderRadius="full"
-                    bg="red.500"
-                    color="white"
-                    fontSize="10px"
-                    fontWeight={700}
-                    lineHeight={1}
-                  >
-                    {issueCount}
-                  </Flex>
-                )}
+                {issueCount > 0 && <IssueCountBadge count={issueCount} />}
                 <Box
                   textStyle="md"
                   fontWeight={700}
@@ -430,7 +411,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false }: CardP
       _active={{ bg: "gray.50" }}
     >
       <Flex align="center" gap={2} mb={2}>
-        {hasError && <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />}
+        {hasError && <IssueDot />}
         <Avatar staff={staff} size={28} />
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staff.name}
@@ -535,7 +516,7 @@ const SPOffCard = ({
       textAlign="left"
       _active={isReadOnly ? undefined : { bg: "gray.50" }}
     >
-      {hasError && <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />}
+      {hasError && <IssueDot />}
       <Avatar staff={staff} size={24} />
       <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
         {staff.name}

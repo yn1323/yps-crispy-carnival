@@ -2,6 +2,7 @@ import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { LuChevronDown, LuChevronUp, LuCircleAlert, LuX } from "react-icons/lu";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
+import { IssueDot } from "../components";
 
 type ValidationErrorPanelProps = {
   issues: DisplayIssue[];
@@ -65,7 +66,7 @@ const IssueList = ({
             }
           }}
         >
-          <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} />
+          <IssueDot />
           <Text textStyle={compact ? "xs" : "sm"} color="red.700">
             {issue.label}
           </Text>
