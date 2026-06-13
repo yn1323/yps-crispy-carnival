@@ -78,10 +78,12 @@ jobs:
             const fs = require('fs');
             const reportUrl = `https://yn1323.github.io/hosting-pages/${{ env.REPORT_DIR }}/${{ github.event.pull_request.number }}/`;
             const testResult = '${{ steps.playwright.outcome }}';
-            const statusEmoji = testResult === 'success' ? '✅' : '❌';
-            const statusText = testResult === 'success' ? '成功' : '失敗';
+            const statusText = testResult === 'success' ? 'Passed' : 'Failed';
 
-            let summary = '';
+            let passedCount = 'unknown';
+            let failedCount = 'unknown';
+            let skippedCount = 'unknown';
+            let testDetails = '';
             try {
               const json = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
               const suites = json.suites || [];
@@ -108,20 +110,36 @@ jobs:
               }
               collectTests(suites);
 
-              summary = `\n\n**${passed} passed** / **${failed} failed** / **${skipped} skipped**\n\n`;
+              passedCount = String(passed);
+              failedCount = String(failed);
+              skippedCount = String(skipped);
               if (failedRows.length > 0) {
-                summary += `### 失敗したテスト\n\n| Status | Test |\n|--------|------|\n${failedRows.join('\n')}\n\n`;
+                testDetails += `\n\n### 失敗したテスト\n\n| Status | Test |\n|--------|------|\n${failedRows.join('\n')}`;
               }
               if (allRows.length > 0) {
-                summary += `<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test |\n|--------|------|\n${allRows.join('\n')}\n\n</details>`;
+                testDetails += `\n\n<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test |\n|--------|------|\n${allRows.join('\n')}\n\n</details>`;
               }
             } catch (e) {
-              summary = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
+              testDetails = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
             }
+
+            const body = [
+              '## Playwright Test Report',
+              '',
+              `Status: ${statusText}`,
+              `Results: Passed ${passedCount} / Failed ${failedCount} / Skipped ${skippedCount}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| レポート確認 | [Playwrightレポートを見る](${reportUrl}) |`,
+              '',
+              'Details:',
+              'デプロイ先: yn1323/hosting-pages',
+            ].join('\n') + testDetails;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## 📊 Playwright Test Report\n\n${statusEmoji} **テスト結果: ${statusText}**${summary}\n\n[View Report](${reportUrl})\n\nデプロイ先: https://github.com/yn1323/hosting-pages`
+              body,
             });

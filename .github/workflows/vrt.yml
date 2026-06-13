@@ -172,36 +172,53 @@ jobs:
             const reportUrl = '${{ needs.prepare.outputs.report_url }}';
             const baselineFound = '${{ steps.baseline.outputs.found }}' === 'true';
             const compareResult = baselineFound ? '${{ steps.regsuit.outcome }}' : 'success';
-            const statusEmoji = compareResult === 'success' ? '✅' : '❌';
-            const statusText = baselineFound ? (compareResult === 'success' ? '成功' : '失敗') : 'baseline未作成';
+            const statusText = baselineFound ? (compareResult === 'success' ? 'Passed' : 'Failed') : 'No baseline';
 
-            let summary = '';
+            let changedCount = 'unknown';
+            let newCount = 'unknown';
+            let deletedCount = 'unknown';
+            let passedCount = 'unknown';
             try {
               const json = JSON.parse(fs.readFileSync('vrt-work/reg/out.json', 'utf8'));
               const items = json.failedItems || json.changedItems || json.items || [];
               const newItems = json.newItems || [];
               const deletedItems = json.deletedItems || [];
               const passedItems = json.passedItems || [];
-              summary = [
-                '| 🔴 Changed | ⚪ New | 🗑️ Deleted | 🟢 Passed |',
-                '|---:|---:|---:|---:|',
-                `| ${items.length} | ${newItems.length} | ${deletedItems.length} | ${passedItems.length} |`,
-              ].join('\n');
+              changedCount = String(items.length);
+              newCount = String(newItems.length);
+              deletedCount = String(deletedItems.length);
+              passedCount = String(passedItems.length);
             } catch (error) {
-              summary = 'RegSuit result JSON の読み込みに失敗しました';
+              console.warn('RegSuit result JSON の読み込みに失敗しました', error);
             }
 
             const actionsUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
             const hasDiff = compareResult !== 'success' && baselineFound;
-            const approvalNote = hasDiff
-              ? `\n\n> 🔍 差分を確認してOKであれば、[こちら](${actionsUrl}) の「Review deployments」→「Approve and deploy」をクリックしてください。`
-              : '';
+            const buildBody = (reportCell) => {
+              const actionRows = [
+                `| 差分確認 | ${reportCell} |`,
+                ...(hasDiff ? [`| 承認 | [承認ワークフローを開く](${actionsUrl}) |`] : []),
+              ].join('\n');
 
-            const buildBody = (reportLine) =>
-              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n${reportLine}${approvalNote}\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`;
+              return [
+                '## VRT Report',
+                '',
+                `Status: ${statusText}`,
+                `差分: Changed ${changedCount} / New ${newCount} / Deleted ${deletedCount}`,
+                `Passed: ${passedCount}`,
+                '',
+                '| Action | Link |',
+                '|---|---|',
+                actionRows,
+                '',
+                'Details:',
+                'デプロイ先: yn1323/hosting-pages',
+                '',
+              ].join('\n');
+            };
 
-            fs.writeFileSync('vrt-comment-pending.md', buildBody('🚀 レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
-            fs.writeFileSync('vrt-comment-final.md', buildBody(`[View Report](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
+            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
+            fs.writeFileSync('vrt-comment-final.md', buildBody(`[差分レポートを見る](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
           NODE
       - name: Comment PR with VRT report (deploying)
         if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
