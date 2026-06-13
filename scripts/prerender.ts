@@ -351,7 +351,12 @@ async function main(): Promise<void> {
       }
 
       await page.evaluate(
-        ({ routeManagedMetaNames, routeManagedMetaProperties }) => {
+        ({ route, routeManagedMetaNames, routeManagedMetaProperties }) => {
+          // どのルート用に焼き込まれたHTMLかを記録する。SPAフォールバックで別パスに
+          // 配信された場合、index.html のインラインスクリプトがこの属性と
+          // location.pathname を照合し、焼き込みコンテンツのちらつきを防ぐ。
+          document.documentElement.setAttribute("data-prerender-path", route);
+
           const titleTags = Array.from(document.head.querySelectorAll("title"));
           const lastTitle = titleTags.at(-1)?.textContent?.trim();
           if (titleTags[0] && lastTitle) {
@@ -401,6 +406,7 @@ async function main(): Promise<void> {
           }
         },
         {
+          route,
           routeManagedMetaNames: ROUTE_MANAGED_META_NAMES,
           routeManagedMetaProperties: ROUTE_MANAGED_META_PROPERTIES,
         },

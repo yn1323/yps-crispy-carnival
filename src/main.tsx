@@ -48,6 +48,11 @@ async function mountPrerenderedApp(element: HTMLElement, tree: ReactNode): Promi
   removePrerenderedPortals();
   element.replaceChildren();
   ReactDOM.createRoot(element).render(tree);
+  // SPAフォールバック時のスプラッシュ（index.html 参照）を、Reactの初回コミット後に解除する
+  requestAnimationFrame(() => {
+    document.documentElement.removeAttribute("data-spa-fallback");
+    document.documentElement.removeAttribute("data-prerender-path");
+  });
 }
 
 // Render the app

@@ -13,6 +13,51 @@
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
 
+    <!--
+      SPAフォールバック検知:
+      prerender 済み HTML（scripts/prerender.ts が <html data-prerender-path> を焼き込む）が
+      本来のパス以外で配信された場合（例: /dashboard リロード時に CF Pages が
+      prerender 済みの index.html を返す）、焼き込みコンテンツを first paint 前に隠し、
+      React マウントまで静的スプラッシュを表示してトップページのちらつきを防ぐ。
+      属性が無い空シェル（pnpm dev / prerender 実行中）では何もしない。
+      属性の解除は src/main.tsx の mountPrerenderedApp が行う。
+    -->
+    <script>
+      (() => {
+        var baked = document.documentElement.getAttribute("data-prerender-path");
+        if (!baked) return;
+        var path = location.pathname.replace(/\/+$/, "") || "/";
+        if (path !== baked) document.documentElement.setAttribute("data-spa-fallback", "");
+      })();
+    </script>
+    <!--
+      スプラッシュの見た目は src/components/ui/ShiftoriLoading（page variant）と意図的に揃えている。
+      バンドル読込前に描画する必要がありコンポーネントを import できないため CSS で複製している。
+      ロゴ・サイズ・アニメーション(2s cubic-bezier(0.4,0,0.6,1))を変える場合は両方を同期させること。
+    -->
+    <style>
+      html[data-spa-fallback] #app {
+        display: none;
+      }
+      html[data-spa-fallback] body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: #fff url(/logo192.webp) center / 64px no-repeat;
+        animation: spa-splash-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes spa-splash-pulse {
+        50% {
+          opacity: 0.6;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html[data-spa-fallback] body::after {
+          animation: none;
+        }
+      }
+    </style>
+
     <title>シフトリ｜LINEでシフト希望を集める無料シフト管理ツール</title>
     <meta
       name="description"
