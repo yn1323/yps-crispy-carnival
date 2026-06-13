@@ -1,31 +1,73 @@
 import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { LuChevronDown, LuChevronUp, LuCircleAlert, LuX } from "react-icons/lu";
+import type { IconType } from "react-icons/lib";
+import { LuChevronDown, LuChevronUp, LuCircleAlert, LuTriangleAlert, LuX } from "react-icons/lu";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
-import { IssueDot } from "../components";
+import { IssueDot, type IssueTone } from "../components";
+
+// エラー（赤・確定をブロック）と確認事項（オレンジ・確定はできる助言）で見た目と文言を切り替える。
+const TONE_CONFIG: Record<
+  IssueTone,
+  {
+    bg: string;
+    border: string;
+    fg: string;
+    hover: string;
+    focus: string;
+    icon: IconType;
+    title: (count: number) => string;
+    hint: (verb: string) => string;
+    dismissLabel: string;
+  }
+> = {
+  error: {
+    bg: "red.50",
+    border: "red.200",
+    fg: "red.700",
+    hover: "red.100",
+    focus: "red.400",
+    icon: LuCircleAlert,
+    title: (count) => `確定できません（エラー${count}件）`,
+    hint: (verb) => `エラーを${verb}と該当の日付に移動します`,
+    dismissLabel: "エラー一覧を閉じる",
+  },
+  warning: {
+    bg: "orange.50",
+    border: "orange.200",
+    fg: "orange.700",
+    hover: "orange.100",
+    focus: "orange.400",
+    icon: LuTriangleAlert,
+    title: (count) => `確認事項（${count}件）`,
+    hint: (verb) => `気になる項目を${verb}と該当の日付に移動します`,
+    dismissLabel: "確認事項を閉じる",
+  },
+};
 
 type ValidationErrorPanelProps = {
   issues: DisplayIssue[];
   onSelectIssue?: (issue: DisplayIssue) => void;
   onDismiss?: () => void;
   compact?: boolean;
+  tone?: IssueTone;
 };
 
-const DismissButton = ({ onDismiss }: { onDismiss?: () => void }) => {
+const DismissButton = ({ onDismiss, tone }: { onDismiss?: () => void; tone: IssueTone }) => {
   if (!onDismiss) return null;
+  const config = TONE_CONFIG[tone];
   return (
     <Flex
       as="button"
-      aria-label="エラー一覧を閉じる"
+      aria-label={config.dismissLabel}
       onClick={onDismiss}
       align="center"
       justify="center"
       flexShrink={0}
       boxSize="24px"
       borderRadius="md"
-      color="red.600"
+      color={config.fg}
       cursor="pointer"
-      _hover={{ bg: "red.100" }}
+      _hover={{ bg: config.hover }}
     >
       <Icon boxSize={4}>
         <LuX />
@@ -38,60 +80,68 @@ const IssueList = ({
   issues,
   onSelectIssue,
   compact,
+  tone,
 }: {
   issues: DisplayIssue[];
   onSelectIssue?: (issue: DisplayIssue) => void;
   compact: boolean;
-}) => (
-  <Box maxH={compact ? "160px" : "120px"} overflowY="auto" px={compact ? 2 : 4} pb={2}>
-    <Stack gap={0}>
-      {issues.map((issue) => (
-        <Flex
-          key={issue.key}
-          role="button"
-          tabIndex={0}
-          align="center"
-          gap={2}
-          px={2}
-          py="6px"
-          borderRadius="md"
-          cursor="pointer"
-          _hover={{ bg: "red.100" }}
-          _focusVisible={{ outline: "2px solid", outlineColor: "red.400" }}
-          onClick={() => onSelectIssue?.(issue)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onSelectIssue?.(issue);
-            }
-          }}
-        >
-          <IssueDot />
-          <Text textStyle={compact ? "xs" : "sm"} color="red.700">
-            {issue.label}
-          </Text>
-        </Flex>
-      ))}
-    </Stack>
-  </Box>
-);
+  tone: IssueTone;
+}) => {
+  const config = TONE_CONFIG[tone];
+  return (
+    <Box maxH={compact ? "160px" : "120px"} overflowY="auto" px={compact ? 2 : 4} pb={2}>
+      <Stack gap={0}>
+        {issues.map((issue) => (
+          <Flex
+            key={issue.key}
+            role="button"
+            tabIndex={0}
+            align="center"
+            gap={2}
+            px={2}
+            py="6px"
+            borderRadius="md"
+            cursor="pointer"
+            _hover={{ bg: config.hover }}
+            _focusVisible={{ outline: "2px solid", outlineColor: config.focus }}
+            onClick={() => onSelectIssue?.(issue)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelectIssue?.(issue);
+              }
+            }}
+          >
+            <IssueDot tone={tone} />
+            <Text textStyle={compact ? "xs" : "sm"} color={config.fg}>
+              {issue.label}
+            </Text>
+          </Flex>
+        ))}
+      </Stack>
+    </Box>
+  );
+};
 
-// 確定前バリデーションのエラー一覧。Shell内（ツールバー直下）に表示し、
+// 確定前バリデーションのエラー/確認事項一覧。Shell内（ツールバー直下）に表示し、
 // 行クリックで該当日付へジャンプする（ジャンプ処理は親から注入）。
 export const ValidationErrorPanel = ({
   issues,
   onSelectIssue,
   onDismiss,
   compact = false,
+  tone = "error",
 }: ValidationErrorPanelProps) => {
   // SPは画面が狭いため、初期状態は1行のストリップに畳んでタップで展開する
   const [isExpanded, setIsExpanded] = useState(false);
+  const config = TONE_CONFIG[tone];
+  const TitleIcon = config.icon;
 
   if (issues.length === 0) return null;
 
   if (compact) {
     return (
-      <Box role="alert" bg="red.50" borderBottomWidth="1px" borderColor="red.200" flexShrink={0}>
+      <Box role="alert" bg={config.bg} borderBottomWidth="1px" borderColor={config.border} flexShrink={0}>
         <Flex align="center" gap={2} px={3} py="10px">
           <Flex
             as="button"
@@ -104,24 +154,24 @@ export const ValidationErrorPanel = ({
             cursor="pointer"
             textAlign="left"
           >
-            <Icon color="red.600" boxSize={4} flexShrink={0}>
-              <LuCircleAlert />
+            <Icon color={config.fg} boxSize={4} flexShrink={0}>
+              <TitleIcon />
             </Icon>
-            <Text textStyle="sm" fontWeight={700} color="red.700">
-              確定できません（エラー{issues.length}件）
+            <Text textStyle="sm" fontWeight={700} color={config.fg}>
+              {config.title(issues.length)}
             </Text>
-            <Icon color="red.600" boxSize={4} flexShrink={0} ml="auto">
+            <Icon color={config.fg} boxSize={4} flexShrink={0} ml="auto">
               {isExpanded ? <LuChevronUp /> : <LuChevronDown />}
             </Icon>
           </Flex>
-          <DismissButton onDismiss={onDismiss} />
+          <DismissButton onDismiss={onDismiss} tone={tone} />
         </Flex>
         {isExpanded && (
           <>
-            <Text px={3} pb={1} textStyle="xs" color="red.600">
-              エラーをタップすると該当の日付に移動します
+            <Text px={3} pb={1} textStyle="xs" color={config.fg}>
+              {config.hint("タップする")}
             </Text>
-            <IssueList issues={issues} onSelectIssue={onSelectIssue} compact />
+            <IssueList issues={issues} onSelectIssue={onSelectIssue} compact tone={tone} />
           </>
         )}
       </Box>
@@ -129,22 +179,22 @@ export const ValidationErrorPanel = ({
   }
 
   return (
-    <Box role="alert" bg="red.50" borderBottomWidth="1px" borderColor="red.200" flexShrink={0}>
+    <Box role="alert" bg={config.bg} borderBottomWidth="1px" borderColor={config.border} flexShrink={0}>
       <Flex align="center" gap={2} px={5} pt={3} pb={2}>
-        <Icon color="red.600" boxSize={4} flexShrink={0}>
-          <LuCircleAlert />
+        <Icon color={config.fg} boxSize={4} flexShrink={0}>
+          <TitleIcon />
         </Icon>
-        <Text textStyle="sm" fontWeight={700} color="red.700">
-          確定できません（エラー{issues.length}件）
+        <Text textStyle="sm" fontWeight={700} color={config.fg}>
+          {config.title(issues.length)}
         </Text>
-        <Text textStyle="xs" color="red.600">
-          エラーをクリックすると該当の日付に移動します
+        <Text textStyle="xs" color={config.fg}>
+          {config.hint("クリックする")}
         </Text>
         <Box ml="auto">
-          <DismissButton onDismiss={onDismiss} />
+          <DismissButton onDismiss={onDismiss} tone={tone} />
         </Box>
       </Flex>
-      <IssueList issues={issues} onSelectIssue={onSelectIssue} compact={false} />
+      <IssueList issues={issues} onSelectIssue={onSelectIssue} compact={false} tone={tone} />
     </Box>
   );
 };

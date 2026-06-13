@@ -16,6 +16,8 @@ import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
+import { type AssignmentWarning, computeAssignmentWarnings } from "@/src/domains/shift/assignmentWarnings";
 import { buildAssignments } from "@/src/domains/shift/buildAssignments";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import {
@@ -272,9 +274,10 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     [data.recruitment.shopClosedDates],
   );
 
-  // 確定前バリデーション。エラー検出後（attempted）は編集のたびに再検証し、
-  // 直すとエラー一覧・ハイライトがライブに減っていく
+  // 確定前バリデーション（エラー=確定不可）とワーニング（確認事項=確定はできる助言）。
+  // 検出後（attempted）は編集のたびに再評価し、直すと一覧・ハイライトがライブに減っていく
   const [validationIssues, setValidationIssues] = useState<AssignmentIssue[]>([]);
+  const [validationWarnings, setValidationWarnings] = useState<AssignmentWarning[]>([]);
   const hasAttemptedConfirmRef = useRef(false);
 
   const validateCurrentShifts = useCallback(
@@ -295,6 +298,11 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     ],
   );
 
+  const computeCurrentWarnings = useCallback(
+    (shifts: ShiftData[]) => computeAssignmentWarnings({ shifts, staffs, pattern: data.submissionPattern }),
+    [staffs, data.submissionPattern],
+  );
+
   const handleShiftsChange = useCallback(
     (shifts: ShiftData[]) => {
       shiftsRef.current = shifts;
@@ -305,15 +313,19 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       }
       if (hasAttemptedConfirmRef.current) {
         setValidationIssues(validateCurrentShifts(shifts));
+        setValidationWarnings(computeCurrentWarnings(shifts));
       }
     },
-    [validateCurrentShifts],
+    [validateCurrentShifts, computeCurrentWarnings],
   );
 
   const dismissValidationIssues = useCallback(() => {
     hasAttemptedConfirmRef.current = false;
     setValidationIssues([]);
+    setValidationWarnings([]);
   }, []);
+
+  const displayWarnings = useMemo(() => toDisplayIssues(validationWarnings, staffs), [validationWarnings, staffs]);
 
   // サーバー側バリデーションエラー（二重防御）をエラー一覧UIへマップする。
   // 構造化エラーでなければ従来通りtoastにフォールバックする
@@ -363,17 +375,18 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     baselineShiftsRef.current = shiftsAtSave;
   }, [buildSaveAssignments, recruitmentId, saveShiftAssignments]);
 
-  // 確定ボタン押下時: フロントで全件検証し、エラーがあれば確認ダイアログを開かずに一覧表示する
+  // 確定ボタン押下時: フロントで全件評価する。
+  // エラーがあれば確認ダイアログを開かず一覧表示。ワーニング（確認事項）は確定をブロックせず、
+  // ダイアログ内のサマリーと盤面のオレンジパネルで知らせる。
   const handleConfirmRequest = useCallback(() => {
     const issues = validateCurrentShifts(shiftsRef.current);
-    if (issues.length > 0) {
-      hasAttemptedConfirmRef.current = true;
-      setValidationIssues(issues);
-      return;
-    }
-    dismissValidationIssues();
+    const warnings = computeCurrentWarnings(shiftsRef.current);
+    hasAttemptedConfirmRef.current = true;
+    setValidationIssues(issues);
+    setValidationWarnings(warnings);
+    if (issues.length > 0) return;
     confirmModal.open();
-  }, [validateCurrentShifts, dismissValidationIssues, confirmModal]);
+  }, [validateCurrentShifts, computeCurrentWarnings, confirmModal]);
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
     const shiftsAtSave = shiftsRef.current;
@@ -493,6 +506,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={unsubmittedDialog.open}
           validationIssues={validationIssues}
+          validationWarnings={validationWarnings}
           onDismissValidationIssues={dismissValidationIssues}
         />
       </Box>
@@ -507,7 +521,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         isLoading={isConfirming}
         isSubmitDisabled={isConfirming}
       >
-        <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
+        <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} warnings={displayWarnings} />
       </Dialog>
 
       <Dialog

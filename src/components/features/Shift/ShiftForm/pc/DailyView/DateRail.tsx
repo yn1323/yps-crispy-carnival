@@ -9,6 +9,7 @@ type Props = {
   onSelect: (date: string) => void;
   holidays?: string[];
   issueCounts?: ReadonlyMap<string, number>;
+  warningCounts?: ReadonlyMap<string, number>;
 };
 
 const dayColor = (dateStr: string): string => {
@@ -18,7 +19,7 @@ const dayColor = (dateStr: string): string => {
   return "#3f3f46";
 };
 
-export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCounts }: Props) => (
+export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCounts, warningCounts }: Props) => (
   <Box
     minH={0}
     borderRightWidth="1px"
@@ -37,6 +38,15 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
         const active = iso === selectedDate;
         const isClosed = holidays.includes(iso);
         const issueCount = issueCounts?.get(iso) ?? 0;
+        const warningCount = warningCounts?.get(iso) ?? 0;
+        // エラー（赤）を優先し、なければ確認事項（オレンジ）を表示する
+        const badgeBorderColor = active
+          ? "teal.300"
+          : issueCount > 0
+            ? "red.200"
+            : warningCount > 0
+              ? "orange.200"
+              : "transparent";
         return (
           <Box
             key={iso}
@@ -49,12 +59,16 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
             px="8px"
             borderRadius="md"
             borderWidth="1px"
-            borderColor={active ? "teal.300" : issueCount > 0 ? "red.200" : "transparent"}
+            borderColor={badgeBorderColor}
             bg={active ? "teal.50" : isClosed ? "gray.50" : "transparent"}
             transition="all 120ms"
             _hover={{ bg: active ? "teal.50" : "gray.50" }}
           >
-            {issueCount > 0 && <IssueCountBadge count={issueCount} />}
+            {issueCount > 0 ? (
+              <IssueCountBadge count={issueCount} tone="error" />
+            ) : (
+              warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />
+            )}
             <Flex align="baseline" justify="center" gap="3px">
               <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
                 {d.date()}

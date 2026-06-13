@@ -8,7 +8,9 @@ import {
   halfHourBusinessHoursArgs,
   overnightArgs,
   shiftFormDecorators,
+  validationErrorAndWarningArgs,
   validationErrorArgs,
+  validationWarningArgs,
 } from "./shared";
 
 const meta = {
@@ -73,4 +75,16 @@ export const TimeValidationErrorJump: Story = {
     issueRow?.click();
     await expectVisibleText(canvasElement, "1月23日");
   },
+};
+
+// 確認事項（ワーニング）: オレンジパネル＋DateRailオレンジバッジ＋行のオレンジハイライト
+export const TimeWithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: validationWarningArgs,
+};
+
+// エラーと確認事項が同時にあるとき（赤パネルが上、オレンジパネルが下）
+export const TimeWithErrorsAndWarnings: Story = {
+  name: "With Errors And Warnings",
+  args: validationErrorAndWarningArgs,
 };

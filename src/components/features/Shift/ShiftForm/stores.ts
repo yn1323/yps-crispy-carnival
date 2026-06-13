@@ -2,6 +2,7 @@ import { atom } from "jotai";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
+import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
@@ -94,5 +95,23 @@ export const issueStaffIdSetForSelectedDateAtom = atom((get) => {
     get(validationIssuesAtom)
       .filter((issue) => issue.date === selectedDate)
       .map((issue) => issue.staffId),
+  );
+});
+
+// ==========================================
+// 確定前ワーニング（確認事項。確定をブロックしない助言）
+// ==========================================
+export const validationWarningsAtom = atom<AssignmentWarning[]>([]);
+
+// DateRailのオレンジバッジ用: 日付ごとの確認事項件数
+export const warningCountByDateAtom = atom((get) => issueCountByDate(get(validationWarningsAtom)));
+
+// 選択中日付で確認事項を持つスタッフID（行のオレンジハイライト用）
+export const warningStaffIdSetForSelectedDateAtom = atom((get) => {
+  const selectedDate = get(selectedDateAtom);
+  return new Set(
+    get(validationWarningsAtom)
+      .filter((warning) => warning.date === selectedDate)
+      .map((warning) => warning.staffId),
   );
 });

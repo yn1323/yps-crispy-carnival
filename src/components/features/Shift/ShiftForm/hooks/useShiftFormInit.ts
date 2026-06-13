@@ -2,6 +2,7 @@ import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -17,6 +18,7 @@ import {
   shiftsAtom,
   sortModeAtom,
   validationIssuesAtom,
+  validationWarningsAtom,
   viewModeAtom,
 } from "../stores";
 
@@ -37,6 +39,7 @@ type UseShiftFormInitParams = {
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
   validationIssues?: AssignmentIssue[];
+  validationWarnings?: AssignmentWarning[];
 };
 
 export const useShiftFormInit = ({
@@ -56,6 +59,7 @@ export const useShiftFormInit = ({
   initialViewMode,
   initialSortMode,
   validationIssues,
+  validationWarnings,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
   const setShifts = useSetAtom(shiftsAtom);
@@ -63,6 +67,7 @@ export const useShiftFormInit = ({
   const setViewMode = useSetAtom(viewModeAtom);
   const setSortMode = useSetAtom(sortModeAtom);
   const setValidationIssues = useSetAtom(validationIssuesAtom);
+  const setValidationWarnings = useSetAtom(validationWarningsAtom);
   const isInitialized = useRef(false);
 
   // 初回マウント時: シフトデータ初期化 + 選択日を設定
@@ -116,4 +121,9 @@ export const useShiftFormInit = ({
   useEffect(() => {
     setValidationIssues(validationIssues ?? []);
   }, [validationIssues, setValidationIssues]);
+
+  // 確定前ワーニング（確認事項）の同期
+  useEffect(() => {
+    setValidationWarnings(validationWarnings ?? []);
+  }, [validationWarnings, setValidationWarnings]);
 };

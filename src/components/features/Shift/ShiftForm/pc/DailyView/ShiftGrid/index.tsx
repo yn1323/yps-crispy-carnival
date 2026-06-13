@@ -10,6 +10,7 @@ import {
   shiftConfigAtom,
   shiftsAtom,
   sortedStaffsAtom,
+  warningStaffIdSetForSelectedDateAtom,
 } from "../../../stores";
 import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
@@ -29,6 +30,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const selectedDate = useAtomValue(selectedDateAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
+  const warningStaffIds = useAtomValue(warningStaffIdSetForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
   const { timeRange, isReadOnly, currentStaffId } = config;
 
@@ -166,6 +168,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 isCurrentStaff={staff.id === currentStaffId}
                 isReadOnly={isReadOnly}
                 hasError={issueStaffIds.has(staff.id)}
+                hasWarning={warningStaffIds.has(staff.id)}
                 onRowMouseDown={handleRowMouseDown}
                 onRowMouseMoveForCursor={handleRowMouseMoveForCursor}
                 onShiftClick={onShiftClick}

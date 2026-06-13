@@ -2,10 +2,16 @@ import { Box, Flex } from "@chakra-ui/react";
 import { LuSave } from "react-icons/lu";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
 
-// 日付チップ（DateRail / SP日付ピッカー）右上に重ねるエラー件数バッジ。
-export const IssueCountBadge = ({ count }: { count: number }) => (
+// エラー（赤）と確認事項（オレンジ）で色を切り替える。色規約: red=エラー / orange=要対応・警告
+export type IssueTone = "error" | "warning";
+const TONE_DOT_BG: Record<IssueTone, string> = { error: "red.500", warning: "orange.400" };
+const TONE_BADGE_BG: Record<IssueTone, string> = { error: "red.500", warning: "orange.400" };
+const TONE_NOUN: Record<IssueTone, string> = { error: "エラー", warning: "確認事項" };
+
+// 日付チップ（DateRail / SP日付ピッカー）右上に重ねる件数バッジ。
+export const IssueCountBadge = ({ count, tone = "error" }: { count: number; tone?: IssueTone }) => (
   <Flex
-    aria-label={`エラー${count}件`}
+    aria-label={`${TONE_NOUN[tone]}${count}件`}
     position="absolute"
     top="-5px"
     right="-5px"
@@ -15,7 +21,7 @@ export const IssueCountBadge = ({ count }: { count: number }) => (
     align="center"
     justify="center"
     borderRadius="full"
-    bg="red.500"
+    bg={TONE_BADGE_BG[tone]}
     color="white"
     fontSize="10px"
     fontWeight={700}
@@ -25,9 +31,9 @@ export const IssueCountBadge = ({ count }: { count: number }) => (
   </Flex>
 );
 
-// スタッフ行・カードのエラー印（赤いドット）。
-export const IssueDot = () => (
-  <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />
+// スタッフ行・カードの印（赤＝エラー / オレンジ＝確認事項のドット）。
+export const IssueDot = ({ tone = "error" }: { tone?: IssueTone }) => (
+  <Box boxSize="6px" borderRadius="full" bg={TONE_DOT_BG[tone]} flexShrink={0} aria-label={`${TONE_NOUN[tone]}あり`} />
 );
 
 export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (

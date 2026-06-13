@@ -16,6 +16,8 @@ import {
   shiftConfigAtom,
   shiftsAtom,
   sortedStaffsAtom,
+  warningCountByDateAtom,
+  warningStaffIdSetForSelectedDateAtom,
 } from "../../stores";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
@@ -59,6 +61,8 @@ export const SPDailyView = () => {
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningStaffIds = useAtomValue(warningStaffIdSetForSelectedDateAtom);
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -192,6 +196,15 @@ export const SPDailyView = () => {
             const active = iso === selectedDate;
             const isClosed = holidays.includes(iso);
             const issueCount = issueCounts.get(iso) ?? 0;
+            const warningCount = warningCounts.get(iso) ?? 0;
+            // エラー（赤）を優先し、なければ確認事項（オレンジ）を表示する
+            const chipBorderColor = active
+              ? "teal.400"
+              : issueCount > 0
+                ? "red.200"
+                : warningCount > 0
+                  ? "orange.200"
+                  : "gray.200";
             return (
               <Box
                 key={iso}
@@ -203,11 +216,15 @@ export const SPDailyView = () => {
                 textAlign="center"
                 borderRadius="md"
                 borderWidth="1px"
-                borderColor={active ? "teal.400" : issueCount > 0 ? "red.200" : "gray.200"}
+                borderColor={chipBorderColor}
                 bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
-                {issueCount > 0 && <IssueCountBadge count={issueCount} />}
+                {issueCount > 0 ? (
+                  <IssueCountBadge count={issueCount} tone="error" />
+                ) : (
+                  warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />
+                )}
                 <Box
                   textStyle="md"
                   fontWeight={700}
@@ -275,6 +292,7 @@ export const SPDailyView = () => {
                       timeRange={timeRange}
                       onTap={() => handleCardTap(staff.id)}
                       hasError={issueStaffIds.has(staff.id)}
+                      hasWarning={warningStaffIds.has(staff.id)}
                     />
                   ))}
                 </Stack>
@@ -295,6 +313,7 @@ export const SPDailyView = () => {
                       onTap={() => handleCardTap(staff.id)}
                       isReadOnly={isReadOnly}
                       hasError={issueStaffIds.has(staff.id)}
+                      hasWarning={warningStaffIds.has(staff.id)}
                     />
                   ))}
                 </Stack>
@@ -375,14 +394,17 @@ type CardProps = {
   timeRange: TimeRange;
   onTap: () => void;
   hasError?: boolean;
+  hasWarning?: boolean;
 };
 
-const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false }: CardProps) => {
+const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarning = false }: CardProps) => {
   const requestedTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
   const hasReq = requestedTimes.length > 0;
   const asn = getAssignedRange(shift);
   const hasAsn = !!asn;
   const mismatch = hasReq && !hasAsn;
+  // エラー（赤）を優先し、なければ確認事項（オレンジ）を強調する
+  const tone = hasError ? "error" : hasWarning ? "warning" : null;
   const workPositions = useMemo<PositionSegment[]>(
     () =>
       shift
@@ -401,17 +423,19 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false }: CardP
       data-tour={`shift-row-${staff.id}`}
       w="100%"
       textAlign="left"
-      bg={hasError ? "red.50" : "white"}
+      bg={tone === "error" ? "red.50" : tone === "warning" ? "orange.50" : "white"}
       borderRadius="lg"
-      borderWidth={hasError ? "2px" : "1px"}
-      borderColor={hasError ? "red.300" : mismatch ? "orange.200" : "gray.200"}
+      borderWidth={tone ? "2px" : "1px"}
+      borderColor={
+        tone === "error" ? "red.300" : tone === "warning" ? "orange.300" : mismatch ? "orange.200" : "gray.200"
+      }
       px={3}
       py="10px"
       cursor="pointer"
       _active={{ bg: "gray.50" }}
     >
       <Flex align="center" gap={2} mb={2}>
-        {hasError && <IssueDot />}
+        {tone && <IssueDot tone={tone} />}
         <Avatar staff={staff} size={28} />
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staff.name}
@@ -490,14 +514,17 @@ const SPOffCard = ({
   onTap,
   isReadOnly,
   hasError = false,
+  hasWarning = false,
 }: {
   staff: StaffType;
   onTap: () => void;
   isReadOnly: boolean;
   hasError?: boolean;
+  hasWarning?: boolean;
 }) => {
   const isUnsub = !staff.isSubmitted;
   const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
+  const tone = hasError ? "error" : hasWarning ? "warning" : null;
   return (
     <Box
       as="button"
@@ -508,15 +535,15 @@ const SPOffCard = ({
       alignItems="center"
       gap="10px"
       p="10px 12px"
-      bg={hasError ? "red.50" : "white"}
-      borderWidth={hasError ? "2px" : "1px"}
-      borderColor={hasError ? "red.300" : "gray.200"}
+      bg={tone === "error" ? "red.50" : tone === "warning" ? "orange.50" : "white"}
+      borderWidth={tone ? "2px" : "1px"}
+      borderColor={tone === "error" ? "red.300" : tone === "warning" ? "orange.300" : "gray.200"}
       borderRadius="md"
       cursor={isReadOnly ? "default" : "pointer"}
       textAlign="left"
       _active={isReadOnly ? undefined : { bg: "gray.50" }}
     >
-      {hasError && <IssueDot />}
+      {tone && <IssueDot tone={tone} />}
       <Avatar staff={staff} size={24} />
       <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
         {staff.name}

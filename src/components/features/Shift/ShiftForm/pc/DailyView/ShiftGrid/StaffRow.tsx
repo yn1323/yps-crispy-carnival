@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { MutableRefObject } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { Avatar } from "../../../components";
+import { Avatar, IssueDot } from "../../../components";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -36,6 +36,7 @@ type StaffRowProps = {
   onMouseUpOnRow: (staffId: string) => void;
   dataTour?: string;
   hasError?: boolean;
+  hasWarning?: boolean;
 };
 
 export const StaffRow = ({
@@ -57,7 +58,10 @@ export const StaffRow = ({
   onMouseUpOnRow,
   dataTour,
   hasError = false,
+  hasWarning = false,
 }: StaffRowProps) => {
+  // エラー（赤）を優先し、なければ確認事項（オレンジ）を表示する
+  const tone = hasError ? "error" : hasWarning ? "warning" : null;
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
     const hasRequest = staffShifts.some((s) => s.requestedTime !== null || (s.requestedTimes?.length ?? 0) > 0);
@@ -93,7 +97,7 @@ export const StaffRow = ({
         gap={2}
         whiteSpace="nowrap"
       >
-        {hasError && <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />}
+        {tone && <IssueDot tone={tone} />}
         <Avatar staff={staff} size={24} />
         <Flex
           align="center"
@@ -125,8 +129,14 @@ export const StaffRow = ({
         height="40px"
         flex={1}
         minW={0}
-        bg={hasError ? "red.50" : "transparent"}
-        boxShadow={hasError ? "inset 0 0 0 2px var(--chakra-colors-red-300)" : undefined}
+        bg={tone === "error" ? "red.50" : tone === "warning" ? "orange.50" : "transparent"}
+        boxShadow={
+          tone === "error"
+            ? "inset 0 0 0 2px var(--chakra-colors-red-300)"
+            : tone === "warning"
+              ? "inset 0 0 0 2px var(--chakra-colors-orange-300)"
+              : undefined
+        }
         overflow="hidden"
         onMouseDown={
           isReadOnly

@@ -12,7 +12,14 @@ import {
 } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar } from "../../components";
-import { issueCountByDateAtom, selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
+import {
+  issueCountByDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+  warningCountByDateAtom,
+} from "../../stores";
 import { formatShiftTypeTimeRange } from "../../utils/shiftTypeDisplay";
 import { DateRail } from "../DailyView/DateRail";
 import { DayTitle } from "../DailyView/DayTitle";
@@ -33,6 +40,7 @@ export const ShiftTypeDailyView = () => {
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -73,6 +81,7 @@ export const ShiftTypeDailyView = () => {
         onSelect={setSelectedDate}
         holidays={holidays}
         issueCounts={issueCounts}
+        warningCounts={warningCounts}
       />
       <Flex direction="column" minW={0} minH={0} flex={1} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />

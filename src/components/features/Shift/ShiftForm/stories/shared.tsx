@@ -96,6 +96,40 @@ export const validationErrorArgs = {
   onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
+// 確認事項（ワーニング）の統合表示用（オレンジパネル＋オレンジバッジ＋行ハイライト）
+export const validationWarningArgs = {
+  ...baseArgs,
+  validationWarnings: [
+    {
+      code: "NOT_SUBMITTED" as const,
+      date: "2026-01-21",
+      staffId: "staff3",
+      message: "未提出のまま勤務に入っています",
+    },
+    {
+      code: "OUTSIDE_REQUESTED_TIME" as const,
+      date: "2026-01-21",
+      staffId: "staff1",
+      message: "希望時間（10:00-18:00）の外に勤務があります",
+    },
+    {
+      code: "OFF_REQUEST" as const,
+      date: "2026-01-23",
+      staffId: "staff5",
+      message: "休み希望の日に勤務が入っています",
+    },
+  ],
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
+// エラーと確認事項が同時にある場合（赤パネルが上、オレンジパネルが下）
+export const validationErrorAndWarningArgs = {
+  ...baseArgs,
+  validationIssues: validationErrorArgs.validationIssues,
+  validationWarnings: validationWarningArgs.validationWarnings,
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
 export const overviewCalendarRangeArgs = {
   ...baseArgs,
   dates: mockDatesMidWeekStart,
