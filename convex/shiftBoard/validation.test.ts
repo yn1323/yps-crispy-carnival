@@ -226,4 +226,10 @@ describe("parseShiftAssignmentValidationError", () => {
     const error = { data: { code: SHIFT_ASSIGNMENT_VALIDATION, issues: [valid, { code: "OVERLAP" }, "broken"] } };
     expect(parseShiftAssignmentValidationError(error)).toEqual([valid]);
   });
+
+  it("issuesが全件不正で空になる場合はnullを返す（toastフォールバックさせる）", () => {
+    const error = { data: { code: SHIFT_ASSIGNMENT_VALIDATION, issues: [{ code: "OVERLAP" }, "broken"] } };
+    expect(parseShiftAssignmentValidationError(error)).toBeNull();
+    expect(parseShiftAssignmentValidationError({ data: { code: SHIFT_ASSIGNMENT_VALIDATION, issues: [] } })).toBeNull();
+  });
 });

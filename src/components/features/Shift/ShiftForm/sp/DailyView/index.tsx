@@ -8,7 +8,14 @@ import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../constants";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
+import {
+  issueCountByDateAtom,
+  issueStaffIdSetForSelectedDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+} from "../../stores";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 
@@ -49,6 +56,8 @@ export const SPDailyView = () => {
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -181,20 +190,43 @@ export const SPDailyView = () => {
             const d = dayjs(iso);
             const active = iso === selectedDate;
             const isClosed = holidays.includes(iso);
+            const issueCount = issueCounts.get(iso) ?? 0;
             return (
               <Box
                 key={iso}
                 onClick={() => setSelectedDate(iso)}
+                position="relative"
                 flexShrink={0}
                 w="52px"
                 py="8px"
                 textAlign="center"
                 borderRadius="md"
                 borderWidth="1px"
-                borderColor={active ? "teal.400" : "gray.200"}
+                borderColor={active ? "teal.400" : issueCount > 0 ? "red.200" : "gray.200"}
                 bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
+                {issueCount > 0 && (
+                  <Flex
+                    aria-label={`エラー${issueCount}件`}
+                    position="absolute"
+                    top="-5px"
+                    right="-5px"
+                    minW="16px"
+                    h="16px"
+                    px="4px"
+                    align="center"
+                    justify="center"
+                    borderRadius="full"
+                    bg="red.500"
+                    color="white"
+                    fontSize="10px"
+                    fontWeight={700}
+                    lineHeight={1}
+                  >
+                    {issueCount}
+                  </Flex>
+                )}
                 <Box
                   textStyle="md"
                   fontWeight={700}
@@ -261,6 +293,7 @@ export const SPDailyView = () => {
                       shift={shift}
                       timeRange={timeRange}
                       onTap={() => handleCardTap(staff.id)}
+                      hasError={issueStaffIds.has(staff.id)}
                     />
                   ))}
                 </Stack>
@@ -280,6 +313,7 @@ export const SPDailyView = () => {
                       staff={staff}
                       onTap={() => handleCardTap(staff.id)}
                       isReadOnly={isReadOnly}
+                      hasError={issueStaffIds.has(staff.id)}
                     />
                   ))}
                 </Stack>
@@ -359,9 +393,10 @@ type CardProps = {
   shift: ShiftData | undefined;
   timeRange: TimeRange;
   onTap: () => void;
+  hasError?: boolean;
 };
 
-const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
+const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false }: CardProps) => {
   const requestedTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
   const hasReq = requestedTimes.length > 0;
   const asn = getAssignedRange(shift);
@@ -382,18 +417,20 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
     <Box
       as="button"
       onClick={onTap}
+      data-tour={`shift-row-${staff.id}`}
       w="100%"
       textAlign="left"
-      bg="white"
+      bg={hasError ? "red.50" : "white"}
       borderRadius="lg"
-      borderWidth="1px"
-      borderColor={mismatch ? "orange.200" : "gray.200"}
+      borderWidth={hasError ? "2px" : "1px"}
+      borderColor={hasError ? "red.300" : mismatch ? "orange.200" : "gray.200"}
       px={3}
       py="10px"
       cursor="pointer"
       _active={{ bg: "gray.50" }}
     >
       <Flex align="center" gap={2} mb={2}>
+        {hasError && <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />}
         <Avatar staff={staff} size={28} />
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staff.name}
@@ -467,26 +504,38 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
   );
 };
 
-const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () => void; isReadOnly: boolean }) => {
+const SPOffCard = ({
+  staff,
+  onTap,
+  isReadOnly,
+  hasError = false,
+}: {
+  staff: StaffType;
+  onTap: () => void;
+  isReadOnly: boolean;
+  hasError?: boolean;
+}) => {
   const isUnsub = !staff.isSubmitted;
   const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
   return (
     <Box
       as="button"
       onClick={isReadOnly ? undefined : onTap}
+      data-tour={`shift-row-${staff.id}`}
       w="100%"
       display="flex"
       alignItems="center"
       gap="10px"
       p="10px 12px"
-      bg="white"
-      borderWidth="1px"
-      borderColor="gray.200"
+      bg={hasError ? "red.50" : "white"}
+      borderWidth={hasError ? "2px" : "1px"}
+      borderColor={hasError ? "red.300" : "gray.200"}
       borderRadius="md"
       cursor={isReadOnly ? "default" : "pointer"}
       textAlign="left"
       _active={isReadOnly ? undefined : { bg: "gray.50" }}
     >
+      {hasError && <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />}
       <Avatar staff={staff} size={24} />
       <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
         {staff.name}

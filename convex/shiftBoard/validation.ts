@@ -158,7 +158,7 @@ export function parseShiftAssignmentValidationError(error: unknown): AssignmentI
   if (typeof data !== "object" || data === null) return null;
   const { code, issues } = data as { code?: unknown; issues?: unknown };
   if (code !== SHIFT_ASSIGNMENT_VALIDATION || !Array.isArray(issues)) return null;
-  return issues.filter(
+  const validIssues = issues.filter(
     (issue): issue is AssignmentIssue =>
       typeof issue === "object" &&
       issue !== null &&
@@ -167,4 +167,7 @@ export function parseShiftAssignmentValidationError(error: unknown): AssignmentI
       typeof issue.staffId === "string" &&
       typeof issue.message === "string",
   );
+  // サーバーはissuesが1件以上のときしかthrowしない。フィルタ後に空＝形が壊れたエラーなので、
+  // 一覧UIに空表示するのではなくtoastフォールバックへ回す
+  return validIssues.length > 0 ? validIssues : null;
 }

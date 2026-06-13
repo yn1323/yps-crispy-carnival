@@ -379,8 +379,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     const shiftsAtSave = shiftsRef.current;
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
-      await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
+      // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
+      await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });
     } catch (error) {
