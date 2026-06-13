@@ -7,9 +7,10 @@
 | 種別 | パス |
 |---|---|
 | 画面 | `src/pages/dashboard/index.tsx`, `src/pages/shift-board/index.tsx` |
-| UI | `src/components/features/Dashboard/RecruitmentBoard/`, `src/components/features/Dashboard/DashboardContent/index.tsx`, `src/components/features/Shift/ShiftForm/` |
+| UI | `src/components/features/Dashboard/RecruitmentBoard/`, `src/components/features/Dashboard/DashboardContent/index.tsx`, `src/components/features/Shift/ShiftForm/`, `src/components/features/Shift/ShiftForm/ValidationErrorPanel/` |
 | API | `convex/recruitment/mutations.ts`, `convex/dashboard/queries.ts`, `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts` |
-| テスト | `convex/recruitment/mutations.test.ts`, `convex/_scenario/recruitmentDeletion.test.ts`, `e2e/scenarios/recruitment-deletion.test.ts` |
+| バリデーション | `convex/shiftBoard/validation.ts`（サーバー/フロント共有の純粋関数）, `src/domains/shift/buildAssignments.ts`, `src/domains/shift/assignmentIssues.ts` |
+| テスト | `convex/recruitment/mutations.test.ts`, `convex/shiftBoard/validation.test.ts`, `convex/shiftBoard/mutations.test.ts`, `convex/_scenario/recruitmentDeletion.test.ts`, `e2e/scenarios/recruitment-deletion.test.ts` |
 
 ## 画面一覧
 
@@ -41,3 +42,5 @@
 - 日ごと募集のSPシフト表では、日別/一覧タブを表示する。日別は募集期間内の日付チップで日付を選び、スタッフ行の `○/×` でその日の割当を切り替える。一覧は週ごとのカードで日付別に勤務するスタッフだけを表示し、期間外の日も一覧上で確認できる。
 - 勤務区分募集のPCシフト表では、日別ビューに `スタッフ × 勤務区分` の表を表示し、セル押下で勤務させる/勤務させないを切り替える。
 - 勤務区分募集の割当は `shiftAssignments.optionId` に募集作成時点の勤務区分IDを保存し、勤務区分の時間と一致する場合だけ保存できる。
+- シフト確定時のバリデーションは二重防御。確定ボタン押下時にフロントで `validateShiftAssignments`（`convex/shiftBoard/validation.ts`、全件収集型の純粋関数）を実行し、エラーがあれば確認ダイアログを開かずシフト表上部にエラー一覧パネルを表示する。サーバー（`saveShiftAssignments` / `confirmRecruitment`）も同じ関数で全違反を収集し、構造化 `ConvexError`（`{ code: "SHIFT_ASSIGNMENT_VALIDATION", issues }`）で返す。構造化エラー以外は従来どおりtoast表示。
+- エラー一覧の行クリックで該当日付の日別ビューへジャンプし、該当スタッフ行を赤くハイライトする。DateRailの該当日には件数バッジを表示する。エラー検出後はシフト編集のたびに再検証し、修正するとエラー一覧・ハイライトがライブに減っていく。

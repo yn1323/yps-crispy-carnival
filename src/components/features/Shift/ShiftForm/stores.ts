@@ -1,5 +1,7 @@
 import { atom } from "jotai";
+import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import { sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
@@ -75,4 +77,22 @@ export const sortedStaffsAtom = atom((get) => {
   const selectedDate = get(selectedDateAtom);
   const sortMode = get(sortModeAtom);
   return sortStaffs({ staffs: config.staffs, shifts, selectedDate, sortMode });
+});
+
+// ==========================================
+// 確定前バリデーションエラー（propsから同期、エラー一覧・バッジ・ハイライトで共有）
+// ==========================================
+export const validationIssuesAtom = atom<AssignmentIssue[]>([]);
+
+// DateRailのエラーバッジ用: 日付ごとのエラー件数
+export const issueCountByDateAtom = atom((get) => issueCountByDate(get(validationIssuesAtom)));
+
+// 選択中日付でエラーを持つスタッフID（行ハイライト用）
+export const issueStaffIdSetForSelectedDateAtom = atom((get) => {
+  const selectedDate = get(selectedDateAtom);
+  return new Set(
+    get(validationIssuesAtom)
+      .filter((issue) => issue.date === selectedDate)
+      .map((issue) => issue.staffId),
+  );
 });

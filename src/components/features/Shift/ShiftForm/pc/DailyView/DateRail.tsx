@@ -7,6 +7,7 @@ type Props = {
   selectedDate: string;
   onSelect: (date: string) => void;
   holidays?: string[];
+  issueCounts?: ReadonlyMap<string, number>;
 };
 
 const dayColor = (dateStr: string): string => {
@@ -16,7 +17,7 @@ const dayColor = (dateStr: string): string => {
   return "#3f3f46";
 };
 
-export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props) => (
+export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCounts }: Props) => (
   <Box
     minH={0}
     borderRightWidth="1px"
@@ -34,6 +35,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
         const d = dayjs(iso);
         const active = iso === selectedDate;
         const isClosed = holidays.includes(iso);
+        const issueCount = issueCounts?.get(iso) ?? 0;
         return (
           <Box
             key={iso}
@@ -41,15 +43,37 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [] }: Props
             aria-selected={active}
             onClick={() => onSelect(iso)}
             cursor="pointer"
+            position="relative"
             py="6px"
             px="8px"
             borderRadius="md"
             borderWidth="1px"
-            borderColor={active ? "teal.300" : "transparent"}
+            borderColor={active ? "teal.300" : issueCount > 0 ? "red.200" : "transparent"}
             bg={active ? "teal.50" : isClosed ? "gray.50" : "transparent"}
             transition="all 120ms"
             _hover={{ bg: active ? "teal.50" : "gray.50" }}
           >
+            {issueCount > 0 && (
+              <Flex
+                aria-label={`エラー${issueCount}件`}
+                position="absolute"
+                top="-5px"
+                right="-5px"
+                minW="16px"
+                h="16px"
+                px="4px"
+                align="center"
+                justify="center"
+                borderRadius="full"
+                bg="red.500"
+                color="white"
+                fontSize="10px"
+                fontWeight={700}
+                lineHeight={1}
+              >
+                {issueCount}
+              </Flex>
+            )}
             <Flex align="baseline" justify="center" gap="3px">
               <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
                 {d.date()}

@@ -1,6 +1,7 @@
 import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, waitFor } from "storybook/test";
+import { buildAssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftForm } from "..";
 import {
   mockDateOnlyDates,
@@ -82,6 +83,17 @@ export const emptyOrAllUnsubmittedArgs = {
   dates: ["2026-02-01"],
   staffs: mockStaffs.map((staff) => ({ ...staff, isSubmitted: false })),
   initialShifts: [],
+} satisfies ShiftFormArgs;
+
+// 確定前バリデーションエラーの統合表示用（パネル＋DateRailバッジ＋行ハイライト）
+export const validationErrorArgs = {
+  ...baseArgs,
+  validationIssues: [
+    buildAssignmentIssue("OVERLAP", "2026-01-21", "staff1"),
+    buildAssignmentIssue("OUT_OF_BOARD_RANGE", "2026-01-21", "staff2"),
+    buildAssignmentIssue("OVERLAP", "2026-01-23", "staff4"),
+  ],
+  onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
 export const overviewCalendarRangeArgs = {

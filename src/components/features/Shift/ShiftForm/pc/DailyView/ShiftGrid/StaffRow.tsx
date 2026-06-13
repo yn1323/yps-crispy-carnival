@@ -35,6 +35,7 @@ type StaffRowProps = {
   paintClickAnchorRef: MutableRefObject<DOMRect | null>;
   onMouseUpOnRow: (staffId: string) => void;
   dataTour?: string;
+  hasError?: boolean;
 };
 
 export const StaffRow = ({
@@ -55,6 +56,7 @@ export const StaffRow = ({
   paintClickAnchorRef,
   onMouseUpOnRow,
   dataTour,
+  hasError = false,
 }: StaffRowProps) => {
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
@@ -91,6 +93,7 @@ export const StaffRow = ({
         gap={2}
         whiteSpace="nowrap"
       >
+        {hasError && <Box boxSize="6px" borderRadius="full" bg="red.500" flexShrink={0} aria-label="エラーあり" />}
         <Avatar staff={staff} size={24} />
         <Flex
           align="center"
@@ -122,7 +125,8 @@ export const StaffRow = ({
         height="40px"
         flex={1}
         minW={0}
-        bg="transparent"
+        bg={hasError ? "red.50" : "transparent"}
+        boxShadow={hasError ? "inset 0 0 0 2px var(--chakra-colors-red-300)" : undefined}
         overflow="hidden"
         onMouseDown={
           isReadOnly

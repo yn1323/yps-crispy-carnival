@@ -1,5 +1,6 @@
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
+import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type {
   PositionType,
@@ -10,7 +11,14 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortModeAtom, viewModeAtom } from "../stores";
+import {
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortModeAtom,
+  validationIssuesAtom,
+  viewModeAtom,
+} from "../stores";
 
 type UseShiftFormInitParams = {
   shopId: string;
@@ -28,6 +36,7 @@ type UseShiftFormInitParams = {
   displayMode?: "request" | "confirmed";
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
+  validationIssues?: AssignmentIssue[];
 };
 
 export const useShiftFormInit = ({
@@ -46,12 +55,14 @@ export const useShiftFormInit = ({
   displayMode = "request",
   initialViewMode,
   initialSortMode,
+  validationIssues,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const setSortMode = useSetAtom(sortModeAtom);
+  const setValidationIssues = useSetAtom(validationIssuesAtom);
   const isInitialized = useRef(false);
 
   // 初回マウント時: シフトデータ初期化 + 選択日を設定
@@ -100,4 +111,9 @@ export const useShiftFormInit = ({
     displayMode,
     setConfig,
   ]);
+
+  // 確定前バリデーションエラーの同期（props変更時にatomを更新）
+  useEffect(() => {
+    setValidationIssues(validationIssues ?? []);
+  }, [validationIssues, setValidationIssues]);
 };

@@ -1,8 +1,10 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { Provider, useAtom, useAtomValue } from "jotai";
+import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { type DisplayIssue, toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -25,7 +27,8 @@ import { SPDateOnlyOverviewView } from "./sp/DateOnlyOverviewView";
 import { SPOverviewView } from "./sp/OverviewView";
 import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
-import { shiftsAtom, viewModeAtom } from "./stores";
+import { selectedDateAtom, shiftsAtom, viewModeAtom } from "./stores";
+import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
 type ShiftFormProps = {
   shopId: string;
@@ -52,6 +55,8 @@ type ShiftFormProps = {
   isConfirmed?: boolean;
   reminderStatus?: ReminderStatus;
   onOpenUnsubmittedDetails?: () => void;
+  validationIssues?: AssignmentIssue[];
+  onDismissValidationIssues?: () => void;
 };
 
 const ShiftFormInner = ({
@@ -79,6 +84,8 @@ const ShiftFormInner = ({
   isConfirmed = false,
   reminderStatus,
   onOpenUnsubmittedDetails,
+  validationIssues,
+  onDismissValidationIssues,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -96,6 +103,7 @@ const ShiftFormInner = ({
     displayMode,
     initialViewMode,
     initialSortMode,
+    validationIssues,
   });
 
   const shifts = useAtomValue(shiftsAtom);
@@ -116,6 +124,23 @@ const ShiftFormInner = ({
   const unsubmittedNames = useMemo(() => staffs.filter((s) => !s.isSubmitted).map((s) => s.name), [staffs]);
   const isShiftTypePattern = submissionPattern?.kind === "shiftType";
   const isDateOnlyPattern = submissionPattern?.kind === "dateOnly";
+
+  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
+
+  // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
+  const handleSelectIssue = useCallback(
+    (issue: DisplayIssue) => {
+      setSelectedDate(issue.date);
+      setViewMode("daily");
+      requestAnimationFrame(() => {
+        for (const row of document.querySelectorAll(`[data-tour="shift-row-${issue.staffId}"]`)) {
+          row.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      });
+    },
+    [setSelectedDate, setViewMode],
+  );
 
   return (
     <>
@@ -141,6 +166,9 @@ const ShiftFormInner = ({
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           singleViewLabel={isDateOnlyPattern ? "日ごと" : undefined}
+          validationIssues={displayIssues}
+          onSelectIssue={handleSelectIssue}
+          onDismissValidationIssues={onDismissValidationIssues}
         >
           {isDateOnlyPattern ? (
             <DateOnlyView />
@@ -177,6 +205,9 @@ const ShiftFormInner = ({
           unsubmittedNames={unsubmittedNames}
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
+          validationIssues={displayIssues}
+          onSelectIssue={handleSelectIssue}
+          onDismissValidationIssues={onDismissValidationIssues}
         >
           {isDateOnlyPattern ? (
             <>
@@ -226,6 +257,9 @@ type ShellProps = {
   reminderStatus?: ReminderStatus;
   onOpenUnsubmittedDetails?: () => void;
   singleViewLabel?: string;
+  validationIssues: DisplayIssue[];
+  onSelectIssue: (issue: DisplayIssue) => void;
+  onDismissValidationIssues?: () => void;
   children: ReactNode;
 };
 
@@ -243,6 +277,9 @@ const Shell = ({
   reminderStatus,
   onOpenUnsubmittedDetails,
   singleViewLabel,
+  validationIssues,
+  onSelectIssue,
+  onDismissValidationIssues,
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
@@ -269,6 +306,15 @@ const Shell = ({
         </Flex>
       )}
     </Flex>
+
+    {!isReadOnly && validationIssues.length > 0 && (
+      <ValidationErrorPanel
+        issues={validationIssues}
+        onSelectIssue={onSelectIssue}
+        onDismiss={onDismissValidationIssues}
+        compact={compact}
+      />
+    )}
 
     <Flex flex={1} minH={0} direction="column">
       {children}
