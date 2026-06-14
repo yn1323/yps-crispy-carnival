@@ -41,6 +41,17 @@ describe("computeAssignmentWarnings", () => {
     expect(run([shift({ positions: [seg({ positionId: BREAK_POSITION.id })] })])).toEqual([]);
   });
 
+  it("保存前の希望プレビュー（positions＝希望と一致）では警告しない", () => {
+    // 保存済み割当がないセルでは希望がpositionsにプレビュー表示されるが、希望と一致するため食い違いは出ない
+    const warnings = run([
+      shift({
+        requestedTimes: [{ start: "10:00", end: "18:00" }],
+        positions: [seg({ start: "10:00", end: "18:00" })],
+      }),
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
   describe("NOT_SUBMITTED", () => {
     it("未提出スタッフに勤務が入っていると警告", () => {
       const warnings = run([shift({ staffId: "staff2", positions: [seg({})] })]);
@@ -174,6 +185,29 @@ describe("computeAssignmentWarnings", () => {
         pattern,
       );
       expect(warnings.map((w) => w.code)).toEqual(["OFF_REQUEST"]);
+    });
+
+    it("希望区分と未希望区分が混在する場合は未希望のみ連結して警告する", () => {
+      const warnings = run(
+        [
+          shift({
+            requestedShiftTypeOptionIds: ["morning"],
+            positions: [
+              seg({ id: "s1", start: "09:00", end: "13:00", shiftTypeOptionId: "morning" }),
+              seg({ id: "s2", start: "17:00", end: "21:00", shiftTypeOptionId: "late" }),
+            ],
+          }),
+        ],
+        pattern,
+      );
+      expect(warnings).toEqual([
+        {
+          code: "UNREQUESTED_SHIFT_TYPE",
+          date: "2026-01-20",
+          staffId: "staff1",
+          message: "希望していない勤務区分（遅番）が入っています",
+        },
+      ]);
     });
   });
 

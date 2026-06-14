@@ -7,7 +7,7 @@ import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { IssueCountBadge, IssueDot } from "../../components";
+import { DateIssueBadge, dateIssueBorderColor, IssueDot, issueToneEmphasis, resolveIssueTone } from "../../components";
 import { BREAK_POSITION } from "../../constants";
 import {
   issueCountByDateAtom,
@@ -197,14 +197,13 @@ export const SPDailyView = () => {
             const isClosed = holidays.includes(iso);
             const issueCount = issueCounts.get(iso) ?? 0;
             const warningCount = warningCounts.get(iso) ?? 0;
-            // エラー（赤）を優先し、なければ確認事項（オレンジ）を表示する
-            const chipBorderColor = active
-              ? "teal.400"
-              : issueCount > 0
-                ? "red.200"
-                : warningCount > 0
-                  ? "orange.200"
-                  : "gray.200";
+            const chipBorderColor = dateIssueBorderColor({
+              active,
+              issueCount,
+              warningCount,
+              activeColor: "teal.400",
+              fallbackColor: "gray.200",
+            });
             return (
               <Box
                 key={iso}
@@ -220,11 +219,7 @@ export const SPDailyView = () => {
                 bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
-                {issueCount > 0 ? (
-                  <IssueCountBadge count={issueCount} tone="error" />
-                ) : (
-                  warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />
-                )}
+                <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
                   textStyle="md"
                   fontWeight={700}
@@ -403,8 +398,8 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarn
   const asn = getAssignedRange(shift);
   const hasAsn = !!asn;
   const mismatch = hasReq && !hasAsn;
-  // エラー（赤）を優先し、なければ確認事項（オレンジ）を強調する
-  const tone = hasError ? "error" : hasWarning ? "warning" : null;
+  const tone = resolveIssueTone(hasError, hasWarning);
+  const emphasis = issueToneEmphasis(tone);
   const workPositions = useMemo<PositionSegment[]>(
     () =>
       shift
@@ -423,12 +418,10 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarn
       data-tour={`shift-row-${staff.id}`}
       w="100%"
       textAlign="left"
-      bg={tone === "error" ? "red.50" : tone === "warning" ? "orange.50" : "white"}
+      bg={emphasis?.bg ?? "white"}
       borderRadius="lg"
-      borderWidth={tone ? "2px" : "1px"}
-      borderColor={
-        tone === "error" ? "red.300" : tone === "warning" ? "orange.300" : mismatch ? "orange.200" : "gray.200"
-      }
+      borderWidth={emphasis ? "2px" : "1px"}
+      borderColor={emphasis?.border ?? (mismatch ? "orange.200" : "gray.200")}
       px={3}
       py="10px"
       cursor="pointer"
@@ -524,7 +517,8 @@ const SPOffCard = ({
 }) => {
   const isUnsub = !staff.isSubmitted;
   const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
-  const tone = hasError ? "error" : hasWarning ? "warning" : null;
+  const tone = resolveIssueTone(hasError, hasWarning);
+  const emphasis = issueToneEmphasis(tone);
   return (
     <Box
       as="button"
@@ -535,9 +529,9 @@ const SPOffCard = ({
       alignItems="center"
       gap="10px"
       p="10px 12px"
-      bg={tone === "error" ? "red.50" : tone === "warning" ? "orange.50" : "white"}
-      borderWidth={tone ? "2px" : "1px"}
-      borderColor={tone === "error" ? "red.300" : tone === "warning" ? "orange.300" : "gray.200"}
+      bg={emphasis?.bg ?? "white"}
+      borderWidth={emphasis ? "2px" : "1px"}
+      borderColor={emphasis?.border ?? "gray.200"}
       borderRadius="md"
       cursor={isReadOnly ? "default" : "pointer"}
       textAlign="left"

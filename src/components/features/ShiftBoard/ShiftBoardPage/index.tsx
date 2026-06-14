@@ -303,6 +303,18 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     [staffs, data.submissionPattern],
   );
 
+  // エラー（確定不可）と確認事項（助言）をまとめて再評価し、一覧・バッジ・ハイライトに反映する。
+  // 確定可否の判定に使えるよう、評価したエラーを返す
+  const revalidate = useCallback(
+    (shifts: ShiftData[]) => {
+      const issues = validateCurrentShifts(shifts);
+      setValidationIssues(issues);
+      setValidationWarnings(computeCurrentWarnings(shifts));
+      return issues;
+    },
+    [validateCurrentShifts, computeCurrentWarnings],
+  );
+
   const handleShiftsChange = useCallback(
     (shifts: ShiftData[]) => {
       shiftsRef.current = shifts;
@@ -312,11 +324,10 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         isFormInitializedRef.current = true;
       }
       if (hasAttemptedConfirmRef.current) {
-        setValidationIssues(validateCurrentShifts(shifts));
-        setValidationWarnings(computeCurrentWarnings(shifts));
+        revalidate(shifts);
       }
     },
-    [validateCurrentShifts, computeCurrentWarnings],
+    [revalidate],
   );
 
   const dismissValidationIssues = useCallback(() => {
@@ -379,14 +390,11 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   // エラーがあれば確認ダイアログを開かず一覧表示。ワーニング（確認事項）は確定をブロックせず、
   // ダイアログ内のサマリーと盤面のオレンジパネルで知らせる。
   const handleConfirmRequest = useCallback(() => {
-    const issues = validateCurrentShifts(shiftsRef.current);
-    const warnings = computeCurrentWarnings(shiftsRef.current);
     hasAttemptedConfirmRef.current = true;
-    setValidationIssues(issues);
-    setValidationWarnings(warnings);
+    const issues = revalidate(shiftsRef.current);
     if (issues.length > 0) return;
     confirmModal.open();
-  }, [validateCurrentShifts, computeCurrentWarnings, confirmModal]);
+  }, [revalidate, confirmModal]);
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
     const shiftsAtSave = shiftsRef.current;
@@ -395,6 +403,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
       await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
+      // 確定済み。残っていた確認事項（オレンジパネル・バッジ）は役目を終えたのでクリアする
+      dismissValidationIssues();
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });
     } catch (error) {

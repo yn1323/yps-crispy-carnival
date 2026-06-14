@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { MutableRefObject } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { Avatar, IssueDot } from "../../../components";
+import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone } from "../../../components";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -60,8 +60,8 @@ export const StaffRow = ({
   hasError = false,
   hasWarning = false,
 }: StaffRowProps) => {
-  // エラー（赤）を優先し、なければ確認事項（オレンジ）を表示する
-  const tone = hasError ? "error" : hasWarning ? "warning" : null;
+  const tone = resolveIssueTone(hasError, hasWarning);
+  const emphasis = issueToneEmphasis(tone);
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
     const hasRequest = staffShifts.some((s) => s.requestedTime !== null || (s.requestedTimes?.length ?? 0) > 0);
@@ -129,14 +129,8 @@ export const StaffRow = ({
         height="40px"
         flex={1}
         minW={0}
-        bg={tone === "error" ? "red.50" : tone === "warning" ? "orange.50" : "transparent"}
-        boxShadow={
-          tone === "error"
-            ? "inset 0 0 0 2px var(--chakra-colors-red-300)"
-            : tone === "warning"
-              ? "inset 0 0 0 2px var(--chakra-colors-orange-300)"
-              : undefined
-        }
+        bg={emphasis?.bg ?? "transparent"}
+        boxShadow={emphasis ? `inset 0 0 0 2px var(--chakra-colors-${emphasis.borderColorToken})` : undefined}
         overflow="hidden"
         onMouseDown={
           isReadOnly

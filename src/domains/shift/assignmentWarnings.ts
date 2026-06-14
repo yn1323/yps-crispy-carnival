@@ -40,7 +40,9 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
   const warnings: AssignmentWarning[] = [];
 
   for (const shift of input.shifts) {
-    // 勤務（休憩以外）が割り当てられているセルだけが対象。希望のみのセルは対象外
+    // positionsは「確定時に保存される勤務」を表す（休憩以外）。
+    // 保存済み割当がないセルでは希望がプレビューとしてpositionsに入るが、これも確定すれば
+    // そのまま割当になるため評価対象に含めてよい（希望＝プレビューなので食い違いは生じない）。
     const work = shift.positions.filter((position) => !isBreakSegment(position.positionId));
     if (work.length === 0) continue;
 

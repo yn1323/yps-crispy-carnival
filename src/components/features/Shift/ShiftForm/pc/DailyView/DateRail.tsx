@@ -1,7 +1,7 @@
 import { Box, Flex, Stack } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
-import { IssueCountBadge } from "../../components";
+import { DateIssueBadge, dateIssueBorderColor } from "../../components";
 
 type Props = {
   dates: string[];
@@ -39,14 +39,13 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
         const isClosed = holidays.includes(iso);
         const issueCount = issueCounts?.get(iso) ?? 0;
         const warningCount = warningCounts?.get(iso) ?? 0;
-        // エラー（赤）を優先し、なければ確認事項（オレンジ）を表示する
-        const badgeBorderColor = active
-          ? "teal.300"
-          : issueCount > 0
-            ? "red.200"
-            : warningCount > 0
-              ? "orange.200"
-              : "transparent";
+        const badgeBorderColor = dateIssueBorderColor({
+          active,
+          issueCount,
+          warningCount,
+          activeColor: "teal.300",
+          fallbackColor: "transparent",
+        });
         return (
           <Box
             key={iso}
@@ -64,11 +63,7 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
             transition="all 120ms"
             _hover={{ bg: active ? "teal.50" : "gray.50" }}
           >
-            {issueCount > 0 ? (
-              <IssueCountBadge count={issueCount} tone="error" />
-            ) : (
-              warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />
-            )}
+            <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
             <Flex align="baseline" justify="center" gap="3px">
               <Box textStyle="sm" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
                 {d.date()}

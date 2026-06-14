@@ -8,6 +8,40 @@ const TONE_DOT_BG: Record<IssueTone, string> = { error: "red.500", warning: "ora
 const TONE_BADGE_BG: Record<IssueTone, string> = { error: "red.500", warning: "orange.400" };
 const TONE_NOUN: Record<IssueTone, string> = { error: "エラー", warning: "確認事項" };
 
+// スタッフ行・カードを強調するトーンごとの配色（bg=淡色 / border=枠 / borderBoxShadow=inset枠）。
+const TONE_EMPHASIS: Record<IssueTone, { bg: string; border: string; borderColorToken: string }> = {
+  error: { bg: "red.50", border: "red.300", borderColorToken: "red-300" },
+  warning: { bg: "orange.50", border: "orange.300", borderColorToken: "orange-300" },
+};
+
+// エラー（赤）を優先し、なければ確認事項（オレンジ）を選ぶ。どちらもなければnull。
+export const resolveIssueTone = (hasError: boolean, hasWarning: boolean): IssueTone | null =>
+  hasError ? "error" : hasWarning ? "warning" : null;
+
+// 強調トーンの配色を引く。toneがnullなら配色なし（通常表示）。
+export const issueToneEmphasis = (tone: IssueTone | null) => (tone ? TONE_EMPHASIS[tone] : null);
+
+// 日付チップ右上のバッジ。エラー件数を優先し、なければ確認事項件数を表示する。両方0ならnull。
+export const DateIssueBadge = ({ issueCount, warningCount }: { issueCount: number; warningCount: number }) => {
+  if (issueCount > 0) return <IssueCountBadge count={issueCount} tone="error" />;
+  if (warningCount > 0) return <IssueCountBadge count={warningCount} tone="warning" />;
+  return null;
+};
+
+// 日付チップの枠色。エラー（赤）優先 → 確認事項（オレンジ）。件数がなければfallback、選択中はactiveを優先。
+export const dateIssueBorderColor = (args: {
+  active: boolean;
+  issueCount: number;
+  warningCount: number;
+  activeColor: string;
+  fallbackColor: string;
+}): string => {
+  if (args.active) return args.activeColor;
+  if (args.issueCount > 0) return "red.200";
+  if (args.warningCount > 0) return "orange.200";
+  return args.fallbackColor;
+};
+
 // 日付チップ（DateRail / SP日付ピッカー）右上に重ねる件数バッジ。
 export const IssueCountBadge = ({ count, tone = "error" }: { count: number; tone?: IssueTone }) => (
   <Flex
