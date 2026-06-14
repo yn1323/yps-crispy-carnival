@@ -154,6 +154,53 @@ export const dateOnlyArgs = {
   submissionPattern: { kind: "dateOnly" },
 } satisfies ShiftFormArgs;
 
+// 勤務区分募集の確認事項（オレンジパネル＋DateRailバッジ）。
+// 選択初日(2026-05-21)に2件、翌日(2026-05-22)に1件でバッジの出方も確認できる
+export const shiftTypeValidationWarningArgs = {
+  ...shiftTypeArgs,
+  validationWarnings: [
+    {
+      code: "UNREQUESTED_SHIFT_TYPE" as const,
+      date: "2026-05-21",
+      staffId: "staff1",
+      message: "希望していない勤務区分（遅番）が入っています",
+    },
+    {
+      code: "OFF_REQUEST" as const,
+      date: "2026-05-21",
+      staffId: "staff2",
+      message: "休み希望の日に勤務が入っています",
+    },
+    {
+      code: "NOT_SUBMITTED" as const,
+      date: "2026-05-22",
+      staffId: "staff6",
+      message: "未提出のまま勤務に入っています",
+    },
+  ],
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
+// 日ごと募集の確認事項（時間・勤務区分の概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
+export const dateOnlyValidationWarningArgs = {
+  ...dateOnlyArgs,
+  validationWarnings: [
+    {
+      code: "OFF_REQUEST" as const,
+      date: "2026-06-02",
+      staffId: "staff2",
+      message: "休み希望の日に勤務が入っています",
+    },
+    {
+      code: "NOT_SUBMITTED" as const,
+      date: "2026-06-03",
+      staffId: "staff6",
+      message: "未提出のまま勤務に入っています",
+    },
+  ],
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
 const normalizeVisibleText = (value: string): string => value.replace(/\s+/g, "").trim();
 
 const hasVisibleText = (root: HTMLElement, expected: string): boolean =>

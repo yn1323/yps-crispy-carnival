@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "..";
-import { dateOnlyArgs, desktopGlobals, fullscreenParameters, shiftFormDecorators } from "./shared";
+import {
+  dateOnlyArgs,
+  dateOnlyValidationWarningArgs,
+  desktopGlobals,
+  fullscreenParameters,
+  shiftFormDecorators,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Date Only/PC",
@@ -15,6 +21,14 @@ type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   args: dateOnlyArgs,
+  globals: desktopGlobals,
+};
+
+// 確認事項（ワーニング）: 日ごと募集レイアウトでのオレンジパネル表示確認
+// （日ごとは時間・勤務区分の概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
+export const WithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: dateOnlyValidationWarningArgs,
   globals: desktopGlobals,
 };
 
