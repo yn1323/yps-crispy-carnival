@@ -80,7 +80,7 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
       : new Map<string, never>();
 
   const issues: AssignmentIssue[] = [];
-  const rangesByStaffDate = new Map<string, Array<{ start: number; end: number }>>();
+  const rangesByStaffDate = new Map<string, Array<{ start: number; end: number; optionId?: string }>>();
 
   for (const a of input.assignments) {
     const pushIssue = (code: AssignmentIssueCode) => issues.push(buildAssignmentIssue(code, a.date, a.staffId));
@@ -128,11 +128,17 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
 
     const key = `${a.staffId}-${a.date}`;
     const ranges = rangesByStaffDate.get(key) ?? [];
-    if (ranges.some((range) => startMinutes < range.end && endMinutes > range.start)) {
+    const overlapsExisting = ranges.some(
+      (range) =>
+        startMinutes < range.end &&
+        endMinutes > range.start &&
+        (input.pattern.kind !== "shiftType" || range.optionId === a.optionId),
+    );
+    if (overlapsExisting) {
       pushIssue("OVERLAP");
       continue;
     }
-    ranges.push({ start: startMinutes, end: endMinutes });
+    ranges.push({ start: startMinutes, end: endMinutes, ...(a.optionId ? { optionId: a.optionId } : {}) });
     rangesByStaffDate.set(key, ranges);
   }
 

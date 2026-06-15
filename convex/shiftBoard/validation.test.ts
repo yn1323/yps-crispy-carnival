@@ -165,6 +165,36 @@ describe("validateShiftAssignments", () => {
     expect(issues.map((i) => i.code)).toEqual(["OVERLAP"]);
   });
 
+  it("勤務区分募集では別区分同士の時間重複を許可する", () => {
+    const issues = validateShiftAssignments({
+      ...baseInput,
+      pattern: {
+        kind: "shiftType",
+        options: [
+          { id: "early", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 0 },
+          { id: "middle", name: "中番", startTime: "13:00", endTime: "18:00", sortOrder: 1 },
+        ],
+      },
+      assignments: [
+        assignment({ startTime: "10:00", endTime: "15:00", optionId: "early" }),
+        assignment({ startTime: "13:00", endTime: "18:00", optionId: "middle" }),
+      ],
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it("勤務区分募集でも同じ区分の二重登録はOVERLAP", () => {
+    const issues = validateShiftAssignments({
+      ...baseInput,
+      pattern: SHIFT_TYPE_PATTERN,
+      assignments: [
+        assignment({ startTime: "09:00", endTime: "13:00", optionId: "morning" }),
+        assignment({ startTime: "09:00", endTime: "13:00", optionId: "morning" }),
+      ],
+    });
+    expect(issues.map((i) => i.code)).toEqual(["OVERLAP"]);
+  });
+
   it("隣接する時間帯（終了=開始）は重複にならない", () => {
     const issues = validateShiftAssignments({
       ...baseInput,

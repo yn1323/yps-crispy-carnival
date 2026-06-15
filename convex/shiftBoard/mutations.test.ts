@@ -403,6 +403,39 @@ describe("shiftBoard/mutations", () => {
       expect(assignments.map((assignment) => assignment.optionId).sort()).toEqual(["early", "late"]);
     });
 
+    it("勤務区分募集では同一スタッフ×同一日の重なる別勤務区分を保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "early", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 0 },
+              { id: "middle", name: "中番", startTime: "13:00", endTime: "18:00", sortOrder: 1 },
+            ],
+          },
+        });
+      });
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00", optionId: "early" },
+          { staffId: staffId1, date: "2026-01-20", startTime: "13:00", endTime: "18:00", optionId: "middle" },
+        ],
+      });
+
+      const assignments = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId1))
+          .collect(),
+      );
+      expect(assignments).toHaveLength(2);
+      expect(assignments.map((assignment) => assignment.optionId).sort()).toEqual(["early", "middle"]);
+    });
+
     it("同一スタッフ×同一日の時間が重なる割当でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
