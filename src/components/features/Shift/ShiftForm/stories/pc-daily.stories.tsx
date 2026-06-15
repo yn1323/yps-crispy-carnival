@@ -77,13 +77,13 @@ export const TimeValidationErrorJump: Story = {
   },
 };
 
-// 確認事項（ワーニング）: オレンジパネル＋DateRailオレンジバッジ＋行のオレンジハイライト
+// 確認事項（ワーニング）: DateRailオレンジバッジ＋スタッフ名セルの理由アイコン
 export const TimeWithValidationWarnings: Story = {
   name: "With Validation Warnings",
   args: validationWarningArgs,
 };
 
-// エラーと確認事項が同時にあるとき（赤パネルが上、オレンジパネルが下）
+// エラーと確認事項が同時にあるとき（エラーパネル＋ワーニングのバッジ/理由アイコン）
 export const TimeWithErrorsAndWarnings: Story = {
   name: "With Errors And Warnings",
   args: validationErrorAndWarningArgs,

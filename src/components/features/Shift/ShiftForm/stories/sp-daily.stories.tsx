@@ -9,6 +9,7 @@ import {
   mobileGlobals,
   overnightArgs,
   shiftFormDecorators,
+  validationWarningArgs,
 } from "./shared";
 
 const meta = {
@@ -57,5 +58,12 @@ export const TimeReadOnly: Story = {
 export const TimeConfirmed: Story = {
   name: "Confirmed",
   args: { ...allPatternsArgs, isConfirmed: true },
+  globals: mobileGlobals,
+};
+
+// 確認事項（ワーニング）: SP日別でのDateRailバッジ＋スタッフカード/行の理由アイコン
+export const TimeWithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: validationWarningArgs,
   globals: mobileGlobals,
 };

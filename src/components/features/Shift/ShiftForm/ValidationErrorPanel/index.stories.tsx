@@ -1,5 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import { ValidationErrorPanel } from ".";
 
 const meta = {
@@ -20,7 +21,13 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const issue = (key: string, date: string, staffId: string, label: string) => ({ key, date, staffId, label });
+const issue = (key: string, date: string, staffId: string, label: string): DisplayIssue => ({
+  key,
+  code: key.split("-").at(-1) ?? "UNKNOWN",
+  date,
+  staffId,
+  label,
+});
 
 const sampleIssues = [
   issue("staff1-2026-01-21-CLOSED_DAY", "2026-01-21", "staff1", "1/21(水) 鈴木太郎：定休日にはシフトを登録できません"),
@@ -105,41 +112,6 @@ export const SPCompact: Story = {
 export const SPCompactExpanded: Story = {
   args: {
     ...baseArgs,
-    compact: true,
-  },
-  globals: {
-    viewport: { value: "mobile1", isRotated: false },
-  },
-  play: async ({ canvasElement }) => {
-    const toggle = canvasElement.querySelector<HTMLButtonElement>("button[aria-expanded]");
-    toggle?.click();
-  },
-};
-
-const warningIssues = [
-  issue("staff1-2026-01-21-OFF_REQUEST", "2026-01-21", "staff1", "1/21(水) 鈴木太郎：休み希望の日に勤務が入っています"),
-  issue("staff2-2026-01-22-NOT_SUBMITTED", "2026-01-22", "staff2", "1/22(木) 佐藤花子：未提出のまま勤務に入っています"),
-  issue(
-    "staff1-2026-01-23-OUTSIDE_REQUESTED_TIME",
-    "2026-01-23",
-    "staff1",
-    "1/23(金) 鈴木太郎：希望時間（10:00-18:00）の外に勤務があります",
-  ),
-];
-
-export const WarningTone: Story = {
-  args: {
-    ...baseArgs,
-    issues: warningIssues,
-    tone: "warning",
-  },
-};
-
-export const WarningToneSPCompact: Story = {
-  args: {
-    ...baseArgs,
-    issues: warningIssues,
-    tone: "warning",
     compact: true,
   },
   globals: {

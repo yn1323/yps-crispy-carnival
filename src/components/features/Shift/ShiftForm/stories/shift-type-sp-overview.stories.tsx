@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from "..";
-import { expectVisibleText, fullscreenParameters, mobileGlobals, shiftFormDecorators, shiftTypeArgs } from "./shared";
+import {
+  expectVisibleText,
+  fullscreenParameters,
+  mobileGlobals,
+  shiftFormDecorators,
+  shiftTypeArgs,
+  shiftTypeValidationWarningArgs,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/SP/Overview",
@@ -21,4 +28,10 @@ export const Basic: Story = {
     await expectVisibleText(canvasElement, "5/19火期間外");
     await expectVisibleText(canvasElement, "5/20水期間外");
   },
+};
+
+export const WithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: { ...shiftTypeValidationWarningArgs, initialViewMode: "overview" },
+  globals: mobileGlobals,
 };

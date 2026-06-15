@@ -96,7 +96,7 @@ export const validationErrorArgs = {
   onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
-// 確認事項（ワーニング）の統合表示用（オレンジパネル＋オレンジバッジ＋行ハイライト）
+// 確認事項（ワーニング）の統合表示用（DateRailバッジ＋スタッフ名セルの理由アイコン）
 export const validationWarningArgs = {
   ...baseArgs,
   validationWarnings: [
@@ -122,7 +122,7 @@ export const validationWarningArgs = {
   onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
-// エラーと確認事項が同時にある場合（赤パネルが上、オレンジパネルが下）
+// エラーと確認事項が同時にある場合（エラーパネル＋ワーニングのバッジ/理由アイコン）
 export const validationErrorAndWarningArgs = {
   ...baseArgs,
   validationIssues: validationErrorArgs.validationIssues,
@@ -154,16 +154,16 @@ export const dateOnlyArgs = {
   submissionPattern: { kind: "dateOnly" },
 } satisfies ShiftFormArgs;
 
-// 勤務区分募集の確認事項（オレンジパネル＋DateRailバッジ）。
+// 勤務区分募集の確認事項（DateRailバッジ＋スタッフ名セルの理由アイコン）。
 // 選択初日(2026-05-21)に2件、翌日(2026-05-22)に1件でバッジの出方も確認できる
 export const shiftTypeValidationWarningArgs = {
   ...shiftTypeArgs,
   validationWarnings: [
     {
-      code: "UNREQUESTED_SHIFT_TYPE" as const,
+      code: "OUTSIDE_REQUESTED_TIME" as const,
       date: "2026-05-21",
       staffId: "staff1",
-      message: "希望していない勤務区分（遅番）が入っています",
+      message: "希望時間の外に勤務があります（遅番）",
     },
     {
       code: "OFF_REQUEST" as const,
