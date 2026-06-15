@@ -10,8 +10,7 @@ import type { ShiftData } from "./types";
 export type AssignmentWarningCode =
   | "NOT_SUBMITTED" // 未提出スタッフが勤務に入っている
   | "OFF_REQUEST" // 休み希望の日に勤務が入っている
-  | "OUTSIDE_REQUESTED_TIME" // 希望時間の枠外にはみ出した勤務（時間募集）
-  | "UNREQUESTED_SHIFT_TYPE"; // 希望していない勤務区分の割当（勤務区分募集）
+  | "OUTSIDE_REQUESTED_TIME"; // 希望時間の枠外にはみ出した勤務（時間募集・勤務区分募集）
 
 export type AssignmentWarning = {
   code: AssignmentWarningCode;
@@ -69,7 +68,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
         ),
       ];
       if (unrequestedNames.length > 0) {
-        add("UNREQUESTED_SHIFT_TYPE", `希望していない勤務区分（${unrequestedNames.join("・")}）が入っています`);
+        add("OUTSIDE_REQUESTED_TIME", `希望時間の外に勤務があります（${unrequestedNames.join("・")}）`);
       }
       continue;
     }

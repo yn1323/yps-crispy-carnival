@@ -7,7 +7,14 @@ import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { DateIssueBadge, dateIssueBorderColor, IssueDot, issueToneEmphasis, resolveIssueTone } from "../../components";
+import {
+  DateIssueBadge,
+  dateIssueBorderColor,
+  IssueDot,
+  issueToneEmphasis,
+  resolveIssueTone,
+  StaffWarningIcon,
+} from "../../components";
 import { BREAK_POSITION } from "../../constants";
 import {
   issueCountByDateAtom,
@@ -17,7 +24,7 @@ import {
   shiftsAtom,
   sortedStaffsAtom,
   warningCountByDateAtom,
-  warningStaffIdSetForSelectedDateAtom,
+  warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
@@ -62,7 +69,7 @@ export const SPDailyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const warningStaffIds = useAtomValue(warningStaffIdSetForSelectedDateAtom);
+  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -190,7 +197,7 @@ export const SPDailyView = () => {
         flexShrink={0}
         data-tour="date-rail"
       >
-        <Flex gap={2} overflow="auto" pb={1}>
+        <Flex gap={2} overflow="auto" pt={2} pb={1}>
           {dates.map((iso) => {
             const d = dayjs(iso);
             const active = iso === selectedDate;
@@ -287,7 +294,7 @@ export const SPDailyView = () => {
                       timeRange={timeRange}
                       onTap={() => handleCardTap(staff.id)}
                       hasError={issueStaffIds.has(staff.id)}
-                      hasWarning={warningStaffIds.has(staff.id)}
+                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                     />
                   ))}
                 </Stack>
@@ -308,7 +315,7 @@ export const SPDailyView = () => {
                       onTap={() => handleCardTap(staff.id)}
                       isReadOnly={isReadOnly}
                       hasError={issueStaffIds.has(staff.id)}
-                      hasWarning={warningStaffIds.has(staff.id)}
+                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                     />
                   ))}
                 </Stack>
@@ -389,16 +396,16 @@ type CardProps = {
   timeRange: TimeRange;
   onTap: () => void;
   hasError?: boolean;
-  hasWarning?: boolean;
+  warningMessages?: string[];
 };
 
-const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarning = false }: CardProps) => {
+const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, warningMessages = [] }: CardProps) => {
   const requestedTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
   const hasReq = requestedTimes.length > 0;
   const asn = getAssignedRange(shift);
   const hasAsn = !!asn;
   const mismatch = hasReq && !hasAsn;
-  const tone = resolveIssueTone(hasError, hasWarning);
+  const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
   const workPositions = useMemo<PositionSegment[]>(
     () =>
@@ -413,8 +420,16 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarn
 
   return (
     <Box
-      as="button"
+      role="button"
+      tabIndex={0}
+      aria-label={`${staff.name}の勤務を編集`}
       onClick={onTap}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onTap();
+        }
+      }}
       data-tour={`shift-row-${staff.id}`}
       w="100%"
       textAlign="left"
@@ -426,6 +441,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarn
       py="10px"
       cursor="pointer"
       _active={{ bg: "gray.50" }}
+      _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
       <Flex align="center" gap={2} mb={2}>
         {tone && <IssueDot tone={tone} />}
@@ -433,6 +449,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, hasWarn
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staff.name}
         </Box>
+        <StaffWarningIcon messages={warningMessages} />
         {mismatch && (
           <Box
             textStyle="2xs"
@@ -507,22 +524,34 @@ const SPOffCard = ({
   onTap,
   isReadOnly,
   hasError = false,
-  hasWarning = false,
+  warningMessages = [],
 }: {
   staff: StaffType;
   onTap: () => void;
   isReadOnly: boolean;
   hasError?: boolean;
-  hasWarning?: boolean;
+  warningMessages?: string[];
 }) => {
   const isUnsub = !staff.isSubmitted;
   const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
-  const tone = resolveIssueTone(hasError, hasWarning);
+  const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
   return (
     <Box
-      as="button"
+      role={isReadOnly ? undefined : "button"}
+      tabIndex={isReadOnly ? undefined : 0}
+      aria-label={isReadOnly ? undefined : `${staff.name}の勤務を追加`}
       onClick={isReadOnly ? undefined : onTap}
+      onKeyDown={
+        isReadOnly
+          ? undefined
+          : (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onTap();
+              }
+            }
+      }
       data-tour={`shift-row-${staff.id}`}
       w="100%"
       display="flex"
@@ -536,12 +565,14 @@ const SPOffCard = ({
       cursor={isReadOnly ? "default" : "pointer"}
       textAlign="left"
       _active={isReadOnly ? undefined : { bg: "gray.50" }}
+      _focusVisible={isReadOnly ? undefined : { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
       {tone && <IssueDot tone={tone} />}
       <Avatar staff={staff} size={24} />
       <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
         {staff.name}
       </Box>
+      <StaffWarningIcon messages={warningMessages} />
       <Box textStyle="2xs" fontWeight={600} style={{ color: isUnsub ? "#b45309" : "#a1a1aa" }}>
         {offLabel}
       </Box>

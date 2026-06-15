@@ -1,6 +1,12 @@
 import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
-import { LuTriangleAlert } from "react-icons/lu";
+import type { IconType } from "react-icons/lib";
+import { LuCalendarX, LuClock, LuTriangleAlert, LuUserX } from "react-icons/lu";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
+import {
+  ASSIGNMENT_WARNING_SUMMARY_TITLE,
+  summarizeAssignmentWarnings,
+  type WarningSummaryCategoryCode,
+} from "@/src/domains/shift/assignmentWarningSummary";
 
 type Props = {
   staffCount: number;
@@ -9,6 +15,8 @@ type Props = {
 };
 
 export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [] }: Props) => {
+  const warningSummary = summarizeAssignmentWarnings(warnings);
+
   return (
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
@@ -18,29 +26,114 @@ export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [] }: 
         <Text fontSize="sm">対象: {staffCount}名</Text>
         <Text fontSize="sm">期間: {periodLabel}</Text>
       </Box>
-      {warnings.length > 0 && (
-        // 確認事項（希望との食い違いなど）。確定はできるが、念のため知らせる
-        <Box mt={4} bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="md" p={4}>
-          <Flex align="center" gap={2} mb={2}>
-            <Icon color="orange.600" boxSize={4}>
+      {warningSummary.length > 0 && (
+        <Box mt={5}>
+          <Flex align="center" gap={3} color="orange.800" mb={3}>
+            <Icon boxSize={5} flexShrink={0}>
               <LuTriangleAlert />
             </Icon>
-            <Text fontSize="sm" fontWeight={700} color="orange.700">
-              確認事項が{warnings.length}件あります
+            <Text fontSize="sm" fontWeight={800}>
+              {ASSIGNMENT_WARNING_SUMMARY_TITLE}
             </Text>
           </Flex>
-          <Stack gap={1} maxH="120px" overflowY="auto">
-            {warnings.map((warning) => (
-              <Text key={warning.key} fontSize="xs" color="orange.700">
-                {warning.label}
-              </Text>
+          <Stack gap={0}>
+            {warningSummary.map((item) => (
+              <WarningSummaryRow key={item.code} code={item.code} label={item.label} count={item.count} />
             ))}
           </Stack>
-          <Text mt={2} fontSize="xs" color="fg.muted">
-            問題なければこのまま確定できます。
+          <Text mt={4} textAlign="center" fontSize="sm" fontWeight={700} color="gray.700">
+            この内容のまま確定して、スタッフに通知しますか？
           </Text>
         </Box>
       )}
     </>
+  );
+};
+
+type WarningSummaryStyle = {
+  icon: IconType;
+  iconBg: string;
+  iconColor: string;
+  pillBg: string;
+  pillColor: string;
+};
+
+const WARNING_SUMMARY_STYLES: Record<WarningSummaryCategoryCode, WarningSummaryStyle> = {
+  OFF_REQUEST: {
+    icon: LuCalendarX,
+    iconBg: "red.100",
+    iconColor: "red.600",
+    pillBg: "red.100",
+    pillColor: "red.600",
+  },
+  OUTSIDE_REQUESTED_TIME: {
+    icon: LuClock,
+    iconBg: "orange.100",
+    iconColor: "orange.600",
+    pillBg: "orange.100",
+    pillColor: "orange.600",
+  },
+  NOT_SUBMITTED: {
+    icon: LuUserX,
+    iconBg: "purple.100",
+    iconColor: "purple.600",
+    pillBg: "purple.100",
+    pillColor: "purple.600",
+  },
+  OTHER: {
+    icon: LuTriangleAlert,
+    iconBg: "orange.100",
+    iconColor: "orange.600",
+    pillBg: "orange.100",
+    pillColor: "orange.600",
+  },
+};
+
+const WarningSummaryRow = ({
+  code,
+  label,
+  count,
+}: {
+  code: WarningSummaryCategoryCode;
+  label: string;
+  count: number;
+}) => {
+  const style = WARNING_SUMMARY_STYLES[code];
+  const RowIcon = style.icon;
+  return (
+    <Flex align="center" gap={3} py={3} borderBottomWidth="1px" borderColor="gray.200" _last={{ borderBottomWidth: 0 }}>
+      <Flex
+        align="center"
+        justify="center"
+        flexShrink={0}
+        boxSize="30px"
+        borderRadius="full"
+        bg={style.iconBg}
+        color={style.iconColor}
+      >
+        <Icon boxSize={4}>
+          <RowIcon />
+        </Icon>
+      </Flex>
+      <Text flex={1} minW={0} fontSize="sm" fontWeight={600} color="gray.800">
+        {label}
+      </Text>
+      <Flex
+        minW="44px"
+        h="26px"
+        px={3}
+        align="center"
+        justify="center"
+        borderRadius="full"
+        bg={style.pillBg}
+        color={style.pillColor}
+        fontSize="sm"
+        fontWeight={800}
+        lineHeight={1}
+        fontVariantNumeric="tabular-nums"
+      >
+        {count}件
+      </Flex>
+    </Flex>
   );
 };

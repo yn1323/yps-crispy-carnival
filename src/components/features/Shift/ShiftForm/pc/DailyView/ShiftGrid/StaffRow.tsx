@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { MutableRefObject } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone } from "../../../components";
+import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -36,7 +36,7 @@ type StaffRowProps = {
   onMouseUpOnRow: (staffId: string) => void;
   dataTour?: string;
   hasError?: boolean;
-  hasWarning?: boolean;
+  warningMessages?: string[];
 };
 
 export const StaffRow = ({
@@ -58,9 +58,9 @@ export const StaffRow = ({
   onMouseUpOnRow,
   dataTour,
   hasError = false,
-  hasWarning = false,
+  warningMessages = [],
 }: StaffRowProps) => {
-  const tone = resolveIssueTone(hasError, hasWarning);
+  const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
@@ -111,16 +111,19 @@ export const StaffRow = ({
           <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
             {staff.name}
           </Text>
-          {!isReadOnly && status === "no_request" && (
-            <Text color="gray.400" textStyle="2xs" fontWeight={600} flexShrink={0} ml="auto">
-              休み希望
-            </Text>
-          )}
-          {!isReadOnly && status === "not_submitted" && (
-            <Text textStyle="2xs" fontWeight={600} flexShrink={0} ml="auto" style={{ color: "#b45309" }}>
-              未提出
-            </Text>
-          )}
+          <Flex align="center" gap={1} ml="auto" flexShrink={0}>
+            {!isReadOnly && status === "no_request" && (
+              <Text color="gray.400" textStyle="2xs" fontWeight={600}>
+                休み希望
+              </Text>
+            )}
+            {!isReadOnly && status === "not_submitted" && (
+              <Text textStyle="2xs" fontWeight={600} style={{ color: "#b45309" }}>
+                未提出
+              </Text>
+            )}
+            <StaffWarningIcon messages={warningMessages} />
+          </Flex>
         </Flex>
       </Flex>
       <Box

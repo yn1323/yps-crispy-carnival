@@ -131,10 +131,6 @@ const ShiftFormInner = ({
 
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
-  const displayWarnings = useMemo(
-    () => toDisplayIssues(validationWarnings ?? [], staffs),
-    [validationWarnings, staffs],
-  );
 
   // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
   const handleSelectIssue = useCallback(
@@ -175,7 +171,6 @@ const ShiftFormInner = ({
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           singleViewLabel={isDateOnlyPattern ? "日ごと" : undefined}
           validationIssues={displayIssues}
-          validationWarnings={displayWarnings}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
         >
@@ -215,7 +210,6 @@ const ShiftFormInner = ({
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
           validationIssues={displayIssues}
-          validationWarnings={displayWarnings}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
         >
@@ -268,7 +262,6 @@ type ShellProps = {
   onOpenUnsubmittedDetails?: () => void;
   singleViewLabel?: string;
   validationIssues: DisplayIssue[];
-  validationWarnings: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
   children: ReactNode;
@@ -289,7 +282,6 @@ const Shell = ({
   onOpenUnsubmittedDetails,
   singleViewLabel,
   validationIssues,
-  validationWarnings,
   onSelectIssue,
   onDismissValidationIssues,
   children,
@@ -326,15 +318,6 @@ const Shell = ({
         onDismiss={onDismissValidationIssues}
         compact={compact}
         tone="error"
-      />
-    )}
-    {!isReadOnly && validationWarnings.length > 0 && (
-      <ValidationErrorPanel
-        issues={validationWarnings}
-        onSelectIssue={onSelectIssue}
-        onDismiss={onDismissValidationIssues}
-        compact={compact}
-        tone="warning"
       />
     )}
 

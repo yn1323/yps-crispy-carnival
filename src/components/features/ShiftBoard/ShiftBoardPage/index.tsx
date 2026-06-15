@@ -274,7 +274,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   );
 
   // 確定前バリデーション（エラー=確定不可）とワーニング（確認事項=確定はできる助言）。
-  // 検出後（attempted）は編集のたびに再評価し、直すと一覧・ハイライトがライブに減っていく
+  // エラーは確定時に表示する。ワーニングは初期表示と編集後に表内バッジ/アイコンへ反映する
   const [validationIssues, setValidationIssues] = useState<AssignmentIssue[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<AssignmentWarning[]>([]);
   const hasAttemptedConfirmRef = useRef(false);
@@ -321,12 +321,18 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       // initialShifts（参照一致）を受け取って初めてユーザー編集を検知できる状態になる
       if (shifts === baselineShiftsRef.current) {
         isFormInitializedRef.current = true;
+        setValidationWarnings(computeCurrentWarnings(shifts));
+        if (!hasAttemptedConfirmRef.current) return;
       }
       if (hasAttemptedConfirmRef.current) {
         revalidate(shifts);
+        return;
+      }
+      if (isFormInitializedRef.current) {
+        setValidationWarnings(computeCurrentWarnings(shifts));
       }
     },
-    [revalidate],
+    [computeCurrentWarnings, revalidate],
   );
 
   const dismissValidationIssues = useCallback(() => {
@@ -386,8 +392,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, [buildSaveAssignments, recruitmentId, saveShiftAssignments]);
 
   // 確定ボタン押下時: フロントで全件評価する。
-  // エラーがあれば確認ダイアログを開かず一覧表示。ワーニング（確認事項）は確定をブロックせず、
-  // ダイアログ内のサマリーと盤面のオレンジパネルで知らせる。
+  // エラーがあれば確認ダイアログを開かず一覧表示。ワーニングは確定をブロックせず、ダイアログ内のサマリーで知らせる。
   const handleConfirmRequest = useCallback(() => {
     hasAttemptedConfirmRef.current = true;
     const issues = revalidate(shiftsRef.current);
@@ -402,7 +407,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
       await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
-      // 確定済み。残っていた確認事項（オレンジパネル・バッジ）は役目を終えたのでクリアする
+      // 確定済み。残っていた確認事項（バッジ・アイコン）は役目を終えたのでクリアする
       dismissValidationIssues();
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });

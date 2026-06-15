@@ -16,8 +16,16 @@ import {
   toggleDateOnlyAssignment,
 } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { Avatar } from "../../components";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
+import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import {
+  issueCountByDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+  warningCountByDateAtom,
+  warningMessagesByStaffIdForSelectedDateAtom,
+} from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -44,6 +52,9 @@ export const SPDateOnlyDailyView = () => {
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
 
   const { dates, holidays, isReadOnly, positions, timeRange } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -119,7 +130,14 @@ export const SPDateOnlyDailyView = () => {
 
   return (
     <Flex direction="column" flex={1} minH={0} bg="gray.50">
-      <DateRail dates={dateInfos} holidays={holidays} selectedDate={activeDate} onSelect={handleDateSelect} />
+      <DateRail
+        dates={dateInfos}
+        holidays={holidays}
+        selectedDate={activeDate}
+        issueCounts={issueCounts}
+        warningCounts={warningCounts}
+        onSelect={handleDateSelect}
+      />
 
       <Box px={4} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
         <Flex align="center" justify="space-between" gap={3}>
@@ -158,6 +176,7 @@ export const SPDateOnlyDailyView = () => {
                 activeDate={activeDate}
                 isReadOnly={isReadOnly}
                 confirmed={isConfirmedDisplay}
+                warningMessages={warningMessagesByStaffId.get(row.staff.id) ?? []}
                 onToggle={() => handleToggle(row.staff)}
               />
             ))}
@@ -172,11 +191,15 @@ const DateRail = ({
   dates,
   holidays,
   selectedDate,
+  issueCounts,
+  warningCounts,
   onSelect,
 }: {
   dates: DateInfo[];
   holidays: string[];
   selectedDate: string;
+  issueCounts: ReadonlyMap<string, number>;
+  warningCounts: ReadonlyMap<string, number>;
   onSelect: (iso: string) => void;
 }) => (
   <Box
@@ -189,10 +212,19 @@ const DateRail = ({
     flexShrink={0}
     data-tour="date-rail"
   >
-    <Flex gap={2} overflow="auto" pb={1}>
+    <Flex gap={2} overflow="auto" pt={2} pb={1}>
       {dates.map((date) => {
         const active = date.iso === selectedDate;
         const isClosed = date.inRange && holidays.includes(date.iso);
+        const issueCount = issueCounts.get(date.iso) ?? 0;
+        const warningCount = warningCounts.get(date.iso) ?? 0;
+        const chipBorderColor = dateIssueBorderColor({
+          active,
+          issueCount,
+          warningCount,
+          activeColor: "teal.500",
+          fallbackColor: "gray.200",
+        });
         return (
           <Box
             as="button"
@@ -200,6 +232,7 @@ const DateRail = ({
             aria-label={`${formatDateWithWeekday(date.iso)}を表示`}
             aria-pressed={active}
             onClick={() => onSelect(date.iso)}
+            position="relative"
             flexShrink={0}
             w="56px"
             minH="58px"
@@ -207,12 +240,13 @@ const DateRail = ({
             textAlign="center"
             borderRadius="md"
             borderWidth="1px"
-            borderColor={active ? "teal.500" : "gray.200"}
+            borderColor={chipBorderColor}
             bg={active ? "teal.50" : isClosed || !date.inRange ? "gray.50" : "white"}
             color={!date.inRange || isClosed ? "gray.400" : "gray.800"}
             cursor="pointer"
             _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
           >
+            <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
             <Text
               textStyle="md"
               fontWeight={700}
@@ -247,12 +281,14 @@ const StaffToggleRow = ({
   activeDate,
   isReadOnly,
   confirmed,
+  warningMessages,
   onToggle,
 }: {
   row: StaffDateRow;
   activeDate: string;
   isReadOnly: boolean;
   confirmed: boolean;
+  warningMessages: string[];
   onToggle: () => void;
 }) => {
   const status = !row.staff.isSubmitted
@@ -277,6 +313,7 @@ const StaffToggleRow = ({
           <StatusBadge tone={statusTone}>{status}</StatusBadge>
         </Flex>
       </Box>
+      <StaffWarningIcon messages={warningMessages} />
       <Box
         as="button"
         aria-label={`${row.staff.name} ${formatDateWithWeekday(activeDate)} ${row.assigned ? "勤務あり" : "勤務なし"}`}

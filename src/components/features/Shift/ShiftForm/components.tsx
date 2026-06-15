@@ -1,5 +1,6 @@
-import { Box, Flex } from "@chakra-ui/react";
-import { LuSave } from "react-icons/lu";
+import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
+import { LuSave, LuTriangleAlert } from "react-icons/lu";
+import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
 
 // エラー（赤）と確認事項（オレンジ）で色を切り替える。色規約: red=エラー / orange=要対応・警告
@@ -43,12 +44,23 @@ export const dateIssueBorderColor = (args: {
 };
 
 // 日付チップ（DateRail / SP日付ピッカー）右上に重ねる件数バッジ。
-export const IssueCountBadge = ({ count, tone = "error" }: { count: number; tone?: IssueTone }) => (
+export const IssueCountBadge = ({
+  count,
+  tone = "error",
+  top = "-6px",
+  right = "-6px",
+}: {
+  count: number;
+  tone?: IssueTone;
+  top?: string;
+  right?: string;
+}) => (
   <Flex
     aria-label={`${TONE_NOUN[tone]}${count}件`}
     position="absolute"
-    top="-5px"
-    right="-5px"
+    top={top}
+    right={right}
+    zIndex={2}
     minW="16px"
     h="16px"
     px="4px"
@@ -69,6 +81,60 @@ export const IssueCountBadge = ({ count, tone = "error" }: { count: number; tone
 export const IssueDot = ({ tone = "error" }: { tone?: IssueTone }) => (
   <Box boxSize="6px" borderRadius="full" bg={TONE_DOT_BG[tone]} flexShrink={0} aria-label={`${TONE_NOUN[tone]}あり`} />
 );
+
+export const StaffWarningIcon = ({ messages }: { messages: string[] }) => {
+  if (messages.length === 0) return null;
+
+  return (
+    <Tooltip
+      showArrow
+      openDelay={80}
+      contentProps={{ maxW: "280px", bg: "gray.800", color: "white" }}
+      content={
+        <Stack gap={1}>
+          <Text textStyle="xs" fontWeight={700}>
+            確認事項
+          </Text>
+          {messages.map((message, index) => (
+            <Text key={`${message}-${index}`} textStyle="xs" lineHeight={1.6}>
+              {message}
+            </Text>
+          ))}
+        </Stack>
+      }
+    >
+      <Box
+        role="button"
+        tabIndex={0}
+        aria-label={`確認事項${messages.length}件`}
+        flexShrink={0}
+        display="inline-flex"
+        alignItems="center"
+        justifyContent="center"
+        boxSize="22px"
+        borderRadius="full"
+        color="orange.600"
+        bg="orange.50"
+        borderWidth="1px"
+        borderColor="orange.200"
+        cursor="help"
+        onClick={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.stopPropagation();
+          }
+        }}
+        _hover={{ bg: "orange.100", color: "orange.700" }}
+        _focusVisible={{ outline: "2px solid", outlineColor: "orange.400", outlineOffset: "1px" }}
+      >
+        <Icon boxSize={3.5}>
+          <LuTriangleAlert />
+        </Icon>
+      </Box>
+    </Tooltip>
+  );
+};
 
 export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (
   <Box

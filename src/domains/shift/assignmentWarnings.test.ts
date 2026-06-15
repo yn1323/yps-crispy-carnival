@@ -146,7 +146,7 @@ describe("computeAssignmentWarnings", () => {
       ],
     };
 
-    it("希望していない勤務区分の割当を警告（区分名つき）", () => {
+    it("希望時間外の勤務区分割当を警告（区分名つき）", () => {
       const warnings = run(
         [
           shift({
@@ -158,10 +158,10 @@ describe("computeAssignmentWarnings", () => {
       );
       expect(warnings).toEqual([
         {
-          code: "UNREQUESTED_SHIFT_TYPE",
+          code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望していない勤務区分（遅番）が入っています",
+          message: "希望時間の外に勤務があります（遅番）",
         },
       ]);
     });
@@ -202,10 +202,10 @@ describe("computeAssignmentWarnings", () => {
       );
       expect(warnings).toEqual([
         {
-          code: "UNREQUESTED_SHIFT_TYPE",
+          code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望していない勤務区分（遅番）が入っています",
+          message: "希望時間の外に勤務があります（遅番）",
         },
       ]);
     });

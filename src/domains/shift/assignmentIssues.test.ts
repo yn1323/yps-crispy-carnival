@@ -13,6 +13,7 @@ describe("toDisplayIssues", () => {
     expect(toDisplayIssues(issues, staffs)).toEqual([
       {
         key: "staff1-2026-01-21-CLOSED_DAY",
+        code: "CLOSED_DAY",
         date: "2026-01-21",
         staffId: "staff1",
         label: "1/21(水) 鈴木太郎：定休日にはシフトを登録できません",

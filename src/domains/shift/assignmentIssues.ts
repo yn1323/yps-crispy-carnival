@@ -10,6 +10,7 @@ export type IssueLike = {
 
 export type DisplayIssue = {
   key: string;
+  code: string;
   date: string;
   staffId: string;
   label: string;
@@ -40,6 +41,7 @@ export const toDisplayIssues = (issues: IssueLike[], staffs: Array<{ id: string;
     )
     .map((issue) => ({
       key: issueKey(issue),
+      code: issue.code,
       date: issue.date,
       staffId: issue.staffId,
       label: `${formatDateWithWeekday(issue.date)} ${issue.staffName}：${issue.message}`,

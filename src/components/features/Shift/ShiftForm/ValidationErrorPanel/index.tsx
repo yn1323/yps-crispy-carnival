@@ -137,7 +137,7 @@ export const ValidationErrorPanel = ({
   const config = TONE_CONFIG[tone];
   const TitleIcon = config.icon;
 
-  if (issues.length === 0) return null;
+  if (issues.length === 0 || tone === "warning") return null;
 
   if (compact) {
     return (
