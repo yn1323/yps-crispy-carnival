@@ -6,6 +6,22 @@ import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedManagerShop, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { type AssignmentIssueCode, parseShiftAssignmentValidationError } from "./validation";
+
+/** 構造化バリデーションエラーがthrowされ、期待したissuesを全件含むことを検証する */
+async function expectValidationIssues(
+  promise: Promise<unknown>,
+  expected: Array<{ code: AssignmentIssueCode; date: string; staffId: string }>,
+) {
+  const error = await promise.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(error).toBeInstanceOf(ConvexError);
+  const issues = parseShiftAssignmentValidationError(error);
+  expect(issues).not.toBeNull();
+  expect(issues?.map(({ code, date, staffId }) => ({ code, date, staffId }))).toEqual(expected);
+}
 
 /** テスト用にshop + user + recruitment + staffsをセットアップ */
 async function setupTestData(t: TestConvex<typeof schema>, options?: { shopClosedDates?: string[] }) {
@@ -148,7 +164,7 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [
@@ -160,7 +176,8 @@ describe("shiftBoard/mutations", () => {
             },
           ],
         }),
-      ).rejects.toThrow("勤務区分を選択してください");
+        [{ code: "SHIFT_TYPE_REQUIRED", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("存在しない勤務区分IDは保存できない", async () => {
@@ -175,7 +192,7 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [
@@ -188,7 +205,8 @@ describe("shiftBoard/mutations", () => {
             },
           ],
         }),
-      ).rejects.toThrow("勤務区分が見つかりません");
+        [{ code: "SHIFT_TYPE_NOT_FOUND", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("勤務区分IDと時間が一致しない割当は保存できない", async () => {
@@ -203,7 +221,7 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [
@@ -216,7 +234,8 @@ describe("shiftBoard/mutations", () => {
             },
           ],
         }),
-      ).rejects.toThrow("勤務区分の時間と一致しません");
+        [{ code: "SHIFT_TYPE_TIME_MISMATCH", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("分つきシフト時間の境界内なら保存できる", async () => {
@@ -384,11 +403,44 @@ describe("shiftBoard/mutations", () => {
       expect(assignments.map((assignment) => assignment.optionId).sort()).toEqual(["early", "late"]);
     });
 
+    it("勤務区分募集では同一スタッフ×同一日の重なる別勤務区分を保存できる", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              { id: "early", name: "早番", startTime: "10:00", endTime: "15:00", sortOrder: 0 },
+              { id: "middle", name: "中番", startTime: "13:00", endTime: "18:00", sortOrder: 1 },
+            ],
+          },
+        });
+      });
+
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        recruitmentId,
+        assignments: [
+          { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00", optionId: "early" },
+          { staffId: staffId1, date: "2026-01-20", startTime: "13:00", endTime: "18:00", optionId: "middle" },
+        ],
+      });
+
+      const assignments = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId1))
+          .collect(),
+      );
+      expect(assignments).toHaveLength(2);
+      expect(assignments.map((assignment) => assignment.optionId).sort()).toEqual(["early", "middle"]);
+    });
+
     it("同一スタッフ×同一日の時間が重なる割当でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [
@@ -396,67 +448,73 @@ describe("shiftBoard/mutations", () => {
             { staffId: staffId1, date: "2026-01-20", startTime: "14:00", endTime: "18:00" },
           ],
         }),
-      ).rejects.toThrow("同じスタッフの同じ日に、シフト時間が重なっています");
+        [{ code: "OVERLAP", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("募集期間外の日付でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" }],
         }),
-      ).rejects.toThrow("募集期間内の日付を選んでください");
+        [{ code: "OUT_OF_PERIOD", date: "2026-01-27", staffId: staffId1 }],
+      );
     });
 
     it("定休日の日付ではシフト割当を保存できない", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-21", startTime: "10:00", endTime: "18:00" }],
         }),
-      ).rejects.toThrow("定休日にはシフトを登録できません");
+        [{ code: "CLOSED_DAY", date: "2026-01-21", staffId: staffId1 }],
+      );
     });
 
     it("開始時間が終了時間以降でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "18:00", endTime: "10:00" }],
         }),
-      ).rejects.toThrow("終了時間は開始時間より後にしてください");
+        [{ code: "INVALID_TIME_ORDER", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("開始時間と終了時間が同じでエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "10:00" }],
         }),
-      ).rejects.toThrow("終了時間は開始時間より後にしてください");
+        [{ code: "INVALID_TIME_ORDER", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("店舗のシフト時間外でエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "07:00", endTime: "15:00" }],
         }),
-      ).rejects.toThrow("設定したシフト時間内にしてください");
+        [{ code: "OUT_OF_BOARD_RANGE", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("分つきシフト開始時刻より前ならエラー", async () => {
@@ -468,12 +526,13 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "05:00", endTime: "06:30" }],
         }),
-      ).rejects.toThrow("設定したシフト時間内にしてください");
+        [{ code: "OUT_OF_BOARD_RANGE", date: "2026-01-20", staffId: staffId1 }],
+      );
     });
 
     it("分つきシフト終了時刻より後ならエラー", async () => {
@@ -485,12 +544,34 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "21:30", endTime: "23:00" }],
         }),
-      ).rejects.toThrow("設定したシフト時間内にしてください");
+        [{ code: "OUT_OF_BOARD_RANGE", date: "2026-01-20", staffId: staffId1 }],
+      );
+    });
+
+    it("複数の違反がある場合は全issuesをまとめて返す", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
+
+      await expectValidationIssues(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [
+            { staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" },
+            { staffId: staffId1, date: "2026-01-21", startTime: "10:00", endTime: "18:00" },
+            { staffId: staffId2, date: "2026-01-20", startTime: "07:00", endTime: "15:00" },
+          ],
+        }),
+        [
+          { code: "OUT_OF_PERIOD", date: "2026-01-27", staffId: staffId1 },
+          { code: "CLOSED_DAY", date: "2026-01-21", staffId: staffId1 },
+          { code: "OUT_OF_BOARD_RANGE", date: "2026-01-20", staffId: staffId2 },
+        ],
+      );
     });
 
     it("削除済みスタッフでエラー", async () => {
@@ -626,11 +707,12 @@ describe("shiftBoard/mutations", () => {
         });
       });
 
-      await expect(
+      await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
           recruitmentId,
         }),
-      ).rejects.toThrow("定休日にシフトが登録されています");
+        [{ code: "CLOSED_DAY", date: "2026-01-21", staffId: staffId1 }],
+      );
     });
 
     it("他店舗のrecruitmentではNot foundエラー", async () => {

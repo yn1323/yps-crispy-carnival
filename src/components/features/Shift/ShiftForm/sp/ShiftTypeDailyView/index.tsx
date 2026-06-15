@@ -13,13 +13,21 @@ import {
   toggleShiftTypeAssignment,
 } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { Avatar } from "../../components";
+import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import {
   getShiftTypeOptionColor,
   SHIFT_TYPE_REQUEST_STATUS_COLORS,
   type ShiftTypeOptionColor,
 } from "../../pc/shiftTypeOptionStyles";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
+import {
+  issueCountByDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+  warningCountByDateAtom,
+  warningMessagesByStaffIdForSelectedDateAtom,
+} from "../../stores";
 import { formatShiftTypeTimeRange } from "../../utils/shiftTypeDisplay";
 
 const dayColor = (iso: string): string => {
@@ -35,6 +43,9 @@ export const SPShiftTypeDailyView = () => {
   const setShifts = useSetAtom(shiftsAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -71,25 +82,36 @@ export const SPShiftTypeDailyView = () => {
   return (
     <Flex direction="column" flex={1} minH={0}>
       <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100" flexShrink={0}>
-        <Flex gap={2} overflow="auto" pb={1}>
+        <Flex gap={2} overflow="auto" pt={2} pb={1}>
           {dates.map((iso) => {
             const date = dayjs(iso);
             const active = iso === selectedDate;
             const isClosed = holidays.includes(iso);
+            const issueCount = issueCounts.get(iso) ?? 0;
+            const warningCount = warningCounts.get(iso) ?? 0;
+            const chipBorderColor = dateIssueBorderColor({
+              active,
+              issueCount,
+              warningCount,
+              activeColor: "teal.400",
+              fallbackColor: "gray.200",
+            });
             return (
               <Box
                 key={iso}
                 onClick={() => setSelectedDate(iso)}
+                position="relative"
                 flexShrink={0}
                 w="52px"
                 py="8px"
                 textAlign="center"
                 borderRadius="md"
                 borderWidth="1px"
-                borderColor={active ? "teal.400" : "gray.200"}
+                borderColor={chipBorderColor}
                 bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
+                <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
                   textStyle="md"
                   fontWeight={700}
@@ -152,6 +174,7 @@ export const SPShiftTypeDailyView = () => {
                 options={options}
                 isConfirmedDisplay={isConfirmedDisplay}
                 isReadOnly={isReadOnly}
+                warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                 onToggle={(option) => handleToggle(staff, option)}
               />
             ))}
@@ -206,6 +229,7 @@ const StaffShiftTypeCard = ({
   options,
   isConfirmedDisplay,
   isReadOnly,
+  warningMessages,
   onToggle,
 }: {
   staff: StaffType;
@@ -213,6 +237,7 @@ const StaffShiftTypeCard = ({
   options: ShiftTypeOptionLike[];
   isConfirmedDisplay: boolean;
   isReadOnly: boolean;
+  warningMessages: string[];
   onToggle: (option: ShiftTypeOptionLike) => void;
 }) => {
   const requestedIds = getRequestedShiftTypeOptionIds(shift);
@@ -220,9 +245,10 @@ const StaffShiftTypeCard = ({
     <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
       <Flex align="center" gap={2}>
         <Avatar staff={staff} size={26} />
-        <Text textStyle="sm" fontWeight={600} color={staff.isSubmitted ? "gray.800" : "gray.500"} flex={1}>
+        <Text textStyle="sm" fontWeight={600} color={staff.isSubmitted ? "gray.800" : "gray.500"} flex={1} truncate>
           {staff.name}
         </Text>
+        <StaffWarningIcon messages={warningMessages} />
         <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
           <Text textStyle="2xs" color="gray.500" fontWeight={600}>
             {isConfirmedDisplay ? "確定" : "希望"}

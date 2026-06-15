@@ -6,6 +6,7 @@ import {
   overnightArgs,
   overviewCalendarRangeArgs,
   shiftFormDecorators,
+  validationWarningArgs,
 } from "./shared";
 
 const meta = {
@@ -31,6 +32,11 @@ export const TimeTwoWeeks: Story = {
 export const TimeReadOnly: Story = {
   name: "Read Only",
   args: { ...overviewCalendarRangeArgs, isReadOnly: true, currentStaffId: "staff1" },
+};
+
+export const TimeWithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: { ...validationWarningArgs, initialViewMode: "overview" as const },
 };
 
 export const TimeOvernight: Story = {

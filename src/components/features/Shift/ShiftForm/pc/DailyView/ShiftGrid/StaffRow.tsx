@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import type { MutableRefObject } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
-import { Avatar } from "../../../components";
+import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
 import { DragPreview } from "./DragPreview";
 import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
@@ -35,6 +35,8 @@ type StaffRowProps = {
   paintClickAnchorRef: MutableRefObject<DOMRect | null>;
   onMouseUpOnRow: (staffId: string) => void;
   dataTour?: string;
+  hasError?: boolean;
+  warningMessages?: string[];
 };
 
 export const StaffRow = ({
@@ -55,7 +57,11 @@ export const StaffRow = ({
   paintClickAnchorRef,
   onMouseUpOnRow,
   dataTour,
+  hasError = false,
+  warningMessages = [],
 }: StaffRowProps) => {
+  const tone = resolveIssueTone(hasError, false);
+  const emphasis = issueToneEmphasis(tone);
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
     const hasRequest = staffShifts.some((s) => s.requestedTime !== null || (s.requestedTimes?.length ?? 0) > 0);
@@ -91,6 +97,7 @@ export const StaffRow = ({
         gap={2}
         whiteSpace="nowrap"
       >
+        {tone && <IssueDot tone={tone} />}
         <Avatar staff={staff} size={24} />
         <Flex
           align="center"
@@ -104,16 +111,19 @@ export const StaffRow = ({
           <Text textStyle="sm" fontWeight={500} color={status === "not_submitted" ? "gray.500" : "gray.800"} truncate>
             {staff.name}
           </Text>
-          {!isReadOnly && status === "no_request" && (
-            <Text color="gray.400" textStyle="2xs" fontWeight={600} flexShrink={0} ml="auto">
-              休み希望
-            </Text>
-          )}
-          {!isReadOnly && status === "not_submitted" && (
-            <Text textStyle="2xs" fontWeight={600} flexShrink={0} ml="auto" style={{ color: "#b45309" }}>
-              未提出
-            </Text>
-          )}
+          <Flex align="center" gap={1} ml="auto" flexShrink={0}>
+            {!isReadOnly && status === "no_request" && (
+              <Text color="gray.400" textStyle="2xs" fontWeight={600}>
+                休み希望
+              </Text>
+            )}
+            {!isReadOnly && status === "not_submitted" && (
+              <Text textStyle="2xs" fontWeight={600} style={{ color: "#b45309" }}>
+                未提出
+              </Text>
+            )}
+            <StaffWarningIcon messages={warningMessages} />
+          </Flex>
         </Flex>
       </Flex>
       <Box
@@ -122,7 +132,8 @@ export const StaffRow = ({
         height="40px"
         flex={1}
         minW={0}
-        bg="transparent"
+        bg={emphasis?.bg ?? "transparent"}
+        boxShadow={emphasis ? `inset 0 0 0 2px var(--chakra-colors-${emphasis.borderColorToken})` : undefined}
         overflow="hidden"
         onMouseDown={
           isReadOnly

@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from "..";
-import { fullscreenParameters, mobileGlobals, shiftFormDecorators, shiftTypeArgs } from "./shared";
+import {
+  fullscreenParameters,
+  mobileGlobals,
+  shiftFormDecorators,
+  shiftTypeArgs,
+  shiftTypeValidationWarningArgs,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/SP/Daily",
@@ -14,5 +20,11 @@ type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   args: shiftTypeArgs,
+  globals: mobileGlobals,
+};
+
+export const WithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: shiftTypeValidationWarningArgs,
   globals: mobileGlobals,
 };

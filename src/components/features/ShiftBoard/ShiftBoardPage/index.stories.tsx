@@ -100,7 +100,7 @@ const waitForElement = async <T extends Element>(find: () => T | null, message: 
 const clickButtonByText = async (root: ParentNode, text: string) => {
   const button = await waitForElement(
     () =>
-      Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find(
+      Array.from(root.querySelectorAll<HTMLElement>('button, [role="button"]')).find(
         (candidate) => candidate.textContent?.includes(text) && isElementVisible(candidate),
       ) ?? null,
     `${text} ボタンが見つかりませんでした`,

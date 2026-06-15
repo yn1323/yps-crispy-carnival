@@ -6,7 +6,8 @@ import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
+import { IssueCountBadge } from "../../components";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -46,6 +47,7 @@ const shiftAssigned = (shift: ShiftData): [string, string] | null => {
 export const SPOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
@@ -125,6 +127,7 @@ export const SPOverviewView = () => {
                     const isClosed = d.inRange && holidays.includes(d.iso);
                     const working = d.inRange && !isClosed ? staffs.filter((s) => lookup.has(`${s.id}-${d.iso}`)) : [];
                     const canOpenDaily = !isReadOnly && d.inRange;
+                    const warningCount = warningCounts.get(d.iso) ?? 0;
                     return (
                       <Flex
                         key={d.iso}
@@ -138,7 +141,8 @@ export const SPOverviewView = () => {
                         _active={canOpenDaily ? { bg: "gray.50" } : undefined}
                         onClick={canOpenDaily ? () => handleDateTap(d.iso) : undefined}
                       >
-                        <Box w="44px" flexShrink={0}>
+                        <Box w="44px" flexShrink={0} position="relative">
+                          {warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />}
                           <Box
                             textStyle="numeric"
                             fontWeight={700}

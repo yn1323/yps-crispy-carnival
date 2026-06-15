@@ -3,7 +3,13 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom } from "../../stores";
+import {
+  issueCountByDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  warningCountByDateAtom,
+} from "../../stores";
 import { DateRail } from "./DateRail";
 import { DayTitle } from "./DayTitle";
 import { ShiftGrid } from "./ShiftGrid";
@@ -14,6 +20,8 @@ export const DailyView = () => {
   const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
 
   const { dates, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -60,7 +68,14 @@ export const DailyView = () => {
 
   return (
     <Grid flex={1} minH={0} overflow="hidden" templateColumns="80px minmax(0, 1fr)">
-      <DateRail dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} holidays={holidays} />
+      <DateRail
+        dates={dates}
+        selectedDate={selectedDate}
+        onSelect={setSelectedDate}
+        holidays={holidays}
+        issueCounts={issueCounts}
+        warningCounts={warningCounts}
+      />
       <Flex direction="column" minW={0} minH={0} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />
         {isShopClosedDate ? (

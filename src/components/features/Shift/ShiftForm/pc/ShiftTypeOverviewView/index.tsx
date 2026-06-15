@@ -6,7 +6,8 @@ import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
+import { IssueCountBadge } from "../../components";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
 import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../shiftTypeOptionStyles";
 
 type DateInfo = {
@@ -40,6 +41,7 @@ type ShiftTypeOverviewViewProps = {
 export const ShiftTypeOverviewView = ({ weekStart = "mon" }: ShiftTypeOverviewViewProps) => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, isReadOnly, staffs, submissionPattern } = config;
@@ -99,6 +101,7 @@ export const ShiftTypeOverviewView = ({ weekStart = "mon" }: ShiftTypeOverviewVi
               onToggle={() => setOpen({ ...open, [wi]: !isOpen })}
               onDateClick={handleDateClick}
               isReadOnly={isReadOnly}
+              warningCounts={warningCounts}
             />
           );
         })}
@@ -119,6 +122,7 @@ type WeekCardProps = {
   onToggle: () => void;
   onDateClick: (iso: string) => void;
   isReadOnly: boolean;
+  warningCounts: ReadonlyMap<string, number>;
 };
 
 const WeekCard = ({
@@ -133,6 +137,7 @@ const WeekCard = ({
   onToggle,
   onDateClick,
   isReadOnly,
+  warningCounts,
 }: WeekCardProps) => {
   const start = wkDates[0]?.iso ?? "";
   const end = wkDates[wkDates.length - 1]?.iso ?? start;
@@ -177,6 +182,7 @@ const WeekCard = ({
           sortedOptionIds={sortedOptionIds}
           onDateClick={onDateClick}
           isReadOnly={isReadOnly}
+          warningCounts={warningCounts}
         />
       )}
     </Box>
@@ -193,6 +199,7 @@ type WeekTableProps = {
   sortedOptionIds: string[];
   onDateClick: (iso: string) => void;
   isReadOnly: boolean;
+  warningCounts: ReadonlyMap<string, number>;
 };
 
 const WeekTable = ({
@@ -205,6 +212,7 @@ const WeekTable = ({
   sortedOptionIds,
   onDateClick,
   isReadOnly,
+  warningCounts,
 }: WeekTableProps) => (
   <Box overflowX="auto">
     <Box
@@ -228,6 +236,7 @@ const WeekTable = ({
           {wkDates.map((d) => {
             const isClickable = !isReadOnly && d.inRange;
             const isClosed = d.inRange && holidays.includes(d.iso);
+            const warningCount = warningCounts.get(d.iso) ?? 0;
             return (
               <Box
                 as="th"
@@ -240,8 +249,13 @@ const WeekTable = ({
                 opacity={d.inRange ? 1 : 0.35}
                 bg={isClosed ? "gray.100" : undefined}
               >
-                <Box textStyle="numeric" color="gray.700" fontWeight={700}>
-                  {d.label}
+                <Box display="inline-block" position="relative" px={warningCount > 0 ? 1 : 0}>
+                  {warningCount > 0 && (
+                    <IssueCountBadge count={warningCount} tone="warning" top="-10px" right="-14px" />
+                  )}
+                  <Box textStyle="numeric" color="gray.700" fontWeight={700}>
+                    {d.label}
+                  </Box>
                 </Box>
                 <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso) }}>
                   {d.wk}
