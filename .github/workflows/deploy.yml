@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 jobs:
@@ -66,11 +67,29 @@ jobs:
           script: |
             const deployUrl = '${{ steps.deploy.outputs.DEPLOY_URL }}';
             const convexUrl = '${{ steps.convex.outputs.PREVIEW_URL }}';
+            const marker = '## 🚀 Preview Deploy';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## 🚀 Preview Deploy\n\n**App:** ${deployUrl}\n**Convex:** ${convexUrl}`
+              body: `${marker}\n\n**App:** ${deployUrl}\n**Convex:** ${convexUrl}`
             });
 
   cleanup-preview:

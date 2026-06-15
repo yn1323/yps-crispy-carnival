@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "..";
-import { dateOnlyArgs, fullscreenParameters, mobileGlobals, shiftFormDecorators } from "./shared";
+import {
+  dateOnlyArgs,
+  dateOnlyValidationWarningArgs,
+  fullscreenParameters,
+  mobileGlobals,
+  shiftFormDecorators,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Date Only/SP",
@@ -18,8 +24,20 @@ export const Daily: Story = {
   globals: mobileGlobals,
 };
 
+export const DailyWithValidationWarnings: Story = {
+  name: "Daily With Validation Warnings",
+  args: dateOnlyValidationWarningArgs,
+  globals: mobileGlobals,
+};
+
 export const Overview: Story = {
   args: { ...dateOnlyArgs, initialViewMode: "overview" },
+  globals: mobileGlobals,
+};
+
+export const OverviewWithValidationWarnings: Story = {
+  name: "Overview With Validation Warnings",
+  args: { ...dateOnlyValidationWarningArgs, initialViewMode: "overview" },
   globals: mobileGlobals,
 };
 

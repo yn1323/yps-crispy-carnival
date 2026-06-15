@@ -2,6 +2,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
 import {
   buildWeeklyGrid,
   formatDateShort,
@@ -17,8 +18,14 @@ import {
   toggleDateOnlyAssignment,
 } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { Avatar } from "../../components";
-import { shiftConfigAtom, shiftsAtom } from "../../stores";
+import { Avatar, type IssueTone, StaffWarningIcon } from "../../components";
+import {
+  issueCountByDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  validationWarningsAtom,
+  warningCountByDateAtom,
+} from "../../stores";
 
 const STAFF_COL_WIDTH = 220;
 const REQUEST_COL_WIDTH = 160;
@@ -40,6 +47,9 @@ type DateInfo = {
 export const DateOnlyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const validationWarnings = useAtomValue(validationWarningsAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
 
   const { dates, holidays, isReadOnly, positions, staffs, timeRange } = config;
@@ -57,6 +67,17 @@ export const DateOnlyView = () => {
     () => countDateOnlyAssignmentsByDate(shifts, visibleInRangeDateKeys),
     [shifts, visibleInRangeDateKeys],
   );
+  const warningMessagesByStaffId = useMemo(() => {
+    const visibleDateSet = new Set(visibleInRangeDateKeys);
+    const map = new Map<string, string[]>();
+    for (const warning of validationWarnings) {
+      if (!visibleDateSet.has(warning.date)) continue;
+      const messages = map.get(warning.staffId) ?? [];
+      messages.push(`${formatDateShort(warning.date)} ${getAssignmentWarningSettingText(warning.code)}`);
+      map.set(warning.staffId, messages);
+    }
+    return map;
+  }, [validationWarnings, visibleInRangeDateKeys]);
   const shiftByStaffDate = useMemo(() => {
     const map = new Map<string, ShiftData>();
     for (const shift of shifts) {
@@ -86,7 +107,13 @@ export const DateOnlyView = () => {
 
   return (
     <Flex flex={1} minH={0} overflow="hidden" bg="gray.50">
-      <WeekRail weeks={weeks} selectedIndex={selectedWeekIndex} onSelect={setSelectedWeekIndex} />
+      <WeekRail
+        weeks={weeks}
+        selectedIndex={selectedWeekIndex}
+        issueCounts={issueCounts}
+        warningCounts={warningCounts}
+        onSelect={setSelectedWeekIndex}
+      />
       <Box flex={1} minW={0} overflow="auto" bg="gray.50">
         <Box
           minW={`${STAFF_COL_WIDTH + REQUEST_COL_WIDTH + visibleDates.length * DATE_COL_WIDTH}px`}
@@ -133,7 +160,7 @@ export const DateOnlyView = () => {
             <Box as="tbody">
               {staffs.map((staff) => (
                 <Box as="tr" key={staff.id}>
-                  <StaffCell staff={staff} />
+                  <StaffCell staff={staff} warningMessages={warningMessagesByStaffId.get(staff.id) ?? []} />
                   <RequestCell staff={staff} shifts={shifts} dates={visibleDates} confirmed={isConfirmedDisplay} />
                   {visibleDates.map((date) => {
                     const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
@@ -178,10 +205,14 @@ const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
 const WeekRail = ({
   weeks,
   selectedIndex,
+  issueCounts,
+  warningCounts,
   onSelect,
 }: {
   weeks: WeekItem[];
   selectedIndex: number;
+  issueCounts: ReadonlyMap<string, number>;
+  warningCounts: ReadonlyMap<string, number>;
   onSelect: (index: number) => void;
 }) => (
   <Box
@@ -199,6 +230,14 @@ const WeekRail = ({
     </Box>
     {weeks.map((week, index) => {
       const selected = selectedIndex === index;
+      const issueCount = sumWeekCount(week.dates, issueCounts);
+      const warningCount = sumWeekCount(week.dates, warningCounts);
+      const badge =
+        issueCount > 0
+          ? { count: issueCount, tone: "error" as const }
+          : warningCount > 0
+            ? { count: warningCount, tone: "warning" as const }
+            : null;
       return (
         <Box
           as="button"
@@ -218,17 +257,50 @@ const WeekRail = ({
           _hover={{ bg: selected ? "teal.50" : "gray.50" }}
           _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
         >
-          <Text textStyle="sm" fontWeight={700} fontVariantNumeric="tabular-nums">
-            {week.label}
-          </Text>
-          <Text textStyle="2xs" color={selected ? "teal.700" : "gray.500"} fontWeight={500} mt={1}>
-            {week.subLabel}
-          </Text>
+          <Flex align="center" gap={2}>
+            <Box flex={1} minW={0}>
+              <Text textStyle="sm" fontWeight={700} fontVariantNumeric="tabular-nums" truncate>
+                {week.label}
+              </Text>
+              <Text textStyle="2xs" color={selected ? "teal.700" : "gray.500"} fontWeight={500} mt={1}>
+                {week.subLabel}
+              </Text>
+            </Box>
+            {badge && <WeekCountBadge count={badge.count} tone={badge.tone} />}
+          </Flex>
         </Box>
       );
     })}
   </Box>
 );
+
+const sumWeekCount = (dates: DateInfo[], counts: ReadonlyMap<string, number>): number =>
+  dates.reduce((total, date) => total + (counts.get(date.iso) ?? 0), 0);
+
+const WeekCountBadge = ({ count, tone }: { count: number; tone: IssueTone }) => {
+  const bg = tone === "error" ? "red.500" : "orange.400";
+  const noun = tone === "error" ? "エラー" : "確認事項";
+  return (
+    <Flex
+      aria-label={`${noun}${count}件`}
+      flexShrink={0}
+      minW="20px"
+      h="20px"
+      px="6px"
+      align="center"
+      justify="center"
+      borderRadius="full"
+      bg={bg}
+      color="white"
+      fontSize="11px"
+      fontWeight={800}
+      lineHeight={1}
+      fontVariantNumeric="tabular-nums"
+    >
+      {count}
+    </Flex>
+  );
+};
 
 const HeaderCell = ({ children, muted = false, bg }: { children?: ReactNode; muted?: boolean; bg?: string }) => (
   <Box
@@ -299,7 +371,7 @@ const DateHeaderCell = ({ date, isClosed }: { date: DateInfo; isClosed: boolean 
   );
 };
 
-const StaffCell = ({ staff }: { staff: StaffType }) => (
+const StaffCell = ({ staff, warningMessages }: { staff: StaffType; warningMessages: string[] }) => (
   <Box
     as="td"
     px={4}
@@ -314,9 +386,10 @@ const StaffCell = ({ staff }: { staff: StaffType }) => (
   >
     <Flex align="center" gap={3} minW={0}>
       <Avatar staff={staff} size={24} />
-      <Text textStyle="sm" fontWeight={500} color={staff.isSubmitted ? "gray.800" : "gray.500"} truncate>
+      <Text textStyle="sm" fontWeight={500} color={staff.isSubmitted ? "gray.800" : "gray.500"} flex={1} truncate>
         {staff.name}
       </Text>
+      <StaffWarningIcon messages={warningMessages} />
     </Flex>
   </Box>
 );

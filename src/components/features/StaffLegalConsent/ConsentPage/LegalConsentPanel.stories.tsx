@@ -1,4 +1,4 @@
-import { Box, Stack } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import type { StaffLegalConsentPageData } from "./index";
@@ -44,7 +44,6 @@ const meta = {
   component: LegalConsentPanel,
   parameters: {
     layout: "fullscreen",
-    chromatic: { disableSnapshot: true },
   },
   args: {
     data: okData,
@@ -72,28 +71,16 @@ export const Default: Story = {
   render: () => <InteractivePanel data={okData} />,
 };
 
-export const Variants: Story = {
-  render: () => (
-    <Stack gap={5}>
-      <InteractivePanel data={okData} />
-      <LegalConsentPanel
-        data={acceptedData}
-        checked={false}
-        error={null}
-        isSubmitting={false}
-        onCheckedChange={() => {}}
-        onAccept={async () => {}}
-      />
-      <LegalConsentPanel
-        data={expiredData}
-        checked={false}
-        error={null}
-        isSubmitting={false}
-        onCheckedChange={() => {}}
-        onAccept={async () => {}}
-      />
-    </Stack>
-  ),
+export const Accepted: Story = {
+  args: {
+    data: acceptedData,
+  },
+};
+
+export const Expired: Story = {
+  args: {
+    data: expiredData,
+  },
 };
 
 function InteractivePanel({ data }: { data: StaffLegalConsentPageData }) {

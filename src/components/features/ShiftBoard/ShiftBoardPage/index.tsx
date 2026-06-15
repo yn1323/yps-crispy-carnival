@@ -1,22 +1,31 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useBlocker } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  type AssignmentIssue,
+  parseShiftAssignmentValidationError,
+  validateShiftAssignments,
+} from "@/convex/shiftBoard/validation";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
-import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
+import { toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
+import { type AssignmentWarning, computeAssignmentWarnings } from "@/src/domains/shift/assignmentWarnings";
+import { buildAssignments } from "@/src/domains/shift/buildAssignments";
+import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import {
   formatDateTime,
   formatDateTimeWithWeekday,
   formatDateWithWeekday,
   getDateRange,
 } from "@/src/domains/shift/date";
+import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
 import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
@@ -24,6 +33,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
+import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
@@ -255,13 +265,96 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const initialShifts = useMemo(() => buildShiftData(data, staffs, dates), [data, staffs, dates]);
 
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
-  const handleShiftsChange = useCallback((shifts: ShiftData[]) => {
-    shiftsRef.current = shifts;
-  }, []);
+  // 最後に保存した（または初期表示した）シフト。dirty判定の基準
+  const baselineShiftsRef = useRef<ShiftData[]>(initialShifts);
+  const isFormInitializedRef = useRef(false);
   const shopClosedDateSet = useMemo(
     () => new Set(data.recruitment.shopClosedDates),
     [data.recruitment.shopClosedDates],
   );
+
+  // 確定前バリデーション（エラー=確定不可）とワーニング（確認事項=確定はできる助言）。
+  // エラーは確定時に表示する。ワーニングは初期表示と編集後に表内バッジ/アイコンへ反映する
+  const [validationIssues, setValidationIssues] = useState<AssignmentIssue[]>([]);
+  const [validationWarnings, setValidationWarnings] = useState<AssignmentWarning[]>([]);
+  const hasAttemptedConfirmRef = useRef(false);
+
+  const validateCurrentShifts = useCallback(
+    (shifts: ShiftData[]) =>
+      validateShiftAssignments({
+        assignments: buildAssignments(shifts, shopClosedDateSet),
+        periodStart: data.recruitment.periodStart,
+        periodEnd: data.recruitment.periodEnd,
+        closedDates: data.recruitment.shopClosedDates,
+        pattern: data.submissionPattern,
+      }),
+    [
+      shopClosedDateSet,
+      data.recruitment.periodStart,
+      data.recruitment.periodEnd,
+      data.recruitment.shopClosedDates,
+      data.submissionPattern,
+    ],
+  );
+
+  const computeCurrentWarnings = useCallback(
+    (shifts: ShiftData[]) => computeAssignmentWarnings({ shifts, staffs, pattern: data.submissionPattern }),
+    [staffs, data.submissionPattern],
+  );
+
+  // エラー（確定不可）と確認事項（助言）をまとめて再評価し、一覧・バッジ・ハイライトに反映する。
+  // 確定可否の判定に使えるよう、評価したエラーを返す
+  const revalidate = useCallback(
+    (shifts: ShiftData[]) => {
+      const issues = validateCurrentShifts(shifts);
+      setValidationIssues(issues);
+      setValidationWarnings(computeCurrentWarnings(shifts));
+      return issues;
+    },
+    [validateCurrentShifts, computeCurrentWarnings],
+  );
+
+  const handleShiftsChange = useCallback(
+    (shifts: ShiftData[]) => {
+      shiftsRef.current = shifts;
+      // ShiftFormはマウント時にatom初期値([])→initialShiftsの順で通知してくる。
+      // initialShifts（参照一致）を受け取って初めてユーザー編集を検知できる状態になる
+      if (shifts === baselineShiftsRef.current) {
+        isFormInitializedRef.current = true;
+        setValidationWarnings(computeCurrentWarnings(shifts));
+        if (!hasAttemptedConfirmRef.current) return;
+      }
+      if (hasAttemptedConfirmRef.current) {
+        revalidate(shifts);
+        return;
+      }
+      if (isFormInitializedRef.current) {
+        setValidationWarnings(computeCurrentWarnings(shifts));
+      }
+    },
+    [computeCurrentWarnings, revalidate],
+  );
+
+  const dismissValidationIssues = useCallback(() => {
+    hasAttemptedConfirmRef.current = false;
+    setValidationIssues([]);
+    setValidationWarnings([]);
+  }, []);
+
+  const displayWarnings = useMemo(() => toDisplayIssues(validationWarnings, staffs), [validationWarnings, staffs]);
+
+  // サーバー側バリデーションエラー（二重防御）をエラー一覧UIへマップする。
+  // 構造化エラーでなければ従来通りtoastにフォールバックする
+  const handleMutationError = useCallback((error: unknown) => {
+    const issues = parseShiftAssignmentValidationError(error);
+    if (issues) {
+      hasAttemptedConfirmRef.current = true;
+      setValidationIssues(issues);
+      return true;
+    }
+    showErrorToast(error);
+    return false;
+  }, []);
 
   const confirmModal = useDialog();
   const unsubmittedDialog = useDialog();
@@ -286,41 +379,83 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     };
   }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
 
-  const buildAssignments = useCallback(() => {
-    return shiftsRef.current.flatMap((s) => {
-      if (shopClosedDateSet.has(s.date)) return [];
-      return s.positions
-        .filter((position) => position.positionId !== BREAK_POSITION.id)
-        .map((position) => ({
-          staffId: s.staffId as Id<"staffs">,
-          date: s.date,
-          startTime: position.start,
-          endTime: position.end,
-          ...(position.shiftTypeOptionId ? { optionId: position.shiftTypeOptionId } : {}),
-          ...(position.positionId !== DEFAULT_POSITION.id
-            ? { positionId: position.positionId as Id<"positions"> }
-            : {}),
-        }));
-    });
-  }, [shopClosedDateSet]);
+  const buildSaveAssignments = useCallback(
+    (shifts: ShiftData[]) => buildAssignments<Id<"staffs">, Id<"positions">>(shifts, shopClosedDateSet),
+    [shopClosedDateSet],
+  );
+
+  // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
+  const persistCurrentShifts = useCallback(async () => {
+    const shiftsAtSave = shiftsRef.current;
+    await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
+    baselineShiftsRef.current = shiftsAtSave;
+  }, [buildSaveAssignments, recruitmentId, saveShiftAssignments]);
+
+  // 確定ボタン押下時: フロントで全件評価する。
+  // エラーがあれば確認ダイアログを開かず一覧表示。ワーニングは確定をブロックせず、ダイアログ内のサマリーで知らせる。
+  const handleConfirmRequest = useCallback(() => {
+    hasAttemptedConfirmRef.current = true;
+    const issues = revalidate(shiftsRef.current);
+    if (issues.length > 0) return;
+    confirmModal.open();
+  }, [revalidate, confirmModal]);
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
+    const shiftsAtSave = shiftsRef.current;
     try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
+      await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
+      // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
+      baselineShiftsRef.current = shiftsAtSave;
       await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
+      // 確定済み。残っていた確認事項（バッジ・アイコン）は役目を終えたのでクリアする
+      dismissValidationIssues();
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });
     } catch (error) {
-      showErrorToast(error);
+      if (handleMutationError(error)) {
+        confirmModal.close();
+      }
     }
   });
 
   const { run: performSaveDraft, isRunning: isSavingDraft } = useSingleFlight(async () => {
     try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildAssignments() });
+      await persistCurrentShifts();
       toaster.create({ title: "保存しました", type: "success" });
     } catch (error) {
-      showErrorToast(error);
+      handleMutationError(error);
+    }
+  });
+
+  // 未保存の変更（ユーザー編集による割り当ての差分）があるか。
+  // シフト申請の到着などサーバー由来のデータ変化はatomに反映されないため、ここではdirty扱いにならない
+  const hasUnsavedChanges = useCallback(() => {
+    if (!isFormInitializedRef.current) return false;
+    if (shiftsRef.current === baselineShiftsRef.current) return false;
+    return !isAssignmentsEqual(
+      buildSaveAssignments(shiftsRef.current),
+      buildSaveAssignments(baselineShiftsRef.current),
+    );
+  }, [buildSaveAssignments]);
+
+  // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
+  // 「保存する」「保存しない」を選ばせる。ダイアログを閉じた場合はその場に留まる
+  const blocker = useBlocker({
+    shouldBlockFn: () => hasUnsavedChanges(),
+    enableBeforeUnload: () => hasUnsavedChanges(),
+    withResolver: true,
+  });
+
+  const { run: handleSaveAndLeave, isRunning: isSavingAndLeaving } = useSingleFlight(async () => {
+    try {
+      await persistCurrentShifts();
+      toaster.create({ title: "保存しました", type: "success" });
+      blocker.proceed?.();
+    } catch (error) {
+      // 保存に失敗した場合はダイアログを開いたまま留まる
+      if (handleMutationError(error)) {
+        blocker.reset?.();
+      }
     }
   });
 
@@ -379,11 +514,14 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           onShiftsChange={handleShiftsChange}
           isConfirmed={isConfirmed}
           onSaveDraft={performSaveDraft}
-          onConfirm={confirmModal.open}
+          onConfirm={handleConfirmRequest}
           isSavingDraft={isSavingDraft}
           isConfirming={isConfirming}
           reminderStatus={reminderStatus}
           onOpenUnsubmittedDetails={unsubmittedDialog.open}
+          validationIssues={validationIssues}
+          validationWarnings={validationWarnings}
+          onDismissValidationIssues={dismissValidationIssues}
         />
       </Box>
 
@@ -397,7 +535,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         isLoading={isConfirming}
         isSubmitDisabled={isConfirming}
       >
-        <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} />
+        <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} warnings={displayWarnings} />
       </Dialog>
 
       <Dialog
@@ -412,6 +550,14 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
           deadline={`${formatDateWithWeekday(data.recruitment.deadline)} 23:59`}
         />
       </Dialog>
+
+      <UnsavedChangesDialog
+        isOpen={blocker.status === "blocked"}
+        onStay={() => blocker.reset?.()}
+        onLeaveWithoutSaving={() => blocker.proceed?.()}
+        onSaveAndLeave={handleSaveAndLeave}
+        isSaving={isSavingAndLeaving}
+      />
     </Flex>
   );
 };

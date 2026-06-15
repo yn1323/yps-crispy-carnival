@@ -1,6 +1,7 @@
 import type { Decorator } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, waitFor } from "storybook/test";
+import { buildAssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftForm } from "..";
 import {
   mockDateOnlyDates,
@@ -10,10 +11,13 @@ import {
   mockDatesMidWeekStart,
   mockHalfHourTimeRange,
   mockHolidays,
+  mockOvernightDates,
+  mockOvernightTimeRange,
   mockPositions,
   mockShifts,
   mockShiftsAllPatterns,
   mockShiftsHalfHourBusinessHours,
+  mockShiftsOvernight,
   mockShiftTypeDates,
   mockShiftTypePattern,
   mockShiftTypeShifts,
@@ -67,11 +71,63 @@ export const halfHourBusinessHoursArgs = {
   timeRange: mockHalfHourTimeRange,
 } satisfies ShiftFormArgs;
 
+export const overnightArgs = {
+  ...baseArgs,
+  dates: mockOvernightDates,
+  initialShifts: mockShiftsOvernight,
+  timeRange: mockOvernightTimeRange,
+} satisfies ShiftFormArgs;
+
 export const emptyOrAllUnsubmittedArgs = {
   ...baseArgs,
   dates: ["2026-02-01"],
   staffs: mockStaffs.map((staff) => ({ ...staff, isSubmitted: false })),
   initialShifts: [],
+} satisfies ShiftFormArgs;
+
+// 確定前バリデーションエラーの統合表示用（パネル＋DateRailバッジ＋行ハイライト）
+export const validationErrorArgs = {
+  ...baseArgs,
+  validationIssues: [
+    buildAssignmentIssue("OVERLAP", "2026-01-21", "staff1"),
+    buildAssignmentIssue("OUT_OF_BOARD_RANGE", "2026-01-21", "staff2"),
+    buildAssignmentIssue("OVERLAP", "2026-01-23", "staff4"),
+  ],
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
+// 確認事項（ワーニング）の統合表示用（DateRailバッジ＋スタッフ名セルの理由アイコン）
+export const validationWarningArgs = {
+  ...baseArgs,
+  validationWarnings: [
+    {
+      code: "NOT_SUBMITTED" as const,
+      date: "2026-01-21",
+      staffId: "staff3",
+      message: "未提出のまま勤務に入っています",
+    },
+    {
+      code: "OUTSIDE_REQUESTED_TIME" as const,
+      date: "2026-01-21",
+      staffId: "staff1",
+      message: "希望時間（10:00-18:00）の外に勤務があります",
+    },
+    {
+      code: "OFF_REQUEST" as const,
+      date: "2026-01-23",
+      staffId: "staff5",
+      message: "休み希望の日に勤務が入っています",
+    },
+  ],
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
+// エラーと確認事項が同時にある場合（エラーパネル＋ワーニングのバッジ/理由アイコン）
+export const validationErrorAndWarningArgs = {
+  ...baseArgs,
+  validationIssues: validationErrorArgs.validationIssues,
+  validationWarnings: validationWarningArgs.validationWarnings,
+  onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
 export const overviewCalendarRangeArgs = {
@@ -96,6 +152,53 @@ export const dateOnlyArgs = {
   initialShifts: mockDateOnlyShifts,
   holidays: ["2026-06-07"],
   submissionPattern: { kind: "dateOnly" },
+} satisfies ShiftFormArgs;
+
+// 勤務区分募集の確認事項（DateRailバッジ＋スタッフ名セルの理由アイコン）。
+// 選択初日(2026-05-21)に2件、翌日(2026-05-22)に1件でバッジの出方も確認できる
+export const shiftTypeValidationWarningArgs = {
+  ...shiftTypeArgs,
+  validationWarnings: [
+    {
+      code: "OUTSIDE_REQUESTED_TIME" as const,
+      date: "2026-05-21",
+      staffId: "staff1",
+      message: "希望時間の外に勤務があります（遅番）",
+    },
+    {
+      code: "OFF_REQUEST" as const,
+      date: "2026-05-21",
+      staffId: "staff2",
+      message: "休み希望の日に勤務が入っています",
+    },
+    {
+      code: "NOT_SUBMITTED" as const,
+      date: "2026-05-22",
+      staffId: "staff6",
+      message: "未提出のまま勤務に入っています",
+    },
+  ],
+  onDismissValidationIssues: () => {},
+} satisfies ShiftFormArgs;
+
+// 日ごと募集の確認事項（時間・勤務区分の概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
+export const dateOnlyValidationWarningArgs = {
+  ...dateOnlyArgs,
+  validationWarnings: [
+    {
+      code: "OFF_REQUEST" as const,
+      date: "2026-06-02",
+      staffId: "staff2",
+      message: "休み希望の日に勤務が入っています",
+    },
+    {
+      code: "NOT_SUBMITTED" as const,
+      date: "2026-06-03",
+      staffId: "staff6",
+      message: "未提出のまま勤務に入っています",
+    },
+  ],
+  onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
 const normalizeVisibleText = (value: string): string => value.replace(/\s+/g, "").trim();

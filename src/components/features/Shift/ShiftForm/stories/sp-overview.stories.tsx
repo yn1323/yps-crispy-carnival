@@ -4,8 +4,10 @@ import {
   expectVisibleText,
   fullscreenParameters,
   mobileGlobals,
+  overnightArgs,
   overviewCalendarRangeArgs,
   shiftFormDecorators,
+  validationWarningArgs,
 } from "./shared";
 
 const meta = {
@@ -34,4 +36,20 @@ export const TimeReadOnly: Story = {
   name: "Read Only",
   args: { ...overviewCalendarRangeArgs, isReadOnly: true, currentStaffId: "staff1" },
   globals: mobileGlobals,
+};
+
+export const TimeWithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: { ...validationWarningArgs, initialViewMode: "overview" as const },
+  globals: mobileGlobals,
+};
+
+export const TimeOvernight: Story = {
+  name: "Overnight",
+  args: { ...overnightArgs, initialViewMode: "overview" as const },
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    await expectVisibleText(canvasElement, "21:00–翌5:00");
+    await expectVisibleText(canvasElement, "18:00–翌2:00");
+  },
 };
