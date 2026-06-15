@@ -69,6 +69,7 @@ import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
 import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
 import type * as shiftBoard_queries from "../shiftBoard/queries.js";
+import type * as shiftBoard_validation from "../shiftBoard/validation.js";
 import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js";
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
@@ -156,6 +157,7 @@ declare const fullApi: ApiFromModules<{
   "setup/schemas": typeof setup_schemas;
   "shiftBoard/mutations": typeof shiftBoard_mutations;
   "shiftBoard/queries": typeof shiftBoard_queries;
+  "shiftBoard/validation": typeof shiftBoard_validation;
   "shiftSubmission/mutations": typeof shiftSubmission_mutations;
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;

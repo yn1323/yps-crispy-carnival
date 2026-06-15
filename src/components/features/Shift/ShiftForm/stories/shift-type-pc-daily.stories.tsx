@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "..";
-import { desktopGlobals, fullscreenParameters, shiftFormDecorators, shiftTypeArgs } from "./shared";
+import {
+  desktopGlobals,
+  fullscreenParameters,
+  shiftFormDecorators,
+  shiftTypeArgs,
+  shiftTypeValidationWarningArgs,
+} from "./shared";
 
 const meta = {
   title: "Features/Shift/ShiftForm/Shift Type/PC/Daily",
@@ -22,6 +28,13 @@ const findVisibleByLabelText = async (canvas: ReturnType<typeof within>, label: 
 
 export const Basic: Story = {
   args: shiftTypeArgs,
+  globals: desktopGlobals,
+};
+
+// 確認事項（ワーニング）: DateRailバッジ＋スタッフ名セルの理由アイコン。勤務区分募集レイアウトでの表示確認
+export const WithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: shiftTypeValidationWarningArgs,
   globals: desktopGlobals,
 };
 

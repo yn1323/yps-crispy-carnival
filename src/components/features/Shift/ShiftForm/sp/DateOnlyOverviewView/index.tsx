@@ -12,7 +12,8 @@ import {
 } from "@/src/domains/shift/date";
 import { hasDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
+import { IssueCountBadge } from "../../components";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
 
 type WeekDate = {
   iso: string;
@@ -45,6 +46,7 @@ const buildWeeks = (dates: string[]): WeekItem[] =>
 export const SPDateOnlyOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
@@ -86,6 +88,7 @@ export const SPDateOnlyOverviewView = () => {
               staffs={staffs}
               isReadOnly={isReadOnly}
               shiftByStaffDate={shiftByStaffDate}
+              warningCounts={warningCounts}
               onToggle={() => setOpenWeeks((current) => ({ ...current, [week.key]: !isOpen }))}
               onDateTap={handleDateTap}
             />
@@ -103,6 +106,7 @@ const WeekCard = ({
   staffs,
   isReadOnly,
   shiftByStaffDate,
+  warningCounts,
   onToggle,
   onDateTap,
 }: {
@@ -112,6 +116,7 @@ const WeekCard = ({
   staffs: StaffType[];
   isReadOnly: boolean;
   shiftByStaffDate: Map<string, ShiftData>;
+  warningCounts: ReadonlyMap<string, number>;
   onToggle: () => void;
   onDateTap: (iso: string) => void;
 }) => (
@@ -150,6 +155,7 @@ const WeekCard = ({
       <Box>
         {week.dates.map((date, index) => {
           const isClosed = date.inRange && holidays.includes(date.iso);
+          const warningCount = warningCounts.get(date.iso) ?? 0;
           const assignedStaffs =
             date.inRange && !isClosed
               ? staffs.filter((staff) => hasDateOnlyAssignment(shiftByStaffDate.get(`${staff.id}-${date.iso}`)))
@@ -162,6 +168,7 @@ const WeekCard = ({
               assignedStaffs={assignedStaffs}
               hasTopBorder={index > 0}
               isReadOnly={isReadOnly}
+              warningCount={warningCount}
               onDateTap={() => onDateTap(date.iso)}
             />
           );
@@ -177,6 +184,7 @@ const DayRow = ({
   assignedStaffs,
   hasTopBorder,
   isReadOnly,
+  warningCount,
   onDateTap,
 }: {
   date: WeekDate;
@@ -184,6 +192,7 @@ const DayRow = ({
   assignedStaffs: StaffType[];
   hasTopBorder: boolean;
   isReadOnly: boolean;
+  warningCount: number;
   onDateTap: () => void;
 }) => {
   const canOpenDaily = !isReadOnly && date.inRange && !isClosed;
@@ -205,7 +214,8 @@ const DayRow = ({
       _active={canOpenDaily ? { bg: "gray.50" } : undefined}
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
     >
-      <Box w="68px" flexShrink={0}>
+      <Box w="68px" flexShrink={0} position="relative">
+        {warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />}
         <Flex align="baseline" gap="4px" whiteSpace="nowrap">
           <Text
             textStyle="md"

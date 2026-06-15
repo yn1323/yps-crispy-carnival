@@ -1,5 +1,9 @@
 import { atom } from "jotai";
+import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
+import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
+import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import { sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
@@ -75,4 +79,43 @@ export const sortedStaffsAtom = atom((get) => {
   const selectedDate = get(selectedDateAtom);
   const sortMode = get(sortModeAtom);
   return sortStaffs({ staffs: config.staffs, shifts, selectedDate, sortMode });
+});
+
+// ==========================================
+// 確定前バリデーションエラー（propsから同期、エラー一覧・バッジ・ハイライトで共有）
+// ==========================================
+export const validationIssuesAtom = atom<AssignmentIssue[]>([]);
+
+// DateRailのエラーバッジ用: 日付ごとのエラー件数
+export const issueCountByDateAtom = atom((get) => issueCountByDate(get(validationIssuesAtom)));
+
+// 選択中日付でエラーを持つスタッフID（行ハイライト用）
+export const issueStaffIdSetForSelectedDateAtom = atom((get) => {
+  const selectedDate = get(selectedDateAtom);
+  return new Set(
+    get(validationIssuesAtom)
+      .filter((issue) => issue.date === selectedDate)
+      .map((issue) => issue.staffId),
+  );
+});
+
+// ==========================================
+// 確定前ワーニング（確認事項。確定をブロックしない助言）
+// ==========================================
+export const validationWarningsAtom = atom<AssignmentWarning[]>([]);
+
+// DateRailのオレンジバッジ用: 日付ごとの確認事項件数
+export const warningCountByDateAtom = atom((get) => issueCountByDate(get(validationWarningsAtom)));
+
+// 選択中日付で確認事項を持つスタッフごとの理由（スタッフ名セルのアイコンTooltip用）
+export const warningMessagesByStaffIdForSelectedDateAtom = atom((get) => {
+  const selectedDate = get(selectedDateAtom);
+  const messagesByStaffId = new Map<string, string[]>();
+  for (const warning of get(validationWarningsAtom)) {
+    if (warning.date !== selectedDate) continue;
+    const messages = messagesByStaffId.get(warning.staffId) ?? [];
+    messages.push(getAssignmentWarningSettingText(warning.code));
+    messagesByStaffId.set(warning.staffId, messages);
+  }
+  return messagesByStaffId;
 });

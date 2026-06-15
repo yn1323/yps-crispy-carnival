@@ -8,6 +8,9 @@ import {
   halfHourBusinessHoursArgs,
   overnightArgs,
   shiftFormDecorators,
+  validationErrorAndWarningArgs,
+  validationErrorArgs,
+  validationWarningArgs,
 } from "./shared";
 
 const meta = {
@@ -52,4 +55,36 @@ export const TimeReadOnly: Story = {
 export const TimeConfirmed: Story = {
   name: "Confirmed",
   args: { ...allPatternsArgs, isConfirmed: true },
+};
+
+// 確定前バリデーションエラー: パネル＋DateRailバッジ＋該当行ハイライトの統合表示
+export const TimeWithValidationErrors: Story = {
+  name: "With Validation Errors",
+  args: validationErrorArgs,
+};
+
+// エラー行クリックで該当日付の日別ビューへジャンプする
+export const TimeValidationErrorJump: Story = {
+  name: "Validation Error Jump",
+  args: validationErrorArgs,
+  play: async ({ canvasElement }) => {
+    await expectVisibleText(canvasElement, "1月21日");
+    const issueRow = Array.from(canvasElement.querySelectorAll<HTMLElement>('[role="button"]')).find((element) =>
+      element.textContent?.includes("1/23(金) Dさん"),
+    );
+    issueRow?.click();
+    await expectVisibleText(canvasElement, "1月23日");
+  },
+};
+
+// 確認事項（ワーニング）: DateRailオレンジバッジ＋スタッフ名セルの理由アイコン
+export const TimeWithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: validationWarningArgs,
+};
+
+// エラーと確認事項が同時にあるとき（エラーパネル＋ワーニングのバッジ/理由アイコン）
+export const TimeWithErrorsAndWarnings: Story = {
+  name: "With Errors And Warnings",
+  args: validationErrorAndWarningArgs,
 };
