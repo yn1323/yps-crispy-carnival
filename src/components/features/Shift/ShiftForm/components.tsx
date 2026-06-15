@@ -1,6 +1,140 @@
-import { Box, Flex } from "@chakra-ui/react";
-import { LuSave } from "react-icons/lu";
+import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
+import { LuSave, LuTriangleAlert } from "react-icons/lu";
+import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
+
+// エラー（赤）と確認事項（オレンジ）で色を切り替える。色規約: red=エラー / orange=要対応・警告
+export type IssueTone = "error" | "warning";
+const TONE_DOT_BG: Record<IssueTone, string> = { error: "red.500", warning: "orange.400" };
+const TONE_BADGE_BG: Record<IssueTone, string> = { error: "red.500", warning: "orange.400" };
+const TONE_NOUN: Record<IssueTone, string> = { error: "エラー", warning: "確認事項" };
+
+// スタッフ行・カードを強調するトーンごとの配色（bg=淡色 / border=枠 / borderBoxShadow=inset枠）。
+const TONE_EMPHASIS: Record<IssueTone, { bg: string; border: string; borderColorToken: string }> = {
+  error: { bg: "red.50", border: "red.300", borderColorToken: "red-300" },
+  warning: { bg: "orange.50", border: "orange.300", borderColorToken: "orange-300" },
+};
+
+// エラー（赤）を優先し、なければ確認事項（オレンジ）を選ぶ。どちらもなければnull。
+export const resolveIssueTone = (hasError: boolean, hasWarning: boolean): IssueTone | null =>
+  hasError ? "error" : hasWarning ? "warning" : null;
+
+// 強調トーンの配色を引く。toneがnullなら配色なし（通常表示）。
+export const issueToneEmphasis = (tone: IssueTone | null) => (tone ? TONE_EMPHASIS[tone] : null);
+
+// 日付チップ右上のバッジ。エラー件数を優先し、なければ確認事項件数を表示する。両方0ならnull。
+export const DateIssueBadge = ({ issueCount, warningCount }: { issueCount: number; warningCount: number }) => {
+  if (issueCount > 0) return <IssueCountBadge count={issueCount} tone="error" />;
+  if (warningCount > 0) return <IssueCountBadge count={warningCount} tone="warning" />;
+  return null;
+};
+
+// 日付チップの枠色。エラー（赤）優先 → 確認事項（オレンジ）。件数がなければfallback、選択中はactiveを優先。
+export const dateIssueBorderColor = (args: {
+  active: boolean;
+  issueCount: number;
+  warningCount: number;
+  activeColor: string;
+  fallbackColor: string;
+}): string => {
+  if (args.active) return args.activeColor;
+  if (args.issueCount > 0) return "red.200";
+  if (args.warningCount > 0) return "orange.200";
+  return args.fallbackColor;
+};
+
+// 日付チップ（DateRail / SP日付ピッカー）右上に重ねる件数バッジ。
+export const IssueCountBadge = ({
+  count,
+  tone = "error",
+  top = "-6px",
+  right = "-6px",
+}: {
+  count: number;
+  tone?: IssueTone;
+  top?: string;
+  right?: string;
+}) => (
+  <Flex
+    aria-label={`${TONE_NOUN[tone]}${count}件`}
+    position="absolute"
+    top={top}
+    right={right}
+    zIndex={2}
+    minW="16px"
+    h="16px"
+    px="4px"
+    align="center"
+    justify="center"
+    borderRadius="full"
+    bg={TONE_BADGE_BG[tone]}
+    color="white"
+    fontSize="10px"
+    fontWeight={700}
+    lineHeight={1}
+  >
+    {count}
+  </Flex>
+);
+
+// スタッフ行・カードの印（赤＝エラー / オレンジ＝確認事項のドット）。
+export const IssueDot = ({ tone = "error" }: { tone?: IssueTone }) => (
+  <Box boxSize="6px" borderRadius="full" bg={TONE_DOT_BG[tone]} flexShrink={0} aria-label={`${TONE_NOUN[tone]}あり`} />
+);
+
+export const StaffWarningIcon = ({ messages }: { messages: string[] }) => {
+  if (messages.length === 0) return null;
+
+  return (
+    <Tooltip
+      showArrow
+      openDelay={80}
+      contentProps={{ maxW: "280px", bg: "gray.800", color: "white" }}
+      content={
+        <Stack gap={1}>
+          <Text textStyle="xs" fontWeight={700}>
+            確認事項
+          </Text>
+          {messages.map((message, index) => (
+            <Text key={`${message}-${index}`} textStyle="xs" lineHeight={1.6}>
+              {message}
+            </Text>
+          ))}
+        </Stack>
+      }
+    >
+      <Box
+        role="button"
+        tabIndex={0}
+        aria-label={`確認事項${messages.length}件`}
+        flexShrink={0}
+        display="inline-flex"
+        alignItems="center"
+        justifyContent="center"
+        boxSize="22px"
+        borderRadius="full"
+        color="orange.600"
+        bg="orange.50"
+        borderWidth="1px"
+        borderColor="orange.200"
+        cursor="help"
+        onClick={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.stopPropagation();
+          }
+        }}
+        _hover={{ bg: "orange.100", color: "orange.700" }}
+        _focusVisible={{ outline: "2px solid", outlineColor: "orange.400", outlineOffset: "1px" }}
+      >
+        <Icon boxSize={3.5}>
+          <LuTriangleAlert />
+        </Icon>
+      </Box>
+    </Tooltip>
+  );
+};
 
 export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }) => (
   <Box

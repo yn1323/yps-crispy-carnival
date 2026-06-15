@@ -39,28 +39,14 @@ const baseArgs = {
   onShiftDelete: () => {},
 };
 
-export const Variants: Story = {
-  args: {
-    ...baseArgs,
-  },
+export const UnsubmittedStaff: Story = {
+  args: baseArgs,
 };
 
 export const NewShift: Story = {
   args: {
     ...baseArgs,
     shift: undefined,
-  },
-  parameters: {
-    chromatic: { disableSnapshot: true },
-  },
-};
-
-export const UnsubmittedStaff: Story = {
-  args: {
-    ...baseArgs,
-  },
-  parameters: {
-    chromatic: { disableSnapshot: true },
   },
 };
 
@@ -69,8 +55,5 @@ export const WithBreak: Story = {
     ...baseArgs,
     staff: staffWithBreak,
     shift: shiftWithBreak,
-  },
-  parameters: {
-    chromatic: { disableSnapshot: true },
   },
 };

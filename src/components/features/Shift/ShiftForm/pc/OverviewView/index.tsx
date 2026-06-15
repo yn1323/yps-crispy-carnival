@@ -4,9 +4,10 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
-import { timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
+import { IssueCountBadge } from "../../components";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -51,6 +52,7 @@ type OverviewViewProps = {
 export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, isReadOnly, staffs } = config;
@@ -97,6 +99,7 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
               onToggle={() => setOpen({ ...open, [wi]: !isOpen })}
               onDateClick={handleDateClick}
               isReadOnly={isReadOnly}
+              warningCounts={warningCounts}
             />
           );
         })}
@@ -114,9 +117,20 @@ type WeekCardProps = {
   onToggle: () => void;
   onDateClick: (iso: string) => void;
   isReadOnly: boolean;
+  warningCounts: ReadonlyMap<string, number>;
 };
 
-const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateClick, isReadOnly }: WeekCardProps) => {
+const WeekCard = ({
+  wkDates,
+  staffs,
+  lookup,
+  holidays,
+  isOpen,
+  onToggle,
+  onDateClick,
+  isReadOnly,
+  warningCounts,
+}: WeekCardProps) => {
   const start = wkDates[0]?.iso ?? "";
   const end = wkDates[wkDates.length - 1]?.iso ?? start;
   const rangeLabel = start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
@@ -165,6 +179,7 @@ const WeekCard = ({ wkDates, staffs, lookup, holidays, isOpen, onToggle, onDateC
           holidays={holidays}
           onDateClick={onDateClick}
           isReadOnly={isReadOnly}
+          warningCounts={warningCounts}
         />
       )}
     </Box>
@@ -178,9 +193,10 @@ type WeekTableProps = {
   holidays: string[];
   onDateClick: (iso: string) => void;
   isReadOnly: boolean;
+  warningCounts: ReadonlyMap<string, number>;
 };
 
-const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly }: WeekTableProps) => (
+const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly, warningCounts }: WeekTableProps) => (
   <Box>
     <Box as="table" w="100%" textStyle="tableDense" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
       <Box as="colgroup">
@@ -207,6 +223,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
           {wkDates.map((d) => {
             const isClickable = !isReadOnly && d.inRange;
             const isClosed = d.inRange && holidays.includes(d.iso);
+            const warningCount = warningCounts.get(d.iso) ?? 0;
             return (
               <Box
                 as="th"
@@ -221,8 +238,13 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                   background: isClosed ? "#f4f4f5" : undefined,
                 }}
               >
-                <Box textStyle="numeric" color="gray.700" fontWeight={600}>
-                  {d.label}
+                <Box display="inline-block" position="relative" px={warningCount > 0 ? 1 : 0}>
+                  {warningCount > 0 && (
+                    <IssueCountBadge count={warningCount} tone="warning" top="-10px" right="-14px" />
+                  )}
+                  <Box textStyle="numeric" color="gray.700" fontWeight={600}>
+                    {d.label}
+                  </Box>
                 </Box>
                 <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso) }}>
                   {d.wk}
@@ -299,7 +321,7 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly 
                         color="teal.700"
                         style={{ fontVariantNumeric: "tabular-nums" }}
                       >
-                        {asn[0]}–{asn[1]}
+                        {formatShiftClockTime(asn[0])}–{formatShiftClockTime(asn[1])}
                       </Box>
                     ) : (
                       <Box as="span" color={d.inRange ? "gray.300" : "gray.200"} textStyle="caption">

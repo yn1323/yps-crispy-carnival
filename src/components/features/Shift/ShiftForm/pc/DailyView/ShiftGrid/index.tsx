@@ -3,7 +3,15 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../../constants";
-import { hourWidthAtom, selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../../stores";
+import {
+  hourWidthAtom,
+  issueStaffIdSetForSelectedDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+  warningMessagesByStaffIdForSelectedDateAtom,
+} from "../../../stores";
 import { useDrag } from "../hooks/useDrag";
 import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
@@ -21,6 +29,8 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const shifts = useAtomValue(shiftsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
+  const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
+  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);
   const { timeRange, isReadOnly, currentStaffId } = config;
 
@@ -157,6 +167,8 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
                 staffColWidth={STAFF_COL_WIDTH}
                 isCurrentStaff={staff.id === currentStaffId}
                 isReadOnly={isReadOnly}
+                hasError={issueStaffIds.has(staff.id)}
+                warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                 onRowMouseDown={handleRowMouseDown}
                 onRowMouseMoveForCursor={handleRowMouseMoveForCursor}
                 onShiftClick={onShiftClick}

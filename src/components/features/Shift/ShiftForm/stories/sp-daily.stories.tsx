@@ -3,10 +3,13 @@ import { ShiftForm } from "..";
 import {
   allPatternsArgs,
   emptyOrAllUnsubmittedArgs,
+  expectVisibleText,
   fullscreenParameters,
   halfHourBusinessHoursArgs,
   mobileGlobals,
+  overnightArgs,
   shiftFormDecorators,
+  validationWarningArgs,
 } from "./shared";
 
 const meta = {
@@ -31,6 +34,15 @@ export const TimeHalfHourBusinessHours: Story = {
   globals: mobileGlobals,
 };
 
+export const TimeOvernight: Story = {
+  name: "Overnight",
+  args: overnightArgs,
+  globals: mobileGlobals,
+  play: async ({ canvasElement }) => {
+    await expectVisibleText(canvasElement, "21:00–翌5:00");
+  },
+};
+
 export const TimeEmptyOrAllUnsubmitted: Story = {
   name: "Empty Or All Unsubmitted",
   args: emptyOrAllUnsubmittedArgs,
@@ -46,5 +58,12 @@ export const TimeReadOnly: Story = {
 export const TimeConfirmed: Story = {
   name: "Confirmed",
   args: { ...allPatternsArgs, isConfirmed: true },
+  globals: mobileGlobals,
+};
+
+// 確認事項（ワーニング）: SP日別でのDateRailバッジ＋スタッフカード/行の理由アイコン
+export const TimeWithValidationWarnings: Story = {
+  name: "With Validation Warnings",
+  args: validationWarningArgs,
   globals: mobileGlobals,
 };

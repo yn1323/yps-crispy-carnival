@@ -1,22 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { managerMutation } from "../_lib/functions";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
-import { timeToMinutes } from "../_lib/time";
+import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 import { ensureDefaultPosition } from "../position/service";
-
-function getBoardTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
-  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
-  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
-    const starts = pattern.options
-      .map((option) => option.startTime)
-      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    return { startTime: starts[0], endTime: ends[ends.length - 1] };
-  }
-  return { startTime: "09:00", endTime: "22:00" };
-}
+import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
 export const saveShiftAssignments = managerMutation({
   args: {
@@ -42,57 +30,16 @@ export const saveShiftAssignments = managerMutation({
       startTime: recruitment.shiftStartTime,
       endTime: recruitment.shiftEndTime,
     });
-    const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(submissionPattern);
-    const shiftTypeOptionById =
-      submissionPattern.kind === "shiftType"
-        ? new Map(submissionPattern.options.map((option) => [option.id, option]))
-        : new Map<string, never>();
-    const shopStartMinutes = timeToMinutes(startTimeStr);
-    const shopEndMinutes = timeToMinutes(endTimeStr);
-    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
-
-    const rangesByStaffDate = new Map<string, Array<{ start: number; end: number }>>();
-    for (const a of args.assignments) {
-      const key = `${a.staffId}-${a.date}`;
-      if (a.date < recruitment.periodStart || a.date > recruitment.periodEnd) {
-        throw new ConvexError("募集期間内の日付を選んでください");
-      }
-      if (shopClosedDateSet.has(a.date)) {
-        throw new ConvexError("定休日にはシフトを登録できません");
-      }
-
-      const startMinutes = timeToMinutes(a.startTime);
-      const endMinutes = timeToMinutes(a.endTime);
-
-      if (startMinutes >= endMinutes) {
-        throw new ConvexError("終了時間は開始時間より後にしてください");
-      }
-
-      if (submissionPattern.kind === "shiftType") {
-        if (a.optionId === undefined) {
-          throw new ConvexError("勤務区分を選択してください");
-        }
-        const option = shiftTypeOptionById.get(a.optionId);
-        if (!option) {
-          throw new ConvexError("勤務区分が見つかりません");
-        }
-        if (a.startTime !== option.startTime || a.endTime !== option.endTime) {
-          throw new ConvexError("勤務区分の時間と一致しません");
-        }
-      } else if (a.optionId !== undefined) {
-        throw new ConvexError("勤務区分の募集ではありません");
-      }
-
-      if (startMinutes < shopStartMinutes || endMinutes > shopEndMinutes) {
-        throw new ConvexError("設定したシフト時間内にしてください");
-      }
-
-      const ranges = rangesByStaffDate.get(key) ?? [];
-      if (ranges.some((range) => startMinutes < range.end && endMinutes > range.start)) {
-        throw new ConvexError("同じスタッフの同じ日に、シフト時間が重なっています");
-      }
-      ranges.push({ start: startMinutes, end: endMinutes });
-      rangesByStaffDate.set(key, ranges);
+    // 違反は全件収集して構造化エラーで返し、フロントのエラー一覧UIにマップする
+    const issues = validateShiftAssignments({
+      assignments: args.assignments,
+      periodStart: recruitment.periodStart,
+      periodEnd: recruitment.periodEnd,
+      closedDates: recruitment.shopClosedDates ?? [],
+      pattern: submissionPattern,
+    });
+    if (issues.length > 0) {
+      throw new ConvexError({ code: SHIFT_ASSIGNMENT_VALIDATION, issues });
     }
 
     const uniqueStaffIds = [...new Set(args.assignments.map((a) => a.staffId))];
@@ -169,9 +116,17 @@ export const confirmRecruitment = managerMutation({
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
       .take(SHIFT_ASSIGNMENT_LIMIT);
-    const closedDateAssignment = existingAssignments.find((assignment) => shopClosedDateSet.has(assignment.date));
-    if (shopClosedDateSet.size > 0 && closedDateAssignment) {
-      throw new ConvexError("定休日にシフトが登録されています");
+    const closedDateAssignments =
+      shopClosedDateSet.size > 0
+        ? existingAssignments.filter((assignment) => shopClosedDateSet.has(assignment.date))
+        : [];
+    if (closedDateAssignments.length > 0) {
+      throw new ConvexError({
+        code: SHIFT_ASSIGNMENT_VALIDATION,
+        issues: closedDateAssignments.map((assignment) =>
+          buildAssignmentIssue("CLOSED_DAY", assignment.date, assignment.staffId),
+        ),
+      });
     }
 
     // 再確定も同じ導線で許可する。通知文面だけ変更して、既存スタッフには変更連絡として届ける。

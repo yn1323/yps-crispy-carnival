@@ -5,10 +5,27 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
-import { timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { PositionSegment, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
+import {
+  DateIssueBadge,
+  dateIssueBorderColor,
+  IssueDot,
+  issueToneEmphasis,
+  resolveIssueTone,
+  StaffWarningIcon,
+} from "../../components";
 import { BREAK_POSITION } from "../../constants";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
+import {
+  issueCountByDateAtom,
+  issueStaffIdSetForSelectedDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+  warningCountByDateAtom,
+  warningMessagesByStaffIdForSelectedDateAtom,
+} from "../../stores";
 import { ShiftDetailSheet } from "./ShiftDetailSheet";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 
@@ -49,6 +66,10 @@ export const SPDailyView = () => {
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
@@ -176,25 +197,36 @@ export const SPDailyView = () => {
         flexShrink={0}
         data-tour="date-rail"
       >
-        <Flex gap={2} overflow="auto" pb={1}>
+        <Flex gap={2} overflow="auto" pt={2} pb={1}>
           {dates.map((iso) => {
             const d = dayjs(iso);
             const active = iso === selectedDate;
             const isClosed = holidays.includes(iso);
+            const issueCount = issueCounts.get(iso) ?? 0;
+            const warningCount = warningCounts.get(iso) ?? 0;
+            const chipBorderColor = dateIssueBorderColor({
+              active,
+              issueCount,
+              warningCount,
+              activeColor: "teal.400",
+              fallbackColor: "gray.200",
+            });
             return (
               <Box
                 key={iso}
                 onClick={() => setSelectedDate(iso)}
+                position="relative"
                 flexShrink={0}
                 w="52px"
                 py="8px"
                 textAlign="center"
                 borderRadius="md"
                 borderWidth="1px"
-                borderColor={active ? "teal.400" : "gray.200"}
+                borderColor={chipBorderColor}
                 bg={active ? "teal.50" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
               >
+                <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
                   textStyle="md"
                   fontWeight={700}
@@ -261,6 +293,8 @@ export const SPDailyView = () => {
                       shift={shift}
                       timeRange={timeRange}
                       onTap={() => handleCardTap(staff.id)}
+                      hasError={issueStaffIds.has(staff.id)}
+                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                     />
                   ))}
                 </Stack>
@@ -280,6 +314,8 @@ export const SPDailyView = () => {
                       staff={staff}
                       onTap={() => handleCardTap(staff.id)}
                       isReadOnly={isReadOnly}
+                      hasError={issueStaffIds.has(staff.id)}
+                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
                     />
                   ))}
                 </Stack>
@@ -359,14 +395,18 @@ type CardProps = {
   shift: ShiftData | undefined;
   timeRange: TimeRange;
   onTap: () => void;
+  hasError?: boolean;
+  warningMessages?: string[];
 };
 
-const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
+const SPDailyCard = ({ staff, shift, timeRange, onTap, hasError = false, warningMessages = [] }: CardProps) => {
   const requestedTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
   const hasReq = requestedTimes.length > 0;
   const asn = getAssignedRange(shift);
   const hasAsn = !!asn;
   const mismatch = hasReq && !hasAsn;
+  const tone = resolveIssueTone(hasError, false);
+  const emphasis = issueToneEmphasis(tone);
   const workPositions = useMemo<PositionSegment[]>(
     () =>
       shift
@@ -380,24 +420,36 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
 
   return (
     <Box
-      as="button"
+      role="button"
+      tabIndex={0}
+      aria-label={`${staff.name}の勤務を編集`}
       onClick={onTap}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onTap();
+        }
+      }}
+      data-tour={`shift-row-${staff.id}`}
       w="100%"
       textAlign="left"
-      bg="white"
+      bg={emphasis?.bg ?? "white"}
       borderRadius="lg"
-      borderWidth="1px"
-      borderColor={mismatch ? "orange.200" : "gray.200"}
+      borderWidth={emphasis ? "2px" : "1px"}
+      borderColor={emphasis?.border ?? (mismatch ? "orange.200" : "gray.200")}
       px={3}
       py="10px"
       cursor="pointer"
       _active={{ bg: "gray.50" }}
+      _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
       <Flex align="center" gap={2} mb={2}>
+        {tone && <IssueDot tone={tone} />}
         <Avatar staff={staff} size={28} />
         <Box textStyle="sm" fontWeight={600} color="gray.800" flex={1}>
           {staff.name}
         </Box>
+        <StaffWarningIcon messages={warningMessages} />
         {mismatch && (
           <Box
             textStyle="2xs"
@@ -416,7 +468,7 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
         )}
         {hasAsn && asn && (
           <Box textStyle="caption" fontWeight={700} color="teal.700" fontVariantNumeric="tabular-nums">
-            {asn[0]}–{asn[1]}
+            {formatShiftClockTime(asn[0])}–{formatShiftClockTime(asn[1])}
           </Box>
         )}
         {!hasReq && !hasAsn && staff.isSubmitted && (
@@ -467,30 +519,60 @@ const SPDailyCard = ({ staff, shift, timeRange, onTap }: CardProps) => {
   );
 };
 
-const SPOffCard = ({ staff, onTap, isReadOnly }: { staff: StaffType; onTap: () => void; isReadOnly: boolean }) => {
+const SPOffCard = ({
+  staff,
+  onTap,
+  isReadOnly,
+  hasError = false,
+  warningMessages = [],
+}: {
+  staff: StaffType;
+  onTap: () => void;
+  isReadOnly: boolean;
+  hasError?: boolean;
+  warningMessages?: string[];
+}) => {
   const isUnsub = !staff.isSubmitted;
   const offLabel = isUnsub ? "未提出" : isReadOnly ? "休み" : "休み希望";
+  const tone = resolveIssueTone(hasError, false);
+  const emphasis = issueToneEmphasis(tone);
   return (
     <Box
-      as="button"
+      role={isReadOnly ? undefined : "button"}
+      tabIndex={isReadOnly ? undefined : 0}
+      aria-label={isReadOnly ? undefined : `${staff.name}の勤務を追加`}
       onClick={isReadOnly ? undefined : onTap}
+      onKeyDown={
+        isReadOnly
+          ? undefined
+          : (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onTap();
+              }
+            }
+      }
+      data-tour={`shift-row-${staff.id}`}
       w="100%"
       display="flex"
       alignItems="center"
       gap="10px"
       p="10px 12px"
-      bg="white"
-      borderWidth="1px"
-      borderColor="gray.200"
+      bg={emphasis?.bg ?? "white"}
+      borderWidth={emphasis ? "2px" : "1px"}
+      borderColor={emphasis?.border ?? "gray.200"}
       borderRadius="md"
       cursor={isReadOnly ? "default" : "pointer"}
       textAlign="left"
       _active={isReadOnly ? undefined : { bg: "gray.50" }}
+      _focusVisible={isReadOnly ? undefined : { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
+      {tone && <IssueDot tone={tone} />}
       <Avatar staff={staff} size={24} />
       <Box textStyle="sm" fontWeight={600} color="gray.600" flex={1}>
         {staff.name}
       </Box>
+      <StaffWarningIcon messages={warningMessages} />
       <Box textStyle="2xs" fontWeight={600} style={{ color: isUnsub ? "#b45309" : "#a1a1aa" }}>
         {offLabel}
       </Box>

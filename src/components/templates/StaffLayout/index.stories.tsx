@@ -14,7 +14,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const WidthVariants: Story = {
+export const StandardWidth: Story = {
   args: {
     shopName: "居酒屋もりもり",
     children: null,
@@ -28,7 +28,17 @@ export const WidthVariants: Story = {
           </Text>
         </Box>
       </StaffPageContent>
+    </StaffLayout>
+  ),
+};
 
+export const NarrowWidth: Story = {
+  args: {
+    shopName: "居酒屋もりもり",
+    children: null,
+  },
+  render: () => (
+    <StaffLayout shopName="居酒屋もりもり">
       <StaffNarrowContent py={4}>
         <VStack align="stretch" gap={4}>
           <Text fontSize="md" fontWeight="semibold">

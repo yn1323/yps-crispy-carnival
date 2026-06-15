@@ -197,8 +197,8 @@ import { bar } from "@/convex/...";
 
 ## Storybook / VRT
 
-- VRTは無料枠で毎月のキャプチャ数に限りがあります。小さなコンポーネントはVariants Storyを作成し、1つのStoryにまとめたいです。
-  大きいコンポーネントはそのままでOK。
+- VRTは自前運用（storycap-testrun + RegSuit、`pnpm vrt`）でキャプチャ数の制限はありません。コンポーネントの状態ごとに個別Storyを作成すること。
+- ボタン等の細かいUI部品のみ、Variants Storyで1つのStoryに集約してOK。
   操作用のStoryが必要なら、Interactive Storyを別途作成すること。（小さいコンポーネントのみ）
 - Behavior Test は VRT と目的が異なる。追加時は、VRTで撮るのか、`chromatic.disableSnapshot` で撮らないのかを必ず決めること
 

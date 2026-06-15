@@ -6,8 +6,9 @@ import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { IssueCountBadge } from "../../components";
 import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../../pc/shiftTypeOptionStyles";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom } from "../../stores";
+import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -46,6 +47,7 @@ const dayColor = (iso: string): string => {
 export const SPShiftTypeOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly, submissionPattern } = config;
@@ -157,6 +159,7 @@ export const SPShiftTypeOverviewView = () => {
                             })
                             .filter((item) => item.assignedOptionIds.length > 0);
                     const canOpenDaily = !isReadOnly && date.inRange;
+                    const warningCount = warningCounts.get(date.iso) ?? 0;
                     return (
                       <Flex
                         key={date.iso}
@@ -170,7 +173,8 @@ export const SPShiftTypeOverviewView = () => {
                         _active={canOpenDaily ? { bg: "gray.50" } : undefined}
                         onClick={canOpenDaily ? () => handleDateTap(date.iso) : undefined}
                       >
-                        <Box w="68px" flexShrink={0}>
+                        <Box w="68px" flexShrink={0} position="relative">
+                          {warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />}
                           <Flex align="baseline" gap="4px" whiteSpace="nowrap">
                             <Box
                               textStyle="numeric"

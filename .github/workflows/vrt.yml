@@ -8,7 +8,9 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
+  deployments: write
 
 env:
   VRT_REPORT_DIR: yps-crispy-carnival-vrt
@@ -106,6 +108,8 @@ jobs:
       - capture
     runs-on: ubuntu-latest
     environment: Preview
+    outputs:
+      has_diff: ${{ steps.diff_check.outputs.has_diff }}
     env:
       REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
     steps:
@@ -143,9 +147,19 @@ jobs:
       - name: Deploy VRT report to GitHub Pages
         if: ${{ !cancelled() && hashFiles('vrt-work/reg/index.html') != '' }}
         run: |
-          rm -rf "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
-          mkdir -p "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
-          cp -R vrt-work/reg/. "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/"
+          REPORT_DIR="${{ env.VRT_REPORT_DIR }}"
+          REPORT_KEY="${{ needs.prepare.outputs.report_key }}"
+          LOCAL_REPORT_DIR="vrt-work/reg"
+          if [ "${{ needs.prepare.outputs.pull_number }}" != "" ]; then
+            REPORT_COMMIT_MESSAGE="VRT report for PR #${{ needs.prepare.outputs.pull_number }}"
+          else
+            REPORT_COMMIT_MESSAGE="VRT report for ${{ github.ref_name }}"
+          fi
+
+          rm -rf "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
+          mkdir -p "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
+          cp -R "${LOCAL_REPORT_DIR}/." "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/"
+          echo "${{ github.run_id }}-${{ github.run_attempt }}" > "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
 
           if [ "${{ needs.prepare.outputs.should_update_baseline }}" = "true" ]; then
             rm -rf "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
@@ -157,9 +171,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "VRT report for ${{ github.ref_name }}" || exit 0
+          git commit -m "${REPORT_COMMIT_MESSAGE}" || exit 0
           git pull --rebase
-          git push
+          git push origin HEAD:main
       - name: Build VRT comment
         if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-work/reg/index.html') != '' }}
         run: |
@@ -168,37 +182,131 @@ jobs:
             const reportUrl = '${{ needs.prepare.outputs.report_url }}';
             const baselineFound = '${{ steps.baseline.outputs.found }}' === 'true';
             const compareResult = baselineFound ? '${{ steps.regsuit.outcome }}' : 'success';
-            const statusEmoji = compareResult === 'success' ? '✅' : '❌';
-            const statusText = baselineFound ? (compareResult === 'success' ? '成功' : '失敗') : 'baseline未作成';
+            const statusText = baselineFound ? (compareResult === 'success' ? 'Passed' : 'Failed') : 'No baseline';
 
-            let summary = '';
+            let changedCount = 'unknown';
+            let newCount = 'unknown';
+            let deletedCount = 'unknown';
+            let passedCount = 'unknown';
             try {
               const json = JSON.parse(fs.readFileSync('vrt-work/reg/out.json', 'utf8'));
               const items = json.failedItems || json.changedItems || json.items || [];
               const newItems = json.newItems || [];
               const deletedItems = json.deletedItems || [];
               const passedItems = json.passedItems || [];
-              summary = [
-                '| 🔴 Changed | ⚪ New | 🗑️ Deleted | 🟢 Passed |',
-                '|---:|---:|---:|---:|',
-                `| ${items.length} | ${newItems.length} | ${deletedItems.length} | ${passedItems.length} |`,
-              ].join('\n');
+              changedCount = String(items.length);
+              newCount = String(newItems.length);
+              deletedCount = String(deletedItems.length);
+              passedCount = String(passedItems.length);
             } catch (error) {
-              summary = 'RegSuit result JSON の読み込みに失敗しました';
+              console.warn('RegSuit result JSON の読み込みに失敗しました', error);
             }
 
-            fs.writeFileSync(
-              'vrt-comment.md',
-              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n[View Report](${reportUrl})\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`,
-            );
+            const actionsUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const hasDiff = compareResult !== 'success' && baselineFound;
+            const buildBody = (reportCell) => {
+              const actionRows = [
+                `| 差分確認 | ${reportCell} |`,
+                ...(hasDiff ? [`| 承認 | [承認ワークフローを開く](${actionsUrl}) |`] : []),
+              ].join('\n');
+
+              return [
+                '## VRT Report',
+                '',
+                `Status: ${statusText}`,
+                `差分: Changed ${changedCount} / New ${newCount} / Deleted ${deletedCount}`,
+                `Passed: ${passedCount}`,
+                '',
+                '| Action | Link |',
+                '|---|---|',
+                actionRows,
+                '',
+                'Details:',
+                'デプロイ先: [yn1323/hosting-pages:main](https://github.com/yn1323/hosting-pages/commits/main/)',
+                '',
+              ].join('\n');
+            };
+
+            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
+            fs.writeFileSync('vrt-comment-final.md', buildBody(`[差分レポートを見る](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
           NODE
-      - name: Comment PR with VRT report
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment.md') != '' }}
+      - name: Delete previous VRT report comments
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = '## VRT Report';
+            const { owner, repo } = context.repo;
+            const issue_number = Number('${{ needs.prepare.outputs.pull_number }}');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+      - name: Comment PR with VRT report (deploying)
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
         uses: mshick/add-pr-comment@v2
         with:
           issue: ${{ needs.prepare.outputs.pull_number }}
-          allow-repeats: true
-          message-path: vrt-comment.md
-      - name: Fail on VRT diff
-        if: ${{ needs.prepare.outputs.should_fail_on_diff == 'true' && steps.baseline.outputs.found == 'true' && steps.regsuit.outcome == 'failure' }}
-        run: exit 1
+          message-id: vrt-report-${{ github.run_id }}-${{ github.run_attempt }}
+          message-path: vrt-comment-pending.md
+      - name: Wait for hosting-pages deploy
+        id: wait_deploy
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' }}
+        run: |
+          MARKER_URL="${{ needs.prepare.outputs.report_url }}deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+          echo "Polling ${MARKER_URL}"
+          for i in $(seq 1 90); do
+            if curl -sf -o /dev/null "${MARKER_URL}?t=$(date +%s)"; then
+              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+              echo "Deploy confirmed after $((i * 10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
+          echo "::warning::hosting-pages deploy could not be confirmed within 15 minutes"
+      - name: Append deploy warning to VRT comment
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' && steps.wait_deploy.outputs.deploy_status != 'success' }}
+        run: |
+          printf '\n> ⚠️ デプロイ完了を確認できませんでした。リンクが開けない場合は、しばらく待ってから再度お試しください。\n' >> vrt-comment-final.md
+      - name: Update PR comment with VRT report link
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          issue: ${{ needs.prepare.outputs.pull_number }}
+          message-id: vrt-report-${{ github.run_id }}-${{ github.run_attempt }}
+          message-path: vrt-comment-final.md
+      - name: Set diff output
+        id: diff_check
+        if: always()
+        run: |
+          if [[ "${{ steps.baseline.outputs.found }}" == "true" && "${{ steps.regsuit.outcome }}" == "failure" ]]; then
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          fi
+
+  approve:
+    needs: [prepare, compare]
+    if: |
+      always() &&
+      needs.compare.result == 'success' &&
+      needs.prepare.outputs.should_fail_on_diff == 'true' &&
+      needs.compare.outputs.has_diff == 'true'
+    environment: vrt-approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: VRT diffs approved
+        run: echo "Visual regression diffs have been reviewed and approved"

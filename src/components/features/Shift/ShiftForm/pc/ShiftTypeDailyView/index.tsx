@@ -11,8 +11,16 @@ import {
   toggleShiftTypeAssignment,
 } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { Avatar } from "../../components";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, sortedStaffsAtom } from "../../stores";
+import { Avatar, StaffWarningIcon } from "../../components";
+import {
+  issueCountByDateAtom,
+  selectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  sortedStaffsAtom,
+  warningCountByDateAtom,
+  warningMessagesByStaffIdForSelectedDateAtom,
+} from "../../stores";
 import { formatShiftTypeTimeRange } from "../../utils/shiftTypeDisplay";
 import { DateRail } from "../DailyView/DateRail";
 import { DayTitle } from "../DailyView/DayTitle";
@@ -32,6 +40,9 @@ export const ShiftTypeDailyView = () => {
   const setShifts = useSetAtom(shiftsAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
+  const issueCounts = useAtomValue(issueCountByDateAtom);
+  const warningCounts = useAtomValue(warningCountByDateAtom);
+  const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
@@ -66,7 +77,14 @@ export const ShiftTypeDailyView = () => {
 
   return (
     <Flex flex={1} minH={0} overflow="hidden">
-      <DateRail dates={dates} selectedDate={selectedDate} onSelect={setSelectedDate} holidays={holidays} />
+      <DateRail
+        dates={dates}
+        selectedDate={selectedDate}
+        onSelect={setSelectedDate}
+        holidays={holidays}
+        issueCounts={issueCounts}
+        warningCounts={warningCounts}
+      />
       <Flex direction="column" minW={0} minH={0} flex={1} overflow="hidden">
         <DayTitle date={selectedDate} holidays={holidays} />
         {isShopClosedDate ? (
@@ -131,7 +149,7 @@ export const ShiftTypeDailyView = () => {
                     const shift = shiftByStaffId.get(staff.id);
                     return (
                       <Box as="tr" key={staff.id} borderTopWidth="1px" borderColor="gray.100">
-                        <StaffCell staff={staff} />
+                        <StaffCell staff={staff} warningMessages={warningMessagesByStaffId.get(staff.id) ?? []} />
                         <RequestCell staff={staff} shift={shift} options={options} />
                         {options.map((option, index) => {
                           const assigned = hasShiftTypeAssignment(shift, option.id);
@@ -191,13 +209,14 @@ const HeaderCell = ({
   </Box>
 );
 
-const StaffCell = ({ staff }: { staff: StaffType }) => (
+const StaffCell = ({ staff, warningMessages }: { staff: StaffType; warningMessages: string[] }) => (
   <Box as="td" px={4} py={2} borderRightWidth="1px" borderColor="gray.100">
     <Flex align="center" gap={3} minW={0}>
       <Avatar staff={staff} size={24} />
-      <Text textStyle="sm" fontWeight={500} color={staff.isSubmitted ? "gray.800" : "gray.500"} truncate>
+      <Text textStyle="sm" fontWeight={500} color={staff.isSubmitted ? "gray.800" : "gray.500"} flex={1} truncate>
         {staff.name}
       </Text>
+      <StaffWarningIcon messages={warningMessages} />
     </Flex>
   </Box>
 );

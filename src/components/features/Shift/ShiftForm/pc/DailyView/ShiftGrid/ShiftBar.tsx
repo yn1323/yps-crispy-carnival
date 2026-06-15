@@ -1,7 +1,7 @@
 import { Box, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
-import { timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../../constants";
 import { hourWidthAtom } from "../../../stores";
@@ -106,7 +106,7 @@ export const ShiftBar = ({
                 whiteSpace="nowrap"
                 fontVariantNumeric="tabular-nums"
               >
-                希望: {request.start}-{request.end}
+                希望: {formatShiftClockTime(request.start)}-{formatShiftClockTime(request.end)}
               </Text>
             </Box>
           );
@@ -235,7 +235,7 @@ export const ShiftBar = ({
                 fontVariantNumeric="tabular-nums"
                 whiteSpace="nowrap"
               >
-                {earliestStart}–{latestEnd}
+                {formatShiftClockTime(earliestStart)}–{formatShiftClockTime(latestEnd)}
               </Text>
             </Box>
           );

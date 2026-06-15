@@ -2,7 +2,7 @@ import { Badge, Box, Flex, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
 import { LuTrash2, LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
-import { timeToMinutes } from "@/src/domains/shift/time";
+import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { BREAK_POSITION } from "../../constants";
 
@@ -94,9 +94,9 @@ export const ShiftPopover = ({
             <Flex align="center" gap={2} pr={8}>
               <Text fontWeight="bold" fontSize="sm" color="gray.700">
                 {(shift.requestedTimes?.length ?? 0) > 0
-                  ? `希望: ${shift.requestedTimes?.map((request) => `${request.start} - ${request.end}`).join(" / ")}`
+                  ? `希望: ${shift.requestedTimes?.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
                   : shift.requestedTime
-                    ? `希望: ${shift.requestedTime.start} - ${shift.requestedTime.end}`
+                    ? `希望: ${formatShiftClockTimeRange(shift.requestedTime.start, shift.requestedTime.end)}`
                     : "希望: なし"}
               </Text>
               {!isStaffSubmitted && (
@@ -114,7 +114,7 @@ export const ShiftPopover = ({
             {visibleSegments.map((pos) => (
               <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
                 <Text fontSize="sm" color="gray.700">
-                  {pos.start}-{pos.end}
+                  {formatShiftClockTimeRange(pos.start, pos.end)}
                 </Text>
                 {!isReadOnly && (
                   <IconButton
