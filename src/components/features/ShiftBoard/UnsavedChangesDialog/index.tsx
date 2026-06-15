@@ -31,13 +31,15 @@ export const UnsavedChangesDialog = ({
           保存しない
         </Button>
         <Button colorPalette="teal" onClick={onSaveAndLeave} loading={isSaving}>
-          保存して離れる
+          保存する
         </Button>
       </>
     }
   >
     <Text fontSize="sm" lineHeight="tall">
       このまま戻ると、シフトの変更内容は失われます。
+      <br />
+      これまでの編集内容を保存しますか？
     </Text>
   </Dialog>
 );
