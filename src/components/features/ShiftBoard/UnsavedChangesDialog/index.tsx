@@ -28,10 +28,10 @@ export const UnsavedChangesDialog = ({
     footer={
       <>
         <Button variant="outline" onClick={onLeaveWithoutSaving} disabled={isSaving}>
-          保存せず離脱
+          保存しない
         </Button>
         <Button colorPalette="teal" onClick={onSaveAndLeave} loading={isSaving}>
-          保存して離脱
+          保存して離れる
         </Button>
       </>
     }

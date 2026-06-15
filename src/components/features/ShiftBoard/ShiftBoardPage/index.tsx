@@ -434,7 +434,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   }, [buildSaveAssignments]);
 
   // 離脱時（アプリ内の戻る・ブラウザバック）に未保存の変更があれば確認ダイアログを表示し、
-  // 「保存して離脱」「保存せず離脱」を選ばせる。ダイアログを閉じた場合はその場に留まる
+  // 「保存して離れる」「保存しない」を選ばせる。ダイアログを閉じた場合はその場に留まる
   const blocker = useBlocker({
     shouldBlockFn: () => hasUnsavedChanges(),
     enableBeforeUnload: () => hasUnsavedChanges(),
