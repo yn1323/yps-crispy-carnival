@@ -146,10 +146,19 @@ jobs:
       - name: Deploy VRT report to GitHub Pages
         if: ${{ !cancelled() && hashFiles('vrt-work/reg/index.html') != '' }}
         run: |
-          rm -rf "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
-          mkdir -p "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}"
-          cp -R vrt-work/reg/. "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/"
-          echo "${{ github.run_id }}-${{ github.run_attempt }}" > "hosting-pages/${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}/deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
+          REPORT_DIR="${{ env.VRT_REPORT_DIR }}"
+          REPORT_KEY="${{ needs.prepare.outputs.report_key }}"
+          LOCAL_REPORT_DIR="vrt-work/reg"
+          if [ "${{ needs.prepare.outputs.pull_number }}" != "" ]; then
+            REPORT_COMMIT_MESSAGE="VRT report for PR #${{ needs.prepare.outputs.pull_number }}"
+          else
+            REPORT_COMMIT_MESSAGE="VRT report for ${{ github.ref_name }}"
+          fi
+
+          rm -rf "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
+          mkdir -p "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
+          cp -R "${LOCAL_REPORT_DIR}/." "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/"
+          echo "${{ github.run_id }}-${{ github.run_attempt }}" > "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
 
           if [ "${{ needs.prepare.outputs.should_update_baseline }}" = "true" ]; then
             rm -rf "hosting-pages/${{ env.VRT_BASELINE_DIR }}/${{ github.ref_name }}"
@@ -161,9 +170,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "VRT report for ${{ github.ref_name }}" || exit 0
+          git commit -m "${REPORT_COMMIT_MESSAGE}" || exit 0
           git pull --rebase
-          git push
+          git push origin HEAD:main
       - name: Build VRT comment
         if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-work/reg/index.html') != '' }}
         run: |
@@ -172,36 +181,53 @@ jobs:
             const reportUrl = '${{ needs.prepare.outputs.report_url }}';
             const baselineFound = '${{ steps.baseline.outputs.found }}' === 'true';
             const compareResult = baselineFound ? '${{ steps.regsuit.outcome }}' : 'success';
-            const statusEmoji = compareResult === 'success' ? '✅' : '❌';
-            const statusText = baselineFound ? (compareResult === 'success' ? '成功' : '失敗') : 'baseline未作成';
+            const statusText = baselineFound ? (compareResult === 'success' ? 'Passed' : 'Failed') : 'No baseline';
 
-            let summary = '';
+            let changedCount = 'unknown';
+            let newCount = 'unknown';
+            let deletedCount = 'unknown';
+            let passedCount = 'unknown';
             try {
               const json = JSON.parse(fs.readFileSync('vrt-work/reg/out.json', 'utf8'));
               const items = json.failedItems || json.changedItems || json.items || [];
               const newItems = json.newItems || [];
               const deletedItems = json.deletedItems || [];
               const passedItems = json.passedItems || [];
-              summary = [
-                '| 🔴 Changed | ⚪ New | 🗑️ Deleted | 🟢 Passed |',
-                '|---:|---:|---:|---:|',
-                `| ${items.length} | ${newItems.length} | ${deletedItems.length} | ${passedItems.length} |`,
-              ].join('\n');
+              changedCount = String(items.length);
+              newCount = String(newItems.length);
+              deletedCount = String(deletedItems.length);
+              passedCount = String(passedItems.length);
             } catch (error) {
-              summary = 'RegSuit result JSON の読み込みに失敗しました';
+              console.warn('RegSuit result JSON の読み込みに失敗しました', error);
             }
 
             const actionsUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
             const hasDiff = compareResult !== 'success' && baselineFound;
-            const approvalNote = hasDiff
-              ? `\n\n> 🔍 差分を確認してOKであれば、[こちら](${actionsUrl}) の「Review deployments」→「Approve and deploy」をクリックしてください。`
-              : '';
+            const buildBody = (reportCell) => {
+              const actionRows = [
+                `| 差分確認 | ${reportCell} |`,
+                ...(hasDiff ? [`| 承認 | [承認ワークフローを開く](${actionsUrl}) |`] : []),
+              ].join('\n');
 
-            const buildBody = (reportLine) =>
-              `## 🖼 VRT Report\n\n${statusEmoji} **比較結果: ${statusText}**\n\n${summary}\n\n${reportLine}${approvalNote}\n\nデプロイ先: https://github.com/yn1323/hosting-pages\n`;
+              return [
+                '## VRT Report',
+                '',
+                `Status: ${statusText}`,
+                `差分: Changed ${changedCount} / New ${newCount} / Deleted ${deletedCount}`,
+                `Passed: ${passedCount}`,
+                '',
+                '| Action | Link |',
+                '|---|---|',
+                actionRows,
+                '',
+                'Details:',
+                'デプロイ先: yn1323/hosting-pages:main',
+                '',
+              ].join('\n');
+            };
 
-            fs.writeFileSync('vrt-comment-pending.md', buildBody('🚀 レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
-            fs.writeFileSync('vrt-comment-final.md', buildBody(`[View Report](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
+            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
+            fs.writeFileSync('vrt-comment-final.md', buildBody(`[差分レポートを見る](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
           NODE
       - name: Comment PR with VRT report (deploying)
         if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
