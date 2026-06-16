@@ -6,6 +6,7 @@ import { SubmitFormView } from "./index";
 const meta = {
   title: "features/StaffSubmit/SubmitFormView",
   component: SubmitFormView,
+  tags: ["vrt-mobile2"],
   parameters: {
     layout: "fullscreen",
   },

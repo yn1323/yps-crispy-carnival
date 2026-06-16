@@ -141,6 +141,7 @@ const describeElement = (element: Element | null) => {
 export const PC: Story = {};
 
 export const SP: Story = {
+  tags: ["vrt-mobile2"],
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },

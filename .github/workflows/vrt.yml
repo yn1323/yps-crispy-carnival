@@ -227,7 +227,7 @@ jobs:
               ].join('\n');
             };
 
-            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…（完了後、このコメントにリンクが追加されます）'));
+            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…'));
             fs.writeFileSync('vrt-comment-final.md', buildBody(`[差分レポートを見る](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
           NODE
       - name: Delete previous VRT report comments

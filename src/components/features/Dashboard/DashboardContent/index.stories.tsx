@@ -2,7 +2,7 @@ import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
-import { mockRecruitments, mockStaffs } from "../storyMocks";
+import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../storyMocks";
 import type { Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { DashboardContent, DashboardContentSkeleton } from "./index";
 
@@ -62,11 +62,13 @@ const pendingStaffRequests = [
 const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
     _id: "rec-onboarding",
+    createdAt: 1_781_160_800_000,
     periodStart: "2026-06-01",
     periodEnd: "2026-06-07",
     deadline: "2026-05-28",
     shopClosedDates: [],
     status: "open",
+    confirmedAt: null,
     responseCount: 0,
     totalStaffCount: 1,
     ...overrides,
@@ -109,6 +111,7 @@ export const Normal: Story = {
     shop,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: mockRecruitments,
+    currentRecruitments: mockCurrentRecruitments,
     recruitmentStatus: "CanLoadMore",
     canLoadMoreRecruitments: true,
     loadMoreRecruitments: noop,
@@ -148,6 +151,7 @@ export const Empty: Story = {
     shop,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: [],
+    currentRecruitments: [],
     recruitmentStatus: "Exhausted",
     canLoadMoreRecruitments: false,
     loadMoreRecruitments: noop,
@@ -199,6 +203,7 @@ export const OnboardingBeforeRecruitment: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
+    currentRecruitments: [],
     staffs: managerOnly,
   },
   play: onboardingPlay("1/4 募集作成前", "1/4"),
@@ -208,6 +213,7 @@ export const OnboardingAfterRecruitmentCreated: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [onboardingRecruitment()],
+    currentRecruitments: [],
     staffs: managerOnly,
   },
   play: onboardingPlay("2/4 募集作成後", "2/4"),
@@ -217,6 +223,7 @@ export const OnboardingAfterSubmission: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [onboardingRecruitment({ responseCount: 1 })],
+    currentRecruitments: [],
     staffs: managerOnly,
   },
   play: onboardingPlay("3/4 提出後", "3/4"),
@@ -226,6 +233,7 @@ export const OnboardingAfterShiftConfirmed: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
+    currentRecruitments: [],
     staffs: managerOnly,
   },
   play: onboardingPlay("4/4 シフト確認後", "4/4"),
@@ -235,6 +243,7 @@ export const OnboardingStaffAdded: Story = {
   args: {
     ...dashboardBaseArgs,
     recruitments: [onboardingRecruitment({ status: "confirmed", responseCount: 1 })],
+    currentRecruitments: [],
     staffs: managerAndStaff,
   },
   play: onboardingPlay("4/4 スタッフ追加済み", "4/4"),
@@ -284,6 +293,7 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
       <DashboardContent
         {...dashboardBaseArgs}
         recruitments={[]}
+        currentRecruitments={[]}
         staffs={managerOnly}
         pendingStaffRequests={pendingStaffRequests}
       />
@@ -318,6 +328,7 @@ export const Setup: Story = {
   args: {
     shop: null,
     recruitments: [],
+    currentRecruitments: [],
     recruitmentStatus: "Exhausted",
     canLoadMoreRecruitments: false,
     loadMoreRecruitments: noop,

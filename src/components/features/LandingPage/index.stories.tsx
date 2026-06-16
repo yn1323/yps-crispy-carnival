@@ -12,10 +12,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Desktop: Story = {};
+export const Desktop: Story = {
+  parameters: {
+    vrt: { releaseFixedHeader: true },
+  },
+};
 
 export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
   globals: {
     viewport: { value: "mobile2", isRotated: false },
+  },
+  parameters: {
+    vrt: { releaseFixedHeader: true },
   },
 };

@@ -33,11 +33,13 @@ const id = (s: string) => s as unknown as Id<"recruitments">;
 
 const make = (over: Partial<Recruitment>): Recruitment => ({
   _id: id("base"),
+  createdAt: Date.now(),
   periodStart: "2026-05-01",
   periodEnd: "2026-05-07",
   deadline: inDays(7),
   shopClosedDates: [],
   status: "open",
+  confirmedAt: null,
   responseCount: 5,
   totalStaffCount: 10,
   ...over,

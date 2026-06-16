@@ -5,6 +5,7 @@ import { ShiftDetailSheet } from "./ShiftDetailSheet";
 const meta = {
   title: "Features/Shift/ShiftForm/Time/SP/Sheets/Shift Detail Sheet",
   component: ShiftDetailSheet,
+  tags: ["vrt-mobile2"],
   parameters: {
     layout: "fullscreen",
   },

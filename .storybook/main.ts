@@ -20,7 +20,6 @@ const config: StorybookConfig = {
   typescript: {
     reactDocgen: process.env.NODE_ENV === "development" ? "react-docgen" : "react-docgen-typescript",
   },
-  staticDirs: ["../public"],
   viteFinal: async (config) => {
     config.define = {
       ...config.define,
