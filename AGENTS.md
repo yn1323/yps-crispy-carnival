@@ -201,6 +201,7 @@ import { bar } from "@/convex/...";
 - ボタン等の細かいUI部品のみ、Variants Storyで1つのStoryに集約してOK。
   操作用のStoryが必要なら、Interactive Storyを別途作成すること。（小さいコンポーネントのみ）
 - Behavior Test は VRT と目的が異なる。追加時は、VRTで撮るのか、`chromatic.disableSnapshot` で撮らないのかを必ず決めること
+- `position: fixed` のHeaderを含む縦長ページをfull-page VRTで撮る場合は、Storyの `parameters.vrt.releaseFixedHeader = true` を必ず設定すること。未設定だとstorycapの分割撮影でHeaderが繰り返し写る。
 
 ## コーディング
 

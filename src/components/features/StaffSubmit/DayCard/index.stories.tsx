@@ -91,6 +91,7 @@ const InteractiveDemo = () => {
 const meta = {
   title: "features/StaffSubmit/DayCard",
   component: DayCard,
+  tags: ["vrt-mobile2"],
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },

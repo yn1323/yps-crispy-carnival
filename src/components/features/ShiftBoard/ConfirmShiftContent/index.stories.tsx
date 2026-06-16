@@ -90,6 +90,7 @@ export const ModalWithWarnings: Story = {
 
 export const SPModalWithWarnings: Story = {
   name: "SP Modal With Warnings",
+  tags: ["vrt-mobile2"],
   args: {
     ...baseArgs,
     warnings,

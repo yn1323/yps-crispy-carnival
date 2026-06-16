@@ -4,6 +4,7 @@ import { SubmitUnavailableView } from "./index";
 const meta = {
   title: "features/StaffSubmit/SubmitUnavailableView",
   component: SubmitUnavailableView,
+  tags: ["vrt-mobile2"],
   parameters: {
     layout: "fullscreen",
   },

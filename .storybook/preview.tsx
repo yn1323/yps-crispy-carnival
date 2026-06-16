@@ -17,6 +17,32 @@ const preview: Preview = {
         date: /Date$/i,
       },
     },
+    viewport: {
+      defaultViewport: "desktop",
+      options: {
+        desktop: {
+          name: "Desktop",
+          styles: {
+            width: "1280px",
+            height: "720px",
+          },
+        },
+        mobile1: {
+          name: "Mobile Small",
+          styles: {
+            width: "320px",
+            height: "568px",
+          },
+        },
+        mobile2: {
+          name: "Mobile Large",
+          styles: {
+            width: "414px",
+            height: "896px",
+          },
+        },
+      },
+    },
   },
   decorators: [
     (Story) => {

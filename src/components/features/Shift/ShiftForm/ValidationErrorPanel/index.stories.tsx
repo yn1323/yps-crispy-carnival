@@ -100,6 +100,7 @@ export const WithoutDismiss: Story = {
 };
 
 export const SPCompact: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     ...baseArgs,
     compact: true,
@@ -110,6 +111,7 @@ export const SPCompact: Story = {
 };
 
 export const SPCompactExpanded: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     ...baseArgs,
     compact: true,

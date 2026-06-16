@@ -7,19 +7,10 @@ type ViewportSize = {
   height: number;
 };
 
-const MOBILE_VIEWPORTS = {
-  mobile1: { width: 320, height: 568 },
-  mobile2: { width: 414, height: 896 },
-} satisfies Record<string, ViewportSize>;
-const DESKTOP_VIEWPORT = {
-  width: 1280,
-  height: 720,
-} satisfies ViewportSize;
-
-// 1枚撮りの上限。Chromiumのキャプチャ限界(16384px)とレポートサイズへの配慮
-const MAX_CAPTURE_HEIGHT = 8000;
+declare const __VRT_VIEWPORT__: ViewportSize;
 
 const FREEZE_STYLE_ID = "vrt-freeze-animations";
+const RELEASE_FIXED_HEADER_STYLE_ID = "vrt-release-fixed-header";
 
 // play実行中〜安定性チェック中も画面を静止させる
 // （animation: none だとfade-in系が初期状態のまま固まるため、duration≒0 + 1回再生にする）
@@ -41,75 +32,48 @@ function freezeAnimations() {
   document.head.appendChild(style);
 }
 
-function measureContentHeight() {
-  return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-}
-
-function getVitestIframeWrapper() {
-  return window.parent.document.querySelector("iframe[data-vitest]")?.parentElement ?? null;
-}
-
-function setIframeViewport(viewport: ViewportSize) {
-  const wrapper = getVitestIframeWrapper();
-  if (!wrapper) return;
-  wrapper.style.width = `${viewport.width}px`;
-  wrapper.style.height = `${viewport.height}px`;
-  wrapper.style.transform = "none";
-  wrapper.style.transformOrigin = "left top";
-}
-
-function fixedIframeViewport(viewport: ViewportSize): BrowserScreenshotHook {
+function releaseFixedHeaderForFullPage(): BrowserScreenshotHook {
   return {
     async setup() {
-      setIframeViewport(viewport);
+      applyReleaseFixedHeaderStyle();
     },
     async preCapture() {
-      setIframeViewport(viewport);
+      applyReleaseFixedHeaderStyle();
+    },
+    async postCapture() {
+      document.getElementById(RELEASE_FIXED_HEADER_STYLE_ID)?.remove();
     },
   };
 }
 
-// コンテンツがビューポートより高いStoryを fullPage: true で撮ると、
-// スクロールしながら分割撮影→Canvas結合（スティッチ）が走り、チャンク間のズレで
-// 画像がちぎれる。代わりにStoryを描画しているiframeのラッパーをコンテンツの
-// 高さまで広げ、スクロール不要の状態にして1枚で撮る
-function expandViewportToContent(viewport: ViewportSize): BrowserScreenshotHook {
-  return {
-    async preCapture() {
-      const wrapper = getVitestIframeWrapper();
-      if (!wrapper) return;
-      // dvh基準の要素は拡張後に再レイアウトされるため、高さが安定するまで再測定する
-      for (let i = 0; i < 3; i++) {
-        const target = Math.min(Math.max(measureContentHeight(), viewport.height), MAX_CAPTURE_HEIGHT);
-        if (wrapper.getBoundingClientRect().height >= target) break;
-        wrapper.style.height = `${target}px`;
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      }
-    },
-  };
+function applyReleaseFixedHeaderStyle() {
+  if (document.getElementById(RELEASE_FIXED_HEADER_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = RELEASE_FIXED_HEADER_STYLE_ID;
+  style.textContent = `
+    header {
+      position: absolute !important;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
-beforeEach(async (context) => {
-  const viewport = getStoryViewport(context);
-  await page.viewport(viewport.width, viewport.height);
+beforeEach(async () => {
+  await page.viewport(__VRT_VIEWPORT__.width, __VRT_VIEWPORT__.height);
   freezeAnimations();
 });
 
 afterEach(async (context) => {
   applyLegacySnapshotSkip(context);
-  const captureViewport = getStoryViewport(context);
-  const needsExpansion = measureContentHeight() > captureViewport.height;
-  const hooks = [
-    fixedIframeViewport(captureViewport),
-    ...(needsExpansion ? [expandViewportToContent(captureViewport)] : []),
-  ];
+  const story = getStoryContext(context);
+  const hooks = story?.parameters?.vrt?.releaseFixedHeader === true ? [releaseFixedHeaderForFullPage()] : [];
 
   await screenshot(page, context, {
-    // 縦長Storyは fullPage: false + iframe拡張で1枚撮り（スティッチ回避）。
-    // ビューポート内に収まるStoryは従来どおりbody要素のキャプチャ
-    fullPage: !needsExpansion,
-    scale: "css",
     hooks,
+    image: {
+      fullPage: true,
+      scale: "css",
+    },
     flakiness: {
       retake: {
         enabled: true,
@@ -148,10 +112,9 @@ type MutableStoryContext = {
     screenshot?: {
       skip?: boolean;
     };
-    viewport?: StorybookViewportSetting;
-  };
-  globals?: {
-    viewport?: StorybookViewportSetting;
+    vrt?: {
+      releaseFixedHeader?: boolean;
+    };
   };
 };
 
@@ -161,60 +124,6 @@ function getMutableStoryContext(context: unknown): MutableStoryContext | null {
   const parameters = story.parameters;
   if (!parameters || typeof parameters !== "object") return null;
   return story;
-}
-
-type StorybookViewportSetting =
-  | string
-  | {
-      value?: unknown;
-      isRotated?: unknown;
-    };
-
-function getStoryViewport(context: unknown): ViewportSize {
-  const story = getStoryContext(context);
-  const viewportSettings = [story?.globals?.viewport, story?.parameters?.viewport];
-
-  for (const setting of viewportSettings) {
-    const viewport = resolveStoryViewport(setting);
-    if (viewport) return viewport;
-  }
-
-  return DESKTOP_VIEWPORT;
-}
-
-function resolveStoryViewport(setting: StorybookViewportSetting | undefined): ViewportSize | null {
-  const viewport = normalizeViewportSetting(setting);
-  if (!viewport) return null;
-  if (viewport.value === "desktop") return DESKTOP_VIEWPORT;
-  if (!isMobileViewportName(viewport.value)) return null;
-
-  const size = MOBILE_VIEWPORTS[viewport.value];
-  if (!viewport.isRotated) return size;
-
-  return {
-    width: size.height,
-    height: size.width,
-  };
-}
-
-function normalizeViewportSetting(
-  setting: StorybookViewportSetting | undefined,
-): { value: string; isRotated: boolean } | null {
-  if (typeof setting === "string") {
-    return { value: setting, isRotated: false };
-  }
-  if (!setting || typeof setting !== "object" || typeof setting.value !== "string") {
-    return null;
-  }
-
-  return {
-    value: setting.value,
-    isRotated: setting.isRotated === true,
-  };
-}
-
-function isMobileViewportName(value: string): value is keyof typeof MOBILE_VIEWPORTS {
-  return Object.hasOwn(MOBILE_VIEWPORTS, value);
 }
 
 function getStoryContext(context: unknown): MutableStoryContext | null {

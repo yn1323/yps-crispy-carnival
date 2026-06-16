@@ -12,6 +12,7 @@ import {
 const meta = {
   title: "Features/Shift/ShiftForm/Date Only/SP",
   component: ShiftForm,
+  tags: ["vrt-mobile2"],
   parameters: fullscreenParameters,
   decorators: shiftFormDecorators,
 } satisfies Meta<typeof ShiftForm>;
