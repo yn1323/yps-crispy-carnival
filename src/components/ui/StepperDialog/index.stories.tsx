@@ -147,6 +147,7 @@ export const ConfirmStep: Story = {
 };
 
 export const MobileFullScreen: Story = {
+  tags: ["vrt-mobile1"],
   globals: {
     viewport: { value: "mobile1", isRotated: false },
   },

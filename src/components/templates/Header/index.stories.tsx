@@ -61,6 +61,7 @@ export const Staff: Story = {
 };
 
 export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
   args: {
     variant: "public",
   },

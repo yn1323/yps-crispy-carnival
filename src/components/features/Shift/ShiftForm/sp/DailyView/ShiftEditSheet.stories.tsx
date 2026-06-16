@@ -5,6 +5,7 @@ import { ShiftEditSheet } from "./ShiftEditSheet";
 const meta = {
   title: "Features/Shift/ShiftForm/Time/SP/Sheets/Shift Edit Sheet",
   component: ShiftEditSheet,
+  tags: ["vrt-mobile2"],
   parameters: {
     layout: "fullscreen",
   },

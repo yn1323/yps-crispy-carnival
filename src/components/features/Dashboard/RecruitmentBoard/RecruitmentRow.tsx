@@ -11,6 +11,7 @@ import { formatDateShort } from "@/src/domains/shift/date";
 
 type Props = {
   recruitment: Recruitment;
+  isCurrentSection?: boolean;
   dataTour?: string;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
@@ -18,29 +19,52 @@ type Props = {
 
 const statusConfig: Record<
   RecruitmentDisplayStatus,
-  { label: string; colorPalette: "teal" | "orange" | "gray"; accent: string }
+  {
+    label: string;
+    colorPalette: "green" | "orange" | "blue" | "gray";
+    accent: string;
+    borderColor?: string;
+    bg?: string;
+  }
 > = {
-  collecting: { label: "募集中", colorPalette: "teal", accent: "teal.400" },
+  collecting: { label: "募集中", colorPalette: "green", accent: "green.400" },
   "past-deadline": { label: "締切済み", colorPalette: "orange", accent: "orange.400" },
-  confirmed: { label: "確定済み", colorPalette: "gray", accent: "gray.400" },
+  current: {
+    label: "確定済み",
+    colorPalette: "blue",
+    accent: "blue.400",
+    borderColor: "blue.200",
+    bg: "blue.50/30",
+  },
+  confirmed: { label: "確定済み", colorPalette: "blue", accent: "blue.300" },
+  ended: { label: "確定済み", colorPalette: "gray", accent: "gray.300" },
 };
 
-export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDeleteRecruitment }: Props) {
-  const { _id, periodStart, periodEnd, deadline, responseCount, totalStaffCount } = recruitment;
+export function RecruitmentRow({
+  recruitment,
+  isCurrentSection = false,
+  dataTour,
+  onOpenShiftBoard,
+  onDeleteRecruitment,
+}: Props) {
+  const { _id, periodStart, periodEnd, deadline, status, confirmedAt, responseCount, totalStaffCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
-  const { label, colorPalette, accent } = statusConfig[displayStatus];
-  const relativeText = relativeDeadline(deadline, displayStatus);
+  const { colorPalette, accent, borderColor, bg } = statusConfig[displayStatus];
+  const label = displayStatus === "ended" && status === "open" ? "締切済み" : statusConfig[displayStatus].label;
+  const relativeText = relativeDeadline({ deadline, confirmedAt, displayStatus, recruitmentStatus: status });
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
+  const isCurrent = displayStatus === "current" || isCurrentSection;
+  const textColor = displayStatus === "ended" ? "gray.700" : "gray.900";
 
   return (
     <Flex
       data-tour={dataTour}
       align="stretch"
-      bg="white"
+      bg={bg ?? "white"}
       borderRadius="xl"
       overflow="hidden"
       borderWidth="1px"
-      borderColor="blackAlpha.50"
+      borderColor={borderColor ?? "blackAlpha.50"}
       boxShadow="xs"
       textAlign="left"
       w="full"
@@ -69,17 +93,17 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
           gap={{ base: 2, lg: 4 }}
         >
           <Flex align="center" gap={3} flexShrink={0} minW={{ lg: "140px" }}>
-            <Text fontSize="md" fontWeight="semibold" color="gray.900" lineHeight="short" whiteSpace="nowrap">
+            <Text fontSize="md" fontWeight="semibold" color={textColor} lineHeight="short" whiteSpace="nowrap">
               {periodLabel}
             </Text>
           </Flex>
 
           <HStack gap={{ base: 2, lg: 5 }} flex={1} minW={0} wrap={{ base: "wrap", lg: "nowrap" }}>
-            <Box minW={{ lg: "84px" }} flexShrink={0}>
+            <HStack minW={{ lg: isCurrent ? "132px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
               <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
                 {label}
               </Badge>
-            </Box>
+            </HStack>
             <HStack gap={1} color="fg.muted" fontSize="xs" minW={{ lg: "160px" }} flexShrink={0}>
               <LuCalendarClock />
               <Text whiteSpace="nowrap">{relativeText}</Text>
@@ -118,9 +142,22 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
   );
 }
 
-function relativeDeadline(deadline: string, status: RecruitmentDisplayStatus): string {
-  if (status === "confirmed") return `${formatDateShort(deadline)} 確定済み`;
-  if (status === "past-deadline") return `${formatDateShort(deadline)} 締切済み`;
+function relativeDeadline({
+  deadline,
+  confirmedAt,
+  displayStatus,
+  recruitmentStatus,
+}: {
+  deadline: string;
+  confirmedAt: number | null;
+  displayStatus: RecruitmentDisplayStatus;
+  recruitmentStatus: Recruitment["status"];
+}): string {
+  if (displayStatus === "ended" && recruitmentStatus === "open") return `${formatDateShort(deadline)} 締切済み`;
+  if (displayStatus === "current" || displayStatus === "confirmed" || displayStatus === "ended") {
+    return confirmedAt ? `確定 ${formatDateShort(dayjs(confirmedAt).format("YYYY-MM-DD"))}` : "確定済み";
+  }
+  if (displayStatus === "past-deadline") return `${formatDateShort(deadline)} 締切済み`;
   const days = dayjs(deadline).startOf("day").diff(dayjs().startOf("day"), "day");
   if (days === 0) return "今日が締切！";
   return `締切まで${days}日`;

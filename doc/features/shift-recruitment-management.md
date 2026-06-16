@@ -16,7 +16,7 @@
 
 | 画面 | 概要 |
 |---|---|
-| `/dashboard` | 募集一覧、募集作成、募集削除の入口 |
+| `/dashboard` | 今やること、現在のシフト、シフト募集一覧、募集作成、募集削除の入口 |
 | `/shiftboard/$recruitmentId` | 募集期間のシフト表確認・下書き保存・確定 |
 
 ## API一覧
@@ -25,7 +25,8 @@
 |---|---|---|
 | `api.recruitment.mutations.createRecruitment` | mutation | シフト募集を作成し、募集通知と提出締切日前日17:00の自動催促を予約する |
 | `api.recruitment.mutations.deleteRecruitment` | mutation | シフト募集を論理削除し、管理画面・スタッフ向け導線から失効させる |
-| `api.dashboard.queries.getDashboardRecruitments` | query | ダッシュボード用の募集一覧と提出人数/現在の有効スタッフ数を取得する。削除済み募集は返さない |
+| `api.dashboard.queries.getDashboardRecruitments` | query | ダッシュボード用の募集一覧と提出人数/現在の有効スタッフ数を取得する。削除済み募集は返さず、シフト開始日の新しい順に返す |
+| `api.dashboard.queries.getDashboardCurrentRecruitments` | query | 現在日付がシフト期間内に含まれる確定済みシフトを取得する |
 | `api.shiftBoard.queries.getShiftBoardData` | query | シフト表画面のデータを取得する。削除済み募集は `null` を返す |
 | `api.shiftBoard.mutations.saveShiftAssignments` | mutation | シフト表の下書き割当を保存する |
 
@@ -33,6 +34,8 @@
 
 - 募集削除は `recruitments.isDeleted` による論理削除。提出・割当・統計・リンク・セッションの関連データは物理削除しない。
 - 削除済み募集はダッシュボード一覧に表示しない。
+- ダッシュボードでは「今やること」の下に、確定済みかつ今日がシフト期間内の募集を「現在のシフト」として表示する。現在のシフトは終了日が近い順で、下のシフト募集一覧には重複表示しない。
+- シフト募集一覧はシフト開始日の降順、同じ開始日では作成日時の降順で表示する。状態色は、募集中を緑、締切済み未確定をオレンジ、現在または未来の確定済みを青系、終了済みを灰色にする。
 - 削除済み募集のスタッフ向け提出リンク・閲覧リンク・再発行導線・通知用データ取得は失効扱いにする。
 - 募集開始通知、スタッフ追加通知、LINE連携時通知、自動催促は同じ submit マジックリンクを再利用する。自動催促は作成時に未来の予定時刻だけ予約し、既存 open 募集へのバックフィルはしない。
 - 未提出者バーは open 募集かつ未提出者がいる場合だけ表示し、手動送信は置かない。予約済み、送信済み、予約なしの状態文言のみ表示する。

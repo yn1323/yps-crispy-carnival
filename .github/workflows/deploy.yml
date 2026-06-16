@@ -21,6 +21,29 @@ jobs:
       CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-deploy
     steps:
       - uses: actions/checkout@v6
+      - name: Delete previous Preview Deploy comments
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = '## 🚀 Preview Deploy';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
       - name: Setup
         uses: ./.github/actions/setup
       - name: Deploy Convex Preview
@@ -68,27 +91,13 @@ jobs:
             const deployUrl = '${{ steps.deploy.outputs.DEPLOY_URL }}';
             const convexUrl = '${{ steps.convex.outputs.PREVIEW_URL }}';
             const marker = '## 🚀 Preview Deploy';
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
 
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner,
+              repo,
+              issue_number,
               body: `${marker}\n\n**App:** ${deployUrl}\n**Convex:** ${convexUrl}`
             });
 
