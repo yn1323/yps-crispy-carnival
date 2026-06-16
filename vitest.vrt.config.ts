@@ -9,10 +9,6 @@ import { defineConfig, defineProject } from "vitest/config";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
-const vrtViewport = {
-  width: 1920,
-  height: 1080,
-} as const;
 
 const vrtProject = defineConfig({
   plugins: [
@@ -28,9 +24,8 @@ const vrtProject = defineConfig({
     storycap({
       output: {
         dir: path.join(dirname, "vrt-actual"),
-        file: "[id]--1920x1080.png",
+        file: "[id].png",
       },
-      viewport: vrtViewport,
     }),
   ],
   define: {
