@@ -5,6 +5,7 @@ import { ShiftSubmitPage } from "./index";
 const meta = {
   title: "features/StaffSubmit/ShiftSubmitPage",
   component: ShiftSubmitPage,
+  tags: ["vrt-mobile2"],
   parameters: {
     layout: "fullscreen",
   },

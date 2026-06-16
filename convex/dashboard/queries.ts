@@ -2,9 +2,10 @@ import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
+import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery } from "../_lib/functions";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
-import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
+import { DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT, DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
 // shop未登録のsetup中に paginated query が走ってもエラーログを出さないための空結果
@@ -28,6 +29,45 @@ async function getManagerShop(ctx: {
   if (!membership) return null;
   const shop = await ctx.db.get(membership.shopId);
   return shop && !shop.isDeleted ? shop : null;
+}
+
+async function getTotalStaffCount(ctx: { db: GenericDatabaseReader<DataModel> }, shopId: Doc<"shops">["_id"]) {
+  const activeStaffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+    .collect();
+  return activeStaffs.length;
+}
+
+async function toDashboardRecruitment(
+  ctx: { db: GenericDatabaseReader<DataModel> },
+  recruitment: Doc<"recruitments">,
+  totalStaffCount: number,
+) {
+  // 回答数は shiftSubmissions を正とする。
+  // 全日休み提出では明細が0件になるため、提出記録を数えないと未提出扱いになってしまう。
+  const stats = await ctx.db
+    .query("recruitmentStats")
+    .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+    .first();
+  const submissions = stats
+    ? []
+    : await ctx.db
+        .query("shiftSubmissions")
+        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+        .take(DASHBOARD_RESPONSE_COUNT_LIMIT);
+  return {
+    _id: recruitment._id,
+    createdAt: recruitment._creationTime,
+    periodStart: recruitment.periodStart,
+    periodEnd: recruitment.periodEnd,
+    deadline: recruitment.deadline,
+    shopClosedDates: recruitment.shopClosedDates ?? [],
+    status: recruitment.status,
+    confirmedAt: recruitment.confirmedAt ?? null,
+    responseCount: stats?.submittedCount ?? submissions.length,
+    totalStaffCount,
+  };
 }
 
 export const getDashboardShop = authenticatedQuery({
@@ -56,46 +96,45 @@ export const getDashboardRecruitments = authenticatedQuery({
 
     const paginatedResult = await ctx.db
       .query("recruitments")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .withIndex("by_shopId_and_isDeleted_and_periodStart", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
       .order("desc")
       .paginate(args.paginationOpts);
-    const activeStaffs = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-      .collect();
-    const totalStaffCount = activeStaffs.length;
+    const totalStaffCount = await getTotalStaffCount(ctx, shop._id);
 
     const page = await Promise.all(
-      paginatedResult.page.map(async (r) => {
-        // 回答数は shiftSubmissions を正とする。
-        // 全日休み提出では明細が0件になるため、提出記録を数えないと未提出扱いになってしまう。
-        const stats = await ctx.db
-          .query("recruitmentStats")
-          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))
-          .first();
-        const submissions = stats
-          ? []
-          : await ctx.db
-              .query("shiftSubmissions")
-              .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", r._id))
-              .take(DASHBOARD_RESPONSE_COUNT_LIMIT);
-        return {
-          _id: r._id,
-          periodStart: r.periodStart,
-          periodEnd: r.periodEnd,
-          deadline: r.deadline,
-          shopClosedDates: r.shopClosedDates ?? [],
-          status: r.status,
-          responseCount: stats?.submittedCount ?? submissions.length,
-          totalStaffCount,
-        };
-      }),
+      paginatedResult.page.map(async (recruitment) => toDashboardRecruitment(ctx, recruitment, totalStaffCount)),
     );
 
     return {
       ...paginatedResult,
       page,
     };
+  },
+});
+
+export const getDashboardCurrentRecruitments = authenticatedQuery({
+  args: {},
+  handler: async (ctx) => {
+    if (!ctx.identity) throw new ConvexError("Unauthenticated");
+    const shop = await getManagerShop(ctx);
+    if (!shop) return [];
+
+    const today = todayJST();
+    const candidates = await ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
+        q.eq("shopId", shop._id).eq("isDeleted", false).eq("status", "confirmed").lte("periodStart", today),
+      )
+      .order("desc")
+      .take(DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT);
+    const currentRecruitments = candidates
+      .filter((recruitment) => recruitment.periodEnd >= today)
+      .sort((a, b) => a.periodEnd.localeCompare(b.periodEnd) || b._creationTime - a._creationTime);
+    const totalStaffCount = await getTotalStaffCount(ctx, shop._id);
+
+    return await Promise.all(
+      currentRecruitments.map(async (recruitment) => toDashboardRecruitment(ctx, recruitment, totalStaffCount)),
+    );
   },
 });
 

@@ -321,7 +321,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       // initialShifts（参照一致）を受け取って初めてユーザー編集を検知できる状態になる
       if (shifts === baselineShiftsRef.current) {
         isFormInitializedRef.current = true;
-        setValidationWarnings(computeCurrentWarnings(shifts));
+        // 確定済みシフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
+        setValidationWarnings(isConfirmed ? [] : computeCurrentWarnings(shifts));
         if (!hasAttemptedConfirmRef.current) return;
       }
       if (hasAttemptedConfirmRef.current) {
@@ -332,13 +333,12 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         setValidationWarnings(computeCurrentWarnings(shifts));
       }
     },
-    [computeCurrentWarnings, revalidate],
+    [computeCurrentWarnings, isConfirmed, revalidate],
   );
 
   const dismissValidationIssues = useCallback(() => {
     hasAttemptedConfirmRef.current = false;
     setValidationIssues([]);
-    setValidationWarnings([]);
   }, []);
 
   const displayWarnings = useMemo(() => toDisplayIssues(validationWarnings, staffs), [validationWarnings, staffs]);
@@ -407,7 +407,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
       await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
-      // 確定済み。残っていた確認事項（バッジ・アイコン）は役目を終えたのでクリアする
+      // 確定後も直前に確認したwarningは残し、画面上の文脈が急に消えないようにする。
       dismissValidationIssues();
       confirmModal.close();
       toaster.create({ title: "確定しました", type: "success" });

@@ -5,6 +5,7 @@ import { ReadOnlySubmitView } from "./index";
 const meta = {
   title: "features/StaffSubmit/ReadOnlySubmitView",
   component: ReadOnlySubmitView,
+  tags: ["vrt-mobile2"],
   parameters: {
     layout: "fullscreen",
   },

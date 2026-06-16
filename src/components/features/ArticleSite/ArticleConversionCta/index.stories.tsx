@@ -36,6 +36,7 @@ export const Compact: Story = {
 };
 
 export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },

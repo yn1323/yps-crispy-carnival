@@ -1,6 +1,6 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockRecruitments } from "@/src/components/features/Dashboard/storyMocks";
+import { mockCurrentRecruitments, mockRecruitments } from "@/src/components/features/Dashboard/storyMocks";
 import { RecruitmentBoard, RecruitmentBoardSkeleton } from ".";
 
 const noop = () => {};
@@ -13,6 +13,7 @@ const meta = {
   },
   args: {
     recruitments: mockRecruitments,
+    currentRecruitments: mockCurrentRecruitments,
     status: "Exhausted",
     canLoadMore: false,
     onCreateClick: noop,
@@ -34,6 +35,12 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const WithoutCurrentShift: Story = {
+  args: {
+    currentRecruitments: [],
+  },
+};
+
 export const CanLoadMore: Story = {
   args: {
     recruitments: mockRecruitments.slice(0, 2),
@@ -45,6 +52,14 @@ export const CanLoadMore: Story = {
 export const Empty: Story = {
   args: {
     recruitments: [],
+    currentRecruitments: [],
+  },
+};
+
+export const OnlyCurrentShift: Story = {
+  args: {
+    recruitments: mockCurrentRecruitments,
+    currentRecruitments: mockCurrentRecruitments,
   },
 };
 
