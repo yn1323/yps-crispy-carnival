@@ -103,11 +103,6 @@ export function RecruitmentRow({
               <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
                 {label}
               </Badge>
-              {isCurrent && (
-                <Badge colorPalette="blue" variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
-                  現在のシフト
-                </Badge>
-              )}
             </HStack>
             <HStack gap={1} color="fg.muted" fontSize="xs" minW={{ lg: "160px" }} flexShrink={0}>
               <LuCalendarClock />
