@@ -33,6 +33,7 @@ export const InDialog: Story = {
 };
 
 export const MobileFullScreen: Story = {
+  tags: ["vrt-mobile1"],
   globals: {
     viewport: { value: "mobile1", isRotated: false },
   },
@@ -204,6 +205,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
 };
 
 export const InteractiveMobileBasicFlow: Story = {
+  tags: ["vrt-mobile1"],
   globals: {
     viewport: { value: "mobile1", isRotated: false },
   },

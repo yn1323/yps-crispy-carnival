@@ -78,6 +78,7 @@ export const ForgotPasswordReset: Story = {
 };
 
 export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
   args: {
     mode: "login",
   },

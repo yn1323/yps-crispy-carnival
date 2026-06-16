@@ -29,7 +29,13 @@ import { SetupModal } from "../SetupModal";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRegistrationRequestBanner, StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
-import type { PaginationStatus, Recruitment, Staff, StaffRegistrationRequest } from "../types";
+import {
+  type PaginationStatus,
+  type Recruitment,
+  type Staff,
+  type StaffRegistrationRequest,
+  sortRecruitmentsByCreatedAt,
+} from "../types";
 import { OnboardingCallout } from "./OnboardingCallout";
 import {
   type DashboardOnboardingStage,
@@ -62,6 +68,7 @@ type Props = {
     };
   };
   recruitments: Recruitment[];
+  currentRecruitments?: Recruitment[];
   recruitmentStatus: PaginationStatus;
   canLoadMoreRecruitments: boolean;
   loadMoreRecruitments: () => void;
@@ -78,6 +85,7 @@ export const DashboardContent = ({
   managerProfileDefaults,
   managerLegalConsentStatus,
   recruitments,
+  currentRecruitments = [],
   recruitmentStatus,
   canLoadMoreRecruitments,
   loadMoreRecruitments,
@@ -114,10 +122,16 @@ export const DashboardContent = ({
   const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
   const [autoDismissedOnboarding, setAutoDismissedOnboarding] = useState(false);
   const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
+  const knownRecruitments = sortRecruitmentsByCreatedAt(
+    Array.from(
+      new Map([...recruitments, ...currentRecruitments].map((recruitment) => [recruitment._id, recruitment])).values(),
+    ),
+  );
+  const latestKnownRecruitment = knownRecruitments[0];
   const shouldTreatOnboardingDismissed =
     isDashboardOnboardingDismissed || autoDismissedOnboarding || pendingStaffRequests.length > 0;
   const onboardingState = deriveDashboardOnboardingState({
-    recruitments,
+    recruitments: knownRecruitments,
     staffs,
     dismissedStages: shouldTreatOnboardingDismissed ? COMPLETED_ONBOARDING_STAGES : dismissedOnboardingStages,
     reviewedRecruitmentIds,
@@ -161,7 +175,7 @@ export const DashboardContent = ({
   }, [pendingStaffRequests.length, staffRegistrationDialog.close, staffRegistrationDialog.isOpen]);
 
   const handleOpenShiftBoard = (recruitmentId: string) => {
-    if (visibleOnboardingState?.stage === "review_submission" && recruitments[0]?._id === recruitmentId) {
+    if (visibleOnboardingState?.stage === "review_submission" && latestKnownRecruitment?._id === recruitmentId) {
       setReviewedRecruitmentIds((current) => {
         if (current.includes(recruitmentId)) return current;
         const next = [...current, recruitmentId];
@@ -418,9 +432,10 @@ export const DashboardContent = ({
             )}
             <RecruitmentBoard
               recruitments={recruitments}
+              currentRecruitments={currentRecruitments}
               status={recruitmentStatus}
               canLoadMore={canLoadMoreRecruitments}
-              tourRecruitmentId={recruitments[0]?._id}
+              tourRecruitmentId={latestKnownRecruitment?._id}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onDeleteRecruitment={handleDeleteRecruitmentClick}

@@ -2,15 +2,15 @@ import { type BrowserScreenshotHook, screenshot } from "@storycap-testrun/browse
 import { afterEach, beforeEach } from "vitest";
 import { page } from "vitest/browser";
 
-const VRT_VIEWPORT = {
-  width: 1920,
-  height: 1080,
-} as const;
+type ViewportSize = {
+  width: number;
+  height: number;
+};
 
-// 1枚撮りの上限。Chromiumのキャプチャ限界(16384px)とレポートサイズへの配慮
-const MAX_CAPTURE_HEIGHT = 8000;
+declare const __VRT_VIEWPORT__: ViewportSize;
 
 const FREEZE_STYLE_ID = "vrt-freeze-animations";
+const RELEASE_FIXED_HEADER_STYLE_ID = "vrt-release-fixed-header";
 
 // play実行中〜安定性チェック中も画面を静止させる
 // （animation: none だとfade-in系が初期状態のまま固まるため、duration≒0 + 1回再生にする）
@@ -32,42 +32,48 @@ function freezeAnimations() {
   document.head.appendChild(style);
 }
 
-function measureContentHeight() {
-  return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+function releaseFixedHeaderForFullPage(): BrowserScreenshotHook {
+  return {
+    async setup() {
+      applyReleaseFixedHeaderStyle();
+    },
+    async preCapture() {
+      applyReleaseFixedHeaderStyle();
+    },
+    async postCapture() {
+      document.getElementById(RELEASE_FIXED_HEADER_STYLE_ID)?.remove();
+    },
+  };
 }
 
-// コンテンツがビューポート(1080px)より高いStoryを fullPage: true で撮ると、
-// スクロールしながら分割撮影→Canvas結合（スティッチ）が走り、チャンク間のズレで
-// 画像がちぎれる。代わりにStoryを描画しているiframeのラッパーをコンテンツの
-// 高さまで広げ、スクロール不要の状態にして1枚で撮る
-const expandViewportToContent: BrowserScreenshotHook = {
-  async preCapture() {
-    const wrapper = window.parent?.document.querySelector("iframe[data-vitest]")?.parentElement;
-    if (!wrapper) return;
-    // dvh基準の要素は拡張後に再レイアウトされるため、高さが安定するまで再測定する
-    for (let i = 0; i < 3; i++) {
-      const target = Math.min(Math.max(measureContentHeight(), VRT_VIEWPORT.height), MAX_CAPTURE_HEIGHT);
-      if (wrapper.getBoundingClientRect().height >= target) break;
-      wrapper.style.height = `${target}px`;
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+function applyReleaseFixedHeaderStyle() {
+  if (document.getElementById(RELEASE_FIXED_HEADER_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = RELEASE_FIXED_HEADER_STYLE_ID;
+  style.textContent = `
+    header {
+      position: absolute !important;
     }
-  },
-};
+  `;
+  document.head.appendChild(style);
+}
 
 beforeEach(async () => {
-  await page.viewport(VRT_VIEWPORT.width, VRT_VIEWPORT.height);
+  await page.viewport(__VRT_VIEWPORT__.width, __VRT_VIEWPORT__.height);
   freezeAnimations();
 });
 
 afterEach(async (context) => {
   applyLegacySnapshotSkip(context);
-  const needsExpansion = measureContentHeight() > VRT_VIEWPORT.height;
+  const story = getStoryContext(context);
+  const hooks = story?.parameters?.vrt?.releaseFixedHeader === true ? [releaseFixedHeaderForFullPage()] : [];
+
   await screenshot(page, context, {
-    // 縦長Storyは fullPage: false + iframe拡張で1枚撮り（スティッチ回避）。
-    // ビューポート内に収まるStoryは従来どおりbody要素のキャプチャ
-    fullPage: !needsExpansion,
-    scale: "css",
-    hooks: needsExpansion ? [expandViewportToContent] : [],
+    hooks,
+    image: {
+      fullPage: true,
+      scale: "css",
+    },
     flakiness: {
       retake: {
         enabled: true,
@@ -96,7 +102,7 @@ function applyLegacySnapshotSkip(context: unknown) {
 }
 
 type MutableStoryContext = {
-  parameters: {
+  parameters?: {
     chromatic?: {
       disableSnapshot?: boolean;
     };
@@ -106,14 +112,26 @@ type MutableStoryContext = {
     screenshot?: {
       skip?: boolean;
     };
+    vrt?: {
+      releaseFixedHeader?: boolean;
+    };
   };
 };
 
 function getMutableStoryContext(context: unknown): MutableStoryContext | null {
-  if (typeof context !== "function" || !("story" in context)) return null;
-  const story = context.story;
-  if (!story || typeof story !== "object" || !("parameters" in story)) return null;
+  const story = getStoryContext(context);
+  if (!story) return null;
   const parameters = story.parameters;
   if (!parameters || typeof parameters !== "object") return null;
-  return { parameters };
+  return story;
+}
+
+function getStoryContext(context: unknown): MutableStoryContext | null {
+  if ((typeof context !== "function" && typeof context !== "object") || context === null || !("story" in context)) {
+    return null;
+  }
+
+  const story = context.story;
+  if (!story || typeof story !== "object") return null;
+  return story as MutableStoryContext;
 }

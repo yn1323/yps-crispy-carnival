@@ -27,6 +27,10 @@ export function DashboardPage() {
   const recruitments = usePaginatedQuery(api.dashboard.queries.getDashboardRecruitments, skipPagination ? "skip" : {}, {
     initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE,
   });
+  const currentRecruitments = useQuery(
+    api.dashboard.queries.getDashboardCurrentRecruitments,
+    skipPagination ? "skip" : {},
+  );
   const staffs = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, skipPagination ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
   });
@@ -35,8 +39,13 @@ export function DashboardPage() {
     shop === undefined || shop === null ? "skip" : {},
   );
 
+  const currentRecruitmentIds = new Set(currentRecruitments?.map((recruitment) => recruitment._id) ?? []);
+  const nonCurrentRecruitments = recruitments.results.filter(
+    (recruitment) => !currentRecruitmentIds.has(recruitment._id),
+  );
+
   const canLoadMoreRecruitments =
-    recruitments.results.length > visibleRecruitmentCount ||
+    nonCurrentRecruitments.length > visibleRecruitmentCount ||
     recruitments.status === "CanLoadMore" ||
     recruitments.status === "LoadingMore";
   const canLoadMoreStaffs =
@@ -45,7 +54,7 @@ export function DashboardPage() {
   const handleLoadMoreRecruitments = () => {
     const nextVisibleCount = visibleRecruitmentCount + RECRUITMENT_LOAD_MORE_COUNT;
     setVisibleRecruitmentCount(nextVisibleCount);
-    if (recruitments.status === "CanLoadMore" && recruitments.results.length <= nextVisibleCount) {
+    if (recruitments.status === "CanLoadMore" && nonCurrentRecruitments.length <= nextVisibleCount) {
       recruitments.loadMore(RECRUITMENT_LOAD_MORE_COUNT);
     }
   };
@@ -64,6 +73,7 @@ export function DashboardPage() {
       (currentUser === undefined ||
         managerLegalConsentStatus === undefined ||
         pendingStaffRequests === undefined ||
+        currentRecruitments === undefined ||
         recruitments.status === "LoadingFirstPage" ||
         staffs.status === "LoadingFirstPage"));
 
@@ -82,7 +92,8 @@ export function DashboardPage() {
       <Animation>
         <DashboardContent
           shop={shop}
-          recruitments={recruitments.results.slice(0, visibleRecruitmentCount)}
+          recruitments={nonCurrentRecruitments.slice(0, visibleRecruitmentCount)}
+          currentRecruitments={currentRecruitments ?? []}
           recruitmentStatus={recruitments.status}
           canLoadMoreRecruitments={canLoadMoreRecruitments}
           loadMoreRecruitments={handleLoadMoreRecruitments}
