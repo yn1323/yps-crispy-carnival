@@ -11,12 +11,15 @@ const MOBILE_VIEWPORTS = {
   mobile1: { width: 320, height: 568 },
   mobile2: { width: 414, height: 896 },
 } satisfies Record<string, ViewportSize>;
+const DESKTOP_VIEWPORT = {
+  width: 1280,
+  height: 720,
+} satisfies ViewportSize;
 
 // 1枚撮りの上限。Chromiumのキャプチャ限界(16384px)とレポートサイズへの配慮
 const MAX_CAPTURE_HEIGHT = 8000;
 
 const FREEZE_STYLE_ID = "vrt-freeze-animations";
-let baseViewport: ViewportSize | null = null;
 
 // play実行中〜安定性チェック中も画面を静止させる
 // （animation: none だとfade-in系が初期状態のまま固まるため、duration≒0 + 1回再生にする）
@@ -44,20 +47,6 @@ function measureContentHeight() {
 
 function getVitestIframeWrapper() {
   return window.parent.document.querySelector("iframe[data-vitest]")?.parentElement ?? null;
-}
-
-function measureCurrentViewport(): ViewportSize {
-  const wrapper = getVitestIframeWrapper();
-  const rect = wrapper?.getBoundingClientRect();
-  return {
-    width: Math.round(rect?.width || window.innerWidth),
-    height: Math.round(rect?.height || window.innerHeight),
-  };
-}
-
-function getBaseViewport() {
-  baseViewport ??= measureCurrentViewport();
-  return baseViewport;
 }
 
 function setIframeViewport(viewport: ViewportSize) {
@@ -101,18 +90,17 @@ function expandViewportToContent(viewport: ViewportSize): BrowserScreenshotHook 
 }
 
 beforeEach(async (context) => {
-  const viewport = getMobileViewport(context) ?? getBaseViewport();
+  const viewport = getStoryViewport(context);
   await page.viewport(viewport.width, viewport.height);
   freezeAnimations();
 });
 
 afterEach(async (context) => {
   applyLegacySnapshotSkip(context);
-  const mobileViewport = getMobileViewport(context);
-  const captureViewport = mobileViewport ?? getBaseViewport();
+  const captureViewport = getStoryViewport(context);
   const needsExpansion = measureContentHeight() > captureViewport.height;
   const hooks = [
-    ...(mobileViewport ? [fixedIframeViewport(mobileViewport)] : []),
+    fixedIframeViewport(captureViewport),
     ...(needsExpansion ? [expandViewportToContent(captureViewport)] : []),
   ];
 
@@ -182,21 +170,23 @@ type StorybookViewportSetting =
       isRotated?: unknown;
     };
 
-function getMobileViewport(context: unknown): ViewportSize | null {
+function getStoryViewport(context: unknown): ViewportSize {
   const story = getStoryContext(context);
   const viewportSettings = [story?.globals?.viewport, story?.parameters?.viewport];
 
   for (const setting of viewportSettings) {
-    const viewport = resolveMobileViewport(setting);
+    const viewport = resolveStoryViewport(setting);
     if (viewport) return viewport;
   }
 
-  return null;
+  return DESKTOP_VIEWPORT;
 }
 
-function resolveMobileViewport(setting: StorybookViewportSetting | undefined): ViewportSize | null {
+function resolveStoryViewport(setting: StorybookViewportSetting | undefined): ViewportSize | null {
   const viewport = normalizeViewportSetting(setting);
-  if (!viewport || !isMobileViewportName(viewport.value)) return null;
+  if (!viewport) return null;
+  if (viewport.value === "desktop") return DESKTOP_VIEWPORT;
+  if (!isMobileViewportName(viewport.value)) return null;
 
   const size = MOBILE_VIEWPORTS[viewport.value];
   if (!viewport.isRotated) return size;
