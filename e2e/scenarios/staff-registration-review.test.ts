@@ -99,7 +99,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     await registrationPage.goto(seed.registrationToken);
     await registrationPage.submitRequestAndExpectError(
       { name: "再申請スタッフ", email: PENDING_STAFF.email },
-      "このメールアドレスは申請済みです",
+      "このメールアドレスは申請済みです。承認までしばらくおまちください",
     );
   });
 });

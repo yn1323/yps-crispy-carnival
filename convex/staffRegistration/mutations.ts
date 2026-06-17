@@ -92,7 +92,7 @@ export const submitRegistrationRequest = mutation({
       )
       .first();
     if (pendingRequest) {
-      throw new ConvexError("このメールアドレスは申請済みです");
+      throw new ConvexError("このメールアドレスは申請済みです。承認までしばらくおまちください");
     }
 
     const versions = getLegalConsentVersions("staff");

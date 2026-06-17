@@ -105,7 +105,7 @@ describe("staffRegistration/mutations", () => {
         email: "Duplicate@Example.com",
         acceptedLegal: true,
       }),
-    ).rejects.toThrow("このメールアドレスは申請済みです");
+    ).rejects.toThrow("このメールアドレスは申請済みです。承認までしばらくおまちください");
   });
 
   it("既存スタッフと同じメールアドレスでは参加申請できない", async () => {
