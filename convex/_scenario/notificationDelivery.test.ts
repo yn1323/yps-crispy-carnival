@@ -7,6 +7,7 @@ import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS } from "../constants";
 
 async function getOutboxJobs(t: ScenarioTest) {
   return await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
@@ -21,7 +22,12 @@ describe("通知配送outboxシナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
 
   it("募集作成通知actionはスタッフごとのemail/LINE outboxと提出リンクを作る", async () => {
     const t = convexTest(schema, modules);
@@ -429,6 +435,79 @@ describe("通知配送outboxシナリオ", () => {
         .filter((link) => link.accessKind === "view")
         .map((link) => ({ recruitmentId: link.recruitmentId, staffId: link.staffId })),
     ).toEqual([{ recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId }]);
+  });
+
+  it("配送最終失敗は要対応Inboxに出て、手動再送後はretryingからresolvedまたはopenへ遷移する", async () => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 400, text: async () => "line error" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "failure-manager@example.com",
+        shopName: "通知失敗店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "失敗確認スタッフ",
+        email: "failure-staff@example.com",
+      });
+      return { shopId, staffId };
+    });
+    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId: ids.shopId,
+      staffId: ids.staffId,
+      dedupeKey: "line:failure-inbox:scenario",
+      payload: {
+        kind: "line",
+        toUserId: "U_failure",
+        text: "hello",
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+    const firstOpenPage = await t
+      .withIdentity({ subject: MANAGER_SUBJECT })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+    expect(firstOpenPage.page).toHaveLength(1);
+    expect(firstOpenPage.page[0]).toMatchObject({
+      sourceType: "outbox",
+      status: "open",
+      channel: "line",
+      dedupeKey: "line:failure-inbox:scenario",
+      notificationContext: "line:failure-inbox",
+      canRetry: true,
+    });
+
+    await t
+      .withIdentity({ subject: MANAGER_SUBJECT })
+      .mutation(api.notificationOutbox.mutations.retryFailure, { failureId: firstOpenPage.page[0]._id });
+    let inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(inbox[0].status).toBe("retrying");
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+    inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(inbox[0].status).toBe("open");
+    expect(inbox[0].lastError).toContain("LINE push failed: 400");
+
+    vi.advanceTimersByTime(60_000);
+    fetchMock.mockImplementationOnce(async () => ({ ok: true, status: 200, text: async () => "{}" }));
+    await t
+      .withIdentity({ subject: MANAGER_SUBJECT })
+      .mutation(api.notificationOutbox.mutations.retryFailure, { failureId: firstOpenPage.page[0]._id });
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(inbox[0]).toMatchObject({ status: "resolved", resolutionKind: "sent" });
+    await expect(
+      t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+    ).resolves.toBe(false);
   });
 
   it("スタッフ参加申請の日次digestはpending時だけowner向けoutboxを作る", async () => {

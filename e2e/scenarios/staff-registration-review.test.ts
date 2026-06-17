@@ -85,7 +85,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     await registrationPage.goto(seed.registrationToken);
     await registrationPage.submitRequestAndExpectError(
       { name: "重複申請スタッフ", email: EXISTING_STAFF.email },
-      "このメールアドレスはすでに登録されています",
+      "このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。",
     );
   });
 
@@ -99,7 +99,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     await registrationPage.goto(seed.registrationToken);
     await registrationPage.submitRequestAndExpectError(
       { name: "再申請スタッフ", email: PENDING_STAFF.email },
-      "このメールアドレスは申請済みです",
+      "このメールアドレスは申請済みです。承認までしばらくおまちください",
     );
   });
 });

@@ -87,6 +87,29 @@ export const getDashboardShop = authenticatedQuery({
   },
 });
 
+export const getActiveDashboardAnnouncement = authenticatedQuery({
+  args: {},
+  handler: async (ctx) => {
+    if (!ctx.identity) return null;
+
+    const announcement = await ctx.db
+      .query("dashboardAnnouncements")
+      .withIndex("by_isPublished_and_isDeleted_and_displayDate", (q) =>
+        q.eq("isPublished", true).eq("isDeleted", false),
+      )
+      .order("desc")
+      .first();
+    if (!announcement) return null;
+
+    return {
+      _id: announcement._id,
+      title: announcement.title,
+      bodyHtml: announcement.bodyHtml,
+      displayDate: announcement.displayDate,
+    };
+  },
+});
+
 export const getDashboardRecruitments = authenticatedQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {

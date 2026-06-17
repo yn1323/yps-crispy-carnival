@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { queryByRole } from "@testing-library/dom";
 import { createStore, Provider } from "jotai";
+import { expect } from "storybook/test";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
@@ -57,6 +59,9 @@ export const Staff: Story = {
     shopName: "居酒屋さくら",
     maxW: "1024px",
     px: { base: 4, lg: 6 },
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    expect(queryByRole(canvasElement, "link", { name: "シフトリのトップページへ" })).toBeNull();
   },
 };
 

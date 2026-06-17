@@ -14,6 +14,11 @@ import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { buildShiftTimeLabel } from "../_lib/time";
 import { DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT, OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import {
+  buildConfirmationSnapshotSignature,
+  type ConfirmationSnapshotAssignment,
+  normalizeConfirmationSnapshotAssignments,
+} from "./confirmationSnapshots";
 
 type AssignmentTime = {
   startTime: string;
@@ -28,6 +33,8 @@ type ConfirmationStaffEntry = {
   lineUserId?: string;
   lineFollowing?: boolean;
   shifts: { date: string; timeLabel: string | null }[];
+  snapshotAssignments: ConfirmationSnapshotAssignment[];
+  snapshotSignature: string;
 };
 
 async function buildConfirmationStaffEntries(
@@ -69,6 +76,15 @@ async function buildConfirmationStaffEntries(
           timeLabel,
         };
       });
+      const snapshotAssignments = normalizeConfirmationSnapshotAssignments(
+        staffAssignments.map((assignment) => ({
+          date: assignment.date,
+          startTime: assignment.startTime,
+          endTime: assignment.endTime,
+          positionId: assignment.positionId,
+          ...(assignment.optionId ? { optionId: assignment.optionId } : {}),
+        })),
+      );
 
       return {
         staffId: staff._id,
@@ -77,6 +93,8 @@ async function buildConfirmationStaffEntries(
         lineUserId: lineAccount?.lineUserId,
         lineFollowing: lineAccount?.following,
         shifts,
+        snapshotAssignments,
+        snapshotSignature: buildConfirmationSnapshotSignature(snapshotAssignments),
       };
     }),
   );
@@ -128,8 +146,11 @@ async function getOpenRecruitmentNotificationDataForStaffInternal(ctx: QueryCtx,
  * シフト確定メール送信に必要なデータを一括取得
  */
 export const getConfirmationEmailData = internalQuery({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: {
+    recruitmentId: v.id("recruitments"),
+    targetStaffIds: v.optional(v.array(v.id("staffs"))),
+  },
+  handler: async (ctx, { recruitmentId, targetStaffIds }) => {
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
     if (recruitment.status !== "confirmed") return null;
@@ -148,7 +169,9 @@ export const getConfirmationEmailData = internalQuery({
         .collect(),
     ]);
 
-    const staffEntries = await buildConfirmationStaffEntries(ctx, recruitment, staffs, assignments);
+    const targetStaffIdSet = targetStaffIds ? new Set(targetStaffIds) : null;
+    const targetStaffs = targetStaffIdSet ? staffs.filter((staff) => targetStaffIdSet.has(staff._id)) : staffs;
+    const staffEntries = await buildConfirmationStaffEntries(ctx, recruitment, targetStaffs, assignments);
 
     return {
       shopId: recruitment.shopId,
