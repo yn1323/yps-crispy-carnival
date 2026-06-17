@@ -128,20 +128,29 @@ type HeaderBrandProps = {
 const HeaderBrand = ({ to, ariaLabel, logoSize, fontSize }: HeaderBrandProps) => (
   <Link asChild _hover={{ opacity: 0.8, textDecoration: "none" }}>
     <RouterLink to={to} aria-label={ariaLabel}>
-      <Flex align="center" gap={3}>
-        <Image src="/logo192.webp" alt="シフトリ" boxSize={logoSize ?? 10} objectFit="contain" />
-        <Text
-          color="gray.950"
-          fontSize={fontSize ?? { base: "xl", md: "2xl" }}
-          fontWeight="bold"
-          letterSpacing="0"
-          lineHeight="1"
-        >
-          シフトリ
-        </Text>
-      </Flex>
+      <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} />
     </RouterLink>
   </Link>
+);
+
+type HeaderBrandContentProps = {
+  logoSize?: ImageProps["boxSize"];
+  fontSize?: TextProps["fontSize"];
+};
+
+const HeaderBrandContent = ({ logoSize, fontSize }: HeaderBrandContentProps) => (
+  <Flex align="center" gap={3}>
+    <Image src="/logo192.webp" alt="シフトリ" boxSize={logoSize ?? 10} objectFit="contain" />
+    <Text
+      color="gray.950"
+      fontSize={fontSize ?? { base: "xl", md: "2xl" }}
+      fontWeight="bold"
+      letterSpacing="0"
+      lineHeight="1"
+    >
+      シフトリ
+    </Text>
+  </Flex>
 );
 
 const PublicHeaderActions = ({ showLinks, showLogin }: { showLinks: boolean; showLogin: boolean }) => (
@@ -211,12 +220,7 @@ const StaffHeaderContent = ({ shopName }: { shopName: string }) => (
       <Text color="gray.700" fontSize={{ base: "2xs", lg: "xs" }} fontWeight="semibold" whiteSpace="nowrap">
         Powered by
       </Text>
-      <HeaderBrand
-        to="/"
-        ariaLabel="シフトリのトップページへ"
-        logoSize={{ base: 6, lg: 7 }}
-        fontSize={{ base: "sm", lg: "md" }}
-      />
+      <HeaderBrandContent logoSize={{ base: 6, lg: 7 }} fontSize={{ base: "sm", lg: "md" }} />
     </Flex>
   </Flex>
 );

@@ -92,6 +92,7 @@ export function StaffRow({
                 <LuPencil />
                 編集
               </Menu.Item>
+              <Menu.Separator />
               <Menu.Item
                 value="send-recruitments"
                 cursor={canSendNotification ? "pointer" : "not-allowed"}
@@ -116,6 +117,7 @@ export function StaffRow({
                 <LuCalendarCheck />
                 現在の確定シフトを送る
               </Menu.Item>
+              <Menu.Separator />
               <Menu.Item
                 value="line-qr"
                 cursor={canShowLineQr ? "pointer" : "not-allowed"}
@@ -140,6 +142,7 @@ export function StaffRow({
                 <LuMail />
                 LINE連携リンクをメールで送る
               </Menu.Item>
+              <Menu.Separator />
               <Menu.Item
                 value="delete"
                 color={staff.isManager ? "fg.muted" : "fg.error"}

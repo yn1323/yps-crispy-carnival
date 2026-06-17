@@ -1,7 +1,12 @@
 import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import type { Recruitment } from "./types";
-import { getDisplayStatus, isCurrentRecruitment, sortRecruitmentsByPeriodStart } from "./types";
+import {
+  buildDashboardRecruitmentList,
+  getDisplayStatus,
+  isCurrentRecruitment,
+  sortRecruitmentsByPeriodStart,
+} from "./types";
 
 const now = dayjs("2026-06-16");
 
@@ -83,5 +88,37 @@ describe("Dashboard recruitment display helpers", () => {
       "new-same-start",
       "old-same-start",
     ]);
+  });
+
+  it("ダッシュボードのシフト一覧は現在のシフトを先頭にして重複を除く", () => {
+    const current = recruitment({
+      _id: "current" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-06-09",
+      periodEnd: "2026-06-30",
+    });
+    const future = recruitment({ _id: "future" as Recruitment["_id"], periodStart: "2026-07-01" });
+    const older = recruitment({ _id: "older" as Recruitment["_id"], periodStart: "2026-06-01" });
+
+    expect(
+      buildDashboardRecruitmentList({
+        currentRecruitments: [current],
+        recruitments: [future, current, older],
+      }).map((r) => r._id),
+    ).toEqual(["current", "future", "older"]);
+  });
+
+  it("ダッシュボードのシフト一覧は現在のシフトを含めて3件表示する", () => {
+    const current = recruitment({ _id: "current" as Recruitment["_id"], status: "confirmed" });
+    const recruitments = ["first", "second", "third"].map((idValue) =>
+      recruitment({ _id: idValue as Recruitment["_id"] }),
+    );
+
+    const visibleRecruitments = buildDashboardRecruitmentList({
+      currentRecruitments: [current],
+      recruitments,
+    }).slice(0, 3);
+
+    expect(visibleRecruitments.map((r) => r._id)).toEqual(["current", "first", "second"]);
   });
 });

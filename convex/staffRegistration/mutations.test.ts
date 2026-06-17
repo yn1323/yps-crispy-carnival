@@ -105,7 +105,7 @@ describe("staffRegistration/mutations", () => {
         email: "Duplicate@Example.com",
         acceptedLegal: true,
       }),
-    ).rejects.toThrow("このメールアドレスは申請済みです");
+    ).rejects.toThrow("このメールアドレスは申請済みです。承認までしばらくおまちください");
   });
 
   it("既存スタッフと同じメールアドレスでは参加申請できない", async () => {
@@ -133,7 +133,7 @@ describe("staffRegistration/mutations", () => {
         email: "existing@example.com",
         acceptedLegal: true,
       }),
-    ).rejects.toThrow("このメールアドレスはすでに登録されています");
+    ).rejects.toThrow("このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。");
 
     const requests = await t
       .withIdentity({ subject: "manager_existing_staff" })

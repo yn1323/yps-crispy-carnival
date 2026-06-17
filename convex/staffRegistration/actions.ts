@@ -70,6 +70,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
     if (channel === "line" && recipient.lineUserId) {
       await enqueueLine(ctx, {
         shopId: data.shopId,
+        userId: recipient.userId,
         dedupeKey: `line:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
         payload: linePayload({
           toUserId: recipient.lineUserId,
@@ -98,6 +99,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
+      userId: recipient.userId,
       dedupeKey: `email:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
       payload: emailPayload({
         from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),

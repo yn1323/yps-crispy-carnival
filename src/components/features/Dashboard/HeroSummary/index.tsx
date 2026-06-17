@@ -27,6 +27,7 @@ type Props = {
   onEditClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
+  announcementBanner?: ReactNode;
   staffRegistrationRequestBanner?: ReactNode;
   hideActionSection?: boolean;
 };
@@ -37,6 +38,7 @@ export const HeroSummary = ({
   onEditClick,
   onOpenShiftBoard,
   onCreateRecruitment,
+  announcementBanner,
   staffRegistrationRequestBanner,
   hideActionSection = false,
 }: Props) => {
@@ -71,6 +73,8 @@ export const HeroSummary = ({
           </Button>
         </Flex>
       </Stack>
+
+      {announcementBanner}
 
       {!hideActionSection && (
         <Stack gap={{ base: 3, lg: 4 }}>
