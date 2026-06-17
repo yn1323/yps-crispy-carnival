@@ -691,7 +691,7 @@ export const DashboardContent = ({
         onOpenChange={recruitmentNotificationDialog.onOpenChange}
         onClose={recruitmentNotificationDialog.close}
         onSubmit={handleSendRecruitmentsConfirm}
-        submitLabel="現在募集中のシフトを送る"
+        submitLabel="現在の募集中シフトを送る"
         isLoading={isSendingRecruitments}
         isSubmitDisabled={isSendingRecruitments}
       >
