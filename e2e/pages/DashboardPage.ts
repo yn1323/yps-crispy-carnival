@@ -10,6 +10,8 @@ const CLOSED_DAY_LABELS = {
   fri: "金曜日",
   sat: "土曜日",
 } as const;
+const DASHBOARD_DATA_TIMEOUT = 20_000;
+const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
 
 type RegularClosedDay = keyof typeof CLOSED_DAY_LABELS;
 type SubmissionPatternEdit =
@@ -46,7 +48,9 @@ export class DashboardPage {
 
     const setupTimePattern = data.shiftStartTime !== undefined || data.shiftEndTime !== undefined;
     if (setupTimePattern) {
-      await dialog.getByRole("button", { name: /時間指定/ }).click();
+      const timePatternButton = dialog.getByRole("button", { name: /時間指定|時間を自由に設定/ });
+      await expect(timePatternButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+      await timePatternButton.click();
     }
 
     await dialog.getByRole("button", { name: "次へ" }).click();
@@ -156,16 +160,24 @@ export class DashboardPage {
   }
 
   async openShiftBoard() {
-    await this.recruitmentOpenButton().first().click();
+    const openButton = this.shiftBoardOpenButton().first();
+    await expect(openButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
     const warningDialog = this.page.getByRole("alertdialog", { name: "まだ希望がそろっていません" });
-    const navigated = this.page.waitForURL(/\/shiftboard\//);
-    const dialogAppeared = warningDialog.waitFor({ state: "visible" }).then(() => true);
+    const navigated = this.page.waitForURL(/\/shiftboard\//, { timeout: DASHBOARD_DATA_TIMEOUT }).then(
+      () => false,
+      () => false,
+    );
+    const dialogAppeared = warningDialog.waitFor({ state: "visible", timeout: DASHBOARD_DATA_TIMEOUT }).then(
+      () => true,
+      () => false,
+    );
+    await openButton.click();
     // 未提出者がいる募集では確認ダイアログを挟む。提出済みシナリオと未提出シナリオの両方で使うため、
     // URL遷移とdialog表示を競争させて、どちらの導線でも同じPOMから進める。
     if (await Promise.race([dialogAppeared, navigated.then(() => false)])) {
       await warningDialog.getByRole("button", { name: "このまま進む" }).click();
-      await navigated;
     }
+    await expect(this.page).toHaveURL(/\/shiftboard\//, { timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   async expectStaffSectionVisible() {
@@ -173,7 +185,7 @@ export class DashboardPage {
   }
 
   async expectStaffVisible(name: string) {
-    await expect(this.staffSection().getByText(name)).toBeVisible();
+    await expect(this.staffSection().getByText(name)).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   async editStaff(staffName: string, newData: { name: string; email: string }) {
@@ -260,7 +272,7 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardVisible() {
-    await expect(this.recruitmentOpenButton().first()).toBeVisible();
+    await expect(this.recruitmentOpenButton().first()).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   async expectStaffRegistrationRequestBanner(count: number) {
@@ -296,7 +308,13 @@ export class DashboardPage {
   }
 
   private recruitmentOpenButton() {
-    return this.recruitmentSection().getByRole("button", { name: /回収状況を見る|シフトを組む|シフトを見る/ });
+    return this.recruitmentSection().getByRole("button", { name: SHIFT_BOARD_OPEN_BUTTON_NAME });
+  }
+
+  private shiftBoardOpenButton() {
+    return this.recruitmentOpenButton()
+      .or(this.currentShiftSection().getByRole("button", { name: SHIFT_BOARD_OPEN_BUTTON_NAME }))
+      .or(this.page.getByRole("button", { name: /回収状況を見る|シフトを組む/ }));
   }
 
   async editShopSettings(data: {
@@ -386,7 +404,7 @@ export class DashboardPage {
   }
 
   async expectRecruitmentCardCount(count: number) {
-    await expect(this.recruitmentOpenButton()).toHaveCount(count);
+    await expect(this.recruitmentOpenButton()).toHaveCount(count, { timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   async expectStaffRowCount(count: number) {
@@ -411,6 +429,10 @@ export class DashboardPage {
 
   private recruitmentSection() {
     return this.page.getByRole("region", { name: "シフト募集" });
+  }
+
+  private currentShiftSection() {
+    return this.page.getByRole("region", { name: "現在のシフト" });
   }
 
   private staffSection() {

@@ -106,6 +106,8 @@ export const DashboardContent = ({
   const staffRegistrationDialog = useDialog();
   const lineQrDialog = useDialog();
   const lineInviteDialog = useDialog();
+  const recruitmentNotificationDialog = useDialog();
+  const currentShiftNotificationDialog = useDialog();
   const setupModal = useDialog();
   const isSetupRequired = shop === null;
   const [editTarget, setEditTarget] = useState<Staff | null>(null);
@@ -115,6 +117,8 @@ export const DashboardContent = ({
   const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
   const [lineQrLoading, setLineQrLoading] = useState(false);
   const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
+  const [recruitmentNotificationTarget, setRecruitmentNotificationTarget] = useState<Staff | null>(null);
+  const [currentShiftNotificationTarget, setCurrentShiftNotificationTarget] = useState<Staff | null>(null);
   const [staffModalMode, setStaffModalMode] = useState<"qr" | "manual">("qr");
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [registrationUrlLoading, setRegistrationUrlLoading] = useState(false);
@@ -157,6 +161,8 @@ export const DashboardContent = ({
   const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
   const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
+  const sendOpenRecruitmentNotifications = useMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
+  const sendCurrentShiftNotification = useMutation(api.staff.mutations.sendCurrentShiftNotification);
   const ensureShopRegistrationLink = useMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
   const approveStaffRequest = useMutation(api.staffRegistration.mutations.approveRequest);
   const rejectStaffRequest = useMutation(api.staffRegistration.mutations.rejectRequest);
@@ -385,6 +391,56 @@ export const DashboardContent = ({
     }
   });
 
+  const handleSendRecruitmentsClick = (staff: Staff) => {
+    setRecruitmentNotificationTarget(staff);
+    recruitmentNotificationDialog.open();
+  };
+
+  const { run: handleSendRecruitmentsConfirm, isRunning: isSendingRecruitments } = useSingleFlight(async () => {
+    if (!recruitmentNotificationTarget) return;
+    try {
+      const result = await sendOpenRecruitmentNotifications({ staffId: recruitmentNotificationTarget._id });
+      recruitmentNotificationDialog.close();
+      if (result.scheduled) {
+        toaster.create({ title: "シフト募集通知を送信しました", type: "success" });
+        return;
+      }
+      toaster.create({
+        title:
+          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できるシフト募集がありません",
+        type: result.reason === "rateLimited" ? "error" : "info",
+      });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  });
+
+  const handleSendCurrentShiftClick = (staff: Staff) => {
+    setCurrentShiftNotificationTarget(staff);
+    currentShiftNotificationDialog.open();
+  };
+
+  const { run: handleSendCurrentShiftConfirm, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
+    if (!currentShiftNotificationTarget) return;
+    try {
+      const result = await sendCurrentShiftNotification({ staffId: currentShiftNotificationTarget._id });
+      currentShiftNotificationDialog.close();
+      if (result.scheduled) {
+        toaster.create({ title: "現在の確定シフトを送信しました", type: "success" });
+        return;
+      }
+      toaster.create({
+        title:
+          result.reason === "rateLimited"
+            ? "少し時間をおいて再送してください"
+            : "送信できる現在の確定シフトがありません",
+        type: result.reason === "rateLimited" ? "error" : "info",
+      });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  });
+
   return (
     <>
       <ContentWrapper>
@@ -450,6 +506,9 @@ export const DashboardContent = ({
               onDelete={handleDeleteClick}
               onShowLineQr={handleShowLineQr}
               onSendLineInvite={handleSendLineInviteClick}
+              onSendRecruitments={handleSendRecruitmentsClick}
+              onSendCurrentShift={handleSendCurrentShiftClick}
+              hasCurrentShift={currentRecruitments.length > 0}
               onLoadMore={loadMoreStaffs}
             />
           </>
@@ -644,6 +703,44 @@ export const DashboardContent = ({
         )}
       </Dialog>
 
+      <Dialog
+        title="シフト募集通知を送る"
+        isOpen={recruitmentNotificationDialog.isOpen}
+        onOpenChange={recruitmentNotificationDialog.onOpenChange}
+        onClose={recruitmentNotificationDialog.close}
+        onSubmit={handleSendRecruitmentsConfirm}
+        submitLabel="現在の募集中シフトを送る"
+        isLoading={isSendingRecruitments}
+        isSubmitDisabled={isSendingRecruitments}
+      >
+        {recruitmentNotificationTarget && (
+          <NotificationResendConfirmContent
+            staff={recruitmentNotificationTarget}
+            description="開始前かつ締切前のシフト募集通知を送ります。"
+            note="通常はシフト作成時に通知が飛びます。もし飛んでいない場合のみ送信してください。"
+          />
+        )}
+      </Dialog>
+
+      <Dialog
+        title="現在の確定シフトを送る"
+        isOpen={currentShiftNotificationDialog.isOpen}
+        onOpenChange={currentShiftNotificationDialog.onOpenChange}
+        onClose={currentShiftNotificationDialog.close}
+        onSubmit={handleSendCurrentShiftConfirm}
+        submitLabel="確定シフトを送る"
+        isLoading={isSendingCurrentShift}
+        isSubmitDisabled={isSendingCurrentShift}
+      >
+        {currentShiftNotificationTarget && (
+          <NotificationResendConfirmContent
+            staff={currentShiftNotificationTarget}
+            description="現在の期間に含まれる確定済みシフトを送ります。"
+            note="通常はシフト確定時に通知が飛びます。もし飛んでいない場合のみ送信してください。"
+          />
+        )}
+      </Dialog>
+
       {isSetupRequired && (
         <SetupModal
           isOpen={setupModal.isOpen}
@@ -663,6 +760,25 @@ export const DashboardContentSkeleton = () => (
     <RecruitmentBoardSkeleton />
     <StaffRosterSkeleton />
   </ContentWrapper>
+);
+
+const NotificationResendConfirmContent = ({
+  staff,
+  description,
+  note,
+}: {
+  staff: Staff;
+  description: string;
+  note: string;
+}) => (
+  <Stack gap={3}>
+    <Text fontSize="sm" color="gray.800">
+      {staff.name}さん{staff.email ? `（${staff.email}）` : ""}に{description}
+    </Text>
+    <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+      {note}
+    </Text>
+  </Stack>
 );
 
 function readReviewedRecruitmentIds(): string[] {

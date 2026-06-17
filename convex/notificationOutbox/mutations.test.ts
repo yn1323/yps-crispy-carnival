@@ -95,6 +95,40 @@ describe("notificationOutbox", () => {
     expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
   });
 
+  it("processing中の別ジョブが多い状態でも新規通知をpendingジョブとして受け付ける", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      for (let i = 0; i < 500; i++) {
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "processing",
+          dedupeKey: `email:test:processing:${i}`,
+          shopId,
+          staffId,
+          payload: emailPayload,
+          attemptCount: 1,
+          nextRunAt: now,
+          processingStartedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      staffId,
+      dedupeKey: "email:test:after-processing-bulk",
+      payload: emailPayload,
+    });
+
+    expect(result.deduped).toBe(false);
+    const job = await t.run(async (ctx) => await ctx.db.get(result.outboxId));
+    expect(job?.status).toBe("pending");
+  });
+
   it("dueなpendingジョブが残っていてもworker予定がなければ再予約する", async () => {
     const { t, shopId, staffId } = await setupShop();
     await t.run(async (ctx) => {

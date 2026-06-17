@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
@@ -16,6 +16,9 @@ type Props = {
   onDelete: (staff: Staff) => void;
   onShowLineQr: (staff: Staff) => void;
   onSendLineInvite: (staff: Staff) => void;
+  onSendRecruitments: (staff: Staff) => void;
+  onSendCurrentShift: (staff: Staff) => void;
+  hasCurrentShift: boolean;
   onLoadMore: () => void;
 };
 
@@ -28,6 +31,9 @@ export const StaffRoster = ({
   onDelete,
   onShowLineQr,
   onSendLineInvite,
+  onSendRecruitments,
+  onSendCurrentShift,
+  hasCurrentShift,
   onLoadMore,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
@@ -68,6 +74,10 @@ export const StaffRoster = ({
         </Flex>
       </Flex>
 
+      <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+        シフト募集通知が来ない場合、ユーザー右のメニューから再送ください。
+      </Text>
+
       {sorted.length === 0 ? (
         <Empty
           icon={LuUsers}
@@ -94,6 +104,9 @@ export const StaffRoster = ({
                 onDelete={onDelete}
                 onShowLineQr={onShowLineQr}
                 onSendLineInvite={onSendLineInvite}
+                onSendRecruitments={onSendRecruitments}
+                onSendCurrentShift={onSendCurrentShift}
+                hasCurrentShift={hasCurrentShift}
               />
             ))}
           </Stack>

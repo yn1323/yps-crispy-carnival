@@ -290,6 +290,84 @@ describe("staff/mutations", () => {
 
       expect(data?.recruitments.map((r) => r.recruitmentId)).toEqual([ids.openRecruitmentId]);
     });
+
+    it("募集通知の手動再送は対象募集がない場合に予約せず理由を返す", async () => {
+      const t = convexTest(schema, modules);
+
+      const staffId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "通知スタッフ",
+          email: "notify@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: dateFromToday(7),
+          periodEnd: dateFromToday(13),
+          deadline: dateFromToday(-1),
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return staffId;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(result).toEqual({ scheduled: false, reason: "noEligibleRecruitments" });
+      expect(
+        scheduled.some((job) => job.name === "notification/actions:sendOpenRecruitmentNotificationsForStaff"),
+      ).toBe(false);
+    });
+
+    it("募集通知の手動再送は対象募集がある場合だけ予約する", async () => {
+      const t = convexTest(schema, modules);
+
+      const staffId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "通知スタッフ",
+          email: "notify@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: dateFromToday(7),
+          periodEnd: dateFromToday(13),
+          deadline: todayJST(),
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return staffId;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(result).toEqual({ scheduled: true });
+      expect(
+        scheduled.some((job) => job.name === "notification/actions:sendOpenRecruitmentNotificationsForStaff"),
+      ).toBe(true);
+    });
   });
 
   function setupShopWithStaff() {
