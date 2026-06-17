@@ -166,13 +166,23 @@ export const sendOpenRecruitmentNotifications = managerMutation({
   },
   handler: async (ctx, args) => {
     const staff = await getSendableStaff(ctx, args.staffId);
+    const notificationData = await ctx.runQuery(
+      internal.notification.queries.getOpenRecruitmentNotificationDataForStaff,
+      {
+        staffId: staff._id,
+      },
+    );
+    if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
+      return { scheduled: false, reason: "noEligibleRecruitments" as const };
+    }
+
     const allowed = await allowStaffNotificationResend(ctx, staff._id, "openRecruitments");
-    if (!allowed) return null;
+    if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
 
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationsForStaff, {
       staffId: staff._id,
     });
-    return null;
+    return { scheduled: true as const };
   },
 });
 
@@ -182,13 +192,20 @@ export const sendCurrentShiftNotification = managerMutation({
   },
   handler: async (ctx, args) => {
     const staff = await getSendableStaff(ctx, args.staffId);
+    const notificationData = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
+      staffId: staff._id,
+    });
+    if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
+      return { scheduled: false, reason: "noCurrentShift" as const };
+    }
+
     const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift");
-    if (!allowed) return null;
+    if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
 
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendCurrentShiftConfirmationForStaff, {
       staffId: staff._id,
     });
-    return null;
+    return { scheduled: true as const };
   },
 });
 

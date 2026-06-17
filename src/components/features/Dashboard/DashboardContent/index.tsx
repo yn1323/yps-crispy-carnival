@@ -399,9 +399,17 @@ export const DashboardContent = ({
   const { run: handleSendRecruitmentsConfirm, isRunning: isSendingRecruitments } = useSingleFlight(async () => {
     if (!recruitmentNotificationTarget) return;
     try {
-      await sendOpenRecruitmentNotifications({ staffId: recruitmentNotificationTarget._id });
+      const result = await sendOpenRecruitmentNotifications({ staffId: recruitmentNotificationTarget._id });
       recruitmentNotificationDialog.close();
-      toaster.create({ title: "シフト募集通知を送信しました", type: "success" });
+      if (result.scheduled) {
+        toaster.create({ title: "シフト募集通知を送信しました", type: "success" });
+        return;
+      }
+      toaster.create({
+        title:
+          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できるシフト募集がありません",
+        type: result.reason === "rateLimited" ? "error" : "info",
+      });
     } catch (error) {
       showErrorToast(error);
     }
@@ -415,9 +423,19 @@ export const DashboardContent = ({
   const { run: handleSendCurrentShiftConfirm, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
     if (!currentShiftNotificationTarget) return;
     try {
-      await sendCurrentShiftNotification({ staffId: currentShiftNotificationTarget._id });
+      const result = await sendCurrentShiftNotification({ staffId: currentShiftNotificationTarget._id });
       currentShiftNotificationDialog.close();
-      toaster.create({ title: "現在の確定シフトを送信しました", type: "success" });
+      if (result.scheduled) {
+        toaster.create({ title: "現在の確定シフトを送信しました", type: "success" });
+        return;
+      }
+      toaster.create({
+        title:
+          result.reason === "rateLimited"
+            ? "少し時間をおいて再送してください"
+            : "送信できる現在の確定シフトがありません",
+        type: result.reason === "rateLimited" ? "error" : "info",
+      });
     } catch (error) {
       showErrorToast(error);
     }
