@@ -428,7 +428,7 @@ export class DashboardPage {
   }
 
   private recruitmentSection() {
-    return this.page.getByRole("region", { name: "シフト募集" });
+    return this.page.getByRole("region", { name: "シフト一覧" });
   }
 
   private currentShiftSection() {

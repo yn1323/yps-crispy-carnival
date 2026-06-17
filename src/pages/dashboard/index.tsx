@@ -3,6 +3,7 @@ import { usePaginatedQuery, useQuery } from "convex/react";
 import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { DashboardContent, DashboardContentSkeleton } from "@/src/components/features/Dashboard/DashboardContent";
+import { buildDashboardRecruitmentList } from "@/src/components/features/Dashboard/types";
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
@@ -19,6 +20,7 @@ export function DashboardPage() {
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
   const shop = useQuery(api.dashboard.queries.getDashboardShop);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
+  const announcement = useQuery(api.dashboard.queries.getActiveDashboardAnnouncement, {});
   const skipPagination = shop === undefined || shop === null;
   const managerLegalConsentStatus = useQuery(
     api.legal.queries.getManagerConsentStatus,
@@ -39,13 +41,17 @@ export function DashboardPage() {
     shop === undefined || shop === null ? "skip" : {},
   );
 
+  const dashboardRecruitments = buildDashboardRecruitmentList({
+    currentRecruitments: currentRecruitments ?? [],
+    recruitments: recruitments.results,
+  });
   const currentRecruitmentIds = new Set(currentRecruitments?.map((recruitment) => recruitment._id) ?? []);
   const nonCurrentRecruitments = recruitments.results.filter(
     (recruitment) => !currentRecruitmentIds.has(recruitment._id),
   );
 
   const canLoadMoreRecruitments =
-    nonCurrentRecruitments.length > visibleRecruitmentCount ||
+    dashboardRecruitments.length > visibleRecruitmentCount ||
     recruitments.status === "CanLoadMore" ||
     recruitments.status === "LoadingMore";
   const canLoadMoreStaffs =
@@ -54,7 +60,7 @@ export function DashboardPage() {
   const handleLoadMoreRecruitments = () => {
     const nextVisibleCount = visibleRecruitmentCount + RECRUITMENT_LOAD_MORE_COUNT;
     setVisibleRecruitmentCount(nextVisibleCount);
-    if (recruitments.status === "CanLoadMore" && nonCurrentRecruitments.length <= nextVisibleCount) {
+    if (recruitments.status === "CanLoadMore" && dashboardRecruitments.length <= nextVisibleCount) {
       recruitments.loadMore(RECRUITMENT_LOAD_MORE_COUNT);
     }
   };
@@ -92,7 +98,8 @@ export function DashboardPage() {
       <Animation>
         <DashboardContent
           shop={shop}
-          recruitments={nonCurrentRecruitments.slice(0, visibleRecruitmentCount)}
+          recruitments={nonCurrentRecruitments}
+          recruitmentList={dashboardRecruitments.slice(0, visibleRecruitmentCount)}
           currentRecruitments={currentRecruitments ?? []}
           recruitmentStatus={recruitments.status}
           canLoadMoreRecruitments={canLoadMoreRecruitments}
@@ -102,6 +109,7 @@ export function DashboardPage() {
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
           pendingStaffRequests={pendingStaffRequests ?? []}
+          announcement={announcement ?? null}
           isDashboardOnboardingDismissed={Boolean(
             currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
           )}

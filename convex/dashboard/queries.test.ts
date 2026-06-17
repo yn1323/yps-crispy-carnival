@@ -73,6 +73,113 @@ describe("dashboard/queries", () => {
     });
   });
 
+  describe("getActiveDashboardAnnouncement", () => {
+    it("未認証の場合 null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const result = await t.query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+      expect(result).toBeNull();
+    });
+
+    it("公開中のお知らせがない場合 null を返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("dashboardAnnouncements", {
+          title: "下書きのお知らせ",
+          bodyHtml: "<p>非公開です。</p>",
+          displayDate: "2026-06-17",
+          isPublished: false,
+          isDeleted: false,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "announcement_user" })
+        .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+      expect(result).toBeNull();
+    });
+
+    it("公開中のお知らせを必要なフィールドだけ返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("dashboardAnnouncements", {
+          title: "LINE通知の遅延について",
+          bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p>",
+          displayDate: "2026-06-17",
+          isPublished: true,
+          isDeleted: false,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "announcement_user" })
+        .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+
+      expect(result).toMatchObject({
+        title: "LINE通知の遅延について",
+        bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p>",
+        displayDate: "2026-06-17",
+      });
+      expect(Object.keys(result ?? {}).sort()).toEqual(["_id", "bodyHtml", "displayDate", "title"]);
+    });
+
+    it("非公開と削除済みを除外し、公開中の最新1件だけ返す", async () => {
+      const t = convexTest(schema, modules);
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-06-17T09:00:00+09:00"));
+        await t.run(async (ctx) => {
+          await ctx.db.insert("dashboardAnnouncements", {
+            title: "非公開のお知らせ",
+            bodyHtml: "<p>表示しません。</p>",
+            displayDate: "2026-06-19",
+            isPublished: false,
+            isDeleted: false,
+          });
+          await ctx.db.insert("dashboardAnnouncements", {
+            title: "削除済みのお知らせ",
+            bodyHtml: "<p>表示しません。</p>",
+            displayDate: "2026-06-18",
+            isPublished: true,
+            isDeleted: true,
+          });
+          await ctx.db.insert("dashboardAnnouncements", {
+            title: "前日のお知らせ",
+            bodyHtml: "<p>古いお知らせです。</p>",
+            displayDate: "2026-06-16",
+            isPublished: true,
+            isDeleted: false,
+          });
+          await ctx.db.insert("dashboardAnnouncements", {
+            title: "同日の先に作ったお知らせ",
+            bodyHtml: "<p>同日内では古いお知らせです。</p>",
+            displayDate: "2026-06-17",
+            isPublished: true,
+            isDeleted: false,
+          });
+        });
+
+        vi.setSystemTime(new Date("2026-06-17T09:00:01+09:00"));
+        await t.run(async (ctx) => {
+          await ctx.db.insert("dashboardAnnouncements", {
+            title: "同日の後に作ったお知らせ",
+            bodyHtml: "<p>同日内で最新のお知らせです。</p>",
+            displayDate: "2026-06-17",
+            isPublished: true,
+            isDeleted: false,
+          });
+        });
+
+        const result = await t
+          .withIdentity({ subject: "announcement_user" })
+          .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+
+        expect(result?.title).toBe("同日の後に作ったお知らせ");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe("getDashboardRecruitments", () => {
     it("未認証の場合、エラーをthrowする", async () => {
       const t = convexTest(schema, modules);

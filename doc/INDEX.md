@@ -10,6 +10,7 @@
 | [法務同意フロー](features/legal-consent.md) | 管理ユーザー/スタッフ向け利用規約・プライバシーポリシー同意を記録 | 実装済 |
 | [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
+| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事の全店舗共通お知らせをDashboard上部に1件だけ表示 | 実装済 |
 | [管理ユーザーと店舗所属](features/manager-shop-membership.md) | 管理ユーザーと店舗を `shopMembers` で結ぶ所属モデル。複数店舗対応のDB土台 | 準備中 |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
 | [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |

@@ -11,7 +11,6 @@ import { formatDateShort } from "@/src/domains/shift/date";
 
 type Props = {
   recruitment: Recruitment;
-  isCurrentSection?: boolean;
   dataTour?: string;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
@@ -40,20 +39,14 @@ const statusConfig: Record<
   ended: { label: "確定済み", colorPalette: "gray", accent: "gray.300" },
 };
 
-export function RecruitmentRow({
-  recruitment,
-  isCurrentSection = false,
-  dataTour,
-  onOpenShiftBoard,
-  onDeleteRecruitment,
-}: Props) {
+export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDeleteRecruitment }: Props) {
   const { _id, periodStart, periodEnd, deadline, status, confirmedAt, responseCount, totalStaffCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
   const { colorPalette, accent, borderColor, bg } = statusConfig[displayStatus];
   const label = displayStatus === "ended" && status === "open" ? "締切済み" : statusConfig[displayStatus].label;
   const relativeText = relativeDeadline({ deadline, confirmedAt, displayStatus, recruitmentStatus: status });
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
-  const isCurrent = displayStatus === "current" || isCurrentSection;
+  const isCurrent = displayStatus === "current";
   const textColor = displayStatus === "ended" ? "gray.700" : "gray.900";
 
   return (
@@ -98,20 +91,50 @@ export function RecruitmentRow({
             </Text>
           </Flex>
 
-          <HStack gap={{ base: 2, lg: 5 }} flex={1} minW={0} wrap={{ base: "wrap", lg: "nowrap" }}>
-            <HStack minW={{ lg: isCurrent ? "132px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
+          <Flex
+            flex={1}
+            minW={0}
+            direction={{ base: "column", md: "row" }}
+            align={{ base: "stretch", md: "center" }}
+            gap={{ base: 2, md: 4 }}
+          >
+            <HStack minW={{ lg: isCurrent ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
               <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
                 {label}
               </Badge>
+              {isCurrent && (
+                <Badge colorPalette="blue" variant="solid" borderRadius="full" px={2.5} fontSize="xs">
+                  現在利用中
+                </Badge>
+              )}
             </HStack>
-            <HStack gap={1} color="fg.muted" fontSize="xs" minW={{ lg: "160px" }} flexShrink={0}>
-              <LuCalendarClock />
-              <Text whiteSpace="nowrap">{relativeText}</Text>
+            <HStack
+              gap={{ base: 3, lg: 8 }}
+              flex={1}
+              justify="flex-end"
+              align="center"
+              color="fg.muted"
+              fontSize="xs"
+              minW={0}
+              wrap="wrap"
+            >
+              <HStack gap={1} justify="flex-end" minW={{ base: "132px", lg: "160px" }} flexShrink={0}>
+                <LuCalendarClock />
+                <Text whiteSpace="nowrap" textAlign="right">
+                  {relativeText}
+                </Text>
+              </HStack>
+              <Text
+                fontSize="xs"
+                color="fg.muted"
+                whiteSpace="nowrap"
+                minW={{ base: "84px", lg: "96px" }}
+                textAlign="right"
+              >
+                提出 {responseCount}/{totalStaffCount}人
+              </Text>
             </HStack>
-            <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
-              提出 {responseCount}/{totalStaffCount}人
-            </Text>
-          </HStack>
+          </Flex>
         </Flex>
       </Flex>
       <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>

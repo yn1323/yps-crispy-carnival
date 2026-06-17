@@ -14,13 +14,20 @@ import {
 } from "../constants";
 
 type NotificationJob = Doc<"notificationOutbox">;
+const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
 
 export const processPending = internalAction({
   args: {},
   handler: async (ctx) => {
-    const jobs: NotificationJob[] = await ctx.runMutation(internal.notificationOutbox.mutations.claimDue, {
-      now: Date.now(),
-    });
+    let jobs: NotificationJob[];
+    try {
+      jobs = await ctx.runMutation(internal.notificationOutbox.mutations.claimDue, {
+        now: Date.now(),
+      });
+    } catch (e) {
+      await recordWorkerFailure(ctx, e);
+      return;
+    }
 
     for (const job of jobs) {
       try {
@@ -33,9 +40,15 @@ export const processPending = internalAction({
             outboxId: job._id,
             lastError,
             nextRunAt: Date.now() + retryDelayMs(job.attemptCount, e),
+            ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         } else {
-          await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, { outboxId: job._id, lastError });
+          await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, {
+            outboxId: job._id,
+            lastError,
+            ...(lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE ? { suppressFailureInbox: true } : {}),
+            ...(errorName(e) ? { errorName: errorName(e) } : {}),
+          });
         }
       }
     }
@@ -66,14 +79,53 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob) {
   const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
   if (quota?.status === "exceeded") {
     if (job.payload.fallbackEmail) {
-      await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
-        channel: "email",
-        shopId: job.shopId,
-        ...(job.staffId ? { staffId: job.staffId } : {}),
-        dedupeKey: job.payload.fallbackEmail.dedupeKey,
-        payload: job.payload.fallbackEmail.payload,
-      });
-      throw new Error("LINE quota exceeded; fallback email enqueued");
+      try {
+        await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
+          channel: "email",
+          shopId: job.shopId,
+          ...(job.staffId ? { staffId: job.staffId } : {}),
+          ...(job.userId ? { userId: job.userId } : {}),
+          dedupeKey: job.payload.fallbackEmail.dedupeKey,
+          payload: job.payload.fallbackEmail.payload,
+        });
+      } catch (e) {
+        try {
+          await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+            eventType: "enqueue_failed",
+            shopId: job.shopId,
+            ...(job.staffId ? { staffId: job.staffId } : {}),
+            ...(job.userId ? { userId: job.userId } : {}),
+            outboxId: job._id,
+            channel: "email",
+            dedupeKey: job.payload.fallbackEmail.dedupeKey,
+            notificationContext: job.payload.fallbackEmail.payload.context,
+            attemptCount: job.attemptCount,
+            errorMessage: errorMessage(e),
+            ...(errorName(e) ? { errorName: errorName(e) } : {}),
+          });
+        } catch (logError) {
+          console.error("Notification fallback enqueue failure logging failed", logError);
+        }
+        throw e;
+      }
+
+      try {
+        await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+          eventType: "fallback_enqueued",
+          shopId: job.shopId,
+          ...(job.staffId ? { staffId: job.staffId } : {}),
+          ...(job.userId ? { userId: job.userId } : {}),
+          outboxId: job._id,
+          channel: job.channel,
+          dedupeKey: job.dedupeKey,
+          notificationContext: job.payload.fallbackEmail.payload.context,
+          attemptCount: job.attemptCount,
+          errorMessage: LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE,
+        });
+      } catch (logError) {
+        console.error("Notification fallback event logging failed", logError);
+      }
+      throw new Error(LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE);
     }
     throw new Error("LINE quota exceeded");
   }
@@ -116,4 +168,20 @@ function lineRetryKey(id: string) {
 
 function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : String(e);
+}
+
+function errorName(e: unknown) {
+  return e instanceof Error ? e.name : undefined;
+}
+
+async function recordWorkerFailure(ctx: ActionCtx, e: unknown) {
+  try {
+    await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "worker_failed",
+      errorMessage: errorMessage(e),
+      ...(errorName(e) ? { errorName: errorName(e) } : {}),
+    });
+  } catch (logError) {
+    console.error("Notification outbox worker failure logging failed", logError);
+  }
 }

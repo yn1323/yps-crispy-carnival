@@ -68,7 +68,7 @@ export const sendReminderEmails = internalAction({
               }),
             }
           : undefined;
-        await enqueueLine(ctx, {
+        const result = await enqueueLine(ctx, {
           shopId: data.shopId,
           staffId: staff.staffId,
           dedupeKey: `line:reminder:${recruitmentId}:${staff.staffId}`,
@@ -85,7 +85,7 @@ export const sendReminderEmails = internalAction({
             ...(fallbackEmail ? { fallbackEmail } : {}),
           }),
         });
-        sentCount += 1;
+        if (result) sentCount += 1;
         continue;
       }
 
@@ -99,7 +99,7 @@ export const sendReminderEmails = internalAction({
         appUrl: APP_URL,
       });
 
-      await enqueueEmail(ctx, {
+      const result = await enqueueEmail(ctx, {
         shopId: data.shopId,
         staffId: staff.staffId,
         dedupeKey: `email:reminder:${recruitmentId}:${staff.staffId}`,
@@ -118,7 +118,7 @@ export const sendReminderEmails = internalAction({
           suppressDelivery,
         }),
       });
-      sentCount += 1;
+      if (result) sentCount += 1;
     }
 
     if (sentCount > 0) {

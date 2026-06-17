@@ -4,6 +4,10 @@ import { rateLimitTables } from "convex-helpers/server/rateLimit";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   notificationChannelValidator,
+  notificationDeliveryEventTypeValidator,
+  notificationFailureInboxSourceTypeValidator,
+  notificationFailureInboxStatusValidator,
+  notificationFailureResolutionKindValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
 } from "./notificationOutbox/schemas";
@@ -56,6 +60,17 @@ const schema = defineSchema({
     .index("by_userId_and_isDeleted", ["userId", "isDeleted"])
     .index("by_userId_and_shopId", ["userId", "shopId"])
     .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
+
+  // ========================================
+  // ダッシュボードお知らせ（全店舗共通）
+  // ========================================
+  dashboardAnnouncements: defineTable({
+    title: v.string(),
+    bodyHtml: v.string(),
+    displayDate: v.string(), // "2026-06-17"
+    isPublished: v.boolean(),
+    isDeleted: v.boolean(),
+  }).index("by_isPublished_and_isDeleted_and_displayDate", ["isPublished", "isDeleted", "displayDate"]),
 
   // ========================================
   // スタッフ
@@ -206,6 +221,25 @@ const schema = defineSchema({
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
     .index("by_recruitmentId_date", ["recruitmentId", "date"]),
 
+  shiftConfirmationSnapshots: defineTable({
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    signature: v.string(),
+    assignments: v.array(
+      v.object({
+        date: v.string(),
+        startTime: v.string(),
+        endTime: v.string(),
+        positionId: v.id("positions"),
+        optionId: v.optional(v.string()),
+      }),
+    ),
+    sentAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
+    .index("by_recruitmentId", ["recruitmentId"]),
+
   // ========================================
   // シフト提出記録（全休み提出と未提出の区別用）
   // ========================================
@@ -315,6 +349,7 @@ const schema = defineSchema({
     dedupeKey: v.string(),
     shopId: v.id("shops"),
     staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
     payload: notificationPayloadValidator,
     attemptCount: v.number(),
     nextRunAt: v.number(),
@@ -328,6 +363,57 @@ const schema = defineSchema({
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
     .index("by_shopId_status", ["shopId", "status"]),
+
+  notificationDeliveryEvents: defineTable({
+    eventType: notificationDeliveryEventTypeValidator,
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    shopId: v.optional(v.id("shops")),
+    staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    outboxId: v.optional(v.id("notificationOutbox")),
+    channel: v.optional(notificationChannelValidator),
+    dedupeKey: v.optional(v.string()),
+    notificationContext: v.optional(v.string()),
+    attemptCount: v.optional(v.number()),
+    nextRunAt: v.optional(v.number()),
+    errorMessage: v.string(),
+    errorName: v.optional(v.string()),
+  })
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_shopId_createdAt", ["shopId", "createdAt"])
+    .index("by_outboxId_createdAt", ["outboxId", "createdAt"])
+    .index("by_eventType_createdAt", ["eventType", "createdAt"]),
+
+  notificationFailureInbox: defineTable({
+    failureKey: v.string(),
+    sourceType: notificationFailureInboxSourceTypeValidator,
+    status: notificationFailureInboxStatusValidator,
+    shopId: v.id("shops"),
+    staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    outboxId: v.optional(v.id("notificationOutbox")),
+    channel: v.optional(notificationChannelValidator),
+    dedupeKey: v.string(),
+    notificationContext: v.string(),
+    firstFailedAt: v.number(),
+    lastFailedAt: v.number(),
+    lastEventId: v.optional(v.id("notificationDeliveryEvents")),
+    attemptCount: v.optional(v.number()),
+    lastError: v.string(),
+    errorName: v.optional(v.string()),
+    retryRequestedAt: v.optional(v.number()),
+    retryRequestedByUserId: v.optional(v.id("users")),
+    resolvedAt: v.optional(v.number()),
+    resolvedByUserId: v.optional(v.id("users")),
+    resolutionKind: v.optional(notificationFailureResolutionKindValidator),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_failureKey", ["failureKey"])
+    .index("by_shopId_status_lastFailedAt", ["shopId", "status", "lastFailedAt"])
+    .index("by_outboxId", ["outboxId"])
+    .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"]),
 
   // ========================================
   // 店舗×月（JST）ごとの通知送信数。markSent 時にインクリメントする集約カウンタ
