@@ -177,6 +177,8 @@ describe("notificationOutbox/actions", () => {
       attemptCount: 1,
       errorMessage: "LINE quota exceeded; fallback email enqueued",
     });
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toEqual([]);
   });
 
   it("Resend 429 はretry-afterに従って再予約する", async () => {

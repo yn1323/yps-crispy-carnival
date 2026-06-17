@@ -14,6 +14,7 @@ import {
 } from "../constants";
 
 type NotificationJob = Doc<"notificationOutbox">;
+const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
 
 export const processPending = internalAction({
   args: {},
@@ -45,6 +46,7 @@ export const processPending = internalAction({
           await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, {
             outboxId: job._id,
             lastError,
+            ...(lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE ? { suppressFailureInbox: true } : {}),
             ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         }
@@ -118,12 +120,12 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob) {
           dedupeKey: job.dedupeKey,
           notificationContext: job.payload.fallbackEmail.payload.context,
           attemptCount: job.attemptCount,
-          errorMessage: "LINE quota exceeded; fallback email enqueued",
+          errorMessage: LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE,
         });
       } catch (logError) {
         console.error("Notification fallback event logging failed", logError);
       }
-      throw new Error("LINE quota exceeded; fallback email enqueued");
+      throw new Error(LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE);
     }
     throw new Error("LINE quota exceeded");
   }

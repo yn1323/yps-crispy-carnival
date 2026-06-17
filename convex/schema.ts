@@ -5,6 +5,9 @@ import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   notificationChannelValidator,
   notificationDeliveryEventTypeValidator,
+  notificationFailureInboxSourceTypeValidator,
+  notificationFailureInboxStatusValidator,
+  notificationFailureResolutionKindValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
 } from "./notificationOutbox/schemas";
@@ -351,6 +354,36 @@ const schema = defineSchema({
     .index("by_shopId_createdAt", ["shopId", "createdAt"])
     .index("by_outboxId_createdAt", ["outboxId", "createdAt"])
     .index("by_eventType_createdAt", ["eventType", "createdAt"]),
+
+  notificationFailureInbox: defineTable({
+    failureKey: v.string(),
+    sourceType: notificationFailureInboxSourceTypeValidator,
+    status: notificationFailureInboxStatusValidator,
+    shopId: v.id("shops"),
+    staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    outboxId: v.optional(v.id("notificationOutbox")),
+    channel: v.optional(notificationChannelValidator),
+    dedupeKey: v.string(),
+    notificationContext: v.string(),
+    firstFailedAt: v.number(),
+    lastFailedAt: v.number(),
+    lastEventId: v.optional(v.id("notificationDeliveryEvents")),
+    attemptCount: v.optional(v.number()),
+    lastError: v.string(),
+    errorName: v.optional(v.string()),
+    retryRequestedAt: v.optional(v.number()),
+    retryRequestedByUserId: v.optional(v.id("users")),
+    resolvedAt: v.optional(v.number()),
+    resolvedByUserId: v.optional(v.id("users")),
+    resolutionKind: v.optional(notificationFailureResolutionKindValidator),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_failureKey", ["failureKey"])
+    .index("by_shopId_status_lastFailedAt", ["shopId", "status", "lastFailedAt"])
+    .index("by_outboxId", ["outboxId"])
+    .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"]),
 
   // ========================================
   // 店舗×月（JST）ごとの通知送信数。markSent 時にインクリメントする集約カウンタ
