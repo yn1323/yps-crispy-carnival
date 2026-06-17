@@ -82,7 +82,9 @@ export const submitRegistrationRequest = mutation({
 
     const existingStaff = await findActiveStaffByEmail(ctx, shop._id, email);
     if (existingStaff) {
-      throw new ConvexError("このメールアドレスはすでに登録されています");
+      throw new ConvexError(
+        "このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。",
+      );
     }
 
     const pendingRequest = await ctx.db

@@ -133,7 +133,7 @@ describe("staffRegistration/mutations", () => {
         email: "existing@example.com",
         acceptedLegal: true,
       }),
-    ).rejects.toThrow("このメールアドレスはすでに登録されています");
+    ).rejects.toThrow("このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。");
 
     const requests = await t
       .withIdentity({ subject: "manager_existing_staff" })

@@ -85,7 +85,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     await registrationPage.goto(seed.registrationToken);
     await registrationPage.submitRequestAndExpectError(
       { name: "重複申請スタッフ", email: EXISTING_STAFF.email },
-      "このメールアドレスはすでに登録されています",
+      "このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。",
     );
   });
 
