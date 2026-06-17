@@ -112,8 +112,9 @@ async function buildConfirmationEmail(opts: {
   magicLinkUrl: string;
   isResend: boolean;
   suppressDelivery: boolean;
+  dedupeKey?: string;
 }): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
-  const { ctx, staffData, data, recruitmentId, magicLinkUrl, isResend, suppressDelivery } = opts;
+  const { ctx, staffData, data, recruitmentId, magicLinkUrl, isResend, suppressDelivery, dedupeKey } = opts;
   if (!staffData.email) return null;
 
   const reissueUrl = `${APP_URL}/shifts/reissue?recruitmentId=${recruitmentId}`;
@@ -126,7 +127,8 @@ async function buildConfirmationEmail(opts: {
   });
 
   return {
-    dedupeKey: `email:confirmation:${recruitmentId}:${staffData.staffId}:${isResend ? "resend" : "confirm"}`,
+    dedupeKey:
+      dedupeKey ?? `email:confirmation:${recruitmentId}:${staffData.staffId}:${isResend ? "resend" : "confirm"}`,
     payload: emailPayload({
       from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
       to: staffData.email,
@@ -536,6 +538,101 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
 });
 
 /**
+ * 手動再送: 1スタッフへ、現在送れる募集中シフトを通常の LINE / メール振り分けで送る。
+ */
+export const sendOpenRecruitmentNotificationsForStaff = internalAction({
+  args: { staffId: v.id("staffs") },
+  handler: async (ctx, { staffId }) => {
+    const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
+      staffId,
+    });
+    if (!data || data.recruitments.length === 0) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const manualRunId = Date.now();
+
+    for (const recruitment of data.recruitments) {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId: recruitment.recruitmentId,
+        expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+      const channel = selectChannel(
+        { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
+        quota,
+      );
+
+      try {
+        if (channel === "line" && data.staff.lineUserId) {
+          const fallbackEmail = data.staff.email
+            ? await buildRecruitmentEmail({
+                ctx,
+                shopId: data.shopId,
+                shopName: data.shopName,
+                staff: data.staff,
+                recruitmentId: recruitment.recruitmentId,
+                periodLabel: recruitment.periodLabel,
+                deadline: recruitment.deadline,
+                magicLinkUrl,
+                suppressDelivery,
+                context: "notification.sendOpenRecruitmentNotificationsForStaff",
+                dedupeKey: `email:manualRecruitment:${recruitment.recruitmentId}:${data.staff.staffId}:${manualRunId}`,
+              })
+            : null;
+          await enqueueLine(ctx, {
+            shopId: data.shopId,
+            staffId: data.staff.staffId,
+            dedupeKey: `line:manualRecruitment:${recruitment.recruitmentId}:${data.staff.staffId}:${manualRunId}`,
+            payload: linePayload({
+              toUserId: data.staff.lineUserId,
+              text: buildRecruitmentLineText({
+                staffName: data.staff.name,
+                shopName: data.shopName,
+                periodLabel: recruitment.periodLabel,
+                deadline: formatDeadlineLabel(recruitment.deadline),
+                magicLinkUrl,
+              }),
+              suppressDelivery,
+              ...(fallbackEmail ? { fallbackEmail } : {}),
+            }),
+          });
+          continue;
+        }
+
+        const email = await buildRecruitmentEmail({
+          ctx,
+          shopId: data.shopId,
+          shopName: data.shopName,
+          staff: data.staff,
+          recruitmentId: recruitment.recruitmentId,
+          periodLabel: recruitment.periodLabel,
+          deadline: recruitment.deadline,
+          magicLinkUrl,
+          suppressDelivery,
+          context: "notification.sendOpenRecruitmentNotificationsForStaff",
+          dedupeKey: `email:manualRecruitment:${recruitment.recruitmentId}:${data.staff.staffId}:${manualRunId}`,
+        });
+        if (!email) continue;
+        await enqueueEmail(ctx, {
+          shopId: data.shopId,
+          staffId: data.staff.staffId,
+          dedupeKey: email.dedupeKey,
+          payload: email.payload,
+        });
+      } catch (e) {
+        console.error("Manual recruitment notification enqueue failed", e);
+      }
+    }
+  },
+});
+
+/**
  * LINE連携・follow時: 1スタッフへ、現在募集中の希望提出リンクをLINEで送る。
  */
 export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
@@ -587,6 +684,93 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         });
       } catch (e) {
         console.error("LINE push enqueue failed for open recruitment notification", e);
+      }
+    }
+  },
+});
+
+/**
+ * 手動再送: 1スタッフへ、現在の確定シフトを送る。
+ */
+export const sendCurrentShiftConfirmationForStaff = internalAction({
+  args: { staffId: v.id("staffs") },
+  handler: async (ctx, { staffId }) => {
+    const data = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
+      staffId,
+    });
+    if (!data || data.recruitments.length === 0) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const manualRunId = Date.now();
+
+    for (const recruitment of data.recruitments) {
+      const staffData = recruitment.staffEntry;
+      const channel = selectChannel(
+        { lineUserId: staffData.lineUserId, lineFollowing: staffData.lineFollowing },
+        quota,
+      );
+      const { token: viewToken } = await ctx.runMutation(internal.notification.mutations.createMagicLink, {
+        staffId: staffData.staffId,
+        shopId: data.shopId,
+        recruitmentId: recruitment.recruitmentId,
+        accessKind: "view",
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
+      const confirmationData = {
+        shopId: data.shopId,
+        shopName: data.shopName,
+        periodLabel: recruitment.periodLabel,
+      };
+
+      try {
+        if (channel === "line" && staffData.lineUserId) {
+          const fallbackEmail = await buildConfirmationEmail({
+            ctx,
+            staffData,
+            data: confirmationData,
+            recruitmentId: recruitment.recruitmentId,
+            magicLinkUrl,
+            isResend: false,
+            suppressDelivery,
+            dedupeKey: `email:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`,
+          });
+          await enqueueLine(ctx, {
+            shopId: data.shopId,
+            staffId: staffData.staffId,
+            dedupeKey: `line:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`,
+            payload: linePayload({
+              toUserId: staffData.lineUserId,
+              text: buildShiftConfirmationLineText({
+                staffName: staffData.name,
+                shopName: data.shopName,
+                periodLabel: recruitment.periodLabel,
+                shifts: staffData.shifts,
+                magicLinkUrl,
+                isResend: false,
+              }),
+              suppressDelivery,
+              ...(fallbackEmail ? { fallbackEmail } : {}),
+            }),
+          });
+          continue;
+        }
+
+        await enqueueConfirmationEmail({
+          ctx,
+          staffData,
+          data: confirmationData,
+          recruitmentId: recruitment.recruitmentId,
+          magicLinkUrl,
+          isResend: false,
+          suppressDelivery,
+          dedupeKey: `email:manualConfirmation:${recruitment.recruitmentId}:${staffData.staffId}:${manualRunId}`,
+        });
+      } catch (e) {
+        console.error("Manual current shift notification enqueue failed", e);
       }
     }
   },

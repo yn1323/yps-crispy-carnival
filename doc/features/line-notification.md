@@ -36,6 +36,7 @@
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード（既存）| StaffRow メニュー経由で連携リンク表示 / 個別連携依頼 |
+| シフト担当者ダッシュボード（既存）| StaffRow メニュー経由で募集通知 / 現在の確定シフト通知を個別再送 |
 | LineLinkQrDialog | QR 表示 + URL コピー |
 | 連携依頼確認ダイアログ（個別） | 送信前の確認 |
 | `/line/callback` | OAuth 完了画面（成功 / 期限切れ / レート超過 / エラー） |
@@ -47,6 +48,8 @@
 |---|---|---|
 | `api.line.mutations.generateLinkToken` | mutation | シフト担当者UIから連携用QR/URL発行 |
 | `api.line.mutations.sendInvite` | mutation | 個別スタッフへ連携依頼メール |
+| `api.staff.mutations.sendOpenRecruitmentNotifications` | mutation | 個別スタッフへ現在送れる募集通知を再送予約 |
+| `api.staff.mutations.sendCurrentShiftNotification` | mutation | 個別スタッフへ現在の確定シフト通知を再送予約 |
 | `api.line.queries.getLinkStatusByShop` | query | 店舗のスタッフごと連携状況 |
 | `api.line.queries.getQuotaStatus` | query | Quota 状態（normal / exceeded） |
 | `api.line.actions.redeemLineToken` | action | OAuth コールバック処理（state 検証 → code 交換 → 連携完了） |
@@ -97,13 +100,14 @@ LINEメッセージ本文に載せるURLには `withOpenExternalBrowser()`（`co
 
 店舗初回セットアップ時に、シフト担当者ユーザーのメールアドレスへ LINE 連携依頼メールを送る。スタッフ追加時にも、スタッフ向け利用規約/プライバシーポリシー同意依頼メールとは別に LINE 連携依頼メールを送る。シフト募集中にスタッフを追加した場合、追加スタッフにも希望提出リンクをメールで送る。スタッフのメールアドレスを変更した場合も、変更後メールへ同じ対象募集の希望提出リンクを送る。LINEログイン完了時に友だち追加済み、またはWebhook followで `lineFollowing` が `true` になった場合は、同じ対象募集の希望提出リンクをLINEで送る。
 
-- 対象募集: `status === "open"`、未削除、締切前または締切当日
+- 対象募集: `status === "open"`、未削除、シフト開始前、締切前または締切当日
 - シフト担当者向けLINE連携依頼メール: `setup.mutations.setupShopAndManager` から初回登録したシフト担当者スタッフ行に対して `internal.line.actions.sendInviteEmail` をスケジュール
 - スタッフ向けLINE連携依頼メール: `staff.mutations.addStaffs` から追加スタッフごとに `internal.line.actions.sendInviteEmail` をスケジュール
 - メール通知: `staff.mutations.addStaffs` から追加スタッフごとに `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff` をスケジュール
 - メール変更時の追送: `staff.mutations.editStaff` でメールが実際に変わった場合だけ、変更後メールへ `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange` をスケジュール。LINE受信可能なスタッフには送らず、未連携・unfollow・Quota超過時はメールで送る
 - LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
 - 複数の対象募集がある場合は募集ごとに1通ずつ送る
+- スタッフ一覧の個別メニューから、募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時・シフト確定時に自動通知されるため、不達時だけ使う補助導線として扱う
 
 ## 設計ドキュメント
 
