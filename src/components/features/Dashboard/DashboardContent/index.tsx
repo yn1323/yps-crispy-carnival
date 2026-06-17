@@ -70,6 +70,7 @@ type Props = {
     };
   };
   recruitments: Recruitment[];
+  recruitmentList?: Recruitment[];
   currentRecruitments?: Recruitment[];
   recruitmentStatus: PaginationStatus;
   canLoadMoreRecruitments: boolean;
@@ -88,6 +89,7 @@ export const DashboardContent = ({
   managerProfileDefaults,
   managerLegalConsentStatus,
   recruitments,
+  recruitmentList = recruitments,
   currentRecruitments = [],
   recruitmentStatus,
   canLoadMoreRecruitments,
@@ -492,8 +494,7 @@ export const DashboardContent = ({
               </Stack>
             )}
             <RecruitmentBoard
-              recruitments={recruitments}
-              currentRecruitments={currentRecruitments}
+              recruitments={recruitmentList}
               status={recruitmentStatus}
               canLoadMore={canLoadMoreRecruitments}
               tourRecruitmentId={latestKnownRecruitment?._id}
