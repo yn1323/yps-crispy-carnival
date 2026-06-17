@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../storyMocks";
-import type { Recruitment, Staff, StaffRegistrationRequest } from "../types";
+import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { DashboardContent, DashboardContentSkeleton } from "./index";
 
 const noop = () => {};
@@ -58,6 +58,13 @@ const pendingStaffRequests = [
     createdAt: Date.now(),
   },
 ] as unknown as StaffRegistrationRequest[];
+
+const dashboardAnnouncement = {
+  _id: "dashboard-announcement-1",
+  title: "LINE通知の遅延について",
+  bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
+  displayDate: "2026-06-17",
+} as unknown as DashboardAnnouncement;
 
 const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
@@ -119,6 +126,13 @@ export const Normal: Story = {
     staffStatus: "CanLoadMore",
     canLoadMoreStaffs: true,
     loadMoreStaffs: noop,
+  },
+};
+
+export const WithAnnouncement: Story = {
+  args: {
+    ...Normal.args,
+    announcement: dashboardAnnouncement,
   },
 };
 
@@ -336,6 +350,13 @@ export const Setup: Story = {
     staffStatus: "Exhausted",
     canLoadMoreStaffs: false,
     loadMoreStaffs: noop,
+  },
+};
+
+export const SetupWithAnnouncement: Story = {
+  args: {
+    ...Setup.args,
+    announcement: dashboardAnnouncement,
   },
 };
 

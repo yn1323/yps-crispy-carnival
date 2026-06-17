@@ -58,4 +58,11 @@ export type StaffRegistrationRequest = {
   createdAt: number;
 };
 
+export type DashboardAnnouncement = {
+  _id: Id<"dashboardAnnouncements">;
+  title: string;
+  bodyHtml: string;
+  displayDate: string;
+};
+
 export type { PaginationStatus } from "convex/browser";

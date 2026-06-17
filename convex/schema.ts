@@ -62,6 +62,17 @@ const schema = defineSchema({
     .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
   // ========================================
+  // ダッシュボードお知らせ（全店舗共通）
+  // ========================================
+  dashboardAnnouncements: defineTable({
+    title: v.string(),
+    bodyHtml: v.string(),
+    displayDate: v.string(), // "2026-06-17"
+    isPublished: v.boolean(),
+    isDeleted: v.boolean(),
+  }).index("by_isPublished_and_isDeleted_and_displayDate", ["isPublished", "isDeleted", "displayDate"]),
+
+  // ========================================
   // スタッフ
   // ========================================
   staffs: defineTable({

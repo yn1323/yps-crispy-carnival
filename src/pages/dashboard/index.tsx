@@ -19,6 +19,7 @@ export function DashboardPage() {
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
   const shop = useQuery(api.dashboard.queries.getDashboardShop);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
+  const announcement = useQuery(api.dashboard.queries.getActiveDashboardAnnouncement, {});
   const skipPagination = shop === undefined || shop === null;
   const managerLegalConsentStatus = useQuery(
     api.legal.queries.getManagerConsentStatus,
@@ -102,6 +103,7 @@ export function DashboardPage() {
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
           pendingStaffRequests={pendingStaffRequests ?? []}
+          announcement={announcement ?? null}
           isDashboardOnboardingDismissed={Boolean(
             currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
           )}

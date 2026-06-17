@@ -17,6 +17,7 @@ import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import type { CreateRecruitmentData } from "../CreateRecruitmentForm/index";
 import { CreateRecruitmentForm } from "../CreateRecruitmentForm/index.tsx";
 import { getCreateRecruitmentErrorMessage } from "../createRecruitmentErrors";
+import { DashboardAnnouncement } from "../DashboardAnnouncement";
 import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
@@ -30,6 +31,7 @@ import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRegistrationRequestBanner, StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
 import {
+  type DashboardAnnouncement as DashboardAnnouncementData,
   type PaginationStatus,
   type Recruitment,
   type Staff,
@@ -78,6 +80,7 @@ type Props = {
   loadMoreStaffs: () => void;
   pendingStaffRequests?: StaffRegistrationRequest[];
   isDashboardOnboardingDismissed?: boolean;
+  announcement?: DashboardAnnouncementData | null;
 };
 
 export const DashboardContent = ({
@@ -95,6 +98,7 @@ export const DashboardContent = ({
   loadMoreStaffs,
   pendingStaffRequests = [],
   isDashboardOnboardingDismissed = false,
+  announcement = null,
 }: Props) => {
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
@@ -459,6 +463,7 @@ export const DashboardContent = ({
               onEditClick={editShopModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onCreateRecruitment={recruitmentModal.open}
+              announcementBanner={announcement ? <DashboardAnnouncement announcement={announcement} /> : undefined}
               staffRegistrationRequestBanner={
                 pendingStaffRequests.length > 0 ? (
                   <StaffRegistrationRequestBanner
@@ -513,7 +518,10 @@ export const DashboardContent = ({
             />
           </>
         ) : (
-          <WelcomeHero onSetupClick={setupModal.open} />
+          <>
+            {announcement && <DashboardAnnouncement announcement={announcement} />}
+            <WelcomeHero onSetupClick={setupModal.open} />
+          </>
         )}
       </ContentWrapper>
 
