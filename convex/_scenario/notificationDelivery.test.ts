@@ -101,6 +101,73 @@ describe("通知配送outboxシナリオ", () => {
     );
   });
 
+  it("手動の募集通知再送はopenかつ開始前・締切前の募集を1スタッフへ送る", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manual-recruitment-manager@example.com",
+        shopName: "手動募集通知店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "手動送信スタッフ",
+        email: "manual-recruitment@example.com",
+      });
+      await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(-1),
+        periodEnd: scenarioDate(3),
+        deadline: scenarioDate(1),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const futureOpenRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(8),
+        periodEnd: scenarioDate(14),
+        deadline: scenarioDate(-1),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { staffId, futureOpenRecruitmentId };
+    });
+
+    await asManager.sendOpenRecruitmentNotifications(ids.staffId);
+    await t.action(internal.notification.actions.sendOpenRecruitmentNotificationsForStaff, { staffId: ids.staffId });
+
+    const jobs = await getOutboxJobs(t);
+    expect(jobs.map((job) => job.dedupeKey)).toEqual([
+      `email:manualRecruitment:${ids.futureOpenRecruitmentId}:${ids.staffId}:${SCENARIO_NOW}`,
+    ]);
+    expect(
+      jobs.every(
+        (job) =>
+          job.channel === "email" &&
+          job.staffId === ids.staffId &&
+          job.payload.kind === "email" &&
+          job.payload.context === "notification.sendOpenRecruitmentNotificationsForStaff",
+      ),
+    ).toBe(true);
+  });
+
   it("自動催促actionは未提出者だけに通常submitリンクを再利用して通知する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
@@ -274,6 +341,94 @@ describe("通知配送outboxシナリオ", () => {
         .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "view")
         .map((link) => link.staffId),
     ).toEqual(expect.arrayContaining([ids.emailStaffId, ids.lineStaffId]));
+  });
+
+  it("手動の現在の確定シフト通知は期間内の確定シフトだけを1スタッフへ送る", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "manual-confirmation-manager@example.com",
+        shopName: "手動確定通知店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "現在シフトスタッフ",
+        email: "manual-confirmation@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const currentRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(-1),
+        periodEnd: scenarioDate(3),
+        deadline: scenarioDate(-2),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId: currentRecruitmentId,
+        staffId,
+        date: scenarioDate(0),
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId,
+      });
+      const futureRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId: futureRecruitmentId,
+        staffId,
+        date: scenarioDate(7),
+        startTime: "12:00",
+        endTime: "20:00",
+        positionId,
+      });
+      return { staffId, currentRecruitmentId };
+    });
+
+    await asManager.sendCurrentShiftNotification(ids.staffId);
+    await t.action(internal.notification.actions.sendCurrentShiftConfirmationForStaff, { staffId: ids.staffId });
+
+    const [jobs, magicLinks] = await Promise.all([getOutboxJobs(t), getMagicLinks(t)]);
+    expect(jobs.map((job) => job.dedupeKey)).toEqual([
+      `email:manualConfirmation:${ids.currentRecruitmentId}:${ids.staffId}:${SCENARIO_NOW}`,
+    ]);
+    expect(jobs[0]).toMatchObject({
+      channel: "email",
+      staffId: ids.staffId,
+      payload: expect.objectContaining({
+        kind: "email",
+        to: "manual-confirmation@example.com",
+        context: "notification.sendConfirmationEmail",
+      }),
+    });
+    expect(
+      magicLinks
+        .filter((link) => link.accessKind === "view")
+        .map((link) => ({ recruitmentId: link.recruitmentId, staffId: link.staffId })),
+    ).toEqual([{ recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId }]);
   });
 
   it("スタッフ参加申請の日次digestはpending時だけowner向けoutboxを作る", async () => {
