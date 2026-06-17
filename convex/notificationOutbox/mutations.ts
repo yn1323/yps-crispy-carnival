@@ -5,7 +5,7 @@ import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
-import { NOTIFICATION_OUTBOX_SHOP_ACTIVE_LIMIT, NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE } from "../constants";
+import { NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE } from "../constants";
 import { notificationChannelValidator, notificationPayloadValidator } from "./schemas";
 
 const ACTIVE_STATUSES = ["pending", "processing"] as const;
@@ -24,6 +24,7 @@ export const enqueue = internalMutation({
     }
 
     const now = Date.now();
+    // worker が別ジョブの status を高頻度に更新するため、enqueue の読み取りは dedupeKey 単位に絞る。
     for (const status of ACTIVE_STATUSES) {
       const existing = await ctx.db
         .query("notificationOutbox")
@@ -35,18 +36,6 @@ export const enqueue = internalMutation({
         }
         return { outboxId: existing._id, deduped: true };
       }
-    }
-
-    const [pending, processing] = await Promise.all(
-      ACTIVE_STATUSES.map((status) =>
-        ctx.db
-          .query("notificationOutbox")
-          .withIndex("by_shopId_status", (q) => q.eq("shopId", args.shopId).eq("status", status))
-          .take(NOTIFICATION_OUTBOX_SHOP_ACTIVE_LIMIT + 1),
-      ),
-    );
-    if (pending.length + processing.length >= NOTIFICATION_OUTBOX_SHOP_ACTIVE_LIMIT) {
-      throw new ConvexError("Notification queue is busy. Please try again later.");
     }
 
     const outboxId = await ctx.db.insert("notificationOutbox", {
