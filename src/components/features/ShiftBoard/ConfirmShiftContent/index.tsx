@@ -12,18 +12,21 @@ type Props = {
   staffCount: number;
   periodLabel: string;
   warnings?: DisplayIssue[];
+  isResend?: boolean;
 };
 
-export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [] }: Props) => {
+export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [], isResend = false }: Props) => {
   const warningSummary = summarizeAssignmentWarnings(warnings);
 
   return (
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
-        LINEで受け取る設定のスタッフにはLINEで、未設定のスタッフにはメールでシフトが届きます。
+        {isResend
+          ? "前回通知から変更があるスタッフだけに送ります。LINEで受け取る設定のスタッフにはLINEで、未設定のスタッフにはメールで届きます。"
+          : "LINEで受け取る設定のスタッフにはLINEで、未設定のスタッフにはメールでシフトが届きます。"}
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
-        <Text fontSize="sm">対象: {staffCount}名</Text>
+        <Text fontSize="sm">対象: {isResend ? "前回通知から変更があるスタッフ" : `${staffCount}名`}</Text>
         <Text fontSize="sm">期間: {periodLabel}</Text>
       </Box>
       {warningSummary.length > 0 && (
@@ -42,7 +45,7 @@ export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [] }: 
             ))}
           </Stack>
           <Text mt={4} textAlign="center" fontSize="sm" fontWeight={700} color="gray.700">
-            この内容のまま確定して、スタッフに通知しますか？
+            この内容のまま{isResend ? "スタッフに通知しますか？" : "確定して、スタッフに通知しますか？"}
           </Text>
         </Box>
       )}

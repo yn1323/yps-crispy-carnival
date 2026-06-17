@@ -65,6 +65,13 @@ export const WithWarnings: Story = {
   },
 };
 
+export const Resend: Story = {
+  args: {
+    ...baseArgs,
+    isResend: true,
+  },
+};
+
 export const ModalWithWarnings: Story = {
   name: "Modal With Warnings",
   args: {

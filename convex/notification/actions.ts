@@ -27,9 +27,17 @@ import {
  * - それ以外 → メール（未連携なら CTA を末尾に挿入）
  */
 export const sendShiftConfirmationEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments"), isResend: v.boolean() },
-  handler: async (ctx, { recruitmentId, isResend }) => {
-    const data = await ctx.runQuery(internal.notification.queries.getConfirmationEmailData, { recruitmentId });
+  args: {
+    recruitmentId: v.id("recruitments"),
+    isResend: v.boolean(),
+    targetStaffIds: v.optional(v.array(v.id("staffs"))),
+    notificationRunId: v.optional(v.number()),
+  },
+  handler: async (ctx, { recruitmentId, isResend, targetStaffIds, notificationRunId }) => {
+    const data = await ctx.runQuery(internal.notification.queries.getConfirmationEmailData, {
+      recruitmentId,
+      ...(targetStaffIds ? { targetStaffIds } : {}),
+    });
     if (!data) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -37,6 +45,7 @@ export const sendShiftConfirmationEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
+    const dedupeSuffix = isResend ? `resend:${notificationRunId ?? Date.now()}` : "confirm";
 
     for (const staffData of data.staffEntries) {
       const channel = selectChannel(
@@ -51,6 +60,8 @@ export const sendShiftConfirmationEmails = internalAction({
         accessKind: "view",
       });
       const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
+      const emailDedupeKey = `email:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
+      const lineDedupeKey = `line:confirmation:${recruitmentId}:${staffData.staffId}:${dedupeSuffix}`;
 
       if (channel === "line" && staffData.lineUserId) {
         const text = buildShiftConfirmationLineText({
@@ -69,11 +80,12 @@ export const sendShiftConfirmationEmails = internalAction({
           magicLinkUrl,
           isResend,
           suppressDelivery,
+          dedupeKey: emailDedupeKey,
         });
-        await enqueueLine(ctx, {
+        const result = await enqueueLine(ctx, {
           shopId: data.shopId,
           staffId: staffData.staffId,
-          dedupeKey: `line:confirmation:${recruitmentId}:${staffData.staffId}:${isResend ? "resend" : "confirm"}`,
+          dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: staffData.lineUserId,
             text,
@@ -81,10 +93,13 @@ export const sendShiftConfirmationEmails = internalAction({
             ...(fallbackEmail ? { fallbackEmail } : {}),
           }),
         });
+        if (result) {
+          await recordConfirmationSnapshotSent(ctx, recruitmentId, staffData);
+        }
         continue;
       }
 
-      await enqueueConfirmationEmail({
+      const result = await enqueueConfirmationEmail({
         ctx,
         staffData,
         data,
@@ -92,7 +107,11 @@ export const sendShiftConfirmationEmails = internalAction({
         magicLinkUrl,
         isResend,
         suppressDelivery,
+        dedupeKey: emailDedupeKey,
       });
+      if (result) {
+        await recordConfirmationSnapshotSent(ctx, recruitmentId, staffData);
+      }
     }
   },
 });
@@ -150,14 +169,38 @@ async function buildConfirmationEmail(opts: {
   };
 }
 
-async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmationEmail>[0]): Promise<void> {
+async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmationEmail>[0]) {
   const email = await buildConfirmationEmail(opts);
-  if (!email) return;
-  await enqueueEmail(opts.ctx, {
+  if (!email) return null;
+  return await enqueueEmail(opts.ctx, {
     shopId: opts.data.shopId,
     staffId: opts.staffData.staffId,
     dedupeKey: email.dedupeKey,
     payload: email.payload,
+  });
+}
+
+async function recordConfirmationSnapshotSent(
+  ctx: ActionCtx,
+  recruitmentId: Id<"recruitments">,
+  staffData: {
+    staffId: Id<"staffs">;
+    snapshotAssignments: Array<{
+      date: string;
+      startTime: string;
+      endTime: string;
+      positionId: Id<"positions">;
+      optionId?: string;
+    }>;
+    snapshotSignature: string;
+  },
+) {
+  await ctx.runMutation(internal.notification.mutations.upsertConfirmationSnapshot, {
+    recruitmentId,
+    staffId: staffData.staffId,
+    assignments: staffData.snapshotAssignments,
+    signature: staffData.snapshotSignature,
+    sentAt: Date.now(),
   });
 }
 

@@ -210,6 +210,25 @@ const schema = defineSchema({
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
     .index("by_recruitmentId_date", ["recruitmentId", "date"]),
 
+  shiftConfirmationSnapshots: defineTable({
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    signature: v.string(),
+    assignments: v.array(
+      v.object({
+        date: v.string(),
+        startTime: v.string(),
+        endTime: v.string(),
+        positionId: v.id("positions"),
+        optionId: v.optional(v.string()),
+      }),
+    ),
+    sentAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
+    .index("by_recruitmentId", ["recruitmentId"]),
+
   // ========================================
   // シフト提出記録（全休み提出と未提出の区別用）
   // ========================================

@@ -53,6 +53,7 @@ import type * as migrations_m002_shops_add_submission_pattern from "../migration
 import type * as migrations_m003_recruitments_add_submission_pattern from "../migrations/m003_recruitments_add_submission_pattern.js";
 import type * as migrations_m004_notification_failure_inbox_backfill from "../migrations/m004_notification_failure_inbox_backfill.js";
 import type * as notification_actions from "../notification/actions.js";
+import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
 import type * as notification_mutations from "../notification/mutations.js";
 import type * as notification_queries from "../notification/queries.js";
 import type * as notification_reminderActions from "../notification/reminderActions.js";
@@ -143,6 +144,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m003_recruitments_add_submission_pattern": typeof migrations_m003_recruitments_add_submission_pattern;
   "migrations/m004_notification_failure_inbox_backfill": typeof migrations_m004_notification_failure_inbox_backfill;
   "notification/actions": typeof notification_actions;
+  "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
   "notification/mutations": typeof notification_mutations;
   "notification/queries": typeof notification_queries;
   "notification/reminderActions": typeof notification_reminderActions;

@@ -406,11 +406,18 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
-      await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
+      const result = await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
       // 確定後も直前に確認したwarningは残し、画面上の文脈が急に消えないようにする。
       dismissValidationIssues();
       confirmModal.close();
-      toaster.create({ title: "確定しました", type: "success" });
+      if (result?.status === "no_changes") {
+        toaster.create({ title: "前回通知から変更されたスタッフはいません", type: "info" });
+        return;
+      }
+      toaster.create({
+        title: isConfirmed ? "変更があるスタッフに通知します" : "確定しました",
+        type: "success",
+      });
     } catch (error) {
       if (handleMutationError(error)) {
         confirmModal.close();
@@ -462,6 +469,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const confirmTitle = isConfirmed
     ? "確定済みのシフトをもう一度通知しますか？"
     : "このシフトをスタッフに通知しますか？";
+  const confirmSubmitLabel = isConfirmed ? "変更があるスタッフに通知" : "シフトを確定して通知";
 
   return (
     <Flex
@@ -530,12 +538,17 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         isOpen={confirmModal.isOpen}
         onOpenChange={confirmModal.onOpenChange}
         onSubmit={handleConfirm}
-        submitLabel="シフトを確定して通知"
+        submitLabel={confirmSubmitLabel}
         onClose={confirmModal.close}
         isLoading={isConfirming}
         isSubmitDisabled={isConfirming}
       >
-        <ConfirmShiftContent staffCount={staffs.length} periodLabel={periodLabel} warnings={displayWarnings} />
+        <ConfirmShiftContent
+          staffCount={staffs.length}
+          periodLabel={periodLabel}
+          warnings={displayWarnings}
+          isResend={isConfirmed}
+        />
       </Dialog>
 
       <Dialog
