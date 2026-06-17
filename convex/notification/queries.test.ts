@@ -1,10 +1,70 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/queries", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-20T12:00:00+09:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  describe("getOpenRecruitmentNotificationDataForStaff", () => {
+    it("open募集は開始前かつ締切前の募集だけ通知対象にする", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "募集通知店舗");
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "募集通知スタッフ",
+          email: "join@example.com",
+          isDeleted: false,
+        });
+        const futureOpenRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-22",
+          periodEnd: "2026-01-25",
+          deadline: "2026-01-21",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-19",
+          periodEnd: "2026-01-21",
+          deadline: "2026-01-21",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-23",
+          periodEnd: "2026-01-26",
+          deadline: "2026-01-19",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return { staffId, futureOpenRecruitmentId };
+      });
+
+      const result = await t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
+        staffId: ids.staffId,
+      });
+
+      expect(result?.recruitments.map((recruitment) => recruitment.recruitmentId)).toEqual([
+        ids.futureOpenRecruitmentId,
+      ]);
+    });
+  });
+
   describe("getConfirmationEmailData", () => {
     it("同じ日の複数確定セグメントを1日の表示ラベルにまとめる", async () => {
       const t = convexTest(schema, modules);

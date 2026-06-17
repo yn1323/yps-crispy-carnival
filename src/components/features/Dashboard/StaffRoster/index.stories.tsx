@@ -20,6 +20,9 @@ const meta = {
     onDelete: noop,
     onShowLineQr: noop,
     onSendLineInvite: noop,
+    onSendRecruitments: noop,
+    onSendCurrentShift: noop,
+    hasCurrentShift: true,
     onLoadMore: noop,
   },
   decorators: [
