@@ -64,4 +64,13 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     period: MINUTE_MS,
     capacity: 1,
   },
+
+  // スタッフ個別の通知再送: shopId+staffId+kind をキーに
+  // 1回/分 — メニュー連打で同じ通知を積みすぎないための同期ガード
+  staffNotificationResendShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
 });

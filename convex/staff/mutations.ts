@@ -1,8 +1,44 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
+import { rateLimit } from "../_lib/rateLimits";
+import { getStaffLineAccount } from "../line/service";
 import { findActiveStaffByEmail, normalizeEmail } from "./service";
+
+type StaffNotificationKind = "openRecruitments" | "currentShift";
+type ManagerStaffMutationCtx = MutationCtx & {
+  user: Doc<"users">;
+  shop: Doc<"shops">;
+};
+
+async function getSendableStaff(ctx: ManagerStaffMutationCtx, staffId: Id<"staffs">) {
+  const staff = await ctx.db.get(staffId);
+  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    throw new ConvexError("Not found");
+  }
+
+  const lineAccount = await getStaffLineAccount(ctx, staff._id);
+  const canSend = staff.email.length > 0 || Boolean(lineAccount?.lineUserId && lineAccount.following);
+  if (!canSend) {
+    throw new ConvexError("メールアドレスまたはLINE連携が必要です");
+  }
+
+  return staff;
+}
+
+async function allowStaffNotificationResend(
+  ctx: ManagerStaffMutationCtx,
+  staffId: Id<"staffs">,
+  kind: StaffNotificationKind,
+) {
+  const shortLimit = await rateLimit(ctx, {
+    name: "staffNotificationResendShort",
+    key: `${ctx.shop._id}:${staffId}:${kind}`,
+  });
+  return shortLimit.ok;
+}
 
 export const addStaffs = managerMutation({
   args: {
@@ -121,6 +157,55 @@ export const editStaff = managerMutation({
         },
       );
     }
+  },
+});
+
+export const sendOpenRecruitmentNotifications = managerMutation({
+  args: {
+    staffId: v.id("staffs"),
+  },
+  handler: async (ctx, args) => {
+    const staff = await getSendableStaff(ctx, args.staffId);
+    const notificationData = await ctx.runQuery(
+      internal.notification.queries.getOpenRecruitmentNotificationDataForStaff,
+      {
+        staffId: staff._id,
+      },
+    );
+    if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
+      return { scheduled: false, reason: "noEligibleRecruitments" as const };
+    }
+
+    const allowed = await allowStaffNotificationResend(ctx, staff._id, "openRecruitments");
+    if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
+
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationsForStaff, {
+      staffId: staff._id,
+    });
+    return { scheduled: true as const };
+  },
+});
+
+export const sendCurrentShiftNotification = managerMutation({
+  args: {
+    staffId: v.id("staffs"),
+  },
+  handler: async (ctx, args) => {
+    const staff = await getSendableStaff(ctx, args.staffId);
+    const notificationData = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
+      staffId: staff._id,
+    });
+    if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
+      return { scheduled: false, reason: "noCurrentShift" as const };
+    }
+
+    const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift");
+    if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
+
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendCurrentShiftConfirmationForStaff, {
+      staffId: staff._id,
+    });
+    return { scheduled: true as const };
   },
 });
 

@@ -1,5 +1,5 @@
 import { Badge, Flex, HStack, Menu, Portal, Stack, Text } from "@chakra-ui/react";
-import { LuEllipsisVertical, LuMail, LuPencil, LuQrCode, LuTrash2 } from "react-icons/lu";
+import { LuCalendarCheck, LuEllipsisVertical, LuMail, LuPencil, LuQrCode, LuSend, LuTrash2 } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { IconButton } from "@/src/components/ui/Button";
 
@@ -9,15 +9,29 @@ type Props = {
   onDelete: (staff: Staff) => void;
   onShowLineQr: (staff: Staff) => void;
   onSendLineInvite: (staff: Staff) => void;
+  onSendRecruitments: (staff: Staff) => void;
+  onSendCurrentShift: (staff: Staff) => void;
+  hasCurrentShift: boolean;
 };
 
-export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvite }: Props) {
+export function StaffRow({
+  staff,
+  onEdit,
+  onDelete,
+  onShowLineQr,
+  onSendLineInvite,
+  onSendRecruitments,
+  onSendCurrentShift,
+  hasCurrentShift,
+}: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
   const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const hasEmail = staff.email.length > 0;
   const canShowLineQr = !isLineActive;
   const canSendLineInvite = hasEmail && !isLineActive;
+  const canSendNotification = hasEmail || isLineActive;
+  const canSendCurrentShift = canSendNotification && hasCurrentShift;
 
   return (
     <HStack
@@ -73,10 +87,34 @@ export function StaffRow({ staff, onEdit, onDelete, onShowLineQr, onSendLineInvi
         </Menu.Trigger>
         <Portal>
           <Menu.Positioner>
-            <Menu.Content minW="180px">
+            <Menu.Content minW="250px">
               <Menu.Item value="edit" cursor="pointer" onClick={() => onEdit(staff)}>
                 <LuPencil />
                 編集
+              </Menu.Item>
+              <Menu.Item
+                value="send-recruitments"
+                cursor={canSendNotification ? "pointer" : "not-allowed"}
+                color={canSendNotification ? undefined : "fg.muted"}
+                disabled={!canSendNotification}
+                onClick={() => {
+                  if (canSendNotification) onSendRecruitments(staff);
+                }}
+              >
+                <LuSend />
+                現在募集中のシフトを送る
+              </Menu.Item>
+              <Menu.Item
+                value="send-current-shift"
+                cursor={canSendCurrentShift ? "pointer" : "not-allowed"}
+                color={canSendCurrentShift ? undefined : "fg.muted"}
+                disabled={!canSendCurrentShift}
+                onClick={() => {
+                  if (canSendCurrentShift) onSendCurrentShift(staff);
+                }}
+              >
+                <LuCalendarCheck />
+                現在の確定シフトを送る
               </Menu.Item>
               <Menu.Item
                 value="line-qr"

@@ -103,6 +103,12 @@ export function createScenario(t: ScenarioTest) {
         editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
           return asManager.mutation(api.staff.mutations.editStaff, args);
         },
+        sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+        },
+        sendCurrentShiftNotification(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+        },
         deleteStaff(staffId: Id<"staffs">) {
           return asManager.mutation(api.staff.mutations.deleteStaff, { staffId });
         },

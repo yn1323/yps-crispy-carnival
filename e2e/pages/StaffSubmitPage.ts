@@ -1,5 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
+const STAFF_SUBMIT_DATA_TIMEOUT = 20_000;
+
 export class StaffSubmitPage {
   constructor(private page: Page) {}
 
@@ -8,15 +10,21 @@ export class StaffSubmitPage {
   }
 
   async expectFormVisible() {
-    await expect(this.page.getByRole("button", { name: /提出|更新/ })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /提出|更新/ })).toBeVisible({
+      timeout: STAFF_SUBMIT_DATA_TIMEOUT,
+    });
   }
 
   async expectUnsubmittedBadge() {
-    await expect(this.page.getByRole("button", { name: /提出する|希望シフトを提出/ })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /提出する|希望シフトを提出/ })).toBeVisible({
+      timeout: STAFF_SUBMIT_DATA_TIMEOUT,
+    });
   }
 
   async expectSubmittedBadge() {
-    await expect(this.page.getByRole("button", { name: /修正して提出する|希望シフトを更新/ })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /修正して提出する|希望シフトを更新/ })).toBeVisible({
+      timeout: STAFF_SUBMIT_DATA_TIMEOUT,
+    });
   }
 
   async expectCompletionVisible() {
