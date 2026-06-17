@@ -4,6 +4,11 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import {
+  NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
+  NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
+  NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+} from "../constants";
 
 const emailPayload = {
   kind: "email" as const,
@@ -91,8 +96,9 @@ describe("notificationOutbox", () => {
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(100);
     expect(jobs.every((job) => job.status === "pending")).toBe(true);
+    expect(jobs.every((job) => job.nextRunAt >= job.createdAt + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS)).toBe(true);
     const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
+    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(0);
   });
 
   it("processing中の別ジョブが多い状態でも新規通知をpendingジョブとして受け付ける", async () => {
@@ -125,11 +131,12 @@ describe("notificationOutbox", () => {
     });
 
     expect(result.deduped).toBe(false);
-    const job = await t.run(async (ctx) => await ctx.db.get(result.outboxId));
+    const outboxId = result.outboxId as Id<"notificationOutbox">;
+    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
     expect(job?.status).toBe("pending");
   });
 
-  it("dueなpendingジョブが残っていてもworker予定がなければ再予約する", async () => {
+  it("dueなpendingジョブが残っていてもenqueueではworker予定を作らない", async () => {
     const { t, shopId, staffId } = await setupShop();
     await t.run(async (ctx) => {
       await ctx.db.insert("notificationOutbox", {
@@ -155,10 +162,10 @@ describe("notificationOutbox", () => {
     });
 
     const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
+    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(0);
   });
 
-  it("future retry workerだけが予約済みでも新規due通知用の即時workerを予約する", async () => {
+  it("markRetryはpendingに戻してretryイベントを残し、個別workerは予約しない", async () => {
     const { t, shopId, staffId } = await setupShop();
     const now = Date.now();
     const retryJobId = await t.run(async (ctx) => {
@@ -182,22 +189,31 @@ describe("notificationOutbox", () => {
       nextRunAt: now + 60 * 60 * 1000,
     });
 
-    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
-      channel: "email",
+    const job = await t.run(async (ctx) => await ctx.db.get(retryJobId));
+    expect(job).toMatchObject({
+      status: "pending",
+      nextRunAt: now + 60 * 60 * 1000,
+      lastError: "temporary error",
+    });
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "retry_scheduled",
       shopId,
       staffId,
-      dedupeKey: "email:test:after-retry-backoff",
-      payload: emailPayload,
+      outboxId: retryJobId,
+      channel: "email",
+      dedupeKey: "email:test:retry-backoff",
+      notificationContext: "test.email",
+      attemptCount: 1,
+      nextRunAt: now + 60 * 60 * 1000,
+      errorMessage: "temporary error",
     });
-
     const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-    const workers = scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending");
-    expect(workers).toHaveLength(2);
-    expect(workers.some((job) => job.scheduledTime <= now)).toBe(true);
-    expect(workers.some((job) => job.scheduledTime > now)).toBe(true);
+    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(0);
   });
 
-  it("dueなpendingジョブにdedupeした場合もworker予定がなければ再予約する", async () => {
+  it("dueなpendingジョブにdedupeした場合もworker予定を作らない", async () => {
     const { t, shopId, staffId } = await setupShop();
     const staleJobId = await t.run(async (ctx) => {
       return await ctx.db.insert("notificationOutbox", {
@@ -226,7 +242,7 @@ describe("notificationOutbox", () => {
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(1);
+    expect(scheduled.filter((job) => job.name === "notificationOutbox/actions:processPending")).toHaveLength(0);
   });
 
   describe("markSent", () => {
@@ -366,6 +382,18 @@ describe("notificationOutbox", () => {
 
       const usage = await collectUsage(t);
       expect(usage).toHaveLength(0);
+      const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType: "final_failed",
+        shopId,
+        outboxId,
+        channel: "email",
+        dedupeKey: "email:test:failed",
+        notificationContext: "test.email",
+        attemptCount: 1,
+        errorMessage: "boom",
+      });
     });
   });
 
@@ -379,12 +407,78 @@ describe("notificationOutbox", () => {
       payload: emailPayload,
     });
 
-    const claimed = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    const claimed = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now() + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+    });
 
     expect(claimed).toHaveLength(1);
     expect(claimed[0].status).toBe("processing");
     expect(claimed[0].attemptCount).toBe(1);
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs[0].status).toBe("processing");
+  });
+
+  it("期限切れの配送イベントだけを削除する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("notificationDeliveryEvents", {
+        eventType: "enqueue_failed",
+        createdAt: now - NOTIFICATION_DELIVERY_EVENT_RETENTION_MS - 1,
+        expiresAt: now - 1,
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:old",
+        notificationContext: "test.email",
+        errorMessage: "old",
+      });
+      await ctx.db.insert("notificationDeliveryEvents", {
+        eventType: "enqueue_failed",
+        createdAt: now,
+        expiresAt: now + NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:new",
+        notificationContext: "test.email",
+        errorMessage: "new",
+      });
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.pruneExpiredEvents, {});
+
+    expect(result).toEqual({ deletedCount: 1 });
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0].dedupeKey).toBe("email:test:new");
+  });
+
+  it("期限切れ配送イベントがbatch満杯なら削除継続を予約する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE + 1; i++) {
+        await ctx.db.insert("notificationDeliveryEvents", {
+          eventType: "enqueue_failed",
+          createdAt: now - NOTIFICATION_DELIVERY_EVENT_RETENTION_MS - 1,
+          expiresAt: now - 1,
+          shopId,
+          staffId,
+          channel: "email",
+          dedupeKey: `email:test:expired:${i}`,
+          notificationContext: "test.email",
+          errorMessage: "old",
+        });
+      }
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.pruneExpiredEvents, {});
+
+    expect(result).toEqual({ deletedCount: NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE });
+    const remainingEvents = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(remainingEvents).toHaveLength(1);
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled.some((job) => job.name === "notificationOutbox/mutations:pruneExpiredEvents")).toBe(true);
   });
 });

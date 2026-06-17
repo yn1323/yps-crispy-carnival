@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { RESEND_RETRY_DELAY_PADDING_MS } from "../constants";
+import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS, RESEND_RETRY_DELAY_PADDING_MS } from "../constants";
 
 const fallbackEmail = {
   dedupeKey: "email:test:fallback",
@@ -73,6 +73,7 @@ describe("notificationOutbox/actions", () => {
   it.each([429, 500])("LINE %i はpendingに戻して再試行予約する", async (status) => {
     const { t } = await setupLineJob(status);
 
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     await t.action(internal.notificationOutbox.actions.processPending, {});
 
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
@@ -81,17 +82,44 @@ describe("notificationOutbox/actions", () => {
     expect(jobs[0].attemptCount).toBe(1);
     expect(jobs[0].lastError).toContain(`LINE push failed: ${status}`);
     expect(jobs[0].nextRunAt).toBeGreaterThan(Date.now());
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "retry_scheduled",
+      shopId: jobs[0].shopId,
+      staffId: jobs[0].staffId,
+      outboxId: jobs[0]._id,
+      channel: "line",
+      dedupeKey: `line:test:${status}`,
+      notificationContext: `line:test`,
+      attemptCount: 1,
+    });
+    expect(events[0].errorMessage).toContain(`LINE push failed: ${status}`);
   });
 
   it("LINE 400 はfailedにする", async () => {
     const { t } = await setupLineJob(400);
 
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     await t.action(internal.notificationOutbox.actions.processPending, {});
 
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     expect(jobs[0].status).toBe("failed");
     expect(jobs[0].lastError).toContain("LINE push failed: 400");
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "final_failed",
+      shopId: jobs[0].shopId,
+      staffId: jobs[0].staffId,
+      outboxId: jobs[0]._id,
+      channel: "line",
+      dedupeKey: "line:test:400",
+      notificationContext: "line:test",
+      attemptCount: 1,
+    });
+    expect(events[0].errorMessage).toContain("LINE push failed: 400");
   });
 
   it("LINE quota exceeded はfallback emailをenqueueする", async () => {
@@ -131,12 +159,24 @@ describe("notificationOutbox/actions", () => {
       },
     });
 
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     await t.action(internal.notificationOutbox.actions.processPending, {});
 
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs.map((job) => job.channel).sort()).toEqual(["email", "line"]);
     expect(jobs.find((job) => job.channel === "line")?.status).toBe("failed");
     expect(jobs.find((job) => job.channel === "email")?.status).toBe("pending");
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events.map((event) => event.eventType).sort()).toEqual(["fallback_enqueued", "final_failed"]);
+    expect(events.find((event) => event.eventType === "fallback_enqueued")).toMatchObject({
+      shopId,
+      staffId,
+      channel: "line",
+      dedupeKey: "line:test:quota",
+      notificationContext: "test.fallback",
+      attemptCount: 1,
+      errorMessage: "LINE quota exceeded; fallback email enqueued",
+    });
   });
 
   it("Resend 429 はretry-afterに従って再予約する", async () => {
@@ -182,6 +222,18 @@ describe("notificationOutbox/actions", () => {
     });
     expect(jobs[0].lastError).toContain("rate_limit_exceeded");
     expect(jobs[0].nextRunAt - jobs[0].updatedAt).toBe(2000 + RESEND_RETRY_DELAY_PADDING_MS);
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "retry_scheduled",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey: "email:test:resend429",
+      notificationContext: "test.resendRetry",
+      attemptCount: 1,
+    });
+    expect(events[0].errorMessage).toContain("rate_limit_exceeded");
   });
 });
 

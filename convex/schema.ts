@@ -4,6 +4,7 @@ import { rateLimitTables } from "convex-helpers/server/rateLimit";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   notificationChannelValidator,
+  notificationDeliveryEventTypeValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
 } from "./notificationOutbox/schemas";
@@ -315,6 +316,7 @@ const schema = defineSchema({
     dedupeKey: v.string(),
     shopId: v.id("shops"),
     staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
     payload: notificationPayloadValidator,
     attemptCount: v.number(),
     nextRunAt: v.number(),
@@ -328,6 +330,27 @@ const schema = defineSchema({
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
     .index("by_shopId_status", ["shopId", "status"]),
+
+  notificationDeliveryEvents: defineTable({
+    eventType: notificationDeliveryEventTypeValidator,
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    shopId: v.optional(v.id("shops")),
+    staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    outboxId: v.optional(v.id("notificationOutbox")),
+    channel: v.optional(notificationChannelValidator),
+    dedupeKey: v.optional(v.string()),
+    notificationContext: v.optional(v.string()),
+    attemptCount: v.optional(v.number()),
+    nextRunAt: v.optional(v.number()),
+    errorMessage: v.string(),
+    errorName: v.optional(v.string()),
+  })
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_shopId_createdAt", ["shopId", "createdAt"])
+    .index("by_outboxId_createdAt", ["outboxId", "createdAt"])
+    .index("by_eventType_createdAt", ["eventType", "createdAt"]),
 
   // ========================================
   // 店舗×月（JST）ごとの通知送信数。markSent 時にインクリメントする集約カウンタ

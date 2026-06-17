@@ -218,7 +218,7 @@ export const sendReissueEmail = internalAction({
             }),
           }
         : undefined;
-      await enqueueLine(ctx, {
+      const result = await enqueueLine(ctx, {
         shopId: data.shopId,
         staffId,
         dedupeKey: `line:reissue:${recruitmentId}:${staffId}`,
@@ -234,13 +234,13 @@ export const sendReissueEmail = internalAction({
           ...(fallbackEmail ? { fallbackEmail } : {}),
         }),
       });
-      return log("log", "line_enqueued");
+      return result ? log("log", "line_enqueued") : log("error", "line_enqueue_failed");
     }
 
     if (!data.staffEmail) return log("log", "no_email_no_line_skip");
 
     try {
-      await enqueueEmail(ctx, {
+      const result = await enqueueEmail(ctx, {
         shopId: data.shopId,
         staffId,
         dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
@@ -257,7 +257,11 @@ export const sendReissueEmail = internalAction({
           suppressDelivery,
         }),
       });
-      log("log", "email_enqueued");
+      if (result) {
+        log("log", "email_enqueued");
+      } else {
+        log("error", "email_enqueue_failed");
+      }
     } catch (e) {
       log("error", "email_enqueue_failed", { error: errorMessage(e) });
     }

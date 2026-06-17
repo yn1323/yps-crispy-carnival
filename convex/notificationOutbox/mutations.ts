@@ -5,16 +5,27 @@ import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
-import { NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE } from "../constants";
-import { notificationChannelValidator, notificationPayloadValidator } from "./schemas";
+import {
+  NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
+  NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
+  NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+  NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
+} from "../constants";
+import {
+  notificationChannelValidator,
+  notificationDeliveryEventTypeValidator,
+  notificationPayloadValidator,
+} from "./schemas";
 
 const ACTIVE_STATUSES = ["pending", "processing"] as const;
+const DELIVERY_EVENT_ERROR_MESSAGE_MAX_LENGTH = 2_000;
 
 export const enqueue = internalMutation({
   args: {
     channel: notificationChannelValidator,
     shopId: v.id("shops"),
     staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
     dedupeKey: v.string(),
     payload: notificationPayloadValidator,
   },
@@ -31,9 +42,6 @@ export const enqueue = internalMutation({
         .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", args.dedupeKey).eq("status", status))
         .first();
       if (existing) {
-        if (existing.status === "pending" && existing.nextRunAt <= now) {
-          await ensureProcessPendingScheduled(ctx, now);
-        }
         return { outboxId: existing._id, deduped: true };
       }
     }
@@ -44,32 +52,36 @@ export const enqueue = internalMutation({
       dedupeKey: args.dedupeKey,
       shopId: args.shopId,
       ...(args.staffId ? { staffId: args.staffId } : {}),
+      ...(args.userId ? { userId: args.userId } : {}),
       payload: args.payload,
       attemptCount: 0,
-      nextRunAt: now,
+      nextRunAt: now + NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
       createdAt: now,
       updatedAt: now,
     });
-    await ensureProcessPendingScheduled(ctx, now);
     return { outboxId, deduped: false };
   },
 });
 
-async function ensureProcessPendingScheduled(ctx: MutationCtx, now: number) {
-  // retry用の未来workerだけでは新規due通知を配送できないため、即時実行できるworkerだけを十分条件にする。
-  const scheduledFunctions = await ctx.db.system.query("_scheduled_functions").order("desc").take(100);
-  const hasDueWorker = scheduledFunctions.some((job) => {
-    return (
-      job.state.kind === "pending" &&
-      job.scheduledTime <= now &&
-      job.name.includes("notificationOutbox/actions") &&
-      job.name.includes("processPending")
-    );
-  });
-  if (!hasDueWorker) {
-    await ctx.scheduler.runAfter(0, internal.notificationOutbox.actions.processPending, {});
-  }
-}
+export const recordDeliveryEvent = internalMutation({
+  args: {
+    eventType: notificationDeliveryEventTypeValidator,
+    shopId: v.optional(v.id("shops")),
+    staffId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    outboxId: v.optional(v.id("notificationOutbox")),
+    channel: v.optional(notificationChannelValidator),
+    dedupeKey: v.optional(v.string()),
+    notificationContext: v.optional(v.string()),
+    attemptCount: v.optional(v.number()),
+    nextRunAt: v.optional(v.number()),
+    errorMessage: v.string(),
+    errorName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await insertDeliveryEvent(ctx, args);
+  },
+});
 
 export const claimDue = internalMutation({
   args: { now: v.number() },
@@ -154,15 +166,26 @@ async function incrementNotificationUsage(
 }
 
 export const markFailed = internalMutation({
-  args: { outboxId: v.id("notificationOutbox"), lastError: v.string() },
-  handler: async (ctx, { outboxId, lastError }) => {
+  args: { outboxId: v.id("notificationOutbox"), lastError: v.string(), errorName: v.optional(v.string()) },
+  handler: async (ctx, { outboxId, lastError, errorName }) => {
+    const job = await ctx.db.get(outboxId);
     const now = Date.now();
+    if (!job) {
+      await insertDeliveryEvent(ctx, {
+        eventType: "worker_failed",
+        outboxId,
+        errorMessage: `notificationOutbox job not found while marking failed: ${lastError}`,
+      });
+      return;
+    }
+
     await ctx.db.patch(outboxId, {
       status: "failed",
       failedAt: now,
       updatedAt: now,
       lastError,
     });
+    await insertDeliveryEvent(ctx, deliveryEventFromJob(job, "final_failed", lastError, { errorName }));
   },
 });
 
@@ -171,18 +194,115 @@ export const markRetry = internalMutation({
     outboxId: v.id("notificationOutbox"),
     lastError: v.string(),
     nextRunAt: v.number(),
+    errorName: v.optional(v.string()),
   },
-  handler: async (ctx, { outboxId, lastError, nextRunAt }) => {
+  handler: async (ctx, { outboxId, lastError, nextRunAt, errorName }) => {
+    const job = await ctx.db.get(outboxId);
+    if (!job) {
+      await insertDeliveryEvent(ctx, {
+        eventType: "worker_failed",
+        outboxId,
+        errorMessage: `notificationOutbox job not found while scheduling retry: ${lastError}`,
+      });
+      return;
+    }
+
     await ctx.db.patch(outboxId, {
       status: "pending",
       nextRunAt,
       updatedAt: Date.now(),
       lastError,
     });
-    await ctx.scheduler.runAfter(
-      Math.max(nextRunAt - Date.now(), 0),
-      internal.notificationOutbox.actions.processPending,
-      {},
-    );
+    await insertDeliveryEvent(ctx, deliveryEventFromJob(job, "retry_scheduled", lastError, { nextRunAt, errorName }));
   },
 });
+
+export const pruneExpiredEvents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const expired = await ctx.db
+      .query("notificationDeliveryEvents")
+      .withIndex("by_expiresAt", (q) => q.lte("expiresAt", Date.now()))
+      .take(NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE);
+
+    for (const event of expired) {
+      await ctx.db.delete(event._id);
+    }
+
+    if (expired.length === NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.pruneExpiredEvents, {});
+    }
+
+    return { deletedCount: expired.length };
+  },
+});
+
+type DeliveryEventInput = {
+  eventType: Doc<"notificationDeliveryEvents">["eventType"];
+  shopId?: Id<"shops">;
+  staffId?: Id<"staffs">;
+  userId?: Id<"users">;
+  outboxId?: Id<"notificationOutbox">;
+  channel?: Doc<"notificationOutbox">["channel"];
+  dedupeKey?: string;
+  notificationContext?: string;
+  attemptCount?: number;
+  nextRunAt?: number;
+  errorMessage: string;
+  errorName?: string;
+};
+
+async function insertDeliveryEvent(ctx: MutationCtx, input: DeliveryEventInput) {
+  const now = Date.now();
+  await ctx.db.insert("notificationDeliveryEvents", {
+    eventType: input.eventType,
+    createdAt: now,
+    expiresAt: now + NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
+    ...(input.shopId ? { shopId: input.shopId } : {}),
+    ...(input.staffId ? { staffId: input.staffId } : {}),
+    ...(input.userId ? { userId: input.userId } : {}),
+    ...(input.outboxId ? { outboxId: input.outboxId } : {}),
+    ...(input.channel ? { channel: input.channel } : {}),
+    ...(input.dedupeKey ? { dedupeKey: input.dedupeKey } : {}),
+    ...(input.notificationContext ? { notificationContext: input.notificationContext } : {}),
+    ...(input.attemptCount !== undefined ? { attemptCount: input.attemptCount } : {}),
+    ...(input.nextRunAt !== undefined ? { nextRunAt: input.nextRunAt } : {}),
+    errorMessage: truncateErrorMessage(input.errorMessage),
+    ...(input.errorName ? { errorName: input.errorName } : {}),
+  });
+}
+
+function deliveryEventFromJob(
+  job: Doc<"notificationOutbox">,
+  eventType: Doc<"notificationDeliveryEvents">["eventType"],
+  errorMessage: string,
+  extra: { nextRunAt?: number; errorName?: string } = {},
+): DeliveryEventInput {
+  return {
+    eventType,
+    shopId: job.shopId,
+    staffId: job.staffId,
+    userId: job.userId,
+    outboxId: job._id,
+    channel: job.channel,
+    dedupeKey: job.dedupeKey,
+    notificationContext: notificationContextForJob(job),
+    attemptCount: job.attemptCount,
+    ...extra,
+    errorMessage,
+  };
+}
+
+function notificationContextForJob(job: Doc<"notificationOutbox">) {
+  if (job.payload.kind === "email") return job.payload.context;
+  return job.payload.fallbackEmail?.payload.context ?? dedupeContext(job.dedupeKey);
+}
+
+function dedupeContext(dedupeKey: string) {
+  return dedupeKey.split(":").slice(0, 2).join(":");
+}
+
+function truncateErrorMessage(message: string) {
+  if (message.length <= DELIVERY_EVENT_ERROR_MESSAGE_MAX_LENGTH) return message;
+  return `${message.slice(0, DELIVERY_EVENT_ERROR_MESSAGE_MAX_LENGTH - 14)}...<truncated>`;
+}
