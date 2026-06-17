@@ -3,6 +3,7 @@ import { internalMutation } from "../_generated/server";
 import { staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS } from "../constants";
+import { confirmationSnapshotAssignmentValidator } from "./confirmationSnapshots";
 
 /**
  * マジックリンクトークンを生成してDBに保存
@@ -84,5 +85,43 @@ export const markReminderSent = internalMutation({
     if (!recruitment || recruitment.isDeleted || recruitment.status !== "open") return null;
     await ctx.db.patch(args.recruitmentId, { lastReminderSentAt: args.sentAt });
     return null;
+  },
+});
+
+export const upsertConfirmationSnapshot = internalMutation({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    signature: v.string(),
+    assignments: v.array(confirmationSnapshotAssignmentValidator),
+    sentAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("shiftConfirmationSnapshots")
+      .withIndex("by_recruitmentId_staffId", (q) =>
+        q.eq("recruitmentId", args.recruitmentId).eq("staffId", args.staffId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        signature: args.signature,
+        assignments: args.assignments,
+        sentAt: args.sentAt,
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("shiftConfirmationSnapshots", {
+      recruitmentId: args.recruitmentId,
+      staffId: args.staffId,
+      signature: args.signature,
+      assignments: args.assignments,
+      sentAt: args.sentAt,
+      updatedAt: now,
+    });
   },
 });

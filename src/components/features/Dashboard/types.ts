@@ -38,6 +38,17 @@ export function sortRecruitmentsByPeriodStart(recruitments: Recruitment[]): Recr
   return [...recruitments].sort((a, b) => b.periodStart.localeCompare(a.periodStart) || b.createdAt - a.createdAt);
 }
 
+export function buildDashboardRecruitmentList({
+  currentRecruitments,
+  recruitments,
+}: {
+  currentRecruitments: readonly Recruitment[];
+  recruitments: readonly Recruitment[];
+}): Recruitment[] {
+  const currentRecruitmentIds = new Set(currentRecruitments.map((recruitment) => recruitment._id));
+  return [...currentRecruitments, ...recruitments.filter((recruitment) => !currentRecruitmentIds.has(recruitment._id))];
+}
+
 export function sortRecruitmentsByCreatedAt(recruitments: Recruitment[]): Recruitment[] {
   return [...recruitments].sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -56,6 +67,13 @@ export type StaffRegistrationRequest = {
   name: string;
   email: string;
   createdAt: number;
+};
+
+export type DashboardAnnouncement = {
+  _id: Id<"dashboardAnnouncements">;
+  title: string;
+  bodyHtml: string;
+  displayDate: string;
 };
 
 export type { PaginationStatus } from "convex/browser";

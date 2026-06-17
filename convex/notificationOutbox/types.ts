@@ -26,6 +26,7 @@ export type NotificationPayload = NotificationEmailPayload | NotificationLinePay
 export type EnqueueNotificationInput = {
   shopId: Id<"shops">;
   staffId?: Id<"staffs">;
+  userId?: Id<"users">;
   dedupeKey: string;
   payload: NotificationPayload;
 };

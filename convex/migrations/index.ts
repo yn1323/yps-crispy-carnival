@@ -19,4 +19,5 @@ export const run = migrations.runner([
   internal.migrations.m001_recruitments_add_shift_times.migration,
   internal.migrations.m002_shops_add_submission_pattern.migration,
   internal.migrations.m003_recruitments_add_submission_pattern.migration,
+  internal.migrations.m004_notification_failure_inbox_backfill.migration,
 ]);

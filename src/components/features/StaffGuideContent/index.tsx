@@ -20,6 +20,8 @@ type GuideItem = {
 };
 
 const shiftreeDescription = "勤務先のお店がシフト希望の回収や確定シフトの共有に使うシフト管理サービスです。";
+const registrationDescription =
+  "名前・メールアドレスを登録し、シフト提出ができるようにしましょう。\nシフト担当者が承認後、メールにてシフト提出依頼が届きます。";
 
 const quickPoints: QuickPoint[] = [
   { icon: LuTabletSmartphone, label: "専用アプリ不要" },
@@ -108,15 +110,26 @@ function HeroSection({ topOffset }: { topOffset?: HeroTopOffset }) {
             <Text mt={4} color="gray.800" fontSize={{ base: "md", md: "lg" }} lineHeight={1.9}>
               {shiftreeDescription}
             </Text>
+            <Text mt={3} color="gray.700" fontSize={{ base: "sm", md: "md" }} lineHeight={1.9} whiteSpace="pre-line">
+              {registrationDescription}
+            </Text>
           </Box>
           <Box aria-hidden="true" display={{ base: "block", md: "none" }} alignSelf="center" w="150px">
             <Image src={heroSpImage} alt="" w="full" h="auto" objectFit="contain" />
           </Box>
-          <SimpleGrid columns={{ base: 1, sm: 2 }} gap={3}>
+          <Flex
+            direction={{ base: "column", sm: "row" }}
+            align={{ base: "stretch", sm: "center" }}
+            justify={{ base: "flex-start", sm: "space-around" }}
+            rowGap={2}
+            columnGap={{ sm: 6, md: 8 }}
+            w="full"
+            px={{ base: 0, sm: 2, md: 4 }}
+          >
             {quickPoints.map((item) => (
-              <QuickPointCard key={item.label} item={item} />
+              <QuickPointItem key={item.label} item={item} />
             ))}
-          </SimpleGrid>
+          </Flex>
         </VStack>
 
         <Box
@@ -132,11 +145,13 @@ function HeroSection({ topOffset }: { topOffset?: HeroTopOffset }) {
   );
 }
 
-function QuickPointCard({ item }: { item: QuickPoint }) {
+function QuickPointItem({ item }: { item: QuickPoint }) {
   return (
-    <HStack gap={3} align="center" bg="white" borderRadius="xl" px={4} py={3} boxShadow="sm" minH="72px">
-      <Icon as={item.icon} color="teal.500" boxSize={7} flexShrink={0} />
-      <Text color="gray.900" fontSize="sm" fontWeight="bold" lineHeight={1.5}>
+    <HStack gap={3} align="center" justify={{ base: "flex-start", sm: "center" }} px={1} py={2} minH="56px">
+      <Circle size="40px" bg="teal.50" color="teal.600" flexShrink={0}>
+        <Icon as={item.icon} boxSize={6} />
+      </Circle>
+      <Text color="teal.900" fontSize="sm" fontWeight="bold" lineHeight={1.5}>
         {item.label}
       </Text>
     </HStack>

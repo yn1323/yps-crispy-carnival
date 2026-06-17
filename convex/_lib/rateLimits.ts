@@ -73,4 +73,13 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     period: MINUTE_MS,
     capacity: 1,
   },
+
+  // 通知失敗Inboxからの手動再送: shopId+failureId をキーに
+  // 1回/分 — 同じ失敗の連打再送で配送ジョブを揺らさないための同期ガード
+  notificationFailureRetryShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
 });
