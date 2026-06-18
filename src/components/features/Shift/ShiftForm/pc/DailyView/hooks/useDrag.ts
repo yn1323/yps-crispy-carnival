@@ -1,7 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  findShiftAtPosition,
   mergeAdjacentPositions,
   paintPosition,
   resizeLinkedPositions,
@@ -9,7 +8,14 @@ import {
 } from "@/src/domains/shift/operations";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "@/src/domains/shift/types";
 import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
-import { hourWidthAtom, selectedDateAtom, selectedPositionAtom, shiftConfigAtom, shiftsAtom } from "../../../stores";
+import {
+  hourWidthAtom,
+  selectedDateAtom,
+  selectedPositionAtom,
+  shiftByStaffIdForSelectedDateAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+} from "../../../stores";
 import { detectLinkedResizeEdge } from "../../../utils/hitTesting";
 import { isWithinEditableRange, pixelToEditableMinutes, pixelToRawMinutes } from "../../../utils/timelineGeometry";
 
@@ -47,8 +53,8 @@ const initialDragState: DragState = {
 };
 
 export const useDrag = (): UseDragReturn => {
-  const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const selectedPosition = useAtomValue(selectedPositionAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const config = useAtomValue(shiftConfigAtom);
@@ -60,7 +66,22 @@ export const useDrag = (): UseDragReturn => {
   );
 
   const [dragState, setDragState] = useState<DragState>(initialDragState);
+  const dragStateRef = useRef<DragState>(initialDragState);
+  const shiftByStaffIdRef = useRef(shiftByStaffId);
   const idCounterRef = useRef(0);
+
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
+
+  useEffect(() => {
+    shiftByStaffIdRef.current = shiftByStaffId;
+  }, [shiftByStaffId]);
+
+  const commitDragState = useCallback((nextState: DragState) => {
+    dragStateRef.current = nextState;
+    setDragState(nextState);
+  }, []);
 
   const generateId = useCallback(() => {
     idCounterRef.current += 1;
@@ -72,8 +93,9 @@ export const useDrag = (): UseDragReturn => {
   // === リサイズ検出ヘルパー（重複排除用） ===
   const tryDetectResize = useCallback(
     (staffId: string, x: number, minutes: number): boolean => {
+      const targetShift = shiftByStaffIdRef.current.get(staffId);
       const linkedResizeInfo = detectLinkedResizeEdge({
-        shifts,
+        shifts: targetShift ? [targetShift] : [],
         staffId,
         date: selectedDate,
         x,
@@ -90,7 +112,7 @@ export const useDrag = (): UseDragReturn => {
         const positionColor =
           linkedTarget.prevPosition?.positionColor ?? linkedTarget.nextPosition?.positionColor ?? null;
 
-        setDragState({
+        commitDragState({
           mode: isLinked ? "position-resize-end" : edge === "start" ? "position-resize-start" : "position-resize-end",
           staffId,
           startMinutes: minutes,
@@ -105,7 +127,7 @@ export const useDrag = (): UseDragReturn => {
       }
       return false;
     },
-    [shifts, selectedDate, timeRange, hourWidth],
+    [selectedDate, timeRange, hourWidth, commitDragState],
   );
 
   // === ドラッグ開始（戻り値: ドラッグ開始したか） ===
@@ -123,12 +145,7 @@ export const useDrag = (): UseDragReturn => {
       // リサイズエッジでなければ塗りモード
       const position = selectedPosition ?? DEFAULT_POSITION;
 
-      let targetShift = findShiftAtPosition({
-        shifts,
-        staffId,
-        date: selectedDate,
-        minutes,
-      });
+      let targetShift = shiftByStaffIdRef.current.get(staffId) ?? null;
 
       // シフトがなければ新規作成（未提出者対応）
       if (!targetShift) {
@@ -141,11 +158,11 @@ export const useDrag = (): UseDragReturn => {
           requestedTime: null,
           positions: [],
         };
-        setShifts([...shifts, newShift]);
+        setShifts((current) => [...current, newShift]);
         targetShift = newShift;
       }
 
-      setDragState({
+      commitDragState({
         mode: "paint",
         staffId,
         startMinutes: minutes,
@@ -159,7 +176,6 @@ export const useDrag = (): UseDragReturn => {
       return true;
     },
     [
-      shifts,
       setShifts,
       selectedPosition,
       selectedDate,
@@ -168,83 +184,97 @@ export const useDrag = (): UseDragReturn => {
       generateId,
       getStaffName,
       tryDetectResize,
+      commitDragState,
     ],
   );
 
   // === ドラッグ中 ===
   const handleMouseMove = useCallback(
     (e: React.MouseEvent, containerRect: DOMRect) => {
-      if (!dragState.mode) return;
+      if (!dragStateRef.current.mode) return;
 
       const x = e.clientX - containerRect.left;
       const minutes = pixelToEditableMinutes({ x, timeRange, hourWidth });
 
-      setDragState((prev) => ({
-        ...prev,
-        currentMinutes: minutes,
-      }));
+      setDragState((prev) => {
+        if (prev.currentMinutes === minutes) return prev;
+        const nextState = { ...prev, currentMinutes: minutes };
+        dragStateRef.current = nextState;
+        return nextState;
+      });
     },
-    [dragState.mode, timeRange, hourWidth],
+    [timeRange, hourWidth],
   );
 
   // === ドラッグ終了 ===
   const handleMouseUp = useCallback(() => {
-    if (!dragState.mode || !dragState.staffId) {
-      setDragState(initialDragState);
+    const currentDragState = dragStateRef.current;
+    if (!currentDragState.mode || !currentDragState.staffId) {
+      commitDragState(initialDragState);
       return;
     }
 
-    const { mode, startMinutes, currentMinutes, targetShiftId, targetPositionId, resizeEdge, linkedTarget } = dragState;
+    const { mode, startMinutes, currentMinutes, targetShiftId, targetPositionId, resizeEdge, linkedTarget } =
+      currentDragState;
 
     // 1. ポジションリサイズモード（連結リサイズ対応）
     if ((mode === "position-resize-start" || mode === "position-resize-end") && targetShiftId) {
-      const targetShift = shifts.find((s) => s.id === targetShiftId);
-      if (targetShift && linkedTarget) {
-        const resizedShift = resizeLinkedPositions({
-          shift: targetShift,
-          linkedTarget,
-          newMinutes: currentMinutes,
-          minDuration: timeRange.unit,
-        });
-        const mergedShift = { ...resizedShift, positions: mergeAdjacentPositions(resizedShift.positions) };
-        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? mergedShift : s));
-        setShifts(updatedShifts);
-      } else if (targetShift && targetPositionId && resizeEdge) {
-        const resizedShift = resizePosition({
-          shift: targetShift,
-          positionId: targetPositionId,
-          edge: resizeEdge,
-          newMinutes: currentMinutes,
-          minDuration: timeRange.unit,
-        });
-        const mergedShift = { ...resizedShift, positions: mergeAdjacentPositions(resizedShift.positions) };
-        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? mergedShift : s));
-        setShifts(updatedShifts);
-      }
+      setShifts((current) => {
+        const targetShift = current.find((s) => s.id === targetShiftId);
+        if (!targetShift) return current;
+
+        if (linkedTarget) {
+          const resizedShift = resizeLinkedPositions({
+            shift: targetShift,
+            linkedTarget,
+            newMinutes: currentMinutes,
+            minDuration: timeRange.unit,
+          });
+          const mergedShift = { ...resizedShift, positions: mergeAdjacentPositions(resizedShift.positions) };
+          return current.map((s) => (s.id === targetShiftId ? mergedShift : s));
+        }
+
+        if (targetPositionId && resizeEdge) {
+          const resizedShift = resizePosition({
+            shift: targetShift,
+            positionId: targetPositionId,
+            edge: resizeEdge,
+            newMinutes: currentMinutes,
+            minDuration: timeRange.unit,
+          });
+          const mergedShift = { ...resizedShift, positions: mergeAdjacentPositions(resizedShift.positions) };
+          return current.map((s) => (s.id === targetShiftId ? mergedShift : s));
+        }
+
+        return current;
+      });
     }
 
     // 2. 塗りモード
     if (mode === "paint" && targetShiftId) {
       const position = selectedPosition ?? DEFAULT_POSITION;
-      const targetShift = shifts.find((s) => s.id === targetShiftId);
-      if (targetShift && Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
-        const paintedShift = paintPosition({
-          shift: targetShift,
-          positionId: position.id,
-          positionName: position.name,
-          positionColor: position.color,
-          startMinutes,
-          endMinutes: currentMinutes,
-          segmentId: generateId(),
+      if (Math.abs(currentMinutes - startMinutes) >= timeRange.unit) {
+        setShifts((current) => {
+          const targetShift = current.find((s) => s.id === targetShiftId);
+          if (!targetShift) return current;
+
+          const paintedShift = paintPosition({
+            shift: targetShift,
+            positionId: position.id,
+            positionName: position.name,
+            positionColor: position.color,
+            startMinutes,
+            endMinutes: currentMinutes,
+            segmentId: generateId(),
+          });
+          const mergedShift = { ...paintedShift, positions: mergeAdjacentPositions(paintedShift.positions) };
+          return current.map((s) => (s.id === targetShiftId ? mergedShift : s));
         });
-        const mergedShift = { ...paintedShift, positions: mergeAdjacentPositions(paintedShift.positions) };
-        const updatedShifts = shifts.map((s) => (s.id === targetShiftId ? mergedShift : s));
-        setShifts(updatedShifts);
       }
     }
 
-    setDragState(initialDragState);
-  }, [dragState, shifts, setShifts, selectedPosition, timeRange, generateId]);
+    commitDragState(initialDragState);
+  }, [setShifts, selectedPosition, timeRange, generateId, commitDragState]);
 
   // === カーソル判定 ===
   const getCursor = useCallback(
@@ -261,8 +291,9 @@ export const useDrag = (): UseDragReturn => {
       }
 
       // リサイズ端の検出
+      const targetShift = shiftByStaffIdRef.current.get(staffId);
       const linkedResizeInfo = detectLinkedResizeEdge({
-        shifts,
+        shifts: targetShift ? [targetShift] : [],
         staffId,
         date: selectedDate,
         x,
@@ -281,7 +312,7 @@ export const useDrag = (): UseDragReturn => {
 
       return "default";
     },
-    [isDragging, dragState.mode, shifts, selectedDate, timeRange, hourWidth, selectedPosition],
+    [isDragging, dragState.mode, selectedDate, timeRange, hourWidth, selectedPosition],
   );
 
   return {

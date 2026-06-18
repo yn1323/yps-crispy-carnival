@@ -7,7 +7,13 @@ import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } fro
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
+import {
+  selectDateWithDailyStaffOrderAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  viewModeAtom,
+  warningCountByDateAtom,
+} from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -53,7 +59,7 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, isReadOnly, staffs } = config;
 
@@ -76,10 +82,10 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const handleDateClick = useCallback(
     (iso: string) => {
       if (isReadOnly) return;
-      setSelectedDate(iso);
+      selectDate(iso);
       setViewMode("daily");
     },
-    [isReadOnly, setSelectedDate, setViewMode],
+    [isReadOnly, selectDate, setViewMode],
   );
 
   return (

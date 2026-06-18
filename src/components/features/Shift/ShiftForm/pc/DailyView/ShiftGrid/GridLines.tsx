@@ -8,30 +8,26 @@ type GridLinesProps = {
   timeRange: TimeRange;
 };
 
+const dashedLinePattern = (width: number, color: string) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8"><line x1="0.5" y1="0" x2="0.5" y2="4" stroke="${color}" stroke-width="1"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+};
+
 export const GridLines = ({ timeRange }: GridLinesProps) => {
   const hourWidth = useAtomValue(hourWidthAtom);
-  const totalMinutes = (timeRange.end - timeRange.start) * 60;
-
-  const lines: { x: number; isHourBoundary: boolean }[] = [];
-  for (let minute = 0; minute <= totalMinutes; minute += timeRange.unit) {
-    const x = TIME_AXIS_PADDING_PX + (minute / 60) * hourWidth;
-    const isHourBoundary = minute % 60 === 0;
-    lines.push({ x, isHourBoundary });
-  }
+  const unitWidth = (timeRange.unit / 60) * hourWidth;
 
   return (
-    <Box position="absolute" inset={0} pointerEvents="none" zIndex={0}>
-      {lines.map(({ x, isHourBoundary }, index) => (
-        <Box
-          key={index}
-          position="absolute"
-          left={`${x}px`}
-          top={0}
-          bottom={0}
-          borderLeft="1px dashed"
-          borderColor={isHourBoundary ? "gray.300" : "gray.200"}
-        />
-      ))}
-    </Box>
+    <Box
+      position="absolute"
+      inset={0}
+      pointerEvents="none"
+      zIndex={0}
+      style={{
+        backgroundImage: [dashedLinePattern(unitWidth, "#e4e4e7"), dashedLinePattern(hourWidth, "#d4d4d8")].join(", "),
+        backgroundPosition: `${TIME_AXIS_PADDING_PX}px 0, ${TIME_AXIS_PADDING_PX}px 0`,
+        backgroundRepeat: "repeat, repeat",
+      }}
+    />
   );
 };

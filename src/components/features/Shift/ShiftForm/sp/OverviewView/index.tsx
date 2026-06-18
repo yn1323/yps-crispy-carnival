@@ -7,7 +7,13 @@ import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
+import {
+  selectDateWithDailyStaffOrderAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  viewModeAtom,
+  warningCountByDateAtom,
+} from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -48,7 +54,7 @@ export const SPOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
 
@@ -73,10 +79,10 @@ export const SPOverviewView = () => {
   const handleDateTap = useCallback(
     (iso: string) => {
       if (isReadOnly) return;
-      setSelectedDate(iso);
+      selectDate(iso);
       setViewMode("daily");
     },
-    [isReadOnly, setSelectedDate, setViewMode],
+    [isReadOnly, selectDate, setViewMode],
   );
 
   return (

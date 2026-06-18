@@ -43,6 +43,8 @@ export type StaffType = {
   id: string;
   name: string;
   isSubmitted: boolean;
+  displayOrder?: number;
+  createdAt?: number;
 };
 
 // 時間範囲
