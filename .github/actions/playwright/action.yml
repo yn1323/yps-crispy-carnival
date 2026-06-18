@@ -21,6 +21,10 @@ runs:
         path: /home/runner/.cache/ms-playwright
         key: ${{ runner.os }}-${{ runner.arch }}-playwright-ms-cache-${{ steps.playwright-version.outputs.version }}
         restore-keys: ${{ runner.os }}-${{ runner.arch }}-playwright-ms-cache-
+    - name: Stabilize apt for Playwright deps
+      shell: bash
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      run: bash .github/scripts/setup-apt.sh
     - name: Install Playwright browsers if cache miss
       shell: bash
       if: steps.playwright-cache.outputs.cache-hit != 'true'

@@ -89,8 +89,7 @@ jobs:
         uses: ./.github/actions/playwright
       - name: Install Japanese fonts
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          bash .github/scripts/setup-apt.sh fonts-noto-cjk
           rm -rf "$HOME/.cache/fontconfig"
           mkdir -p "$HOME/.cache/fontconfig"
           fc-cache -f -v
