@@ -6,9 +6,9 @@ import { TIME_AXIS_PADDING_PX } from "../../../constants";
 import {
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
-  selectedDateAtom,
+  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
-  shiftsAtom,
+  shiftsForSelectedDateAtom,
   sortedStaffsAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../../stores";
@@ -17,6 +17,7 @@ import { TimeHeader } from "../TimeHeader";
 import { StaffRow } from "./StaffRow";
 
 const STAFF_COL_WIDTH = 200;
+const EMPTY_WARNING_MESSAGES: string[] = [];
 
 type ShiftGridProps = {
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
@@ -26,8 +27,8 @@ type ShiftGridProps = {
 
 export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover }: ShiftGridProps) => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
-  const selectedDate = useAtomValue(selectedDateAtom);
+  const shiftsForSelectedDate = useAtomValue(shiftsForSelectedDateAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
@@ -36,10 +37,14 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
 
   const { dragState, isDragging, handleMouseDown, handleMouseMove, handleMouseUp, getCursor } = useDrag();
 
-  const rowContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragRowRectRef = useRef<DOMRect | null>(null);
+  const dragStateRef = useRef(dragState);
   const paintClickAnchorRef = useRef<DOMRect | null>(null);
   const timelineMeasureRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
 
   // タイムラインコンテナ幅に応じて hourWidth を動的計算
   useLayoutEffect(() => {
@@ -58,11 +63,6 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
     ro.observe(el);
     return () => ro.disconnect();
   }, [timeRange.start, timeRange.end, setHourWidth]);
-
-  const getShiftsForStaff = useCallback(
-    (staffId: string) => shifts.filter((s) => s.staffId === staffId && s.date === selectedDate),
-    [shifts, selectedDate],
-  );
 
   const [cursorStyles, setCursorStyles] = useState<Record<string, string>>({});
 
@@ -83,7 +83,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const cursor = getCursor(staffId, x);
-        setCursorStyles((prev) => ({ ...prev, [staffId]: cursor }));
+        setCursorStyles((prev) => (prev[staffId] === cursor ? prev : { ...prev, [staffId]: cursor }));
       }
     },
     [getCursor, isDragging],
@@ -91,14 +91,15 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
 
   const handleMouseUpOnRow = useCallback(
     (_staffId: string) => {
+      const currentDragState = dragStateRef.current;
       if (
-        dragState.mode === "paint" &&
-        dragState.targetShiftId &&
-        Math.abs(dragState.currentMinutes - dragState.startMinutes) < timeRange.unit
+        currentDragState.mode === "paint" &&
+        currentDragState.targetShiftId &&
+        Math.abs(currentDragState.currentMinutes - currentDragState.startMinutes) < timeRange.unit
       ) {
-        const targetShift = shifts.find((s) => s.id === dragState.targetShiftId);
+        const targetShift = shiftsForSelectedDate.find((s) => s.id === currentDragState.targetShiftId);
         if (targetShift) {
-          const minutes = dragState.startMinutes;
+          const minutes = currentDragState.startMinutes;
           const hasExistingPosition = targetShift.positions.some((pos) => {
             const [sh, sm] = pos.start.split(":").map(Number);
             const [eh, em] = pos.end.split(":").map(Number);
@@ -110,7 +111,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
         }
       }
     },
-    [dragState, shifts, timeRange.unit, onPaintClickPopover],
+    [shiftsForSelectedDate, timeRange.unit, onPaintClickPopover],
   );
 
   useEffect(() => {
@@ -156,29 +157,41 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
           </Flex>
           {/* Rows */}
           {sortedStaffs.map((staff: StaffType) => {
-            const staffShifts = getShiftsForStaff(staff.id);
+            const shift = shiftByStaffId.get(staff.id);
+            const isTargetShift = shift?.id === dragState.targetShiftId;
+            const dragPreview =
+              isDragging &&
+              dragState.staffId === staff.id &&
+              dragState.mode !== "position-resize-start" &&
+              dragState.mode !== "position-resize-end"
+                ? {
+                    mode: dragState.mode,
+                    startMinutes: dragState.startMinutes,
+                    currentMinutes: dragState.currentMinutes,
+                    positionColor: dragState.positionColor,
+                  }
+                : null;
             return (
               <StaffRow
                 key={staff.id}
                 dataTour={`shift-row-${staff.id}`}
                 staff={staff}
-                staffShifts={staffShifts}
+                shift={shift}
                 timeRange={timeRange}
                 staffColWidth={STAFF_COL_WIDTH}
                 isCurrentStaff={staff.id === currentStaffId}
                 isReadOnly={isReadOnly}
                 hasError={issueStaffIds.has(staff.id)}
-                warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                warningMessages={warningMessagesByStaffId.get(staff.id) ?? EMPTY_WARNING_MESSAGES}
                 onRowMouseDown={handleRowMouseDown}
                 onRowMouseMoveForCursor={handleRowMouseMoveForCursor}
                 onShiftClick={onShiftClick}
                 onStaffNameClick={onStaffNameClick}
-                dragState={dragState}
+                dragPreview={dragPreview}
                 isDragging={isDragging}
                 cursorStyle={cursorStyles[staff.id] ?? "default"}
-                rowRef={(el: HTMLDivElement | null) => {
-                  rowContainerRefs.current[staff.id] = el;
-                }}
+                resizeCurrentMinutes={isTargetShift ? dragState.currentMinutes : undefined}
+                linkedTarget={isTargetShift ? dragState.linkedTarget : null}
                 paintClickAnchorRef={paintClickAnchorRef}
                 onMouseUpOnRow={handleMouseUpOnRow}
               />

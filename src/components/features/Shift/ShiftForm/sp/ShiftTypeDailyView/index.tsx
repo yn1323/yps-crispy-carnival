@@ -22,8 +22,10 @@ import {
 import {
   issueCountByDateAtom,
   selectedDateAtom,
+  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
+  shiftsForSelectedDateAtom,
   sortedStaffsAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
@@ -39,7 +41,8 @@ const dayColor = (iso: string): string => {
 
 export const SPShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
+  const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
@@ -55,8 +58,6 @@ export const SPShiftTypeDailyView = () => {
   const isShopClosedDate = holidays.includes(selectedDate);
   const selectedDay = selectedDate ? dayjs(selectedDate) : null;
 
-  const shiftsForDate = useMemo(() => shifts.filter((shift) => shift.date === selectedDate), [shifts, selectedDate]);
-  const shiftByStaffId = useMemo(() => new Map(shiftsForDate.map((shift) => [shift.staffId, shift])), [shiftsForDate]);
   const counts = useMemo(
     () =>
       countShiftTypeAssignments(

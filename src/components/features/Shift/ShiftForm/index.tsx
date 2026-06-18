@@ -1,4 +1,4 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Text, useBreakpointValue } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -131,6 +131,7 @@ const ShiftFormInner = ({
 
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
+  const layoutMode = useBreakpointValue({ base: "sp", lg: "pc" }) ?? "pc";
 
   // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
   const handleSelectIssue = useCallback(
@@ -146,16 +147,9 @@ const ShiftFormInner = ({
     [setSelectedDate, setViewMode],
   );
 
-  return (
-    <>
-      <Box
-        display={{ base: "none", lg: "flex" }}
-        flexDirection="column"
-        h="100%"
-        minH={0}
-        overflow="hidden"
-        bg="gray.50"
-      >
+  if (layoutMode === "pc") {
+    return (
+      <Box display="flex" flexDirection="column" h="100%" minH={0} overflow="hidden" bg="gray.50">
         <Shell
           viewMode={viewMode}
           setViewMode={(v) => setViewMode(v)}
@@ -176,74 +170,70 @@ const ShiftFormInner = ({
         >
           {isDateOnlyPattern ? (
             <DateOnlyView />
+          ) : viewMode === "daily" ? (
+            <Box display="flex" flexDirection="column" flex={1} minH={0}>
+              {isShiftTypePattern ? <ShiftTypeDailyView /> : <DailyView />}
+            </Box>
           ) : (
-            <>
-              <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
-                {isShiftTypePattern ? <ShiftTypeDailyView /> : <DailyView />}
-              </Box>
-              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-                {isShiftTypePattern ? <ShiftTypeOverviewView /> : <OverviewView />}
-              </Box>
-            </>
+            <Box flex={1} minH={0} overflow="auto">
+              {isShiftTypePattern ? <ShiftTypeOverviewView /> : <OverviewView />}
+            </Box>
           )}
         </Shell>
       </Box>
-      <Box
-        display={{ base: "flex", lg: "none" }}
-        flexDirection="column"
-        h="100%"
-        minH={0}
-        overflow="hidden"
-        bg="gray.50"
+    );
+  }
+
+  return (
+    <Box display="flex" flexDirection="column" h="100%" minH={0} overflow="hidden" bg="gray.50">
+      <Shell
+        viewMode={viewMode}
+        setViewMode={(v) => setViewMode(v)}
+        compact={true}
+        isReadOnly={isReadOnly}
+        isConfirmed={isConfirmed}
+        onSaveDraft={onSaveDraft}
+        onConfirm={onConfirm}
+        isSavingDraft={isSavingDraft}
+        isConfirming={isConfirming}
+        unsubmittedNames={unsubmittedNames}
+        reminderStatus={reminderStatus}
+        onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
+        validationIssues={displayIssues}
+        onSelectIssue={handleSelectIssue}
+        onDismissValidationIssues={onDismissValidationIssues}
       >
-        <Shell
-          viewMode={viewMode}
-          setViewMode={(v) => setViewMode(v)}
-          compact={true}
-          isReadOnly={isReadOnly}
-          isConfirmed={isConfirmed}
-          onSaveDraft={onSaveDraft}
-          onConfirm={onConfirm}
-          isSavingDraft={isSavingDraft}
-          isConfirming={isConfirming}
-          unsubmittedNames={unsubmittedNames}
-          reminderStatus={reminderStatus}
-          onOpenUnsubmittedDetails={onOpenUnsubmittedDetails}
-          validationIssues={displayIssues}
-          onSelectIssue={handleSelectIssue}
-          onDismissValidationIssues={onDismissValidationIssues}
-        >
-          {isDateOnlyPattern ? (
-            <>
-              <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
-                <SPDateOnlyDailyView />
-              </Box>
-              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-                <SPDateOnlyOverviewView />
-              </Box>
-            </>
-          ) : isShiftTypePattern ? (
-            <>
-              <Box display={viewMode === "daily" ? "flex" : "none"} flexDirection="column" flex={1} minH={0}>
-                <SPShiftTypeDailyView />
-              </Box>
-              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-                <SPShiftTypeOverviewView />
-              </Box>
-            </>
+        {isDateOnlyPattern ? (
+          viewMode === "daily" ? (
+            <Box display="flex" flexDirection="column" flex={1} minH={0}>
+              <SPDateOnlyDailyView />
+            </Box>
           ) : (
-            <>
-              <Box display={viewMode === "daily" ? "block" : "none"} flex={1} overflow="auto">
-                <SPDailyView />
-              </Box>
-              <Box display={viewMode === "overview" ? "block" : "none"} flex={1} minH={0} overflow="auto">
-                <SPOverviewView />
-              </Box>
-            </>
-          )}
-        </Shell>
-      </Box>
-    </>
+            <Box flex={1} minH={0} overflow="auto">
+              <SPDateOnlyOverviewView />
+            </Box>
+          )
+        ) : isShiftTypePattern ? (
+          viewMode === "daily" ? (
+            <Box display="flex" flexDirection="column" flex={1} minH={0}>
+              <SPShiftTypeDailyView />
+            </Box>
+          ) : (
+            <Box flex={1} minH={0} overflow="auto">
+              <SPShiftTypeOverviewView />
+            </Box>
+          )
+        ) : viewMode === "daily" ? (
+          <Box flex={1} overflow="auto">
+            <SPDailyView />
+          </Box>
+        ) : (
+          <Box flex={1} minH={0} overflow="auto">
+            <SPOverviewView />
+          </Box>
+        )}
+      </Shell>
+    </Box>
   );
 };
 

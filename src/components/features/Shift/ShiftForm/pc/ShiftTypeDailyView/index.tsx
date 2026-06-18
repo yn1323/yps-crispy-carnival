@@ -15,8 +15,10 @@ import { Avatar, StaffWarningIcon } from "../../components";
 import {
   issueCountByDateAtom,
   selectedDateAtom,
+  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
+  shiftsForSelectedDateAtom,
   sortedStaffsAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
@@ -36,7 +38,8 @@ const OPTION_COL_WIDTH = 150;
 
 export const ShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
+  const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
@@ -51,8 +54,6 @@ export const ShiftTypeDailyView = () => {
   const fallbackPosition = config.positions[0] ?? DEFAULT_POSITION;
   const isShopClosedDate = holidays.includes(selectedDate);
 
-  const shiftsForDate = useMemo(() => shifts.filter((shift) => shift.date === selectedDate), [shifts, selectedDate]);
-  const shiftByStaffId = useMemo(() => new Map(shiftsForDate.map((shift) => [shift.staffId, shift])), [shiftsForDate]);
   const counts = useMemo(
     () =>
       countShiftTypeAssignments(

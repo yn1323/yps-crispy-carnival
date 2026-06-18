@@ -20,6 +20,7 @@ import {
   issueCountByDateAtom,
   issueStaffIdSetForSelectedDateAtom,
   selectedDateAtom,
+  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
   sortedStaffsAtom,
@@ -61,9 +62,9 @@ const getAssignedRange = (shift: ShiftData | undefined): [string, string] | null
 
 export const SPDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const sortedStaffs = useAtomValue(sortedStaffsAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
@@ -79,15 +80,13 @@ export const SPDailyView = () => {
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const touchStartX = useRef(0);
 
-  const dateShifts = useMemo(() => shifts.filter((s) => s.date === selectedDate), [shifts, selectedDate]);
-
   const rows = useMemo(
     () =>
       sortedStaffs.map((staff) => ({
         staff,
-        shift: dateShifts.find((s) => s.staffId === staff.id),
+        shift: shiftByStaffId.get(staff.id),
       })),
-    [sortedStaffs, dateShifts],
+    [sortedStaffs, shiftByStaffId],
   );
 
   const workRows = useMemo(
@@ -114,8 +113,8 @@ export const SPDailyView = () => {
     [sortedStaffs, selectedStaffId],
   );
   const selectedShift = useMemo(
-    () => dateShifts.find((s) => s.staffId === selectedStaffId),
-    [dateShifts, selectedStaffId],
+    () => (selectedStaffId ? shiftByStaffId.get(selectedStaffId) : undefined),
+    [shiftByStaffId, selectedStaffId],
   );
 
   const handleCardTap = useCallback(
@@ -144,24 +143,21 @@ export const SPDailyView = () => {
 
   const handleShiftUpdate = useCallback(
     (updatedShift: ShiftData) => {
-      const exists = shifts.some((s) => s.id === updatedShift.id);
-      if (exists) {
-        setShifts(shifts.map((s) => (s.id === updatedShift.id ? updatedShift : s)));
-      } else {
-        setShifts([...shifts, updatedShift]);
-      }
+      setShifts((current) => {
+        const exists = current.some((s) => s.id === updatedShift.id);
+        return exists ? current.map((s) => (s.id === updatedShift.id ? updatedShift : s)) : [...current, updatedShift];
+      });
     },
-    [shifts, setShifts],
+    [setShifts],
   );
 
   const handleShiftDelete = useCallback(
     (staffId: string) => {
-      const target = shifts.find((s) => s.staffId === staffId && s.date === selectedDate);
-      if (target) {
-        setShifts(shifts.map((s) => (s.id === target.id ? { ...s, positions: [] } : s)));
-      }
+      setShifts((current) =>
+        current.map((s) => (s.staffId === staffId && s.date === selectedDate ? { ...s, positions: [] } : s)),
+      );
     },
-    [shifts, selectedDate, setShifts],
+    [selectedDate, setShifts],
   );
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {

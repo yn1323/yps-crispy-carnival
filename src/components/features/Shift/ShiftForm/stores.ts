@@ -4,6 +4,7 @@ import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
@@ -73,12 +74,23 @@ export const selectedPositionAtom = atom((get) => {
   return id ? (config.positions.find((p) => p.id === id) ?? null) : null;
 });
 
+export const shiftsForSelectedDateAtom = atom((get) => {
+  const selectedDate = get(selectedDateAtom);
+  return get(shiftsAtom).filter((shift) => shift.date === selectedDate);
+});
+
+export const shiftByStaffIdForSelectedDateAtom = atom((get) => indexShiftsByStaffId(get(shiftsForSelectedDateAtom)));
+
 export const sortedStaffsAtom = atom((get) => {
   const config = get(shiftConfigAtom);
-  const shifts = get(shiftsAtom);
-  const selectedDate = get(selectedDateAtom);
   const sortMode = get(sortModeAtom);
-  return sortStaffs({ staffs: config.staffs, shifts, selectedDate, sortMode });
+  if (sortMode === "default") return [...config.staffs];
+
+  return sortStaffs({
+    staffs: config.staffs,
+    shiftByStaffId: get(shiftByStaffIdForSelectedDateAtom),
+    sortMode,
+  });
 });
 
 // ==========================================

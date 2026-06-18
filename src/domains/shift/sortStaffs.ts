@@ -3,8 +3,7 @@ import type { ShiftData, SortMode, StaffType } from "./types";
 
 type SortStaffsParams = {
   staffs: StaffType[];
-  shifts: ShiftData[];
-  selectedDate: string;
+  shiftByStaffId?: ReadonlyMap<string, ShiftData | undefined>;
   sortMode: SortMode;
 };
 
@@ -49,10 +48,13 @@ const getEarliestEndMinutes = (staffShifts: ShiftData[], targetStartMinutes: num
   return earliest;
 };
 
-export const sortStaffs = ({ staffs, shifts, selectedDate, sortMode }: SortStaffsParams) => {
+export const sortStaffs = ({ staffs, shiftByStaffId, sortMode }: SortStaffsParams) => {
   if (sortMode === "default") return [...staffs];
 
-  const getShiftsForStaff = (staffId: string) => shifts.filter((s) => s.staffId === staffId && s.date === selectedDate);
+  const getShiftsForStaff = (staffId: string) => {
+    const shift = shiftByStaffId?.get(staffId);
+    return shift ? [shift] : [];
+  };
 
   return [...staffs].sort((a, b) => {
     if (sortMode === "request") {

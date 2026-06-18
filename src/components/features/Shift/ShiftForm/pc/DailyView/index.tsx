@@ -8,6 +8,7 @@ import {
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
+  shiftsForSelectedDateAtom,
   warningCountByDateAtom,
 } from "../../stores";
 import { DateRail } from "./DateRail";
@@ -17,7 +18,7 @@ import { ShiftPopover } from "./ShiftPopover";
 
 export const DailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
+  const shiftsForSelectedDate = useAtomValue(shiftsForSelectedDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
@@ -31,13 +32,13 @@ export const DailyView = () => {
 
   const handleShiftClick = useCallback(
     (shiftId: string, _positionId: string | null, e: React.MouseEvent) => {
-      const shift = shifts.find((s) => s.id === shiftId);
+      const shift = shiftsForSelectedDate.find((s) => s.id === shiftId);
       if (shift) {
         setPopoverShift(shift);
         setPopoverAnchor(e.currentTarget.getBoundingClientRect());
       }
     },
-    [shifts],
+    [shiftsForSelectedDate],
   );
 
   const handlePopoverClose = useCallback(() => {
@@ -50,15 +51,14 @@ export const DailyView = () => {
       if (!popoverShift) return;
       const filteredPositions = popoverShift.positions.filter((p) => p.id !== positionId);
       const updatedShift = { ...popoverShift, positions: mergeAdjacentPositions(filteredPositions) };
-      const newShifts = shifts.map((s) => (s.id === popoverShift.id ? updatedShift : s));
-      setShifts(newShifts);
+      setShifts((current) => current.map((s) => (s.id === popoverShift.id ? updatedShift : s)));
       if (updatedShift.positions.length === 0) {
         handlePopoverClose();
         return;
       }
       setPopoverShift(updatedShift);
     },
-    [popoverShift, shifts, setShifts, handlePopoverClose],
+    [popoverShift, setShifts, handlePopoverClose],
   );
 
   const handlePaintClickPopover = useCallback((shift: ShiftData, anchorRect: DOMRect) => {
