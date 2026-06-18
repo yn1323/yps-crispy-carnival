@@ -4,12 +4,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { TIME_AXIS_PADDING_PX } from "../../../constants";
 import {
+  dailySortedStaffsAtom,
   hourWidthAtom,
   issueStaffIdSetForSelectedDateAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsForSelectedDateAtom,
-  sortedStaffsAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../../stores";
 import { useDrag } from "../hooks/useDrag";
@@ -29,7 +29,7 @@ export const ShiftGrid = ({ onShiftClick, onStaffNameClick, onPaintClickPopover 
   const config = useAtomValue(shiftConfigAtom);
   const shiftsForSelectedDate = useAtomValue(shiftsForSelectedDateAtom);
   const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
-  const sortedStaffs = useAtomValue(sortedStaffsAtom);
+  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
   const setHourWidth = useSetAtom(hourWidthAtom);

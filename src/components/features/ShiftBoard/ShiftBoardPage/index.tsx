@@ -250,7 +250,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const periodLabel = useMemo(() => generatePeriodLabel(dates), [dates]);
 
   const staffs: StaffType[] = useMemo(
-    () => data.staffs.map((s) => ({ id: s._id, name: s.name, isSubmitted: s.isSubmitted })),
+    () => data.staffs.map((s) => ({ id: s._id, name: s.name, isSubmitted: s.isSubmitted, createdAt: s.createdAt })),
     [data.staffs],
   );
 

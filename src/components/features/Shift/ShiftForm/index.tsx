@@ -28,7 +28,7 @@ import { SPDateOnlyOverviewView } from "./sp/DateOnlyOverviewView";
 import { SPOverviewView } from "./sp/OverviewView";
 import { SPShiftTypeDailyView } from "./sp/ShiftTypeDailyView";
 import { SPShiftTypeOverviewView } from "./sp/ShiftTypeOverviewView";
-import { selectedDateAtom, shiftsAtom, viewModeAtom } from "./stores";
+import { selectDateWithDailyStaffOrderAtom, shiftsAtom, viewModeAtom } from "./stores";
 import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
 type ShiftFormProps = {
@@ -129,14 +129,14 @@ const ShiftFormInner = ({
   const isShiftTypePattern = submissionPattern?.kind === "shiftType";
   const isDateOnlyPattern = submissionPattern?.kind === "dateOnly";
 
-  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const displayIssues = useMemo(() => toDisplayIssues(validationIssues ?? [], staffs), [validationIssues, staffs]);
   const layoutMode = useBreakpointValue({ base: "sp", lg: "pc" }) ?? "pc";
 
   // エラー行クリックで該当日付の日別ビューへ移動し、該当スタッフ行までスクロールする
   const handleSelectIssue = useCallback(
     (issue: DisplayIssue) => {
-      setSelectedDate(issue.date);
+      selectDate(issue.date);
       setViewMode("daily");
       requestAnimationFrame(() => {
         for (const row of document.querySelectorAll(`[data-tour="shift-row-${issue.staffId}"]`)) {
@@ -144,7 +144,7 @@ const ShiftFormInner = ({
         }
       });
     },
-    [setSelectedDate, setViewMode],
+    [selectDate, setViewMode],
   );
 
   if (layoutMode === "pc") {

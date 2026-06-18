@@ -1,10 +1,12 @@
 import { Box, Flex, Grid, Text } from "@chakra-ui/react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
 import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
 import type { ShiftData } from "@/src/domains/shift/types";
+import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
   issueCountByDateAtom,
+  selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
@@ -20,12 +22,14 @@ export const DailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shiftsForSelectedDate = useAtomValue(shiftsForSelectedDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
-  const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
+  const selectedDate = useAtomValue(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
 
   const { dates, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
+  useLockedDailyStaffOrder(selectedDate);
 
   const [popoverShift, setPopoverShift] = useState<ShiftData | null>(null);
   const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null);
@@ -71,7 +75,7 @@ export const DailyView = () => {
       <DateRail
         dates={dates}
         selectedDate={selectedDate}
-        onSelect={setSelectedDate}
+        onSelect={selectDate}
         holidays={holidays}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
