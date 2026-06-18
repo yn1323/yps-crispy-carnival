@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
 import {
   buildWeeklyGrid,
@@ -19,8 +19,11 @@ import {
 } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar, type IssueTone, StaffWarningIcon } from "../../components";
+import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
+  dailySortedStaffsAtom,
   issueCountByDateAtom,
+  lockDailyStaffOrderAtom,
   shiftConfigAtom,
   shiftsAtom,
   validationWarningsAtom,
@@ -51,14 +54,19 @@ export const DateOnlyView = () => {
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
+  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
+  const lockDailyStaffOrder = useSetAtom(lockDailyStaffOrderAtom);
 
-  const { dates, holidays, isReadOnly, positions, staffs, timeRange } = config;
+  const { dates, holidays, isReadOnly, positions, timeRange } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
   const fallbackPosition = positions[0];
   const weeks = useMemo(() => buildDateOnlyWeeks(dates), [dates]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const selectedWeek = weeks[selectedWeekIndex] ?? weeks[0];
   const visibleDates = selectedWeek?.dates ?? [];
+  const sortableDates = useMemo(() => getSortableDates(visibleDates, holidays), [visibleDates, holidays]);
+  const defaultSortDate = sortableDates[0]?.iso ?? "";
+  const [sortDate, setSortDate] = useState(defaultSortDate);
   const visibleInRangeDateKeys = useMemo(
     () => visibleDates.filter((date) => date.inRange).map((date) => date.iso),
     [visibleDates],
@@ -92,6 +100,32 @@ export const DateOnlyView = () => {
     }
   }, [selectedWeekIndex, weeks.length]);
 
+  useEffect(() => {
+    lockDailyStaffOrder(defaultSortDate);
+    setSortDate(defaultSortDate);
+  }, [defaultSortDate, lockDailyStaffOrder]);
+
+  useLockedDailyStaffOrder(sortDate);
+
+  const handleWeekSelect = useCallback(
+    (weekIndex: number) => {
+      const nextWeek = weeks[weekIndex] ?? weeks[0];
+      const nextSortDate = getSortableDates(nextWeek?.dates ?? [], holidays)[0]?.iso ?? "";
+      lockDailyStaffOrder(nextSortDate);
+      setSortDate(nextSortDate);
+      setSelectedWeekIndex(weekIndex);
+    },
+    [holidays, lockDailyStaffOrder, weeks],
+  );
+
+  const handleSortDateSelect = useCallback(
+    (date: string) => {
+      lockDailyStaffOrder(date);
+      setSortDate(date);
+    },
+    [lockDailyStaffOrder],
+  );
+
   const handleToggle = (staff: StaffType, date: string) => {
     if (isReadOnly || holidays.includes(date)) return;
     setShifts((current) =>
@@ -112,7 +146,7 @@ export const DateOnlyView = () => {
         selectedIndex={selectedWeekIndex}
         issueCounts={issueCounts}
         warningCounts={warningCounts}
-        onSelect={setSelectedWeekIndex}
+        onSelect={handleWeekSelect}
       />
       <Box flex={1} minW={0} overflow="auto" bg="gray.50">
         <Box
@@ -120,6 +154,7 @@ export const DateOnlyView = () => {
           bg="white"
           overflow="hidden"
         >
+          <DateSortToolbar dates={sortableDates} selectedDate={sortDate} onSelect={handleSortDateSelect} />
           <Box as="table" w="100%" style={{ borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
             <Box as="colgroup">
               <Box as="col" style={{ width: STAFF_COL_WIDTH }} />
@@ -133,7 +168,12 @@ export const DateOnlyView = () => {
                 <StickyHeaderCell left={0}>ユーザー</StickyHeaderCell>
                 <StickyHeaderCell left={STAFF_COL_WIDTH}>{isConfirmedDisplay ? "確定" : "希望"}</StickyHeaderCell>
                 {visibleDates.map((date) => (
-                  <DateHeaderCell key={date.iso} date={date} isClosed={date.inRange && holidays.includes(date.iso)} />
+                  <DateHeaderCell
+                    key={date.iso}
+                    date={date}
+                    isClosed={date.inRange && holidays.includes(date.iso)}
+                    isSortDate={date.iso === sortDate}
+                  />
                 ))}
               </Box>
               <Box as="tr">
@@ -158,7 +198,7 @@ export const DateOnlyView = () => {
               </Box>
             </Box>
             <Box as="tbody">
-              {staffs.map((staff) => (
+              {sortedStaffs.map((staff) => (
                 <Box as="tr" key={staff.id}>
                   <StaffCell staff={staff} warningMessages={warningMessagesByStaffId.get(staff.id) ?? []} />
                   <RequestCell staff={staff} shifts={shifts} dates={visibleDates} confirmed={isConfirmedDisplay} />
@@ -167,6 +207,7 @@ export const DateOnlyView = () => {
                     const assigned = hasDateOnlyAssignment(shift);
                     const requested = hasDateOnlyRequest(shift);
                     const isClosed = date.inRange && holidays.includes(date.iso);
+                    const isSortDate = date.iso === sortDate;
                     return (
                       <DateOnlyCell
                         key={date.iso}
@@ -175,6 +216,7 @@ export const DateOnlyView = () => {
                         assigned={assigned}
                         requested={requested}
                         isClosed={isClosed}
+                        isSortDate={isSortDate}
                         isReadOnly={isReadOnly}
                         onToggle={() => handleToggle(staff, date.iso)}
                       />
@@ -201,6 +243,62 @@ const buildDateOnlyWeeks = (dates: string[]): WeekItem[] =>
       dates: week,
     };
   });
+
+const getSortableDates = (dates: DateInfo[], holidays: string[]): DateInfo[] => {
+  const inRangeDates = dates.filter((date) => date.inRange);
+  const openDates = inRangeDates.filter((date) => !holidays.includes(date.iso));
+  return openDates.length > 0 ? openDates : inRangeDates;
+};
+
+const DateSortToolbar = ({
+  dates,
+  selectedDate,
+  onSelect,
+}: {
+  dates: DateInfo[];
+  selectedDate: string;
+  onSelect: (date: string) => void;
+}) => {
+  if (dates.length === 0) return null;
+
+  return (
+    <Flex align="center" gap={3} px={4} py={3} bg="white" borderBottomWidth="1px" borderColor="gray.200">
+      <Text textStyle="xs" fontWeight={700} color="gray.600" flexShrink={0}>
+        この日で並べ替える
+      </Text>
+      <Flex gap={2} overflowX="auto" minW={0}>
+        {dates.map((date) => {
+          const selected = date.iso === selectedDate;
+          return (
+            <Box
+              as="button"
+              key={date.iso}
+              aria-label={`${formatDateWithWeekday(date.iso)}で並べ替える`}
+              aria-pressed={selected}
+              onClick={() => onSelect(date.iso)}
+              flexShrink={0}
+              px={3}
+              py="6px"
+              borderRadius="full"
+              borderWidth="1px"
+              borderColor={selected ? "teal.500" : "gray.200"}
+              bg={selected ? "teal.50" : "white"}
+              color={selected ? "teal.700" : "gray.700"}
+              textStyle="xs"
+              fontWeight={700}
+              fontVariantNumeric="tabular-nums"
+              cursor="pointer"
+              _hover={{ bg: selected ? "teal.100" : "gray.50" }}
+              _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
+            >
+              {formatDateShort(date.iso)}
+            </Box>
+          );
+        })}
+      </Flex>
+    </Flex>
+  );
+};
 
 const WeekRail = ({
   weeks,
@@ -302,15 +400,26 @@ const WeekCountBadge = ({ count, tone }: { count: number; tone: IssueTone }) => 
   );
 };
 
-const HeaderCell = ({ children, muted = false, bg }: { children?: ReactNode; muted?: boolean; bg?: string }) => (
+const HeaderCell = ({
+  children,
+  muted = false,
+  bg,
+  active = false,
+}: {
+  children?: ReactNode;
+  muted?: boolean;
+  bg?: string;
+  active?: boolean;
+}) => (
   <Box
     as="th"
     px={3}
     py={2}
     textAlign="center"
     borderRightWidth="1px"
-    borderBottomWidth="1px"
+    borderBottomWidth={active ? "2px" : "1px"}
     borderColor="gray.200"
+    borderBottomColor={active ? "teal.500" : "gray.200"}
     bg={bg}
     color={muted ? "gray.600" : "gray.800"}
     textStyle="xs"
@@ -352,19 +461,24 @@ const StickyHeaderCell = ({
   </Box>
 );
 
-const DateHeaderCell = ({ date, isClosed }: { date: DateInfo; isClosed: boolean }) => {
+const DateHeaderCell = ({ date, isClosed, isSortDate }: { date: DateInfo; isClosed: boolean; isSortDate: boolean }) => {
   const color = isSunday(date.iso) ? "red.500" : isSaturday(date.iso) ? "blue.500" : "gray.700";
   return (
-    <HeaderCell bg={isClosed ? "gray.100" : "gray.50"}>
+    <HeaderCell bg={isSortDate ? "teal.50" : isClosed ? "gray.100" : "gray.50"} active={isSortDate}>
       <Box
         textStyle="sm"
-        color={!date.inRange || isClosed ? "gray.400" : "gray.800"}
+        color={isSortDate ? "teal.800" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
         fontWeight={700}
         fontVariantNumeric="tabular-nums"
       >
         {formatDateShort(date.iso)}
       </Box>
-      <Box textStyle="caption" color={!date.inRange || isClosed ? "gray.400" : color} mt="2px" fontWeight={600}>
+      <Box
+        textStyle="caption"
+        color={isSortDate ? "teal.700" : !date.inRange || isClosed ? "gray.400" : color}
+        mt="2px"
+        fontWeight={600}
+      >
         {getWeekdayLabel(date.iso)}
       </Box>
     </HeaderCell>
@@ -464,6 +578,7 @@ const DateOnlyCell = ({
   assigned,
   requested,
   isClosed,
+  isSortDate,
   isReadOnly,
   onToggle,
 }: {
@@ -472,6 +587,7 @@ const DateOnlyCell = ({
   assigned: boolean;
   requested: boolean;
   isClosed: boolean;
+  isSortDate: boolean;
   isReadOnly: boolean;
   onToggle: () => void;
 }) => (
@@ -481,7 +597,7 @@ const DateOnlyCell = ({
     borderRightWidth="1px"
     borderBottomWidth="1px"
     borderColor="gray.100"
-    bg={isClosed ? "gray.50" : "white"}
+    bg={isClosed ? "gray.50" : isSortDate ? "teal.50" : "white"}
   >
     <Box
       as="button"

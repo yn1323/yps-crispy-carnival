@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   dateOnlyArgs,
@@ -46,9 +46,17 @@ export const Interactive: Story = {
       await expect(visible).toBeDefined();
       return visible as HTMLElement;
     };
+    const getStaffRowTexts = () =>
+      Array.from(canvasElement.querySelectorAll("tbody tr")).map(
+        (row) => row.querySelector("td")?.textContent?.replace(/\s+/g, "") ?? "",
+      );
 
     await expect(canvas.queryByRole("tab", { name: "日別" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("tab", { name: "一覧" })).not.toBeInTheDocument();
+    await expect(await canvas.findByText("この日で並べ替える")).toBeInTheDocument();
+    await expect(getStaffRowTexts()[0]).toContain("田中太郎");
+    await userEvent.click(await canvas.findByRole("button", { name: "6/3(水)で並べ替える" }));
+    await waitFor(() => expect(getStaffRowTexts()[0]).toContain("鈴木次郎"));
     await expect(canvas.queryByText("3日")).not.toBeInTheDocument();
     await expect(canvas.queryByText("休み")).not.toBeInTheDocument();
     await expect(await findVisibleByLabelText("田中 太郎 6/1(月) 期間外")).toBeInTheDocument();

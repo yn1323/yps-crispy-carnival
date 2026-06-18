@@ -102,6 +102,7 @@ export const getShiftBoardData = managerQuery({
           _id: s._id,
           name: s.name,
           isSubmitted: submittedStaffIds.has(s._id),
+          createdAt: s._creationTime,
           wasSubmittedAtDraft:
             effectiveDraftSavedAt !== null && firstSubmittedAt !== null
               ? firstSubmittedAt <= effectiveDraftSavedAt

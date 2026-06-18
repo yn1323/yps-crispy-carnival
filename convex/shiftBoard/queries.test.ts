@@ -62,7 +62,13 @@ describe("shiftBoard/queries", () => {
       .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
 
     expect(result?.staffs).toEqual([
-      { _id: staffId, name: "全休みスタッフ", isSubmitted: true, wasSubmittedAtDraft: false },
+      {
+        _id: staffId,
+        name: "全休みスタッフ",
+        isSubmitted: true,
+        createdAt: expect.any(Number),
+        wasSubmittedAtDraft: false,
+      },
     ]);
   });
 

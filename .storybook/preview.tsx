@@ -7,7 +7,13 @@ import { customErrorMap } from "../src/configs/zod/zop-setup";
 import { applyFixedStorybookDate } from "./fixedDate";
 import { withDummyRouter } from "./withDummyRouter";
 
+function applyStorybookDocumentDefaults() {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = "ja";
+}
+
 applyFixedStorybookDate();
+applyStorybookDocumentDefaults();
 
 const preview: Preview = {
   parameters: {

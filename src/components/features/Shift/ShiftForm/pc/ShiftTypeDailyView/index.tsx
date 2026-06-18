@@ -1,5 +1,5 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
@@ -12,12 +12,16 @@ import {
 } from "@/src/domains/shift/shiftTypeAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar, StaffWarningIcon } from "../../components";
+import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
+  dailySortedStaffsAtom,
   issueCountByDateAtom,
+  selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
+  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
-  sortedStaffsAtom,
+  shiftsForSelectedDateAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
@@ -36,10 +40,12 @@ const OPTION_COL_WIDTH = 150;
 
 export const ShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
+  const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const setShifts = useSetAtom(shiftsAtom);
-  const sortedStaffs = useAtomValue(sortedStaffsAtom);
-  const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
+  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
+  const selectedDate = useAtomValue(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
@@ -50,9 +56,8 @@ export const ShiftTypeDailyView = () => {
   const options = useMemo(() => [...(pattern?.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder), [pattern]);
   const fallbackPosition = config.positions[0] ?? DEFAULT_POSITION;
   const isShopClosedDate = holidays.includes(selectedDate);
+  useLockedDailyStaffOrder(selectedDate);
 
-  const shiftsForDate = useMemo(() => shifts.filter((shift) => shift.date === selectedDate), [shifts, selectedDate]);
-  const shiftByStaffId = useMemo(() => new Map(shiftsForDate.map((shift) => [shift.staffId, shift])), [shiftsForDate]);
   const counts = useMemo(
     () =>
       countShiftTypeAssignments(
@@ -80,7 +85,7 @@ export const ShiftTypeDailyView = () => {
       <DateRail
         dates={dates}
         selectedDate={selectedDate}
-        onSelect={setSelectedDate}
+        onSelect={selectDate}
         holidays={holidays}
         issueCounts={issueCounts}
         warningCounts={warningCounts}

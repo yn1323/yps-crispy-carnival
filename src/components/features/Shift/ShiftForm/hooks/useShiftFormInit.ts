@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
+import { sortDailyStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -13,6 +15,7 @@ import type {
   ViewMode,
 } from "@/src/domains/shift/types";
 import {
+  lockedDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
@@ -64,6 +67,7 @@ export const useShiftFormInit = ({
   const setConfig = useSetAtom(shiftConfigAtom);
   const setShifts = useSetAtom(shiftsAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
+  const setLockedDailyStaffOrder = useSetAtom(lockedDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const setSortMode = useSetAtom(sortModeAtom);
   const setValidationIssues = useSetAtom(validationIssuesAtom);
@@ -76,14 +80,39 @@ export const useShiftFormInit = ({
     isInitialized.current = true;
 
     setShifts(initialShifts);
-    setSelectedDate(dates[0] ?? "");
+    const initialDate = dates[0] ?? "";
+    setSelectedDate(initialDate);
+    if (initialDate && staffs.length > 0) {
+      const shiftByStaffId = indexShiftsByStaffId(initialShifts.filter((shift) => shift.date === initialDate));
+      const mode = submissionPattern?.kind === "dateOnly" ? "dateOnly" : (submissionPattern?.kind ?? "time");
+      const staffIds = sortDailyStaffs({
+        staffs,
+        shiftByStaffId,
+        mode,
+      }).map((staff) => staff.id);
+      setLockedDailyStaffOrder({ date: initialDate, staffIds });
+    } else {
+      setLockedDailyStaffOrder(null);
+    }
     if (initialViewMode) {
       setViewMode(initialViewMode);
     }
     if (initialSortMode) {
       setSortMode(initialSortMode);
     }
-  }, [initialShifts, dates, setShifts, setSelectedDate, initialViewMode, setViewMode, initialSortMode, setSortMode]);
+  }, [
+    initialShifts,
+    dates,
+    staffs,
+    submissionPattern,
+    setShifts,
+    setSelectedDate,
+    setLockedDailyStaffOrder,
+    initialViewMode,
+    setViewMode,
+    initialSortMode,
+    setSortMode,
+  ]);
 
   // 外部設定の同期（props変更時に shiftConfigAtom を更新）
   useEffect(() => {
