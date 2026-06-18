@@ -8,9 +8,9 @@ runs:
       id: playwright-cache
       uses: actions/cache@v5
       with:
-        path: /home/runner/.cache
-        key: ${{ runner.os }}-playwright-cache-${{ hashFiles('pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-playwright-cache-
+        path: /home/runner/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-ms-cache-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-playwright-ms-cache-
     - name: Install Playwright browsers if cache miss
       shell: bash
       if: steps.playwright-cache.outputs.cache-hit != 'true'
