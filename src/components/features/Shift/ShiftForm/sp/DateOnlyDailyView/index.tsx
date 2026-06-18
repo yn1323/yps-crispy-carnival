@@ -17,12 +17,14 @@ import {
 } from "@/src/domains/shift/dateOnlyAssignments";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
+import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
+  dailySortedStaffsAtom,
   issueCountByDateAtom,
+  selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
-  sortedStaffsAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
@@ -49,9 +51,9 @@ export const SPDateOnlyDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
-  const sortedStaffs = useAtomValue(sortedStaffsAtom);
+  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
-  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
   const warningMessagesByStaffId = useAtomValue(warningMessagesByStaffIdForSelectedDateAtom);
@@ -67,6 +69,7 @@ export const SPDateOnlyDailyView = () => {
   const activeDate = selectedDateInfo?.iso ?? selectedDate;
   const isInRange = selectedDateInfo?.inRange ?? dates.includes(activeDate);
   const isShopClosedDate = isInRange && holidays.includes(activeDate);
+  useLockedDailyStaffOrder(activeDate);
 
   const shiftByStaffDate = useMemo(() => {
     const map = new Map<string, ShiftData>();
@@ -113,9 +116,9 @@ export const SPDateOnlyDailyView = () => {
 
   const handleDateSelect = useCallback(
     (iso: string) => {
-      setSelectedDate(iso);
+      selectDate(iso);
     },
-    [setSelectedDate],
+    [selectDate],
   );
 
   if (!activeDate) {

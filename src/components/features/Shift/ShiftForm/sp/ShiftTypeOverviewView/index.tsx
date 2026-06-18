@@ -8,7 +8,13 @@ import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
 import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../../pc/shiftTypeOptionStyles";
-import { selectedDateAtom, shiftConfigAtom, shiftsAtom, viewModeAtom, warningCountByDateAtom } from "../../stores";
+import {
+  selectDateWithDailyStaffOrderAtom,
+  shiftConfigAtom,
+  shiftsAtom,
+  viewModeAtom,
+  warningCountByDateAtom,
+} from "../../stores";
 
 type DateInfo = {
   iso: string;
@@ -48,7 +54,7 @@ export const SPShiftTypeOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shifts = useAtomValue(shiftsAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
-  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly, submissionPattern } = config;
 
@@ -93,10 +99,10 @@ export const SPShiftTypeOverviewView = () => {
   const handleDateTap = useCallback(
     (iso: string) => {
       if (isReadOnly) return;
-      setSelectedDate(iso);
+      selectDate(iso);
       setViewMode("daily");
     },
-    [isReadOnly, setSelectedDate, setViewMode],
+    [isReadOnly, selectDate, setViewMode],
   );
 
   return (

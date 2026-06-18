@@ -34,6 +34,7 @@ export const DashboardAnnouncement = ({ announcement, defaultOpen = false }: Pro
         px={{ base: 3.5, md: 4 }}
         py={{ base: 2.5, md: 3 }}
         textAlign="left"
+        cursor="pointer"
         transition="background-color 0.15s ease, border-color 0.15s ease"
         _hover={{ bg: "orange.50", borderColor: "orange.300" }}
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.500", outlineOffset: "2px" }}

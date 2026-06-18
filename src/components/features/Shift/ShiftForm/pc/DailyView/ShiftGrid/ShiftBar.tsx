@@ -1,5 +1,6 @@
 import { Box, Text } from "@chakra-ui/react";
 import { useAtomValue } from "jotai";
+import { memo } from "react";
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "@/src/domains/shift/types";
@@ -27,7 +28,7 @@ const STRIPE_STYLE = {
 const isBreakSegment = (pos: PositionSegment) =>
   pos.positionName === BREAK_POSITION.name || pos.positionId === BREAK_POSITION.id;
 
-export const ShiftBar = ({
+export const ShiftBar = memo(function ShiftBar({
   shift,
   timeRange,
   onHover,
@@ -36,7 +37,7 @@ export const ShiftBar = ({
   isReadOnly = false,
   currentMinutes,
   linkedTarget,
-}: ShiftBarProps) => {
+}: ShiftBarProps) {
   const hourWidth = useAtomValue(hourWidthAtom);
   const requestedTimes = shift.requestedTimes ?? (shift.requestedTime ? [shift.requestedTime] : []);
   const hasRequestedTime = requestedTimes.length > 0;
@@ -242,4 +243,4 @@ export const ShiftBar = ({
         })()}
     </Box>
   );
-};
+});

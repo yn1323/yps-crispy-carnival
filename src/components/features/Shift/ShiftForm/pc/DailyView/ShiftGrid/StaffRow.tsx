@@ -1,5 +1,5 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import type { MutableRefObject } from "react";
+import { type MutableRefObject, memo } from "react";
 import type { DragMode, LinkedResizeTarget, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { Avatar, IssueDot, issueToneEmphasis, resolveIssueTone, StaffWarningIcon } from "../../../components";
 import { DragPreview } from "./DragPreview";
@@ -7,19 +7,16 @@ import { GridLines } from "./GridLines";
 import { NonEditableTimeOverlay } from "./NonEditableTimeOverlay";
 import { ShiftBar } from "./ShiftBar";
 
-type DragState = {
+type DragPreviewState = {
   mode: DragMode;
-  staffId: string | null;
   startMinutes: number;
   currentMinutes: number;
-  targetShiftId: string | null;
   positionColor: string | null;
-  linkedTarget: LinkedResizeTarget | null;
-};
+} | null;
 
 type StaffRowProps = {
   staff: StaffType;
-  staffShifts: ShiftData[];
+  shift: ShiftData | undefined;
   timeRange: TimeRange;
   staffColWidth: number;
   isCurrentStaff: boolean;
@@ -28,10 +25,11 @@ type StaffRowProps = {
   onRowMouseMoveForCursor: (e: React.MouseEvent<HTMLDivElement>, staffId: string) => void;
   onShiftClick: (shiftId: string, positionId: string | null, e: React.MouseEvent) => void;
   onStaffNameClick: (staffId: string) => void;
-  dragState: DragState;
+  dragPreview: DragPreviewState;
   isDragging: boolean;
   cursorStyle: string;
-  rowRef: (el: HTMLDivElement | null) => void;
+  resizeCurrentMinutes?: number;
+  linkedTarget: LinkedResizeTarget | null;
   paintClickAnchorRef: MutableRefObject<DOMRect | null>;
   onMouseUpOnRow: (staffId: string) => void;
   dataTour?: string;
@@ -39,9 +37,11 @@ type StaffRowProps = {
   warningMessages?: string[];
 };
 
-export const StaffRow = ({
+const noopHover = () => {};
+
+export const StaffRow = memo(function StaffRow({
   staff,
-  staffShifts,
+  shift,
   timeRange,
   staffColWidth,
   isCurrentStaff,
@@ -50,21 +50,22 @@ export const StaffRow = ({
   onRowMouseMoveForCursor,
   onShiftClick,
   onStaffNameClick,
-  dragState,
+  dragPreview,
   isDragging,
   cursorStyle,
-  rowRef,
+  resizeCurrentMinutes,
+  linkedTarget,
   paintClickAnchorRef,
   onMouseUpOnRow,
   dataTour,
   hasError = false,
   warningMessages = [],
-}: StaffRowProps) => {
+}: StaffRowProps) {
   const tone = resolveIssueTone(hasError, false);
   const emphasis = issueToneEmphasis(tone);
   const getStatus = () => {
     if (!staff.isSubmitted) return "not_submitted" as const;
-    const hasRequest = staffShifts.some((s) => s.requestedTime !== null || (s.requestedTimes?.length ?? 0) > 0);
+    const hasRequest = shift ? shift.requestedTime !== null || (shift.requestedTimes?.length ?? 0) > 0 : false;
     if (hasRequest) return "has_request" as const;
     return "no_request" as const;
   };
@@ -127,7 +128,6 @@ export const StaffRow = ({
         </Flex>
       </Flex>
       <Box
-        ref={rowRef}
         position="relative"
         height="40px"
         flex={1}
@@ -151,33 +151,30 @@ export const StaffRow = ({
         <NonEditableTimeOverlay timeRange={timeRange} />
         <GridLines timeRange={timeRange} />
 
-        {staffShifts.map((shift) => (
+        {shift && (
           <ShiftBar
             key={shift.id}
             shift={shift}
             timeRange={timeRange}
-            onHover={() => {}}
+            onHover={noopHover}
             onClick={onShiftClick}
             isDragging={isDragging}
             isReadOnly={isReadOnly}
-            currentMinutes={dragState.currentMinutes}
-            linkedTarget={dragState.targetShiftId === shift.id ? dragState.linkedTarget : null}
+            currentMinutes={resizeCurrentMinutes}
+            linkedTarget={linkedTarget}
           />
-        ))}
+        )}
 
-        {isDragging &&
-          dragState.staffId === staff.id &&
-          dragState.mode !== "position-resize-start" &&
-          dragState.mode !== "position-resize-end" && (
-            <DragPreview
-              mode={dragState.mode}
-              startMinutes={dragState.startMinutes}
-              currentMinutes={dragState.currentMinutes}
-              timeRange={timeRange}
-              positionColor={dragState.positionColor}
-            />
-          )}
+        {dragPreview && (
+          <DragPreview
+            mode={dragPreview.mode}
+            startMinutes={dragPreview.startMinutes}
+            currentMinutes={dragPreview.currentMinutes}
+            timeRange={timeRange}
+            positionColor={dragPreview.positionColor}
+          />
+        )}
       </Box>
     </Flex>
   );
-};
+});

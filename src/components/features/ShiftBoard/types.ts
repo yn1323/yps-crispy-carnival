@@ -21,6 +21,7 @@ export type ShiftBoardData = {
     _id: Id<"staffs">;
     name: string;
     isSubmitted: boolean;
+    createdAt?: number;
     wasSubmittedAtDraft: boolean;
   }>;
   requestedSlots: Array<{

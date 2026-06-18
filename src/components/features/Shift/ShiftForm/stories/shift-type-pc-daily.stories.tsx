@@ -52,7 +52,12 @@ export const Interactive: Story = {
     const yamadaMorningOff = await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務なし");
     await expect(yamadaMorningOff).toBeInTheDocument();
     await userEvent.click(yamadaMorningOff);
-    await expect(await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり")).toBeInTheDocument();
+    const yamadaMorningOn = await findVisibleByLabelText(canvas, "山田 一郎 早番 勤務あり");
+    await expect(yamadaMorningOn).toBeInTheDocument();
+    const yoshidaLateOn = await findVisibleByLabelText(canvas, "吉田 三郎 遅番 勤務あり");
+    await expect(yamadaMorningOn.getBoundingClientRect().top).toBeGreaterThan(
+      yoshidaLateOn.getBoundingClientRect().top,
+    );
 
     await expect((await canvas.findAllByText("2人")).length).toBeGreaterThan(0);
     await userEvent.click(await findVisibleByLabelText(canvas, "田中 太郎 早番 勤務あり"));

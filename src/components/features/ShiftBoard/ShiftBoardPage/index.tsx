@@ -34,6 +34,7 @@ import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
 import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
+import { visibleAssignmentWarnings } from "./warningVisibility";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
@@ -250,7 +251,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const periodLabel = useMemo(() => generatePeriodLabel(dates), [dates]);
 
   const staffs: StaffType[] = useMemo(
-    () => data.staffs.map((s) => ({ id: s._id, name: s.name, isSubmitted: s.isSubmitted })),
+    () => data.staffs.map((s) => ({ id: s._id, name: s.name, isSubmitted: s.isSubmitted, createdAt: s.createdAt })),
     [data.staffs],
   );
 
@@ -267,6 +268,9 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
   const shiftsRef = useRef<ShiftData[]>(initialShifts);
   // 最後に保存した（または初期表示した）シフト。dirty判定の基準
   const baselineShiftsRef = useRef<ShiftData[]>(initialShifts);
+  // 確定済みの編集では「開いた時点の確定シフト」から変わったセルだけをwarning表示対象にする。
+  // 下書き保存でdirty基準が更新されても、再通知までは確認対象を維持する
+  const confirmedWarningBaselineRef = useRef<ShiftData[]>(initialShifts);
   const isFormInitializedRef = useRef(false);
   const shopClosedDateSet = useMemo(
     () => new Set(data.recruitment.shopClosedDates),
@@ -302,16 +306,28 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     [staffs, data.submissionPattern],
   );
 
+  const computeVisibleWarnings = useCallback(
+    (shifts: ShiftData[]) =>
+      visibleAssignmentWarnings({
+        warnings: computeCurrentWarnings(shifts),
+        currentShifts: shifts,
+        baselineShifts: confirmedWarningBaselineRef.current,
+        closedDateSet: shopClosedDateSet,
+        isConfirmed,
+      }),
+    [computeCurrentWarnings, isConfirmed, shopClosedDateSet],
+  );
+
   // エラー（確定不可）と確認事項（助言）をまとめて再評価し、一覧・バッジ・ハイライトに反映する。
   // 確定可否の判定に使えるよう、評価したエラーを返す
   const revalidate = useCallback(
     (shifts: ShiftData[]) => {
       const issues = validateCurrentShifts(shifts);
       setValidationIssues(issues);
-      setValidationWarnings(computeCurrentWarnings(shifts));
+      setValidationWarnings(computeVisibleWarnings(shifts));
       return issues;
     },
-    [validateCurrentShifts, computeCurrentWarnings],
+    [validateCurrentShifts, computeVisibleWarnings],
   );
 
   const handleShiftsChange = useCallback(
@@ -322,7 +338,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       if (shifts === baselineShiftsRef.current) {
         isFormInitializedRef.current = true;
         // 確定済みシフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
-        setValidationWarnings(isConfirmed ? [] : computeCurrentWarnings(shifts));
+        setValidationWarnings(computeVisibleWarnings(shifts));
         if (!hasAttemptedConfirmRef.current) return;
       }
       if (hasAttemptedConfirmRef.current) {
@@ -330,10 +346,10 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         return;
       }
       if (isFormInitializedRef.current) {
-        setValidationWarnings(computeCurrentWarnings(shifts));
+        setValidationWarnings(computeVisibleWarnings(shifts));
       }
     },
-    [computeCurrentWarnings, isConfirmed, revalidate],
+    [computeVisibleWarnings, revalidate],
   );
 
   const dismissValidationIssues = useCallback(() => {
@@ -407,8 +423,12 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
       const result = await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
-      // 確定後も直前に確認したwarningは残し、画面上の文脈が急に消えないようにする。
+      // 初回確定では直前に確認したwarningを残す。再通知では通知済みになるため編集面のwarningをリセットする
       dismissValidationIssues();
+      if (isConfirmed) {
+        confirmedWarningBaselineRef.current = shiftsAtSave;
+        setValidationWarnings([]);
+      }
       confirmModal.close();
       if (result?.status === "no_changes") {
         toaster.create({ title: "前回通知から変更されたスタッフはいません", type: "info" });

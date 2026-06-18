@@ -1,10 +1,11 @@
-import { atom } from "jotai";
+import { atom, type Getter } from "jotai";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
 import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
-import { sortStaffs } from "@/src/domains/shift/sortStaffs";
+import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
+import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
   RequiredStaffingData,
@@ -48,6 +49,7 @@ export const shiftConfigAtom = atom<{
 export const viewModeAtom = atom<ViewMode>("daily");
 export const selectedDateAtom = atom<string>("");
 export const sortModeAtom = atom<SortMode>("default");
+export const lockedDailyStaffOrderAtom = atom<{ date: string; staffIds: string[] } | null>(null);
 
 // ==========================================
 // シフトデータ
@@ -73,12 +75,67 @@ export const selectedPositionAtom = atom((get) => {
   return id ? (config.positions.find((p) => p.id === id) ?? null) : null;
 });
 
+export const shiftsForSelectedDateAtom = atom((get) => {
+  const selectedDate = get(selectedDateAtom);
+  return get(shiftsAtom).filter((shift) => shift.date === selectedDate);
+});
+
+export const shiftByStaffIdForSelectedDateAtom = atom((get) => indexShiftsByStaffId(get(shiftsForSelectedDateAtom)));
+
+const buildDailyStaffOrder = (get: Getter, date: string): string[] | null => {
+  const config = get(shiftConfigAtom);
+  if (!date || config.staffs.length === 0) return null;
+
+  const shiftByStaffId = indexShiftsByStaffId(get(shiftsAtom).filter((shift) => shift.date === date));
+  const mode = config.submissionPattern?.kind === "dateOnly" ? "dateOnly" : (config.submissionPattern?.kind ?? "time");
+  return sortDailyStaffs({
+    staffs: config.staffs,
+    shiftByStaffId,
+    mode,
+  }).map((staff) => staff.id);
+};
+
+export const lockDailyStaffOrderAtom = atom(null, (get, set, date: string) => {
+  const staffIds = buildDailyStaffOrder(get, date);
+  if (!staffIds) {
+    set(lockedDailyStaffOrderAtom, null);
+    return;
+  }
+
+  set(lockedDailyStaffOrderAtom, { date, staffIds });
+});
+
+export const selectDateWithDailyStaffOrderAtom = atom(null, (get, set, date: string) => {
+  const staffIds = buildDailyStaffOrder(get, date);
+  set(selectedDateAtom, date);
+  set(lockedDailyStaffOrderAtom, staffIds ? { date, staffIds } : null);
+});
+
+export const dailySortedStaffsAtom = atom((get) => {
+  const staffs = get(shiftConfigAtom).staffs;
+  const lockedOrder = get(lockedDailyStaffOrderAtom);
+  if (!lockedOrder) return [...staffs].sort(compareDefaultStaffOrder);
+
+  const staffById = new Map(staffs.map((staff) => [staff.id, staff]));
+  const orderedStaffs = lockedOrder.staffIds.flatMap((staffId) => {
+    const staff = staffById.get(staffId);
+    return staff ? [staff] : [];
+  });
+  const orderedIds = new Set(lockedOrder.staffIds);
+  const missingStaffs = staffs.filter((staff) => !orderedIds.has(staff.id)).sort(compareDefaultStaffOrder);
+  return [...orderedStaffs, ...missingStaffs];
+});
+
 export const sortedStaffsAtom = atom((get) => {
   const config = get(shiftConfigAtom);
-  const shifts = get(shiftsAtom);
-  const selectedDate = get(selectedDateAtom);
   const sortMode = get(sortModeAtom);
-  return sortStaffs({ staffs: config.staffs, shifts, selectedDate, sortMode });
+  if (sortMode === "default") return [...config.staffs];
+
+  return sortStaffs({
+    staffs: config.staffs,
+    shiftByStaffId: get(shiftByStaffIdForSelectedDateAtom),
+    sortMode,
+  });
 });
 
 // ==========================================
