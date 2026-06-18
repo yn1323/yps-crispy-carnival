@@ -4,41 +4,14 @@ description: Playwright setup from cache
 runs:
   using: "composite"
   steps:
-    - name: Resolve Playwright version
-      id: playwright-version
-      shell: bash
-      run: |
-        version="$(pnpm exec playwright --version | awk '{print $2}')"
-        if [[ -z "$version" ]]; then
-          echo "::error::Failed to resolve Playwright version"
-          exit 1
-        fi
-        echo "version=${version}" >> "$GITHUB_OUTPUT"
     - name: Setup Playwright cache
       id: playwright-cache
       uses: actions/cache@v5
       with:
         path: /home/runner/.cache/ms-playwright
-        key: ${{ runner.os }}-${{ runner.arch }}-playwright-ms-cache-${{ steps.playwright-version.outputs.version }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-playwright-ms-cache-
-    - name: Stabilize apt for Playwright deps
+        key: ${{ runner.os }}-playwright-ms-cache-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-playwright-ms-cache-
+    - name: Install Playwright
       shell: bash
       if: steps.playwright-cache.outputs.cache-hit != 'true'
-      run: bash .github/scripts/setup-apt.sh
-    - name: Install Playwright browsers if cache miss
-      shell: bash
-      if: steps.playwright-cache.outputs.cache-hit != 'true'
-      run: |
-        for attempt in 1 2 3; do
-          echo "Installing Playwright Chromium (attempt ${attempt}/3)"
-          if timeout 15m pnpm exec playwright install --with-deps chromium; then
-            exit 0
-          fi
-
-          if [[ "$attempt" == "3" ]]; then
-            echo "::error::Playwright Chromium install failed after 3 attempts"
-            exit 1
-          fi
-
-          sleep "$((attempt * 15))"
-        done
+      run: npx playwright install chromium --with-deps
