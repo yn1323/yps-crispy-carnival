@@ -16,13 +16,16 @@ import {
   StaffWarningIcon,
 } from "../../components";
 import { BREAK_POSITION } from "../../constants";
+import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
+  dailySortedStaffsAtom,
   issueCountByDateAtom,
   issueStaffIdSetForSelectedDateAtom,
+  selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
+  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
-  sortedStaffsAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
@@ -61,11 +64,11 @@ const getAssignedRange = (shift: ShiftData | undefined): [string, string] | null
 
 export const SPDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
-  const shifts = useAtomValue(shiftsAtom);
   const setShifts = useSetAtom(shiftsAtom);
-  const sortedStaffs = useAtomValue(sortedStaffsAtom);
+  const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
+  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
-  const setSelectedDate = useSetAtom(selectedDateAtom);
+  const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
   const issueStaffIds = useAtomValue(issueStaffIdSetForSelectedDateAtom);
   const warningCounts = useAtomValue(warningCountByDateAtom);
@@ -73,39 +76,29 @@ export const SPDailyView = () => {
 
   const { positions, dates, timeRange, isReadOnly, holidays } = config;
   const isShopClosedDate = holidays.includes(selectedDate);
+  useLockedDailyStaffOrder(selectedDate);
 
   const editDialog = useDialog();
   const detailDialog = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const touchStartX = useRef(0);
 
-  const dateShifts = useMemo(() => shifts.filter((s) => s.date === selectedDate), [shifts, selectedDate]);
-
   const rows = useMemo(
     () =>
       sortedStaffs.map((staff) => ({
         staff,
-        shift: dateShifts.find((s) => s.staffId === staff.id),
+        shift: shiftByStaffId.get(staff.id),
       })),
-    [sortedStaffs, dateShifts],
+    [sortedStaffs, shiftByStaffId],
   );
 
-  const workRows = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          r.shift?.requestedTime || (r.shift?.requestedTimes?.length ?? 0) > 0 || (r.shift?.positions.length ?? 0) > 0,
-      ),
+  const workRows = useMemo(() => rows.filter((row) => getAssignedRange(row.shift) !== null), [rows]);
+  const restRows = useMemo(
+    () => rows.filter((row) => getAssignedRange(row.shift) === null && row.staff.isSubmitted),
     [rows],
   );
-  const offRows = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          !r.shift?.requestedTime &&
-          (r.shift?.requestedTimes?.length ?? 0) === 0 &&
-          (r.shift?.positions.length ?? 0) === 0,
-      ),
+  const unsubmittedRows = useMemo(
+    () => rows.filter((row) => getAssignedRange(row.shift) === null && !row.staff.isSubmitted),
     [rows],
   );
 
@@ -114,8 +107,8 @@ export const SPDailyView = () => {
     [sortedStaffs, selectedStaffId],
   );
   const selectedShift = useMemo(
-    () => dateShifts.find((s) => s.staffId === selectedStaffId),
-    [dateShifts, selectedStaffId],
+    () => (selectedStaffId ? shiftByStaffId.get(selectedStaffId) : undefined),
+    [shiftByStaffId, selectedStaffId],
   );
 
   const handleCardTap = useCallback(
@@ -144,24 +137,21 @@ export const SPDailyView = () => {
 
   const handleShiftUpdate = useCallback(
     (updatedShift: ShiftData) => {
-      const exists = shifts.some((s) => s.id === updatedShift.id);
-      if (exists) {
-        setShifts(shifts.map((s) => (s.id === updatedShift.id ? updatedShift : s)));
-      } else {
-        setShifts([...shifts, updatedShift]);
-      }
+      setShifts((current) => {
+        const exists = current.some((s) => s.id === updatedShift.id);
+        return exists ? current.map((s) => (s.id === updatedShift.id ? updatedShift : s)) : [...current, updatedShift];
+      });
     },
-    [shifts, setShifts],
+    [setShifts],
   );
 
   const handleShiftDelete = useCallback(
     (staffId: string) => {
-      const target = shifts.find((s) => s.staffId === staffId && s.date === selectedDate);
-      if (target) {
-        setShifts(shifts.map((s) => (s.id === target.id ? { ...s, positions: [] } : s)));
-      }
+      setShifts((current) =>
+        current.map((s) => (s.staffId === staffId && s.date === selectedDate ? { ...s, positions: [] } : s)),
+      );
     },
-    [shifts, selectedDate, setShifts],
+    [selectedDate, setShifts],
   );
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -174,12 +164,12 @@ export const SPDailyView = () => {
       if (Math.abs(deltaX) < SWIPE_THRESHOLD) return;
       const currentIndex = dates.indexOf(selectedDate);
       if (deltaX > 0 && currentIndex > 0) {
-        setSelectedDate(dates[currentIndex - 1]);
+        selectDate(dates[currentIndex - 1]);
       } else if (deltaX < 0 && currentIndex < dates.length - 1) {
-        setSelectedDate(dates[currentIndex + 1]);
+        selectDate(dates[currentIndex + 1]);
       }
     },
-    [dates, selectedDate, setSelectedDate],
+    [dates, selectedDate, selectDate],
   );
 
   const sd = selectedDate ? dayjs(selectedDate) : null;
@@ -214,7 +204,7 @@ export const SPDailyView = () => {
             return (
               <Box
                 key={iso}
-                onClick={() => setSelectedDate(iso)}
+                onClick={() => selectDate(iso)}
                 position="relative"
                 flexShrink={0}
                 w="52px"
@@ -300,15 +290,32 @@ export const SPDailyView = () => {
                 </Stack>
               </Box>
             )}
-            {offRows.length > 0 && (
+            {restRows.length > 0 && (
+              <Box>
+                <SectionHeader label="休み" count={restRows.length} hint={isReadOnly ? undefined : "タップで追加"} />
+                <Stack gap="6px">
+                  {restRows.map(({ staff }) => (
+                    <SPOffCard
+                      key={staff.id}
+                      staff={staff}
+                      onTap={() => handleCardTap(staff.id)}
+                      isReadOnly={isReadOnly}
+                      hasError={issueStaffIds.has(staff.id)}
+                      warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            )}
+            {unsubmittedRows.length > 0 && (
               <Box>
                 <SectionHeader
-                  label="希望なし・未提出"
-                  count={offRows.length}
+                  label="未提出"
+                  count={unsubmittedRows.length}
                   hint={isReadOnly ? undefined : "タップで追加"}
                 />
                 <Stack gap="6px">
-                  {offRows.map(({ staff }) => (
+                  {unsubmittedRows.map(({ staff }) => (
                     <SPOffCard
                       key={staff.id}
                       staff={staff}

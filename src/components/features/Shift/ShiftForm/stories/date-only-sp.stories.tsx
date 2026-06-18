@@ -63,6 +63,12 @@ export const Interactive: Story = {
     await expect(canvas.queryByText("希望 2人")).not.toBeInTheDocument();
     await expect((await canvas.findAllByText("合計")).length).toBeGreaterThan(0);
 
+    await userEvent.click(await canvas.findByLabelText("6/3(水)を表示"));
+    const suzukiThird = await findVisibleByLabelText("鈴木 次郎 6/3(水) 勤務あり");
+    const tanakaThird = await findVisibleByLabelText("田中 太郎 6/3(水) 勤務なし");
+    await expect(suzukiThird.getBoundingClientRect().top).toBeLessThan(tanakaThird.getBoundingClientRect().top);
+
+    await userEvent.click(await canvas.findByLabelText("6/2(火)を表示"));
     const tanakaSecond = await findVisibleByLabelText("田中 太郎 6/2(火) 勤務あり");
     await userEvent.click(tanakaSecond);
     await expect(await findVisibleByLabelText("田中 太郎 6/2(火) 勤務なし")).toBeInTheDocument();

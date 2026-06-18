@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ShiftBoardData } from "../types";
 import { ShiftBoardPage } from "./index";
@@ -72,6 +73,30 @@ const mockData: ShiftBoardData = {
   timeRange: { start: 9, end: 22, unit: 30 },
 };
 
+const mockDataWithInitialWarnings: ShiftBoardData = {
+  ...mockData,
+  recruitment: {
+    ...mockData.recruitment,
+    draftSavedAt: Date.UTC(2026, 0, 18, 2),
+  },
+  shiftAssignments: [
+    {
+      staffId: "s1" as Id<"staffs">,
+      date: "2026-01-20",
+      startTime: "09:00",
+      endTime: "22:00",
+      positionId: "position-1" as Id<"positions">,
+    },
+    {
+      staffId: "s3" as Id<"staffs">,
+      date: "2026-01-20",
+      startTime: "09:00",
+      endTime: "13:00",
+      positionId: "position-1" as Id<"positions">,
+    },
+  ],
+};
+
 const meta = {
   title: "Features/ShiftBoard/ShiftBoardPage",
   component: ShiftBoardPage,
@@ -139,6 +164,39 @@ const describeElement = (element: Element | null) => {
 };
 
 export const PC: Story = {};
+
+export const PCWithInitialWarnings: Story = {
+  name: "PC With Initial Warnings",
+  args: {
+    data: mockDataWithInitialWarnings,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByLabelText("確認事項2件")).toBeInTheDocument();
+    await expect((await canvas.findAllByLabelText("確認事項1件")).length).toBeGreaterThanOrEqual(2);
+  },
+};
+
+export const ConfirmedWithInitialWarningsHidden: Story = {
+  name: "Confirmed With Initial Warnings Hidden",
+  args: {
+    data: {
+      ...mockDataWithInitialWarnings,
+      recruitment: {
+        ...mockDataWithInitialWarnings.recruitment,
+        status: "confirmed",
+        confirmedAt: new Date("2026-03-28T23:15:00").getTime(),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect((await canvas.findAllByText(/確定済み/)).length).toBeGreaterThan(0);
+    await expect(canvas.queryByLabelText(/確認事項/)).not.toBeInTheDocument();
+  },
+};
 
 export const SP: Story = {
   tags: ["vrt-mobile2"],
