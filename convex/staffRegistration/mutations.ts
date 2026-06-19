@@ -80,11 +80,16 @@ export const submitRegistrationRequest = mutation({
     const name = parsed.data.name;
     const email = normalizeEmail(parsed.data.email);
 
+    // 重複・申請済みは「想定内の利用フロー」なので throw せず status を返す。
+    // throw すると Convex のログにエラーとして残ってしまうため、observability は warn で残す。
+    // メールアドレスは生で残さず domain 部分のみログに含める（Dashboard 共有時の漏洩防止）。
+    const logSkip = (reason: string) =>
+      console.warn("[submitRegistrationRequest] skip", { reason, shopId: shop._id, emailDomain: email.split("@")[1] });
+
     const existingStaff = await findActiveStaffByEmail(ctx, shop._id, email);
     if (existingStaff) {
-      throw new ConvexError(
-        "このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。",
-      );
+      logSkip("already_registered");
+      return { status: "already_registered" as const };
     }
 
     const pendingRequest = await ctx.db
@@ -94,7 +99,8 @@ export const submitRegistrationRequest = mutation({
       )
       .first();
     if (pendingRequest) {
-      throw new ConvexError("このメールアドレスは申請済みです。承認までしばらくおまちください");
+      logSkip("already_applied");
+      return { status: "already_applied" as const };
     }
 
     const versions = getLegalConsentVersions("staff");
