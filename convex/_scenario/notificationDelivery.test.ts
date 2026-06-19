@@ -1,7 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
 import type { ScenarioTest } from "../_test/scenarioBuilders";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
@@ -528,6 +527,7 @@ describe("通知配送outboxシナリオ", () => {
       email: "digest-staff@example.com",
       acceptedLegal: true,
     });
+    if (request.status !== "ok") throw new Error(`unexpected status: ${request.status}`);
 
     await t.action(internal.staffRegistration.actions.sendOwnerDailyDigest, {});
 
@@ -545,7 +545,7 @@ describe("通知配送outboxシナリオ", () => {
     });
 
     await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
-      requestId: request.requestId as Id<"staffRegistrationRequests">,
+      requestId: request.requestId,
     });
     await t.action(internal.staffRegistration.actions.sendOwnerDailyDigest, {});
 
