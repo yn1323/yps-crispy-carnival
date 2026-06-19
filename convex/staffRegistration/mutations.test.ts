@@ -98,14 +98,13 @@ describe("staffRegistration/mutations", () => {
       acceptedLegal: true,
     });
 
-    await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
-        token: link.token,
-        name: "別の申請スタッフ",
-        email: "Duplicate@Example.com",
-        acceptedLegal: true,
-      }),
-    ).rejects.toThrow("このメールアドレスは申請済みです。承認までしばらくおまちください");
+    const duplicateResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "別の申請スタッフ",
+      email: "Duplicate@Example.com",
+      acceptedLegal: true,
+    });
+    expect(duplicateResult).toEqual({ status: "already_applied" });
   });
 
   it("既存スタッフと同じメールアドレスでは参加申請できない", async () => {
@@ -126,14 +125,13 @@ describe("staffRegistration/mutations", () => {
       .withIdentity({ subject: "manager_existing_staff" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
 
-    await expect(
-      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
-        token: link.token,
-        name: "申請スタッフ",
-        email: "existing@example.com",
-        acceptedLegal: true,
-      }),
-    ).rejects.toThrow("このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。");
+    const existingResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "申請スタッフ",
+      email: "existing@example.com",
+      acceptedLegal: true,
+    });
+    expect(existingResult).toEqual({ status: "already_registered" });
 
     const requests = await t
       .withIdentity({ subject: "manager_existing_staff" })
@@ -150,12 +148,14 @@ describe("staffRegistration/mutations", () => {
     const link = await t
       .withIdentity({ subject: "manager_manager" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
-    const { requestId } = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認待ちスタッフ",
       email: "pending@example.com",
       acceptedLegal: true,
     });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    const { requestId } = submitResult;
 
     const otherShopRequests = await t
       .withIdentity({ subject: "manager_other" })
@@ -192,12 +192,14 @@ describe("staffRegistration/mutations", () => {
     const link = await t
       .withIdentity({ subject: "manager_approve" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
-    const { requestId } = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認スタッフ",
       email: "approved@example.com",
       acceptedLegal: true,
     });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    const { requestId } = submitResult;
 
     const { staffId } = await t
       .withIdentity({ subject: "manager_approve" })
@@ -248,12 +250,14 @@ describe("staffRegistration/mutations", () => {
     const link = await t
       .withIdentity({ subject: "manager_reject" })
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
-    const { requestId } = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "却下スタッフ",
       email: "rejected@example.com",
       acceptedLegal: true,
     });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+    const { requestId } = submitResult;
 
     await t.withIdentity({ subject: "manager_reject" }).mutation(api.staffRegistration.mutations.rejectRequest, {
       requestId,

@@ -20,6 +20,12 @@ const expiredRegistrationData: StaffRegistrationPageData = {
   },
 };
 
+// 重複・申請済みはエラーではなく「想定内の案内」なので warning トーストで知らせる。
+const DUPLICATE_REGISTRATION_MESSAGE = {
+  already_registered: "このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。",
+  already_applied: "このメールアドレスは申請済みです。承認までしばらくおまちください",
+} as const;
+
 export function StaffRegistrationRoutePage({ token }: Props) {
   const data = useQuery(api.staffRegistration.queries.getRegistrationPageData, token ? { token } : "skip");
   const submit = useMutation(api.staffRegistration.mutations.submitRegistrationRequest);
@@ -29,14 +35,22 @@ export function StaffRegistrationRoutePage({ token }: Props) {
       if (!token) return;
 
       try {
-        await submit({
+        const result = await submit({
           token,
           name: formData.name,
           email: formData.email,
           acceptedLegal: formData.acceptedLegal,
         });
-        setSubmitted(true);
-        toaster.create({ title: "参加申請を送りました", type: "success" });
+        if (result.status === "ok") {
+          setSubmitted(true);
+          toaster.create({ title: "参加申請を送りました", type: "success" });
+        } else {
+          toaster.create({
+            title: DUPLICATE_REGISTRATION_MESSAGE[result.status],
+            type: "warning",
+            duration: Number.POSITIVE_INFINITY,
+          });
+        }
       } catch (error) {
         showErrorToast(error);
       }
