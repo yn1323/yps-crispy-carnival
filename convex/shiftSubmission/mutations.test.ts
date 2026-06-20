@@ -194,6 +194,36 @@ describe("shiftSubmission/mutations", () => {
       expect(submission?.submittedAt).toBeTypeOf("number");
     });
 
+    it("不正な日付・時刻形式の希望提出は保存前に拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t);
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: [{ date: "2026-02-31", startTime: "09:00", endTime: "18:00" }],
+        }),
+      ).rejects.toThrow("Invalid request data");
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: [{ date: "2026-04-07", startTime: "bad", endTime: "18:00" }],
+        }),
+      ).rejects.toThrow("Invalid request data");
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: [{ date: "2026-04-07", startTime: "09:00", endTime: "36:30" }],
+        }),
+      ).rejects.toThrow("Invalid request data");
+    });
+
     it("定休日の日付には希望シフトを提出できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, { shopClosedDates: ["2026-04-09"] });
@@ -267,6 +297,22 @@ describe("shiftSubmission/mutations", () => {
           submission: { kind: "dateOnly", workingDates: ["2026-04-07", "2026-04-07"] },
         }),
       ).rejects.toThrow("同じ日の希望シフトは1件だけ登録できます");
+    });
+
+    it("日付のみ提出で不正な日付形式は拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: { kind: "dateOnly" },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "dateOnly", workingDates: ["2026-04-31"] },
+        }),
+      ).rejects.toThrow("Invalid request data");
     });
 
     it("日付のみ提出でも定休日は提出できない", async () => {
@@ -368,6 +414,25 @@ describe("shiftSubmission/mutations", () => {
           submission: { kind: "shiftType", selections: [{ date: "2026-04-07", optionId: "late" }] },
         }),
       ).rejects.toThrow("勤務区分が見つかりません");
+    });
+
+    it("勤務区分提出で不正な日付形式は拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupTestData(t, {
+        submissionPattern: {
+          kind: "shiftType",
+          options: [{ id: "morning", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 }],
+        },
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          submission: { kind: "shiftType", selections: [{ date: "2026-04-31", optionId: "morning" }] },
+        }),
+      ).rejects.toThrow("Invalid request data");
     });
 
     it("全休み提出（空配列）でshiftSubmissionのみ作成", async () => {

@@ -12,6 +12,7 @@
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
 | [Dashboardお知らせ](features/dashboard-announcements.md) | 有事の全店舗共通お知らせをDashboard上部に1件だけ表示 | 実装済 |
 | [管理ユーザーと店舗所属](features/manager-shop-membership.md) | 管理ユーザーと店舗を `shopMembers` で結ぶ所属モデル。複数店舗対応のDB土台 | 準備中 |
+| [課金プラン管理](features/billing-plans.md) | 店舗単位で課金プラン状態を持ち、有料機能guardを通して機能出し分けするDB土台 | 準備中 |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
 | [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
 | [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |

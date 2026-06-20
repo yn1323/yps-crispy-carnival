@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
 import { step1Schema } from "./index";
 
 describe("step1Schema", () => {
@@ -15,6 +16,24 @@ describe("step1Schema", () => {
   it("店舗名が空の場合エラー", () => {
     const result = step1Schema.safeParse({ ...validData, shopName: "" });
     expect(result.success).toBe(false);
+  });
+
+  it("店舗名の最大文字数と制御文字を検証する", () => {
+    expect(step1Schema.safeParse({ ...validData, shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH) }).success).toBe(true);
+
+    const tooLong = step1Schema.safeParse({ ...validData, shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1) });
+    expect(tooLong.success).toBe(false);
+    if (!tooLong.success) {
+      expect(tooLong.error.issues.some((issue) => issue.message === "店舗名は80文字以内で入力してください")).toBe(true);
+    }
+
+    const controlChar = step1Schema.safeParse({ ...validData, shopName: "店舗\n名" });
+    expect(controlChar.success).toBe(false);
+    if (!controlChar.success) {
+      expect(
+        controlChar.error.issues.some((issue) => issue.message === "店舗名に使用できない文字が含まれています"),
+      ).toBe(true);
+    }
   });
 
   it("時間指定は開始時間と終了時間を受け入れる", () => {
@@ -92,6 +111,51 @@ describe("step1Schema", () => {
       },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("勤務区分名の最大文字数と制御文字を検証する", () => {
+    const valid = step1Schema.safeParse({
+      ...validData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: [
+          {
+            id: "max",
+            name: "あ".repeat(SHIFT_TYPE_NAME_MAX_LENGTH),
+            startTime: "09:00",
+            endTime: "18:00",
+            sortOrder: 0,
+          },
+        ],
+      },
+    });
+    expect(valid.success).toBe(true);
+
+    const invalid = step1Schema.safeParse({
+      ...validData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: [
+          {
+            id: "too-long",
+            name: "あ".repeat(SHIFT_TYPE_NAME_MAX_LENGTH + 1),
+            startTime: "09:00",
+            endTime: "18:00",
+            sortOrder: 0,
+          },
+          { id: "control", name: "遅\n番", startTime: "18:00", endTime: "22:00", sortOrder: 1 },
+        ],
+      },
+    });
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) {
+      expect(invalid.error.issues.some((issue) => issue.message === "勤務区分名は30文字以内で入力してください")).toBe(
+        true,
+      );
+      expect(
+        invalid.error.issues.some((issue) => issue.message === "勤務区分名に使用できない文字が含まれています"),
+      ).toBe(true);
+    }
   });
 
   it("勤務区分が1つもない場合はエラー", () => {

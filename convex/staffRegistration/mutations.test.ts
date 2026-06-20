@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "../constants";
 
 describe("staffRegistration/mutations", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -80,6 +81,30 @@ describe("staffRegistration/mutations", () => {
         acceptedLegal: false,
       }),
     ).rejects.toThrow("利用規約とプライバシーポリシーに同意してください");
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token: link.token,
+        name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1),
+        email: "request@example.com",
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("名前は80文字以内で入力してください");
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token: link.token,
+        name: "申請\nスタッフ",
+        email: "request@example.com",
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("名前に使用できない文字が含まれています");
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token: link.token,
+        name: "申請スタッフ",
+        email: `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(57)}.comx`,
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow(`メールアドレスは${EMAIL_MAX_LENGTH}文字以内で入力してください`);
   });
 
   it("同じメールアドレスの承認待ち申請は重複登録できない", async () => {

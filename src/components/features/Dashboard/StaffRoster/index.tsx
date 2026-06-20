@@ -75,7 +75,7 @@ export const StaffRoster = ({
       </Flex>
 
       <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-        シフト募集通知が来ない場合、ユーザー右のメニューから再送ください。
+        募集作成・シフト確定時にスタッフへ通知します。届かない場合はスタッフ右のメニューから再送できます。
       </Text>
 
       {sorted.length === 0 ? (

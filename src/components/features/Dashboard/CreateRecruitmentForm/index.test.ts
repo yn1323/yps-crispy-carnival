@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
+import { RECRUITMENT_PERIOD_DAYS_MAX } from "@/convex/constants";
 import { createRecruitmentFormSchema, createRecruitmentSchema, deriveShopClosedDatesFromRegularDays } from "./index";
 
 describe("deriveShopClosedDatesFromRegularDays", () => {
@@ -97,6 +98,50 @@ describe("createRecruitmentSchema", () => {
       deadline: "2026-04-15",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("日付は実在するYYYY-MM-DDだけ受け入れる", () => {
+    expect(createRecruitmentSchema.safeParse({ ...validData, periodStart: "2026/04/01" }).success).toBe(false);
+    expect(createRecruitmentSchema.safeParse({ ...validData, periodEnd: "2026-02-31" }).success).toBe(false);
+    expect(createRecruitmentSchema.safeParse({ ...validData, deadline: "2026-13-01" }).success).toBe(false);
+  });
+
+  it("募集期間は62日以内にする", () => {
+    const valid = createRecruitmentSchema.safeParse({
+      ...validData,
+      periodStart: "2026-04-01",
+      periodEnd: dayjs("2026-04-01")
+        .add(RECRUITMENT_PERIOD_DAYS_MAX - 1, "day")
+        .format("YYYY-MM-DD"),
+      deadline: "2026-03-31",
+    });
+    expect(valid.success).toBe(true);
+
+    const invalid = createRecruitmentSchema.safeParse({
+      ...validData,
+      periodStart: "2026-04-01",
+      periodEnd: dayjs("2026-04-01").add(RECRUITMENT_PERIOD_DAYS_MAX, "day").format("YYYY-MM-DD"),
+      deadline: "2026-03-31",
+    });
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) {
+      expect(invalid.error.issues.some((issue) => issue.message === "募集期間は62日以内にしてください")).toBe(true);
+    }
+  });
+
+  it("定休日の日付形式と件数を検証する", () => {
+    expect(
+      createRecruitmentSchema.safeParse({ ...validData, shopClosedDates: ["2026-04-01", "2026-04-02"] }).success,
+    ).toBe(true);
+    expect(createRecruitmentSchema.safeParse({ ...validData, shopClosedDates: ["2026-02-31"] }).success).toBe(false);
+    expect(
+      createRecruitmentSchema.safeParse({
+        ...validData,
+        shopClosedDates: Array.from({ length: RECRUITMENT_PERIOD_DAYS_MAX + 1 }, (_, index) =>
+          dayjs("2026-04-01").add(index, "day").format("YYYY-MM-DD"),
+        ),
+      }).success,
+    ).toBe(false);
   });
 });
 

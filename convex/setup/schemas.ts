@@ -1,23 +1,40 @@
 import { z } from "zod";
-import { addShiftSubmissionPatternIssues, shiftSubmissionPatternSchema } from "../shop/schemas";
+import { requiredDisplayTextSchema, requiredEmailSchema } from "../_lib/validation";
+import { PERSON_NAME_MAX_LENGTH } from "../constants";
+import { addShiftSubmissionPatternIssues, shiftSubmissionPatternSchema, shopNameSchema } from "../shop/schemas";
 
-export const createShopSchema = z
-  .object({
-    shopName: z.string().min(1),
-    submissionPattern: shiftSubmissionPatternSchema,
+const managerNameSchema = requiredDisplayTextSchema({ label: "名前", maxLength: PERSON_NAME_MAX_LENGTH });
+const acceptedManagerLegalSchema = z.boolean().refine((value) => value, {
+  message: "利用規約とプライバシーポリシーに同意してください",
+});
+
+const createShopBaseSchema = z.object({
+  shopName: shopNameSchema,
+  submissionPattern: shiftSubmissionPatternSchema,
+});
+
+export const createShopSchema = createShopBaseSchema.superRefine((data, ctx) => {
+  addShiftSubmissionPatternIssues(data.submissionPattern, ctx);
+});
+
+export type CreateShopInput = z.infer<typeof createShopSchema>;
+
+export const managerProfileSchema = z.object({
+  name: managerNameSchema,
+  email: requiredEmailSchema,
+  acceptedLegal: acceptedManagerLegalSchema,
+});
+
+export type ManagerProfileInput = z.infer<typeof managerProfileSchema>;
+
+export const setupShopAndManagerSchema = createShopBaseSchema
+  .extend({
+    managerName: managerNameSchema,
+    managerEmail: requiredEmailSchema,
+    acceptedLegal: acceptedManagerLegalSchema,
   })
   .superRefine((data, ctx) => {
     addShiftSubmissionPatternIssues(data.submissionPattern, ctx);
   });
 
-export type CreateShopInput = z.infer<typeof createShopSchema>;
-
-export const managerProfileSchema = z.object({
-  name: z.string().min(1, "名前を入力してください"),
-  email: z.string().min(1, "メールアドレスを入力してください").email("正しいメールアドレスを入力してください"),
-  acceptedLegal: z.boolean().refine((value) => value, {
-    message: "利用規約とプライバシーポリシーに同意してください",
-  }),
-});
-
-export type ManagerProfileInput = z.infer<typeof managerProfileSchema>;
+export type SetupShopAndManagerInput = z.infer<typeof setupShopAndManagerSchema>;

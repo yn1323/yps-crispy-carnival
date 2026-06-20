@@ -433,6 +433,12 @@ export const CreateRecruitmentForm = ({
               <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
               <Separator />
               <SummaryLine label="提出締切" value={deadline ? `${formatDateWithWeekday(deadline)} 23:59` : "未選択"} />
+              <Separator />
+              <SummaryLine
+                label="通知"
+                value="スタッフにシフト提出案内を送ります"
+                detail="LINE連携済みはLINE、未連携はメールに届きます。締切前日17:00には催促通知も自動で送ります。"
+              />
             </Stack>
           </Box>
         )}

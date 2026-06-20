@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
 import { editShopSchema } from "./index";
 
 describe("editShopSchema", () => {
@@ -21,6 +22,14 @@ describe("editShopSchema", () => {
   it("定義外の曜日はエラー", () => {
     const result = editShopSchema.safeParse({ ...validData, regularClosedDays: ["holiday"] });
     expect(result.success).toBe(false);
+  });
+
+  it("店舗名の最大文字数と制御文字を検証する", () => {
+    expect(editShopSchema.safeParse({ ...validData, shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH) }).success).toBe(true);
+    expect(editShopSchema.safeParse({ ...validData, shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1) }).success).toBe(
+      false,
+    );
+    expect(editShopSchema.safeParse({ ...validData, shopName: "店舗\n名" }).success).toBe(false);
   });
 
   it("時間指定は開始時間と終了時間を必須にする", () => {
@@ -118,6 +127,43 @@ describe("editShopSchema", () => {
       },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("勤務区分名の最大文字数と制御文字を検証する", () => {
+    const valid = editShopSchema.safeParse({
+      ...validData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: [
+          {
+            id: "max",
+            name: "あ".repeat(SHIFT_TYPE_NAME_MAX_LENGTH),
+            startTime: "09:00",
+            endTime: "18:00",
+            sortOrder: 0,
+          },
+        ],
+      },
+    });
+    expect(valid.success).toBe(true);
+
+    const invalid = editShopSchema.safeParse({
+      ...validData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: [
+          {
+            id: "too-long",
+            name: "あ".repeat(SHIFT_TYPE_NAME_MAX_LENGTH + 1),
+            startTime: "09:00",
+            endTime: "18:00",
+            sortOrder: 0,
+          },
+          { id: "control", name: "遅\n番", startTime: "18:00", endTime: "22:00", sortOrder: 1 },
+        ],
+      },
+    });
+    expect(invalid.success).toBe(false);
   });
 
   it("勤務区分名の重複はエラー", () => {
