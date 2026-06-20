@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuCalendarDays, LuChevronLeft, LuClock3, LuListChecks, LuPlus, LuStore, LuTrash2 } from "react-icons/lu";
+import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
@@ -142,6 +143,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
     handleSubmit,
     watch,
     setValue,
+    getValues,
     trigger,
     formState: { errors, isSubmitting },
   } = useForm<EditShopFormData>({
@@ -213,11 +215,11 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
   };
 
   const goToNextStep = () => {
-    setCurrentStep((step) => getNextStep(step, submissionPattern));
+    setCurrentStep((step) => getNextStep(step, getValues("submissionPattern")));
   };
 
   const goToPreviousStep = () => {
-    setCurrentStep((step) => getPreviousStep(step, submissionPattern));
+    setCurrentStep((step) => getPreviousStep(step, getValues("submissionPattern")));
   };
 
   const handlePatternSettingsNext = async () => {
@@ -342,7 +344,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
         {currentStep === "shopName" && (
           <Field.Root invalid={!!errors.shopName}>
             <Field.Label>お店の名前</Field.Label>
-            <Input placeholder="例：居酒屋たなか" {...register("shopName")} />
+            <Input placeholder="例：居酒屋たなか" maxLength={SHOP_NAME_MAX_LENGTH} {...register("shopName")} />
             {errors.shopName && <Field.ErrorText>{errors.shopName.message}</Field.ErrorText>}
           </Field.Root>
         )}
@@ -480,6 +482,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
                               <Field.Label>区分名</Field.Label>
                               <Input
                                 value={option.name}
+                                maxLength={SHIFT_TYPE_NAME_MAX_LENGTH}
                                 placeholder="例: 早番"
                                 bg="white"
                                 onChange={(event) => updateShiftTypeOption(index, { name: event.target.value })}

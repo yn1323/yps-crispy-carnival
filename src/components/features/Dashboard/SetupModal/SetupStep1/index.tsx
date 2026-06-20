@@ -1,6 +1,7 @@
 import { Box, Field, Grid, HStack, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { LuCalendarDays, LuClock3, LuListChecks, LuPlus, LuTrash2 } from "react-icons/lu";
+import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
 import {
@@ -83,6 +84,7 @@ export const SetupShopInfoStep = ({
       <Input
         name="shopName"
         value={shopName}
+        maxLength={SHOP_NAME_MAX_LENGTH}
         placeholder="例：居酒屋たなか"
         onChange={(event) => onShopNameChange(event.target.value)}
       />
@@ -284,6 +286,7 @@ export const SetupPatternSettingsStep = ({
                     <Field.Label>区分名</Field.Label>
                     <Input
                       value={option.name}
+                      maxLength={SHIFT_TYPE_NAME_MAX_LENGTH}
                       placeholder="例: 早番"
                       bg="white"
                       onChange={(event) => updateShiftTypeOption(index, { name: event.target.value })}

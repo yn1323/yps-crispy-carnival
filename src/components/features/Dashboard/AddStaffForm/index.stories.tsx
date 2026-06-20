@@ -96,3 +96,29 @@ export const BackToQrFromManual: Story = {
     expect(page.queryByRole("button", { name: "スタッフを追加する" })).not.toBeInTheDocument();
   },
 };
+
+export const EmptySubmitShowsError: Story = {
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  render: () => (
+    <Dialog
+      title="スタッフを招待"
+      isOpen={true}
+      onOpenChange={() => {}}
+      formId="add-staff-form"
+      submitLabel="スタッフを追加する"
+      onClose={() => {}}
+      closeLabel="戻る"
+    >
+      <AddStaffForm onSubmit={() => {}} />
+    </Dialog>
+  ),
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await page.findByRole("button", { name: "スタッフを追加する" }));
+
+    await expect(await page.findByText("少なくとも1人のスタッフ名を入力してください")).toBeInTheDocument();
+  },
+};

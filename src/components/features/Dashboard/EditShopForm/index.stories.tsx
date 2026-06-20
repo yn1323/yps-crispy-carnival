@@ -135,8 +135,8 @@ export const InteractiveStepperFlow: Story = {
     const endTimeSelect = getByRole(root, "combobox", { name: "シフト終了時間" });
     endTimeSelect.click();
     expect(await findByRole(root, "listbox", { name: "シフト終了時間" })).toBeTruthy();
-    (await findByRole(root, "option", { name: "26:00" })).click();
-    await waitFor(() => expect(endTimeSelect).toHaveTextContent("26:00"));
+    (await findByRole(root, "option", { name: "23:00" })).click();
+    await waitFor(() => expect(endTimeSelect).toHaveTextContent("23:00"));
 
     clickButton(root, "戻る");
     await findByText(root, "希望シフトの集め方");

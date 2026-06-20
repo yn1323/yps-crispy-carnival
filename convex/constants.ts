@@ -32,6 +32,12 @@ export const SHIFT_BOARD_TIME_UNIT_MINUTES = 30;
 export const STAFF_REGISTRATION_PENDING_LIMIT = 20;
 export const STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE = 100;
 export const STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT = 20;
+export const SHOP_NAME_MAX_LENGTH = 80;
+export const PERSON_NAME_MAX_LENGTH = 80;
+export const SHIFT_TYPE_NAME_MAX_LENGTH = 30;
+export const EMAIL_MAX_LENGTH = 254;
+export const STAFF_ADD_ENTRIES_MAX = 50;
+export const RECRUITMENT_PERIOD_DAYS_MAX = 62;
 // 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronで最大3回）
 export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = 3 * DAY_MS;
 

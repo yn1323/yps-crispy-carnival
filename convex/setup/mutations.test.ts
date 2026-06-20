@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { PERSON_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
 
 const setupArgs = {
   shopName: "テスト店舗",
@@ -31,6 +32,36 @@ describe("setup/mutations", () => {
           acceptedLegal: false as true,
         }),
       ).rejects.toThrow();
+    });
+
+    it("店舗名・管理者名・管理者メールをサーバー側でも検証する", async () => {
+      const t = convexTest(schema, modules);
+      const asUser = t.withIdentity({ subject: "user_invalid_setup" });
+
+      await expect(
+        asUser.mutation(api.setup.mutations.setupShopAndManager, {
+          ...setupArgs,
+          shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1),
+        }),
+      ).rejects.toThrow("店舗名は80文字以内で入力してください");
+      await expect(
+        asUser.mutation(api.setup.mutations.setupShopAndManager, {
+          ...setupArgs,
+          managerName: "山田\n太郎",
+        }),
+      ).rejects.toThrow("名前に使用できない文字が含まれています");
+      await expect(
+        asUser.mutation(api.setup.mutations.setupShopAndManager, {
+          ...setupArgs,
+          managerName: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1),
+        }),
+      ).rejects.toThrow("名前は80文字以内で入力してください");
+      await expect(
+        asUser.mutation(api.setup.mutations.setupShopAndManager, {
+          ...setupArgs,
+          managerEmail: "not-email",
+        }),
+      ).rejects.toThrow("正しいメールアドレスを入力してください");
     });
 
     it("店舗・ユーザー・スタッフ・同意履歴をトランザクションで作成する", async () => {

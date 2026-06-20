@@ -5,6 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
 
 function futureDate(daysFromNow: number): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -270,6 +271,42 @@ describe("recruitment/mutations", () => {
       ).rejects.toThrow("定休日の日付形式が正しくありません");
     });
 
+    it("募集日付の形式不正・実在しない日付はエラー", async () => {
+      const { t } = setupShop();
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await expect(
+        asManager.mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          periodStart: "2026/04/01",
+        }),
+      ).rejects.toThrow("日付の形式が正しくありません");
+      await expect(
+        asManager.mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          periodEnd: "2026-02-31",
+        }),
+      ).rejects.toThrow("日付の形式が正しくありません");
+      await expect(
+        asManager.mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          deadline: "2026-13-01",
+        }),
+      ).rejects.toThrow("日付の形式が正しくありません");
+    });
+
+    it("募集期間が62日を超える場合はエラー", async () => {
+      const { t } = setupShop();
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
+          periodStart: futureDate(7),
+          periodEnd: futureDate(7 + RECRUITMENT_PERIOD_DAYS_MAX),
+          deadline: futureDate(3),
+          shopClosedDates: [],
+        }),
+      ).rejects.toThrow("募集期間は62日以内にしてください");
+    });
+
     it("締切日が過去の場合エラーをthrow", async () => {
       const { t } = setupShop();
 
@@ -281,7 +318,7 @@ describe("recruitment/mutations", () => {
       ).rejects.toThrow("締切日は今日以降にしてください");
     });
 
-    it("開始日が今日以前の場合エラーをthrow", async () => {
+    it("開始日が今日以前で締切日も開始日以降の場合は日付関係エラーをthrow", async () => {
       const { t } = setupShop();
 
       await expect(
@@ -291,7 +328,7 @@ describe("recruitment/mutations", () => {
           deadline: futureDate(3),
           shopClosedDates: [],
         }),
-      ).rejects.toThrow("開始日は明日以降にしてください");
+      ).rejects.toThrow("締切日は開始日より前にしてください");
     });
   });
 

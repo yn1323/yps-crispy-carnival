@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
 
 const validArgs = {
   shopName: "新・居酒屋たなか",
@@ -106,6 +107,29 @@ describe("shop/mutations", () => {
           .withIdentity({ subject: MANAGER_SUBJECT })
           .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopName: "   " }),
       ).rejects.toThrow(ConvexError);
+    });
+
+    it("過長店舗名と制御文字入り店舗名は更新できない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1),
+        }),
+      ).rejects.toThrow("店舗名は80文字以内で入力してください");
+      await expect(
+        t
+          .withIdentity({ subject: MANAGER_SUBJECT })
+          .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopName: "店舗\n名" }),
+      ).rejects.toThrow("店舗名に使用できない文字が含まれています");
     });
 
     it("時間指定の終了時間 <= 開始時間は ConvexError", async () => {
@@ -288,6 +312,44 @@ describe("shop/mutations", () => {
           },
         }),
       ).rejects.toThrow(ConvexError);
+    });
+
+    it("過長・制御文字入りの勤務区分名は更新できない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          submissionPattern: {
+            kind: "shiftType",
+            options: [
+              {
+                id: "too-long",
+                name: "あ".repeat(SHIFT_TYPE_NAME_MAX_LENGTH + 1),
+                startTime: "09:00",
+                endTime: "18:00",
+                sortOrder: 0,
+              },
+            ],
+          },
+        }),
+      ).rejects.toThrow("勤務区分名は30文字以内で入力してください");
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          submissionPattern: {
+            kind: "shiftType",
+            options: [{ id: "control", name: "早\n番", startTime: "09:00", endTime: "18:00", sortOrder: 0 }],
+          },
+        }),
+      ).rejects.toThrow("勤務区分名に使用できない文字が含まれています");
     });
 
     it("勤務区分は翌12:00まで更新できる", async () => {
