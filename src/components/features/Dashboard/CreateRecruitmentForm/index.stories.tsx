@@ -72,6 +72,8 @@ export const InteractiveBasicFlow: Story = {
     expect(getByText(root, "お店のお休み")).toBeTruthy();
     expect(getByText(root, "なし")).toBeTruthy();
     expect(getByText(root, "提出締切")).toBeTruthy();
+    expect(getByText(root, "通知")).toBeTruthy();
+    expect(await findByText(root, "スタッフにシフト提出案内を送ります")).toBeTruthy();
   },
 };
 

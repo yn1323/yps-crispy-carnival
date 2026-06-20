@@ -1,22 +1,31 @@
 import { z } from "zod";
 import { MAX_SHIFT_TYPE_OPTIONS } from "../_lib/submissionPatternConstants";
 import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
+import { requiredDisplayTextSchema, supportedShiftTimeSchema } from "../_lib/validation";
+import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
 
 export const regularClosedDaySchema = z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]);
 export const regularClosedDaysSchema = z.array(regularClosedDaySchema);
 export const shiftSubmissionPatternKindSchema = z.enum(["time", "dateOnly", "shiftType"]);
+export const shopNameSchema = requiredDisplayTextSchema({ label: "店舗名", maxLength: SHOP_NAME_MAX_LENGTH });
+export const shiftTypeNameSchema = requiredDisplayTextSchema({
+  label: "勤務区分名",
+  maxLength: SHIFT_TYPE_NAME_MAX_LENGTH,
+});
+const startTimeSchema = supportedShiftTimeSchema("開始時間を選択してください", "開始時間が正しくありません");
+const endTimeSchema = supportedShiftTimeSchema("終了時間を選択してください", "終了時間が正しくありません");
 export const shiftTypeOptionSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1, "勤務区分名を入力してください"),
-  startTime: z.string().min(1, "開始時間を選択してください"),
-  endTime: z.string().min(1, "終了時間を選択してください"),
+  name: shiftTypeNameSchema,
+  startTime: startTimeSchema,
+  endTime: endTimeSchema,
   sortOrder: z.number(),
 });
 export const shiftSubmissionPatternSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("time"),
-    startTime: z.string().min(1, "開始時間を選択してください"),
-    endTime: z.string().min(1, "終了時間を選択してください"),
+    startTime: startTimeSchema,
+    endTime: endTimeSchema,
   }),
   z.object({ kind: z.literal("dateOnly") }),
   z.object({ kind: z.literal("shiftType"), options: z.array(shiftTypeOptionSchema) }),
@@ -31,24 +40,8 @@ export function addShiftSubmissionPatternIssues(
   path: (string | number)[] = ["submissionPattern"],
 ) {
   if (pattern.kind === "time") {
-    const startTimeSelected = pattern.startTime.length > 0;
-    const endTimeSelected = pattern.endTime.length > 0;
-    const startTimeValid = startTimeSelected && isSupportedShiftTime(pattern.startTime);
-    const endTimeValid = endTimeSelected && isSupportedShiftTime(pattern.endTime);
-    if (startTimeSelected && !startTimeValid) {
-      ctx.addIssue({
-        code: "custom",
-        message: "開始時間が正しくありません",
-        path: [...path, "startTime"],
-      });
-    }
-    if (endTimeSelected && !endTimeValid) {
-      ctx.addIssue({
-        code: "custom",
-        message: "終了時間が正しくありません",
-        path: [...path, "endTime"],
-      });
-    }
+    const startTimeValid = isSupportedShiftTime(pattern.startTime);
+    const endTimeValid = isSupportedShiftTime(pattern.endTime);
     if (!startTimeValid || !endTimeValid) return;
     if (timeToMinutes(pattern.endTime) <= timeToMinutes(pattern.startTime)) {
       ctx.addIssue({
@@ -82,14 +75,7 @@ export function addShiftSubmissionPatternIssues(
   const idSet = new Set<string>();
   const nameSet = new Set<string>();
   options.forEach((option, index) => {
-    const name = option.name.trim();
-    if (name.length === 0) {
-      ctx.addIssue({
-        code: "custom",
-        message: "勤務区分名を入力してください",
-        path: [...path, "options", index, "name"],
-      });
-    }
+    const name = option.name;
     if (idSet.has(option.id)) {
       ctx.addIssue({
         code: "custom",
@@ -105,24 +91,8 @@ export function addShiftSubmissionPatternIssues(
       });
     }
 
-    const startTimeSelected = option.startTime.length > 0;
-    const endTimeSelected = option.endTime.length > 0;
-    const startTimeValid = startTimeSelected && isSupportedShiftTime(option.startTime);
-    const endTimeValid = endTimeSelected && isSupportedShiftTime(option.endTime);
-    if (startTimeSelected && !startTimeValid) {
-      ctx.addIssue({
-        code: "custom",
-        message: "開始時間が正しくありません",
-        path: [...path, "options", index, "startTime"],
-      });
-    }
-    if (endTimeSelected && !endTimeValid) {
-      ctx.addIssue({
-        code: "custom",
-        message: "終了時間が正しくありません",
-        path: [...path, "options", index, "endTime"],
-      });
-    }
+    const startTimeValid = isSupportedShiftTime(option.startTime);
+    const endTimeValid = isSupportedShiftTime(option.endTime);
     if (startTimeValid && endTimeValid) {
       const start = timeToMinutes(option.startTime);
       const end = timeToMinutes(option.endTime);
@@ -142,7 +112,7 @@ export function addShiftSubmissionPatternIssues(
 
 export const updateShopSettingsSchema = z
   .object({
-    shopName: z.string().min(1),
+    shopName: shopNameSchema,
     regularClosedDays: regularClosedDaysSchema,
     submissionPattern: shiftSubmissionPatternSchema,
   })

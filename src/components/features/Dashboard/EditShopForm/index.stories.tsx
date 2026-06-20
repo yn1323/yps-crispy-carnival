@@ -7,6 +7,7 @@ import {
   getByDisplayValue,
   getByRole,
   getByText,
+  queryByText,
   waitFor,
 } from "@testing-library/dom";
 import { expect } from "storybook/test";
@@ -112,13 +113,30 @@ export const InteractiveStepperFlow: Story = {
     clickButton(root, "次へ");
 
     await findByText(root, "希望シフトの集め方");
+    clickButton(root, "次へ");
+
+    expect(await findByText(root, "現在の設定: 定休日なし")).toBeTruthy();
+    expect(queryByText(root, "追加設定なし")).toBeNull();
+    expect(queryByText(root, "勤務時間")).toBeNull();
+
+    clickButton(root, "戻る");
+    await findByText(root, "希望シフトの集め方");
     clickButton(root, "時間を自由に設定");
     clickButton(root, "次へ");
 
     await findByText(root, "シフト開始時間");
     expect(getByText(root, "シフト終了時間")).toBeTruthy();
-    getByRole(root, "combobox", { name: "シフト開始時間" }).click();
+    const startTimeSelect = getByRole(root, "combobox", { name: "シフト開始時間" });
+    startTimeSelect.click();
     expect(await findByRole(root, "listbox", { name: "シフト開始時間" })).toBeTruthy();
+    (await findByRole(root, "option", { name: "15:00" })).click();
+    await waitFor(() => expect(startTimeSelect).toHaveTextContent("15:00"));
+
+    const endTimeSelect = getByRole(root, "combobox", { name: "シフト終了時間" });
+    endTimeSelect.click();
+    expect(await findByRole(root, "listbox", { name: "シフト終了時間" })).toBeTruthy();
+    (await findByRole(root, "option", { name: "23:00" })).click();
+    await waitFor(() => expect(endTimeSelect).toHaveTextContent("23:00"));
 
     clickButton(root, "戻る");
     await findByText(root, "希望シフトの集め方");

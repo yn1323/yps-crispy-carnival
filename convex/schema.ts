@@ -37,6 +37,14 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   }),
 
+  shopBillingStates: defineTable({
+    shopId: v.id("shops"),
+    planKey: v.union(v.literal("free"), v.literal("standard"), v.literal("premium")),
+    source: v.union(v.literal("system"), v.literal("manual")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_shopId", ["shopId"]),
+
   // ========================================
   // 管理者ユーザー（Clerk認証）
   // ========================================
@@ -176,6 +184,8 @@ const schema = defineSchema({
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
     .index("by_shopId_and_isDeleted_and_periodStart", ["shopId", "isDeleted", "periodStart"])
     .index("by_shopId_and_isDeleted_and_status_and_periodStart", ["shopId", "isDeleted", "status", "periodStart"])
+    .index("by_shopId_and_isDeleted_and_status_and_deadline", ["shopId", "isDeleted", "status", "deadline"])
+    .index("by_shopId_and_isDeleted_and_status_and_periodEnd", ["shopId", "isDeleted", "status", "periodEnd"])
     .index("by_shopId_status", ["shopId", "status"]),
 
   shiftSubmissionSlots: defineTable({

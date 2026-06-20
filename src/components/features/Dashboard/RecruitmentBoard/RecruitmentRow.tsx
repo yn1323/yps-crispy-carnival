@@ -27,7 +27,13 @@ const statusConfig: Record<
   }
 > = {
   collecting: { label: "募集中", colorPalette: "green", accent: "green.400" },
-  "past-deadline": { label: "締切済み", colorPalette: "orange", accent: "orange.400" },
+  "action-required": {
+    label: "要シフト調整",
+    colorPalette: "orange",
+    accent: "orange.400",
+    borderColor: "orange.200",
+    bg: "orange.50/30",
+  },
   current: {
     label: "確定済み",
     colorPalette: "blue",
@@ -40,13 +46,14 @@ const statusConfig: Record<
 };
 
 export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDeleteRecruitment }: Props) {
-  const { _id, periodStart, periodEnd, deadline, status, confirmedAt, responseCount, totalStaffCount } = recruitment;
+  const { _id, periodStart, periodEnd, deadline, confirmedAt, responseCount, totalStaffCount } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
   const { colorPalette, accent, borderColor, bg } = statusConfig[displayStatus];
-  const label = displayStatus === "ended" && status === "open" ? "締切済み" : statusConfig[displayStatus].label;
-  const relativeText = relativeDeadline({ deadline, confirmedAt, displayStatus, recruitmentStatus: status });
+  const label = statusConfig[displayStatus].label;
+  const relativeText = relativeDeadline({ deadline, periodEnd, confirmedAt, displayStatus });
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
   const isCurrent = displayStatus === "current";
+  const isActionRequired = displayStatus === "action-required";
   const textColor = displayStatus === "ended" ? "gray.700" : "gray.900";
 
   return (
@@ -72,9 +79,9 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
         flex={1}
         minW={0}
         px={{ base: 3.5, lg: 4 }}
-        py={3}
+        py={{ base: 2.5, lg: 3 }}
         align="stretch"
-        gap={{ base: 2, lg: 3 }}
+        gap={{ base: 1.5, lg: 3 }}
         cursor="pointer"
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
       >
@@ -83,7 +90,7 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
           minW={0}
           direction={{ base: "column", lg: "row" }}
           align={{ base: "stretch", lg: "center" }}
-          gap={{ base: 2, lg: 4 }}
+          gap={{ base: 1.5, lg: 4 }}
         >
           <Flex align="center" gap={3} flexShrink={0} minW={{ lg: "140px" }}>
             <Text fontSize="md" fontWeight="semibold" color={textColor} lineHeight="short" whiteSpace="nowrap">
@@ -94,9 +101,11 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
           <Flex
             flex={1}
             minW={0}
-            direction={{ base: "column", md: "row" }}
-            align={{ base: "stretch", md: "center" }}
+            direction="row"
+            align="center"
+            justify={{ base: "space-between", md: "flex-end" }}
             gap={{ base: 2, md: 4 }}
+            wrap={{ base: "wrap", sm: "nowrap" }}
           >
             <HStack minW={{ lg: isCurrent ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
               <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
@@ -116,11 +125,17 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
               color="fg.muted"
               fontSize="xs"
               minW={0}
-              wrap="wrap"
+              wrap="nowrap"
             >
-              <HStack gap={1} justify="flex-end" minW={{ base: "132px", lg: "160px" }} flexShrink={0}>
+              <HStack
+                gap={1}
+                justify="flex-end"
+                minW={0}
+                flexShrink={1}
+                color={isActionRequired ? "orange.700" : undefined}
+              >
                 <LuCalendarClock />
-                <Text whiteSpace="nowrap" textAlign="right">
+                <Text whiteSpace="nowrap" textAlign="right" fontWeight={isActionRequired ? "semibold" : "normal"}>
                   {relativeText}
                 </Text>
               </HStack>
@@ -128,8 +143,9 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
                 fontSize="xs"
                 color="fg.muted"
                 whiteSpace="nowrap"
-                minW={{ base: "84px", lg: "96px" }}
+                minW={{ lg: "96px" }}
                 textAlign="right"
+                flexShrink={0}
               >
                 提出 {responseCount}/{totalStaffCount}人
               </Text>
@@ -167,20 +183,22 @@ export function RecruitmentRow({ recruitment, dataTour, onOpenShiftBoard, onDele
 
 function relativeDeadline({
   deadline,
+  periodEnd,
   confirmedAt,
   displayStatus,
-  recruitmentStatus,
 }: {
   deadline: string;
+  periodEnd: string;
   confirmedAt: number | null;
   displayStatus: RecruitmentDisplayStatus;
-  recruitmentStatus: Recruitment["status"];
 }): string {
-  if (displayStatus === "ended" && recruitmentStatus === "open") return `${formatDateShort(deadline)} 締切済み`;
   if (displayStatus === "current" || displayStatus === "confirmed" || displayStatus === "ended") {
     return confirmedAt ? `確定 ${formatDateShort(dayjs(confirmedAt).format("YYYY-MM-DD"))}` : "確定済み";
   }
-  if (displayStatus === "past-deadline") return `${formatDateShort(deadline)} 締切済み`;
+  if (displayStatus === "action-required") {
+    const today = dayjs().format("YYYY-MM-DD");
+    return deadline < today ? `${formatDateShort(deadline)} 締切済み` : `${formatDateShort(periodEnd)} 期間終了`;
+  }
   const days = dayjs(deadline).startOf("day").diff(dayjs().startOf("day"), "day");
   if (days === 0) return "今日が締切！";
   return `締切まで${days}日`;

@@ -6,6 +6,7 @@ import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
+import { reissueSchema } from "./schemas";
 
 type ExpiredReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
 
@@ -147,10 +148,13 @@ export const requestReissue = mutation({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, { email, recruitmentId }) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const emailDomain = normalizedEmail.split("@")[1];
     const logSkip = (reason: string, extra: Record<string, unknown> = {}) =>
       console.warn("[requestReissue] skip", { reason, recruitmentId, ...extra });
+    const parsed = reissueSchema.safeParse({ email });
+    if (!parsed.success) return logSkip("invalid_email");
+
+    const normalizedEmail = parsed.data.email.toLowerCase();
+    const emailDomain = normalizedEmail.split("@")[1];
 
     // レートリミットチェック（email+recruitmentId をキーに）
     // メアド列挙攻撃防止: レートリミットでも成功時と同じレスポンス（void）を返す

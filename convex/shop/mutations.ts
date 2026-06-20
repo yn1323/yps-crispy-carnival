@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
+import { updateShopSettingsSchema } from "./schemas";
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -21,14 +22,15 @@ export const updateShopSettings = managerMutation({
     submissionPattern: submissionPatternValidator,
   },
   handler: async (ctx, args) => {
-    const name = args.shopName.trim();
-    if (name.length === 0) {
-      throw new ConvexError("店舗名を入力してください");
+    const parsed = updateShopSettingsSchema.safeParse(args);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     }
-    const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
+    const input = parsed.data;
+    const submissionPattern = normalizeSubmissionPattern(input.submissionPattern);
     await ctx.db.patch(ctx.shop._id, {
-      name,
-      regularClosedDays: WEEKDAY_ORDER.filter((day) => args.regularClosedDays.includes(day)),
+      name: input.shopName,
+      regularClosedDays: WEEKDAY_ORDER.filter((day) => input.regularClosedDays.includes(day)),
       submissionPattern,
     });
   },

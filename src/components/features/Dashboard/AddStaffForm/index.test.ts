@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { addStaffSchema, staffEntrySchema } from "./index";
 
 describe("staffEntrySchema", () => {
@@ -29,12 +30,19 @@ describe("staffEntrySchema", () => {
     ["@example.com"],
     ["hanako@"],
     ["hanako @example.com"],
-    ["   "],
   ])("無効なメールアドレスを拒否する: %s", (email) => {
     const result = staffEntrySchema.safeParse({ name: "田中", email });
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0].message).toBe("正しいメールアドレスを入力してください");
+    }
+  });
+
+  it("空白のみメールは必須エラーにする", () => {
+    const result = staffEntrySchema.safeParse({ name: "田中", email: "   " });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe("メールアドレスを入力してください");
     }
   });
 
@@ -47,6 +55,29 @@ describe("staffEntrySchema", () => {
     if (!result.success) {
       expect(result.error.issues[0].message).toBe("名前を入力してください");
     }
+  });
+
+  it("名前とメールの最大文字数・制御文字を検証する", () => {
+    expect(
+      staffEntrySchema.safeParse({
+        name: "あ".repeat(PERSON_NAME_MAX_LENGTH),
+        email: "hanako@example.com",
+      }).success,
+    ).toBe(true);
+    expect(
+      staffEntrySchema.safeParse({
+        name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1),
+        email: "hanako@example.com",
+      }).success,
+    ).toBe(false);
+    expect(staffEntrySchema.safeParse({ name: "田中\n花子", email: "hanako@example.com" }).success).toBe(false);
+
+    const local = "a".repeat(64);
+    const domain = `${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(57)}.com`;
+    const maxEmail = `${local}@${domain}`;
+    expect(maxEmail).toHaveLength(EMAIL_MAX_LENGTH);
+    expect(staffEntrySchema.safeParse({ name: "田中", email: maxEmail }).success).toBe(true);
+    expect(staffEntrySchema.safeParse({ name: "田中", email: `${maxEmail}x` }).success).toBe(false);
   });
 });
 
@@ -87,5 +118,26 @@ describe("addStaffSchema", () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+
+  it("一度に追加できるスタッフは50件まで", () => {
+    const valid = addStaffSchema.safeParse({
+      entries: Array.from({ length: STAFF_ADD_ENTRIES_MAX }, (_, index) => ({
+        name: `スタッフ${index + 1}`,
+        email: `staff-${index + 1}@example.com`,
+      })),
+    });
+    expect(valid.success).toBe(true);
+
+    const invalid = addStaffSchema.safeParse({
+      entries: Array.from({ length: STAFF_ADD_ENTRIES_MAX + 1 }, (_, index) => ({
+        name: `スタッフ${index + 1}`,
+        email: `staff-${index + 1}@example.com`,
+      })),
+    });
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) {
+      expect(invalid.error.issues.some((issue) => issue.message === "スタッフは一度に50件まで追加できます")).toBe(true);
+    }
   });
 });

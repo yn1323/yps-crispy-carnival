@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../storyMocks";
 import {
-  buildDashboardRecruitmentList,
+  buildDashboardRecruitmentGroups,
   type DashboardAnnouncement,
   type Recruitment,
   type Staff,
@@ -71,13 +71,8 @@ const dashboardAnnouncement = {
   bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   displayDate: "2026-06-17",
 } as unknown as DashboardAnnouncement;
-const dashboardRecruitments = buildDashboardRecruitmentList({
-  currentRecruitments: mockCurrentRecruitments,
-  recruitments: mockRecruitments,
-});
-const dashboardNonCurrentRecruitments = mockRecruitments.filter(
-  (recruitment) => !mockCurrentRecruitments.some((currentRecruitment) => currentRecruitment._id === recruitment._id),
-);
+const dashboardRecruitments = mockRecruitments;
+const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({ recruitments: dashboardRecruitments }).groups;
 
 const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
   ({
@@ -98,8 +93,12 @@ const dashboardBaseArgs = {
   shop,
   managerLegalConsentStatus: managerLegalConsentReady,
   recruitmentStatus: "Exhausted",
-  canLoadMoreRecruitments: false,
-  loadMoreRecruitments: noop,
+  hasPastRecruitments: false,
+  isPastRecruitmentsVisible: false,
+  pastRecruitmentStatus: "Exhausted",
+  canLoadMorePastRecruitments: false,
+  showPastRecruitments: noop,
+  loadMorePastRecruitments: noop,
   staffStatus: "Exhausted",
   canLoadMoreStaffs: false,
   loadMoreStaffs: noop,
@@ -108,8 +107,12 @@ const dashboardBaseArgs = {
   | "shop"
   | "managerLegalConsentStatus"
   | "recruitmentStatus"
-  | "canLoadMoreRecruitments"
-  | "loadMoreRecruitments"
+  | "hasPastRecruitments"
+  | "isPastRecruitmentsVisible"
+  | "pastRecruitmentStatus"
+  | "canLoadMorePastRecruitments"
+  | "showPastRecruitments"
+  | "loadMorePastRecruitments"
   | "staffStatus"
   | "canLoadMoreStaffs"
   | "loadMoreStaffs"
@@ -130,12 +133,16 @@ export const Normal: Story = {
   args: {
     shop,
     managerLegalConsentStatus: managerLegalConsentReady,
-    recruitments: dashboardNonCurrentRecruitments,
-    recruitmentList: dashboardRecruitments.slice(0, 3),
+    recruitments: dashboardRecruitments,
+    recruitmentGroups: dashboardRecruitmentGroups,
     currentRecruitments: mockCurrentRecruitments,
-    recruitmentStatus: "CanLoadMore",
-    canLoadMoreRecruitments: true,
-    loadMoreRecruitments: noop,
+    recruitmentStatus: "Exhausted",
+    hasPastRecruitments: true,
+    isPastRecruitmentsVisible: false,
+    pastRecruitmentStatus: "Exhausted",
+    canLoadMorePastRecruitments: false,
+    showPastRecruitments: noop,
+    loadMorePastRecruitments: noop,
     staffs: mockStaffs,
     staffStatus: "CanLoadMore",
     canLoadMoreStaffs: true,
@@ -181,8 +188,12 @@ export const Empty: Story = {
     recruitments: [],
     currentRecruitments: [],
     recruitmentStatus: "Exhausted",
-    canLoadMoreRecruitments: false,
-    loadMoreRecruitments: noop,
+    hasPastRecruitments: false,
+    isPastRecruitmentsVisible: false,
+    pastRecruitmentStatus: "Exhausted",
+    canLoadMorePastRecruitments: false,
+    showPastRecruitments: noop,
+    loadMorePastRecruitments: noop,
     staffs: [],
     staffStatus: "Exhausted",
     canLoadMoreStaffs: false,
@@ -342,9 +353,10 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     confirmButton.click();
 
     await waitUntil(
-      () => document.body.textContent?.includes("承認してシフト提出、共有できるようにしましょう。") ?? false,
+      () => document.body.textContent?.includes("承認するとスタッフ登録が完了します。") ?? false,
       "スタッフ参加申請モーダルが表示されませんでした",
     );
+    assertText(document.body, "募集中シフトがある場合は提出リンクを送ります", "承認後の通知説明");
     assertText(document.body, "田中 花子", "モーダル内の承認待ちスタッフ名");
     assertText(document.body, "hanako@example.com", "モーダル内の承認待ちスタッフメール");
     assertText(document.body, "承認", "モーダル内の承認ボタン");
@@ -358,8 +370,12 @@ export const Setup: Story = {
     recruitments: [],
     currentRecruitments: [],
     recruitmentStatus: "Exhausted",
-    canLoadMoreRecruitments: false,
-    loadMoreRecruitments: noop,
+    hasPastRecruitments: false,
+    isPastRecruitmentsVisible: false,
+    pastRecruitmentStatus: "Exhausted",
+    canLoadMorePastRecruitments: false,
+    showPastRecruitments: noop,
+    loadMorePastRecruitments: noop,
     staffs: [],
     staffStatus: "Exhausted",
     canLoadMoreStaffs: false,

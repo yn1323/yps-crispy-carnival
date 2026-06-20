@@ -1,6 +1,7 @@
 import { Field, Input, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import type { Staff } from "../types";
 import { type EditStaffFormData, editStaffSchema } from "./index";
 
@@ -27,13 +28,18 @@ export const EditStaffForm = ({ staff, onSubmit }: Props) => {
       <Stack gap={4}>
         <Field.Root invalid={!!nameError}>
           <Field.Label>名前</Field.Label>
-          <Input placeholder="例：田中 花子" {...register("name")} />
+          <Input placeholder="例：田中 花子" maxLength={PERSON_NAME_MAX_LENGTH} {...register("name")} />
           {nameError && <Field.ErrorText>{nameError.message}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!emailError}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input placeholder="例：hanako@example.com" {...register("email")} />
+          <Input
+            type="email"
+            placeholder="例：hanako@example.com"
+            maxLength={EMAIL_MAX_LENGTH}
+            {...register("email")}
+          />
           {emailError && <Field.ErrorText>{emailError.message}</Field.ErrorText>}
         </Field.Root>
       </Stack>

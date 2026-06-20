@@ -80,6 +80,14 @@ describe("validateShiftAssignments", () => {
     expect(issues).toEqual([]);
   });
 
+  it("不正な日付形式はINVALID_DATE_FORMAT", () => {
+    const issues = validateShiftAssignments({
+      ...baseInput,
+      assignments: [assignment({ date: "2026-02-31" })],
+    });
+    expect(issues).toEqual([buildAssignmentIssue("INVALID_DATE_FORMAT", "2026-02-31", "staff1")]);
+  });
+
   it("定休日でCLOSED_DAY", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
@@ -98,6 +106,17 @@ describe("validateShiftAssignments", () => {
       ],
     });
     expect(issues.map((i) => i.code)).toEqual(["INVALID_TIME_ORDER", "INVALID_TIME_ORDER"]);
+  });
+
+  it("不正な時刻形式はINVALID_TIME_FORMAT", () => {
+    const issues = validateShiftAssignments({
+      ...baseInput,
+      assignments: [
+        assignment({ startTime: "bad", endTime: "18:00" }),
+        assignment({ staffId: "staff2", startTime: "09:00", endTime: "36:30" }),
+      ],
+    });
+    expect(issues.map((i) => i.code)).toEqual(["INVALID_TIME_FORMAT", "INVALID_TIME_FORMAT"]);
   });
 
   it("勤務区分募集で区分未指定ならSHIFT_TYPE_REQUIRED", () => {

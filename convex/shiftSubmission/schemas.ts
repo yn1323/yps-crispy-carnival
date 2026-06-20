@@ -1,10 +1,18 @@
 import { z } from "zod";
+import { isoDateStringSchema, supportedShiftTimeSchema } from "../_lib/validation";
 import { SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
 
+const shiftRequestDateSchema = isoDateStringSchema("日付を入力してください", "日付の形式が正しくありません");
+const shiftRequestStartTimeSchema = supportedShiftTimeSchema(
+  "開始時間を入力してください",
+  "開始時間が正しくありません",
+);
+const shiftRequestEndTimeSchema = supportedShiftTimeSchema("終了時間を入力してください", "終了時間が正しくありません");
+
 export const shiftRequestSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string().regex(/^\d{1,2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{1,2}:\d{2}$/),
+  date: shiftRequestDateSchema,
+  startTime: shiftRequestStartTimeSchema,
+  endTime: shiftRequestEndTimeSchema,
 });
 
 export const submitShiftRequestsSchema = z.object({
@@ -18,14 +26,14 @@ export const submitShiftSelectionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("dateOnly"),
-    workingDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
+    workingDates: z.array(shiftRequestDateSchema).max(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
   }),
   z.object({
     kind: z.literal("shiftType"),
     selections: z
       .array(
         z.object({
-          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          date: shiftRequestDateSchema,
           optionId: z.string().min(1),
         }),
       )
