@@ -12,6 +12,11 @@ const CLOSED_DAY_LABELS = {
 } as const;
 const DASHBOARD_DATA_TIMEOUT = 20_000;
 const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
+const STAFF_ADDED_TOAST_TITLE = /スタッフを追加しました|スタッフを追加し、案内通知を送りました/;
+const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
+const STAFF_REGISTRATION_APPROVED_TOAST_TITLE = /スタッフ申請を承認しました|スタッフ申請を承認し、案内通知を送りました/;
+const LINE_INVITE_SENT_TOAST_TITLE =
+  /LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました|LINE連携リンクをメールで送りました/;
 
 type RegularClosedDay = keyof typeof CLOSED_DAY_LABELS;
 type SubmissionPatternEdit =
@@ -93,14 +98,13 @@ export class DashboardPage {
 
   async addStaffs(entries: Array<{ name: string; email: string }>) {
     await this.fillAddStaffForm(entries);
-    await expect(this.page.getByText("スタッフを追加しました").first()).toBeVisible();
-    await expect(this.page.getByText("スタッフを追加しました").first()).not.toBeVisible();
+    await this.expectToastVisibleThenHidden(STAFF_ADDED_TOAST_TITLE);
   }
 
   async addStaffsAndExpectError(entries: Array<{ name: string; email: string }>, errorMessage: string) {
     await this.fillAddStaffForm(entries);
     await expect(this.page.getByText(errorMessage).first()).toBeVisible();
-    await expect(this.page.getByText("スタッフを追加しました").first()).toBeHidden();
+    await expect(this.page.getByText(STAFF_ADDED_TOAST_TITLE).first()).toBeHidden();
   }
 
   private async fillAddStaffForm(entries: Array<{ name: string; email: string }>) {
@@ -155,8 +159,7 @@ export class DashboardPage {
       await expect(dialog.getByText(expectations.expectedHolidayDetail, { exact: true })).toBeVisible();
     }
     await dialog.getByRole("button", { name: "募集をつくる" }).click();
-    await expect(this.page.getByText("募集をつくりました").first()).toBeVisible();
-    await expect(this.page.getByText("募集をつくりました").first()).not.toBeVisible();
+    await this.expectToastVisibleThenHidden(RECRUITMENT_CREATED_TOAST_TITLE);
   }
 
   async openShiftBoard() {
@@ -249,9 +252,7 @@ export class DashboardPage {
     const dialog = this.page.getByRole("dialog", { name: /メールでLINE連携URLを送る|LINE連携リンクをメールで送る/ });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "送信" }).click();
-    await expect(
-      this.page.getByText(/LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました/),
-    ).toBeVisible();
+    await expect(this.page.getByText(LINE_INVITE_SENT_TOAST_TITLE).first()).toBeVisible();
   }
 
   async expectStaffNotVisible(name: string) {
@@ -291,7 +292,7 @@ export class DashboardPage {
   async approveStaffRegistrationRequest(name: string) {
     const dialog = this.staffRegistrationRequestDialog();
     await dialog.getByRole("button", { name: `${name}を承認` }).click();
-    await expect(this.page.getByText("スタッフ申請を承認しました")).toBeVisible();
+    await expect(this.page.getByText(STAFF_REGISTRATION_APPROVED_TOAST_TITLE).first()).toBeVisible();
     await expect(dialog).not.toBeVisible();
   }
 
@@ -394,11 +395,6 @@ export class DashboardPage {
     await expect(dialog).not.toBeVisible();
   }
 
-  // ページネーション関連
-  async clickLoadMoreRecruitments() {
-    await this.recruitmentSection().getByRole("button", { name: "もっと見る" }).click();
-  }
-
   async clickShowAllStaffs() {
     await this.staffSection().getByRole("button", { name: "もっと見る" }).click();
   }
@@ -409,14 +405,6 @@ export class DashboardPage {
 
   async expectStaffRowCount(count: number) {
     await expect(this.staffSection().getByRole("button", { name: "スタッフの操作メニュー" })).toHaveCount(count);
-  }
-
-  async expectLoadMoreRecruitmentVisible() {
-    await expect(this.recruitmentSection().getByRole("button", { name: "もっと見る" })).toBeVisible();
-  }
-
-  async expectLoadMoreRecruitmentNotVisible() {
-    await expect(this.recruitmentSection().getByRole("button", { name: "もっと見る" })).not.toBeVisible();
   }
 
   async expectShowAllStaffsVisible() {
@@ -445,6 +433,12 @@ export class DashboardPage {
 
   private legalReconsentMessage() {
     return this.page.getByText("利用規約・プライバシーポリシーを更新しました");
+  }
+
+  private async expectToastVisibleThenHidden(title: string | RegExp) {
+    const toast = this.page.getByText(title).first();
+    await expect(toast).toBeVisible();
+    await expect(toast).not.toBeVisible();
   }
 
   private async openStaffMenu(staffName: string) {

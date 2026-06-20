@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import { step2Schema } from "./index";
 
 describe("step2Schema (managerProfile)", () => {
@@ -16,6 +17,12 @@ describe("step2Schema (managerProfile)", () => {
   it("名前が空の場合エラー", () => {
     const result = step2Schema.safeParse({ ...validData, name: "" });
     expect(result.success).toBe(false);
+  });
+
+  it("名前の最大文字数と制御文字を検証する", () => {
+    expect(step2Schema.safeParse({ ...validData, name: "あ".repeat(PERSON_NAME_MAX_LENGTH) }).success).toBe(true);
+    expect(step2Schema.safeParse({ ...validData, name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1) }).success).toBe(false);
+    expect(step2Schema.safeParse({ ...validData, name: "山田\n太郎" }).success).toBe(false);
   });
 
   it("メールアドレスが空の場合エラー", () => {
@@ -40,5 +47,14 @@ describe("step2Schema (managerProfile)", () => {
   it("有効なメールアドレスを受け入れる", () => {
     const result = step2Schema.safeParse({ ...validData, email: "test+tag@sub.domain.co.jp" });
     expect(result.success).toBe(true);
+  });
+
+  it("メールアドレスの最大文字数を検証する", () => {
+    const local = "a".repeat(64);
+    const domain = `${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(57)}.com`;
+    const maxEmail = `${local}@${domain}`;
+    expect(maxEmail).toHaveLength(EMAIL_MAX_LENGTH);
+    expect(step2Schema.safeParse({ ...validData, email: maxEmail }).success).toBe(true);
+    expect(step2Schema.safeParse({ ...validData, email: `${maxEmail}x` }).success).toBe(false);
   });
 });

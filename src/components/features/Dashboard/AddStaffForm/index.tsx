@@ -2,6 +2,7 @@ import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { LuPlus, LuX } from "react-icons/lu";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
 import { type AddStaffFormData, addStaffSchema } from "./index";
@@ -32,7 +33,8 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "entries" });
-  const rootError = errors.entries?.root;
+  const entriesErrorMessage = errors.entries?.root?.message ?? errors.entries?.message;
+  const canAppend = fields.length < STAFF_ADD_ENTRIES_MAX;
 
   return (
     <form id="add-staff-form" noValidate onSubmit={handleSubmit(onSubmit)}>
@@ -41,9 +43,9 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
           {STAFF_ADDITION_EMAIL_NOTICE}
         </Text>
 
-        {rootError && (
+        {entriesErrorMessage && (
           <Text fontSize="sm" color="fg.error">
-            {rootError.message}
+            {entriesErrorMessage}
           </Text>
         )}
 
@@ -72,12 +74,21 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
 
               <Flex gap={3} direction={{ base: "column", lg: "row" }} align={{ lg: "flex-start" }}>
                 <Field.Root w={{ lg: "200px" }} flexShrink={0} invalid={!!nameError} minH={{ lg: "60px" }}>
-                  <Input placeholder="例：田中 花子" {...register(`entries.${index}.name`)} />
+                  <Input
+                    placeholder="例：田中 花子"
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    {...register(`entries.${index}.name`)}
+                  />
                   {nameError && <Field.ErrorText>{nameError.message}</Field.ErrorText>}
                 </Field.Root>
 
                 <Field.Root invalid={!!emailError} flex={1} minH={{ lg: "60px" }}>
-                  <Input placeholder="例：hanako@example.com" {...register(`entries.${index}.email`)} />
+                  <Input
+                    type="email"
+                    placeholder="例：hanako@example.com"
+                    maxLength={EMAIL_MAX_LENGTH}
+                    {...register(`entries.${index}.email`)}
+                  />
                   {emailError && <Field.ErrorText>{emailError.message}</Field.ErrorText>}
                 </Field.Root>
 
@@ -90,11 +101,15 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
         })}
 
         <Button
+          type="button"
           variant="plain"
           size="sm"
           colorPalette="teal"
           alignSelf="flex-start"
-          onClick={() => append(EMPTY_ENTRY)}
+          disabled={!canAppend}
+          onClick={() => {
+            if (canAppend) append(EMPTY_ENTRY);
+          }}
         >
           <LuPlus />
           スタッフをもう1人追加

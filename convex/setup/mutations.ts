@@ -4,6 +4,7 @@ import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { recordStaffLegalConsent, recordUserLegalConsent } from "../legal/service";
 import { ensureDefaultPosition } from "../position/service";
+import { setupShopAndManagerSchema } from "./schemas";
 
 export const setupShopAndManager = authenticatedMutation({
   args: {
@@ -14,6 +15,11 @@ export const setupShopAndManager = authenticatedMutation({
     acceptedLegal: v.literal(true),
   },
   handler: async (ctx, args) => {
+    const parsed = setupShopAndManagerSchema.safeParse(args);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    }
+    const input = parsed.data;
     const currentUser = ctx.user;
     const existingMembership = currentUser
       ? await ctx.db
@@ -26,21 +32,29 @@ export const setupShopAndManager = authenticatedMutation({
       throw new ConvexError("既に店舗が登録されています");
     }
 
-    const submissionPattern = normalizeSubmissionPattern(args.submissionPattern);
+    const submissionPattern = normalizeSubmissionPattern(input.submissionPattern);
     const shopId = await ctx.db.insert("shops", {
-      name: args.shopName,
+      name: input.shopName,
       regularClosedDays: [],
       submissionPattern,
       isDeleted: false,
+    });
+    const now = Date.now();
+    await ctx.db.insert("shopBillingStates", {
+      shopId,
+      planKey: "free",
+      source: "system",
+      createdAt: now,
+      updatedAt: now,
     });
 
     const userId = currentUser
       ? currentUser._id
       : await ctx.db.insert("users", {
           authTokenIdentifier: ctx.identity.tokenIdentifier,
-          name: args.managerName,
-          email: args.managerEmail,
-          emailNormalized: args.managerEmail.trim().toLowerCase(),
+          name: input.managerName,
+          email: input.managerEmail,
+          emailNormalized: input.managerEmail.toLowerCase(),
           role: "manager",
           isDeleted: false,
         });
@@ -54,9 +68,9 @@ export const setupShopAndManager = authenticatedMutation({
 
     if (currentUser) {
       await ctx.db.patch(currentUser._id, {
-        name: args.managerName,
-        email: args.managerEmail,
-        emailNormalized: args.managerEmail.trim().toLowerCase(),
+        name: input.managerName,
+        email: input.managerEmail,
+        emailNormalized: input.managerEmail.toLowerCase(),
       });
     }
 
@@ -70,9 +84,9 @@ export const setupShopAndManager = authenticatedMutation({
     // users と staffs は userId で紐付け、後続の編集時に表示名を同期する。
     const staffId = await ctx.db.insert("staffs", {
       shopId,
-      name: args.managerName,
-      email: args.managerEmail,
-      emailNormalized: args.managerEmail.trim().toLowerCase(),
+      name: input.managerName,
+      email: input.managerEmail,
+      emailNormalized: input.managerEmail.toLowerCase(),
       userId,
       isDeleted: false,
     });

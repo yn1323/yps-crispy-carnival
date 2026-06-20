@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuCheck, LuClock, LuUserPlus } from "react-icons/lu";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import { type StaffRegistrationFormData, staffRegistrationFormSchema } from "@/convex/staffRegistration/schemas";
 import { StaffGuideContent } from "@/src/components/features/StaffGuideContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
@@ -145,13 +146,24 @@ export function StaffRegistrationPage({
             <Stack gap={5}>
               <Field.Root invalid={!!errors.name}>
                 <Field.Label>名前</Field.Label>
-                <Input {...register("name")} bg="white" placeholder="例：田中 花子" />
+                <Input
+                  {...register("name")}
+                  bg="white"
+                  maxLength={PERSON_NAME_MAX_LENGTH}
+                  placeholder="例：田中 花子"
+                />
                 {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
               </Field.Root>
 
               <Field.Root invalid={!!errors.email}>
                 <Field.Label>メールアドレス</Field.Label>
-                <Input type="email" {...register("email")} bg="white" placeholder="例：hanako@example.com" />
+                <Input
+                  type="email"
+                  {...register("email")}
+                  bg="white"
+                  maxLength={EMAIL_MAX_LENGTH}
+                  placeholder="例：hanako@example.com"
+                />
                 {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
                 {typoSuggestion && (
                   <Text fontSize="xs" color="orange.600">

@@ -489,6 +489,27 @@ describe("staffAuth/mutations", () => {
       ).resolves.not.toThrow();
     });
 
+    it("不正メールはthrowせずinvalid_emailだけをログに残す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "bad\naddress@example.com",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.not.toThrow();
+
+      expect(warnSpy).toHaveBeenCalledWith("[requestReissue] skip", {
+        reason: "invalid_email",
+        recruitmentId: ids.recruitmentId,
+      });
+      const logged = JSON.stringify(warnSpy.mock.calls);
+      expect(logged).not.toContain("bad");
+      warnSpy.mockRestore();
+    });
+
     it("same email in another shop does not block reissue for the recruitment shop", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {

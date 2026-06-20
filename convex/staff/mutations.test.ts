@@ -4,6 +4,7 @@ import { api, internal } from "../_generated/api";
 import { todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 
 function dateFromToday(daysFromNow: number): string {
@@ -93,6 +94,46 @@ describe("staff/mutations", () => {
       });
 
       expect(ids).toHaveLength(1);
+    });
+
+    it("一度に50件を超えるスタッフ追加は拒否する", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          entries: Array.from({ length: STAFF_ADD_ENTRIES_MAX + 1 }, (_, index) => ({
+            name: `スタッフ${index + 1}`,
+            email: `staff-${index + 1}@example.com`,
+          })),
+        }),
+      ).rejects.toThrow("スタッフは一度に50件まで追加できます");
+    });
+
+    it("過長名・制御文字入り名・不正メールはスタッフ追加で拒否する", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
+      });
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await expect(
+        asManager.mutation(api.staff.mutations.addStaffs, {
+          entries: [{ name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1), email: "too-long@example.com" }],
+        }),
+      ).rejects.toThrow("名前は80文字以内で入力してください");
+      await expect(
+        asManager.mutation(api.staff.mutations.addStaffs, {
+          entries: [{ name: "田中\n太郎", email: "control@example.com" }],
+        }),
+      ).rejects.toThrow("名前に使用できない文字が含まれています");
+      await expect(
+        asManager.mutation(api.staff.mutations.addStaffs, {
+          entries: [{ name: "不正メール", email: "not-email" }],
+        }),
+      ).rejects.toThrow("正しいメールアドレスを入力してください");
     });
 
     it("既存メールアドレスの重複はエラーにしてスタッフを追加しない", async () => {
@@ -466,22 +507,45 @@ describe("staff/mutations", () => {
       ).toBe(false);
     });
 
-    it("空メールへの変更では募集中シフト通知の追送actionをスケジュールしない", async () => {
+    it("空メールへの変更は拒否する", async () => {
       const { t, data } = setupShopWithStaff();
       const { staffId } = await data;
 
-      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
-        staffId,
-        name: "田中太郎",
-        email: "",
-      });
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+          staffId,
+          name: "田中太郎",
+          email: "",
+        }),
+      ).rejects.toThrow("メールアドレスを入力してください");
+    });
 
-      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-      expect(
-        scheduled.some(
-          (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
-        ),
-      ).toBe(false);
+    it("過長名・制御文字入り名・不正メールはスタッフ編集で拒否する", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await expect(
+        asManager.mutation(api.staff.mutations.editStaff, {
+          staffId,
+          name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1),
+          email: "tanaka@example.com",
+        }),
+      ).rejects.toThrow("名前は80文字以内で入力してください");
+      await expect(
+        asManager.mutation(api.staff.mutations.editStaff, {
+          staffId,
+          name: "田中\n太郎",
+          email: "tanaka@example.com",
+        }),
+      ).rejects.toThrow("名前に使用できない文字が含まれています");
+      await expect(
+        asManager.mutation(api.staff.mutations.editStaff, {
+          staffId,
+          name: "田中太郎",
+          email: "not-email",
+        }),
+      ).rejects.toThrow("正しいメールアドレスを入力してください");
     });
 
     it("他店舗のスタッフは編集できない（IDOR）", async () => {

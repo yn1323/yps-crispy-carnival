@@ -1,6 +1,7 @@
 import { Checkbox, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
 import { type Step2Data, step2Schema } from "./index";
 
@@ -33,12 +34,17 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
       <Stack gap={5}>
         <Field.Root invalid={!!errors.name}>
           <Field.Label>あなたの名前</Field.Label>
-          <Input {...register("name")} placeholder="例：山田 太郎" />
+          <Input {...register("name")} maxLength={PERSON_NAME_MAX_LENGTH} placeholder="例：山田 太郎" />
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" {...register("email")} placeholder="例：yamada@example.com" />
+          <Input
+            type="email"
+            {...register("email")}
+            maxLength={EMAIL_MAX_LENGTH}
+            placeholder="例：yamada@example.com"
+          />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
         <Text fontSize="xs" color="fg.muted">

@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { requiredEmailSchema } from "../_lib/validation";
 
 export const reissueSchema = z.object({
-  email: z.email("正しいメールアドレスを入力してください"),
+  email: requiredEmailSchema,
 });
 
 export type ReissueFormValues = z.infer<typeof reissueSchema>;

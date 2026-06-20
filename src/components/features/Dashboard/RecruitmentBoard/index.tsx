@@ -1,34 +1,46 @@
 import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
-import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
-  recruitments: Recruitment[];
-  status: PaginationStatus;
-  canLoadMore: boolean;
+  groups: DashboardRecruitmentGroup[];
+  pastStatus: PaginationStatus;
+  hasPastRecruitments: boolean;
+  isPastRecruitmentsVisible: boolean;
+  canLoadMorePastRecruitments: boolean;
   tourRecruitmentId?: Recruitment["_id"];
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
-  onLoadMore: () => void;
+  onShowPastRecruitments: () => void;
+  onLoadMorePastRecruitments: () => void;
 };
 
 export const RecruitmentBoard = ({
-  recruitments,
-  status,
-  canLoadMore,
+  groups,
+  pastStatus,
+  hasPastRecruitments,
+  isPastRecruitmentsVisible,
+  canLoadMorePastRecruitments,
   tourRecruitmentId,
   onCreateClick,
   onOpenShiftBoard,
   onDeleteRecruitment,
-  onLoadMore,
+  onShowPastRecruitments,
+  onLoadMorePastRecruitments,
 }: Props) => {
-  const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
+  const showPastEntryButton = hasPastRecruitments && !isPastRecruitmentsVisible;
+  const showPastMoreButton = isPastRecruitmentsVisible && canLoadMorePastRecruitments;
+  const showPastButton = showPastEntryButton || showPastMoreButton;
+  const pastButtonLabel = showPastEntryButton ? "過去のシフトを見る" : "もっと見る";
+  const pastButtonLoading = pastStatus === "LoadingFirstPage" || pastStatus === "LoadingMore";
+  const hasRecruitments = groups.some((group) => group.recruitments.length > 0);
+  const hasVisibleContent = hasRecruitments || showPastButton;
 
   return (
     <Stack as="section" aria-label="シフト一覧" gap={{ base: 4, lg: 5 }}>
@@ -63,7 +75,7 @@ export const RecruitmentBoard = ({
         </Button>
       </Flex>
 
-      {recruitments.length === 0 ? (
+      {!hasVisibleContent ? (
         <Empty
           icon={LuInbox}
           title="シフト一覧はまだありません"
@@ -78,37 +90,74 @@ export const RecruitmentBoard = ({
           }
         />
       ) : (
-        <Stack gap={{ base: 3, lg: 3.5 }}>
-          {recruitments.map((r) => (
-            <RecruitmentRow
-              key={r._id}
-              recruitment={r}
-              dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
-              onOpenShiftBoard={onOpenShiftBoard}
-              onDeleteRecruitment={onDeleteRecruitment}
-            />
+        <Stack gap={{ base: 4, lg: 5 }}>
+          {groups.map((group) => (
+            <Stack key={group.key} as="section" aria-label={group.title} gap={{ base: 2.5, lg: 3 }}>
+              <HStack gap={2} minH="24px">
+                <Heading as="h3" fontSize="sm" fontWeight="bold" color={groupTitleColor(group.key)} lineHeight="short">
+                  {group.title}
+                </Heading>
+                {shouldShowGroupCount(group) && (
+                  <Box
+                    as="span"
+                    px={2}
+                    py={0.5}
+                    borderRadius="full"
+                    bg={group.key === "actionRequired" ? "orange.100" : "blackAlpha.50"}
+                    color={group.key === "actionRequired" ? "orange.700" : "fg.muted"}
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    lineHeight="short"
+                  >
+                    {group.totalCount}件
+                  </Box>
+                )}
+              </HStack>
+              <Stack gap={{ base: 2.5, lg: 3 }}>
+                {group.recruitments.map((r) => (
+                  <RecruitmentRow
+                    key={r._id}
+                    recruitment={r}
+                    dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
+                    onOpenShiftBoard={onOpenShiftBoard}
+                    onDeleteRecruitment={onDeleteRecruitment}
+                  />
+                ))}
+              </Stack>
+            </Stack>
           ))}
         </Stack>
       )}
 
-      {showLoadMore && (
+      {showPastButton && (
         <Flex justify="center">
           <Button
             variant="ghost"
             colorPalette="teal"
             size="sm"
-            onClick={onLoadMore}
-            loading={status === "LoadingMore"}
+            onClick={showPastEntryButton ? onShowPastRecruitments : onLoadMorePastRecruitments}
+            loading={pastButtonLoading}
             gap={1}
           >
             <LuChevronDown />
-            もっと見る
+            {pastButtonLabel}
           </Button>
         </Flex>
       )}
     </Stack>
   );
 };
+
+function groupTitleColor(groupKey: DashboardRecruitmentGroup["key"]) {
+  if (groupKey === "actionRequired") return "orange.700";
+  if (groupKey === "current" || groupKey === "confirmed") return "blue.700";
+  if (groupKey === "past") return "gray.700";
+  return "green.700";
+}
+
+function shouldShowGroupCount(group: DashboardRecruitmentGroup) {
+  return group.key !== "current" && group.key !== "past";
+}
 
 export const RecruitmentBoardSkeleton = () => (
   <Stack as="section" aria-label="シフト一覧を読み込み中" gap={{ base: 4, lg: 5 }}>
