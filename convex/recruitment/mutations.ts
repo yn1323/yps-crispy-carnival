@@ -3,9 +3,10 @@ import { internal } from "../_generated/api";
 import { generateDateRange, getReminderScheduledAt, todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
+import { isValidIsoDateString } from "../_lib/validation";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
+import { createRecruitmentSchema } from "./schemas";
 
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const RECRUITMENT_DUPLICATE_ERROR_CODE = "RECRUITMENT_DUPLICATE";
 
 function normalizeShopClosedDates(dates: string[], periodStart: string, periodEnd: string): string[] {
@@ -13,7 +14,7 @@ function normalizeShopClosedDates(dates: string[], periodStart: string, periodEn
   const periodDateCount = generateDateRange(periodStart, periodEnd).length;
 
   for (const date of uniqueDates) {
-    if (!ISO_DATE_PATTERN.test(date)) {
+    if (!isValidIsoDateString(date)) {
       throw new ConvexError("定休日の日付形式が正しくありません");
     }
     if (date < periodStart || date > periodEnd) {
@@ -40,43 +41,48 @@ export const createRecruitment = managerMutation({
     shopClosedDates: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const parsed = createRecruitmentSchema.safeParse(args);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    }
+    const input = parsed.data;
     const today = todayJST();
 
-    if (args.deadline < today) {
+    if (input.deadline < today) {
       throw new ConvexError("締切日は今日以降にしてください");
     }
-    if (args.periodStart <= today) {
+    if (input.periodStart <= today) {
       throw new ConvexError("開始日は明日以降にしてください");
     }
-    if (args.periodEnd < args.periodStart) {
+    if (input.periodEnd < input.periodStart) {
       throw new ConvexError("終了日は開始日以降にしてください");
     }
-    if (args.deadline >= args.periodStart) {
+    if (input.deadline >= input.periodStart) {
       throw new ConvexError("締切日は開始日より前にしてください");
     }
-    const shopClosedDates = normalizeShopClosedDates(args.shopClosedDates, args.periodStart, args.periodEnd);
+    const shopClosedDates = normalizeShopClosedDates(input.shopClosedDates, input.periodStart, input.periodEnd);
     const existingRecruitments = await ctx.db
       .query("recruitments")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
       .take(RECRUITMENT_DUPLICATE_SCAN_LIMIT);
     const duplicate = existingRecruitments.find(
       (candidate) =>
-        candidate.periodStart === args.periodStart &&
-        candidate.periodEnd === args.periodEnd &&
-        candidate.deadline === args.deadline &&
+        candidate.periodStart === input.periodStart &&
+        candidate.periodEnd === input.periodEnd &&
+        candidate.deadline === input.deadline &&
         sameStringArray(candidate.shopClosedDates ?? [], shopClosedDates),
     );
     if (duplicate) throw new ConvexError(RECRUITMENT_DUPLICATE_ERROR_CODE);
 
     const now = Date.now();
-    const reminderScheduledAt = getReminderScheduledAt(args.deadline);
+    const reminderScheduledAt = getReminderScheduledAt(input.deadline);
     const shouldScheduleReminder = reminderScheduledAt > now;
 
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId: ctx.shop._id,
-      periodStart: args.periodStart,
-      periodEnd: args.periodEnd,
-      deadline: args.deadline,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      deadline: input.deadline,
       shopClosedDates,
       status: "open",
       isDeleted: false,

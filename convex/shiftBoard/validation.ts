@@ -1,5 +1,6 @@
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
-import { timeToMinutes } from "../_lib/time";
+import { isSupportedShiftTime, timeToMinutes } from "../_lib/time";
+import { isValidIsoDateString } from "../_lib/validation";
 
 // シフト割当バリデーションの構造化エラー。
 // サーバー（mutations.ts）とフロント（確定前チェック・エラー一覧UI）で共有する純粋モジュール。
@@ -8,6 +9,8 @@ import { timeToMinutes } from "../_lib/time";
 export const SHIFT_ASSIGNMENT_VALIDATION = "SHIFT_ASSIGNMENT_VALIDATION" as const;
 
 export type AssignmentIssueCode =
+  | "INVALID_DATE_FORMAT"
+  | "INVALID_TIME_FORMAT"
   | "OUT_OF_PERIOD"
   | "CLOSED_DAY"
   | "INVALID_TIME_ORDER"
@@ -31,6 +34,8 @@ export type ShiftAssignmentValidationErrorData = {
 };
 
 const ISSUE_MESSAGES: Record<AssignmentIssueCode, string> = {
+  INVALID_DATE_FORMAT: "日付の形式が正しくありません",
+  INVALID_TIME_FORMAT: "時間の形式が正しくありません",
   OUT_OF_PERIOD: "募集期間内の日付を選んでください",
   CLOSED_DAY: "定休日にはシフトを登録できません",
   INVALID_TIME_ORDER: "終了時間は開始時間より後にしてください",
@@ -85,12 +90,21 @@ export function validateShiftAssignments(input: ShiftAssignmentValidationInput):
   for (const a of input.assignments) {
     const pushIssue = (code: AssignmentIssueCode) => issues.push(buildAssignmentIssue(code, a.date, a.staffId));
 
+    if (!isValidIsoDateString(a.date)) {
+      pushIssue("INVALID_DATE_FORMAT");
+      continue;
+    }
     if (a.date < input.periodStart || a.date > input.periodEnd) {
       pushIssue("OUT_OF_PERIOD");
       continue;
     }
     if (closedDateSet.has(a.date)) {
       pushIssue("CLOSED_DAY");
+      continue;
+    }
+
+    if (!isSupportedShiftTime(a.startTime) || !isSupportedShiftTime(a.endTime)) {
+      pushIssue("INVALID_TIME_FORMAT");
       continue;
     }
 

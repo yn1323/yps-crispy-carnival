@@ -107,7 +107,7 @@ LINEメッセージ本文に載せるURLには `withOpenExternalBrowser()`（`co
 - メール変更時の追送: `staff.mutations.editStaff` でメールが実際に変わった場合だけ、変更後メールへ `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange` をスケジュール。LINE受信可能なスタッフには送らず、未連携・unfollow・Quota超過時はメールで送る
 - LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
 - 複数の対象募集がある場合は募集ごとに1通ずつ送る
-- スタッフ一覧の個別メニューから、募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時・シフト確定時に自動通知されるため、不達時だけ使う補助導線として扱う
+- スタッフ一覧の個別メニューから、募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時・シフト確定時に自動通知されるため、不達時だけ使う補助導線として扱う。操作後のUIでは「送りました」と案内する
 
 ## 設計ドキュメント
 

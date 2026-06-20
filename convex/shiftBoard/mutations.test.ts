@@ -188,6 +188,27 @@ describe("shiftBoard/mutations", () => {
       expect(assignments[0].optionId).toBe("morning");
     });
 
+    it("不正な日付・時刻形式のシフト割当は構造化エラーで拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await expectValidationIssues(
+        asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [{ staffId: staffId1, date: "2026-02-31", startTime: "10:00", endTime: "18:00" }],
+        }),
+        [{ code: "INVALID_DATE_FORMAT", date: "2026-02-31", staffId: staffId1 }],
+      );
+      await expectValidationIssues(
+        asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [{ staffId: staffId2, date: "2026-01-20", startTime: "bad", endTime: "18:00" }],
+        }),
+        [{ code: "INVALID_TIME_FORMAT", date: "2026-01-20", staffId: staffId2 }],
+      );
+    });
+
     it("勤務区分募集では勤務区分IDなしの割当を保存できない", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId, staffId1 } = await setupTestData(t);

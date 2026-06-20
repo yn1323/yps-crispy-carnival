@@ -1,10 +1,10 @@
 import { z } from "zod";
-
-const requiredEmail = z.string().trim().email("正しいメールアドレスを入力してください");
+import { requiredDisplayTextSchema, requiredEmailSchema } from "../_lib/validation";
+import { PERSON_NAME_MAX_LENGTH } from "../constants";
 
 export const staffRegistrationFormSchema = z.object({
-  name: z.string().trim().min(1, "名前を入力してください").max(80, "名前は80文字以内で入力してください"),
-  email: requiredEmail.max(254, "メールアドレスは254文字以内で入力してください"),
+  name: requiredDisplayTextSchema({ label: "名前", maxLength: PERSON_NAME_MAX_LENGTH }),
+  email: requiredEmailSchema,
   acceptedLegal: z.boolean().refine((value) => value === true, {
     message: "利用規約とプライバシーポリシーに同意してください",
   }),

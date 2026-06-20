@@ -5,6 +5,7 @@ import type { MutationCtx } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { getStaffLineAccount } from "../line/service";
+import { addStaffsSchema, editStaffSchema } from "./schemas";
 import { findActiveStaffByEmail, normalizeEmail } from "./service";
 
 type StaffNotificationKind = "openRecruitments" | "currentShift";
@@ -45,15 +46,16 @@ export const addStaffs = managerMutation({
     entries: v.array(v.object({ name: v.string(), email: v.string() })),
   },
   handler: async (ctx, args) => {
-    const validEntries = args.entries
-      .map((entry) => ({ name: entry.name.trim(), email: normalizeEmail(entry.email) }))
+    const parsed = addStaffsSchema.safeParse(args);
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    }
+    const validEntries = parsed.data.entries
+      .map((entry) => ({ name: entry.name, email: normalizeEmail(entry.email) }))
       .filter((e) => e.name !== "");
 
-    // email 未入力スタッフは同姓同名でも別人として登録できる業務前提。
-    // 重複防止は連絡先として一意に扱える email のみで行う。
     const inputEmails = new Set<string>();
     for (const entry of validEntries) {
-      if (!entry.email) continue;
       if (inputEmails.has(entry.email)) {
         throw new ConvexError("同じメールアドレスが入力されています");
       }
@@ -110,35 +112,38 @@ export const editStaff = managerMutation({
     email: v.string(),
   },
   handler: async (ctx, args) => {
+    const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    }
+    const input = parsed.data;
     const staff = await ctx.db.get(args.staffId);
     if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
       throw new ConvexError("Not found");
     }
 
-    const trimmedEmail = args.email.trim().toLowerCase();
-    if (trimmedEmail !== "") {
-      const duplicateByNormalized = await ctx.db
+    const trimmedEmail = normalizeEmail(input.email);
+    const duplicateByNormalized = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+        q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
+      )
+      .first();
+    const duplicate =
+      duplicateByNormalized ??
+      (await ctx.db
         .query("staffs")
-        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
+        .withIndex("by_shopId_email_isDeleted", (q) =>
+          q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
         )
-        .first();
-      const duplicate =
-        duplicateByNormalized ??
-        (await ctx.db
-          .query("staffs")
-          .withIndex("by_shopId_email_isDeleted", (q) =>
-            q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
-          )
-          .first());
-      if (duplicate && duplicate._id !== args.staffId) {
-        throw new ConvexError("このメールアドレスは既に使用されています");
-      }
+        .first());
+    if (duplicate && duplicate._id !== args.staffId) {
+      throw new ConvexError("このメールアドレスは既に使用されています");
     }
 
-    const trimmedName = args.name.trim();
+    const trimmedName = input.name;
     const previousEmailNormalized = (staff.emailNormalized ?? staff.email).trim().toLowerCase();
-    const emailChanged = trimmedEmail !== "" && trimmedEmail !== previousEmailNormalized;
+    const emailChanged = trimmedEmail !== previousEmailNormalized;
     const emailChangedAt = Date.now();
     await ctx.db.patch(args.staffId, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     if (staff.userId === ctx.user._id) {

@@ -3,20 +3,19 @@ import { usePaginatedQuery, useQuery } from "convex/react";
 import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { DashboardContent, DashboardContentSkeleton } from "@/src/components/features/Dashboard/DashboardContent";
-import { buildDashboardRecruitmentList } from "@/src/components/features/Dashboard/types";
+import { buildDashboardRecruitmentGroups } from "@/src/components/features/Dashboard/types";
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 
-const RECRUITMENT_INITIAL_VISIBLE_COUNT = 3;
-const RECRUITMENT_LOAD_MORE_COUNT = 3;
-const RECRUITMENT_QUERY_PAGE_SIZE = RECRUITMENT_INITIAL_VISIBLE_COUNT + 1;
+const ACTIVE_RECRUITMENT_QUERY_PAGE_SIZE = 100;
+const PAST_RECRUITMENT_PAGE_SIZE = 5;
 const STAFF_INITIAL_VISIBLE_COUNT = 10;
 const STAFF_LOAD_MORE_COUNT = 10;
 const STAFF_QUERY_PAGE_SIZE = STAFF_INITIAL_VISIBLE_COUNT + 1;
 
 export function DashboardPage() {
-  const [visibleRecruitmentCount, setVisibleRecruitmentCount] = useState(RECRUITMENT_INITIAL_VISIBLE_COUNT);
+  const [isPastRecruitmentsVisible, setIsPastRecruitmentsVisible] = useState(false);
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
   const shop = useQuery(api.dashboard.queries.getDashboardShop);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
@@ -27,11 +26,18 @@ export function DashboardPage() {
     shop === undefined || shop === null ? "skip" : {},
   );
   const recruitments = usePaginatedQuery(api.dashboard.queries.getDashboardRecruitments, skipPagination ? "skip" : {}, {
-    initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE,
+    initialNumItems: ACTIVE_RECRUITMENT_QUERY_PAGE_SIZE,
   });
-  const currentRecruitments = useQuery(
-    api.dashboard.queries.getDashboardCurrentRecruitments,
+  const hasPastRecruitments = useQuery(
+    api.dashboard.queries.hasDashboardPastRecruitments,
     skipPagination ? "skip" : {},
+  );
+  const pastRecruitments = usePaginatedQuery(
+    api.dashboard.queries.getDashboardPastRecruitments,
+    skipPagination || !isPastRecruitmentsVisible ? "skip" : {},
+    {
+      initialNumItems: PAST_RECRUITMENT_PAGE_SIZE,
+    },
   );
   const staffs = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, skipPagination ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
@@ -41,28 +47,24 @@ export function DashboardPage() {
     shop === undefined || shop === null ? "skip" : {},
   );
 
-  const dashboardRecruitments = buildDashboardRecruitmentList({
-    currentRecruitments: currentRecruitments ?? [],
-    recruitments: recruitments.results,
+  const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({
+    recruitments: [...recruitments.results, ...pastRecruitments.results],
   });
-  const currentRecruitmentIds = new Set(currentRecruitments?.map((recruitment) => recruitment._id) ?? []);
-  const nonCurrentRecruitments = recruitments.results.filter(
-    (recruitment) => !currentRecruitmentIds.has(recruitment._id),
-  );
+  const currentRecruitments =
+    dashboardRecruitmentGroups.groups.find((group) => group.key === "current")?.recruitments ?? [];
 
-  const canLoadMoreRecruitments =
-    dashboardRecruitments.length > visibleRecruitmentCount ||
-    recruitments.status === "CanLoadMore" ||
-    recruitments.status === "LoadingMore";
+  const canLoadMorePastRecruitments =
+    isPastRecruitmentsVisible &&
+    (pastRecruitments.status === "CanLoadMore" || pastRecruitments.status === "LoadingMore");
   const canLoadMoreStaffs =
     staffs.results.length > visibleStaffCount || staffs.status === "CanLoadMore" || staffs.status === "LoadingMore";
 
-  const handleLoadMoreRecruitments = () => {
-    const nextVisibleCount = visibleRecruitmentCount + RECRUITMENT_LOAD_MORE_COUNT;
-    setVisibleRecruitmentCount(nextVisibleCount);
-    if (recruitments.status === "CanLoadMore" && dashboardRecruitments.length <= nextVisibleCount) {
-      recruitments.loadMore(RECRUITMENT_LOAD_MORE_COUNT);
-    }
+  const handleShowPastRecruitments = () => {
+    setIsPastRecruitmentsVisible(true);
+  };
+
+  const handleLoadMorePastRecruitments = () => {
+    pastRecruitments.loadMore(PAST_RECRUITMENT_PAGE_SIZE);
   };
 
   const handleLoadMoreStaffs = () => {
@@ -79,7 +81,7 @@ export function DashboardPage() {
       (currentUser === undefined ||
         managerLegalConsentStatus === undefined ||
         pendingStaffRequests === undefined ||
-        currentRecruitments === undefined ||
+        hasPastRecruitments === undefined ||
         recruitments.status === "LoadingFirstPage" ||
         staffs.status === "LoadingFirstPage"));
 
@@ -98,12 +100,16 @@ export function DashboardPage() {
       <Animation>
         <DashboardContent
           shop={shop}
-          recruitments={nonCurrentRecruitments}
-          recruitmentList={dashboardRecruitments.slice(0, visibleRecruitmentCount)}
-          currentRecruitments={currentRecruitments ?? []}
+          recruitments={recruitments.results}
+          recruitmentGroups={dashboardRecruitmentGroups.groups}
+          currentRecruitments={currentRecruitments}
           recruitmentStatus={recruitments.status}
-          canLoadMoreRecruitments={canLoadMoreRecruitments}
-          loadMoreRecruitments={handleLoadMoreRecruitments}
+          hasPastRecruitments={hasPastRecruitments ?? false}
+          isPastRecruitmentsVisible={isPastRecruitmentsVisible}
+          pastRecruitmentStatus={pastRecruitments.status}
+          canLoadMorePastRecruitments={canLoadMorePastRecruitments}
+          showPastRecruitments={handleShowPastRecruitments}
+          loadMorePastRecruitments={handleLoadMorePastRecruitments}
           staffs={staffs.results.slice(0, visibleStaffCount)}
           staffStatus={staffs.status}
           canLoadMoreStaffs={canLoadMoreStaffs}

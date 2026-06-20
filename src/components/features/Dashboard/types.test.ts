@@ -2,7 +2,8 @@ import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import type { Recruitment } from "./types";
 import {
-  buildDashboardRecruitmentList,
+  buildDashboardRecruitmentGroups,
+  getDashboardRecruitmentGroupKey,
   getDisplayStatus,
   isCurrentRecruitment,
   sortRecruitmentsByPeriodStart,
@@ -30,8 +31,20 @@ describe("Dashboard recruitment display helpers", () => {
     expect(getDisplayStatus(recruitment({ deadline: "2026-06-25" }), now)).toBe("collecting");
   });
 
-  it("未確定で締切後なら締切済みとして扱う", () => {
-    expect(getDisplayStatus(recruitment({ deadline: "2026-06-10" }), now)).toBe("past-deadline");
+  it("未確定で締切後なら要シフト調整として扱う", () => {
+    const overdue = recruitment({ deadline: "2026-06-10" });
+    expect(getDisplayStatus(overdue, now)).toBe("action-required");
+    expect(getDashboardRecruitmentGroupKey(overdue, now)).toBe("actionRequired");
+  });
+
+  it("未確定のまま期間終了した募集も要シフト調整として扱う", () => {
+    const endedOpen = recruitment({
+      periodStart: "2026-06-01",
+      periodEnd: "2026-06-10",
+      deadline: "2026-06-25",
+    });
+    expect(getDisplayStatus(endedOpen, now)).toBe("action-required");
+    expect(getDashboardRecruitmentGroupKey(endedOpen, now)).toBe("actionRequired");
   });
 
   it("確定済みで今日が期間内なら現在のシフトとして扱う", () => {
@@ -90,7 +103,7 @@ describe("Dashboard recruitment display helpers", () => {
     ]);
   });
 
-  it("ダッシュボードのシフト一覧は現在のシフトを先頭にして重複を除く", () => {
+  it("ダッシュボードのシフト一覧は現在のシフトを先頭グループにして重複を除く", () => {
     const current = recruitment({
       _id: "current" as Recruitment["_id"],
       status: "confirmed",
@@ -98,27 +111,106 @@ describe("Dashboard recruitment display helpers", () => {
       periodEnd: "2026-06-30",
     });
     const future = recruitment({ _id: "future" as Recruitment["_id"], periodStart: "2026-07-01" });
-    const older = recruitment({ _id: "older" as Recruitment["_id"], periodStart: "2026-06-01" });
+    const actionRequired = recruitment({
+      _id: "action-required" as Recruitment["_id"],
+      deadline: "2026-06-10",
+      periodStart: "2026-07-01",
+    });
 
-    expect(
-      buildDashboardRecruitmentList({
-        currentRecruitments: [current],
-        recruitments: [future, current, older],
-      }).map((r) => r._id),
-    ).toEqual(["current", "future", "older"]);
+    const result = buildDashboardRecruitmentGroups({
+      recruitments: [future, current, actionRequired, current],
+      now,
+    });
+
+    expect(result.groups.map((group) => group.key)).toEqual(["current", "actionRequired", "collecting"]);
+    expect(result.groups.flatMap((group) => group.recruitments.map((r) => r._id))).toEqual([
+      "current",
+      "action-required",
+      "future",
+    ]);
   });
 
-  it("ダッシュボードのシフト一覧は現在のシフトを含めて3件表示する", () => {
-    const current = recruitment({ _id: "current" as Recruitment["_id"], status: "confirmed" });
+  it("現在・要シフト調整・募集中・確定済みは渡された件数をすべて表示する", () => {
+    const current = recruitment({
+      _id: "current" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-06-09",
+      periodEnd: "2026-06-30",
+    });
     const recruitments = ["first", "second", "third"].map((idValue) =>
       recruitment({ _id: idValue as Recruitment["_id"] }),
     );
 
-    const visibleRecruitments = buildDashboardRecruitmentList({
-      currentRecruitments: [current],
-      recruitments,
-    }).slice(0, 3);
+    const result = buildDashboardRecruitmentGroups({
+      recruitments: [current, ...recruitments],
+      now,
+    });
 
-    expect(visibleRecruitments.map((r) => r._id)).toEqual(["current", "first", "second"]);
+    expect(result.groups.flatMap((group) => group.recruitments.map((r) => r._id))).toEqual([
+      "current",
+      "first",
+      "second",
+      "third",
+    ]);
+    expect(result.totalCount).toBe(4);
+  });
+
+  it("募集中は締切が近い順に並べる", () => {
+    const laterDeadline = recruitment({ _id: "later" as Recruitment["_id"], deadline: "2026-06-25" });
+    const soonerDeadline = recruitment({ _id: "sooner" as Recruitment["_id"], deadline: "2026-06-18" });
+
+    const result = buildDashboardRecruitmentGroups({
+      recruitments: [laterDeadline, soonerDeadline],
+      now,
+    });
+
+    expect(result.groups[0]).toMatchObject({ key: "collecting" });
+    expect(result.groups[0].recruitments.map((r) => r._id)).toEqual(["sooner", "later"]);
+  });
+
+  it("未来の確定済みは開始日が近い順に並べる", () => {
+    const later = recruitment({
+      _id: "later" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-31",
+    });
+    const sooner = recruitment({
+      _id: "sooner" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-07-01",
+      periodEnd: "2026-07-31",
+    });
+
+    const result = buildDashboardRecruitmentGroups({
+      recruitments: [later, sooner],
+      now,
+    });
+
+    expect(result.groups[0]).toMatchObject({ key: "confirmed" });
+    expect(result.groups[0].recruitments.map((r) => r._id)).toEqual(["sooner", "later"]);
+  });
+
+  it("過去の確定済みシフトは過去グループに入る", () => {
+    const recentPast = recruitment({
+      _id: "recent-past" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-06-01",
+      periodEnd: "2026-06-15",
+    });
+    const olderPast = recruitment({
+      _id: "older-past" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-05-01",
+      periodEnd: "2026-05-15",
+    });
+
+    const result = buildDashboardRecruitmentGroups({
+      recruitments: [olderPast, recentPast],
+      now,
+    });
+
+    expect(result.groups[0]).toMatchObject({ key: "past", title: "過去のシフト", totalCount: 2 });
+    expect(result.groups[0].recruitments.map((r) => r._id)).toEqual(["recent-past", "older-past"]);
   });
 });
