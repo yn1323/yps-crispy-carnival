@@ -284,7 +284,7 @@ describe("dashboard/queries", () => {
       ]);
     });
 
-    it("Dashboard向け候補を現在・要対応・募集中・未来確定の順で返す", async () => {
+    it("Dashboard向け候補を現在・要シフト調整・募集中・未来確定の順で返す", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {

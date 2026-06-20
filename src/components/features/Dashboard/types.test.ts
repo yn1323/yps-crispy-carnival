@@ -31,13 +31,13 @@ describe("Dashboard recruitment display helpers", () => {
     expect(getDisplayStatus(recruitment({ deadline: "2026-06-25" }), now)).toBe("collecting");
   });
 
-  it("未確定で締切後なら要対応として扱う", () => {
+  it("未確定で締切後なら要シフト調整として扱う", () => {
     const overdue = recruitment({ deadline: "2026-06-10" });
     expect(getDisplayStatus(overdue, now)).toBe("action-required");
     expect(getDashboardRecruitmentGroupKey(overdue, now)).toBe("actionRequired");
   });
 
-  it("未確定のまま期間終了した募集も要対応として扱う", () => {
+  it("未確定のまま期間終了した募集も要シフト調整として扱う", () => {
     const endedOpen = recruitment({
       periodStart: "2026-06-01",
       periodEnd: "2026-06-10",
@@ -130,7 +130,7 @@ describe("Dashboard recruitment display helpers", () => {
     ]);
   });
 
-  it("現在・要対応・募集中・確定済みは渡された件数をすべて表示する", () => {
+  it("現在・要シフト調整・募集中・確定済みは渡された件数をすべて表示する", () => {
     const current = recruitment({
       _id: "current" as Recruitment["_id"],
       status: "confirmed",

@@ -116,7 +116,7 @@ function createDashboardRecruitmentGroups(
     { key: "current", title: "現在のシフト", recruitments: groups.current, totalCount: groups.current.length },
     {
       key: "actionRequired",
-      title: "要対応",
+      title: "要シフト調整",
       recruitments: groups.actionRequired,
       totalCount: groups.actionRequired.length,
     },

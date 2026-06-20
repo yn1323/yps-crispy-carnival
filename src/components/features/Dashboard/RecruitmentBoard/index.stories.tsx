@@ -190,7 +190,7 @@ export const MultipleGroupsMobile: Story = {
   },
   play: async ({ canvasElement }) => {
     assertText(canvasElement, "現在のシフト", "現在のシフト見出し");
-    assertText(canvasElement, "要対応", "要対応見出し");
+    assertText(canvasElement, "要シフト調整", "要シフト調整見出し");
     assertText(canvasElement, "募集中", "募集中見出し");
     assertText(canvasElement, "確定済み", "確定済み見出し");
     assertText(canvasElement, "過去のシフトを見る", "過去のシフト導線");
