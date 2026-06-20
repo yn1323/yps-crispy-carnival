@@ -157,6 +157,18 @@ export const WithPastEntryButton: Story = {
   },
 };
 
+export const WithPastEntryButtonBeforeQueryStarts: Story = {
+  args: {
+    groups: dashboardGroups,
+    hasPastRecruitments: true,
+    isPastRecruitmentsVisible: false,
+    pastStatus: "LoadingFirstPage",
+  },
+  play: async ({ canvasElement }) => {
+    assertText(canvasElement, "過去のシフトを見る", "過去のシフト導線");
+  },
+};
+
 export const Empty: Story = {
   args: {
     groups: [],
