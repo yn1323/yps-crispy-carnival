@@ -34,11 +34,13 @@ export const RecruitmentBoard = ({
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
 }: Props) => {
-  const showPastEntryButton = hasPastRecruitments && !isPastRecruitmentsVisible;
+  const isPastFirstPageLoading = isPastRecruitmentsVisible && pastStatus === "LoadingFirstPage";
+  const showPastEntryButton = hasPastRecruitments && (!isPastRecruitmentsVisible || isPastFirstPageLoading);
   const showPastMoreButton = isPastRecruitmentsVisible && canLoadMorePastRecruitments;
   const showPastButton = showPastEntryButton || showPastMoreButton;
   const pastButtonLabel = showPastEntryButton ? "過去のシフトを見る" : "もっと見る";
-  const pastButtonLoading = pastStatus === "LoadingFirstPage" || pastStatus === "LoadingMore";
+  const pastButtonLoading =
+    isPastRecruitmentsVisible && (pastStatus === "LoadingFirstPage" || pastStatus === "LoadingMore");
   const hasRecruitments = groups.some((group) => group.recruitments.length > 0);
   const hasVisibleContent = hasRecruitments || showPastButton;
 
