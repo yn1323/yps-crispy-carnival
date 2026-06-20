@@ -1,6 +1,6 @@
 {
   "name": "yps-crispy-carnival",
-  "version": "0.0.41",
+  "version": "0.0.43",
   "private": true,
   "packageManager": "pnpm@11.8.0",
   "type": "module",
