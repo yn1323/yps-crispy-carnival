@@ -94,7 +94,7 @@ export const StaffRegistrationRequestDialog = ({
   >
     <Stack gap={3} maxW="760px" w="full" mx="auto">
       <Text fontSize="sm" color="fg.muted">
-        承認してシフト提出、共有できるようにしましょう。
+        承認するとスタッフ登録が完了します。LINE連携案内と、募集中シフトがある場合は提出リンクを送ります。
       </Text>
       <StaffRegistrationRequestList
         requests={requests}

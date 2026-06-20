@@ -72,7 +72,7 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
           人数が多い場合は、招待リンクの共有がおすすめです。
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録後、使い方・LINE連携・募集中のシフト提出リンクを案内します。
+          申請を承認すると、LINE連携案内を送ります。募集中シフトがある場合は提出リンクも送ります。
         </Text>
       </Stack>
 

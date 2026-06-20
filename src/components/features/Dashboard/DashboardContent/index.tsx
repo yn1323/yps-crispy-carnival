@@ -230,7 +230,11 @@ export const DashboardContent = ({
     try {
       await createRecruitment(data);
       recruitmentModal.close();
-      toaster.create({ title: "募集をつくりました", type: "success" });
+      toaster.create({
+        title: "募集をつくり、スタッフに通知しました",
+        description: "LINE連携済みのスタッフにはLINE、未連携のスタッフにはメールで届きます。",
+        type: "success",
+      });
     } catch (error) {
       const message = getCreateRecruitmentErrorMessage(error);
       if (message) {
@@ -272,7 +276,11 @@ export const DashboardContent = ({
       try {
         await addStaffs({ entries: data.entries });
         staffModal.close();
-        toaster.create({ title: "スタッフを追加しました", type: "success" });
+        toaster.create({
+          title: "スタッフを追加し、案内通知を送りました",
+          description: "同意依頼とLINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
+          type: "success",
+        });
       } catch (error) {
         showErrorToast(error);
       }
@@ -305,7 +313,11 @@ export const DashboardContent = ({
     async (request: StaffRegistrationRequest) => {
       try {
         await approveStaffRequest({ requestId: request._id });
-        toaster.create({ title: "スタッフ申請を承認しました", type: "success" });
+        toaster.create({
+          title: "スタッフ申請を承認し、案内通知を送りました",
+          description: "LINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
+          type: "success",
+        });
       } catch (error) {
         showErrorToast(error);
       }
@@ -404,7 +416,7 @@ export const DashboardContent = ({
     try {
       await sendLineInvite({ staffId: lineInviteTarget._id });
       lineInviteDialog.close();
-      toaster.create({ title: "LINE連携リンクをメールで送信しました", type: "success" });
+      toaster.create({ title: "LINE連携リンクをメールで送りました", type: "success" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -421,7 +433,7 @@ export const DashboardContent = ({
       const result = await sendOpenRecruitmentNotifications({ staffId: recruitmentNotificationTarget._id });
       recruitmentNotificationDialog.close();
       if (result.scheduled) {
-        toaster.create({ title: "シフト募集通知を送信しました", type: "success" });
+        toaster.create({ title: "シフト募集通知を送りました", type: "success" });
         return;
       }
       toaster.create({
@@ -445,7 +457,7 @@ export const DashboardContent = ({
       const result = await sendCurrentShiftNotification({ staffId: currentShiftNotificationTarget._id });
       currentShiftNotificationDialog.close();
       if (result.scheduled) {
-        toaster.create({ title: "現在の確定シフトを送信しました", type: "success" });
+        toaster.create({ title: "現在の確定シフトを送りました", type: "success" });
         return;
       }
       toaster.create({
@@ -741,8 +753,8 @@ export const DashboardContent = ({
         {recruitmentNotificationTarget && (
           <NotificationResendConfirmContent
             staff={recruitmentNotificationTarget}
-            description="開始前かつ締切前のシフト募集通知を送ります。"
-            note="通常はシフト作成時に通知が飛びます。もし飛んでいない場合のみ送信してください。"
+            description="現在送れる募集中シフトの通知を送ります。"
+            note="通常はシフト作成時に自動で通知しています。届いていない場合のみ再送してください。"
           />
         )}
       </Dialog>
@@ -761,7 +773,7 @@ export const DashboardContent = ({
           <NotificationResendConfirmContent
             staff={currentShiftNotificationTarget}
             description="現在の期間に含まれる確定済みシフトを送ります。"
-            note="通常はシフト確定時に通知が飛びます。もし飛んでいない場合のみ送信してください。"
+            note="通常はシフト確定時に自動で通知しています。届いていない場合のみ再送してください。"
           />
         )}
       </Dialog>

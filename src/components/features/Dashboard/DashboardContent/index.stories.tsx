@@ -353,9 +353,10 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     confirmButton.click();
 
     await waitUntil(
-      () => document.body.textContent?.includes("承認してシフト提出、共有できるようにしましょう。") ?? false,
+      () => document.body.textContent?.includes("承認するとスタッフ登録が完了します。") ?? false,
       "スタッフ参加申請モーダルが表示されませんでした",
     );
+    assertText(document.body, "募集中シフトがある場合は提出リンクを送ります", "承認後の通知説明");
     assertText(document.body, "田中 花子", "モーダル内の承認待ちスタッフ名");
     assertText(document.body, "hanako@example.com", "モーダル内の承認待ちスタッフメール");
     assertText(document.body, "承認", "モーダル内の承認ボタン");
