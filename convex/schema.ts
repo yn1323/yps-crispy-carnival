@@ -176,6 +176,8 @@ const schema = defineSchema({
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
     .index("by_shopId_and_isDeleted_and_periodStart", ["shopId", "isDeleted", "periodStart"])
     .index("by_shopId_and_isDeleted_and_status_and_periodStart", ["shopId", "isDeleted", "status", "periodStart"])
+    .index("by_shopId_and_isDeleted_and_status_and_deadline", ["shopId", "isDeleted", "status", "deadline"])
+    .index("by_shopId_and_isDeleted_and_status_and_periodEnd", ["shopId", "isDeleted", "status", "periodEnd"])
     .index("by_shopId_status", ["shopId", "status"]),
 
   shiftSubmissionSlots: defineTable({

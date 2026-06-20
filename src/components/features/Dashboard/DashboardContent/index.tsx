@@ -31,7 +31,9 @@ import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRegistrationRequestBanner, StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
 import {
+  buildDashboardRecruitmentGroups,
   type DashboardAnnouncement as DashboardAnnouncementData,
+  type DashboardRecruitmentGroup,
   type PaginationStatus,
   type Recruitment,
   type Staff,
@@ -71,10 +73,15 @@ type Props = {
   };
   recruitments: Recruitment[];
   recruitmentList?: Recruitment[];
+  recruitmentGroups?: DashboardRecruitmentGroup[];
   currentRecruitments?: Recruitment[];
   recruitmentStatus: PaginationStatus;
-  canLoadMoreRecruitments: boolean;
-  loadMoreRecruitments: () => void;
+  hasPastRecruitments?: boolean;
+  isPastRecruitmentsVisible?: boolean;
+  pastRecruitmentStatus?: PaginationStatus;
+  canLoadMorePastRecruitments?: boolean;
+  showPastRecruitments?: () => void;
+  loadMorePastRecruitments?: () => void;
   staffs: Staff[];
   staffStatus: PaginationStatus;
   canLoadMoreStaffs: boolean;
@@ -90,10 +97,14 @@ export const DashboardContent = ({
   managerLegalConsentStatus,
   recruitments,
   recruitmentList = recruitments,
+  recruitmentGroups,
   currentRecruitments = [],
-  recruitmentStatus,
-  canLoadMoreRecruitments,
-  loadMoreRecruitments,
+  hasPastRecruitments = false,
+  isPastRecruitmentsVisible = false,
+  pastRecruitmentStatus = "Exhausted",
+  canLoadMorePastRecruitments = false,
+  showPastRecruitments = () => {},
+  loadMorePastRecruitments = () => {},
   staffs,
   staffStatus,
   canLoadMoreStaffs,
@@ -156,6 +167,8 @@ export const DashboardContent = ({
         deleteRecruitmentTarget.periodEnd,
       )}のシフト募集を削除`
     : "シフト募集を削除";
+  const visibleRecruitmentGroups =
+    recruitmentGroups ?? buildDashboardRecruitmentGroups({ recruitments: recruitmentList }).groups;
 
   const setupShopAndManager = useMutation(api.setup.mutations.setupShopAndManager);
   const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
@@ -494,14 +507,17 @@ export const DashboardContent = ({
               </Stack>
             )}
             <RecruitmentBoard
-              recruitments={recruitmentList}
-              status={recruitmentStatus}
-              canLoadMore={canLoadMoreRecruitments}
+              groups={visibleRecruitmentGroups}
+              pastStatus={pastRecruitmentStatus}
+              hasPastRecruitments={hasPastRecruitments}
+              isPastRecruitmentsVisible={isPastRecruitmentsVisible}
+              canLoadMorePastRecruitments={canLoadMorePastRecruitments}
               tourRecruitmentId={latestKnownRecruitment?._id}
               onCreateClick={recruitmentModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onDeleteRecruitment={handleDeleteRecruitmentClick}
-              onLoadMore={loadMoreRecruitments}
+              onShowPastRecruitments={showPastRecruitments}
+              onLoadMorePastRecruitments={loadMorePastRecruitments}
             />
             <StaffRoster
               staffs={staffs}
