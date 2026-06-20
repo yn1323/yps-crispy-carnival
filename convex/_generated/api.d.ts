@@ -31,6 +31,7 @@ import type * as _lib_validation from "../_lib/validation.js";
 import type * as _test_scenarioBuilders from "../_test/scenarioBuilders.js";
 import type * as _test_scenarioFixtures from "../_test/scenarioFixtures.js";
 import type * as _test_seed from "../_test/seed.js";
+import type * as billing_service from "../billing/service.js";
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
 import type * as dashboard_mutations from "../dashboard/mutations.js";
@@ -52,6 +53,7 @@ import type * as migrations_m001_recruitments_add_shift_times from "../migration
 import type * as migrations_m002_shops_add_submission_pattern from "../migrations/m002_shops_add_submission_pattern.js";
 import type * as migrations_m003_recruitments_add_submission_pattern from "../migrations/m003_recruitments_add_submission_pattern.js";
 import type * as migrations_m004_notification_failure_inbox_backfill from "../migrations/m004_notification_failure_inbox_backfill.js";
+import type * as migrations_m005_shop_billing_states_backfill_free from "../migrations/m005_shop_billing_states_backfill_free.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
 import type * as notification_mutations from "../notification/mutations.js";
@@ -122,6 +124,7 @@ declare const fullApi: ApiFromModules<{
   "_test/scenarioBuilders": typeof _test_scenarioBuilders;
   "_test/scenarioFixtures": typeof _test_scenarioFixtures;
   "_test/seed": typeof _test_seed;
+  "billing/service": typeof billing_service;
   constants: typeof constants;
   crons: typeof crons;
   "dashboard/mutations": typeof dashboard_mutations;
@@ -143,6 +146,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m002_shops_add_submission_pattern": typeof migrations_m002_shops_add_submission_pattern;
   "migrations/m003_recruitments_add_submission_pattern": typeof migrations_m003_recruitments_add_submission_pattern;
   "migrations/m004_notification_failure_inbox_backfill": typeof migrations_m004_notification_failure_inbox_backfill;
+  "migrations/m005_shop_billing_states_backfill_free": typeof migrations_m005_shop_billing_states_backfill_free;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
   "notification/mutations": typeof notification_mutations;

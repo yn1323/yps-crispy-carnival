@@ -37,6 +37,14 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   }),
 
+  shopBillingStates: defineTable({
+    shopId: v.id("shops"),
+    planKey: v.union(v.literal("free"), v.literal("standard"), v.literal("premium")),
+    source: v.union(v.literal("system"), v.literal("manual")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_shopId", ["shopId"]),
+
   // ========================================
   // 管理者ユーザー（Clerk認証）
   // ========================================

@@ -39,6 +39,14 @@ export const setupShopAndManager = authenticatedMutation({
       submissionPattern,
       isDeleted: false,
     });
+    const now = Date.now();
+    await ctx.db.insert("shopBillingStates", {
+      shopId,
+      planKey: "free",
+      source: "system",
+      createdAt: now,
+      updatedAt: now,
+    });
 
     const userId = currentUser
       ? currentUser._id

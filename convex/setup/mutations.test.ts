@@ -79,6 +79,17 @@ describe("setup/mutations", () => {
       expect(shop?.name).toBe("テスト店舗");
       expect(shop?.regularClosedDays).toEqual([]);
       expect(shop?.submissionPattern).toEqual({ kind: "dateOnly" });
+      const billingState = await t.run(async (ctx) =>
+        ctx.db
+          .query("shopBillingStates")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .unique(),
+      );
+      expect(billingState).toMatchObject({
+        shopId,
+        planKey: "free",
+        source: "system",
+      });
 
       const user = await t.run(async (ctx) =>
         ctx.db
