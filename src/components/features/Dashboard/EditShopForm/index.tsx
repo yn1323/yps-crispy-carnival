@@ -2,16 +2,7 @@ import { Box, Field, Flex, Grid, HStack, Input, SimpleGrid, Stack, Text } from "
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import {
-  LuCalendarDays,
-  LuChevronLeft,
-  LuClock3,
-  LuListChecks,
-  LuPlus,
-  LuSettings2,
-  LuStore,
-  LuTrash2,
-} from "react-icons/lu";
+import { LuCalendarDays, LuChevronLeft, LuClock3, LuListChecks, LuPlus, LuStore, LuTrash2 } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
@@ -74,7 +65,7 @@ const SUBMISSION_PATTERN_OPTIONS: Array<{
   },
 ];
 
-const steps: StepperDialogStep<Step>[] = [
+const baseSteps: StepperDialogStep<Step>[] = [
   {
     value: "shopName",
     label: "店舗名",
@@ -92,7 +83,7 @@ const steps: StepperDialogStep<Step>[] = [
   {
     value: "patternSettings",
     label: "勤務時間",
-    icon: LuSettings2,
+    icon: LuClock3,
     title: "勤務時間",
     description: "スタッフが選択可能な時間帯を設定します。",
   },
@@ -111,22 +102,40 @@ const DEFAULT_TIME_PATTERN: Extract<ShiftSubmissionPattern, { kind: "time" }> = 
   endTime: "22:00",
 };
 
-const getNextStep = (step: Step): Step => {
+const getPatternSettingsStep = (kind: ShiftSubmissionPattern["kind"]): StepperDialogStep<Step> => ({
+  value: "patternSettings",
+  label: kind === "shiftType" ? "勤務区分" : "勤務時間",
+  icon: kind === "shiftType" ? LuListChecks : LuClock3,
+  title: kind === "shiftType" ? "勤務区分" : "勤務時間",
+  description:
+    kind === "shiftType"
+      ? "スタッフが選べる早番・遅番などの区分を設定します。"
+      : "スタッフが選択できる開始時間と終了時間の範囲を設定します。",
+});
+
+const getInitialStep = (step: Step, pattern: ShiftSubmissionPattern): Step => {
+  if (step === "patternSettings" && pattern.kind === "dateOnly") return "regularClosedDays";
+  return step;
+};
+
+const getNextStep = (step: Step, pattern: ShiftSubmissionPattern): Step => {
   if (step === "shopName") return "submissionPattern";
-  if (step === "submissionPattern") return "patternSettings";
+  if (step === "submissionPattern") return pattern.kind === "dateOnly" ? "regularClosedDays" : "patternSettings";
   if (step === "patternSettings") return "regularClosedDays";
   return "regularClosedDays";
 };
 
-const getPreviousStep = (step: Step): Step => {
-  if (step === "regularClosedDays") return "patternSettings";
+const getPreviousStep = (step: Step, pattern: ShiftSubmissionPattern): Step => {
+  if (step === "regularClosedDays") return pattern.kind === "dateOnly" ? "submissionPattern" : "patternSettings";
   if (step === "patternSettings") return "submissionPattern";
   if (step === "submissionPattern") return "shopName";
   return "shopName";
 };
 
 export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = "shopName" }: Props) => {
-  const [currentStep, setCurrentStep] = useState<Step>(initialStep);
+  const [currentStep, setCurrentStep] = useState<Step>(() =>
+    getInitialStep(initialStep, defaultValues.submissionPattern),
+  );
   const [regularClosedDays, setRegularClosedDays] = useState<RegularClosedDay[]>(defaultValues.regularClosedDays);
   const {
     register,
@@ -141,6 +150,14 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
   });
 
   const submissionPattern = watch("submissionPattern");
+  const steps = useMemo(() => {
+    if (submissionPattern.kind === "dateOnly") {
+      return baseSteps.filter((step) => step.value !== "patternSettings");
+    }
+    return baseSteps.map((step) =>
+      step.value === "patternSettings" ? getPatternSettingsStep(submissionPattern.kind) : step,
+    );
+  }, [submissionPattern.kind]);
   const timeStart = submissionPattern.kind === "time" ? submissionPattern.startTime : DEFAULT_TIME_PATTERN.startTime;
   const timeEnd = submissionPattern.kind === "time" ? submissionPattern.endTime : DEFAULT_TIME_PATTERN.endTime;
 
@@ -196,11 +213,11 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
   };
 
   const goToNextStep = () => {
-    setCurrentStep((step) => getNextStep(step));
+    setCurrentStep((step) => getNextStep(step, submissionPattern));
   };
 
   const goToPreviousStep = () => {
-    setCurrentStep((step) => getPreviousStep(step));
+    setCurrentStep((step) => getPreviousStep(step, submissionPattern));
   };
 
   const handlePatternSettingsNext = async () => {
@@ -257,7 +274,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
         return;
       }
       if (invalidErrors.submissionPattern) {
-        setCurrentStep("patternSettings");
+        setCurrentStep(submissionPattern.kind === "dateOnly" ? "submissionPattern" : "patternSettings");
         return;
       }
       setCurrentStep("regularClosedDays");
@@ -384,17 +401,6 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
 
         {currentStep === "patternSettings" && (
           <Stack gap={3}>
-            {submissionPattern.kind === "dateOnly" && (
-              <Box borderWidth={1} borderColor="border.default" borderRadius="md" bg="gray.50" p={4}>
-                <Text fontSize="sm" fontWeight="semibold" color="gray.900">
-                  追加設定なし
-                </Text>
-                <Text mt={1} fontSize="xs" color="fg.muted" lineHeight="tall">
-                  スタッフに出勤できる日のみ選んでもらいます。
-                </Text>
-              </Box>
-            )}
-
             {submissionPattern.kind === "time" && (
               <Stack direction={{ base: "column", lg: "row" }} gap={3}>
                 <Field.Root invalid={!!errors.submissionPattern}>
