@@ -26,6 +26,7 @@ export const enqueue = internalMutation({
   args: {
     channel: notificationChannelValidator,
     shopId: v.id("shops"),
+    recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
     dedupeKey: v.string(),
@@ -53,6 +54,7 @@ export const enqueue = internalMutation({
       status: "pending",
       dedupeKey: args.dedupeKey,
       shopId: args.shopId,
+      ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
       ...(args.staffId ? { staffId: args.staffId } : {}),
       ...(args.userId ? { userId: args.userId } : {}),
       payload: args.payload,
@@ -69,6 +71,7 @@ export const recordDeliveryEvent = internalMutation({
   args: {
     eventType: notificationDeliveryEventTypeValidator,
     shopId: v.optional(v.id("shops")),
+    recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
     outboxId: v.optional(v.id("notificationOutbox")),
@@ -82,12 +85,20 @@ export const recordDeliveryEvent = internalMutation({
   },
   handler: async (ctx, args) => {
     const eventId = await insertDeliveryEvent(ctx, args);
-    if (args.eventType !== "enqueue_failed" || !args.shopId || !args.dedupeKey) return;
+    if (
+      (args.eventType !== "enqueue_failed" && args.eventType !== "enqueue_preparation_failed") ||
+      !args.shopId ||
+      !args.dedupeKey
+    ) {
+      return;
+    }
 
+    const sourceType = args.eventType === "enqueue_failed" ? "enqueue" : "enqueue_preparation";
     await upsertFailureInbox(ctx, {
-      sourceType: "enqueue",
-      failureKey: enqueueFailureKey(args.shopId, args.dedupeKey),
+      sourceType,
+      failureKey: enqueueFailureKey(sourceType, args.shopId, args.dedupeKey),
       shopId: args.shopId,
+      recruitmentId: args.recruitmentId,
       staffId: args.staffId,
       userId: args.userId,
       outboxId: args.outboxId,
@@ -218,6 +229,7 @@ export const markFailed = internalMutation({
       sourceType: "outbox",
       failureKey: outboxFailureKey(outboxId),
       shopId: job.shopId,
+      recruitmentId: job.recruitmentId,
       staffId: job.staffId,
       userId: job.userId,
       outboxId: job._id,
@@ -350,6 +362,7 @@ export const pruneExpiredEvents = internalMutation({
 type DeliveryEventInput = {
   eventType: Doc<"notificationDeliveryEvents">["eventType"];
   shopId?: Id<"shops">;
+  recruitmentId?: Id<"recruitments">;
   staffId?: Id<"staffs">;
   userId?: Id<"users">;
   outboxId?: Id<"notificationOutbox">;
@@ -363,9 +376,10 @@ type DeliveryEventInput = {
 };
 
 type FailureInboxUpsertInput = {
-  sourceType: "outbox" | "enqueue";
+  sourceType: Doc<"notificationFailureInbox">["sourceType"];
   failureKey: string;
   shopId: Id<"shops">;
+  recruitmentId?: Id<"recruitments">;
   staffId?: Id<"staffs">;
   userId?: Id<"users">;
   outboxId?: Id<"notificationOutbox">;
@@ -386,6 +400,7 @@ async function insertDeliveryEvent(ctx: MutationCtx, input: DeliveryEventInput) 
     createdAt: now,
     expiresAt: now + NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
     ...(input.shopId ? { shopId: input.shopId } : {}),
+    ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
     ...(input.staffId ? { staffId: input.staffId } : {}),
     ...(input.userId ? { userId: input.userId } : {}),
     ...(input.outboxId ? { outboxId: input.outboxId } : {}),
@@ -409,6 +424,7 @@ async function upsertFailureInbox(ctx: MutationCtx, input: FailureInboxUpsertInp
     sourceType: input.sourceType,
     status: "open" as const,
     shopId: input.shopId,
+    recruitmentId: input.recruitmentId,
     staffId: input.staffId,
     userId: input.userId,
     outboxId: input.outboxId,
@@ -478,6 +494,7 @@ function deliveryEventFromJob(
   return {
     eventType,
     shopId: job.shopId,
+    recruitmentId: job.recruitmentId,
     staffId: job.staffId,
     userId: job.userId,
     outboxId: job._id,
@@ -503,8 +520,8 @@ function outboxFailureKey(outboxId: Id<"notificationOutbox">) {
   return `outbox:${outboxId}`;
 }
 
-function enqueueFailureKey(shopId: Id<"shops">, dedupeKey: string) {
-  return `enqueue:${shopId}:${dedupeKey}`;
+function enqueueFailureKey(sourceType: "enqueue" | "enqueue_preparation", shopId: Id<"shops">, dedupeKey: string) {
+  return `${sourceType}:${shopId}:${dedupeKey}`;
 }
 
 function truncateErrorMessage(message: string) {

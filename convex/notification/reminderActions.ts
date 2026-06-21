@@ -9,6 +9,7 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { recordNotificationPreparationFailure } from "./failureRecording";
 import { buildReminderEmailHtml, buildReminderLineText } from "./templates";
 
 /**
@@ -33,92 +34,116 @@ export const sendReminderEmails = internalAction({
 
     for (const staff of data.staffEntries) {
       const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
+      const selectedChannel = channel === "line" && staff.lineUserId ? "line" : "email";
+      const emailDedupeKey = `email:reminder:${recruitmentId}:${staff.staffId}`;
+      const lineDedupeKey = `line:reminder:${recruitmentId}:${staff.staffId}`;
+      const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
+      if (selectedChannel === "email" && !staff.email) continue;
 
-      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
-        staffId: staff.staffId,
-        shopId: data.shopId,
-        recruitmentId,
-        expiresAt,
-      });
-      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
-
-      if (channel === "line" && staff.lineUserId) {
-        const fallbackEmail = staff.email
-          ? {
-              dedupeKey: `email:reminder:${recruitmentId}:${staff.staffId}`,
-              payload: emailPayload({
-                from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-                to: staff.email,
-                subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
-                html: buildReminderEmailHtml({
-                  staffName: staff.name,
-                  periodLabel: data.periodLabel,
-                  linkExpiresAtLabel: deadlineLabel,
-                  magicLinkUrl,
-                  lineCtaHtml: await buildLineCtaForStaff(ctx, {
-                    staffId: staff.staffId,
-                    shopId: data.shopId,
-                    lineUserId: staff.lineUserId,
-                    lineFollowing: staff.lineFollowing,
-                    appUrl: APP_URL,
-                  }),
-                }),
-                context: "notification.sendReminderEmails",
-                suppressDelivery,
-              }),
-            }
-          : undefined;
-        const result = await enqueueLine(ctx, {
-          shopId: data.shopId,
+      try {
+        const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
           staffId: staff.staffId,
-          dedupeKey: `line:reminder:${recruitmentId}:${staff.staffId}`,
-          payload: linePayload({
-            toUserId: staff.lineUserId,
-            text: buildReminderLineText({
+          shopId: data.shopId,
+          recruitmentId,
+          expiresAt,
+        });
+        const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+
+        if (selectedChannel === "line" && staff.lineUserId) {
+          const fallbackEmail = staff.email
+            ? {
+                dedupeKey: emailDedupeKey,
+                payload: emailPayload({
+                  from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+                  to: staff.email,
+                  subject: formatResendSubject(
+                    data.shopName,
+                    `${data.periodLabel} シフト希望の提出期限が近づいています`,
+                  ),
+                  html: buildReminderEmailHtml({
+                    staffName: staff.name,
+                    periodLabel: data.periodLabel,
+                    linkExpiresAtLabel: deadlineLabel,
+                    magicLinkUrl,
+                    lineCtaHtml: await buildLineCtaForStaff(ctx, {
+                      staffId: staff.staffId,
+                      shopId: data.shopId,
+                      lineUserId: staff.lineUserId,
+                      lineFollowing: staff.lineFollowing,
+                      appUrl: APP_URL,
+                    }),
+                  }),
+                  context: "notification.sendReminderEmails",
+                  suppressDelivery,
+                }),
+              }
+            : undefined;
+          const result = await enqueueLine(ctx, {
+            shopId: data.shopId,
+            recruitmentId,
+            staffId: staff.staffId,
+            dedupeKey: lineDedupeKey,
+            payload: linePayload({
+              toUserId: staff.lineUserId,
+              text: buildReminderLineText({
+                staffName: staff.name,
+                shopName: data.shopName,
+                periodLabel: data.periodLabel,
+                linkExpiresAtLabel: deadlineLabel,
+                magicLinkUrl,
+              }),
+              suppressDelivery,
+              ...(fallbackEmail ? { fallbackEmail } : {}),
+            }),
+          });
+          if (result) sentCount += 1;
+          continue;
+        }
+
+        const lineCtaHtml = await buildLineCtaForStaff(ctx, {
+          staffId: staff.staffId,
+          shopId: data.shopId,
+          lineUserId: staff.lineUserId,
+          lineFollowing: staff.lineFollowing,
+          appUrl: APP_URL,
+        });
+
+        const result = await enqueueEmail(ctx, {
+          shopId: data.shopId,
+          recruitmentId,
+          staffId: staff.staffId,
+          dedupeKey: emailDedupeKey,
+          payload: emailPayload({
+            from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+            to: staff.email,
+            subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
+            html: buildReminderEmailHtml({
               staffName: staff.name,
-              shopName: data.shopName,
               periodLabel: data.periodLabel,
               linkExpiresAtLabel: deadlineLabel,
               magicLinkUrl,
+              lineCtaHtml,
             }),
+            context: "notification.sendReminderEmails",
             suppressDelivery,
-            ...(fallbackEmail ? { fallbackEmail } : {}),
           }),
         });
         if (result) sentCount += 1;
-        continue;
+      } catch (e) {
+        await recordNotificationPreparationFailure(
+          ctx,
+          {
+            shopId: data.shopId,
+            recruitmentId,
+            staffId: staff.staffId,
+            channel: selectedChannel,
+            dedupeKey,
+            notificationContext: "notification.sendReminderEmails",
+          },
+          e,
+          "Reminder notification preparation failed",
+        );
       }
-
-      if (!staff.email) continue;
-
-      const lineCtaHtml = await buildLineCtaForStaff(ctx, {
-        staffId: staff.staffId,
-        shopId: data.shopId,
-        lineUserId: staff.lineUserId,
-        lineFollowing: staff.lineFollowing,
-        appUrl: APP_URL,
-      });
-
-      const result = await enqueueEmail(ctx, {
-        shopId: data.shopId,
-        staffId: staff.staffId,
-        dedupeKey: `email:reminder:${recruitmentId}:${staff.staffId}`,
-        payload: emailPayload({
-          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
-          to: staff.email,
-          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
-          html: buildReminderEmailHtml({
-            staffName: staff.name,
-            periodLabel: data.periodLabel,
-            linkExpiresAtLabel: deadlineLabel,
-            magicLinkUrl,
-            lineCtaHtml,
-          }),
-          context: "notification.sendReminderEmails",
-          suppressDelivery,
-        }),
-      });
-      if (result) sentCount += 1;
     }
 
     if (sentCount > 0) {

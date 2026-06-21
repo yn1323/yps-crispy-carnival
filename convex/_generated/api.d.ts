@@ -56,6 +56,7 @@ import type * as migrations_m004_notification_failure_inbox_backfill from "../mi
 import type * as migrations_m005_shop_billing_states_backfill_free from "../migrations/m005_shop_billing_states_backfill_free.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
+import type * as notification_failureRecording from "../notification/failureRecording.js";
 import type * as notification_mutations from "../notification/mutations.js";
 import type * as notification_queries from "../notification/queries.js";
 import type * as notification_reminderActions from "../notification/reminderActions.js";
@@ -149,6 +150,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m005_shop_billing_states_backfill_free": typeof migrations_m005_shop_billing_states_backfill_free;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
+  "notification/failureRecording": typeof notification_failureRecording;
   "notification/mutations": typeof notification_mutations;
   "notification/queries": typeof notification_queries;
   "notification/reminderActions": typeof notification_reminderActions;

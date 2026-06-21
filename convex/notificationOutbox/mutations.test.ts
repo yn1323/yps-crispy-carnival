@@ -493,6 +493,56 @@ describe("notificationOutbox", () => {
         status: "open",
       });
     });
+
+    it("markFailedはoutboxのrecruitmentIdを配送イベントと要対応Inboxへ引き継ぐ", async () => {
+      const { t, shopId, staffId } = await setupShop();
+      const { recruitmentId, outboxId } = await t.run(async (ctx) => {
+        const now = Date.now();
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-07",
+          deadline: "2026-06-25",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "processing",
+          dedupeKey: `email:recruitment:${recruitmentId}:${staffId}`,
+          shopId,
+          recruitmentId,
+          staffId,
+          payload: emailPayload,
+          attemptCount: 1,
+          nextRunAt: now,
+          processingStartedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { recruitmentId, outboxId };
+      });
+
+      await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "delivery failed" });
+
+      const [events, failures] = await Promise.all([
+        t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
+        collectFailureInbox(t),
+      ]);
+      expect(events[0]).toMatchObject({
+        eventType: "final_failed",
+        recruitmentId,
+        outboxId,
+      });
+      expect(failures[0]).toMatchObject({
+        sourceType: "outbox",
+        recruitmentId,
+        outboxId,
+        lastError: "delivery failed",
+      });
+    });
   });
 
   it("dueなジョブをclaimするとprocessingになりattemptCountが進む", async () => {
@@ -516,17 +566,41 @@ describe("notificationOutbox", () => {
     expect(jobs[0].status).toBe("processing");
   });
 
-  it("recordDeliveryEventはenqueue_failedだけを要対応Inbox化する", async () => {
+  it("recordDeliveryEventはOutbox投入失敗と投入準備失敗を要対応Inbox化する", async () => {
     const { t, shopId, staffId } = await setupShop();
+    const recruitmentId = await t.run(async (ctx) => {
+      return await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-07",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+    });
 
     await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "enqueue_failed",
       shopId,
+      recruitmentId,
       staffId,
       channel: "email",
       dedupeKey: "email:test:enqueue-failed",
       notificationContext: "test.enqueue",
       errorMessage: "enqueue failed",
+    });
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_preparation_failed",
+      shopId,
+      recruitmentId,
+      staffId,
+      channel: "email",
+      dedupeKey: "email:test:preparation-failed",
+      notificationContext: "test.preparation",
+      errorMessage: "preparation failed",
+      errorName: "PreparationError",
     });
     await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "retry_scheduled",
@@ -548,18 +622,77 @@ describe("notificationOutbox", () => {
     });
 
     const failures = await collectFailureInbox(t);
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({
+    expect(failures).toHaveLength(2);
+    expect(failures.find((failure) => failure.sourceType === "enqueue")).toMatchObject({
       failureKey: `enqueue:${shopId}:email:test:enqueue-failed`,
       sourceType: "enqueue",
       status: "open",
       shopId,
+      recruitmentId,
       staffId,
       channel: "email",
       dedupeKey: "email:test:enqueue-failed",
       notificationContext: "test.enqueue",
       lastError: "enqueue failed",
     });
+    expect(failures.find((failure) => failure.sourceType === "enqueue_preparation")).toMatchObject({
+      failureKey: `enqueue_preparation:${shopId}:email:test:preparation-failed`,
+      sourceType: "enqueue_preparation",
+      status: "open",
+      shopId,
+      recruitmentId,
+      staffId,
+      channel: "email",
+      dedupeKey: "email:test:preparation-failed",
+      notificationContext: "test.preparation",
+      lastError: "preparation failed",
+      errorName: "PreparationError",
+    });
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events.find((event) => event.eventType === "enqueue_preparation_failed")).toMatchObject({
+      recruitmentId,
+      errorMessage: "preparation failed",
+    });
+  });
+
+  it("recordDeliveryEventは解決済みの投入準備失敗を再発時にopenへ戻す", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const dedupeKey = "email:test:preparation-reopen";
+
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_preparation_failed",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: "test.preparation",
+      errorMessage: "first",
+    });
+    const failureId = (await collectFailureInbox(t))[0]._id;
+    await t.withIdentity({ subject: "user_mgr" }).mutation(api.notificationOutbox.mutations.resolveFailure, {
+      failureId,
+    });
+
+    vi.advanceTimersByTime(1000);
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_preparation_failed",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: "test.preparation",
+      errorMessage: "second",
+    });
+
+    const failures = await collectFailureInbox(t);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      _id: failureId,
+      status: "open",
+      lastError: "second",
+    });
+    expect(failures[0].resolvedAt).toBeUndefined();
+    expect(failures[0].resolutionKind).toBeUndefined();
   });
 
   it("retryFailureは他店舗の失敗をNot foundにし、対象outboxをpendingに戻す", async () => {

@@ -26,6 +26,7 @@ export const listOpenFailures = managerQuery({
         sourceType: failure.sourceType,
         status: failure.status,
         shopId: failure.shopId,
+        recruitmentId: failure.recruitmentId,
         staffId: failure.staffId,
         userId: failure.userId,
         outboxId: failure.outboxId,
