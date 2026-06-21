@@ -1,4 +1,5 @@
 import { BREAK_POSITION } from "./constants";
+import { indexShiftsByStaffId } from "./shiftLookup";
 import { timeToMinutes } from "./time";
 import type { ShiftData, SortMode, StaffType } from "./types";
 
@@ -154,6 +155,31 @@ export const sortDailyStaffs = ({ staffs, shiftByStaffId, mode }: SortDailyStaff
 
     return compareDefaultStaffOrder(a, b);
   });
+
+// 日付ごとに、その日のシフトをもとに日別ビューと同じ「早い順」でスタッフを並べ替える。
+// 一覧タブ（人×時間／人×勤務区分）で日別ビューと並びを揃えるために使う。
+export const sortDailyStaffsByDate = ({
+  staffs,
+  shifts,
+  mode,
+}: {
+  staffs: StaffType[];
+  shifts: readonly ShiftData[];
+  mode: DailyStaffSortMode;
+}): Map<string, StaffType[]> => {
+  const shiftsByDate = new Map<string, ShiftData[]>();
+  for (const shift of shifts) {
+    const list = shiftsByDate.get(shift.date);
+    if (list) list.push(shift);
+    else shiftsByDate.set(shift.date, [shift]);
+  }
+
+  const sortedByDate = new Map<string, StaffType[]>();
+  for (const [date, dateShifts] of shiftsByDate) {
+    sortedByDate.set(date, sortDailyStaffs({ staffs, shiftByStaffId: indexShiftsByStaffId(dateShifts), mode }));
+  }
+  return sortedByDate;
+};
 
 export const sortStaffs = ({ staffs, shiftByStaffId, sortMode }: SortStaffsParams) => {
   if (sortMode === "default") return [...staffs];
