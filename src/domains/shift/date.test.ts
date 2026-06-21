@@ -8,6 +8,7 @@ import {
   getInclusiveDateCount,
   getWeekStartDate,
   isDateInRange,
+  isPastShiftPeriod,
   pruneDatesInRange,
 } from "./date";
 
@@ -25,6 +26,11 @@ describe("date helpers", () => {
   test("日付が範囲内か判定できる", () => {
     expect(isDateInRange("2026-06-02", "2026-06-01", "2026-06-03")).toBe(true);
     expect(isDateInRange("2026-06-04", "2026-06-01", "2026-06-03")).toBe(false);
+  });
+
+  test("シフト期間の終了日を過ぎたら過去シフトとして扱う", () => {
+    expect(isPastShiftPeriod("2026-06-03", "2026-06-03")).toBe(false);
+    expect(isPastShiftPeriod("2026-06-03", "2026-06-04")).toBe(true);
   });
 
   test("期間外の日付を除外してソートできる", () => {

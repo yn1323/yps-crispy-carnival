@@ -31,6 +31,11 @@ export const isDateInRange = (date: string, startDate: string, endDate: string):
   return date >= startDate && date <= endDate;
 };
 
+export const isPastShiftPeriod = (periodEnd: string, today = dayjs().format("YYYY-MM-DD")): boolean => {
+  if (!periodEnd) return false;
+  return periodEnd < today;
+};
+
 export const pruneDatesInRange = (dates: string[], startDate: string, endDate: string): string[] => {
   if (!startDate || !endDate) return [];
   return dates.filter((date) => isDateInRange(date, startDate, endDate)).sort();
