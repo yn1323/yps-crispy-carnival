@@ -4,6 +4,7 @@ import { useMutation } from "convex/react";
 import { useEffect, useState } from "react";
 import { LuSparkles, LuUserPlus } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
@@ -24,11 +25,12 @@ import type { EditStaffFormData } from "../EditStaffForm/index";
 import { EditStaffForm } from "../EditStaffForm/index.tsx";
 import { HeroSummary, HeroSummarySkeleton, WelcomeHero } from "../HeroSummary";
 import { LegalReconsentBanner } from "../LegalReconsentBanner";
+import { type DashboardNotificationFailure, NotificationFailureDialogContent } from "../NotificationFailureDialog";
 import { RecruitmentBoard, RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import type { SetupData } from "../SetupModal";
 import { SetupModal } from "../SetupModal";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
-import { StaffRegistrationRequestBanner, StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
+import { StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
 import {
   buildDashboardRecruitmentGroups,
@@ -87,6 +89,7 @@ type Props = {
   canLoadMoreStaffs: boolean;
   loadMoreStaffs: () => void;
   pendingStaffRequests?: StaffRegistrationRequest[];
+  notificationFailures?: DashboardNotificationFailure[];
   isDashboardOnboardingDismissed?: boolean;
   announcement?: DashboardAnnouncementData | null;
 };
@@ -110,6 +113,7 @@ export const DashboardContent = ({
   canLoadMoreStaffs,
   loadMoreStaffs,
   pendingStaffRequests = [],
+  notificationFailures = [],
   isDashboardOnboardingDismissed = false,
   announcement = null,
 }: Props) => {
@@ -121,6 +125,7 @@ export const DashboardContent = ({
   const deleteRecruitmentDialog = useDialog();
   const deleteStaffDialog = useDialog();
   const staffRegistrationDialog = useDialog();
+  const notificationFailureDialog = useDialog();
   const lineQrDialog = useDialog();
   const lineInviteDialog = useDialog();
   const recruitmentNotificationDialog = useDialog();
@@ -140,6 +145,15 @@ export const DashboardContent = ({
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [registrationUrlLoading, setRegistrationUrlLoading] = useState(false);
   const [rejectRequestTarget, setRejectRequestTarget] = useState<StaffRegistrationRequest | null>(null);
+  const [notificationFailureDialogRows, setNotificationFailureDialogRows] = useState<DashboardNotificationFailure[]>(
+    [],
+  );
+  const [acceptedNotificationFailureIds, setAcceptedNotificationFailureIds] = useState<
+    Set<Id<"notificationFailureInbox">>
+  >(() => new Set());
+  const [resendingNotificationFailureIds, setResendingNotificationFailureIds] = useState<
+    Set<Id<"notificationFailureInbox">>
+  >(() => new Set());
   const [dismissedOnboardingStages, setDismissedOnboardingStages] = useState<DashboardOnboardingStage[]>([]);
   const [autoDismissedOnboarding, setAutoDismissedOnboarding] = useState(false);
   const [reviewedRecruitmentIds, setReviewedRecruitmentIds] = useState(readReviewedRecruitmentIds);
@@ -186,6 +200,8 @@ export const DashboardContent = ({
   const approveStaffRequest = useMutation(api.staffRegistration.mutations.approveRequest);
   const rejectStaffRequest = useMutation(api.staffRegistration.mutations.rejectRequest);
   const dismissOnboarding = useMutation(api.dashboard.mutations.dismissOnboarding);
+  const resendNotificationFailure = useMutation(api.notificationOutbox.mutations.resendFailure);
+  const resendOpenNotificationFailures = useMutation(api.notificationOutbox.mutations.resendOpenFailures);
 
   useEffect(() => {
     if (pendingStaffRequests.length === 0 || isDashboardOnboardingDismissed || autoDismissedOnboarding) return;
@@ -199,6 +215,21 @@ export const DashboardContent = ({
     staffRegistrationDialog.close();
   }, [pendingStaffRequests.length, staffRegistrationDialog.close, staffRegistrationDialog.isOpen]);
 
+  useEffect(() => {
+    if (!notificationFailureDialog.isOpen) return;
+    setNotificationFailureDialogRows((currentRows) => {
+      const nextRowsById = new Map(currentRows.map((failure) => [failure._id, failure]));
+      for (const failure of notificationFailures) {
+        nextRowsById.set(failure._id, failure);
+      }
+      return Array.from(nextRowsById.values()).filter(
+        (failure) =>
+          acceptedNotificationFailureIds.has(failure._id) ||
+          notificationFailures.some((openFailure) => openFailure._id === failure._id),
+      );
+    });
+  }, [acceptedNotificationFailureIds, notificationFailureDialog.isOpen, notificationFailures]);
+
   const handleOpenShiftBoard = (recruitmentId: string) => {
     if (visibleOnboardingState?.stage === "review_submission" && latestKnownRecruitment?._id === recruitmentId) {
       setReviewedRecruitmentIds((current) => {
@@ -210,6 +241,86 @@ export const DashboardContent = ({
     }
     navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
   };
+
+  const handleOpenNotificationFailures = () => {
+    setNotificationFailureDialogRows(notificationFailures);
+    setAcceptedNotificationFailureIds(new Set());
+    setResendingNotificationFailureIds(new Set());
+    notificationFailureDialog.open();
+  };
+
+  const handleNotificationFailureDialogOpenChange = (details: { open: boolean }) => {
+    notificationFailureDialog.onOpenChange(details);
+    if (details.open) return;
+    setNotificationFailureDialogRows([]);
+    setAcceptedNotificationFailureIds(new Set());
+    setResendingNotificationFailureIds(new Set());
+  };
+
+  const handleCloseNotificationFailures = () => {
+    notificationFailureDialog.close();
+    setNotificationFailureDialogRows([]);
+    setAcceptedNotificationFailureIds(new Set());
+    setResendingNotificationFailureIds(new Set());
+  };
+
+  const handleResendNotificationFailure = async (failureId: Id<"notificationFailureInbox">) => {
+    if (
+      acceptedNotificationFailureIds.has(failureId) ||
+      resendingNotificationFailureIds.has(failureId) ||
+      isResendingAllNotificationFailures
+    ) {
+      return;
+    }
+    setResendingNotificationFailureIds((current) => new Set(current).add(failureId));
+    try {
+      const result = await resendNotificationFailure({ failureId });
+      if (result.scheduled) {
+        setAcceptedNotificationFailureIds((current) => new Set(current).add(failureId));
+        toaster.create({ title: "再通知を受け付けました", type: "success" });
+        return;
+      }
+      toaster.create({
+        title: result.reason === "rateLimited" ? "少し時間をおいて再通知してください" : "再通知できませんでした",
+        type: result.reason === "rateLimited" ? "error" : "info",
+      });
+    } catch (error) {
+      showErrorToast(error);
+    } finally {
+      setResendingNotificationFailureIds((current) => {
+        const next = new Set(current);
+        next.delete(failureId);
+        return next;
+      });
+    }
+  };
+
+  const { run: handleResendAllNotificationFailures, isRunning: isResendingAllNotificationFailures } = useSingleFlight(
+    async () => {
+      const retryableFailures = notificationFailureDialogRows.filter(
+        (failure) => failure.canRetry && !acceptedNotificationFailureIds.has(failure._id),
+      );
+      if (retryableFailures.length === 0) return;
+
+      try {
+        const result = await resendOpenNotificationFailures({});
+        if (result.scheduledFailureIds.length > 0) {
+          setAcceptedNotificationFailureIds((current) => {
+            const next = new Set(current);
+            for (const failureId of result.scheduledFailureIds) {
+              next.add(failureId);
+            }
+            return next;
+          });
+          toaster.create({ title: "不達通知の再通知を受け付けました", type: "success" });
+          return;
+        }
+        toaster.create({ title: "再通知できる不達通知がありません", type: "info" });
+      } catch (error) {
+        showErrorToast(error);
+      }
+    },
+  );
 
   const { run: handleSetupComplete, isRunning: isSetupSubmitting } = useSingleFlight(async (data: SetupData) => {
     try {
@@ -490,14 +601,13 @@ export const DashboardContent = ({
               onEditClick={editShopModal.open}
               onOpenShiftBoard={handleOpenShiftBoard}
               onCreateRecruitment={recruitmentModal.open}
+              hasNotificationFailures={notificationFailures.length > 0}
+              onNotificationFailuresClick={handleOpenNotificationFailures}
               announcementBanner={announcement ? <DashboardAnnouncement announcement={announcement} /> : undefined}
-              staffRegistrationRequestBanner={
-                pendingStaffRequests.length > 0 ? (
-                  <StaffRegistrationRequestBanner
-                    requestCount={pendingStaffRequests.length}
-                    onClick={staffRegistrationDialog.open}
-                  />
-                ) : undefined
+              staffRegistrationRequest={
+                pendingStaffRequests.length > 0
+                  ? { count: pendingStaffRequests.length, onClick: staffRegistrationDialog.open }
+                  : undefined
               }
               hideActionSection={shouldHideNextActionSection}
             />
@@ -776,6 +886,35 @@ export const DashboardContent = ({
             note="通常はシフト確定時に自動で通知しています。届いていない場合のみ再送してください。"
           />
         )}
+      </Dialog>
+
+      <Dialog
+        title="不達通知一覧"
+        isOpen={notificationFailureDialog.isOpen}
+        onOpenChange={handleNotificationFailureDialogOpenChange}
+        onClose={handleCloseNotificationFailures}
+        footer={
+          <Button variant="outline" onClick={handleCloseNotificationFailures} w={{ base: "100%", md: "auto" }}>
+            閉じる
+          </Button>
+        }
+        maxW={{ base: "100vw", lg: "960px" }}
+        maxH={{ base: "100dvh", lg: "82dvh" }}
+        contentProps={{
+          w: "100%",
+          h: { base: "100dvh", lg: "auto" },
+          my: { base: 0, lg: "auto" },
+          borderRadius: { base: 0, lg: "l3" },
+        }}
+      >
+        <NotificationFailureDialogContent
+          failures={notificationFailureDialogRows}
+          acceptedFailureIds={acceptedNotificationFailureIds}
+          resendingFailureIds={resendingNotificationFailureIds}
+          isResendingAll={isResendingAllNotificationFailures}
+          onResend={handleResendNotificationFailure}
+          onResendAll={handleResendAllNotificationFailures}
+        />
       </Dialog>
 
       {isSetupRequired && (

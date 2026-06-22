@@ -2,6 +2,7 @@ import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
+import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../storyMocks";
 import {
   buildDashboardRecruitmentGroups,
@@ -71,6 +72,28 @@ const dashboardAnnouncement = {
   bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   displayDate: "2026-06-17",
 } as unknown as DashboardAnnouncement;
+const notificationFailures = [
+  {
+    _id: "notification-failure-1",
+    staffName: "佐藤 真由美",
+    notificationKind: "recruitment",
+    notificationKindLabel: "シフト募集通知",
+    periodLabel: "7/1〜7/15",
+    channel: "email",
+    lastFailedAt: new Date("2026-06-22T05:23:00.000Z").getTime(),
+    canRetry: true,
+  },
+  {
+    _id: "notification-failure-2",
+    staffName: "高橋 健太",
+    notificationKind: "reminder",
+    notificationKindLabel: "催促用リンク",
+    periodLabel: "7/1〜7/15",
+    channel: "line",
+    lastFailedAt: new Date("2026-06-22T04:58:00.000Z").getTime(),
+    canRetry: true,
+  },
+] as unknown as DashboardNotificationFailure[];
 const dashboardRecruitments = mockRecruitments;
 const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({ recruitments: dashboardRecruitments }).groups;
 
@@ -154,6 +177,27 @@ export const WithAnnouncement: Story = {
   args: {
     ...Normal.args,
     announcement: dashboardAnnouncement,
+  },
+};
+
+export const WithNotificationFailures: Story = {
+  args: {
+    ...Normal.args,
+    notificationFailures,
+    isDashboardOnboardingDismissed: true,
+  },
+  play: async ({ canvasElement }) => {
+    assertText(canvasElement, "不達通知があります", "不達通知カードの見出し");
+    findButtonByText(canvasElement, "通知を確認").click();
+
+    await waitUntil(
+      () => document.body.textContent?.includes("送信できなかった通知をスタッフごとに再通知できます。") ?? false,
+      "不達通知モーダルが表示されませんでした",
+    );
+    assertText(document.body, "不達通知一覧", "不達通知モーダルのタイトル");
+    assertText(document.body, "佐藤 真由美", "モーダル内のスタッフ名");
+    assertText(document.body, "シフト募集通知", "モーダル内の通知種別");
+    assertText(document.body, "すべて再通知", "モーダル内の一斉再通知ボタン");
   },
 };
 
@@ -343,13 +387,13 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
 
     assertText(root, "今やること", "承認待ちがある時の通常アクション見出し");
-    assertText(root, "スタッフ参加申請が 2 件あります", "承認待ちカードの見出し");
-    assertText(root, "確認する", "承認待ちカードのCTA");
+    assertText(root, "スタッフ参加申請が2件あります", "承認待ちカードの見出し");
+    assertText(root, "申請を確認", "承認待ちカードのCTA");
     assertNoText(root, "田中 花子", "カード表示時は申請者名を隠す");
     assertNoText(root, "hanako@example.com", "カード表示時は申請者メールを隠す");
     assertNoText(root, "シフトリへようこそ！", "承認待ちがある時のオンボーディング非表示");
 
-    const confirmButton = findButtonByText(root, "確認する");
+    const confirmButton = findButtonByText(root, "申請を確認");
     confirmButton.click();
 
     await waitUntil(
