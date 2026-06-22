@@ -34,6 +34,7 @@ export const notificationFailureResolutionKindValidator = v.union(
   v.literal("sent"),
   v.literal("dismissed"),
   v.literal("superseded"),
+  v.literal("expired"),
 );
 
 export const notificationEmailPayloadValidator = v.object({

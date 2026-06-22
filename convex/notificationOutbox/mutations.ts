@@ -10,6 +10,8 @@ import { rateLimit } from "../_lib/rateLimits";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
+  NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE,
+  NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
@@ -30,6 +32,7 @@ const ACTIVE_STATUSES = ["pending", "processing"] as const;
 const DELIVERY_EVENT_ERROR_MESSAGE_MAX_LENGTH = 2_000;
 const FAILURE_RESEND_BATCH_SIZE = 50;
 const FAILURE_DUPLICATE_SCAN_LIMIT = 50;
+const FAILURE_EXPIRE_TARGET_STATUSES = ["open", "retrying"] as const;
 
 type ManagerNotificationOutboxMutationCtx = MutationCtx & {
   user: Doc<"users">;
@@ -567,6 +570,43 @@ export const pruneExpiredEvents = internalMutation({
   },
 });
 
+export const expireOldFailures = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const cutoff = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS;
+    const expired: Doc<"notificationFailureInbox">[] = [];
+
+    for (const status of FAILURE_EXPIRE_TARGET_STATUSES) {
+      const remaining = NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE - expired.length;
+      if (remaining <= 0) break;
+
+      const failures = await ctx.db
+        .query("notificationFailureInbox")
+        .withIndex("by_status_firstFailedAt", (q) => q.eq("status", status).lte("firstFailedAt", cutoff))
+        .order("asc")
+        .take(remaining);
+      expired.push(...failures);
+    }
+
+    for (const failure of expired) {
+      await ctx.db.patch(failure._id, {
+        status: "resolved",
+        resolvedAt: now,
+        resolvedByUserId: undefined,
+        resolutionKind: "expired",
+        updatedAt: now,
+      });
+    }
+
+    if (expired.length === NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.expireOldFailures, {});
+    }
+
+    return { expiredCount: expired.length };
+  },
+});
+
 type DeliveryEventInput = {
   eventType: Doc<"notificationDeliveryEvents">["eventType"];
   shopId?: Id<"shops">;
@@ -794,8 +834,11 @@ async function resolveSupersededFailureInbox(
 }
 
 function selectReusableFailure(failures: Doc<"notificationFailureInbox">[]) {
-  const reusable = failures.filter((failure) => failure.resolutionKind !== "superseded");
-  return [...(reusable.length > 0 ? reusable : failures)].sort(sortFailureByRecencyDesc)[0] ?? null;
+  const reusable = failures.filter((failure) => !["superseded", "expired"].includes(failure.resolutionKind ?? ""));
+  if (reusable.length > 0) return [...reusable].sort(sortFailureByRecencyDesc)[0] ?? null;
+
+  const superseded = failures.filter((failure) => failure.resolutionKind === "superseded");
+  return [...superseded].sort(sortFailureByRecencyDesc)[0] ?? null;
 }
 
 function sortFailureByRecencyDesc(a: Doc<"notificationFailureInbox">, b: Doc<"notificationFailureInbox">) {

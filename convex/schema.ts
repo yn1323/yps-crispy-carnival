@@ -424,6 +424,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   })
     .index("by_failureKey", ["failureKey"])
+    .index("by_status_firstFailedAt", ["status", "firstFailedAt"])
     .index("by_shopId_status_lastFailedAt", ["shopId", "status", "lastFailedAt"])
     .index("by_outboxId", ["outboxId"])
     .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"]),

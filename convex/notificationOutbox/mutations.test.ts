@@ -7,6 +7,8 @@ import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
   NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
+  NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE,
+  NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
 } from "../constants";
 
@@ -1291,6 +1293,196 @@ describe("notificationOutbox", () => {
       resolvedByUserId: expect.any(String),
     });
     expect(failure?.resolvedAt).toBeTypeOf("number");
+  });
+
+  it("初回失敗から30日を過ぎたopen/retryingのFailureInboxをresolved/expiredにする", async () => {
+    vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    const oldFirstFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS - 1;
+    const freshFirstFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS + 1;
+    const ids = await t.run(async (ctx) => {
+      const oldOpenId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "outbox:old-open",
+        sourceType: "outbox",
+        status: "open",
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:old-open",
+        notificationContext: "test.email",
+        firstFailedAt: oldFirstFailedAt,
+        lastFailedAt: now,
+        lastError: "old open",
+        createdAt: oldFirstFailedAt,
+        updatedAt: now,
+      });
+      const oldRetryingId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "outbox:old-retrying",
+        sourceType: "outbox",
+        status: "retrying",
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:old-retrying",
+        notificationContext: "test.email",
+        firstFailedAt: oldFirstFailedAt,
+        lastFailedAt: now,
+        lastError: "old retrying",
+        retryRequestedAt: now - 1_000,
+        createdAt: oldFirstFailedAt,
+        updatedAt: now,
+      });
+      const freshOpenId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "outbox:fresh-open",
+        sourceType: "outbox",
+        status: "open",
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:fresh-open",
+        notificationContext: "test.email",
+        firstFailedAt: freshFirstFailedAt,
+        lastFailedAt: now,
+        lastError: "fresh open",
+        createdAt: freshFirstFailedAt,
+        updatedAt: now,
+      });
+      const resolvedId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "outbox:resolved",
+        sourceType: "outbox",
+        status: "resolved",
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:test:resolved",
+        notificationContext: "test.email",
+        firstFailedAt: oldFirstFailedAt,
+        lastFailedAt: oldFirstFailedAt,
+        lastError: "resolved",
+        resolvedAt: now - 1_000,
+        resolutionKind: "dismissed",
+        createdAt: oldFirstFailedAt,
+        updatedAt: now - 1_000,
+      });
+      return { oldOpenId, oldRetryingId, freshOpenId, resolvedId };
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.expireOldFailures, {});
+
+    expect(result).toEqual({ expiredCount: 2 });
+    const failures = await t.run(async (ctx) => ({
+      oldOpen: await ctx.db.get(ids.oldOpenId),
+      oldRetrying: await ctx.db.get(ids.oldRetryingId),
+      freshOpen: await ctx.db.get(ids.freshOpenId),
+      resolved: await ctx.db.get(ids.resolvedId),
+    }));
+    expect(failures.oldOpen).toMatchObject({
+      status: "resolved",
+      resolvedAt: now,
+      resolutionKind: "expired",
+    });
+    expect(failures.oldRetrying).toMatchObject({
+      status: "resolved",
+      resolvedAt: now,
+      resolutionKind: "expired",
+    });
+    expect(failures.freshOpen).toMatchObject({
+      status: "open",
+    });
+    expect(failures.freshOpen?.resolutionKind).toBeUndefined();
+    expect(failures.resolved).toMatchObject({
+      status: "resolved",
+      resolutionKind: "dismissed",
+      resolvedAt: now - 1_000,
+    });
+  });
+
+  it("期限切れFailureInboxがbatch満杯なら期限切れ化の継続を予約する", async () => {
+    vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    const oldFirstFailedAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS - 1;
+    await t.run(async (ctx) => {
+      for (let i = 0; i < NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE + 1; i++) {
+        await ctx.db.insert("notificationFailureInbox", {
+          failureKey: `outbox:expired-batch:${i}`,
+          sourceType: "outbox",
+          status: "open",
+          shopId,
+          staffId,
+          channel: "email",
+          dedupeKey: `email:test:expired-batch:${i}`,
+          notificationContext: "test.email",
+          firstFailedAt: oldFirstFailedAt,
+          lastFailedAt: oldFirstFailedAt,
+          lastError: "old",
+          createdAt: oldFirstFailedAt,
+          updatedAt: oldFirstFailedAt,
+        });
+      }
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.expireOldFailures, {});
+
+    expect(result).toEqual({ expiredCount: NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE });
+    const state = await t.run(async (ctx) => ({
+      openFailures: await ctx.db
+        .query("notificationFailureInbox")
+        .withIndex("by_status_firstFailedAt", (q) => q.eq("status", "open"))
+        .collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.openFailures).toHaveLength(1);
+    expect(state.scheduled.some((job) => job.name === "notificationOutbox/mutations:expireOldFailures")).toBe(true);
+  });
+
+  it("expired済みFailureInboxは再発時に再利用せず、新しいopen行として記録する", async () => {
+    vi.setSystemTime(new Date("2026-06-23T00:00:00Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const dedupeKey = "email:test:expired-reopen";
+
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_preparation_failed",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: "test.preparation",
+      errorMessage: "first",
+    });
+    const firstFailure = (await collectFailureInbox(t))[0];
+    await t.run(async (ctx) => {
+      await ctx.db.patch(firstFailure._id, {
+        status: "resolved",
+        resolvedAt: Date.now(),
+        resolutionKind: "expired",
+      });
+    });
+
+    vi.advanceTimersByTime(1000);
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_preparation_failed",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: "test.preparation",
+      errorMessage: "second",
+    });
+
+    const failures = await collectFailureInbox(t);
+    expect(failures).toHaveLength(2);
+    expect(failures.find((failure) => failure._id === firstFailure._id)).toMatchObject({
+      status: "resolved",
+      resolutionKind: "expired",
+      lastError: "first",
+    });
+    expect(failures.find((failure) => failure._id !== firstFailure._id)).toMatchObject({
+      status: "open",
+      lastError: "second",
+    });
+    expect(failures.find((failure) => failure._id !== firstFailure._id)?.resolutionKind).toBeUndefined();
   });
 
   it("期限切れの配送イベントだけを削除する", async () => {
