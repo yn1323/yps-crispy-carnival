@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
@@ -74,15 +74,11 @@ export const StaffRoster = ({
         </Flex>
       </Flex>
 
-      <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-        募集作成・シフト確定時にスタッフへ通知します。届かない場合はスタッフ右のメニューから再送できます。
-      </Text>
-
       {sorted.length === 0 ? (
         <Empty
           icon={LuUsers}
           title="まだスタッフはいません"
-          description="名前とメールアドレスだけでスタッフを登録できます。"
+          description="名前とメールアドレスでスタッフを追加できます。"
           tone="brand"
           variant="section"
         />
@@ -145,14 +141,14 @@ export const StaffRosterSkeleton = () => (
     <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.50" boxShadow="xs" overflow="hidden">
       <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
         {Array.from({ length: 5 }).map((_, index) => (
-          <StaffRowSkeleton key={index} isManager={index === 0} />
+          <StaffRowSkeleton key={index} isManager={index === 0} showLineLinked={index === 0 || index === 2} />
         ))}
       </Stack>
     </Box>
   </Stack>
 );
 
-const StaffRowSkeleton = ({ isManager }: { isManager: boolean }) => (
+const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; showLineLinked: boolean }) => (
   <HStack
     as="article"
     gap={3}
@@ -167,6 +163,7 @@ const StaffRowSkeleton = ({ isManager }: { isManager: boolean }) => (
       <HStack gap={2} align="center" wrap="wrap">
         <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} />
         {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
+        {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
       </HStack>
       <Skeleton h="16px" w="180px" display={{ base: "none", lg: "block" }} />
     </Stack>

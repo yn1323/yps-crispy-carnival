@@ -30,7 +30,7 @@ const COPY: Record<
     tone: "warning",
     title: "LINE連携は完了しました",
     description:
-      "シフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。友だち追加後、募集中のシフトがあればLINEに届きます。",
+      "シフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。友だち追加後、募集中のシフトがある場合はLINEで案内します。",
   },
   expired: {
     icon: LuClock,

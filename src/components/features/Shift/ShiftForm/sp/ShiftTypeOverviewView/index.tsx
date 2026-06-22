@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
 import { getAssignedShiftTypeOptionIdsInOptionOrder } from "@/src/domains/shift/shiftTypeAssignments";
+import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
 import { getShiftTypeOptionColor, type ShiftTypeOptionColor } from "../../pc/shiftTypeOptionStyles";
@@ -96,6 +97,12 @@ export const SPShiftTypeOverviewView = () => {
     return map;
   }, [shifts]);
 
+  // 日別ビューと同じ「早い順」で日付ごとにスタッフを並べ替える。
+  const sortedStaffsByDate = useMemo(
+    () => sortDailyStaffsByDate({ staffs, shifts, mode: "shiftType" }),
+    [staffs, shifts],
+  );
+
   const handleDateTap = useCallback(
     (iso: string) => {
       if (isReadOnly) return;
@@ -151,10 +158,11 @@ export const SPShiftTypeOverviewView = () => {
                 <Box>
                   {weekDates.map((date, index) => {
                     const isClosed = date.inRange && holidays.includes(date.iso);
+                    const dailyStaffs = sortedStaffsByDate.get(date.iso) ?? staffs;
                     const workingStaffs =
                       !date.inRange || isClosed
                         ? []
-                        : staffs
+                        : dailyStaffs
                             .map((staff) => {
                               const shift = shiftByStaffDate.get(`${staff.id}-${date.iso}`);
                               const assignedOptionIds = getAssignedShiftTypeOptionIdsInOptionOrder(

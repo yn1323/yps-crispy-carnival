@@ -467,7 +467,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
         isSubmitDisabled={isLateSubmitting}
       >
         <Text fontSize="sm" lineHeight="tall" color="fg.default">
-          提出締切を過ぎています。提出後はこのリンクから変更できません。変更が必要な場合はシフト作成担当者に連絡してください。
+          提出締切を過ぎています。提出後、このリンクでは変更できません。変更が必要な場合はシフト作成担当者に連絡してください。
         </Text>
       </Dialog>
     </SubmitPageLayout>

@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { type LineApiError, pushTextMessage } from "./lineClient";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type LineApiError, pushTextMessage, replyTextMessage } from "./lineClient";
 
 describe("lineClient", () => {
+  beforeEach(() => {
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -33,5 +37,17 @@ describe("lineClient", () => {
       status: 500,
       body: "server error",
     } satisfies Partial<LineApiError>);
+  });
+
+  it("DEBUG_NOTIFY_FAILはLINE replyを止めない", async () => {
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await replyTextMessage("reply-token", "hello");
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/v2/bot/message/reply");
   });
 });
