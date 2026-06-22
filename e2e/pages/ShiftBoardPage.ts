@@ -55,7 +55,11 @@ export class ShiftBoardPage {
 
   async expectAutomaticReminderInfo() {
     await expect(
-      this.page.getByText(/提出締切の前日17:00に未提出者へ自動で催促します|自動催促の送信予定はありません/).first(),
+      this.page
+        .getByText(
+          /締切前日17:00に自動で催促通知を送ります。|提出締切の前日17:00に未提出者へ自動で催促します|自動催促は設定されていません|自動催促の送信予定はありません/,
+        )
+        .first(),
     ).toBeVisible();
     await expect(this.page.getByRole("button", { name: /催促を送る|催促通知を送る/ })).not.toBeVisible();
   }

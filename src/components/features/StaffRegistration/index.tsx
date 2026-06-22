@@ -76,7 +76,7 @@ export function StaffRegistrationPage({
       <RegistrationGuideShell>
         <PanelFrame tone="success" icon={<LuCheck />} title="申請を送りました">
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            シフト担当者が承認すると、シフト提出の案内がメールで届きます。承認までしばらくおまちください。
+            承認されると、シフト提出の案内がメールで届きます。しばらくお待ちください。
           </Text>
         </PanelFrame>
       </RegistrationGuideShell>

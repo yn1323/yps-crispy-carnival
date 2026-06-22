@@ -56,11 +56,18 @@ const NOOP = {
   onEditClick: () => {},
   onOpenShiftBoard: () => {},
   onCreateRecruitment: () => {},
+  onNotificationFailuresClick: () => {},
 };
 
 const baseArgs = {
   shop: SHOP,
   ...NOOP,
+};
+const allTasksArgs = {
+  ...baseArgs,
+  recruitments: [past, confirmed],
+  hasNotificationFailures: true,
+  staffRegistrationRequest: { count: 1, onClick: () => {} },
 };
 
 export const AfterDeadline: Story = {
@@ -89,6 +96,29 @@ export const WaitingForSubmission: Story = {
     ...baseArgs,
     recruitments: [calm, confirmed],
   },
+};
+
+export const WithNotificationFailures: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [calm, confirmed],
+    hasNotificationFailures: true,
+  },
+};
+
+export const AllTasksDesktop: Story = {
+  args: allTasksArgs,
+};
+
+export const AllTasksMobile: Story = {
+  args: allTasksArgs,
+  decorators: [
+    (Story) => (
+      <Stack maxW="390px" mx="auto" w="full">
+        <Story />
+      </Stack>
+    ),
+  ],
 };
 
 export const NoStaffRegistered: Story = {

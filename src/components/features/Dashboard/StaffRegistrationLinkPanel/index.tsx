@@ -67,7 +67,7 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
     <Stack gap={5}>
       <Stack gap={2}>
         <Text fontSize="sm" color="gray.800" lineHeight="tall">
-          スタッフにQRコードを読み取ってもらうと、スタッフ自ら登録できます。
+          スタッフにQRコードを読み取ってもらうと、スタッフ本人が登録できます。
           <br />
           人数が多い場合は、招待リンクの共有がおすすめです。
         </Text>

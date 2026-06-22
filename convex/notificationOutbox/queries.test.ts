@@ -26,6 +26,21 @@ describe("notificationOutbox/queries", () => {
         email: "other@example.com",
         shopName: "別店舗",
       });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: primary.shopId,
+        name: "不達スタッフ",
+        email: "failure@example.com",
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: primary.shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+      });
       const oldFailureId = await insertFailure(ctx, {
         shopId: primary.shopId,
         failureKey: "outbox:old",
@@ -39,6 +54,9 @@ describe("notificationOutbox/queries", () => {
         status: "open",
         dedupeKey: "email:test:new",
         lastFailedAt: Date.now(),
+        staffId,
+        recruitmentId,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
       await insertFailure(ctx, {
         shopId: primary.shopId,
@@ -73,10 +91,15 @@ describe("notificationOutbox/queries", () => {
       status: "open",
       channel: "email",
       dedupeKey: "email:test:new",
-      notificationContext: "test.email",
+      notificationContext: "notification.sendRecruitmentNotificationEmails",
+      notificationKind: "recruitment",
+      notificationKindLabel: "シフト募集通知",
+      staffName: "不達スタッフ",
+      periodLabel: "7/1(水)〜7/15(水)",
       canRetry: false,
     });
     expect(page.page[0]).not.toHaveProperty("payload");
+    expect(page.page[0]).not.toHaveProperty("lastError");
   });
 
   it("hasOpenFailuresは現在店舗のopen失敗の有無だけを返す", async () => {
@@ -117,6 +140,9 @@ async function insertFailure(
     status: "open" | "retrying" | "resolved";
     dedupeKey: string;
     lastFailedAt?: number;
+    staffId?: Id<"staffs">;
+    recruitmentId?: Id<"recruitments">;
+    notificationContext?: string;
   },
 ) {
   const now = Date.now();
@@ -125,9 +151,11 @@ async function insertFailure(
     sourceType: "outbox",
     status: args.status,
     shopId: args.shopId,
+    ...(args.staffId ? { staffId: args.staffId } : {}),
+    ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
     channel: "email",
     dedupeKey: args.dedupeKey,
-    notificationContext: "test.email",
+    notificationContext: args.notificationContext ?? "test.email",
     firstFailedAt: args.lastFailedAt ?? now,
     lastFailedAt: args.lastFailedAt ?? now,
     lastError: "failed",

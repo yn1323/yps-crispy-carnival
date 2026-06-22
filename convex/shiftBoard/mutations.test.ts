@@ -10,6 +10,10 @@ import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
 import { type AssignmentIssueCode, parseShiftAssignmentValidationError } from "./validation";
 
+const CONFIRMATION_EMAIL_JOB = "notification/actions:sendShiftConfirmationEmails";
+const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
+const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
+
 /** 構造化バリデーションエラーがthrowされ、期待したissuesを全件含むことを検証する */
 async function expectValidationIssues(
   promise: Promise<unknown>,
@@ -97,6 +101,12 @@ async function seedCurrentConfirmationSnapshots(
 
 describe("shiftBoard/mutations", () => {
   describe("saveShiftAssignments", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
+    });
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
       await expect(
@@ -355,6 +365,57 @@ describe("shiftBoard/mutations", () => {
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.draftSavedAt).toBeTypeOf("number");
+    });
+
+    it("過去シフトの下書き保存は拒否し、既存割当を置き換えない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const asManager = t.withIdentity({ subject: "user_manager" });
+
+      await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        if (!recruitment) throw new Error("missing recruitment");
+        const positionId = await ctx.db.insert("positions", {
+          shopId: recruitment.shopId,
+          name: "既存ポジション",
+          color: "#64748b",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        });
+        await ctx.db.patch(recruitmentId, {
+          periodStart: "2026-01-10",
+          periodEnd: "2026-01-12",
+          deadline: "2026-01-09",
+        });
+        await ctx.db.insert("shiftAssignments", {
+          recruitmentId,
+          staffId: staffId1,
+          date: "2026-01-10",
+          startTime: "10:00",
+          endTime: "18:00",
+          positionId,
+        });
+      });
+
+      await expect(
+        asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          recruitmentId,
+          assignments: [{ staffId: staffId1, date: "2026-01-10", startTime: "11:00", endTime: "19:00" }],
+        }),
+      ).rejects.toThrow(PAST_SHIFT_SAVE_ERROR);
+
+      const result = await t.run(async (ctx) => {
+        const recruitment = await ctx.db.get(recruitmentId);
+        const assignments = await ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
+          .collect();
+        return { recruitment, assignments };
+      });
+      expect(result.recruitment?.draftSavedAt).toBeUndefined();
+      expect(result.assignments).toHaveLength(1);
+      expect(result.assignments[0].startTime).toBe("10:00");
     });
 
     it("既存の割当がある場合は全削除して置き換える", async () => {
@@ -668,7 +729,10 @@ describe("shiftBoard/mutations", () => {
   describe("confirmRecruitment", () => {
     // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
     // トランザクション外書き込みエラーを起こすため、タイマーを止めて実行を抑制する
-    beforeEach(() => vi.useFakeTimers());
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
+    });
     afterEach(() => vi.useRealTimers());
 
     it("未認証の場合エラーをthrow", async () => {
@@ -696,6 +760,31 @@ describe("shiftBoard/mutations", () => {
         1,
       );
       expect(scheduled[0].args[0]?.isResend).toBe(false);
+    });
+
+    it("過去シフトの確定通知は拒否し、通知予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          periodStart: "2026-01-10",
+          periodEnd: "2026-01-12",
+          deadline: "2026-01-09",
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          recruitmentId,
+        }),
+      ).rejects.toThrow(PAST_SHIFT_NOTIFY_ERROR);
+
+      const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(recruitment?.status).toBe("open");
+      expect(recruitment?.confirmedAt).toBeUndefined();
+      expect(scheduled.filter((job) => job.name === CONFIRMATION_EMAIL_JOB)).toHaveLength(0);
     });
 
     it("確定済み募集へのconfirm intentは通知を増やさない", async () => {
@@ -859,6 +948,34 @@ describe("shiftBoard/mutations", () => {
       expect(result).toEqual({ status: "scheduled", notifiedStaffCount: SHIFT_BOARD_STAFF_LIMIT });
       expect(resendJob?.args[0]?.targetStaffIds).toHaveLength(SHIFT_BOARD_STAFF_LIMIT);
       expect(resendJob?.args[0]?.targetStaffIds).toEqual(staffIds.slice(0, SHIFT_BOARD_STAFF_LIMIT));
+    });
+
+    it("過去シフトの再通知は拒否し、通知予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await setupTestData(t);
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(recruitmentId, {
+          periodStart: "2026-01-10",
+          periodEnd: "2026-01-12",
+          deadline: "2026-01-09",
+          status: "confirmed",
+          confirmedAt: 1_000,
+        });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          recruitmentId,
+          intent: "resend",
+        }),
+      ).rejects.toThrow(PAST_SHIFT_NOTIFY_ERROR);
+
+      const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(recruitment?.status).toBe("confirmed");
+      expect(recruitment?.confirmedAt).toBe(1_000);
+      expect(scheduled.filter((job) => job.name === CONFIRMATION_EMAIL_JOB)).toHaveLength(0);
     });
 
     it("未確定募集へのresend intentはエラー", async () => {

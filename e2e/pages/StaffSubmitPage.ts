@@ -86,7 +86,7 @@ export class StaffSubmitPage {
     await expect(dialog.getByRole("heading", { name: "提出締切を過ぎています" })).toBeVisible();
     await expect(
       dialog.getByText(
-        "提出締切を過ぎています。提出後はこのリンクから変更できません。変更が必要な場合はシフト作成担当者に連絡してください。",
+        /提出締切を過ぎています。提出後(?:はこのリンクから|、このリンクでは)変更できません。変更が必要な場合はシフト作成担当者に連絡してください。/,
       ),
     ).toBeVisible();
   }

@@ -1,7 +1,8 @@
 import { ConvexError } from "convex/values";
 
 export const CREATE_RECRUITMENT_DUPLICATE_ERROR_CODE = "RECRUITMENT_DUPLICATE";
-export const CREATE_RECRUITMENT_DUPLICATE_ERROR_MESSAGE = "同じシフト募集が存在します。確認してください。";
+export const CREATE_RECRUITMENT_DUPLICATE_ERROR_MESSAGE =
+  "同じ期間の募集がすでにあります。シフト一覧を確認してください。";
 
 function getErrorData(error: unknown): unknown {
   if (error instanceof ConvexError) return error.data;

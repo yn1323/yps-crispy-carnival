@@ -24,6 +24,7 @@ import {
   formatDateTimeWithWeekday,
   formatDateWithWeekday,
   getDateRange,
+  isPastShiftPeriod,
 } from "@/src/domains/shift/date";
 import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
@@ -35,6 +36,9 @@ import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import type { ShiftBoardData } from "../types";
 import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
 import { visibleAssignmentWarnings } from "./warningVisibility";
+
+const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
+const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
 type ShiftRequestRange = { startTime: string; endTime: string; optionId: string | null };
 
@@ -242,6 +246,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
+  const isPastShiftNow = useCallback(() => isPastShiftPeriod(data.recruitment.periodEnd), [data.recruitment.periodEnd]);
 
   const dates = useMemo(
     () => getDateRange(data.recruitment.periodStart, data.recruitment.periodEnd),
@@ -380,7 +385,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     if (data.recruitment.lastReminderSentAt) {
       return {
         kind: "sent",
-        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促通知済み`,
+        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促を送信済み`,
       };
     }
     if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
@@ -391,7 +396,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     }
     return {
       kind: "none",
-      label: "自動催促の送信予定はありません",
+      label: "自動催促は設定されていません",
     };
   }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
 
@@ -402,21 +407,35 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
   const persistCurrentShifts = useCallback(async () => {
+    if (isPastShiftNow()) {
+      toaster.create({ title: PAST_SHIFT_SAVE_ERROR, type: "error" });
+      return false;
+    }
     const shiftsAtSave = shiftsRef.current;
     await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
     baselineShiftsRef.current = shiftsAtSave;
-  }, [buildSaveAssignments, recruitmentId, saveShiftAssignments]);
+    return true;
+  }, [buildSaveAssignments, isPastShiftNow, recruitmentId, saveShiftAssignments]);
 
   // 確定ボタン押下時: フロントで全件評価する。
   // エラーがあれば確認ダイアログを開かず一覧表示。ワーニングは確定をブロックせず、ダイアログ内のサマリーで知らせる。
   const handleConfirmRequest = useCallback(() => {
+    if (isPastShiftNow()) {
+      toaster.create({ title: PAST_SHIFT_NOTIFY_ERROR, type: "error" });
+      return;
+    }
     hasAttemptedConfirmRef.current = true;
     const issues = revalidate(shiftsRef.current);
     if (issues.length > 0) return;
     confirmModal.open();
-  }, [revalidate, confirmModal]);
+  }, [isPastShiftNow, revalidate, confirmModal]);
 
   const { run: handleConfirm, isRunning: isConfirming } = useSingleFlight(async () => {
+    if (isPastShiftNow()) {
+      confirmModal.close();
+      toaster.create({ title: PAST_SHIFT_NOTIFY_ERROR, type: "error" });
+      return;
+    }
     const shiftsAtSave = shiftsRef.current;
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
@@ -435,7 +454,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         return;
       }
       toaster.create({
-        title: isConfirmed ? "変更があるスタッフに通知します" : "確定しました",
+        title: isConfirmed ? "変更があるスタッフへの通知を受け付けました" : "確定しました",
         type: "success",
       });
     } catch (error) {
@@ -447,7 +466,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const { run: performSaveDraft, isRunning: isSavingDraft } = useSingleFlight(async () => {
     try {
-      await persistCurrentShifts();
+      const saved = await persistCurrentShifts();
+      if (!saved) return;
       toaster.create({ title: "保存しました", type: "success" });
     } catch (error) {
       handleMutationError(error);
@@ -475,7 +495,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
 
   const { run: handleSaveAndLeave, isRunning: isSavingAndLeaving } = useSingleFlight(async () => {
     try {
-      await persistCurrentShifts();
+      const saved = await persistCurrentShifts();
+      if (!saved) return;
       toaster.create({ title: "保存しました", type: "success" });
       blocker.proceed?.();
     } catch (error) {

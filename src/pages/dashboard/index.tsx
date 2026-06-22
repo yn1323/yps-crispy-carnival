@@ -10,6 +10,7 @@ import { RootContentWrapper } from "@/src/components/templates/RootContentWrappe
 
 const ACTIVE_RECRUITMENT_QUERY_PAGE_SIZE = 100;
 const PAST_RECRUITMENT_PAGE_SIZE = 5;
+const NOTIFICATION_FAILURE_PAGE_SIZE = 50;
 const STAFF_INITIAL_VISIBLE_COUNT = 10;
 const STAFF_LOAD_MORE_COUNT = 10;
 const STAFF_QUERY_PAGE_SIZE = STAFF_INITIAL_VISIBLE_COUNT + 1;
@@ -45,6 +46,13 @@ export function DashboardPage() {
   const pendingStaffRequests = useQuery(
     api.staffRegistration.queries.getPendingRequests,
     shop === undefined || shop === null ? "skip" : {},
+  );
+  const notificationFailures = usePaginatedQuery(
+    api.notificationOutbox.queries.listOpenFailures,
+    skipPagination ? "skip" : {},
+    {
+      initialNumItems: NOTIFICATION_FAILURE_PAGE_SIZE,
+    },
   );
 
   const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({
@@ -115,6 +123,7 @@ export function DashboardPage() {
           canLoadMoreStaffs={canLoadMoreStaffs}
           loadMoreStaffs={handleLoadMoreStaffs}
           pendingStaffRequests={pendingStaffRequests ?? []}
+          notificationFailures={notificationFailures.results}
           announcement={announcement ?? null}
           isDashboardOnboardingDismissed={Boolean(
             currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,

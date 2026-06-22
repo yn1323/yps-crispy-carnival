@@ -70,7 +70,7 @@ export const LateInitialInteractive: Story = {
     await expect(await screen.findByText("提出締切を過ぎています")).toBeInTheDocument();
     await expect(
       await screen.findByText(
-        "提出締切を過ぎています。提出後はこのリンクから変更できません。変更が必要な場合はシフト作成担当者に連絡してください。",
+        "提出締切を過ぎています。提出後、このリンクでは変更できません。変更が必要な場合はシフト作成担当者に連絡してください。",
       ),
     ).toBeInTheDocument();
 
