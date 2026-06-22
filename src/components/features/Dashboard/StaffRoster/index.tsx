@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
@@ -73,10 +73,6 @@ export const StaffRoster = ({
           </Button>
         </Flex>
       </Flex>
-
-      <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-        募集作成・シフト確定時にスタッフへ通知します。届かない場合はスタッフ右のメニューから再送できます。
-      </Text>
 
       {sorted.length === 0 ? (
         <Empty

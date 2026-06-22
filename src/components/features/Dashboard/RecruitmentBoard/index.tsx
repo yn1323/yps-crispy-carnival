@@ -105,8 +105,8 @@ export const RecruitmentBoard = ({
                     px={2}
                     py={0.5}
                     borderRadius="full"
-                    bg={group.key === "actionRequired" ? "orange.100" : "blackAlpha.50"}
-                    color={group.key === "actionRequired" ? "orange.700" : "fg.muted"}
+                    bg="blackAlpha.50"
+                    color="fg.muted"
                     fontSize="xs"
                     fontWeight="semibold"
                     lineHeight="short"
