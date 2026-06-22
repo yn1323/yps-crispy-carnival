@@ -78,7 +78,7 @@ export const StaffRoster = ({
         <Empty
           icon={LuUsers}
           title="まだスタッフはいません"
-          description="名前とメールアドレスだけでスタッフを登録できます。"
+          description="名前とメールアドレスでスタッフを追加できます。"
           tone="brand"
           variant="section"
         />

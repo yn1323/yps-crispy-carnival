@@ -301,9 +301,9 @@ const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
   icon: LuTriangleAlert,
   iconBg: "orange.100",
   iconFg: "orange.600",
-  title: "不達通知があります",
+  title: "送れなかった通知があります",
   titleColor: "orange.800",
-  description: "送信できなかった通知を確認して再通知できます",
+  description: "送れなかった相手を確認して、もう一度送れます。",
   rowBg: "orange.50/30",
   cta: { label: "通知を確認", palette: "orange", variant: "outline", onClick },
 });
@@ -313,7 +313,7 @@ const createStaffRegistrationRequestTask = (count: number, onClick: () => void):
   icon: LuUserCheck,
   iconBg: "teal.50",
   iconFg: "teal.700",
-  title: `スタッフ参加申請が${count}件あります`,
+  title: `スタッフ登録申請が${count}件あります`,
   description: "内容を確認して承認・却下できます",
   cta: { label: "申請を確認", palette: "teal", variant: "outline", onClick },
 });

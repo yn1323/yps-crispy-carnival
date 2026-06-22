@@ -71,7 +71,7 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
               締切を過ぎたため変更できません
             </Text>
             <Text mt={0.5} fontSize="xs" color="blue.700" lineHeight={1.6}>
-              シフトは調整中です。
+              提出内容をもとに、お店でシフトを調整しています。
               <br />
               確定までしばらくお待ちください。
             </Text>

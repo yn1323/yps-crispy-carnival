@@ -99,8 +99,8 @@ export const Interactive: Story = {
     const resendButton = findButtonByText(canvasElement, "再通知");
     resendButton.click();
     await waitUntil(
-      () => canvasElement.textContent?.includes("再通知済み") ?? false,
-      "再通知済みボタンが表示されませんでした",
+      () => canvasElement.textContent?.includes("再送受付済み") ?? false,
+      "再送受付済みボタンが表示されませんでした",
     );
   },
 };

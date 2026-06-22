@@ -32,7 +32,7 @@ export const StaffRegistrationRequestDialog = ({
   isRejecting = false,
 }: StaffRegistrationRequestDialogProps) => (
   <Dialog
-    title="スタッフ参加申請"
+    title="スタッフ登録申請"
     isOpen={isOpen}
     onOpenChange={onOpenChange}
     onClose={onClose}
@@ -52,7 +52,7 @@ export const StaffRegistrationRequestDialog = ({
   >
     <Stack gap={4} w="full">
       <Text fontSize="sm" color="fg.muted">
-        承認するとスタッフ登録が完了します。LINE連携案内と、募集中シフトがある場合は提出リンクを送ります。
+        承認するとスタッフとして登録されます。LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
       </Text>
       <StaffRegistrationRequestList
         requests={requests}

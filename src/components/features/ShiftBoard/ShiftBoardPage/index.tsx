@@ -385,7 +385,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     if (data.recruitment.lastReminderSentAt) {
       return {
         kind: "sent",
-        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促通知済み`,
+        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促を送信済み`,
       };
     }
     if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
@@ -396,7 +396,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     }
     return {
       kind: "none",
-      label: "自動催促の送信予定はありません",
+      label: "自動催促は設定されていません",
     };
   }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
 
@@ -454,7 +454,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         return;
       }
       toaster.create({
-        title: isConfirmed ? "変更があるスタッフに通知します" : "確定しました",
+        title: isConfirmed ? "変更があるスタッフへの通知を受け付けました" : "確定しました",
         type: "success",
       });
     } catch (error) {

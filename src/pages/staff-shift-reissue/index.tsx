@@ -47,7 +47,7 @@ export function StaffShiftReissuePage({ recruitmentId }: Props) {
           <Empty
             icon={LuSend}
             title="新しい閲覧リンクを送りました"
-            description={"LINE連携済みの方にはLINEに、\nそうでない方にはメールに\n新しい閲覧リンクを送りました。"}
+            description={"LINE連携済みの場合はLINE、\nそれ以外はメールで\n新しい閲覧リンクを送りました。"}
             secondaryDescription={"届かない場合は\nシフト作成担当者に連絡してください。"}
             tone="brand"
           />

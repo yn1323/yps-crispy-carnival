@@ -312,10 +312,10 @@ export const DashboardContent = ({
             }
             return next;
           });
-          toaster.create({ title: "不達通知の再通知を受け付けました", type: "success" });
+          toaster.create({ title: "送れなかった通知の再送を受け付けました", type: "success" });
           return;
         }
-        toaster.create({ title: "再通知できる不達通知がありません", type: "info" });
+        toaster.create({ title: "再送できる通知がありません", type: "info" });
       } catch (error) {
         showErrorToast(error);
       }
@@ -690,7 +690,7 @@ export const DashboardContent = ({
         isLoading={isDeletingRecruitment}
         isSubmitDisabled={isDeletingRecruitment}
       >
-        <Text>本当に削除してよろしいですか？</Text>
+        <Text>この募集を削除すると元に戻せません。</Text>
       </Dialog>
 
       <Dialog
@@ -889,7 +889,7 @@ export const DashboardContent = ({
       </Dialog>
 
       <Dialog
-        title="不達通知一覧"
+        title="送れなかった通知"
         isOpen={notificationFailureDialog.isOpen}
         onOpenChange={handleNotificationFailureDialogOpenChange}
         onClose={handleCloseNotificationFailures}

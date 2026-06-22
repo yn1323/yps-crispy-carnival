@@ -187,14 +187,14 @@ export const WithNotificationFailures: Story = {
     isDashboardOnboardingDismissed: true,
   },
   play: async ({ canvasElement }) => {
-    assertText(canvasElement, "不達通知があります", "不達通知カードの見出し");
+    assertText(canvasElement, "送れなかった通知があります", "通知エラーカードの見出し");
     findButtonByText(canvasElement, "通知を確認").click();
 
     await waitUntil(
-      () => document.body.textContent?.includes("送信できなかった通知をスタッフごとに再通知できます。") ?? false,
-      "不達通知モーダルが表示されませんでした",
+      () => document.body.textContent?.includes("佐藤 真由美") ?? false,
+      "通知エラーモーダルが表示されませんでした",
     );
-    assertText(document.body, "不達通知一覧", "不達通知モーダルのタイトル");
+    assertText(document.body, "送れなかった通知", "通知エラーモーダルのタイトル");
     assertText(document.body, "佐藤 真由美", "モーダル内のスタッフ名");
     assertText(document.body, "シフト募集通知", "モーダル内の通知種別");
     assertText(document.body, "すべて再通知", "モーダル内の一斉再通知ボタン");
@@ -387,7 +387,7 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
 
     assertText(root, "今やること", "承認待ちがある時の通常アクション見出し");
-    assertText(root, "スタッフ参加申請が2件あります", "承認待ちカードの見出し");
+    assertText(root, "スタッフ登録申請が2件あります", "承認待ちカードの見出し");
     assertText(root, "申請を確認", "承認待ちカードのCTA");
     assertNoText(root, "田中 花子", "カード表示時は申請者名を隠す");
     assertNoText(root, "hanako@example.com", "カード表示時は申請者メールを隠す");
@@ -397,10 +397,10 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     confirmButton.click();
 
     await waitUntil(
-      () => document.body.textContent?.includes("承認するとスタッフ登録が完了します。") ?? false,
-      "スタッフ参加申請モーダルが表示されませんでした",
+      () => document.body.textContent?.includes("承認するとスタッフとして登録されます。") ?? false,
+      "スタッフ登録申請モーダルが表示されませんでした",
     );
-    assertText(document.body, "募集中シフトがある場合は提出リンクを送ります", "承認後の通知説明");
+    assertText(document.body, "募集中のシフトがあれば提出リンクも送ります", "承認後の通知説明");
     assertText(document.body, "田中 花子", "モーダル内の承認待ちスタッフ名");
     assertText(document.body, "hanako@example.com", "モーダル内の承認待ちスタッフメール");
     assertText(document.body, "承認", "モーダル内の承認ボタン");

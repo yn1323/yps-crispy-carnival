@@ -52,9 +52,9 @@ export const BenefitsSection = () => (
             lineHeight={{ base: "2rem", md: "3rem", xl: "3.75rem" }}
           >
             <Box as="span" color="teal.700">
-              作る人・出す人
+              シフトを作る人にも、
             </Box>
-            にもやさしく
+            希望を出す人にもやさしく
           </Heading>
           <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">

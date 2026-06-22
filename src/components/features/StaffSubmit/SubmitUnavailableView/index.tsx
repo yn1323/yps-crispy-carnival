@@ -10,7 +10,7 @@ type Props = {
 const PRESENTATION = {
   invalid_link: {
     icon: LuTriangleAlert,
-    title: "このリンクは使用できません",
+    title: "このリンクでは提出できません",
     description: "新しいリンクが必要な場合は、\nシフト作成担当者に連絡してください。",
     tone: "warning" as const,
   },

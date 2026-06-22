@@ -22,8 +22,8 @@ const expiredRegistrationData: StaffRegistrationPageData = {
 
 // 重複・申請済みはエラーではなく「想定内の案内」なので warning トーストで知らせる。
 const DUPLICATE_REGISTRATION_MESSAGE = {
-  already_registered: "このメールアドレスはすでに登録されています。シフト申請開始、確定までしばらくおまちください。",
-  already_applied: "このメールアドレスは申請済みです。承認までしばらくおまちください",
+  already_registered: "このメールアドレスは登録済みです。シフト提出や確定シフトの案内をお待ちください。",
+  already_applied: "このメールアドレスは申請済みです。承認までしばらくお待ちください。",
 } as const;
 
 export function StaffRegistrationRoutePage({ token }: Props) {

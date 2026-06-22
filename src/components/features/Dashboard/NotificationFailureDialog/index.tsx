@@ -38,10 +38,10 @@ export const NotificationFailureDialogContent = ({
     return (
       <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" px={4} py={6} textAlign="center">
         <Text fontWeight="semibold" color="gray.800">
-          不達通知はありません
+          送れなかった通知はありません
         </Text>
         <Text mt={1} fontSize="sm" color="fg.muted">
-          再通知が必要な通知はすべて処理済みです。
+          もう一度送る必要がある通知はすべて処理済みです。
         </Text>
       </Box>
     );
@@ -56,7 +56,7 @@ export const NotificationFailureDialogContent = ({
         direction={{ base: "column", md: "row" }}
       >
         <Text fontSize="sm" color="fg.muted">
-          送信できなかった通知をスタッフごとに再通知できます。
+          送れなかった相手を確認して、もう一度送れます。
         </Text>
         <Button
           size="sm"
@@ -208,7 +208,7 @@ const ResendButton = ({
     return (
       <Button size="sm" variant="outline" colorPalette="gray" disabled gap={1.5} w={fullWidth ? "100%" : undefined}>
         <LuCheck />
-        再通知済み
+        再送受付済み
       </Button>
     );
   }
