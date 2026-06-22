@@ -74,7 +74,7 @@
     "qrcode": "^1.5.4",
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "react-hook-form": "7.79.0",
+    "react-hook-form": "7.80.0",
     "react-icons": "5.5.0",
     "react-joyride": "^3.0.2",
     "resend": "^6.9.2",
