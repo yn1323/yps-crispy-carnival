@@ -1,12 +1,13 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import { resetResendEmailQueueForTest } from "../_lib/resend";
 import type { ScenarioTest } from "../_test/scenarioBuilders";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS } from "../constants";
+import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS, RESEND_EMAIL_SEND_INTERVAL_MS } from "../constants";
 
 async function getOutboxJobs(t: ScenarioTest) {
   return await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
@@ -20,8 +21,11 @@ describe("通知配送outboxシナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    resetResendEmailQueueForTest();
   });
   afterEach(() => {
+    resetResendEmailQueueForTest();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -434,6 +438,110 @@ describe("通知配送outboxシナリオ", () => {
         .filter((link) => link.accessKind === "view")
         .map((link) => ({ recruitmentId: link.recruitmentId, staffId: link.staffId })),
     ).toEqual([{ recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId }]);
+  });
+
+  it("確定シフト通知の複数配送失敗はFailureInbox上で最新1件だけopenにし、一斉再送も1件だけ受け付ける", async () => {
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+    const t = convexTest(schema, modules);
+
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "duplicate-confirmation-manager@example.com",
+        shopName: "重複失敗店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "重複失敗スタッフ",
+        email: "duplicate-confirmation@example.com",
+      });
+      const positionId = await ctx.db.insert("positions", {
+        shopId,
+        name: "シフト",
+        color: "#3b82f6",
+        sortOrder: 0,
+        isDefault: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: scenarioDate(1),
+        periodEnd: scenarioDate(3),
+        deadline: scenarioDate(-1),
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("shiftAssignments", {
+        recruitmentId,
+        staffId,
+        date: scenarioDate(1),
+        startTime: "10:00",
+        endTime: "18:00",
+        positionId,
+      });
+      return { recruitmentId, staffId };
+    });
+
+    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+      recruitmentId: ids.recruitmentId,
+      isResend: true,
+      targetStaffIds: [ids.staffId],
+      notificationRunId: SCENARIO_NOW,
+    });
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    await vi.advanceTimersByTimeAsync(RESEND_EMAIL_SEND_INTERVAL_MS + 1);
+    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
+      recruitmentId: ids.recruitmentId,
+      isResend: true,
+      targetStaffIds: [ids.staffId],
+      notificationRunId: SCENARIO_NOW + 1,
+    });
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const openPage = await t
+      .withIdentity({ subject: MANAGER_SUBJECT })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+    expect(openPage.page).toHaveLength(1);
+    expect(openPage.page[0]).toMatchObject({
+      sourceType: "outbox",
+      notificationKind: "confirmation",
+      staffId: ids.staffId,
+      recruitmentId: ids.recruitmentId,
+      dedupeKey: `email:confirmation:${ids.recruitmentId}:${ids.staffId}:resend:${SCENARIO_NOW + 1}`,
+      canRetry: true,
+    });
+
+    const result = await t
+      .withIdentity({ subject: MANAGER_SUBJECT })
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
+    expect(result).toMatchObject({
+      scheduled: true,
+      scheduledCount: 1,
+      scheduledFailureIds: [openPage.page[0]._id],
+    });
+
+    const [jobs, failures, openAfterResend] = await Promise.all([
+      getOutboxJobs(t),
+      t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect()),
+      t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+    ]);
+    expect(jobs.filter((job) => job.status === "pending")).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      failureKey: `logical:${jobs[0].shopId}:${ids.recruitmentId}:${ids.staffId}:confirmation`,
+      status: "retrying",
+    });
+    expect(openAfterResend.page).toHaveLength(0);
   });
 
   it("配送最終失敗は要対応Inboxに出て、手動再送後はretryingからresolvedまたはopenへ遷移する", async () => {

@@ -522,6 +522,124 @@ async function buildRecruitmentEmail(opts: {
 }
 
 /**
+ * 不達再通知: 1スタッフへ、対象のシフト募集通知だけを通常の LINE / メール振り分けで送る。
+ */
+export const sendRecruitmentNotificationForStaff = internalAction({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    notificationContext: v.string(),
+    notificationRunId: v.optional(v.number()),
+  },
+  handler: async (ctx, { recruitmentId, staffId, notificationContext, notificationRunId }) => {
+    const data = await ctx.runQuery(internal.notification.queries.getRecruitmentNotificationDataForStaff, {
+      recruitmentId,
+      staffId,
+    });
+    if (!data) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const channel = selectChannel(
+      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
+      quota,
+    );
+    const selectedChannel = channel === "line" && data.staff.lineUserId ? "line" : "email";
+    const runId = notificationRunId ?? Date.now();
+    const emailDedupeKey = `email:failureRetryRecruitment:${recruitmentId}:${staffId}:${runId}`;
+    const lineDedupeKey = `line:failureRetryRecruitment:${recruitmentId}:${staffId}:${runId}`;
+    const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
+    if (selectedChannel === "email" && !data.staff.email) return;
+
+    try {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId,
+        expiresAt: getSubmitLinkCutoff(data.recruitment.periodStart),
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+
+      if (selectedChannel === "line" && data.staff.lineUserId) {
+        const fallbackEmail = data.staff.email
+          ? await buildRecruitmentEmail({
+              ctx,
+              shopId: data.shopId,
+              shopName: data.shopName,
+              staff: data.staff,
+              recruitmentId,
+              periodLabel: data.recruitment.periodLabel,
+              deadline: data.recruitment.deadline,
+              magicLinkUrl,
+              suppressDelivery,
+              context: notificationContext,
+              dedupeKey: emailDedupeKey,
+            })
+          : null;
+        await enqueueLine(ctx, {
+          shopId: data.shopId,
+          recruitmentId,
+          staffId: data.staff.staffId,
+          dedupeKey: lineDedupeKey,
+          payload: linePayload({
+            toUserId: data.staff.lineUserId,
+            text: buildRecruitmentLineText({
+              staffName: data.staff.name,
+              shopName: data.shopName,
+              periodLabel: data.recruitment.periodLabel,
+              deadline: formatDeadlineLabel(data.recruitment.deadline),
+              magicLinkUrl,
+            }),
+            suppressDelivery,
+            ...(fallbackEmail ? { fallbackEmail } : {}),
+          }),
+        });
+        return;
+      }
+
+      const email = await buildRecruitmentEmail({
+        ctx,
+        shopId: data.shopId,
+        shopName: data.shopName,
+        staff: data.staff,
+        recruitmentId,
+        periodLabel: data.recruitment.periodLabel,
+        deadline: data.recruitment.deadline,
+        magicLinkUrl,
+        suppressDelivery,
+        context: notificationContext,
+        dedupeKey: emailDedupeKey,
+      });
+      if (!email) return;
+      await enqueueEmail(ctx, {
+        shopId: data.shopId,
+        recruitmentId,
+        staffId: data.staff.staffId,
+        dedupeKey: email.dedupeKey,
+        payload: email.payload,
+      });
+    } catch (e) {
+      await recordNotificationPreparationFailure(
+        ctx,
+        {
+          shopId: data.shopId,
+          recruitmentId,
+          staffId: data.staff.staffId,
+          channel: selectedChannel,
+          dedupeKey,
+          notificationContext,
+        },
+        e,
+        "Failure retry recruitment notification preparation failed",
+      );
+    }
+  },
+});
+
+/**
  * スタッフ追加時: 追加された1スタッフへ、現在募集中の希望提出リンクをメールで送る。
  */
 export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({

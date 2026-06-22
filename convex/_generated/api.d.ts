@@ -54,6 +54,7 @@ import type * as migrations_m002_shops_add_submission_pattern from "../migration
 import type * as migrations_m003_recruitments_add_submission_pattern from "../migrations/m003_recruitments_add_submission_pattern.js";
 import type * as migrations_m004_notification_failure_inbox_backfill from "../migrations/m004_notification_failure_inbox_backfill.js";
 import type * as migrations_m005_shop_billing_states_backfill_free from "../migrations/m005_shop_billing_states_backfill_free.js";
+import type * as migrations_m006_notification_failure_inbox_collapse_duplicates from "../migrations/m006_notification_failure_inbox_collapse_duplicates.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
 import type * as notification_failureRecording from "../notification/failureRecording.js";
@@ -64,6 +65,8 @@ import type * as notification_reminderQueries from "../notification/reminderQuer
 import type * as notification_templates from "../notification/templates.js";
 import type * as notificationOutbox_actions from "../notificationOutbox/actions.js";
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
+import type * as notificationOutbox_failureIdentity from "../notificationOutbox/failureIdentity.js";
+import type * as notificationOutbox_failureResend from "../notificationOutbox/failureResend.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
 import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.js";
@@ -148,6 +151,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m003_recruitments_add_submission_pattern": typeof migrations_m003_recruitments_add_submission_pattern;
   "migrations/m004_notification_failure_inbox_backfill": typeof migrations_m004_notification_failure_inbox_backfill;
   "migrations/m005_shop_billing_states_backfill_free": typeof migrations_m005_shop_billing_states_backfill_free;
+  "migrations/m006_notification_failure_inbox_collapse_duplicates": typeof migrations_m006_notification_failure_inbox_collapse_duplicates;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
   "notification/failureRecording": typeof notification_failureRecording;
@@ -158,6 +162,8 @@ declare const fullApi: ApiFromModules<{
   "notification/templates": typeof notification_templates;
   "notificationOutbox/actions": typeof notificationOutbox_actions;
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
+  "notificationOutbox/failureIdentity": typeof notificationOutbox_failureIdentity;
+  "notificationOutbox/failureResend": typeof notificationOutbox_failureResend;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
   "notificationOutbox/schemas": typeof notificationOutbox_schemas;

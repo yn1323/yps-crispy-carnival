@@ -230,6 +230,52 @@ export const getRecruitmentEmailData = internalQuery({
 });
 
 /**
+ * 不達再通知用に、1スタッフ・1募集のシフト募集通知データを取得する。
+ */
+export const getRecruitmentNotificationDataForStaff = internalQuery({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+  },
+  handler: async (ctx, { recruitmentId, staffId }) => {
+    const [recruitment, staff] = await Promise.all([ctx.db.get(recruitmentId), ctx.db.get(staffId)]);
+    if (!recruitment || recruitment.isDeleted || !staff || staff.isDeleted) return null;
+    if (staff.shopId !== recruitment.shopId) return null;
+
+    const now = Date.now();
+    if (
+      recruitment.status !== "open" ||
+      now >= getSubmitLinkCutoff(recruitment.periodStart) ||
+      now >= getDeadlineCutoff(recruitment.deadline)
+    ) {
+      return null;
+    }
+
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted) return null;
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+
+    return {
+      shopId: recruitment.shopId,
+      shopName: shop.name,
+      recruitment: {
+        recruitmentId: recruitment._id,
+        periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+        periodStart: recruitment.periodStart,
+        deadline: recruitment.deadline,
+      },
+      staff: {
+        staffId: staff._id,
+        name: staff.name,
+        email: staff.email,
+        lineUserId: lineAccount?.lineUserId,
+        lineFollowing: lineAccount?.following,
+      },
+    };
+  },
+});
+
+/**
  * 現在の確定シフト通知を、指定スタッフ1人へ送るためのデータを取得する。
  */
 export const getCurrentConfirmationEmailDataForStaff = internalQuery({

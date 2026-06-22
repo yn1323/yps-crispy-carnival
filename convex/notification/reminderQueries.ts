@@ -57,3 +57,46 @@ export const getReminderEmailData = internalQuery({
     };
   },
 });
+
+/**
+ * 不達再通知用に、1スタッフ分の催促通知データを取得する。
+ */
+export const getReminderEmailDataForStaff = internalQuery({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+  },
+  handler: async (ctx, { recruitmentId, staffId }) => {
+    const [recruitment, staff] = await Promise.all([ctx.db.get(recruitmentId), ctx.db.get(staffId)]);
+    if (!recruitment || recruitment.isDeleted || !staff || staff.isDeleted) return null;
+    if (staff.shopId !== recruitment.shopId) return null;
+    if (recruitment.status !== "open" || !recruitment.reminderScheduledAt) return null;
+    if (Date.now() >= getDeadlineCutoff(recruitment.deadline)) return null;
+
+    const submission = await ctx.db
+      .query("shiftSubmissions")
+      .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+      .first();
+    if (submission) return null;
+
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted) return null;
+    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+    if (!staff.email && !(lineAccount?.lineUserId && lineAccount.following)) return null;
+
+    return {
+      shopId: recruitment.shopId,
+      shopName: shop.name,
+      periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
+      periodStart: recruitment.periodStart,
+      deadline: recruitment.deadline,
+      staff: {
+        staffId: staff._id,
+        name: staff.name,
+        email: staff.email,
+        lineUserId: lineAccount?.lineUserId,
+        lineFollowing: lineAccount?.following,
+      },
+    };
+  },
+});

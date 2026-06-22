@@ -154,3 +154,138 @@ export const sendReminderEmails = internalAction({
     }
   },
 });
+
+/**
+ * 不達再通知: 1スタッフへ、対象の催促通知だけを通常の LINE / メール振り分けで送る。
+ */
+export const sendReminderEmailForStaff = internalAction({
+  args: {
+    recruitmentId: v.id("recruitments"),
+    staffId: v.id("staffs"),
+    notificationRunId: v.optional(v.number()),
+  },
+  handler: async (ctx, { recruitmentId, staffId, notificationRunId }) => {
+    const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailDataForStaff, {
+      recruitmentId,
+      staffId,
+    });
+    if (!data) return;
+
+    const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
+    const suppressDelivery = await ctx.runQuery(
+      internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
+      { shopId: data.shopId },
+    );
+    const expiresAt = getSubmitLinkCutoff(data.periodStart);
+    const deadlineLabel = formatDeadlineLabel(data.deadline);
+    const channel = selectChannel(
+      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
+      quota,
+    );
+    const selectedChannel = channel === "line" && data.staff.lineUserId ? "line" : "email";
+    const runId = notificationRunId ?? Date.now();
+    const emailDedupeKey = `email:failureRetryReminder:${recruitmentId}:${staffId}:${runId}`;
+    const lineDedupeKey = `line:failureRetryReminder:${recruitmentId}:${staffId}:${runId}`;
+    const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
+    if (selectedChannel === "email" && !data.staff.email) return;
+
+    try {
+      const { token } = await ctx.runMutation(internal.notification.mutations.getOrCreateSubmitMagicLink, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        recruitmentId,
+        expiresAt,
+      });
+      const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+
+      if (selectedChannel === "line" && data.staff.lineUserId) {
+        const fallbackEmail = data.staff.email
+          ? {
+              dedupeKey: emailDedupeKey,
+              payload: emailPayload({
+                from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+                to: data.staff.email,
+                subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
+                html: buildReminderEmailHtml({
+                  staffName: data.staff.name,
+                  periodLabel: data.periodLabel,
+                  linkExpiresAtLabel: deadlineLabel,
+                  magicLinkUrl,
+                  lineCtaHtml: await buildLineCtaForStaff(ctx, {
+                    staffId: data.staff.staffId,
+                    shopId: data.shopId,
+                    lineUserId: data.staff.lineUserId,
+                    lineFollowing: data.staff.lineFollowing,
+                    appUrl: APP_URL,
+                  }),
+                }),
+                context: "notification.sendReminderEmails",
+                suppressDelivery,
+              }),
+            }
+          : undefined;
+        await enqueueLine(ctx, {
+          shopId: data.shopId,
+          recruitmentId,
+          staffId: data.staff.staffId,
+          dedupeKey: lineDedupeKey,
+          payload: linePayload({
+            toUserId: data.staff.lineUserId,
+            text: buildReminderLineText({
+              staffName: data.staff.name,
+              shopName: data.shopName,
+              periodLabel: data.periodLabel,
+              linkExpiresAtLabel: deadlineLabel,
+              magicLinkUrl,
+            }),
+            suppressDelivery,
+            ...(fallbackEmail ? { fallbackEmail } : {}),
+          }),
+        });
+        return;
+      }
+
+      const lineCtaHtml = await buildLineCtaForStaff(ctx, {
+        staffId: data.staff.staffId,
+        shopId: data.shopId,
+        lineUserId: data.staff.lineUserId,
+        lineFollowing: data.staff.lineFollowing,
+        appUrl: APP_URL,
+      });
+      await enqueueEmail(ctx, {
+        shopId: data.shopId,
+        recruitmentId,
+        staffId: data.staff.staffId,
+        dedupeKey: emailDedupeKey,
+        payload: emailPayload({
+          from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
+          to: data.staff.email,
+          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
+          html: buildReminderEmailHtml({
+            staffName: data.staff.name,
+            periodLabel: data.periodLabel,
+            linkExpiresAtLabel: deadlineLabel,
+            magicLinkUrl,
+            lineCtaHtml,
+          }),
+          context: "notification.sendReminderEmails",
+          suppressDelivery,
+        }),
+      });
+    } catch (e) {
+      await recordNotificationPreparationFailure(
+        ctx,
+        {
+          shopId: data.shopId,
+          recruitmentId,
+          staffId: data.staff.staffId,
+          channel: selectedChannel,
+          dedupeKey,
+          notificationContext: "notification.sendReminderEmails",
+        },
+        e,
+        "Failure retry reminder notification preparation failed",
+      );
+    }
+  },
+});
