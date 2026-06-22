@@ -22,8 +22,8 @@ export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [], is
     <>
       <Text fontSize="sm" lineHeight="tall" mb={4}>
         {isResend
-          ? "前回通知から変更があるスタッフだけに送ります。LINEで受け取る設定のスタッフにはLINEで、未設定のスタッフにはメールで届きます。"
-          : "LINEで受け取る設定のスタッフにはLINEで、未設定のスタッフにはメールでシフトが届きます。"}
+          ? "前回通知から変更があるスタッフだけに送ります。LINE連携済みのスタッフにはLINE、それ以外のスタッフにはメールで届きます。"
+          : "LINE連携済みのスタッフにはLINE、それ以外のスタッフにはメールで届きます。"}
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
         <Text fontSize="sm">対象: {isResend ? "前回通知から変更があるスタッフ" : `${staffCount}名`}</Text>

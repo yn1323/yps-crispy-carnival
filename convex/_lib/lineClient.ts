@@ -8,11 +8,15 @@
  *   LINE_LOGIN_CHANNEL_ID
  *   LINE_LOGIN_CHANNEL_SECRET
  *   LINE_MESSAGING_CHANNEL_ACCESS_TOKEN
+ *   DEBUG_NOTIFY_FAIL
  */
 
+import { isDebugNotifyFailEnabled } from "./config";
 import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
 
 const LINE_API_BASE = "https://api.line.me";
+const DEBUG_NOTIFY_FAIL_LINE_STATUS = 400;
+const DEBUG_NOTIFY_FAIL_LINE_BODY = "DEBUG_NOTIFY_FAIL is set; LINE notification intentionally failed";
 
 function getMessagingAccessToken(): string {
   const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
@@ -44,6 +48,10 @@ export async function pushTextMessage(
   text: string,
   options: LineDeliveryOptions = {},
 ): Promise<void> {
+  if (isDebugNotifyFailEnabled()) {
+    throwDebugNotifyFailLineError("push");
+  }
+
   if (isNotificationDeliverySuppressed(options)) {
     logSuppressedNotification("line.push", { toUserIdLength: toUserId.length, textLength: text.length });
     return;
@@ -180,4 +188,12 @@ export function buildLineAuthorizeUrl(params: { channelId: string; redirectUri: 
   url.searchParams.set("scope", "profile openid");
   url.searchParams.set("bot_prompt", "aggressive");
   return url.toString();
+}
+
+function throwDebugNotifyFailLineError(kind: "push"): never {
+  throw new LineApiError(
+    `LINE ${kind} failed: ${DEBUG_NOTIFY_FAIL_LINE_STATUS} ${DEBUG_NOTIFY_FAIL_LINE_BODY}`,
+    DEBUG_NOTIFY_FAIL_LINE_STATUS,
+    DEBUG_NOTIFY_FAIL_LINE_BODY,
+  );
 }

@@ -38,7 +38,7 @@ const featureCards: {
   {
     number: "4",
     title: "シフト表を作る",
-    body: "パソコン、スマホ両方で作成できます。",
+    body: "パソコンでもスマホでも作成できます。",
     visual: "shift",
     featured: true,
   },
@@ -82,7 +82,7 @@ export const FeatureSection = ({ headingAs = "h2" }: FeatureSectionProps) => (
             <Box as="span" color="teal.700">
               シフトリ
             </Box>
-            で 希望回収から確定までひとつに
+            で、希望回収から確定までひとつに
           </Heading>
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
             基本情報の設定から未提出確認、シフト表の作成、スタッフへの通知まで、シフトリ1つで進められます。

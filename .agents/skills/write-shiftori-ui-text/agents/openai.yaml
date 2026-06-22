@@ -1,0 +1,4 @@
+interface:
+  display_name: "Shiftori UI Text"
+  short_description: "シフトリのUI文言を自然で行動しやすい日本語に整えます。"
+  default_prompt: "Use $write-shiftori-ui-text to draft or review シフトリ UI labels, buttons, dialogs, toasts, and empty states."

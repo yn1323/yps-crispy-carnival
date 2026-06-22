@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { indexShiftsByStaffIdForDate } from "./shiftLookup";
-import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "./sortStaffs";
+import { compareDefaultStaffOrder, sortDailyStaffs, sortDailyStaffsByDate, sortStaffs } from "./sortStaffs";
 import type { PositionSegment, ShiftData, StaffType } from "./types";
 
 const staffs = [
@@ -252,6 +252,49 @@ describe("sortDailyStaffs", () => {
     expect(
       sortDailyStaffs({ staffs: dailyStaffs, shiftByStaffId, mode: "shiftType" }).map((staff) => staff.id),
     ).toEqual(["staff-a", "staff-b", "staff-c", "staff-d", "staff-e", "staff-f"]);
+  });
+
+  test("日付ごとに、その日のシフトで早い順に並べたMapを返す", () => {
+    const shifts = [
+      shift({
+        staffId: "staff-a",
+        date: "2026-06-01",
+        positions: [segment({ start: "10:00", end: "18:00" })],
+      }),
+      shift({
+        staffId: "staff-b",
+        date: "2026-06-01",
+        positions: [segment({ start: "09:00", end: "17:00" })],
+      }),
+      // staff-aは2日目だけ早い → 日付ごとに並びが変わることを確認
+      shift({
+        staffId: "staff-a",
+        date: "2026-06-02",
+        positions: [segment({ start: "08:00", end: "12:00" })],
+      }),
+      shift({
+        staffId: "staff-b",
+        date: "2026-06-02",
+        positions: [segment({ start: "13:00", end: "21:00" })],
+      }),
+    ];
+
+    const result = sortDailyStaffsByDate({ staffs: dailyStaffs, shifts, mode: "time" });
+
+    expect(
+      result
+        .get("2026-06-01")
+        ?.map((staff) => staff.id)
+        .slice(0, 2),
+    ).toEqual(["staff-b", "staff-a"]);
+    expect(
+      result
+        .get("2026-06-02")
+        ?.map((staff) => staff.id)
+        .slice(0, 2),
+    ).toEqual(["staff-a", "staff-b"]);
+    // シフトのない日付はキーを持たない
+    expect(result.has("2026-06-03")).toBe(false);
   });
 
   test("日ごとは勤務ありグループ内を時間ではなくデフォルト順にする", () => {

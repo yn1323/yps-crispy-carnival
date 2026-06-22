@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { type ActionCtx, internalAction } from "../_generated/server";
+import { isDebugNotifyFailEnabled } from "../_lib/config";
 import { LineApiError, pushTextMessage } from "../_lib/lineClient";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
@@ -73,6 +74,14 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob) {
       job.payload.context,
       { idempotencyKey: `notification-outbox-${job._id}` },
     );
+    return;
+  }
+
+  if (isDebugNotifyFailEnabled()) {
+    await pushTextMessage(job.payload.toUserId, job.payload.text, {
+      suppressDelivery: job.payload.suppressDelivery,
+      retryKey: lineRetryKey(job._id),
+    });
     return;
   }
 

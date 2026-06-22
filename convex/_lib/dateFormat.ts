@@ -73,6 +73,11 @@ export function todayJST(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
 }
 
+/** シフト終了日の翌日 0:00 JST 以降は過去シフトとして扱う。 */
+export function isPastShiftPeriod(periodEnd: string, today: string = todayJST()): boolean {
+  return periodEnd < today;
+}
+
 /** Unix ms（既定: 現在）が属する月を JST基準で "YYYY-MM" として返す */
 export function monthJST(ms: number = Date.now()): string {
   return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);

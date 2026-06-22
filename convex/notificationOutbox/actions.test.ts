@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import { resetResendEmailQueueForTest } from "../_lib/resend";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS, RESEND_RETRY_DELAY_PADDING_MS } from "../constants";
@@ -20,14 +21,12 @@ const fallbackEmail = {
 
 async function setupLineJob(status: number) {
   vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({
-      ok: false,
-      status,
-      text: async () => "line error",
-    })),
-  );
+  const fetchMock = vi.fn(async () => ({
+    ok: false,
+    status,
+    text: async () => "line error",
+  }));
+  vi.stubGlobal("fetch", fetchMock);
 
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
@@ -55,15 +54,18 @@ async function setupLineJob(status: number) {
       text: "hello",
     },
   });
-  return { t, ...ids };
+  return { t, ...ids, fetchMock };
 }
 
 describe("notificationOutbox/actions", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    resetResendEmailQueueForTest();
   });
   afterEach(() => {
+    resetResendEmailQueueForTest();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
@@ -120,6 +122,120 @@ describe("notificationOutbox/actions", () => {
       attemptCount: 1,
     });
     expect(events[0].errorMessage).toContain("LINE push failed: 400");
+  });
+
+  it("DEBUG_NOTIFY_FAIL はLINEを非リトライ失敗としてFailureInboxに出す", async () => {
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+    const { t, shopId, staffId, fetchMock } = await setupLineJob(400);
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      channel: "line",
+      shopId,
+      staffId,
+      status: "failed",
+      attemptCount: 1,
+    });
+    expect(jobs[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "final_failed",
+      shopId,
+      staffId,
+      outboxId: jobs[0]._id,
+      channel: "line",
+      dedupeKey: "line:test:400",
+      notificationContext: "line:test",
+      attemptCount: 1,
+    });
+    expect(events[0].errorMessage).toContain("DEBUG_NOTIFY_FAIL");
+
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      sourceType: "outbox",
+      status: "open",
+      shopId,
+      staffId,
+      outboxId: jobs[0]._id,
+      channel: "line",
+      notificationContext: "line:test",
+    });
+    expect(failures[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+  });
+
+  it("DEBUG_NOTIFY_FAIL はLINE quota fallbackより優先される", async () => {
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "user_mgr",
+        email: "manager@example.com",
+        shopName: "LINE通知店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "LINEスタッフ",
+        email: "line-staff@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.insert("lineQuotaStatus", {
+        checkedAt: Date.now(),
+        totalQuota: 200,
+        consumed: 200,
+        remaining: 0,
+        status: "exceeded",
+        plan: "communication",
+      });
+      return { shopId, staffId };
+    });
+    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId,
+      staffId,
+      dedupeKey: "line:test:debug-quota",
+      payload: {
+        kind: "line",
+        toUserId: "U_test",
+        text: "hello",
+        fallbackEmail,
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      channel: "line",
+      shopId,
+      staffId,
+      status: "failed",
+      dedupeKey: "line:test:debug-quota",
+    });
+    expect(jobs[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      sourceType: "outbox",
+      status: "open",
+      shopId,
+      staffId,
+      channel: "line",
+      notificationContext: "test.fallback",
+    });
   });
 
   it("LINE quota exceeded はfallback emailをenqueueする", async () => {
@@ -237,9 +353,64 @@ describe("notificationOutbox/actions", () => {
     });
     expect(events[0].errorMessage).toContain("rate_limit_exceeded");
   });
+
+  it("DEBUG_NOTIFY_FAIL はメールを非リトライ失敗としてFailureInboxに出す", async () => {
+    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, shopId, staffId } = await setupEmailJob({
+      dedupeKey: "email:test:debug",
+      context: "test.debugEmail",
+      suppressDelivery: true,
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      channel: "email",
+      shopId,
+      staffId,
+      status: "failed",
+      attemptCount: 1,
+    });
+    expect(jobs[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "final_failed",
+      shopId,
+      staffId,
+      outboxId: jobs[0]._id,
+      channel: "email",
+      dedupeKey: "email:test:debug",
+      notificationContext: "test.debugEmail",
+      attemptCount: 1,
+    });
+    expect(events[0].errorMessage).toContain("DEBUG_NOTIFY_FAIL");
+
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      sourceType: "outbox",
+      status: "open",
+      shopId,
+      staffId,
+      outboxId: jobs[0]._id,
+      channel: "email",
+      notificationContext: "test.debugEmail",
+    });
+    expect(failures[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
+  });
 });
 
-async function setupEmailJob() {
+async function setupEmailJob(options: { dedupeKey?: string; context?: string; suppressDelivery?: boolean } = {}) {
+  const dedupeKey = options.dedupeKey ?? "email:test:resend429";
+  const context = options.context ?? "test.resendRetry";
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
     const { shopId } = await seedManagerShop(ctx, {
@@ -256,7 +427,7 @@ async function setupEmailJob() {
     await ctx.db.insert("notificationOutbox", {
       channel: "email",
       status: "pending",
-      dedupeKey: "email:test:resend429",
+      dedupeKey,
       shopId,
       staffId,
       payload: {
@@ -265,7 +436,8 @@ async function setupEmailJob() {
         to: "mail-staff@example.com",
         subject: "retry",
         html: "<p>retry</p>",
-        context: "test.resendRetry",
+        context,
+        ...(options.suppressDelivery ? { suppressDelivery: true } : {}),
       },
       attemptCount: 0,
       nextRunAt: Date.now(),

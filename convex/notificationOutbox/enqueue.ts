@@ -33,6 +33,7 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
     return await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
       channel: input.payload.kind,
       shopId: input.shopId,
+      ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
       ...(input.staffId ? { staffId: input.staffId } : {}),
       ...(input.userId ? { userId: input.userId } : {}),
       dedupeKey: input.dedupeKey,
@@ -49,6 +50,7 @@ async function recordEnqueueFailure(ctx: EnqueueCtx, input: EnqueueNotificationI
     await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "enqueue_failed",
       shopId: input.shopId,
+      ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
       ...(input.staffId ? { staffId: input.staffId } : {}),
       ...(input.userId ? { userId: input.userId } : {}),
       channel: input.payload.kind,

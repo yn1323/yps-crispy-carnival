@@ -25,8 +25,8 @@ export function StaffShiftViewRoutePage({ token }: Props) {
         <StaffCenteredContent>
           <Empty
             icon={LuTriangleAlert}
-            title="しばらく待ってから開いてください"
-            description={"しばらく時間を置いてから\n再度アクセスしてください"}
+            title="アクセスが集中しています"
+            description={"少し時間をおいて、\nもう一度開いてください。"}
             tone="warning"
           />
         </StaffCenteredContent>
@@ -40,7 +40,9 @@ export function StaffShiftViewRoutePage({ token }: Props) {
           <Empty
             icon={LuWifiOff}
             title="ページを開けませんでした"
-            description={"通信が切れた可能性があります。\nもう一度読み込むか、Safari、Chrome、Edgeで開いてください。"}
+            description={
+              "通信が切れた可能性があります。\nもう一度読み込むか、Safari・Chrome・Edgeなどのブラウザで開いてください。"
+            }
             tone="warning"
             action={
               <Button colorPalette="teal" size="md" borderRadius="lg" px={6} onClick={state.retry}>

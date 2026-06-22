@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 import z from "zod";
 import { ChakraProvider } from "@/src/components/config/ChakraProvider.tsx";
 import { ConvexClientProvider } from "@/src/components/config/ConvexProvider.tsx";
+import { RouteErrorFallback } from "@/src/components/ui/ErrorBoundary";
 import { customErrorMap } from "@/src/configs/zod/zop-setup.ts";
 import { CLERK_PUBLISHABLE_KEY, CONVEX_URL, GTM_ID } from "@/src/constants/env";
 import { initGTM } from "@/src/helpers/gtm";
@@ -23,6 +24,7 @@ const router = createRouter({
   scrollRestoration: true,
   defaultStructuralSharing: true,
   defaultPreloadStaleTime: 0,
+  defaultErrorComponent: RouteErrorFallback,
 });
 
 // Register the router instance for type safety

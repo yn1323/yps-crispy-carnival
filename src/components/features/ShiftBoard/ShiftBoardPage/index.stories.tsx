@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Toaster, toaster } from "@/src/components/ui/toaster";
 import type { ShiftBoardData } from "../types";
 import { ShiftBoardPage } from "./index";
 
@@ -100,6 +101,14 @@ const mockDataWithInitialWarnings: ShiftBoardData = {
 const meta = {
   title: "Features/ShiftBoard/ShiftBoardPage",
   component: ShiftBoardPage,
+  decorators: [
+    (Story) => (
+      <>
+        <Story />
+        <Toaster />
+      </>
+    ),
+  ],
   parameters: {
     layout: "fullscreen",
   },
@@ -248,5 +257,48 @@ export const Confirmed: Story = {
         confirmedAt: new Date("2026-03-28T23:15:00").getTime(),
       },
     },
+  },
+};
+
+export const PastDraftSaveBlocked: Story = {
+  name: "Past Draft Save Blocked",
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    toaster.dismiss();
+    const canvas = within(canvasElement);
+
+    await userEvent.click(await canvas.findByLabelText("下書き保存"));
+
+    await expect(await within(document.body).findByText("過去のシフトは保存できません")).toBeInTheDocument();
+    toaster.dismiss();
+  },
+};
+
+export const PastResendBlocked: Story = {
+  name: "Past Resend Blocked",
+  args: {
+    data: {
+      ...mockData,
+      recruitment: {
+        ...mockData.recruitment,
+        status: "confirmed",
+        confirmedAt: new Date("2026-03-28T23:15:00").getTime(),
+      },
+    },
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    toaster.dismiss();
+    const canvas = within(canvasElement);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "もう一度通知" }));
+
+    await expect(await within(document.body).findByText("過去のシフトはスタッフに通知できません")).toBeInTheDocument();
+    expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();
+    toaster.dismiss();
   },
 };

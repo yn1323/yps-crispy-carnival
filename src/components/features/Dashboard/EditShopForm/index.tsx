@@ -57,11 +57,11 @@ const SUBMISSION_PATTERN_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { kind: "dateOnly", label: "日付のみ", description: "出勤可能な日付だけを収集します。" },
-  { kind: "time", label: "時間を自由に設定", description: "スタッフが日ごとに働ける時間を自由に入力します。" },
+  { kind: "dateOnly", label: "日ごと", description: "出勤可能な日付だけを収集します。" },
+  { kind: "time", label: "時間指定", description: "スタッフが日ごとに働ける時間を自由に入力します。" },
   {
     kind: "shiftType",
-    label: "勤務区分から選ぶ",
+    label: "勤務区分",
     description: "早番・遅番など、あらかじめ決めた時間帯から選んでもらいます。",
   },
 ];
@@ -79,7 +79,7 @@ const baseSteps: StepperDialogStep<Step>[] = [
     label: "集め方",
     icon: LuListChecks,
     title: "希望シフトの集め方",
-    description: "スタッフのシフトを提出方法を設定します。",
+    description: "スタッフが希望シフトを提出する方法を設定します。",
   },
   {
     value: "patternSettings",
@@ -93,7 +93,7 @@ const baseSteps: StepperDialogStep<Step>[] = [
     label: "定休日",
     icon: LuCalendarDays,
     title: "定休日",
-    description: "お休みの曜日を押してください。また、募集ごとに細かく調整することも可能です。",
+    description: "定休日があれば選択してください。休みはシフト募集時にも変更できます。",
   },
 ];
 

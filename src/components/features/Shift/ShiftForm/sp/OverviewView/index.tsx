@@ -4,6 +4,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { buildWeeklyGrid, formatDateShort, getWeekdayLabel } from "@/src/domains/shift/date";
+import { sortDailyStaffsByDate } from "@/src/domains/shift/sortStaffs";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
@@ -76,6 +77,9 @@ export const SPOverviewView = () => {
     return map;
   }, [shifts]);
 
+  // 日別ビューと同じ「早い順」で日付ごとにスタッフを並べ替える。
+  const sortedStaffsByDate = useMemo(() => sortDailyStaffsByDate({ staffs, shifts, mode: "time" }), [staffs, shifts]);
+
   const handleDateTap = useCallback(
     (iso: string) => {
       if (isReadOnly) return;
@@ -131,7 +135,9 @@ export const SPOverviewView = () => {
                 <Box>
                   {wkDates.map((d, i) => {
                     const isClosed = d.inRange && holidays.includes(d.iso);
-                    const working = d.inRange && !isClosed ? staffs.filter((s) => lookup.has(`${s.id}-${d.iso}`)) : [];
+                    const dailyStaffs = sortedStaffsByDate.get(d.iso) ?? staffs;
+                    const working =
+                      d.inRange && !isClosed ? dailyStaffs.filter((s) => lookup.has(`${s.id}-${d.iso}`)) : [];
                     const canOpenDaily = !isReadOnly && d.inRange;
                     const warningCount = warningCounts.get(d.iso) ?? 0;
                     return (
