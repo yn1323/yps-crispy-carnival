@@ -4,6 +4,13 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as cons
 export const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
 
+const JST_DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 // フロントの日付は "YYYY-MM-DD" 文字列を正とし、Date#toISOString 由来のTZずれを避ける。
 // 開始日から終了日までの日付配列を取得
 export const getDateRange = (startDate: string, endDate: string): string[] => {
@@ -31,7 +38,11 @@ export const isDateInRange = (date: string, startDate: string, endDate: string):
   return date >= startDate && date <= endDate;
 };
 
-export const isPastShiftPeriod = (periodEnd: string, today = dayjs().format("YYYY-MM-DD")): boolean => {
+export const todayJST = (now: Date | number = Date.now()): string => {
+  return JST_DATE_FORMATTER.format(typeof now === "number" ? new Date(now) : now);
+};
+
+export const isPastShiftPeriod = (periodEnd: string, today = todayJST()): boolean => {
   if (!periodEnd) return false;
   return periodEnd < today;
 };

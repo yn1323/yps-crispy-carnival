@@ -47,6 +47,7 @@ import {
   type DashboardOnboardingStage,
   deriveDashboardOnboardingState,
 } from "./OnboardingCallout/deriveDashboardOnboardingState";
+import { resendAllOpenNotificationFailuresBatches } from "./resendOpenNotificationFailures";
 
 const REVIEWED_RECRUITMENT_STORAGE_KEY = "dashboardOnboardingReviewedRecruitments";
 const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
@@ -303,7 +304,7 @@ export const DashboardContent = ({
       if (retryableFailures.length === 0) return;
 
       try {
-        const result = await resendOpenNotificationFailures({});
+        const result = await resendAllOpenNotificationFailuresBatches(() => resendOpenNotificationFailures({}));
         if (result.scheduledFailureIds.length > 0) {
           setAcceptedNotificationFailureIds((current) => {
             const next = new Set(current);
@@ -312,10 +313,24 @@ export const DashboardContent = ({
             }
             return next;
           });
-          toaster.create({ title: "送れなかった通知の再送を受け付けました", type: "success" });
+          toaster.create({
+            title: result.hasRemainingFailures
+              ? "一部の再送を受け付けました"
+              : "送れなかった通知の再送を受け付けました",
+            description: result.hasRemainingFailures
+              ? "残りの通知は少し時間をおいてから、もう一度再通知してください。"
+              : undefined,
+            type: result.hasRemainingFailures ? "warning" : "success",
+          });
           return;
         }
-        toaster.create({ title: "再送できる通知がありません", type: "info" });
+        toaster.create({
+          title: result.hasRemainingFailures ? "一部の通知を再送できませんでした" : "再送できる通知がありません",
+          description: result.hasRemainingFailures
+            ? "残りの通知は少し時間をおいてから、もう一度再通知してください。"
+            : undefined,
+          type: result.hasRemainingFailures ? "warning" : "info",
+        });
       } catch (error) {
         showErrorToast(error);
       }
