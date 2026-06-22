@@ -105,8 +105,8 @@ export const RecruitmentBoard = ({
                     px={2}
                     py={0.5}
                     borderRadius="full"
-                    bg={group.key === "actionRequired" ? "orange.100" : "blackAlpha.50"}
-                    color={group.key === "actionRequired" ? "orange.700" : "fg.muted"}
+                    bg="blackAlpha.50"
+                    color="fg.muted"
                     fontSize="xs"
                     fontWeight="semibold"
                     lineHeight="short"
@@ -171,53 +171,85 @@ export const RecruitmentBoardSkeleton = () => (
       <Skeleton h="32px" w={{ base: "148px", md: "164px" }} />
     </Flex>
 
-    <Stack gap={{ base: 3, lg: 3.5 }}>
-      {Array.from({ length: 3 }).map((_, index) => (
-        <RecruitmentRowSkeleton key={index} />
+    <Stack gap={{ base: 4, lg: 5 }}>
+      <RecruitmentGroupSkeleton rows={1} tone="current" />
+      <RecruitmentGroupSkeleton rows={2} tone="collecting" />
+    </Stack>
+  </Stack>
+);
+
+const RecruitmentGroupSkeleton = ({ rows, tone }: { rows: number; tone: "current" | "collecting" }) => (
+  <Stack as="section" gap={{ base: 2.5, lg: 3 }}>
+    <HStack gap={2} minH="24px">
+      <Skeleton h="18px" w={tone === "current" ? "96px" : "64px"} />
+      {tone === "collecting" && <Skeleton h="20px" w="36px" borderRadius="full" />}
+    </HStack>
+    <Stack gap={{ base: 2.5, lg: 3 }}>
+      {Array.from({ length: rows }).map((_, index) => (
+        <RecruitmentRowSkeleton key={index} tone={tone} />
       ))}
     </Stack>
   </Stack>
 );
 
-const RecruitmentRowSkeleton = ({
-  accent = "green.100",
-  borderColor = "blackAlpha.50",
-  bg = "white",
-}: {
-  accent?: string;
-  borderColor?: string;
-  bg?: string;
-}) => (
-  <Flex
-    align="stretch"
-    bg={bg}
-    borderRadius="xl"
-    overflow="hidden"
-    borderWidth="1px"
-    borderColor={borderColor}
-    boxShadow="xs"
-    w="full"
-    minH={{ base: "88px", lg: "66px" }}
-  >
-    <Box w="4px" bg={accent} flexShrink={0} />
-    <Flex flex={1} minW={0} px={{ base: 3.5, lg: 4 }} py={3} align="stretch" gap={{ base: 2, lg: 3 }}>
+const RecruitmentRowSkeleton = ({ tone }: { tone: "current" | "collecting" }) => {
+  const accent = tone === "current" ? "blue.200" : "green.100";
+  const borderColor = tone === "current" ? "blue.100" : "blackAlpha.50";
+  const bg = tone === "current" ? "blue.50/30" : "white";
+
+  return (
+    <Flex
+      align="stretch"
+      bg={bg}
+      borderRadius="xl"
+      overflow="hidden"
+      borderWidth="1px"
+      borderColor={borderColor}
+      boxShadow="xs"
+      w="full"
+    >
+      <Box w="4px" bg={accent} flexShrink={0} />
       <Flex
         flex={1}
         minW={0}
-        direction={{ base: "column", lg: "row" }}
-        align={{ base: "stretch", lg: "center" }}
-        gap={{ base: 2, lg: 4 }}
+        px={{ base: 3.5, lg: 4 }}
+        py={{ base: 2.5, lg: 3 }}
+        align="stretch"
+        gap={{ base: 1.5, lg: 3 }}
       >
-        <Skeleton h="22px" w={{ base: "152px", lg: "140px" }} flexShrink={0} />
-        <HStack gap={{ base: 2, lg: 5 }} flex={1} minW={0} wrap={{ base: "wrap", lg: "nowrap" }}>
-          <Skeleton h="24px" w="72px" borderRadius="full" flexShrink={0} />
-          <Skeleton h="18px" w="120px" flexShrink={0} />
-          <Skeleton h="18px" w="80px" flexShrink={0} />
-        </HStack>
+        <Flex
+          flex={1}
+          minW={0}
+          direction={{ base: "column", lg: "row" }}
+          align={{ base: "stretch", lg: "center" }}
+          gap={{ base: 1.5, lg: 4 }}
+        >
+          <HStack gap={3} flexShrink={0} minW={{ lg: "140px" }}>
+            <Skeleton h="22px" w={{ base: "152px", lg: "140px" }} />
+          </HStack>
+          <Flex
+            flex={1}
+            minW={0}
+            direction="row"
+            align="center"
+            justify={{ base: "space-between", md: "flex-end" }}
+            gap={{ base: 2, md: 4 }}
+            wrap={{ base: "wrap", sm: "nowrap" }}
+          >
+            <HStack minW={{ lg: tone === "current" ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
+              <Skeleton h="22px" w="72px" borderRadius="full" />
+              {tone === "current" && <Skeleton h="22px" w="84px" borderRadius="full" />}
+            </HStack>
+            <HStack gap={{ base: 3, lg: 8 }} flex={1} justify="flex-end" align="center" minW={0} wrap="nowrap">
+              <Skeleton h="18px" w={{ base: "96px", lg: "112px" }} />
+              <Skeleton h="18px" w="88px" flexShrink={0} />
+            </HStack>
+          </Flex>
+        </Flex>
+      </Flex>
+      <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
+        <Skeleton boxSize="32px" borderRadius="md" />
       </Flex>
     </Flex>
-    <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
-      <Skeleton boxSize="32px" borderRadius="md" />
-    </Flex>
-  </Flex>
-);
+  );
+};

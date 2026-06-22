@@ -20,6 +20,7 @@ export const migration = migrations.define({
       sourceType: "outbox",
       status: "open",
       shopId: doc.shopId,
+      ...(doc.recruitmentId ? { recruitmentId: doc.recruitmentId } : {}),
       ...(doc.staffId ? { staffId: doc.staffId } : {}),
       ...(doc.userId ? { userId: doc.userId } : {}),
       outboxId: doc._id,

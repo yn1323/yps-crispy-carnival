@@ -68,7 +68,7 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
           loading={isSubmitting}
           onClick={handleAccept}
         >
-          OK
+          同意して続ける
         </Button>
       </Flex>
     </Box>

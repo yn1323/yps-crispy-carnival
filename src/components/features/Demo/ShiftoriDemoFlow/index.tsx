@@ -332,9 +332,9 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
             このデモページは閉じて大丈夫です。
           </Text>
           <Text color="fg.muted" lineHeight={1.8}>
-            各ページ実際に操作することもできます。
+            各画面はこのあとも操作できます。
             <br />
-            お時間あれば再度触ってみて使い心地を試してみてください！
+            時間があれば、もう一度触って使い心地を試してみてください。
           </Text>
           <DemoCompleteCta />
           {showCloseHelp && (

@@ -358,6 +358,7 @@ const schema = defineSchema({
     status: notificationOutboxStatusValidator,
     dedupeKey: v.string(),
     shopId: v.id("shops"),
+    recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
     payload: notificationPayloadValidator,
@@ -379,6 +380,7 @@ const schema = defineSchema({
     createdAt: v.number(),
     expiresAt: v.number(),
     shopId: v.optional(v.id("shops")),
+    recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
     outboxId: v.optional(v.id("notificationOutbox")),
@@ -400,6 +402,7 @@ const schema = defineSchema({
     sourceType: notificationFailureInboxSourceTypeValidator,
     status: notificationFailureInboxStatusValidator,
     shopId: v.id("shops"),
+    recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
     outboxId: v.optional(v.id("notificationOutbox")),
@@ -421,6 +424,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   })
     .index("by_failureKey", ["failureKey"])
+    .index("by_status_firstFailedAt", ["status", "firstFailedAt"])
     .index("by_shopId_status_lastFailedAt", ["shopId", "status", "lastFailedAt"])
     .index("by_outboxId", ["outboxId"])
     .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"]),

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   addDays,
   buildWeeklyGrid,
@@ -8,7 +8,9 @@ import {
   getInclusiveDateCount,
   getWeekStartDate,
   isDateInRange,
+  isPastShiftPeriod,
   pruneDatesInRange,
+  todayJST,
 } from "./date";
 
 describe("date helpers", () => {
@@ -25,6 +27,22 @@ describe("date helpers", () => {
   test("日付が範囲内か判定できる", () => {
     expect(isDateInRange("2026-06-02", "2026-06-01", "2026-06-03")).toBe(true);
     expect(isDateInRange("2026-06-04", "2026-06-01", "2026-06-03")).toBe(false);
+  });
+
+  test("シフト期間の終了日を過ぎたら過去シフトとして扱う", () => {
+    expect(isPastShiftPeriod("2026-06-03", "2026-06-03")).toBe(false);
+    expect(isPastShiftPeriod("2026-06-03", "2026-06-04")).toBe(true);
+  });
+
+  test("シフト期間の終了日はブラウザのローカル日付ではなくJSTの今日で判定する", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-03T15:30:00.000Z"));
+    try {
+      expect(todayJST()).toBe("2026-06-04");
+      expect(isPastShiftPeriod("2026-06-03")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("期間外の日付を除外してソートできる", () => {

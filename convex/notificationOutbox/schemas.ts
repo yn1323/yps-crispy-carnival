@@ -11,13 +11,18 @@ export const notificationOutboxStatusValidator = v.union(
 
 export const notificationDeliveryEventTypeValidator = v.union(
   v.literal("enqueue_failed"),
+  v.literal("enqueue_preparation_failed"),
   v.literal("retry_scheduled"),
   v.literal("final_failed"),
   v.literal("fallback_enqueued"),
   v.literal("worker_failed"),
 );
 
-export const notificationFailureInboxSourceTypeValidator = v.union(v.literal("outbox"), v.literal("enqueue"));
+export const notificationFailureInboxSourceTypeValidator = v.union(
+  v.literal("outbox"),
+  v.literal("enqueue"),
+  v.literal("enqueue_preparation"),
+);
 
 export const notificationFailureInboxStatusValidator = v.union(
   v.literal("open"),
@@ -29,6 +34,7 @@ export const notificationFailureResolutionKindValidator = v.union(
   v.literal("sent"),
   v.literal("dismissed"),
   v.literal("superseded"),
+  v.literal("expired"),
 );
 
 export const notificationEmailPayloadValidator = v.object({

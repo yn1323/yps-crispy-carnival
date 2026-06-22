@@ -14,11 +14,11 @@ export class StaffRegistrationPage {
     await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeVisible();
   }
 
-  async submitRequestAndExpectError(data: { name: string; email: string }, errorMessage: string) {
+  async submitRequestAndExpectError(data: { name: string; email: string }, errorMessage: string | RegExp) {
     await this.fillRequestForm(data);
     await this.page.getByRole("button", { name: "申請する" }).click();
 
-    await expect(this.page.getByText(errorMessage)).toBeVisible();
+    await expect(this.page.getByText(errorMessage).first()).toBeVisible();
     await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeHidden();
   }
 

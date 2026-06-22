@@ -9,6 +9,8 @@ import {
   LuCircleCheck,
   LuPlus,
   LuSparkles,
+  LuTriangleAlert,
+  LuUserCheck,
   LuUsers,
 } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
@@ -28,7 +30,12 @@ type Props = {
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
   announcementBanner?: ReactNode;
-  staffRegistrationRequestBanner?: ReactNode;
+  staffRegistrationRequest?: {
+    count: number;
+    onClick: () => void;
+  };
+  hasNotificationFailures?: boolean;
+  onNotificationFailuresClick?: () => void;
   hideActionSection?: boolean;
 };
 
@@ -39,7 +46,9 @@ export const HeroSummary = ({
   onOpenShiftBoard,
   onCreateRecruitment,
   announcementBanner,
-  staffRegistrationRequestBanner,
+  staffRegistrationRequest,
+  hasNotificationFailures = false,
+  onNotificationFailuresClick,
   hideActionSection = false,
 }: Props) => {
   const action = pickNextAction(recruitments);
@@ -87,8 +96,15 @@ export const HeroSummary = ({
             </Heading>
           </HStack>
 
-          <ActionCard action={action} onOpenShiftBoard={onOpenShiftBoard} onCreateRecruitment={onCreateRecruitment} />
-          {staffRegistrationRequestBanner}
+          <ActionTaskList
+            action={action}
+            onOpenShiftBoard={onOpenShiftBoard}
+            onCreateRecruitment={onCreateRecruitment}
+            notificationTask={
+              hasNotificationFailures && onNotificationFailuresClick ? { onClick: onNotificationFailuresClick } : null
+            }
+            staffRegistrationRequest={staffRegistrationRequest}
+          />
         </Stack>
       )}
     </Stack>
@@ -112,34 +128,43 @@ export const HeroSummarySkeleton = () => (
         <Skeleton h={{ base: "26px", lg: "30px" }} w="112px" />
       </HStack>
 
-      <Flex
-        bg="teal.50/30"
+      <Stack
+        gap={0}
+        bg="white"
         borderRadius="xl"
         borderWidth="1px"
-        borderColor="teal.100"
+        borderColor="blackAlpha.50"
         boxShadow="xs"
-        px={{ base: 4, md: 6, lg: 7 }}
-        py={{ base: 5, lg: 6 }}
-        gap={{ base: 4, md: 6 }}
-        align={{ base: "stretch", md: "center" }}
-        direction={{ base: "column", md: "row" }}
-        minH={{ base: "154px", md: "130px" }}
+        overflow="hidden"
       >
-        <HStack gap={{ base: 3, md: 5 }} flex={1} minW={0}>
-          <Skeleton boxSize={{ base: "48px", md: "80px" }} borderRadius="full" flexShrink={0} />
-          <Stack gap={3} minW={0} flex={1}>
-            <Skeleton h={{ base: "24px", md: "32px" }} w={{ base: "220px", md: "320px" }} maxW="100%" />
-            <HStack gap={2} wrap="wrap">
-              <Skeleton h="26px" w="112px" borderRadius="full" />
-              <Skeleton h="26px" w="92px" borderRadius="full" />
-              <Skeleton h="26px" w="128px" borderRadius="full" />
-            </HStack>
-          </Stack>
-        </HStack>
-        <Skeleton h={{ base: "36px", md: "40px" }} w={{ base: "100%", md: "132px" }} flexShrink={0} />
-      </Flex>
+        <ActionTaskRowSkeleton />
+      </Stack>
     </Stack>
   </Stack>
+);
+
+const ActionTaskRowSkeleton = () => (
+  <Flex
+    bg="white"
+    px={{ base: 4, md: 6, lg: 7 }}
+    py={{ base: 4, md: 5 }}
+    gap={{ base: 4, md: 5 }}
+    align={{ base: "stretch", md: "center" }}
+    direction={{ base: "column", md: "row" }}
+  >
+    <HStack gap={{ base: 3, md: 4 }} align={{ base: "flex-start", md: "center" }} flex={1} minW={0}>
+      <Skeleton boxSize={{ base: "48px", md: "56px" }} borderRadius="full" flexShrink={0} />
+      <Stack gap={2} minW={0} flex={1}>
+        <Skeleton h={{ base: "20px", md: "24px" }} w={{ base: "220px", md: "300px" }} maxW="100%" />
+        <HStack gap={2} wrap="wrap">
+          <Skeleton h="24px" w="112px" borderRadius="full" />
+          <Skeleton h="24px" w="92px" borderRadius="full" />
+          <Skeleton h="24px" w="128px" borderRadius="full" />
+        </HStack>
+      </Stack>
+    </HStack>
+    <Skeleton h={{ base: "40px", md: "40px" }} w={{ base: "100%", md: "136px" }} flexShrink={0} />
+  </Flex>
 );
 
 type WelcomeHeroProps = {
@@ -192,55 +217,126 @@ const WelcomeHeroImage = (props: ComponentProps<typeof Flex>) => (
   </Flex>
 );
 
-// ---------- ActionCard ----------
+// ---------- ActionTaskList ----------
 
-type ActionCardProps = {
+type ActionTaskListProps = {
   action: NextAction;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
+  notificationTask: { onClick: () => void } | null;
+  staffRegistrationRequest?: {
+    count: number;
+    onClick: () => void;
+  };
 };
 
-const ActionCard = ({ action, onOpenShiftBoard, onCreateRecruitment }: ActionCardProps) => {
-  if (action.kind === "idle") {
-    return (
-      <SlimCard
-        icon={LuSparkles}
-        iconBg="teal.100"
-        iconFg="teal.700"
-        border="teal.100"
-        title="次の募集をつくりましょう"
-        metaItems={[{ label: "募集中のシフトなし" }]}
-        cta={{ label: "募集をつくる", icon: LuPlus, palette: "teal", variant: "solid" }}
-        onClick={onCreateRecruitment}
-      />
-    );
-  }
-  const view = describeAction(action);
+const ActionTaskList = ({
+  action,
+  onOpenShiftBoard,
+  onCreateRecruitment,
+  notificationTask,
+  staffRegistrationRequest,
+}: ActionTaskListProps) => {
+  const tasks = [
+    createShiftActionTask(action, onOpenShiftBoard, onCreateRecruitment),
+    notificationTask ? createNotificationFailureTask(notificationTask.onClick) : null,
+    staffRegistrationRequest
+      ? createStaffRegistrationRequestTask(staffRegistrationRequest.count, staffRegistrationRequest.onClick)
+      : null,
+  ].filter((task): task is ActionTask => task !== null);
+
   return (
-    <SlimCard
-      icon={view.icon}
-      iconBg={view.iconBg}
-      iconFg={view.iconFg}
-      border={view.border}
-      title={view.title}
-      metaItems={view.metaItems}
-      cta={view.cta}
-      onClick={() => onOpenShiftBoard(getRecruitmentId(action))}
-    />
+    <Stack
+      gap={0}
+      bg="white"
+      borderRadius="xl"
+      borderWidth="1px"
+      borderColor="blackAlpha.50"
+      boxShadow="xs"
+      overflow="hidden"
+    >
+      {tasks.map((task, index) => (
+        <ActionTaskRow key={task.key} task={task} isFirst={index === 0} />
+      ))}
+    </Stack>
   );
 };
 
+const createShiftActionTask = (
+  action: NextAction,
+  onOpenShiftBoard: (recruitmentId: string) => void,
+  onCreateRecruitment: () => void,
+): ActionTask => {
+  if (action.kind === "idle") {
+    return {
+      key: "shift-action",
+      icon: LuSparkles,
+      iconBg: "teal.100",
+      iconFg: "teal.700",
+      title: "次の募集をつくりましょう",
+      metaItems: [{ label: "募集中のシフトなし" }],
+      cta: { label: "募集をつくる", icon: LuPlus, palette: "teal", variant: "solid", onClick: onCreateRecruitment },
+    };
+  }
+
+  const view = describeAction(action);
+  return {
+    key: "shift-action",
+    icon: view.icon,
+    iconBg: view.iconBg,
+    iconFg: view.iconFg,
+    title: view.title,
+    titleColor: view.titleColor,
+    rowBg: view.rowBg,
+    metaItems: view.metaItems,
+    cta: {
+      ...view.cta,
+      onClick: () => onOpenShiftBoard(getRecruitmentId(action)),
+    },
+  };
+};
+
+const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
+  key: "notification-failure",
+  icon: LuTriangleAlert,
+  iconBg: "orange.100",
+  iconFg: "orange.600",
+  title: "送れなかった通知があります",
+  titleColor: "orange.800",
+  description: "送れなかった相手を確認して、もう一度送れます。",
+  rowBg: "orange.50/30",
+  cta: { label: "通知を確認", palette: "orange", variant: "outline", onClick },
+});
+
+const createStaffRegistrationRequestTask = (count: number, onClick: () => void): ActionTask => ({
+  key: "staff-registration-request",
+  icon: LuUserCheck,
+  iconBg: "teal.50",
+  iconFg: "teal.700",
+  title: `スタッフ登録申請が${count}件あります`,
+  description: "内容を確認して承認・却下できます",
+  cta: { label: "申請を確認", palette: "teal", variant: "outline", onClick },
+});
+
 const getRecruitmentId = (action: Exclude<NextAction, { kind: "idle" }>) => action.recruitment._id;
 
-type SlimCardProps = {
+type ActionTask = {
+  key: string;
   icon: IconType;
   iconBg: string;
   iconFg: string;
-  border: string;
   title: string;
-  metaItems: MetaItem[];
-  cta: { label: string; icon?: IconType; palette: "teal" | "orange"; variant: "solid" | "outline" };
-  onClick: () => void;
+  titleColor?: string;
+  description?: string;
+  rowBg?: string;
+  metaItems?: MetaItem[];
+  cta: {
+    label: string;
+    icon?: IconType;
+    palette: "teal" | "orange";
+    variant: "solid" | "outline";
+    onClick: () => void;
+  };
 };
 
 type MetaItem = {
@@ -249,58 +345,77 @@ type MetaItem = {
   emphasis?: boolean;
 };
 
-const SlimCard = ({ icon: Icon, iconBg, iconFg, border, title, metaItems, cta, onClick }: SlimCardProps) => (
-  <Flex
-    bg="teal.50/30"
-    borderRadius="xl"
-    borderWidth="1px"
-    borderColor={border}
-    boxShadow="xs"
-    px={{ base: 4, md: 6, lg: 7 }}
-    py={{ base: 5, lg: 6 }}
-    gap={{ base: 4, md: 6 }}
-    align={{ base: "stretch", md: "center" }}
-    direction={{ base: "column", md: "row" }}
-  >
-    <HStack gap={{ base: 3, md: 5 }} flex={1} minW={0}>
-      <Flex
-        boxSize={{ base: "48px", md: "80px" }}
-        borderRadius="full"
-        bg={iconBg}
-        color={iconFg}
-        align="center"
-        justify="center"
-        flexShrink={0}
-      >
-        <Icon size={32} />
-      </Flex>
-      <Stack gap={1.5} minW={0}>
-        <Text fontSize={{ base: "lg", md: "2xl" }} fontWeight="bold" color="gray.900" lineHeight="short">
-          {title}
-        </Text>
-        <HStack gap={2} wrap="wrap" pt={1}>
-          {metaItems.map((item) => (
-            <MetaChip key={item.label} item={item} />
-          ))}
-        </HStack>
-      </Stack>
-    </HStack>
-    <Button
-      colorPalette={cta.palette}
-      variant={cta.variant}
-      size={{ base: "sm", md: "md" }}
-      gap={1.5}
-      fontWeight="semibold"
-      alignSelf={{ base: "stretch", md: "center" }}
-      flexShrink={0}
-      onClick={onClick}
+const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }) => {
+  const Icon = task.icon;
+  const CtaIcon = task.cta.icon;
+
+  return (
+    <Flex
+      bg={task.rowBg ?? "white"}
+      px={{ base: 4, md: 6, lg: 7 }}
+      py={{ base: 4, md: 5 }}
+      gap={{ base: 4, md: 5 }}
+      align={{ base: "stretch", md: "center" }}
+      direction={{ base: "column", md: "row" }}
+      borderTopWidth={isFirst ? 0 : "1px"}
+      borderColor="gray.100"
     >
-      {cta.icon && <cta.icon />}
-      {cta.label}
-      {!cta.icon && <LuArrowRight />}
-    </Button>
-  </Flex>
-);
+      <HStack gap={{ base: 3, md: 4 }} align={{ base: "flex-start", md: "center" }} flex={1} minW={0}>
+        <Flex
+          boxSize={{ base: "48px", md: "56px" }}
+          borderRadius="full"
+          bg={task.iconBg}
+          color={task.iconFg}
+          align="center"
+          justify="center"
+          flexShrink={0}
+          borderWidth={task.key === "staff-registration-request" ? "1px" : 0}
+          borderColor={task.key === "staff-registration-request" ? "teal.200" : undefined}
+        >
+          <Icon size={28} />
+        </Flex>
+        <Stack gap={1.5} minW={0} flex={1}>
+          <Text
+            fontSize={{ base: "md", md: "lg" }}
+            fontWeight="bold"
+            color={task.titleColor ?? "gray.900"}
+            lineHeight="short"
+          >
+            {task.title}
+          </Text>
+          {task.description && (
+            <Text fontSize={{ base: "sm", md: "sm" }} color="gray.700" lineHeight="tall">
+              {task.description}
+            </Text>
+          )}
+          {task.metaItems && task.metaItems.length > 0 && (
+            <HStack gap={2} wrap="wrap" pt={0.5}>
+              {task.metaItems.map((item) => (
+                <MetaChip key={item.label} item={item} />
+              ))}
+            </HStack>
+          )}
+        </Stack>
+      </HStack>
+      <Button
+        colorPalette={task.cta.palette}
+        variant={task.cta.variant}
+        size="md"
+        gap={1.5}
+        fontWeight="semibold"
+        alignSelf={{ base: "stretch", md: "center" }}
+        justifyContent="center"
+        minW={{ md: "136px" }}
+        flexShrink={0}
+        onClick={task.cta.onClick}
+      >
+        {CtaIcon && <CtaIcon />}
+        {task.cta.label}
+        {!CtaIcon && <LuArrowRight />}
+      </Button>
+    </Flex>
+  );
+};
 
 const MetaChip = ({ item }: { item: MetaItem }) => {
   const MetaIcon = item.icon;
@@ -327,8 +442,9 @@ type ActionView = {
   icon: IconType;
   iconBg: string;
   iconFg: string;
-  border: string;
   title: string;
+  titleColor?: string;
+  rowBg?: string;
   metaItems: MetaItem[];
   cta: { label: string; palette: "teal" | "orange"; variant: "solid" | "outline" };
 };
@@ -341,8 +457,8 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCircleAlert,
         iconBg: "orange.100",
         iconFg: "orange.600",
-        border: "orange.200",
         title: "シフトを組んでスタッフに共有しましょう",
+        rowBg: "orange.50/30",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
@@ -357,8 +473,8 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCircleAlert,
         iconBg: "orange.100",
         iconFg: "orange.600",
-        border: "orange.200",
         title: "本日締切日です",
+        rowBg: "orange.50/30",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
@@ -373,7 +489,6 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCalendarClock,
         iconBg: "teal.100",
         iconFg: "teal.700",
-        border: "teal.200",
         title: "シフト回収中です。しばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
@@ -389,7 +504,6 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCalendarClock,
         iconBg: "teal.50",
         iconFg: "teal.700",
-        border: "teal.100",
         title: "シフト回収中です。しばらくお待ちください。",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),

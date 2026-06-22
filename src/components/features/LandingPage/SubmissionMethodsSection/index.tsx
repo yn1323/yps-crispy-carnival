@@ -24,7 +24,7 @@ const submissionMethods: SubmissionMethod[] = [
     key: "date",
     icon: LuCalendarCheck,
     tabLabel: "日ごとに提出",
-    lead: "出勤できる日・休みたい日を、かんたんに選べます。",
+    lead: "出勤できる日を選ぶだけで提出できます。",
     imageSrc: dayImage,
     imageAlt: "日ごとにシフト希望を提出する画面イメージ",
     points: ["出勤できる日だけ選んで提出", "未選択の日もひと目で確認"],
@@ -74,7 +74,7 @@ export const SubmissionMethodsSection = () => {
             </Heading>
             <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
             <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="760px">
-              現在と同じように提出できます。
+              お店の集め方に合わせて提出できます。
               <Box as="span" display={{ base: "inline", md: "block" }}>
                 固定シフトのお店も、日によって働ける時間が変わるお店も使えます。
               </Box>

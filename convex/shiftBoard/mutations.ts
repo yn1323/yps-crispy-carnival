@@ -1,11 +1,15 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
+import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
 import { ensureDefaultPosition } from "../position/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
+
+const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
+const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
 export const saveShiftAssignments = managerMutation({
   args: {
@@ -25,6 +29,9 @@ export const saveShiftAssignments = managerMutation({
     const recruitment = await ctx.db.get(args.recruitmentId);
     if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
       throw new ConvexError("Not found");
+    }
+    if (isPastShiftPeriod(recruitment.periodEnd)) {
+      throw new ConvexError(PAST_SHIFT_SAVE_ERROR);
     }
 
     const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
@@ -101,6 +108,9 @@ export const confirmRecruitment = managerMutation({
     const recruitment = await ctx.db.get(args.recruitmentId);
     if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
       throw new ConvexError("Not found");
+    }
+    if (isPastShiftPeriod(recruitment.periodEnd)) {
+      throw new ConvexError(PAST_SHIFT_NOTIFY_ERROR);
     }
 
     const isResend = recruitment.status === "confirmed";

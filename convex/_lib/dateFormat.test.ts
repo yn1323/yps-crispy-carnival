@@ -11,6 +11,7 @@ import {
   getReminderScheduledAt,
   getSubmitLinkCutoff,
   getWeekday,
+  isPastShiftPeriod,
   todayJST,
 } from "./dateFormat";
 
@@ -73,5 +74,10 @@ describe("dateFormat", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("シフト期間の終了日を過ぎたら過去シフトとして扱う", () => {
+    expect(isPastShiftPeriod("2026-06-03", "2026-06-03")).toBe(false);
+    expect(isPastShiftPeriod("2026-06-03", "2026-06-04")).toBe(true);
   });
 });

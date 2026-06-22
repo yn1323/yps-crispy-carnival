@@ -91,7 +91,7 @@ export class DashboardPage {
 
   async acceptLegalReconsent() {
     await this.page.locator("[data-scope='checkbox'][data-part='control']").click();
-    await this.page.getByRole("button", { name: "OK" }).click();
+    await this.page.getByRole("button", { name: /OK|同意して続ける/ }).click();
     await expect(this.page.getByText("同意を記録しました")).toBeVisible();
     await this.expectLegalReconsentNotVisible();
   }
@@ -234,7 +234,7 @@ export class DashboardPage {
 
     const dialog = this.page.getByRole("alertdialog", { name: /シフト募集を削除/ });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("本当に削除してよろしいですか？")).toBeVisible();
+    await expect(dialog.getByText(/本当に削除してよろしいですか？|この募集を削除すると元に戻せません。/)).toBeVisible();
     await dialog.getByRole("button", { name: "この募集を削除" }).click();
     await expect(this.page.getByText("シフト募集を削除しました")).toBeVisible();
   }
@@ -277,15 +277,17 @@ export class DashboardPage {
   }
 
   async expectStaffRegistrationRequestBanner(count: number) {
-    await expect(this.page.getByText(`スタッフ参加申請が ${count} 件あります`)).toBeVisible();
+    await expect(
+      this.page.getByText(new RegExp(`スタッフ(?:参加申請|登録申請)が\\s*${count}\\s*件あります`)),
+    ).toBeVisible();
   }
 
   async expectStaffRegistrationRequestBannerHidden() {
-    await expect(this.page.getByText(/スタッフ参加申請が \d+ 件あります/)).not.toBeVisible();
+    await expect(this.page.getByText(/スタッフ(?:参加申請|登録申請)が\s*\d+\s*件あります/)).not.toBeVisible();
   }
 
   async openStaffRegistrationRequests() {
-    await this.page.getByRole("button", { name: "確認する" }).click();
+    await this.page.getByRole("button", { name: /確認する|申請を確認/ }).click();
     await expect(this.staffRegistrationRequestDialog()).toBeVisible();
   }
 
@@ -349,11 +351,11 @@ export class DashboardPage {
     if (submissionPattern) {
       const patternLabel =
         submissionPattern.kind === "dateOnly"
-          ? "日付のみ"
+          ? /日ごと|日付のみ/
           : submissionPattern.kind === "shiftType"
-            ? "勤務区分から選ぶ"
-            : "時間を自由に設定";
-      await dialog.getByRole("button", { name: new RegExp(patternLabel) }).click();
+            ? /勤務区分|勤務区分から選ぶ/
+            : /時間指定|時間を自由に設定/;
+      await dialog.getByRole("button", { name: patternLabel }).click();
     }
     await dialog.getByRole("button", { name: "次へ" }).click();
 
@@ -428,7 +430,7 @@ export class DashboardPage {
   }
 
   private staffRegistrationRequestDialog() {
-    return this.page.getByRole("dialog", { name: "スタッフ参加申請" });
+    return this.page.getByRole("dialog", { name: /スタッフ参加申請|スタッフ登録申請/ });
   }
 
   private legalReconsentMessage() {
