@@ -7,7 +7,7 @@ import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { LINE_LINK_TOKEN_TTL_MS } from "../constants";
-import { findStaffLineAccountByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
+import { findStaffLineAccountsByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
 
 /**
  * シフト担当者UI: 指定スタッフに紐づくLINE連携トークンを発行
@@ -111,11 +111,13 @@ export const finalizeLinking = internalMutation({
     if (!staff || staff.isDeleted) return { status: "expired" as const };
     const currentAccount = await getStaffLineAccount(ctx, args.staffId);
 
-    // 既に他スタッフに紐づいている lineUserId の場合は上書きせず置き換え
-    // （同じLINEアカウントを別スタッフが連携し直したケース）
-    const existing = await findStaffLineAccountByLineUserId(ctx, args.lineUserId);
-    if (existing && existing.staffId !== args.staffId) {
-      await ctx.db.patch(existing._id, { isDeleted: true, following: false });
+    // 同一店舗で別スタッフに同じ lineUserId が紐づいていた場合だけ付け替える
+    // （真の重複/担当替え）。別店舗のアカウントは残す（同一人物の多店舗連携を許可）。
+    const sameLineAccounts = await findStaffLineAccountsByLineUserId(ctx, args.lineUserId);
+    for (const acc of sameLineAccounts) {
+      if (acc.staffId !== args.staffId && acc.shopId === staff.shopId) {
+        await ctx.db.patch(acc._id, { isDeleted: true, following: false });
+      }
     }
 
     await upsertStaffLineAccount(ctx, {
@@ -202,11 +204,13 @@ export const dispatchWebhookEvents = internalMutation({
     }
 
     for (const [userId, following] of followingByUserId) {
-      const account = await findStaffLineAccountByLineUserId(ctx, userId);
-      const staff = account ? await ctx.db.get(account.staffId) : null;
-      if (staff && !staff.isDeleted) {
-        const wasFollowing = Boolean(account?.following);
-        if (account) await ctx.db.patch(account._id, { following, lastWebhookAt: Date.now() });
+      // 同じ lineUserId が複数店舗のスタッフに紐づく場合があるため、全アカウントへ反映する。
+      const accounts = await findStaffLineAccountsByLineUserId(ctx, userId);
+      for (const account of accounts) {
+        const staff = await ctx.db.get(account.staffId);
+        if (!staff || staff.isDeleted) continue;
+        const wasFollowing = Boolean(account.following);
+        await ctx.db.patch(account._id, { following, lastWebhookAt: Date.now() });
         if (following && !wasFollowing) {
           // ブロック解除などでfollow状態に戻った場合、未送達になっていた案内を補う。
           await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {

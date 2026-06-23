@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
+import { seedManagerShop, seedShop, seedShopMembership, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function setupShop(t: TestConvex<typeof schema>) {
@@ -91,6 +91,57 @@ describe("line/mutations", () => {
         t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
           staffId: otherStaffId,
         }),
+      ).rejects.toThrow("Not found");
+    });
+
+    it("複数店舗マネージャーは shopId 指定でその店舗のスタッフにトークンを発行できる", async () => {
+      const t = convexTest(schema, modules);
+      // user_mgr は setupShop で店舗A（先頭）に所属。さらに店舗Bにも所属させる
+      const { shopBId, staffBId } = await t.run(async (ctx) => {
+        const { userId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "店舗A",
+        });
+        const shopBId = await seedShop(ctx, "店舗B");
+        await seedShopMembership(ctx, { userId, shopId: shopBId });
+        const staffBId = await ctx.db.insert("staffs", {
+          shopId: shopBId,
+          name: "B店スタッフ",
+          email: "b@example.com",
+          isDeleted: false,
+        });
+        return { shopBId, staffBId };
+      });
+
+      // shopId 未指定だと先頭店舗(A)に解決され、店舗Bスタッフは Not found
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, { staffId: staffBId }),
+      ).rejects.toThrow("Not found");
+
+      // shopId=店舗B を指定すれば発行できる
+      const { token } = await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.line.mutations.generateLinkToken, { staffId: staffBId, shopId: shopBId });
+      const link = await t.run(async (ctx) =>
+        ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_token", (q) => q.eq("token", token))
+          .first(),
+      );
+      expect(link?.staffId).toBe(staffBId);
+      expect(link?.shopId).toBe(shopBId);
+    });
+
+    it("未所属の shopId 指定は拒否（IDOR）", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupShop(t);
+      const foreignShopId = await t.run(async (ctx) => await seedShop(ctx, "無関係店舗"));
+
+      await expect(
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.line.mutations.generateLinkToken, { staffId, shopId: foreignShopId }),
       ).rejects.toThrow("Not found");
     });
   });
@@ -266,6 +317,48 @@ describe("line/mutations", () => {
       );
       expect(oldManager?.isDeleted).toBe(true);
     });
+
+    it("別店舗で同じ lineUserId を連携しても、既存店舗のアカウントは残る（多店舗連携）", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId: shopAId, staffId: staffAId } = await setupShop(t);
+      // 同一人物が店舗Aで既にLINE連携済み
+      await t.run(async (ctx) => {
+        await seedStaffLineAccount(ctx, { staffId: staffAId, shopId: shopAId, lineUserId: "U_multi", following: true });
+      });
+      // 店舗Bの別 staff レコード（同一人物）
+      const { shopBId, staffBId } = await t.run(async (ctx) => {
+        const shopBId = await seedShop(ctx, "店舗B");
+        const staffBId = await ctx.db.insert("staffs", {
+          shopId: shopBId,
+          name: "鈴木太郎",
+          email: "suzuki@example.com",
+          isDeleted: false,
+        });
+        return { shopBId, staffBId };
+      });
+      const { tokenDocId } = await seedLineLinkToken(t, {
+        staffId: staffBId,
+        shopId: shopBId,
+        token: "shopB-token",
+      });
+
+      const result = await t.mutation(internal.line.mutations.finalizeLinking, {
+        staffId: staffBId,
+        tokenDocId,
+        lineUserId: "U_multi",
+        lineFollowing: true,
+      });
+      expect(result.status).toBe("ok");
+
+      const accounts = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", "U_multi").eq("isDeleted", false))
+          .collect(),
+      );
+      expect(accounts).toHaveLength(2);
+      expect(accounts.map((a) => a.staffId).sort()).toEqual([staffAId, staffBId].sort());
+    });
   });
 
   describe("dispatchWebhookEvents", () => {
@@ -315,6 +408,55 @@ describe("line/mutations", () => {
           .first(),
       );
       expect(account?.following).toBe(false);
+    });
+
+    it("同じ lineUserId が複数店舗に紐づく場合、全アカウントの following を更新する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId: shopAId, staffId: staffAId } = await setupShop(t);
+      const { staffBId } = await t.run(async (ctx) => {
+        await seedStaffLineAccount(ctx, {
+          staffId: staffAId,
+          shopId: shopAId,
+          lineUserId: "U_multi",
+          following: false,
+        });
+        const shopBId = await seedShop(ctx, "店舗B");
+        const staffBId = await ctx.db.insert("staffs", {
+          shopId: shopBId,
+          name: "鈴木太郎",
+          email: "suzuki@example.com",
+          isDeleted: false,
+        });
+        await seedStaffLineAccount(ctx, {
+          staffId: staffBId,
+          shopId: shopBId,
+          lineUserId: "U_multi",
+          following: false,
+        });
+        return { staffBId };
+      });
+
+      await t.mutation(internal.line.mutations.dispatchWebhookEvents, {
+        events: [{ type: "follow", userId: "U_multi" }],
+      });
+
+      const accounts = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", "U_multi").eq("isDeleted", false))
+          .collect(),
+      );
+      expect(accounts).toHaveLength(2);
+      expect(accounts.every((a) => a.following)).toBe(true);
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      for (const staffId of [staffAId, staffBId]) {
+        expect(
+          scheduled.some(
+            (job) => job.name === "legal/actions:sendStaffConsentLine" && job.args[0]?.staffId === staffId,
+          ),
+        ).toBe(true);
+      }
     });
 
     it("message イベントの replyToken が返る", async () => {
