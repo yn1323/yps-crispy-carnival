@@ -112,6 +112,8 @@ ogDescription: "OG説明"
 - `featured: true` は一覧トップなどでデフォルト表示する代表記事用です。基本は1記事だけにしてください。
 - `readingMinutes` は数値で書いてください。
 - `publishedAt` / `updatedAt` は `YYYY-MM-DD` 形式で書いてください。
+- 個別記事（`content/articles/{articleSlug}/index.md`）を追加・編集するだけなら、記事ごとの Story は作成不要です。
+- 個別記事の本文・frontmatterだけを変更する場合は、個別記事専用の自動テストも不要です。共通parser、frontmatter schema、記事一覧・カテゴリ・詳細レイアウトの挙動を変える場合だけ、既存のStoryやテストを更新してください。
 
 任意frontmatter:
 
@@ -122,10 +124,12 @@ heroImageWidth: 340
 ```
 
 - `heroImageSrc` を指定すると、記事上部のタイトル・説明ブロックに画像が表示されます。
+- サムネイル専用画像や専用frontmatterは作成しません。記事カード用だけの画像追加やサムネイル管理は不要です。
 - PCでは記事メタ情報の右側、タブレット/SPではタイトル・説明の下に小さめの画像として表示されます。
 - `heroImageSrc` を指定した場合、アクセシビリティ用の `heroImageAlt` は必須です。画面には表示されません。
 - `heroImageWidth` はPC表示の横幅です。240〜360pxの範囲で指定してください。未指定時は320pxです。
 - 画像パスは本文画像と同じく、`/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMarkdownファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
+- SEO記事用画像は枠線や外枠を入れず、画像内の線がキャンバス端に触れないようにしてください。
 
 ## 本文Markdownで使える表現
 
@@ -208,7 +212,7 @@ React側で変えること:
 
 ## 追加・編集後の確認
 
-Markdownを追加・編集したら、最低限次を実行してください。
+ArticleSiteの共通parser、frontmatter schema、一覧・カテゴリ・詳細レイアウトを変更したら、最低限次を実行してください。
 
 ```bash
 pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts
@@ -216,5 +220,7 @@ pnpm lint
 pnpm type-check
 pnpm build
 ```
+
+個別記事のMarkdownだけを追加・編集した場合は、個別記事専用テストの追加やStory追加は不要です。既存の `Features/ArticleSite` Story やローカル画面で、記事ページが崩れていないか必要に応じて確認してください。
 
 Storybookで確認する場合は `Features/ArticleSite` の List / Category / Article / Mobile 系Storyを見てください。SP確認は 390x844 程度の幅を目安にします。

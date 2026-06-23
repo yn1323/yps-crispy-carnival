@@ -1,6 +1,6 @@
 ---
-title: "小さなお店のシフト作成ガイド"
-description: "LINEで希望を集める、Excelに転記する、未提出者に声をかける。毎月のシフト作成で起きやすい困りごとを、わかりやすく整理しています。"
+title: "お役立ちガイド"
+description: "シフト運営のお役立ち情報を記事にしました。"
 breadcrumbLabel: "お役立ち情報"
 concernTitle: "よくある困りごとから探す"
 latestTitle: "新着記事"

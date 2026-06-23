@@ -59,19 +59,26 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
    - 記事：`src/components/features/ArticleSite/content/articles/{slug}/index.md`
    - カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.md`
    - 画像：基本は記事ディレクトリに同梱する。
+   - Sitemap：`public/sitemap.xml`
    - `canonicalPath` は `/articles/{slug}` にする。
    - 新規記事は `publishedAt` と `updatedAt` を今日の日付にする。
    - 既存記事の `updatedAt` は本文の意味が変わったときだけ更新する。
+   - 新規記事、新規カテゴリ、slug変更、公開対象の削除をしたら、`public/sitemap.xml` のURLも追加・更新・削除する。
+   - 記事URLの `lastmod` は記事frontmatterの `updatedAt` に合わせる。記事一覧やカテゴリページを変えた場合は、そのページの `lastmod` も更新する。
 
 6. 画像を作る。
    - `public/sample-touch.png` を見て、タッチを合わせる。
    - 画像は理解を助けるときだけ入れる。
+   - サムネイル専用画像は作らない。記事カード用だけの画像追加やサムネイル管理はしない。
+   - SEO記事用画像は枠線や外枠を入れず、画像内の線がキャンバス端に触れないようにする。
    - 短い記事は0〜1枚、標準記事は1〜2枚、長い比較・手順記事は最大4枚を目安にする。
    - 画像の近くの本文、alt、キャプションの意味をそろえる。
 
 7. 検証する。
    - Markdownやschemaに関わる変更後は `pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts` を実行する。
    - 完了前に `pnpm lint` と `pnpm type-check` を実行する。
+   - index対象にしたい記事は、`robots.txt`、`noindex`、canonical、`public/sitemap.xml`、内部リンク導線を確認する。
+   - Google検索結果でサイトリンクを狙う場合は、直接指定できない前提で、トップページ・ヘッダー・フッター・記事一覧・関連記事から重要ページへ自然にリンクされているか確認する。
    - Vite、Storybook、Convex dev serverは起動しない。ユーザーが起動済みなら、実際の記事ページをPCと390x844程度のSP幅で確認する。
 
 ## 品質基準
@@ -87,4 +94,6 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
 - キーワード詰め込み、根拠のない断定、使い回しの導入、AIっぽい空句がない。
 - シフトリの機能・料金・実績・外部制度について未確認の断定がない。
 - 画像が本文理解に役立ち、sample-touchの方向性から外れていない。
+- 新規・変更した公開記事やカテゴリが `public/sitemap.xml` に反映されている。
+- 検索結果のサイトリンクに出したい重要ページは、サイト内の目立つ導線から説明的なアンカーテキストでリンクされている。
 - ArticleSiteの対象テストが通っている。

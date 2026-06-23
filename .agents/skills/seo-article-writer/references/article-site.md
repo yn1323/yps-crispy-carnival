@@ -7,6 +7,7 @@
 - 記事一覧ページ：`src/components/features/ArticleSite/content/pages/articles.md`
 - カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.md`
 - 記事：`src/components/features/ArticleSite/content/articles/{articleSlug}/index.md`
+- Sitemap：`public/sitemap.xml`
 - Markdownローダー：`src/components/features/ArticleSite/articleContent.ts`
 - 表示UI：`src/components/features/ArticleSite/index.tsx`
 
@@ -50,6 +51,89 @@ heroImageWidth: 320
 - `readingMinutes` は数値で書く。本文を書いた後に見積もる。
 - 新規記事は基本 `featured: false` にする。
 - `keywords` と `relatedSlugs` はカンマ区切り文字列にする。
+- サムネイル専用frontmatterや専用画像は作らない。記事カード用だけの画像追加やサムネイル管理はしない。
+- SEO記事用画像は枠線や外枠を入れず、画像内の線がキャンバス端に触れないようにする。
+
+## sitemap.xml
+
+記事やカテゴリの公開URLを変えたら、`public/sitemap.xml` も更新します。
+
+更新が必要なケース：
+
+- 新規記事を追加した。
+- 既存記事のslugや `canonicalPath` を変えた。
+- 既存記事を削除、非公開、統合した。
+- 新規カテゴリを追加した。
+- カテゴリslugを変えた。
+- 記事一覧ページやカテゴリページの内容を変えた。
+
+記事URLの例：
+
+```xml
+  <url>
+    <loc>https://shiftori.app/articles/{articleSlug}</loc>
+    <lastmod>2026-06-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+```
+
+カテゴリURLの例：
+
+```xml
+  <url>
+    <loc>https://shiftori.app/articles/categories/{categorySlug}</loc>
+    <lastmod>2026-06-23</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+```
+
+ルール：
+
+- `<loc>` は `https://shiftori.app` から始まる絶対URLにする。
+- 記事URLは `canonicalPath` と一致させる。
+- 記事の `<lastmod>` は記事frontmatterの `updatedAt` に合わせる。
+- 新規記事を追加したら `/articles` の `<lastmod>` も必要に応じて更新する。
+- 新規カテゴリを追加したら `/articles/categories/{categorySlug}` を追加し、`/articles` の `<lastmod>` も必要に応じて更新する。
+- 削除・統合した記事やカテゴリのURLを残さない。
+
+## index確認
+
+ArticleSiteの記事を検索対象にしたい場合は、実装上のindex可否を確認します。
+
+確認すること：
+
+- `public/robots.txt` で `/articles`、`/articles/{slug}`、`/articles/categories/{categorySlug}` がブロックされていない。
+- 対象routeの `buildMeta` に `noindex: true` が指定されていない。
+- 対象routeにcanonicalがある。
+- `public/sitemap.xml` に対象URLがある。
+- `scripts/prerender.ts` の対象に記事一覧、記事詳細、カテゴリ詳細が含まれている。
+- トップページ、ヘッダー、フッター、記事一覧、関連記事など、クロールしやすい内部リンクがある。
+
+コード上でindex可能でも、Googleに実際にindexされるとは限りません。
+公開後はSearch ConsoleのURL検査、カバレッジ、サイトマップ送信状態で確認します。
+
+## サイトリンクを狙うとき
+
+検索結果でアプリ名の下に複数リンクを出す「サイトリンク」は、Googleが自動で選びます。
+HTMLや構造化データで、任意のリンクを直接指定することはできません。
+
+やること：
+
+- 重要ページに、トップページや共通ナビからリンクする。
+- ヘッダーやフッターに、記事一覧、主要カテゴリ、主要機能ページへの自然な導線を置く。
+- 記事一覧から各記事へ説明的なアンカーテキストでリンクする。
+- 関連記事から近いテーマの記事へリンクする。
+- ページタイトル、H1、H2、リンクテキストを短く具体的にする。
+- 重複記事や似たタイトルを増やさない。
+- `public/sitemap.xml` を更新する。
+
+注意：
+
+- `sitemap.xml` だけではサイトリンクは出ません。
+- LPの該当セクションがコメントアウトされている、ヘッダーやフッターから記事一覧にリンクしていない、関連記事が少ない、などの場合はサイトリンク候補として弱くなります。
+- サイトリンクに出したいページは、検索者がブランド名で検索したときに役立つ主要導線として扱います。
 
 ## カテゴリfrontmatter
 
@@ -119,6 +203,9 @@ pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.t
 pnpm lint
 pnpm type-check
 ```
+
+`public/sitemap.xml` も目視確認します。
+新規記事、新規カテゴリ、slug変更、公開対象の削除があった場合は、該当URLと `lastmod` が正しいことを確認します。
 
 ローカルサーバーがすでに起動している場合は確認する。
 

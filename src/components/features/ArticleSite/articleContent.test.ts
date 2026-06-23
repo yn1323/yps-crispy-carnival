@@ -35,7 +35,7 @@ breadcrumbLabel: "LINEでシフト希望を集める"
 pointTitle: "このカテゴリのポイント"
 pointDescription: "提出しやすい仕組みづくりが大切です。"
 concerns: "提出依頼が流れてしまう, 書き方がバラバラになる, 未提出者を見つけにくい"
-representativeSlug: "line-shift-collection-guide"
+representativeSlug: "shift-type-request-guide"
 relatedConcernSlugs: "excel-recording, staff-sharing"
 ctaTitle: "LINEで集めたシフト希望を、一覧で確認しませんか？"
 ctaDescription: "提出状況と希望内容をまとめて見られると、確認や転記の手間を減らせます。"
@@ -122,7 +122,7 @@ describe("ArticleSite markdown content", () => {
     expect(parseCategoryMarkdown(categoryMarkdown, "shift-request").meta).toMatchObject({
       slug: "shift-request",
       concerns: ["提出依頼が流れてしまう", "書き方がバラバラになる", "未提出者を見つけにくい"],
-      representativeSlug: "line-shift-collection-guide",
+      representativeSlug: "shift-type-request-guide",
       relatedConcernSlugs: ["excel-recording", "staff-sharing"],
       ctaTitle: "LINEで集めたシフト希望を、一覧で確認しませんか？",
     });
@@ -217,7 +217,7 @@ describe("ArticleSite markdown content", () => {
   it("representativeSlug と slug 不一致の状態を扱える", () => {
     const category = parseCategoryMarkdown(categoryMarkdown, "shift-request");
 
-    expect(getRepresentativeArticle(category)?.meta.slug).toBe("line-shift-collection-guide");
+    expect(getRepresentativeArticle(category)?.meta.slug).toBe("shift-type-request-guide");
     expect(getArticle("missing-article")).toBeUndefined();
   });
 

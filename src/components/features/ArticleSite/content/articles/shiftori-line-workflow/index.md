@@ -8,7 +8,7 @@ categoryLabel: "シフト希望を集める"
 author: "シフトリ編集部"
 readingMinutes: 5
 keywords: "LINE, シフト希望, シフト回収, シフトリ, 確定シフト共有"
-relatedSlugs: "line-shift-collection-guide, shift-type-request-guide"
+relatedSlugs: "shift-type-request-guide, cafe-shift-scheduling-problems"
 featured: false
 canonicalPath: "/articles/shiftori-line-workflow"
 ogTitle: "LINEで集めたシフト希望を、あとから探していませんか"

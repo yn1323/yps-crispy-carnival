@@ -57,6 +57,11 @@ type ArticleSitePageProps = {
   categorySlug?: string;
 };
 
+type ArticleThumbnailImage = {
+  src: string;
+  alt: string;
+};
+
 export function ArticleListPage(): ReactNode {
   return (
     <ArticleSiteShell>
@@ -113,8 +118,8 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
                 <ArticleBlock key={`${block.type}-${index}`} block={block} />
               ))}
             </VStack>
-            <RelatedArticles articles={relatedArticles} />
             <ArticleConversionCta compact />
+            <RelatedArticles articles={relatedArticles} />
           </VStack>
         </Grid>
       </Container>
@@ -396,7 +401,7 @@ function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent
         transition="border-color 0.2s ease"
         _hover={{ borderColor: "gray.300" }}
       >
-        <ArticleThumb categorySlug={article.meta.categorySlug} />
+        <ArticleThumb article={article} />
         <VStack align="stretch" gap={2}>
           <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
             {article.meta.categoryLabel}
@@ -478,7 +483,7 @@ function RepresentativeArticle({ article }: { article: ArticleContent }): ReactN
           transition="border-color 0.2s ease, box-shadow 0.2s ease"
           _hover={{ borderColor: "gray.300", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)" }}
         >
-          <ArticleThumb categorySlug={article.meta.categorySlug} large />
+          <ArticleThumb article={article} large />
           <VStack align="stretch" gap={3}>
             <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
               {article.meta.categoryLabel}
@@ -683,7 +688,7 @@ function SmallArticleCard({ article }: { article: ArticleContent }): ReactNode {
         transition="border-color 0.2s ease, box-shadow 0.2s ease"
         _hover={{ borderColor: "gray.300", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)" }}
       >
-        <ArticleThumb categorySlug={article.meta.categorySlug} compact inline />
+        <ArticleThumb article={article} compact inline />
         <VStack align="stretch" gap={2} p={4}>
           <Badge alignSelf="flex-start" colorPalette="green" variant="subtle" borderRadius="full">
             {article.meta.categoryLabel}
@@ -845,17 +850,18 @@ function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }): 
 }
 
 function ArticleThumb({
-  categorySlug,
+  article,
   large = false,
   compact = false,
   inline = false,
 }: {
-  categorySlug: string;
+  article: ArticleContent;
   large?: boolean;
   compact?: boolean;
   inline?: boolean;
 }): ReactNode {
-  const Icon = getCategoryIcon(categorySlug);
+  const image = getArticleThumbnailImage(article);
+  const Icon = getCategoryIcon(article.meta.categorySlug);
 
   return (
     <Flex
@@ -866,10 +872,30 @@ function ArticleThumb({
       color="teal.700"
       align="center"
       justify="center"
+      overflow="hidden"
+      p={image ? (compact ? 3 : large ? 4 : 3) : 0}
     >
-      <Icon size={large ? 54 : 36} />
+      {image ? (
+        <Image src={image.src} alt={image.alt} w="full" h="full" objectFit="contain" />
+      ) : (
+        <Icon size={large ? 54 : 36} />
+      )}
     </Flex>
   );
+}
+
+function getArticleThumbnailImage(article: ArticleContent): ArticleThumbnailImage | undefined {
+  if (article.meta.heroImage) {
+    return article.meta.heroImage;
+  }
+
+  for (const block of article.blocks) {
+    if (block.type === "image" || block.type === "media") {
+      return block.image;
+    }
+  }
+
+  return undefined;
 }
 
 function IconBadge({ icon, compact = false }: { icon: IconType; compact?: boolean }): ReactNode {
@@ -938,10 +964,8 @@ function ArticleImageFigure({ image, compact = false }: { image: MarkdownImage; 
         overflow="hidden"
         w={{ base: "full", md: image.width ? `${image.width}px` : "full" }}
         maxW="full"
-        borderWidth="1px"
-        borderColor="gray.200"
         borderRadius="lg"
-        bg="gray.50"
+        bg="transparent"
       >
         <Image src={image.src} alt={image.alt} w="full" maxH={{ base: "320px", lg: "440px" }} objectFit="contain" />
       </Box>
@@ -971,14 +995,7 @@ function ArticleHeroImageFigure({ image }: { image: ArticleHeroImage }): ReactNo
       w={{ base: "min(260px, 100%)", lg: `${image.width}px` }}
       maxW="full"
     >
-      <Box
-        overflow="hidden"
-        borderWidth="1px"
-        borderColor="gray.200"
-        borderRadius="lg"
-        bg="gray.50"
-        aspectRatio={16 / 9}
-      >
+      <Box overflow="hidden" borderRadius="lg" bg="transparent" aspectRatio={16 / 9}>
         <Image src={image.src} alt={image.alt} w="full" h="full" objectFit="contain" />
       </Box>
     </Box>

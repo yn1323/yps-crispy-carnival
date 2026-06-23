@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ArticlePage } from ".";
+import { ArticleCategoryPage, ArticleListPage, ArticlePage } from ".";
 
 const meta = {
   title: "Features/ArticleSite/ArticlePage",
   component: ArticlePage,
   args: {
-    slug: "line-shift-collection-guide",
+    slug: "shift-type-request-guide",
   },
   parameters: {
     layout: "fullscreen",
@@ -22,4 +22,26 @@ export const Mobile: Story = {
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },
+};
+
+export const List: Story = {
+  render: () => <ArticleListPage />,
+};
+
+export const Category: Story = {
+  args: {
+    categorySlug: "shift-request",
+  },
+  render: (args) => <ArticleCategoryPage categorySlug={args.categorySlug} />,
+};
+
+export const CategoryMobile: Story = {
+  args: {
+    categorySlug: "shift-request",
+  },
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  render: (args) => <ArticleCategoryPage categorySlug={args.categorySlug} />,
 };
