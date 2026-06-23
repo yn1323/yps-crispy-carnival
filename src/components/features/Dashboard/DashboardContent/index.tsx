@@ -13,6 +13,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { showErrorToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
+import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { AddStaffForm } from "../AddStaffForm/index.tsx";
 import type { CreateRecruitmentData } from "../CreateRecruitmentForm/index";
@@ -185,24 +186,26 @@ export const DashboardContent = ({
   const visibleRecruitmentGroups =
     recruitmentGroups ?? buildDashboardRecruitmentGroups({ recruitments: recruitmentList }).groups;
 
+  // shop 未作成状態でも呼ぶため authenticatedMutation（shopId なし）
   const setupShopAndManager = useMutation(api.setup.mutations.setupShopAndManager);
-  const acceptManagerLegalConsent = useMutation(api.legal.mutations.acceptManagerLegalConsent);
-  const createRecruitment = useMutation(api.recruitment.mutations.createRecruitment);
-  const deleteRecruitmentMut = useMutation(api.recruitment.mutations.deleteRecruitment);
-  const addStaffs = useMutation(api.staff.mutations.addStaffs);
-  const editStaffMut = useMutation(api.staff.mutations.editStaff);
-  const deleteStaffMut = useMutation(api.staff.mutations.deleteStaff);
-  const updateShopSettings = useMutation(api.shop.mutations.updateShopSettings);
-  const generateLineLinkToken = useMutation(api.line.mutations.generateLinkToken);
-  const sendLineInvite = useMutation(api.line.mutations.sendInvite);
-  const sendOpenRecruitmentNotifications = useMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
-  const sendCurrentShiftNotification = useMutation(api.staff.mutations.sendCurrentShiftNotification);
-  const ensureShopRegistrationLink = useMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
-  const approveStaffRequest = useMutation(api.staffRegistration.mutations.approveRequest);
-  const rejectStaffRequest = useMutation(api.staffRegistration.mutations.rejectRequest);
   const dismissOnboarding = useMutation(api.dashboard.mutations.dismissOnboarding);
-  const resendNotificationFailure = useMutation(api.notificationOutbox.mutations.resendFailure);
-  const resendOpenNotificationFailures = useMutation(api.notificationOutbox.mutations.resendOpenFailures);
+  // 以下は managerMutation。選択中店舗の shopId を自動注入する
+  const acceptManagerLegalConsent = useShopMutation(api.legal.mutations.acceptManagerLegalConsent);
+  const createRecruitment = useShopMutation(api.recruitment.mutations.createRecruitment);
+  const deleteRecruitmentMut = useShopMutation(api.recruitment.mutations.deleteRecruitment);
+  const addStaffs = useShopMutation(api.staff.mutations.addStaffs);
+  const editStaffMut = useShopMutation(api.staff.mutations.editStaff);
+  const deleteStaffMut = useShopMutation(api.staff.mutations.deleteStaff);
+  const updateShopSettings = useShopMutation(api.shop.mutations.updateShopSettings);
+  const generateLineLinkToken = useShopMutation(api.line.mutations.generateLinkToken);
+  const sendLineInvite = useShopMutation(api.line.mutations.sendInvite);
+  const sendOpenRecruitmentNotifications = useShopMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
+  const sendCurrentShiftNotification = useShopMutation(api.staff.mutations.sendCurrentShiftNotification);
+  const ensureShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
+  const approveStaffRequest = useShopMutation(api.staffRegistration.mutations.approveRequest);
+  const rejectStaffRequest = useShopMutation(api.staffRegistration.mutations.rejectRequest);
+  const resendNotificationFailure = useShopMutation(api.notificationOutbox.mutations.resendFailure);
+  const resendOpenNotificationFailures = useShopMutation(api.notificationOutbox.mutations.resendOpenFailures);
 
   useEffect(() => {
     if (pendingStaffRequests.length === 0 || isDashboardOnboardingDismissed || autoDismissedOnboarding) return;

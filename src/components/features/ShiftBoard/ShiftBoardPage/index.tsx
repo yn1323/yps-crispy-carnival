@@ -1,6 +1,5 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { Link, useBlocker } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -30,6 +29,7 @@ import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import { resolveDisplayShiftLine } from "@/src/domains/shift/resolveDisplayShiftLine";
 import { minutesToTime } from "@/src/domains/shift/time";
 import type { ShiftData, ShiftTimeRange, StaffType } from "@/src/domains/shift/types";
+import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ConfirmShiftContent } from "../ConfirmShiftContent";
 import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
@@ -241,8 +241,8 @@ type Props = {
 };
 
 export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
-  const saveShiftAssignments = useMutation(api.shiftBoard.mutations.saveShiftAssignments);
-  const confirmRecruitmentMutation = useMutation(api.shiftBoard.mutations.confirmRecruitment);
+  const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
+  const confirmRecruitmentMutation = useShopMutation(api.shiftBoard.mutations.confirmRecruitment);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";

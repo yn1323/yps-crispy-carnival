@@ -19,6 +19,17 @@ export async function findStaffLineAccountByLineUserId(ctx: DbCtx, lineUserId: s
   return account ?? null;
 }
 
+/**
+ * 同じ lineUserId に紐づくアクティブなアカウントを全件取得する。
+ * 同一人物が複数店舗にLINE連携しているケース（店舗ごとに別 staff レコード）を扱う。
+ */
+export async function findStaffLineAccountsByLineUserId(ctx: DbCtx, lineUserId: string) {
+  return await ctx.db
+    .query("staffLineAccounts")
+    .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", lineUserId).eq("isDeleted", false))
+    .collect();
+}
+
 export async function upsertStaffLineAccount(
   ctx: MutationCtx,
   args: {
