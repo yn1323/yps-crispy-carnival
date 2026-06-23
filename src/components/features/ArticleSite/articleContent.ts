@@ -536,7 +536,7 @@ function parseMarkdownBlocks(source: string, documentPath?: string): MarkdownBlo
         quoteLines.push((lines[index] ?? "").replace(/^>\s?/, "").trim());
         index += 1;
       }
-      blocks.push({ type: "blockquote", text: quoteLines.join(" ") });
+      blocks.push({ type: "blockquote", text: quoteLines.join("\n") });
       continue;
     }
 
@@ -579,7 +579,7 @@ function parseMarkdownBlocks(source: string, documentPath?: string): MarkdownBlo
       paragraphLines.push(currentLine.trim());
       index += 1;
     }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
+    blocks.push({ type: "paragraph", text: paragraphLines.join("\n") });
   }
 
   return blocks;
@@ -628,7 +628,7 @@ function parseMediaBlock(
         width: parsePositiveInteger(mediaAttributes.width, image.width ?? 0) || image.width,
         align,
       },
-      text: textLines.join(" "),
+      text: textLines.join("\n"),
     },
     nextIndex: index < lines.length ? index + 1 : index,
   };

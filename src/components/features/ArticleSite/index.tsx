@@ -721,7 +721,7 @@ function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
         </Heading>
       );
     case "paragraph":
-      return <ArticleText>{renderInlineText(block.text)}</ArticleText>;
+      return <ArticleText preserveLineBreaks>{renderInlineText(block.text)}</ArticleText>;
     case "unorderedList":
       return (
         <VStack as="ul" align="stretch" gap={3} pl={6} listStyleType="disc">
@@ -752,7 +752,13 @@ function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
           py={4}
           borderRadius="md"
         >
-          <Text color="gray.800" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" fontWeight="medium">
+          <Text
+            color="gray.800"
+            textStyle={{ base: "bodySm", md: "body" }}
+            lineHeight="1.8"
+            fontWeight="medium"
+            whiteSpace="pre-line"
+          >
             {renderInlineText(block.text)}
           </Text>
         </Box>
@@ -802,7 +808,7 @@ function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
           alignItems="start"
         >
           <Box order={{ base: block.align === "right" ? 1 : 2, md: block.align === "right" ? 1 : 2 }}>
-            <ArticleText>{renderInlineText(block.text)}</ArticleText>
+            <ArticleText preserveLineBreaks>{renderInlineText(block.text)}</ArticleText>
           </Box>
           <Box order={{ base: block.align === "right" ? 2 : 1, md: block.align === "right" ? 2 : 1 }} minW={0}>
             <ArticleImageFigure image={{ ...block.image, align: "center" }} compact />
@@ -897,9 +903,23 @@ function MetaItem({ icon, children }: { icon: IconType; children: ReactNode }): 
   );
 }
 
-function ArticleText({ children, as }: { children: ReactNode; as?: "p" | "li" }): ReactNode {
+function ArticleText({
+  children,
+  as,
+  preserveLineBreaks = false,
+}: {
+  children: ReactNode;
+  as?: "p" | "li";
+  preserveLineBreaks?: boolean;
+}): ReactNode {
   return (
-    <Text as={as} color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
+    <Text
+      as={as}
+      color="gray.700"
+      textStyle={{ base: "bodySm", md: "body" }}
+      lineHeight="1.8"
+      whiteSpace={preserveLineBreaks ? "pre-line" : undefined}
+    >
       {children}
     </Text>
   );
