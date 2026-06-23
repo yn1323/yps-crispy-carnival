@@ -1,7 +1,7 @@
 import type { UserIdentity } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
 import { sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
 
@@ -30,6 +30,27 @@ async function getShopByUser(ctx: DbCtx, user: Doc<"users">) {
     return await ctx.db.get(membership.shopId);
   }
   return null;
+}
+
+/**
+ * 操作対象の店舗を解決する。
+ * - shopId 指定あり: その店舗にユーザーが所属しているかを検証して返す（未所属なら null）
+ * - shopId 未指定: 先頭の所属店舗にフォールバック（後方互換）
+ *
+ * 複数店舗に所属するマネージャーが、フロントから操作対象店舗を明示できるようにするための入口。
+ */
+async function resolveShopForUser(ctx: DbCtx, user: Doc<"users">, shopId?: Id<"shops">) {
+  if (!shopId) {
+    return await getShopByUser(ctx, user);
+  }
+  const membership = await ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
+      q.eq("userId", user._id).eq("shopId", shopId).eq("isDeleted", false),
+    )
+    .first();
+  if (!membership) return null;
+  return await ctx.db.get(shopId);
 }
 
 // Query用: 全フィールド nullable（throw しないため）
@@ -89,14 +110,14 @@ export const authenticatedMutation = customMutation(mutation, {
  * - 用途: createRecruitment, addStaffs 等の shop スコープ操作
  */
 export const managerQuery = customQuery(query, {
-  args: {},
-  input: async (ctx): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
+  args: { shopId: v.optional(v.id("shops")) },
+  input: async (ctx, { shopId }): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return { ctx: { user: null, shop: null }, args: {} };
     }
     const user = await getUserByIdentity(ctx, identity);
-    const shop = user ? await getShopByUser(ctx, user) : null;
+    const shop = user ? await resolveShopForUser(ctx, user, shopId) : null;
     if (!user || user.isDeleted || !shop || shop.isDeleted) {
       return { ctx: { user: null, shop: null }, args: {} };
     }
@@ -105,14 +126,14 @@ export const managerQuery = customQuery(query, {
 });
 
 export const managerMutation = customMutation(mutation, {
-  args: {},
-  input: async (ctx): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
+  args: { shopId: v.optional(v.id("shops")) },
+  input: async (ctx, { shopId }): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Unauthenticated");
     }
     const user = await getUserByIdentity(ctx, identity);
-    const shop = user ? await getShopByUser(ctx, user) : null;
+    const shop = user ? await resolveShopForUser(ctx, user, shopId) : null;
     if (!user || user.isDeleted || !shop || shop.isDeleted) {
       throw new ConvexError("Not found");
     }

@@ -1,0 +1,7 @@
+interface:
+  display_name: "SEO Article Writer"
+  short_description: "日本語SEO記事をArticleSiteに作成・改善する手順"
+  default_prompt: "Use $seo-article-writer to write a Japanese SEO article for シフトリ ArticleSite."
+
+policy:
+  allow_implicit_invocation: false

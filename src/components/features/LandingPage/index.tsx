@@ -17,8 +17,7 @@ export const LandingPage = () => (
     <SubmissionMethodsSection />
     <BenefitsSection />
     <CtaSection />
-    {/* モック段階のためLP本体では非表示 */}
-    {/* <ArticlePreviewSection /> */}
+    <ArticlePreviewSection />
     <FaqSection />
     <FooterSection />
   </Box>

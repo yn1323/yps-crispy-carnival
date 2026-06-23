@@ -149,6 +149,26 @@ export const getDashboardShop = authenticatedQuery({
   },
 });
 
+/**
+ * ログインユーザーが所属する全店舗を返す。
+ * 複数店舗マネージャーが操作対象店舗を選ぶための一覧（フロントの selectedShopAtom 初期化に使う）。
+ */
+export const getMyShops = authenticatedQuery({
+  args: {},
+  handler: async (ctx) => {
+    if (!ctx.identity || !ctx.user) return [];
+    const user = ctx.user;
+    const memberships = await ctx.db
+      .query("shopMembers")
+      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+      .collect();
+    const shops = await Promise.all(memberships.map((m) => ctx.db.get(m.shopId)));
+    return shops
+      .filter((shop): shop is Doc<"shops"> => shop !== null && !shop.isDeleted)
+      .map((shop) => ({ shopId: shop._id, shopName: shop.name }));
+  },
+});
+
 export const getActiveDashboardAnnouncement = authenticatedQuery({
   args: {},
   handler: async (ctx) => {

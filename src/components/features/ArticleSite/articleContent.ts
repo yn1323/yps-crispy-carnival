@@ -35,6 +35,7 @@ export type ArticleMetadata = {
   slug: string;
   title: string;
   description: string;
+  heroImage?: ArticleHeroImage;
   publishedAt: string;
   updatedAt?: string;
   categorySlug: string;
@@ -47,6 +48,12 @@ export type ArticleMetadata = {
   canonicalPath: string;
   ogTitle: string;
   ogDescription: string;
+};
+
+export type ArticleHeroImage = {
+  src: string;
+  alt: string;
+  width: number;
 };
 
 export type MarkdownImageAlign = "left" | "center" | "right";
@@ -199,6 +206,10 @@ const articleRequiredFields = [
   "ogDescription",
 ] as const;
 
+const ARTICLE_HERO_IMAGE_DEFAULT_WIDTH = 320;
+const ARTICLE_HERO_IMAGE_MIN_WIDTH = 240;
+const ARTICLE_HERO_IMAGE_MAX_WIDTH = 360;
+
 export const sitePage = parseSitePageMarkdown(pageModules["./content/pages/articles.md"] ?? "", "articles");
 
 export const categories = Object.entries(categoryModules)
@@ -215,6 +226,10 @@ export const articles = Object.entries(articleModules)
   })
   .sort((a, b) => b.meta.publishedAt.localeCompare(a.meta.publishedAt));
 
+const articleSlugAliases = {
+  "line-shift-collection-guide": "shiftori-line-workflow",
+} as const;
+
 export const concerns = sitePage.concernSlugs
   .map((slug) => getCategory(slug))
   .filter((category): category is CategoryContent => Boolean(category))
@@ -227,9 +242,12 @@ export const concerns = sitePage.concernSlugs
   }));
 
 export function getArticle(slug?: string): ArticleContent | undefined {
-  return slug
-    ? articles.find((article) => article.meta.slug === slug)
-    : articles.find((article) => article.meta.featured);
+  if (!slug) {
+    return articles.find((article) => article.meta.featured);
+  }
+
+  const resolvedSlug = articleSlugAliases[slug as keyof typeof articleSlugAliases] ?? slug;
+  return articles.find((article) => article.meta.slug === resolvedSlug);
 }
 
 export function getCategory(categorySlug?: string): CategoryContent | undefined {
@@ -336,6 +354,7 @@ export function parseArticleMarkdown(source: string, slug: string, documentPath?
     slug,
     title: frontmatter.title,
     description: frontmatter.description,
+    heroImage: parseArticleHeroImage(frontmatter, documentPath, slug),
     publishedAt: frontmatter.publishedAt,
     updatedAt: frontmatter.updatedAt || undefined,
     categorySlug: frontmatter.categorySlug,
@@ -358,6 +377,31 @@ export function parseArticleMarkdown(source: string, slug: string, documentPath?
     .map((block) => ({ id: block.id, text: block.text }));
 
   return { meta, blocks, toc };
+}
+
+function parseArticleHeroImage(
+  frontmatter: Record<string, string>,
+  documentPath: string | undefined,
+  slug: string,
+): ArticleHeroImage | undefined {
+  if (!frontmatter.heroImageSrc) {
+    return undefined;
+  }
+
+  if (!frontmatter.heroImageAlt) {
+    throw new Error(`記事 "${slug}" の heroImageSrc には heroImageAlt が必要です`);
+  }
+
+  return {
+    src: resolveMarkdownImageSrc(frontmatter.heroImageSrc, documentPath),
+    alt: frontmatter.heroImageAlt,
+    width: parseBoundedPositiveInteger(
+      frontmatter.heroImageWidth,
+      ARTICLE_HERO_IMAGE_DEFAULT_WIDTH,
+      ARTICLE_HERO_IMAGE_MIN_WIDTH,
+      ARTICLE_HERO_IMAGE_MAX_WIDTH,
+    ),
+  };
 }
 
 function parseMarkdownDocument(
@@ -432,6 +476,11 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return parsed;
 }
 
+function parseBoundedPositiveInteger(value: string | undefined, fallback: number, min: number, max: number): number {
+  const parsed = parsePositiveInteger(value, fallback);
+  return Math.min(Math.max(parsed, min), max);
+}
+
 function parseMarkdownBlocks(source: string, documentPath?: string): MarkdownBlock[] {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const blocks: MarkdownBlock[] = [];
@@ -494,7 +543,7 @@ function parseMarkdownBlocks(source: string, documentPath?: string): MarkdownBlo
         quoteLines.push((lines[index] ?? "").replace(/^>\s?/, "").trim());
         index += 1;
       }
-      blocks.push({ type: "blockquote", text: quoteLines.join(" ") });
+      blocks.push({ type: "blockquote", text: quoteLines.join("\n") });
       continue;
     }
 
@@ -537,7 +586,7 @@ function parseMarkdownBlocks(source: string, documentPath?: string): MarkdownBlo
       paragraphLines.push(currentLine.trim());
       index += 1;
     }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
+    blocks.push({ type: "paragraph", text: paragraphLines.join("\n") });
   }
 
   return blocks;
@@ -586,7 +635,7 @@ function parseMediaBlock(
         width: parsePositiveInteger(mediaAttributes.width, image.width ?? 0) || image.width,
         align,
       },
-      text: textLines.join(" "),
+      text: textLines.join("\n"),
     },
     nextIndex: index < lines.length ? index + 1 : index,
   };

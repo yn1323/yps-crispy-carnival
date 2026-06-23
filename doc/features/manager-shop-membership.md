@@ -24,9 +24,20 @@
 | `api.dashboard.queries.getDashboardShop` | query | 現在店舗の基本情報を取得する |
 | `api.dashboard.queries.getDashboardRecruitments` | query | 現在店舗の募集一覧を取得する |
 | `api.dashboard.queries.getDashboardStaffs` | query | 現在店舗のスタッフ一覧を取得する |
+| `api.dashboard.queries.getMyShops` | query | ログインmanagerの全active所属店舗を返す（フロントの `selectedShopAtom` 初期化用） |
+
+## 現在店舗の解決（manager API）
+
+`managerQuery` / `managerMutation`（`convex/_lib/functions.ts`）は optional 引数 `shopId` を受け取る。
+
+- `shopId` 指定あり: `shopMembers.by_userId_and_shopId_and_isDeleted` でactive所属を確認し、その店舗を `ctx.shop` にする。未所属なら query は `null`、mutation は `Not found`（IDOR・列挙対策）。
+- `shopId` 未指定: 先頭のactive所属店舗にフォールバック（後方互換）。
+
+フロント側は `selectedShopAtom`（localStorage永続化）に選択中店舗を保持し、`useShopMutation`（`src/hooks/useShopMutation.ts`）が manager 系 mutation へ `shopId` を自動注入する。`AuthGuard` が `getMyShops` で atom を初期化/整合する。
 
 ## 補足
 
-- 複数店舗切替UI、2店舗目作成、店舗招待は未実装。
-- 将来のmanager APIは、選択中 `shopId` を受け取り、`shopMembers.by_userId_and_shopId_and_isDeleted` でactive所属を確認してから各データの `shopId` と突合する。
+- **店舗切替UI（プルダウン等）は未実装**。`selectedShopAtom` は先頭店舗で初期化されるため、現状の挙動は実質これまでと同じ（送信経路だけ整備済み）。
+- ダッシュボードの読み取り（`getDashboardShop` 等）は `authenticatedQuery` + `getManagerShop`（先頭店舗）で、まだ `shopId` を受け取らない。完全な複数店舗読み取りは切替UI導入時に対応する。
+- 2店舗目作成、店舗招待は未実装。
 - managerの法務同意はuser単位で判定する。`legalConsentStates.shopId` は同意した店舗文脈の履歴として扱う。
