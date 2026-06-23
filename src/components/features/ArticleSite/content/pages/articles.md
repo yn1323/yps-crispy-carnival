@@ -10,7 +10,7 @@ ctaPrimaryLabel: "シフトリを見てみる"
 ctaPrimaryHref: "/demo/flow"
 ctaSecondaryLabel: "無料で試してみる"
 ctaSecondaryHref: "/signup"
-concernSlugs: "shift-request"
+concernSlugs: "shift-request, shift-building, shift-operation"
 landingPreviewTitle: "シフト作成のヒント"
 landingPreviewDescription: "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。"
 landingPreviewLimit: 3
