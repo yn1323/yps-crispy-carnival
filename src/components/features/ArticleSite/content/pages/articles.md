@@ -1,6 +1,6 @@
 ---
 title: "お役立ちガイド"
-description: "シフト運営のお役立ち情報を記事にしました。"
+description: "シフト希望の集め方からExcel・LINE運用のコツまで、小さなお店のシフト作成でつまずきやすいポイントを記事で解説します。"
 breadcrumbLabel: "お役立ち情報"
 concernTitle: "よくある困りごとから探す"
 latestTitle: "新着記事"
