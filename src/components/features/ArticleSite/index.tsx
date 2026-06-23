@@ -32,7 +32,14 @@ import {
 import { Footer } from "@/src/components/features/LandingPage";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { ArticleConversionCta } from "./ArticleConversionCta";
-import type { ArticleContent, CategoryContent, ConcernContent, MarkdownBlock, MarkdownImage } from "./articleContent";
+import type {
+  ArticleContent,
+  ArticleHeroImage,
+  CategoryContent,
+  ConcernContent,
+  MarkdownBlock,
+  MarkdownImage,
+} from "./articleContent";
 import {
   articles,
   categories,
@@ -187,50 +194,58 @@ function ListHero(): ReactNode {
 
 function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
   const shouldShowUpdatedAt = Boolean(article.meta.updatedAt && article.meta.updatedAt !== article.meta.publishedAt);
+  const heroImage = article.meta.heroImage;
 
   return (
     <Box borderBottomWidth="1px" borderColor="gray.200" bg="white">
-      <Container maxW="820px" px={{ base: 4, lg: 0 }} py={{ base: 8, lg: 10 }}>
-        <VStack align="stretch" gap={{ base: 5, md: 6 }}>
-          <Link
-            href="/articles"
-            display={{ base: "inline-flex", md: "none" }}
-            alignSelf="flex-start"
-            color="teal.700"
-            textStyle="sm"
-            fontWeight="bold"
-            _hover={{ color: "teal.800", textDecoration: "none" }}
-          >
-            お役立ち情報へ戻る
-          </Link>
-          <Box display={{ base: "none", md: "block" }}>
-            <Breadcrumbs
-              items={[
-                { label: sitePage.breadcrumbLabel, href: "/articles" },
-                { label: article.meta.categoryLabel, href: `/articles/categories/${article.meta.categorySlug}` },
-                { label: article.meta.title },
-              ]}
-            />
-          </Box>
-          <HStack gap={{ base: 2.5, md: 3 }} wrap="wrap" color="gray.700" textStyle="sm">
-            <Badge colorPalette="green" variant="subtle" borderRadius="full" px={3} py={1}>
-              {article.meta.categoryLabel}
-            </Badge>
-            <MetaItem icon={LuCalendarDays}>{formatJapaneseDate(article.meta.publishedAt)}</MetaItem>
-            {shouldShowUpdatedAt && (
-              <MetaItem icon={LuPenLine}>更新 {formatJapaneseDate(article.meta.updatedAt ?? "")}</MetaItem>
-            )}
-            <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分で読めます</MetaItem>
-          </HStack>
-          <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-            <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
-              {article.meta.title}
-            </Heading>
-            <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
-              {article.meta.description}
-            </Text>
+      <Container maxW={heroImage ? "1120px" : "820px"} px={{ base: 4, lg: heroImage ? 8 : 0 }} py={{ base: 8, lg: 10 }}>
+        <Grid
+          templateColumns={{ base: "1fr", lg: heroImage ? `minmax(0, 1fr) ${heroImage.width}px` : "1fr" }}
+          gap={{ base: 5, lg: 8 }}
+          alignItems="center"
+        >
+          <VStack align="stretch" gap={{ base: 5, md: 6 }} minW={0}>
+            <Link
+              href="/articles"
+              display={{ base: "inline-flex", md: "none" }}
+              alignSelf="flex-start"
+              color="teal.700"
+              textStyle="sm"
+              fontWeight="bold"
+              _hover={{ color: "teal.800", textDecoration: "none" }}
+            >
+              お役立ち情報へ戻る
+            </Link>
+            <Box display={{ base: "none", md: "block" }}>
+              <Breadcrumbs
+                items={[
+                  { label: sitePage.breadcrumbLabel, href: "/articles" },
+                  { label: article.meta.categoryLabel, href: `/articles/categories/${article.meta.categorySlug}` },
+                  { label: article.meta.title },
+                ]}
+              />
+            </Box>
+            <HStack gap={{ base: 2.5, md: 3 }} wrap="wrap" color="gray.700" textStyle="sm">
+              <Badge colorPalette="green" variant="subtle" borderRadius="full" px={3} py={1}>
+                {article.meta.categoryLabel}
+              </Badge>
+              <MetaItem icon={LuCalendarDays}>{formatJapaneseDate(article.meta.publishedAt)}</MetaItem>
+              {shouldShowUpdatedAt && (
+                <MetaItem icon={LuPenLine}>更新 {formatJapaneseDate(article.meta.updatedAt ?? "")}</MetaItem>
+              )}
+              <MetaItem icon={LuClock3}>{article.meta.readingMinutes}分で読めます</MetaItem>
+            </HStack>
+            <VStack align="stretch" gap={{ base: 3, md: 4 }}>
+              <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
+                {article.meta.title}
+              </Heading>
+              <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
+                {article.meta.description}
+              </Text>
+            </VStack>
           </VStack>
-        </VStack>
+          {heroImage && <ArticleHeroImageFigure image={heroImage} />}
+        </Grid>
       </Container>
     </Box>
   );
@@ -924,6 +939,28 @@ function ArticleImageFigure({ image, compact = false }: { image: MarkdownImage; 
           {renderInlineText(image.caption)}
         </Text>
       )}
+    </Box>
+  );
+}
+
+function ArticleHeroImageFigure({ image }: { image: ArticleHeroImage }): ReactNode {
+  return (
+    <Box
+      as="figure"
+      justifySelf={{ base: "center", lg: "end" }}
+      w={{ base: "min(260px, 100%)", lg: `${image.width}px` }}
+      maxW="full"
+    >
+      <Box
+        overflow="hidden"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="gray.50"
+        aspectRatio={16 / 9}
+      >
+        <Image src={image.src} alt={image.alt} w="full" h="full" objectFit="contain" />
+      </Box>
     </Box>
   );
 }

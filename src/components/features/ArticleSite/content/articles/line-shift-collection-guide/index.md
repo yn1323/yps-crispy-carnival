@@ -1,6 +1,10 @@
 ---
 title: "LINEでシフト希望を集める方法"
 description: "LINEで希望を集めるときの基本的な流れと、スムーズに進めるためのポイントを紹介します。"
+heroImageSrc: "/lp/shiftForm.webp"
+heroImageAlt: "シフト希望をフォームで提出する画面の例"
+heroImageCaption: "希望提出の入力欄を1か所にまとめる例"
+heroImageWidth: 340
 publishedAt: "2024-05-20"
 updatedAt: "2026-06-08"
 categorySlug: "shift-request"

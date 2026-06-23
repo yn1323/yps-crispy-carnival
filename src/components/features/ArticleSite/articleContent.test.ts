@@ -47,6 +47,9 @@ ctaDescription: "提出状況と希望内容をまとめて見られると、確
 const articleMarkdown = `---
 title: "LINEでシフト希望を集めるときに起きやすい困りごと"
 description: "LINEで希望を集めるときに起きがちな問題を整理します。"
+heroImageSrc: "/lp/shiftForm.webp"
+heroImageAlt: "シフト希望入力画面"
+heroImageWidth: 340
 publishedAt: "2026-05-20"
 updatedAt: "2026-05-21"
 categorySlug: "shift-request"
@@ -130,6 +133,11 @@ describe("ArticleSite markdown content", () => {
       slug: "line-shift-collection-guide",
       canonicalPath: "/articles/line-shift-collection-guide",
       ogDescription: "LINE回収の困りごとを整理します。",
+      heroImage: {
+        src: "/lp/shiftForm.webp",
+        alt: "シフト希望入力画面",
+        width: 340,
+      },
     });
     expect(article.toc).toEqual([
       { id: "lineで集めるときに起きやすいこと", text: "LINEで集めるときに起きやすいこと" },
@@ -181,6 +189,12 @@ describe("ArticleSite markdown content", () => {
         align: "center",
       },
     });
+  });
+
+  it("ヒーロー画像のaltがない場合はエラーにする", () => {
+    const markdown = articleMarkdown.replace('heroImageAlt: "シフト希望入力画面"\n', "");
+
+    expect(() => parseArticleMarkdown(markdown, "line-shift-collection-guide")).toThrow("heroImageAlt");
   });
 
   it("structured data 用の値を作れる", () => {

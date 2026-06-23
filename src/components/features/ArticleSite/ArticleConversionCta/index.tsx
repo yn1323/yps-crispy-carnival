@@ -30,7 +30,7 @@ export function ArticleConversionCta({ compact = false }: ArticleConversionCtaPr
         gap={{ base: 7, md: 8, lg: compact ? 7 : 9 }}
         alignItems="center"
       >
-        <VStack align={{ base: "stretch", md: "start" }} gap={{ base: 5, md: 6 }} order={{ base: 0, lg: 0 }}>
+        <VStack align={{ base: "center", lg: "start" }} gap={{ base: 5, md: 6 }} order={{ base: 0, lg: 0 }}>
           <Box display="flex" justifyContent="center" w="full">
             <Image
               src="/textlogo_black.webp"
@@ -40,7 +40,11 @@ export function ArticleConversionCta({ compact = false }: ArticleConversionCtaPr
               objectFit="contain"
             />
           </Box>
-          <VStack align="stretch" gap={{ base: 3, md: 4 }}>
+          <VStack
+            align={{ base: "center", lg: "stretch" }}
+            gap={{ base: 3, md: 4 }}
+            textAlign={{ base: "center", lg: "start" }}
+          >
             <Heading as="h2" color="gray.950" textStyle="sectionTitle" letterSpacing="0">
               <Box as="span" color="teal.700">
                 LINE

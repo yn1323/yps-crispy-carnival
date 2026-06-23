@@ -113,6 +113,22 @@ ogDescription: "OG説明"
 - `readingMinutes` は数値で書いてください。
 - `publishedAt` / `updatedAt` は `YYYY-MM-DD` 形式で書いてください。
 
+任意frontmatter:
+
+```md
+heroImageSrc: "/lp/shiftForm.webp"
+heroImageAlt: "シフト希望をフォームで提出する画面の例"
+heroImageCaption: "希望提出の入力欄を1か所にまとめる例"
+heroImageWidth: 340
+```
+
+- `heroImageSrc` を指定すると、記事上部のタイトル・説明ブロックに画像が表示されます。
+- PCでは記事メタ情報の右側、タブレット/SPではタイトル・説明の下に小さめの画像として表示されます。
+- `heroImageSrc` を指定した場合、`heroImageAlt` は必須です。
+- `heroImageCaption` は任意です。指定すると画像下にキャプションとして表示されます。
+- `heroImageWidth` はPC表示の横幅です。240〜360pxの範囲で指定してください。未指定時は320pxです。
+- 画像パスは本文画像と同じく、`/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMarkdownファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
+
 ## 本文Markdownで使える表現
 
 `articleContent.ts` の簡易parserで次を表示できます。
@@ -172,6 +188,7 @@ LINEのトークに希望が流れてしまう場合は、入力場所を1つに
 - カテゴリ名は機能名よりも、店長・管理者が検索しそうな困りごとに寄せます。
 - タイトル・descriptionは具体的にします。例: `LINEでシフト希望を集める方法`、`Excelでシフト表を作るのが大変になる理由`。
 - 本文よりも、タイトル・カテゴリ・description・関連記事の自然さを優先してください。
+- 記事上部の補助画像は `heroImageSrc` などのfrontmatterで指定してください。
 - 記事本文に必要な画像はMarkdown本文へ追加してください。記事カードやOG画像を制御するfrontmatterはまだ追加しません。
 
 ## mdで変えられること / React側で変えること
@@ -181,7 +198,7 @@ mdで変えられること:
 - 記事一覧トップの文言・CTA・困りごとの表示順
 - LPの記事ミニ導線の見出し・説明文・表示件数・一覧リンク文言
 - カテゴリ名・説明・扱う悩み・カテゴリ別CTA
-- 記事タイトル・説明・カテゴリ・関連記事・本文・読了時間
+- 記事タイトル・説明・カテゴリ・関連記事・本文・読了時間・記事上部の補助画像
 
 React側で変えること:
 
