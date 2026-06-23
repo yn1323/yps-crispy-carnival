@@ -226,6 +226,10 @@ export const articles = Object.entries(articleModules)
   })
   .sort((a, b) => b.meta.publishedAt.localeCompare(a.meta.publishedAt));
 
+const articleSlugAliases = {
+  "line-shift-collection-guide": "shiftori-line-workflow",
+} as const;
+
 export const concerns = sitePage.concernSlugs
   .map((slug) => getCategory(slug))
   .filter((category): category is CategoryContent => Boolean(category))
@@ -238,9 +242,12 @@ export const concerns = sitePage.concernSlugs
   }));
 
 export function getArticle(slug?: string): ArticleContent | undefined {
-  return slug
-    ? articles.find((article) => article.meta.slug === slug)
-    : articles.find((article) => article.meta.featured);
+  if (!slug) {
+    return articles.find((article) => article.meta.featured);
+  }
+
+  const resolvedSlug = articleSlugAliases[slug as keyof typeof articleSlugAliases] ?? slug;
+  return articles.find((article) => article.meta.slug === resolvedSlug);
 }
 
 export function getCategory(categorySlug?: string): CategoryContent | undefined {

@@ -214,6 +214,13 @@ describe("ArticleSite markdown content", () => {
     });
   });
 
+  it("公開済みの旧slugから新しい記事を表示できる", () => {
+    expect(getArticle("line-shift-collection-guide")?.meta).toMatchObject({
+      slug: "shiftori-line-workflow",
+      canonicalPath: "/articles/shiftori-line-workflow",
+    });
+  });
+
   it("representativeSlug と slug 不一致の状態を扱える", () => {
     const category = parseCategoryMarkdown(categoryMarkdown, "shift-request");
 
