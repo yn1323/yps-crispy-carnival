@@ -118,14 +118,12 @@ ogDescription: "OG説明"
 ```md
 heroImageSrc: "/lp/shiftForm.webp"
 heroImageAlt: "シフト希望をフォームで提出する画面の例"
-heroImageCaption: "希望提出の入力欄を1か所にまとめる例"
 heroImageWidth: 340
 ```
 
 - `heroImageSrc` を指定すると、記事上部のタイトル・説明ブロックに画像が表示されます。
 - PCでは記事メタ情報の右側、タブレット/SPではタイトル・説明の下に小さめの画像として表示されます。
-- `heroImageSrc` を指定した場合、`heroImageAlt` は必須です。
-- `heroImageCaption` は任意です。指定すると画像下にキャプションとして表示されます。
+- `heroImageSrc` を指定した場合、アクセシビリティ用の `heroImageAlt` は必須です。画面には表示されません。
 - `heroImageWidth` はPC表示の横幅です。240〜360pxの範囲で指定してください。未指定時は320pxです。
 - 画像パスは本文画像と同じく、`/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMarkdownファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
 
