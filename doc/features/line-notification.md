@@ -109,6 +109,14 @@ LINEメッセージ本文に載せるURLには `withOpenExternalBrowser()`（`co
 - 複数の対象募集がある場合は募集ごとに1通ずつ送る
 - スタッフ一覧の個別メニューから、募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時・シフト確定時に自動通知されるため、不達時だけ使う補助導線として扱う。操作後のUIでは「送りました」と案内する
 
+## 複数店舗での連携
+
+LINE連携は `staffLineAccounts`（`staffId` 単位、各 `staffs` は1店舗に属する）で管理する。同じ人が複数店舗に所属する場合は店舗ごとに別 `staffs` レコードがあるため、**同一 `lineUserId` を店舗ごとに同時連携できる**。
+
+- `finalizeLinking`: 同一 `lineUserId` の重複排除は**同一店舗内のみ**（同じ店舗で別スタッフに紐づいていた場合だけ旧アカウントを論理削除）。別店舗のアカウントは残す。
+- `dispatchWebhookEvents`（follow/unfollow）: 同一 `lineUserId` に紐づく**全店舗のアカウント**へ following 状態を反映し、初回follow時は店舗（staff）ごとに同意依頼・募集通知をスケジュールする。
+- 連携状況の引き当ては `getStaffLineAccount`（`staffId` 単位）で店舗ごとに独立して行う。
+
 ## 設計ドキュメント
 
 `doc/plans/2026-05-06_LINE通知連携設計.md`
