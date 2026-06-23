@@ -224,3 +224,6 @@ pnpm build
 個別記事のMarkdownだけを追加・編集した場合は、個別記事専用テストの追加やStory追加は不要です。既存の `Features/ArticleSite` Story やローカル画面で、記事ページが崩れていないか必要に応じて確認してください。
 
 Storybookで確認する場合は `Features/ArticleSite` の List / Category / Article / Mobile 系Storyを見てください。SP確認は 390x844 程度の幅を目安にします。
+
+## 編集時の注意点
+- features/ArticleSite配下を修正する際は、 @public/sitemap.xml も確認し、必要であれば修正を加えること
