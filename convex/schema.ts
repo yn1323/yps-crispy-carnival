@@ -19,9 +19,6 @@ const schema = defineSchema({
   // ========================================
   shops: defineTable({
     name: v.string(),
-    // submissionPattern 移行前の店舗時間帯（legacy）。m007_shops_strip_legacy_shift_times 完走後にフィールド削除する。
-    shiftStartTime: v.optional(v.string()),
-    shiftEndTime: v.optional(v.string()),
     regularClosedDays: v.array(
       v.union(
         v.literal("sun"),
@@ -169,9 +166,6 @@ const schema = defineSchema({
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),
-    // submissionPattern 移行前の募集作成時点スナップショット（legacy）。m008_recruitments_strip_legacy_shift_times 完走後にフィールド削除する。
-    shiftStartTime: v.optional(v.string()),
-    shiftEndTime: v.optional(v.string()),
     submissionPattern: submissionPatternValidator,
     // 未提出者への自動催促通知を予約した時刻。既存募集には付与せず、作成時に未来時刻のものだけ保存する。
     reminderScheduledAt: v.optional(v.number()),
