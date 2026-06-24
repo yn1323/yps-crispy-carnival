@@ -2,7 +2,6 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
-import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
 import { ensureDefaultPosition } from "../position/service";
@@ -34,10 +33,7 @@ export const saveShiftAssignments = managerMutation({
       throw new ConvexError(PAST_SHIFT_SAVE_ERROR);
     }
 
-    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const submissionPattern = recruitment.submissionPattern;
     // 違反は全件収集して構造化エラーで返し、フロントのエラー一覧UIにマップする
     const issues = validateShiftAssignments({
       assignments: args.assignments,

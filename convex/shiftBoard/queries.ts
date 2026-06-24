@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
@@ -69,10 +69,7 @@ export const getShiftBoardData = managerQuery({
       (shiftAssignments.length > 0 ? Math.max(...shiftAssignments.map((a) => a._creationTime)) : null);
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
-    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const submissionPattern = recruitment.submissionPattern;
     const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);

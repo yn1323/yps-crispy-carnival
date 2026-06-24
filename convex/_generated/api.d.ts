@@ -55,6 +55,8 @@ import type * as migrations_m003_recruitments_add_submission_pattern from "../mi
 import type * as migrations_m004_notification_failure_inbox_backfill from "../migrations/m004_notification_failure_inbox_backfill.js";
 import type * as migrations_m005_shop_billing_states_backfill_free from "../migrations/m005_shop_billing_states_backfill_free.js";
 import type * as migrations_m006_notification_failure_inbox_collapse_duplicates from "../migrations/m006_notification_failure_inbox_collapse_duplicates.js";
+import type * as migrations_m007_shops_strip_legacy_shift_times from "../migrations/m007_shops_strip_legacy_shift_times.js";
+import type * as migrations_m008_recruitments_strip_legacy_shift_times from "../migrations/m008_recruitments_strip_legacy_shift_times.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
 import type * as notification_failureRecording from "../notification/failureRecording.js";
@@ -152,6 +154,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/m004_notification_failure_inbox_backfill": typeof migrations_m004_notification_failure_inbox_backfill;
   "migrations/m005_shop_billing_states_backfill_free": typeof migrations_m005_shop_billing_states_backfill_free;
   "migrations/m006_notification_failure_inbox_collapse_duplicates": typeof migrations_m006_notification_failure_inbox_collapse_duplicates;
+  "migrations/m007_shops_strip_legacy_shift_times": typeof migrations_m007_shops_strip_legacy_shift_times;
+  "migrations/m008_recruitments_strip_legacy_shift_times": typeof migrations_m008_recruitments_strip_legacy_shift_times;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
   "notification/failureRecording": typeof notification_failureRecording;
