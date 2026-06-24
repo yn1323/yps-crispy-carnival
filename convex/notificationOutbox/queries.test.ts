@@ -40,6 +40,7 @@ describe("notificationOutbox/queries", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const oldFailureId = await insertFailure(ctx, {
         shopId: primary.shopId,

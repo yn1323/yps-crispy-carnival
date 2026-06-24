@@ -5,7 +5,7 @@ import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from
 import { APP_URL } from "./_lib/config";
 import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
-import { getSubmissionPattern, normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
+import { normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS, LINE_LINK_TOKEN_TTL_MS, MAGIC_LINK_DEFAULT_TTL_MS } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
@@ -602,10 +602,7 @@ export const seedPaginationTestData = internalMutation({
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        submissionPattern: getSubmissionPattern(shop.submissionPattern, {
-          startTime: shop.shiftStartTime,
-          endTime: shop.shiftEndTime,
-        }),
+        submissionPattern: shop.submissionPattern,
       });
     }
 

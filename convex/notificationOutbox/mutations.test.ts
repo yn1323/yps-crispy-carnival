@@ -896,6 +896,7 @@ describe("notificationOutbox", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
     });
     const failureId = await t.run(async (ctx) => {
@@ -978,6 +979,7 @@ describe("notificationOutbox", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const now = Date.now();
       const currentFailureId = await ctx.db.insert("notificationFailureInbox", {
@@ -1010,6 +1012,7 @@ describe("notificationOutbox", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const otherFailureId = await ctx.db.insert("notificationFailureInbox", {
         failureKey: "enqueue_preparation:test:bulk-other",

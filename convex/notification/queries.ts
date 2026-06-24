@@ -10,7 +10,6 @@ import {
   getSubmitLinkCutoff,
   todayJST,
 } from "../_lib/dateFormat";
-import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { buildShiftTimeLabel } from "../_lib/time";
 import { DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT, OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
@@ -46,10 +45,7 @@ async function buildConfirmationStaffEntries(
 ): Promise<ConfirmationStaffEntry[]> {
   const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
   const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
-  const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-    startTime: recruitment.shiftStartTime,
-    endTime: recruitment.shiftEndTime,
-  });
+  const submissionPattern = recruitment.submissionPattern;
 
   return Promise.all(
     staffs.map(async (staff) => {
