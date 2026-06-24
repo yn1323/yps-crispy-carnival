@@ -45,16 +45,12 @@ export class StaffSubmitPage {
   }
 
   async expectLegalConsentVisible() {
-    await expect(
-      this.page.getByText(/初回の提出時、または利用規約・プライバシーポリシーに大きな変更があった場合のみ/),
-    ).toBeVisible();
+    await expect(this.page.getByText(/初めての提出時や、規約の大きな変更があったときのみ/)).toBeVisible();
     await expect(this.legalConsentCheckbox()).toBeVisible();
   }
 
   async expectLegalConsentNotVisible() {
-    await expect(
-      this.page.getByText(/初回の提出時、または利用規約・プライバシーポリシーに大きな変更があった場合のみ/),
-    ).not.toBeVisible();
+    await expect(this.page.getByText(/初めての提出時や、規約の大きな変更があったときのみ/)).not.toBeVisible();
     await expect(this.legalConsentCheckbox()).not.toBeVisible();
   }
 

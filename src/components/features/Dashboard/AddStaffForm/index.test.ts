@@ -34,7 +34,7 @@ describe("staffEntrySchema", () => {
     const result = staffEntrySchema.safeParse({ name: "田中", email });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("正しいメールアドレスを入力してください");
+      expect(result.error.issues[0].message).toBe("メールアドレスの形式で入力してください");
     }
   });
 
