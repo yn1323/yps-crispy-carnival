@@ -1,6 +1,6 @@
 ---
 title: "お役立ちガイド"
-description: "シフト運営のお役立ち情報を記事にしました。"
+description: "シフト希望の集め方からExcel・LINE運用のコツまで、小さなお店のシフト作成でつまずきやすいポイントを記事で解説します。"
 breadcrumbLabel: "お役立ち情報"
 concernTitle: "よくある困りごとから探す"
 latestTitle: "新着記事"
@@ -10,7 +10,7 @@ ctaPrimaryLabel: "シフトリを見てみる"
 ctaPrimaryHref: "/demo/flow"
 ctaSecondaryLabel: "無料で試してみる"
 ctaSecondaryHref: "/signup"
-concernSlugs: "shift-request"
+concernSlugs: "shift-request, shift-building, shift-operation"
 landingPreviewTitle: "シフト作成のヒント"
 landingPreviewDescription: "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。"
 landingPreviewLimit: 3
