@@ -133,7 +133,7 @@ describe("staff/mutations", () => {
         asManager.mutation(api.staff.mutations.addStaffs, {
           entries: [{ name: "不正メール", email: "not-email" }],
         }),
-      ).rejects.toThrow("正しいメールアドレスを入力してください");
+      ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
     it("既存メールアドレスの重複はエラーにしてスタッフを追加しない", async () => {
@@ -545,7 +545,7 @@ describe("staff/mutations", () => {
           name: "田中太郎",
           email: "not-email",
         }),
-      ).rejects.toThrow("正しいメールアドレスを入力してください");
+      ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
     it("他店舗のスタッフは編集できない（IDOR）", async () => {
