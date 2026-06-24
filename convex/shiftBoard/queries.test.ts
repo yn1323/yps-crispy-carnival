@@ -326,34 +326,6 @@ describe("shiftBoard/queries", () => {
     });
   });
 
-  it("migration前の募集時間スナップショットをsubmissionPatternの代わりに読める", async () => {
-    const t = convexTest(schema, modules);
-    const recruitmentId = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
-        subject: "manager_legacy_time_snapshot",
-        shopName: "テスト店舗",
-      });
-      return await ctx.db.insert("recruitments", {
-        shopId,
-        periodStart: "2026-04-01",
-        periodEnd: "2026-04-07",
-        deadline: "2026-03-28",
-        shopClosedDates: [],
-        status: "open",
-        isDeleted: false,
-        shiftStartTime: "06:30",
-        shiftEndTime: "21:30",
-      });
-    });
-
-    const result = await t
-      .withIdentity({ subject: "manager_legacy_time_snapshot" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
-
-    expect(result?.timeRange.editableStartMinutes).toBe(390);
-    expect(result?.timeRange.editableEndMinutes).toBe(1290);
-  });
-
   it("募集スナップショットの時間指定を店舗設定より優先する", async () => {
     const t = convexTest(schema, modules);
     const recruitmentId = await t.run(async (ctx) => {

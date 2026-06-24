@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
 
@@ -50,10 +50,7 @@ export const getShiftViewData = staffSessionQuery({
         .take(50),
     ]);
 
-    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const submissionPattern = recruitment.submissionPattern;
     const { startTime: startTimeStr, endTime: endTimeStr } = getViewTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);

@@ -2,7 +2,6 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import { generateDateRange, getReminderScheduledAt, todayJST } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
-import { getSubmissionPattern } from "../_lib/submissionPattern";
 import { isValidIsoDateString } from "../_lib/validation";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
 import { createRecruitmentSchema } from "./schemas";
@@ -87,10 +86,7 @@ export const createRecruitment = managerMutation({
       status: "open",
       isDeleted: false,
       // 作成時点の店舗シフト時間帯をスナップショットとして保存
-      submissionPattern: getSubmissionPattern(ctx.shop.submissionPattern, {
-        startTime: ctx.shop.shiftStartTime,
-        endTime: ctx.shop.shiftEndTime,
-      }),
+      submissionPattern: ctx.shop.submissionPattern,
       ...(shouldScheduleReminder ? { reminderScheduledAt } : {}),
     });
     const activeStaffs = await ctx.db

@@ -39,7 +39,7 @@ async function setupTestData(
       shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
       isDeleted: false,
-      submissionPattern: options?.submissionPattern,
+      submissionPattern: options?.submissionPattern ?? { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
     const sessionToken = "test-session-token";
     await ctx.db.insert("sessions", {
@@ -111,6 +111,7 @@ describe("shiftSubmission/mutations", () => {
           shopClosedDates: [],
           status: "open",
           isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         }),
       );
 
