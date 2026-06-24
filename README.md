@@ -4,7 +4,7 @@ Welcome to your new TanStack app!
 
 To run this application:
 
-```bash
+```bash 
 pnpm install
 pnpm start
 ```
