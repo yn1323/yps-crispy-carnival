@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
@@ -82,10 +82,7 @@ export const getSubmissionPageData = staffSessionQuery({
     }
 
     const isBeforeDeadline = now < getDeadlineCutoff(recruitment.deadline);
-    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const submissionPattern = recruitment.submissionPattern;
 
     const staffId = ctx.staff._id;
     const [submission, slots] = await Promise.all([
