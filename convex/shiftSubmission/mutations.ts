@@ -3,7 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
 import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
@@ -175,10 +175,7 @@ export const submitShiftRequests = staffSessionMutation({
       throw new ConvexError("Deadline passed");
     }
 
-    const pattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const pattern = recruitment.submissionPattern;
     const rawSubmission = args.submission ?? { kind: "time", requests: args.requests ?? [] };
     const parsed = submitShiftSelectionSchema.safeParse(rawSubmission);
     if (!parsed.success) {

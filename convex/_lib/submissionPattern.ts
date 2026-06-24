@@ -98,14 +98,3 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
     options: normalized.sort(compareShiftTypeOptionsByTime).map((option, index) => ({ ...option, sortOrder: index })),
   };
 }
-
-export function getSubmissionPattern(
-  pattern?: ShiftSubmissionPattern,
-  legacyTimeRange?: { startTime?: string; endTime?: string },
-): ShiftSubmissionPattern {
-  if (pattern) return pattern;
-  if (legacyTimeRange?.startTime !== undefined && legacyTimeRange.endTime !== undefined) {
-    return { kind: "time", startTime: legacyTimeRange.startTime, endTime: legacyTimeRange.endTime };
-  }
-  return DEFAULT_SUBMISSION_PATTERN;
-}

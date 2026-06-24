@@ -4,7 +4,6 @@ import { ConvexError } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery } from "../_lib/functions";
-import { getSubmissionPattern } from "../_lib/submissionPattern";
 import {
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
@@ -141,10 +140,7 @@ export const getDashboardShop = authenticatedQuery({
     return {
       name: shop.name,
       regularClosedDays: shop.regularClosedDays,
-      submissionPattern: getSubmissionPattern(shop.submissionPattern, {
-        startTime: shop.shiftStartTime,
-        endTime: shop.shiftEndTime,
-      }),
+      submissionPattern: shop.submissionPattern,
     };
   },
 });
