@@ -61,7 +61,7 @@ describe("setup/mutations", () => {
           ...setupArgs,
           managerEmail: "not-email",
         }),
-      ).rejects.toThrow("正しいメールアドレスを入力してください");
+      ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
     it("店舗・ユーザー・スタッフ・同意履歴をトランザクションで作成する", async () => {

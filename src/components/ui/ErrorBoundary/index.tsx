@@ -4,8 +4,8 @@ import { LuTriangleAlert } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 
-const FALLBACK_DESCRIPTION = "一時的な問題が発生しました。ページを再読み込みして、もう一度お試しください。";
-const NETWORK_ERROR_DESCRIPTION = "通信が不安定な可能性があります。ページを再読み込みして、もう一度お試しください。";
+const FALLBACK_DESCRIPTION = "一時的な問題が発生しました。ページを再読み込みしてください。";
+const NETWORK_ERROR_DESCRIPTION = "通信が不安定なようです。ページを再読み込みしてください。";
 
 type DefaultErrorFallbackProps = {
   error: unknown;
