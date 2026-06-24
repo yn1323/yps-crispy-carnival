@@ -417,7 +417,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
           {data.legalConsentRequired && (
             <Box mb={4} p={4} bg="white" borderWidth={1} borderColor="border.default" borderRadius="md">
               <Text mb={3} fontSize="xs" color="fg.muted" lineHeight={1.7}>
-                初回の提出時、または利用規約・プライバシーポリシーに大きな変更があった場合のみ、確認をお願いしています。
+                初めての提出時や、規約の大きな変更があったときのみ確認をお願いしています。
               </Text>
               <Checkbox.Root
                 colorPalette="teal"

@@ -26,7 +26,7 @@ export function StaffShiftViewRoutePage({ token }: Props) {
           <Empty
             icon={LuTriangleAlert}
             title="アクセスが集中しています"
-            description={"少し時間をおいて、\nもう一度開いてください。"}
+            description={"少し時間をおいて、\nもう一度お試しください。"}
             tone="warning"
           />
         </StaffCenteredContent>
