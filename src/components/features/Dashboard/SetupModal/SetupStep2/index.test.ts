@@ -35,7 +35,7 @@ describe("step2Schema (managerProfile)", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const error = result.error.issues.find((i) => i.path.includes("email"));
-      expect(error?.message).toBe("正しいメールアドレスを入力してください");
+      expect(error?.message).toBe("メールアドレスの形式で入力してください");
     }
   });
 

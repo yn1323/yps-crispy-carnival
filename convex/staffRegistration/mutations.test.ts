@@ -64,7 +64,7 @@ describe("staffRegistration/mutations", () => {
         email: "not-email",
         acceptedLegal: true,
       }),
-    ).rejects.toThrow("正しいメールアドレスを入力してください");
+    ).rejects.toThrow("メールアドレスの形式で入力してください");
     await expect(
       t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
         token: link.token,
