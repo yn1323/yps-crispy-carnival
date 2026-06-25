@@ -68,6 +68,11 @@ export function getReminderScheduledAt(deadline: string): number {
   return getDeadlineCutoff(deadline) - 31 * 60 * 60 * 1000;
 }
 
+/** 提出締切日の翌日 17:00 JST の Unix ms を返す（マネージャーへのシフト確定催促用）。 */
+export function getManagerConfirmationReminderAt(deadline: string): number {
+  return getDeadlineCutoff(deadline) + 17 * 60 * 60 * 1000;
+}
+
 /** JST基準の今日の日付を "YYYY-MM-DD" で返す */
 export function todayJST(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];

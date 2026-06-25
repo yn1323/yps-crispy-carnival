@@ -43,5 +43,8 @@ export const RECRUITMENT_PERIOD_DAYS_MAX = 62;
 // 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronで最大3回）
 export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = 3 * DAY_MS;
 
+// シフト確定催促リマインダーで一度に通知するマネージャーの上限
+export const SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT = 20;
+
 export const DEFAULT_POSITION_NAME = "シフト";
 export const DEFAULT_POSITION_COLOR = "#3b82f6";
