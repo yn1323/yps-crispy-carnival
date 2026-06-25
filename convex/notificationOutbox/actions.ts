@@ -44,10 +44,12 @@ export const processPending = internalAction({
             ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         } else {
+          const suppressFailureInbox =
+            lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE || job.payload.suppressFailureInbox === true;
           await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, {
             outboxId: job._id,
             lastError,
-            ...(lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE ? { suppressFailureInbox: true } : {}),
+            ...(suppressFailureInbox ? { suppressFailureInbox: true } : {}),
             ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         }
