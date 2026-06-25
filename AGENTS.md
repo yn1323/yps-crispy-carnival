@@ -4,12 +4,17 @@ This file provides guidance to Codex and other coding agents when working with c
 
 ## プロジェクト概要
 
-店舗スタッフのシフト管理SaaSアプリケーション。React + Vite + Convex構成。
+店舗スタッフのシフト管理SaaSアプリケーション。
+React + Vite + TanStack Router + Chakra UI v3 + Convex 構成。
 
-## 必読ドキュメント
+## 必読ドキュメント / スキル
 
 - 作業開始時に必ず `doc/rules/testing-strategy.md` を読み、テスト種別・粒度・Convex Scenario Test の配置方針に従うこと。
-- Convexコードを扱う場合は、従来通り `convex/_generated/ai/guidelines.md` も必ず読むこと。
+- コード実装・修正・レビュー時は `.agents/skills/shiftori-coding/SKILL.md` を読み、配置判断・技術スタック別の書き方・自己修復ルールに従うこと。
+- `src/` 配下を扱う場合は `src/AGENTS.md` を読むこと。
+- Convexコードを扱う場合は、`convex/_generated/ai/guidelines.md` と `convex/AGENTS.md` を必ず読むこと。
+- E2Eを扱う場合は `e2e/AGENTS.md`、CI/CDを扱う場合は `.github/AGENTS.md` を読むこと。
+- UI/UXや文言は `ui-architect`、テスト設計は `test-strategy`、Convex migration は `convex-migration-helper` を併用すること。
 
 ## コマンド
 
@@ -32,193 +37,61 @@ pnpm convex:dev       # Convex開発サーバー
 
 ### Codex sandboxで失敗しやすいコマンド
 
-- `pnpm lint` は `tsx scripts/check-convex-timezone.ts` が IPC pipe を作るため、Codex sandbox内では `EPERM: operation not permitted ... tsx-*.pipe` で失敗することがある。Biome自体が通っている場合は、同じ `pnpm lint` を権限付きで再実行すること。
-- `pnpm e2e` / Playwright / ブラウザ起動を伴う検証は、Codex sandbox内ではブラウザ起動・IPC・ローカルサーバー接続で失敗しやすい。E2Eを実行する必要がある場合は、最初から権限付き実行を検討し、sandbox由来の失敗なら同じコマンドを権限付きで再実行すること。
+- `pnpm lint` は `tsx scripts/check-convex-timezone.ts` が IPC pipe を作るため、Codex sandbox内では `EPERM: operation not permitted ... tsx-*.pipe` で失敗しやすい。Codexで実行する場合は最初から権限付きで実行すること。
+- `pnpm test:ui` / `pnpm e2e` / `pnpm vrt` など Playwright / ブラウザ起動を伴う検証は、Codex sandbox内ではブラウザ起動・IPC・ローカルサーバー接続で失敗しやすい。Codexで実行する必要がある場合は最初から権限付きで実行すること。
 - これらはテスト・lintの失敗とは区別する。`EPERM`、ブラウザ起動不可、IPC/listen失敗など実行環境由来のエラーは、コード修正ではなく実行権限の問題として扱う。
 
 ### 単一テスト実行
 
 ```bash
-pnpm vitest --project=logic src/path/to/file.test.ts    # 特定ロジックテスト
-pnpm vitest --project=logic -t "テスト名"                # 特定テスト名
-pnpm vitest --project=ui                                 # UIテスト（Storybook必須）
-pnpm vitest --project=convex convex/path/to/file.test.ts # 特定Convexテスト
-pnpm e2e e2e/path/to/file.spec.ts                       # 特定E2Eファイル
+pnpm vitest --project=logic src/path/to/file.test.ts
+pnpm vitest --project=logic -t "テスト名"
+pnpm vitest --project=ui
+pnpm vitest --project=convex convex/path/to/file.test.ts
+pnpm e2e e2e/path/to/file.spec.ts
 ```
-
-- `logic`プロジェクト: `src/**/*.test.ts` のユニットテスト
-- `ui`プロジェクト: Storybook + Playwright（ブラウザモード）での UI Component Test / Behavior Test
-- `convex`プロジェクト: `convex/**/*.test.ts` の Convex Function Test / Scenario Test
 
 ## Git Worktree運用
 
-- 同じブランチは複数のworktreeで同時にcheckoutできないため、作業ごとに `codex/...` などの専用ブランチを切ること
-- worktreeごとに `node_modules` は別管理になるため、新しいworktreeでは必要に応じて `pnpm install` を実行すること
-- `.env` はGoogle Driveへのシンボリックリンクなので、新しいworktree側でも `ls -l .env` でリンクが正しいか確認すること
-- `pnpm dev` はport 3000、`pnpm storybook` はport 6006を使う。複数worktreeで同時起動する場合は、片方を `pnpm exec vite --port 3001` や `pnpm exec storybook dev -p 6007` のように明示的にずらすこと
-- `pnpm convex:dev` は同じConvex deploymentに対して関数を同期するため、複数worktreeで同時起動すると別ブランチのbackend変更が押し合う可能性がある。基本は1つのworktreeだけで起動し、必要な時だけ切り替えること
-- 不要になったworktreeは `git worktree remove <path>` で削除し、状態確認には `git worktree list` を使うこと
+- 同じブランチは複数のworktreeで同時にcheckoutできないため、作業ごとに `codex/...` などの専用ブランチを切ること。
+- worktreeごとに `node_modules` は別管理になるため、新しいworktreeでは必要に応じて `pnpm install` を実行すること。
+- `.env` はGoogle Driveへのシンボリックリンクなので、新しいworktree側でも `ls -l .env` でリンクが正しいか確認すること。
+- `pnpm dev` はport 3000、`pnpm storybook` はport 6006を使う。複数worktreeで同時起動する場合は、片方を `pnpm exec vite --port 3001` や `pnpm exec storybook dev -p 6007` のように明示的にずらすこと。
+- `pnpm convex:dev` は同じConvex deploymentに対して関数を同期するため、複数worktreeで同時起動すると別ブランチのbackend変更が押し合う可能性がある。基本は1つのworktreeだけで起動し、必要な時だけ切り替えること。
+- 不要になったworktreeは `git worktree remove <path>` で削除し、状態確認には `git worktree list` を使うこと。
 
 ## ペルソナ
 
 - あなたはUX、UI、エンジニアリングのプロです。UX駆動開発を行っていることを強く意識してください。
 
-## 実装のルール
+## 実装の強いルール
 
-### 実装時
 - Submit系ボタンは二重送信に注意すること。UIのloading/disabledだけに依存せず、短時間の連続クリックでも同じ処理が複数回走らないよう、フロントの同期ガードやバックエンドの冪等性を必要に応じて設計すること。
-- 必ず自動テストを修正・追加すること。また、不要になったテストを削除すること
-- ブラウザをAI Agentが動かしてやるテストは不要
-
-### 実装完了後
-- 変更範囲に応じて `pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること
-- `lint`はwarningでも修正すること
-- 実装後にコードレビュー観点で自己確認し、要修正の指摘があれば修正すること
-- 実装完了後、セルフレビューを実施すること
-- 最後に不要な複雑さや重複を見直し、必要な範囲で簡素化すること
-- 最後にCodexのレビューを実施し、指摘があれば修正してから完了すること
-- レビュー結果をユーザーに伝える場合は、日本語で説明すること
-
-### フロントエンド（UIあり）
-
-- コロケーションでファイルを作成する
-   - index.tsx（必須）
-   - index.stories.tsx（必須）
-   - index.test.ts（ドメインよりでロジックを分離する必要がある場合のみ作成）
-- UIパターンごとにindex.stories.tsxに記載すること（細かすぎないよう注意！）。後工程でVRTに利用します
-- 複雑な動きがある場合、index.stories.tsxに Behavior Test（振る舞いテスト）として play function を記載すること
-- Behavior Test では、押せる / 進める / エラーが見える / 確認文言が出る、などユーザー操作後の振る舞いを `expect` で検証すること
-
-### フロントエンド（UIなしロジック）
-
-- テストファイルも合わせて作成すること
-
-### 環境変数
-
-- `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク
-- `pnpm convex:env:setup`で環境変数を同期
-
-## アーキテクチャ
-
-### 技術スタック
-
-React 19 / Vite 7 / TanStack Router / Chakra UI v3 / React Hook Form + Zod 4 / Jotai / Clerk(認証) / Convex(BaaS) / Biome(lint/format)
-
-### レイヤー構造とデータフロー
-
-```
-routes/       → ページ呼び出しのみ（ロジック禁止）
-  ↓
-pages/        → useQuery、エラー/ローディング処理（useMutation禁止）
-  ↓
-features/     → ドメインロジック、useMutation、UI組成
-  ↓
-convex/       → queries.ts(読み取り) / mutations.ts(書き込み) / policies.ts(権限判定)
-```
-
-- **routes/**: TanStack Routerのファイルベースルーティング。ページコンポーネントの呼び出し**のみ**。`_auth/`（Clerk認証必須）と`_unregistered/`（ゲスト）でレイアウト分離
-- **pages/**: `useQuery`でデータ取得し、エラー/ローディング/正常系を振り分け。正常系のみfeaturesを呼ぶ
-- **features/**: ドメイン別ディレクトリ（Shop, Shift, Staff等）。`useMutation`はここで定義
-- **ui/**: 汎用UIコンポーネント（FormCard, Dialog等）。SelectなどChakra UIのラッパーもここに配置
-- **templates/**: レイアウトコンポーネント（BottomMenu, SideMenu等）
-
-### Convexバックエンド（詳細は `convex/AGENTS.md` を参照）
-
-- Feature Slices + CQRS + Policy Pattern
-- ドメイン単位でディレクトリ分割（shop/, user/, staff/等）
-- `policies.ts`は純粋関数（DBアクセスなし）。命名: `can*` / `is*`
-- API呼び出し: `api.shop.queries.getById` / `api.shop.mutations.create`
-- 論理削除パターン: `isDeleted`フラグ
-
-### 状態管理（Jotai）
-
-- `selectedShopAtom`: 選択中店舗（localStorage永続化）
-- `userAtom`: ログインユーザー情報
-- ShiftForm系Atoms: Jotai Providerでスコープ管理
-
-### フォーム開発
-
-- react-hookform + zodResolverを利用
-- index.tsに外出しし、index.test.tsにテストを書くこと
-- 常にSubmitボタンはEnabledの状態にする。バリデーションエラーがあれば、Submitボタンは押せるが、エラーで次に進めないような実装方針にしたい。
-
-### 開発環境
-
+- 実装変更に合わせた自動テストの追加・更新・削除は、`doc/rules/testing-strategy.md` と `test-strategy` に従うこと。
+- ブラウザをAI Agentが動かしてやるテストは不要。必要な確認は自動テストとして設計すること。
 - Convex起動、Storybook起動、Vite起動はユーザーが実施しています。新規でコマンドを叩かないでください。
+- `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク。環境変数同期は `pnpm convex:env:setup` を使う。
 
-### 認証
+## 実装完了後
 
-- **Clerk**: アプリ認証（管理者・マネージャー）
-- **マジックリンク**: スタッフのシフト申請（Clerkアカウント不要）
-- **招待トークン**: マネージャー招待用
+- 変更範囲に応じて `pnpm lint`, `pnpm type-check`, `pnpm test` を実行すること。
+- `lint`はwarningでも修正すること。
+- 実装後にコードレビュー観点で自己確認し、要修正の指摘があれば修正すること。
+- 最後に不要な複雑さや重複を見直し、必要な範囲で簡素化すること。
+- 最後にCodexのレビューを実施し、指摘があれば修正してから完了すること。
+- レビュー結果をユーザーに伝える場合は、日本語で説明すること。
 
-## コーディング規約
+## 自動生成ファイル
 
-### コメント方針
+以下の自動生成ファイルは絶対に手動で編集しないこと。
 
-- コメント量は「普通」を基本にする
-- 処理の逐語説明ではなく、「なぜここでやるのか」「業務ルール」「例外条件」「壊しやすい前提」を中心に短く補足する
-- 複雑な権限判定、日付処理、通知、E2E helper など、後から意図を読み違えやすい箇所には背景を1〜2文で残す
-
-### パスエイリアス
-
-```ts
-import { Foo } from "@/src/components/...";
-import { bar } from "@/convex/...";
-```
-
-### Biome設定
-
-- インデント: スペース2つ / 行幅: 120文字
-- import自動整理有効（`organizeImports`）
-- `convex/_generated`、`src/routeTree.gen.ts`は自動生成のため除外
-
-### バリデーション
-
-- Zod v4スキーマ + カスタムエラーマップ（日本語メッセージ）
-- **mutation引数のZodスキーマは `convex/{useCase}/schemas.ts` に配置し、フロントと共有する**
-  - フロントからは `@/convex/{useCase}/schemas` でインポート
-  - フォーム固有のラッパー（配列化、UI専用refinement等）は `src/` 側に残す
-  - `schemas.ts` は純粋な Zod 定義のみ。DB アクセスや Convex API のインポート禁止
-- カスタムバリデータ（フロント専用）: `src/helpers/validation/`（`betweenLength`, `time`, `select`等）
-- 共通バリデータ（mutation共有）: `convex/_lib/validation.ts`（`optionalEmail`等）
-
-### 日付操作
-
-- フロントの日付操作は `src/components/features/Shift/ShiftForm/utils/dateUtils.ts`（dayjs）を使用
-- `new Date()` + `toISOString()` による日付文字列生成はTZずれの原因になるため禁止
-- Convexバックエンド（`convex/`）ではdayjsを使えないため、文字列比較（"YYYY-MM-DD"）で対応
-
-### Select × モーダル
-
-- モーダル内でSelectを使う場合は `usePortal={false}` を指定すること（Portalだとドロップダウンがモーダル背後に回る）
-
-### Storybook
-
-- `@storybook/react-vite`を使用（`@storybook/react`ではない）
-- `storybook/test` の `expect` を使う。Storybookをブラウザで開いたときに壊れるため、storiesから `vitest` の `expect` を直接importしない
-- `@storybook/test`パッケージはインストールされていない。`fn()`は使わず、コールバックは `() => {}` で直接指定する
-- stories は各コンポーネントと同階層に配置（`.stories.tsx`）
-
-## Storybook / VRT
-
-- VRTは自前運用（storycap-testrun + RegSuit、`pnpm vrt`）でキャプチャ数の制限はありません。コンポーネントの状態ごとに個別Storyを作成すること。
-- ボタン等の細かいUI部品のみ、Variants Storyで1つのStoryに集約してOK。
-  操作用のStoryが必要なら、Interactive Storyを別途作成すること。（小さいコンポーネントのみ）
-- Behavior Test は VRT と目的が異なる。追加時は、VRTで撮るのか、`chromatic.disableSnapshot` で撮らないのかを必ず決めること
-- `position: fixed` のHeaderを含む縦長ページをfull-page VRTで撮る場合は、Storyの `parameters.vrt.releaseFixedHeader = true` を必ず設定すること。未設定だとstorycapの分割撮影でHeaderが繰り返し写る。
-
-## コーディング
-
-- `pnpm lint`, `pnpm type-check`を必ず実行すること
-- 以下の自動生成ファイルは絶対に手動で編集しないこと（各ツールが自動再生成する）
-  - `convex/_generated/` — Convex CLIが生成（`pnpm convex:dev`）
-  - `src/routeTree.gen.ts` — TanStack Routerが生成（`pnpm dev`）
-  - `pnpm-lock.yaml` — pnpmが管理
+- `convex/_generated/` — Convex CLIが生成（`pnpm convex:dev`）
+- `src/routeTree.gen.ts` — TanStack Routerが生成（`pnpm dev`）
+- `pnpm-lock.yaml` — pnpmが管理
 
 ## プラン
 
-- planドキュメント保存時は参考ファイルのパスも記載すること
+- planドキュメント保存時は参考ファイルのパスも記載すること。
 
 ## ドキュメント
 
@@ -233,10 +106,10 @@ import { bar } from "@/convex/...";
 
 ### ドキュメント運用ルール
 
-- 新機能を実装したら `doc/features/` に概要ドキュメントを作成・更新する
-- 機能概要には: 機能説明（1-2文）、関連ファイルパス、画面一覧、API一覧を含める
-- 詳細な仕様・ロジックはコードに書く（ドキュメントとコードの二重管理を避ける）
-- `doc/INDEX.md` に新規ドキュメントへのリンクを追加する
+- 新機能を実装したら `doc/features/` に概要ドキュメントを作成・更新する。
+- 機能概要には、機能説明（1-2文）、関連ファイルパス、画面一覧、API一覧を含める。
+- 詳細な仕様・ロジックはコードに書く（ドキュメントとコードの二重管理を避ける）。
+- `doc/INDEX.md` に新規ドキュメントへのリンクを追加する。
 
 <!-- convex-ai-start -->
 This project uses [Convex](https://convex.dev) as its backend.
@@ -245,6 +118,3 @@ When working on Convex code, **always read `convex/_generated/ai/guidelines.md` 
 
 Convex agent skills for common tasks can be installed by running `npx convex ai-files install`.
 <!-- convex-ai-end -->
-
-## コミットルール
-- 自動コミットの最後に改行コードをいれるのをやめてください
