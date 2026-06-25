@@ -8,6 +8,8 @@ export type NotificationEmailPayload = {
   html: string;
   context: string;
   suppressDelivery?: boolean;
+  // 配送失敗時に notificationFailureInbox へ記録しない（失敗リマインダー等のメタ通知用）
+  suppressFailureInbox?: boolean;
 };
 
 export type NotificationLinePayload = {
@@ -15,6 +17,8 @@ export type NotificationLinePayload = {
   toUserId: string;
   text: string;
   suppressDelivery?: boolean;
+  // 配送失敗時に notificationFailureInbox へ記録しない（失敗リマインダー等のメタ通知用）
+  suppressFailureInbox?: boolean;
   fallbackEmail?: {
     dedupeKey: string;
     payload: NotificationEmailPayload;

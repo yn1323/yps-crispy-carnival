@@ -22,6 +22,7 @@ import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeli
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
+import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
 import type * as _lib_submissionPatternConstants from "../_lib/submissionPatternConstants.js";
@@ -68,6 +69,8 @@ import type * as notification_templates from "../notification/templates.js";
 import type * as notificationOutbox_actions from "../notificationOutbox/actions.js";
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
 import type * as notificationOutbox_failureIdentity from "../notificationOutbox/failureIdentity.js";
+import type * as notificationOutbox_failureReminderActions from "../notificationOutbox/failureReminderActions.js";
+import type * as notificationOutbox_failureReminderQueries from "../notificationOutbox/failureReminderQueries.js";
 import type * as notificationOutbox_failureResend from "../notificationOutbox/failureResend.js";
 import type * as notificationOutbox_failureSuppress from "../notificationOutbox/failureSuppress.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
@@ -124,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
+  "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
   "_lib/submissionPatternConstants": typeof _lib_submissionPatternConstants;
@@ -170,6 +174,8 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/actions": typeof notificationOutbox_actions;
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
   "notificationOutbox/failureIdentity": typeof notificationOutbox_failureIdentity;
+  "notificationOutbox/failureReminderActions": typeof notificationOutbox_failureReminderActions;
+  "notificationOutbox/failureReminderQueries": typeof notificationOutbox_failureReminderQueries;
   "notificationOutbox/failureResend": typeof notificationOutbox_failureResend;
   "notificationOutbox/failureSuppress": typeof notificationOutbox_failureSuppress;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;

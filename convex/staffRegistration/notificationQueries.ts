@@ -2,8 +2,8 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
+import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
-import { getShopManagerRecipients } from "../line/service";
 
 export const listPendingRequestShopIdsPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
@@ -34,7 +34,7 @@ export const getOwnerDigestTargetForShop = internalQuery({
       .first();
     if (!pendingRequest) return null;
 
-    const recipients = await getShopManagerRecipients(ctx, shopId, STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT);
+    const recipients = await loadShopManagerRecipients(ctx, shopId, STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT);
     if (recipients.length === 0) return null;
 
     return {

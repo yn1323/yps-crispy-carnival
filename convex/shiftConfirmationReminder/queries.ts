@@ -2,8 +2,8 @@ import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
 import { formatDeadlineLabel, formatPeriodLabel } from "../_lib/dateFormat";
+import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT } from "../constants";
-import { getShopManagerRecipients } from "../line/service";
 
 /**
  * シフト確定催促リマインダーの送信対象を取得する。
@@ -18,7 +18,7 @@ export const getManagerConfirmationReminderTarget = internalQuery({
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
 
-    const recipients = await getShopManagerRecipients(
+    const recipients = await loadShopManagerRecipients(
       ctx,
       recruitment.shopId,
       SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT,
