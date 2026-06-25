@@ -69,6 +69,7 @@ import type * as notificationOutbox_actions from "../notificationOutbox/actions.
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
 import type * as notificationOutbox_failureIdentity from "../notificationOutbox/failureIdentity.js";
 import type * as notificationOutbox_failureResend from "../notificationOutbox/failureResend.js";
+import type * as notificationOutbox_failureSuppress from "../notificationOutbox/failureSuppress.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
 import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.js";
@@ -81,6 +82,8 @@ import type * as setup_schemas from "../setup/schemas.js";
 import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
 import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as shiftBoard_validation from "../shiftBoard/validation.js";
+import type * as shiftConfirmationReminder_actions from "../shiftConfirmationReminder/actions.js";
+import type * as shiftConfirmationReminder_queries from "../shiftConfirmationReminder/queries.js";
 import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js";
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
@@ -168,6 +171,7 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
   "notificationOutbox/failureIdentity": typeof notificationOutbox_failureIdentity;
   "notificationOutbox/failureResend": typeof notificationOutbox_failureResend;
+  "notificationOutbox/failureSuppress": typeof notificationOutbox_failureSuppress;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
   "notificationOutbox/schemas": typeof notificationOutbox_schemas;
@@ -180,6 +184,8 @@ declare const fullApi: ApiFromModules<{
   "shiftBoard/mutations": typeof shiftBoard_mutations;
   "shiftBoard/queries": typeof shiftBoard_queries;
   "shiftBoard/validation": typeof shiftBoard_validation;
+  "shiftConfirmationReminder/actions": typeof shiftConfirmationReminder_actions;
+  "shiftConfirmationReminder/queries": typeof shiftConfirmationReminder_queries;
   "shiftSubmission/mutations": typeof shiftSubmission_mutations;
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;
