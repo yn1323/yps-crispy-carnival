@@ -1,6 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { generateDateRange, getReminderScheduledAt, todayJST } from "../_lib/dateFormat";
+import {
+  generateDateRange,
+  getManagerConfirmationReminderAt,
+  getReminderScheduledAt,
+  todayJST,
+} from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
@@ -109,6 +114,16 @@ export const createRecruitment = managerMutation({
       await ctx.scheduler.runAt(reminderScheduledAt, internal.notification.reminderActions.sendReminderEmails, {
         recruitmentId,
       });
+    }
+
+    // 締切翌日17時に、まだ確定していなければマネージャーへ確定催促を送る。締切は作成後に編集できないため作成時のみ予約する。
+    const confirmationReminderAt = getManagerConfirmationReminderAt(input.deadline);
+    if (confirmationReminderAt > now) {
+      await ctx.scheduler.runAt(
+        confirmationReminderAt,
+        internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder,
+        { recruitmentId },
+      );
     }
 
     return recruitmentId;

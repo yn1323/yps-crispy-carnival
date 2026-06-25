@@ -22,6 +22,7 @@ import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeli
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
+import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
 import type * as _lib_submissionPatternConstants from "../_lib/submissionPatternConstants.js";
@@ -71,6 +72,7 @@ import type * as notificationOutbox_failureIdentity from "../notificationOutbox/
 import type * as notificationOutbox_failureReminderActions from "../notificationOutbox/failureReminderActions.js";
 import type * as notificationOutbox_failureReminderQueries from "../notificationOutbox/failureReminderQueries.js";
 import type * as notificationOutbox_failureResend from "../notificationOutbox/failureResend.js";
+import type * as notificationOutbox_failureSuppress from "../notificationOutbox/failureSuppress.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
 import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.js";
@@ -83,6 +85,8 @@ import type * as setup_schemas from "../setup/schemas.js";
 import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
 import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as shiftBoard_validation from "../shiftBoard/validation.js";
+import type * as shiftConfirmationReminder_actions from "../shiftConfirmationReminder/actions.js";
+import type * as shiftConfirmationReminder_queries from "../shiftConfirmationReminder/queries.js";
 import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js";
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
@@ -123,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
+  "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
   "_lib/submissionPatternConstants": typeof _lib_submissionPatternConstants;
@@ -172,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/failureReminderActions": typeof notificationOutbox_failureReminderActions;
   "notificationOutbox/failureReminderQueries": typeof notificationOutbox_failureReminderQueries;
   "notificationOutbox/failureResend": typeof notificationOutbox_failureResend;
+  "notificationOutbox/failureSuppress": typeof notificationOutbox_failureSuppress;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
   "notificationOutbox/schemas": typeof notificationOutbox_schemas;
@@ -184,6 +190,8 @@ declare const fullApi: ApiFromModules<{
   "shiftBoard/mutations": typeof shiftBoard_mutations;
   "shiftBoard/queries": typeof shiftBoard_queries;
   "shiftBoard/validation": typeof shiftBoard_validation;
+  "shiftConfirmationReminder/actions": typeof shiftConfirmationReminder_actions;
+  "shiftConfirmationReminder/queries": typeof shiftConfirmationReminder_queries;
   "shiftSubmission/mutations": typeof shiftSubmission_mutations;
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;
