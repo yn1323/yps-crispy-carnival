@@ -1,0 +1,4 @@
+interface:
+  display_name: "Shiftori Security Review"
+  short_description: "シフトリ固有のセキュリティ設計とレビューを支援する"
+  default_prompt: "Use $shiftori-security-review to review this Shiftori plan or code change with a security lens."
