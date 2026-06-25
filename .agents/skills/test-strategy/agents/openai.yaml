@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Strategy"
+  short_description: "シフトリのテスト方針と実装時の細かい書き方を整理する"
+  default_prompt: "Use $test-strategy to choose and update the right tests for this Shiftori change."

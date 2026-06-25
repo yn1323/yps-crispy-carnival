@@ -85,4 +85,3 @@ constants/    → アプリ横断の定数
 - `src/` の変更後は最低限 `pnpm lint` と `pnpm type-check` を実行する。
 - domain ロジックを触ったら `pnpm test:logic` を実行する。
 - 画面遷移や結合が変わる変更では `pnpm e2e` も実行する。
-
