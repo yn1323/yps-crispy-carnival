@@ -46,8 +46,6 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
 }
 
 async function recordEnqueueFailure(ctx: EnqueueCtx, input: EnqueueNotificationInput, e: unknown) {
-  // 失敗リマインダー等のメタ通知は、enqueue失敗時もInboxに記録しない
-  if (input.payload.suppressFailureInbox) return;
   try {
     await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
       eventType: "enqueue_failed",
