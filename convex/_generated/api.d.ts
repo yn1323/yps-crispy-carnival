@@ -68,6 +68,8 @@ import type * as notification_templates from "../notification/templates.js";
 import type * as notificationOutbox_actions from "../notificationOutbox/actions.js";
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
 import type * as notificationOutbox_failureIdentity from "../notificationOutbox/failureIdentity.js";
+import type * as notificationOutbox_failureReminderActions from "../notificationOutbox/failureReminderActions.js";
+import type * as notificationOutbox_failureReminderQueries from "../notificationOutbox/failureReminderQueries.js";
 import type * as notificationOutbox_failureResend from "../notificationOutbox/failureResend.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
@@ -167,6 +169,8 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/actions": typeof notificationOutbox_actions;
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
   "notificationOutbox/failureIdentity": typeof notificationOutbox_failureIdentity;
+  "notificationOutbox/failureReminderActions": typeof notificationOutbox_failureReminderActions;
+  "notificationOutbox/failureReminderQueries": typeof notificationOutbox_failureReminderQueries;
   "notificationOutbox/failureResend": typeof notificationOutbox_failureResend;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
