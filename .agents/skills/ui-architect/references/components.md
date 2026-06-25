@@ -193,7 +193,7 @@
 
 ## 比較（迷う組み合わせ）
 
-### Modal vs Drawer vs BottomSheet vs Page
+### Modal vs Drawer vs Full-screen Dialog vs Page
 
 → `navigation-containers.md`
 
@@ -240,4 +240,4 @@
 ### モバイルのSelect
 
 → ネイティブ select（`<select>`）はOSのピッカーが出る。多くの場合これで十分。
-→ カスタムが必要なら BottomSheet 内 list の方が指で選びやすい。
+→ カスタムが必要なら全画面Dialog内のlistの方が指で選びやすい。
