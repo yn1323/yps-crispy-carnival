@@ -11,6 +11,8 @@ React + Vite + TanStack Router + Chakra UI v3 + Convex 構成。
 
 - 作業開始時に必ず `doc/rules/testing-strategy.md` を読み、テスト種別・粒度・Convex Scenario Test の配置方針に従うこと。
 - コード実装・修正・レビュー時は `.agents/skills/shiftori-coding/SKILL.md` を読み、配置判断・技術スタック別の書き方・自己修復ルールに従うこと。
+- セキュリティ、認証、認可、IDOR、magic link、token、招待、Webhook、LINE、Resend、billing、個人情報ログに触れる相談・プラン・設計・実装・レビューでは、実装前に `shiftori-security-review` を使い、`doc/rules/security-strategy.md` を読むこと。
+- Convex public query/mutation/action、staff token/session、manager/billing権限、外部HTTP action、通知配送、登録/招待導線に触る可能性がある場合も、プラン確定前に `shiftori-security-review` を使うこと。
 - `src/` 配下を扱う場合は `src/AGENTS.md` を読むこと。
 - Convexコードを扱う場合は、`convex/_generated/ai/guidelines.md` と `convex/AGENTS.md` を必ず読むこと。
 - E2Eを扱う場合は `e2e/AGENTS.md`、CI/CDを扱う場合は `.github/AGENTS.md` を読むこと。
@@ -92,6 +94,7 @@ pnpm e2e e2e/path/to/file.spec.ts
 ## プラン
 
 - planドキュメント保存時は参考ファイルのパスも記載すること。
+- セキュリティに関わる plan では `doc/rules/security-strategy.md` の Security Lens を含め、認可チェック、token扱い、rate limit、ログ方針、テスト観点を実装前に決めること。
 
 ## ドキュメント
 
@@ -100,6 +103,7 @@ pnpm e2e e2e/path/to/file.spec.ts
 - `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
 - `doc/plans/`: 実装計画
 - `doc/rules/testing-strategy.md`: テスト種別、粒度、Convex Scenario Test の設計方針
+- `doc/rules/security-strategy.md`: セキュリティ設計、認証/認可境界、token/通知/billing レビュー方針
 - `doc/claude/soul.md`: 設計判断の指針
 - `convex/AGENTS.md`: Convexアーキテクチャ、実装観点の詳細
 - `e2e/AGENTS.md`: E2Eアーキテクチャ、実装観点の詳細
