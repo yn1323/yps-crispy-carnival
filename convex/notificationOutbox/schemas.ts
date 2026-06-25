@@ -45,6 +45,7 @@ export const notificationEmailPayloadValidator = v.object({
   html: v.string(),
   context: v.string(),
   suppressDelivery: v.optional(v.boolean()),
+  suppressFailureInbox: v.optional(v.boolean()),
 });
 
 export const notificationLinePayloadValidator = v.object({
@@ -52,6 +53,7 @@ export const notificationLinePayloadValidator = v.object({
   toUserId: v.string(),
   text: v.string(),
   suppressDelivery: v.optional(v.boolean()),
+  suppressFailureInbox: v.optional(v.boolean()),
   fallbackEmail: v.optional(
     v.object({
       dedupeKey: v.string(),
