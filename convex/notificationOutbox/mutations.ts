@@ -22,6 +22,7 @@ import {
   supersededFailureKey,
 } from "./failureIdentity";
 import { getNotificationFailureResendKind } from "./failureResend";
+import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
 import {
   notificationChannelValidator,
   notificationDeliveryEventTypeValidator,
@@ -112,6 +113,7 @@ export const recordDeliveryEvent = internalMutation({
 
     const sourceType = args.eventType === "enqueue_failed" ? "enqueue" : "enqueue_preparation";
     const notificationContext = args.notificationContext ?? dedupeContext(args.dedupeKey);
+    if (shouldSuppressNotificationFailureInbox(notificationContext)) return;
     const identity = getNotificationFailureIdentity({
       shopId: args.shopId,
       recruitmentId: args.recruitmentId,
@@ -250,6 +252,7 @@ export const markFailed = internalMutation({
     if (suppressFailureInbox) return;
 
     const notificationContext = notificationContextForJob(job);
+    if (shouldSuppressNotificationFailureInbox(notificationContext)) return;
     const identity = getNotificationFailureIdentity({
       shopId: job.shopId,
       recruitmentId: job.recruitmentId,
