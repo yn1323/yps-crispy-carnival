@@ -5,7 +5,10 @@ import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/actions", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T00:00:00+09:00"));
+  });
   afterEach(() => vi.useRealTimers());
 
   it("100人分の募集開始通知をoutboxにenqueueする", async () => {

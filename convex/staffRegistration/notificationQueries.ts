@@ -1,14 +1,9 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
 import { internalQuery } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
-import {
-  SHIFT_BOARD_STAFF_LIMIT,
-  STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT,
-  STAFF_REGISTRATION_DIGEST_WINDOW_MS,
-} from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
+import { STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
 
 export const listPendingRequestShopIdsPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
@@ -39,42 +34,7 @@ export const getOwnerDigestTargetForShop = internalQuery({
       .first();
     if (!pendingRequest) return null;
 
-    const [members, activeStaffs] = await Promise.all([
-      ctx.db
-        .query("shopMembers")
-        .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-        .take(STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT),
-      ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-        .take(SHIFT_BOARD_STAFF_LIMIT),
-    ]);
-
-    const staffByUserId = new Map<Id<"users">, (typeof activeStaffs)[number]>();
-    for (const staff of activeStaffs) {
-      if (staff.userId) staffByUserId.set(staff.userId, staff);
-    }
-
-    const recipients = (
-      await Promise.all(
-        members.map(async (member) => {
-          const user = await ctx.db.get(member.userId);
-          if (!user || user.isDeleted || !user.email) return null;
-
-          const managerStaff = staffByUserId.get(user._id);
-          const lineAccount = managerStaff ? await getStaffLineAccount(ctx, managerStaff._id) : null;
-
-          return {
-            userId: user._id,
-            name: user.name,
-            email: user.email,
-            lineUserId: lineAccount?.lineUserId,
-            lineFollowing: lineAccount?.following,
-          };
-        }),
-      )
-    ).filter((recipient) => recipient !== null);
-
+    const recipients = await loadShopManagerRecipients(ctx, shopId, STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT);
     if (recipients.length === 0) return null;
 
     return {

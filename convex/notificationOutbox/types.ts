@@ -8,6 +8,8 @@ export type NotificationEmailPayload = {
   html: string;
   context: string;
   suppressDelivery?: boolean;
+  // 互換用。新規のInbox抑止は notification context を failureSuppress.ts に追加する。
+  suppressFailureInbox?: boolean;
 };
 
 export type NotificationLinePayload = {
@@ -15,6 +17,8 @@ export type NotificationLinePayload = {
   toUserId: string;
   text: string;
   suppressDelivery?: boolean;
+  // 互換用。新規のInbox抑止は notification context を failureSuppress.ts に追加する。
+  suppressFailureInbox?: boolean;
   fallbackEmail?: {
     dedupeKey: string;
     payload: NotificationEmailPayload;

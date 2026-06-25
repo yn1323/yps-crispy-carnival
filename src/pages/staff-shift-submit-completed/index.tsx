@@ -1,5 +1,7 @@
-import { LuCheck } from "react-icons/lu";
+import { useCanGoBack, useRouter } from "@tanstack/react-router";
+import { LuArrowLeft, LuCheck } from "react-icons/lu";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
+import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 
 type Props = {
@@ -7,6 +9,9 @@ type Props = {
 };
 
 export function StaffShiftSubmitCompletedPage({ shopName = "シフト提出" }: Props) {
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+
   return (
     <StaffLayout shopName={shopName}>
       <StaffCenteredContent>
@@ -19,6 +24,21 @@ export function StaffShiftSubmitCompletedPage({ shopName = "シフト提出" }: 
           size="lg"
           bg="white"
           px={4}
+          action={
+            canGoBack ? (
+              <Button
+                variant="outline"
+                colorPalette="teal"
+                size="md"
+                borderRadius="lg"
+                px={6}
+                onClick={() => router.history.back()}
+              >
+                <LuArrowLeft />
+                シフト提出画面に戻る
+              </Button>
+            ) : undefined
+          }
         />
       </StaffCenteredContent>
     </StaffLayout>
