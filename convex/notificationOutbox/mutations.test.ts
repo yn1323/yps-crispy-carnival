@@ -11,6 +11,7 @@ import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
 } from "../constants";
+import { NOTIFICATION_FAILURE_REMINDER_CONTEXT } from "./failureSuppress";
 
 const emailPayload = {
   kind: "email" as const,
@@ -450,6 +451,32 @@ describe("notificationOutbox", () => {
       expect(failures[0].lastFailedAt).toBeGreaterThan(firstFailure.lastFailedAt);
     });
 
+    it("markFailedは抑止対象contextでも配送イベントを残し、要対応Inbox化しない", async () => {
+      const { t, shopId } = await setupShop();
+      const dedupeKey = "email:notificationFailureReminder:shop_test:user_test";
+      const outboxId = await insertProcessingJob(t, {
+        shopId,
+        channel: "email",
+        dedupeKey,
+        context: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
+      });
+
+      await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "reminder failed" });
+
+      const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType: "final_failed",
+        shopId,
+        outboxId,
+        channel: "email",
+        dedupeKey,
+        notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
+        errorMessage: "reminder failed",
+      });
+      expect(await collectFailureInbox(t)).toEqual([]);
+    });
+
     it("同じ通知種別・募集・スタッフの異なるoutbox失敗は最新1件の要対応Inboxに更新する", async () => {
       const { t, shopId, staffId } = await setupShop();
       const recruitmentId = await t.run(async (ctx) => {
@@ -782,6 +809,60 @@ describe("notificationOutbox", () => {
       recruitmentId,
       errorMessage: "preparation failed",
     });
+  });
+
+  it("recordDeliveryEventは抑止対象contextでも配送イベントを残し、要対応Inbox化しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const dedupeKey = "email:notificationFailureReminder:shop_test:user_test";
+
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_failed",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
+      errorMessage: "enqueue failed",
+    });
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "enqueue_failed",
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
+      errorMessage: "enqueue failed",
+    });
+    expect(await collectFailureInbox(t)).toEqual([]);
+  });
+
+  it("recordDeliveryEventは通知不達リマインダーLINEのdedupe由来contextでも要対応Inbox化しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const dedupeKey = "line:notificationFailureReminder:shop_test:user_test";
+
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "enqueue_failed",
+      shopId,
+      staffId,
+      channel: "line",
+      dedupeKey,
+      errorMessage: "line enqueue failed",
+    });
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "enqueue_failed",
+      shopId,
+      staffId,
+      channel: "line",
+      dedupeKey,
+      errorMessage: "line enqueue failed",
+    });
+    expect(await collectFailureInbox(t)).toEqual([]);
   });
 
   it("recordDeliveryEventは解決済みの投入準備失敗を再発時にopenへ戻す", async () => {

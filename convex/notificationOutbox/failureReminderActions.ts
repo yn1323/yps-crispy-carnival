@@ -14,8 +14,7 @@ import {
   NOTIFICATION_FAILURE_REMINDER_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "./enqueue";
-
-const NOTIFICATION_CONTEXT = "notificationOutbox.sendFailureReminderDigest";
+import { NOTIFICATION_FAILURE_REMINDER_CONTEXT } from "./failureSuppress";
 
 type ShopIdsPage = {
   page: Id<"shops">[];
@@ -78,7 +77,6 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
           toUserId: recipient.lineUserId,
           text: buildNotificationFailureReminderLineText({ dashboardUrl: data.dashboardUrl }),
           suppressDelivery,
-          suppressFailureInbox: true,
           fallbackEmail: {
             dedupeKey: `email:notificationFailureReminder:${data.shopId}:${recipient.userId}`,
             payload: emailPayload({
@@ -89,9 +87,8 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
                 managerName: recipient.name,
                 dashboardUrl: data.dashboardUrl,
               }),
-              context: NOTIFICATION_CONTEXT,
+              context: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
               suppressDelivery,
-              suppressFailureInbox: true,
             }),
           },
         }),
@@ -111,9 +108,8 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
           managerName: recipient.name,
           dashboardUrl: data.dashboardUrl,
         }),
-        context: NOTIFICATION_CONTEXT,
+        context: NOTIFICATION_FAILURE_REMINDER_CONTEXT,
         suppressDelivery,
-        suppressFailureInbox: true,
       }),
     });
   }
