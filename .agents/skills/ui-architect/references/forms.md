@@ -76,7 +76,7 @@
 ❌ "エラーが発生しました"
 ✅ "サーバーに接続できません。少し時間をおいて再試行してください"
 
-詳細 → `/ux-writing`
+詳細は `SKILL.md` の「シフトリUI文言」。
 
 ### エラー表示位置
 
@@ -147,14 +147,14 @@
 - 入力中はキーボードで画面下半分が隠れる前提
 - フォーカス時にスクロール調整（IMEと重ならない）
 - 送信ボタンは下部固定 or 下部に配置
-- BottomSheet内はスクロールできるようにする
+- Dialog/StepperDialogをモバイル全画面化する場合は、本文だけスクロールできるようにする
 
 ## 検索フォーム
 
 - 入力即検索（debounce 250〜400ms）
 - 検索結果に「件数」を出す
 - ゼロ件状態：「条件をクリア」CTAを出す
-- フィルタ多数 → サイドバー or BottomSheet
+- フィルタ多数 → サイドバー or モバイル全画面Dialog
 - 検索条件のクリア（× ボタン or "すべてクリア"）
 
 ## 設定フォーム
@@ -190,7 +190,7 @@
 - 日付は dayjs（`new Date().toISOString()`禁止）
 - index.tsxにフォーム本体、index.test.tsにロジックテスト
 - index.stories.tsxに状態ごとパターン
-- Select × モーダル/BottomSheet 内：`usePortal={false}`
+- Select × Dialog/StepperDialog 内：Portalで背面や外側に出る場合は `usePortal={false}`
 
 ## 代表チェックリスト
 
