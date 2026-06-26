@@ -48,6 +48,16 @@ describe("notificationOutbox/queries", () => {
         status: "open",
         dedupeKey: "email:test:old",
         lastFailedAt: Date.now() - 1000,
+        notificationContext: "notification.sendReminderEmails",
+      });
+      // 種別「通知」(other) は一覧から除外される（最新だが表示されない）
+      await insertFailure(ctx, {
+        shopId: primary.shopId,
+        failureKey: "outbox:other-kind",
+        status: "open",
+        dedupeKey: "email:test:other-kind",
+        lastFailedAt: Date.now() + 1000,
+        notificationContext: "test.email",
       });
       const newFailureId = await insertFailure(ctx, {
         shopId: primary.shopId,
@@ -116,11 +126,25 @@ describe("notificationOutbox/queries", () => {
         email: "empty@example.com",
         shopName: "失敗なし店舗",
       });
+      const otherKindOnly = await seedManagerShop(ctx, {
+        subject: "manager_other_kind",
+        email: "other-kind@example.com",
+        shopName: "通知種別のみ店舗",
+      });
       await insertFailure(ctx, {
         shopId: active.shopId,
         failureKey: "outbox:active",
         status: "open",
         dedupeKey: "email:test:active",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      // 種別「通知」(other) しかない店舗は要対応なし扱い
+      await insertFailure(ctx, {
+        shopId: otherKindOnly.shopId,
+        failureKey: "outbox:other-kind-only",
+        status: "open",
+        dedupeKey: "email:test:other-kind-only",
+        notificationContext: "test.email",
       });
     });
 
@@ -129,6 +153,9 @@ describe("notificationOutbox/queries", () => {
     ).resolves.toBe(true);
     await expect(
       t.withIdentity({ subject: "manager_empty" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+    ).resolves.toBe(false);
+    await expect(
+      t.withIdentity({ subject: "manager_other_kind" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
     ).resolves.toBe(false);
   });
 });

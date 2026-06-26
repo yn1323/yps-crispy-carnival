@@ -2,7 +2,11 @@ import { paginationOptsValidator } from "convex/server";
 import type { Doc } from "../_generated/dataModel";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
-import { describeNotificationFailureContext, getNotificationFailureResendKind } from "./failureResend";
+import {
+  describeNotificationFailureContext,
+  getNotificationFailureResendKind,
+  isManagerActionableNotificationFailure,
+} from "./failureResend";
 
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   page: never[];
@@ -22,8 +26,13 @@ export const listOpenFailures = managerQuery({
       .order("desc")
       .paginate(paginationOpts);
 
+    // 種別「通知」(other) は再通知できずマネージャーが対応しようがないため、一覧にも要対応バッジにも出さない。
+    const actionableFailures = result.page.filter((failure) =>
+      isManagerActionableNotificationFailure(failure.notificationContext),
+    );
+
     const page = await Promise.all(
-      result.page.map(async (failure) => {
+      actionableFailures.map(async (failure) => {
         const [staff, recruitment] = await Promise.all([
           failure.staffId ? ctx.db.get(failure.staffId) : null,
           failure.recruitmentId ? ctx.db.get(failure.recruitmentId) : null,
@@ -66,11 +75,13 @@ export const hasOpenFailures = managerQuery({
   handler: async (ctx) => {
     if (!ctx.shop) return false;
     const shop = ctx.shop;
-    const failures = await ctx.db
+    // 種別「通知」(other) は要対応の対象外。対応可能な open 失敗が1件でもあるかだけを返す。
+    for await (const failure of ctx.db
       .query("notificationFailureInbox")
-      .withIndex("by_shopId_status_lastFailedAt", (q) => q.eq("shopId", shop._id).eq("status", "open"))
-      .take(1);
-    return failures.length > 0;
+      .withIndex("by_shopId_status_lastFailedAt", (q) => q.eq("shopId", shop._id).eq("status", "open"))) {
+      if (isManagerActionableNotificationFailure(failure.notificationContext)) return true;
+    }
+    return false;
   },
 });
 

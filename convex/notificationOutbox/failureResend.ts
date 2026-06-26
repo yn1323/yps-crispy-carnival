@@ -29,6 +29,14 @@ export function describeNotificationFailureContext(context: string): {
   return { kind: "other", label: "通知" };
 }
 
+/**
+ * 種別が "other"（ラベル「通知」）の不達は、再通知できずマネージャーが対応しようがないため、
+ * Dashboard 一覧・要対応有無・日次リマインダーのいずれにも出さない。
+ */
+export function isManagerActionableNotificationFailure(context: string): boolean {
+  return describeNotificationFailureContext(context).kind !== "other";
+}
+
 export function getNotificationFailureResendKind(context: string): NotificationFailureResendKind | null {
   if (RECRUITMENT_CONTEXTS.has(context)) return "recruitment";
   if (context === "notification.sendReminderEmails") return "reminder";
