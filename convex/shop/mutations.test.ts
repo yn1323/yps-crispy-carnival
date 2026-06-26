@@ -405,4 +405,142 @@ describe("shop/mutations", () => {
       ).rejects.toThrow("勤務区分は4件まで登録できます");
     });
   });
+
+  describe("deleteShop", () => {
+    it("未認証の場合エラーをthrowする", async () => {
+      const t = convexTest(schema, modules);
+      await expect(t.mutation(api.shop.mutations.deleteShop, {})).rejects.toThrow();
+    });
+
+    it("店舗が存在しないマネージャーは Not found でエラー", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedUser(ctx, "user_no_shop", "noshop@example.com");
+      });
+      await expect(
+        t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.deleteShop, {}),
+      ).rejects.toThrow();
+    });
+
+    it("店舗・所属スタッフ・所属マネージャーを論理削除し、アクセス経路を無効化する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const { userId, shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-05-01",
+          periodEnd: "2026-05-07",
+          deadline: "2026-04-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "dateOnly" },
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "佐藤",
+          email: "sato@example.com",
+          emailNormalized: "sato@example.com",
+          isDeleted: false,
+        });
+        const sessionId = await ctx.db.insert("sessions", {
+          sessionToken: "session-token",
+          staffId,
+          shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 1000,
+        });
+        const magicLinkId = await ctx.db.insert("magicLinks", {
+          token: "magic-token",
+          staffId,
+          shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 1000,
+        });
+        const lineLinkTokenId = await ctx.db.insert("lineLinkTokens", {
+          staffId,
+          shopId,
+          token: "line-token",
+          expiresAt: Date.now() + 1000,
+        });
+        const lineAccountId = await ctx.db.insert("staffLineAccounts", {
+          staffId,
+          shopId,
+          lineUserId: "U123",
+          linkedAt: Date.now(),
+          following: true,
+          isDeleted: false,
+        });
+        const registrationLinkId = await ctx.db.insert("shopRegistrationLinks", {
+          shopId,
+          token: "registration-token",
+          createdAt: Date.now(),
+        });
+        const membership = await ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_shopId", (q) => q.eq("userId", userId).eq("shopId", shopId))
+          .first();
+        return {
+          shopId,
+          staffId,
+          sessionId,
+          magicLinkId,
+          lineLinkTokenId,
+          lineAccountId,
+          registrationLinkId,
+          membershipId: membership?._id,
+        };
+      });
+
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.deleteShop, {});
+
+      await t.run(async (ctx) => {
+        expect((await ctx.db.get(ids.shopId))?.isDeleted).toBe(true);
+        expect((await ctx.db.get(ids.staffId))?.isDeleted).toBe(true);
+        expect(ids.membershipId && (await ctx.db.get(ids.membershipId))?.isDeleted).toBe(true);
+        expect((await ctx.db.get(ids.sessionId))?.revokedAt).toBeTypeOf("number");
+        expect((await ctx.db.get(ids.magicLinkId))?.revokedAt).toBeTypeOf("number");
+        expect((await ctx.db.get(ids.lineLinkTokenId))?.revokedAt).toBeTypeOf("number");
+        const lineAccount = await ctx.db.get(ids.lineAccountId);
+        expect(lineAccount?.isDeleted).toBe(true);
+        expect(lineAccount?.following).toBe(false);
+        expect((await ctx.db.get(ids.registrationLinkId))?.revokedAt).toBeTypeOf("number");
+      });
+    });
+
+    it("他店舗のデータは削除しない", async () => {
+      const t = convexTest(schema, modules);
+      const { otherShopId, otherStaffId } = await t.run(async (ctx) => {
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        const other = await seedManagerShop(ctx, {
+          subject: "user_other",
+          email: "other@example.com",
+          shopName: "別店舗",
+        });
+        const otherStaffId = await ctx.db.insert("staffs", {
+          shopId: other.shopId,
+          name: "別スタッフ",
+          email: "other-staff@example.com",
+          emailNormalized: "other-staff@example.com",
+          isDeleted: false,
+        });
+        return { otherShopId: other.shopId, otherStaffId };
+      });
+
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.deleteShop, {});
+
+      await t.run(async (ctx) => {
+        expect((await ctx.db.get(otherShopId))?.isDeleted).toBe(false);
+        expect((await ctx.db.get(otherStaffId))?.isDeleted).toBe(false);
+      });
+    });
+  });
 });
