@@ -22,6 +22,7 @@ import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeli
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
+import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignature.js";
 import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
@@ -75,6 +76,8 @@ import type * as notificationOutbox_failureResend from "../notificationOutbox/fa
 import type * as notificationOutbox_failureSuppress from "../notificationOutbox/failureSuppress.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
+import type * as notificationOutbox_resendProviderEvents from "../notificationOutbox/resendProviderEvents.js";
+import type * as notificationOutbox_resendWebhook from "../notificationOutbox/resendWebhook.js";
 import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.js";
 import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as position_service from "../position/service.js";
@@ -127,6 +130,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
+  "_lib/resendWebhookSignature": typeof _lib_resendWebhookSignature;
   "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
@@ -180,6 +184,8 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/failureSuppress": typeof notificationOutbox_failureSuppress;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
+  "notificationOutbox/resendProviderEvents": typeof notificationOutbox_resendProviderEvents;
+  "notificationOutbox/resendWebhook": typeof notificationOutbox_resendWebhook;
   "notificationOutbox/schemas": typeof notificationOutbox_schemas;
   "notificationOutbox/types": typeof notificationOutbox_types;
   "position/service": typeof position_service;

@@ -177,7 +177,9 @@ export const DashboardContent = ({
     shop !== null && managerLegalConsentStatus?.required === false && onboardingState.kind === "visible"
       ? onboardingState
       : null;
-  const shouldHideNextActionSection = visibleOnboardingState !== null || (shop !== null && !managerLegalConsentStatus);
+  const shouldHideNextActionSection =
+    (visibleOnboardingState !== null && notificationFailures.length === 0) ||
+    (shop !== null && !managerLegalConsentStatus);
   const deleteRecruitmentTitle = deleteRecruitmentTarget
     ? `${formatDateShort(deleteRecruitmentTarget.periodStart)}〜${formatDateShort(
         deleteRecruitmentTarget.periodEnd,

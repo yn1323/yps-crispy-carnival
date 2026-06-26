@@ -198,6 +198,13 @@ export const WithNotificationFailures: Story = {
     assertText(document.body, "佐藤 真由美", "モーダル内のスタッフ名");
     assertText(document.body, "シフト募集通知", "モーダル内の通知種別");
     assertText(document.body, "すべて再通知", "モーダル内の一斉再通知ボタン");
+    requireElement<HTMLButtonElement>(document.body, 'button[aria-label="メール通知について"]').click();
+    await waitUntil(
+      () =>
+        document.body.textContent?.includes("メールが届かない場合は、メールアドレスに誤りがないか確認ください。") ??
+        false,
+      "メール補足Popoverが表示されませんでした",
+    );
   },
 };
 
@@ -405,6 +412,35 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     assertText(document.body, "hanako@example.com", "モーダル内の承認待ちスタッフメール");
     assertText(document.body, "承認", "モーダル内の承認ボタン");
     assertText(document.body, "却下", "モーダル内の却下ボタン");
+  },
+};
+
+export const NotificationFailuresShowNextActionDuringOnboarding: Story = {
+  args: {
+    ...dashboardBaseArgs,
+    recruitments: [],
+    staffs: managerOnly,
+    notificationFailures,
+  },
+  render: () => (
+    <Box data-testid="notification-failures-onboarding-root" minH="100vh" bg="gray.50" py={{ base: 4, md: 8 }}>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        recruitments={[]}
+        currentRecruitments={[]}
+        staffs={managerOnly}
+        notificationFailures={notificationFailures}
+      />
+    </Box>
+  ),
+  play: async ({ canvasElement }) => {
+    const root = requireElement(canvasElement, '[data-testid="notification-failures-onboarding-root"]');
+    await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
+
+    assertText(root, "今やること", "通知失敗がある時の通常アクション見出し");
+    assertText(root, "送れなかった通知があります", "通知失敗カードの見出し");
+    assertText(root, "通知を確認", "通知失敗カードのCTA");
+    assertText(root, "シフトリへようこそ！", "通知失敗があってもオンボーディングは継続表示");
   },
 };
 

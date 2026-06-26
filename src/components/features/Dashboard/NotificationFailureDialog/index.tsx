@@ -1,7 +1,7 @@
-import { Badge, Box, Flex, HStack, Stack, Table, Text } from "@chakra-ui/react";
-import { LuCheck, LuRefreshCw } from "react-icons/lu";
+import { Badge, Box, Flex, HStack, Popover, Stack, Table, Text } from "@chakra-ui/react";
+import { LuCheck, LuInfo, LuRefreshCw } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Button } from "@/src/components/ui/Button";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { formatDateTime } from "@/src/domains/shift/date";
 
 export type DashboardNotificationFailure = {
@@ -23,6 +23,11 @@ type Props = {
   onResend: (failureId: Id<"notificationFailureInbox">) => void;
   onResendAll: () => void;
 };
+
+const EMAIL_FAILURE_HELP_LINES = [
+  "メールが届かない場合は、メールアドレスに誤りがないか確認ください。",
+  "それでも失敗する場合は、スタッフ行のメニューからLINE連携リンクを案内できます。",
+];
 
 export const NotificationFailureDialogContent = ({
   failures,
@@ -179,11 +184,50 @@ const NotificationKindBadge = ({ failure }: { failure: DashboardNotificationFail
   </Badge>
 );
 
-const ChannelText = ({ channel }: { channel?: "email" | "line" }) => (
-  <Text color="gray.800" fontSize="sm" fontWeight="medium" flexShrink={0}>
-    {channel === "line" ? "LINE" : "メール"}
-  </Text>
-);
+const ChannelText = ({ channel }: { channel?: "email" | "line" }) => {
+  if (channel === "line") {
+    return (
+      <Text color="gray.800" fontSize="sm" fontWeight="medium" flexShrink={0}>
+        LINE
+      </Text>
+    );
+  }
+
+  return (
+    <HStack gap={1} justify="center" flexShrink={0}>
+      <Text color="gray.800" fontSize="sm" fontWeight="medium">
+        メール
+      </Text>
+      <Popover.Root positioning={{ placement: "top" }} lazyMount unmountOnExit>
+        <Popover.Trigger asChild>
+          <IconButton
+            aria-label="メール通知について"
+            variant="ghost"
+            size="xs"
+            minW="6"
+            h="6"
+            color="fg.muted"
+            borderRadius="full"
+          >
+            <LuInfo />
+          </IconButton>
+        </Popover.Trigger>
+        <Popover.Positioner>
+          <Popover.Content w="min(320px, calc(100vw - 32px))" p={3} boxShadow="lg">
+            <Popover.Arrow>
+              <Popover.ArrowTip />
+            </Popover.Arrow>
+            <Text fontSize="sm" color="gray.800" lineHeight="1.7">
+              {EMAIL_FAILURE_HELP_LINES[0]}
+              <br />
+              {EMAIL_FAILURE_HELP_LINES[1]}
+            </Text>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Popover.Root>
+    </HStack>
+  );
+};
 
 const ErrorDateBadge = ({ lastFailedAt }: { lastFailedAt: number }) => (
   <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>

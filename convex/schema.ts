@@ -10,6 +10,8 @@ import {
   notificationFailureResolutionKindValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
+  resendProviderDeliveryStatusValidator,
+  resendProviderIssueEventTypeValidator,
 } from "./notificationOutbox/schemas";
 
 const schema = defineSchema({
@@ -362,12 +364,17 @@ const schema = defineSchema({
     processingStartedAt: v.optional(v.number()),
     sentAt: v.optional(v.number()),
     failedAt: v.optional(v.number()),
+    resendEmailId: v.optional(v.string()),
+    resendLastEventType: v.optional(resendProviderIssueEventTypeValidator),
+    resendLastEventAt: v.optional(v.number()),
+    resendDeliveryStatus: v.optional(resendProviderDeliveryStatusValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
-    .index("by_shopId_status", ["shopId", "status"]),
+    .index("by_shopId_status", ["shopId", "status"])
+    .index("by_resendEmailId", ["resendEmailId"]),
 
   notificationDeliveryEvents: defineTable({
     eventType: notificationDeliveryEventTypeValidator,
@@ -383,13 +390,18 @@ const schema = defineSchema({
     notificationContext: v.optional(v.string()),
     attemptCount: v.optional(v.number()),
     nextRunAt: v.optional(v.number()),
+    provider: v.optional(v.literal("resend")),
+    providerEventId: v.optional(v.string()),
+    providerEmailId: v.optional(v.string()),
+    providerEventType: v.optional(resendProviderIssueEventTypeValidator),
     errorMessage: v.string(),
     errorName: v.optional(v.string()),
   })
     .index("by_expiresAt", ["expiresAt"])
     .index("by_shopId_createdAt", ["shopId", "createdAt"])
     .index("by_outboxId_createdAt", ["outboxId", "createdAt"])
-    .index("by_eventType_createdAt", ["eventType", "createdAt"]),
+    .index("by_eventType_createdAt", ["eventType", "createdAt"])
+    .index("by_providerEventId", ["providerEventId"]),
 
   notificationFailureInbox: defineTable({
     failureKey: v.string(),
