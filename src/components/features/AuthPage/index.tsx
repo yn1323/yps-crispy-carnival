@@ -12,14 +12,15 @@ import {
   Input,
   Link,
   Separator,
+  Skeleton,
   Stack,
   Text,
   VStack,
 } from "@chakra-ui/react";
 import { useAuth, useClerk, useSignIn, useSignUp } from "@clerk/clerk-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Navigate } from "@tanstack/react-router";
-import { type ComponentProps, useEffect, useMemo, useState } from "react";
+import { Navigate, Link as RouterLink } from "@tanstack/react-router";
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuEyeOff } from "react-icons/lu";
@@ -88,6 +89,7 @@ type SignupFormProps = {
   onGoogle: () => void | Promise<void>;
   onSubmit: (values: SignupValues) => void | Promise<void>;
   onVerifyEmail: (values: EmailVerificationValues) => void | Promise<void>;
+  onRestartSignup: () => void | Promise<void>;
 };
 
 type ForgotPasswordFormProps = {
@@ -99,6 +101,8 @@ type ForgotPasswordFormProps = {
   onRequestReset: (values: ForgotRequestValues) => void | Promise<void>;
   onResetPassword: (values: ForgotResetValues) => void | Promise<void>;
 };
+
+type AuthRoutePath = "/login" | "/signup" | "/forgot-password";
 
 export function AuthPage({ mode, redirect }: AuthPageProps) {
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
@@ -128,7 +132,20 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
   });
 
   if (!authLoaded) {
-    return <FullPageSpinner />;
+    return (
+      <AuthContent
+        mode={mode}
+        isInitialLoading
+        redirectTo={redirectTo}
+        onGoogle={() => {}}
+        onLogin={() => {}}
+        onSignup={() => {}}
+        onVerifyEmail={() => {}}
+        onRestartSignup={() => {}}
+        onRequestReset={() => {}}
+        onResetPassword={() => {}}
+      />
+    );
   }
 
   if (isSignedIn) {
@@ -273,6 +290,11 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
       }
     });
 
+  const handleRestartSignup = () => {
+    setErrorMessage(undefined);
+    setIsVerificationStep(false);
+  };
+
   return (
     <AuthContent
       mode={mode}
@@ -287,6 +309,7 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
       onLogin={handleLogin}
       onSignup={handleSignup}
       onVerifyEmail={handleVerifyEmail}
+      onRestartSignup={handleRestartSignup}
       onRequestReset={handleRequestReset}
       onResetPassword={handleResetPassword}
     />
@@ -296,6 +319,7 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
 type AuthContentProps = {
   mode: AuthMode;
   errorMessage?: string;
+  isInitialLoading?: boolean;
   isSubmitting?: boolean;
   isVerificationStep?: boolean;
   forgotStep?: ForgotStep;
@@ -306,6 +330,7 @@ type AuthContentProps = {
   onLogin: (values: LoginValues) => void | Promise<void>;
   onSignup: (values: SignupValues) => void | Promise<void>;
   onVerifyEmail: (values: EmailVerificationValues) => void | Promise<void>;
+  onRestartSignup: () => void | Promise<void>;
   onRequestReset: (values: ForgotRequestValues) => void | Promise<void>;
   onResetPassword: (values: ForgotResetValues) => void | Promise<void>;
 };
@@ -313,6 +338,7 @@ type AuthContentProps = {
 export function AuthContent({
   mode,
   errorMessage,
+  isInitialLoading,
   isSubmitting,
   isVerificationStep,
   forgotStep,
@@ -323,6 +349,7 @@ export function AuthContent({
   onLogin,
   onSignup,
   onVerifyEmail,
+  onRestartSignup,
   onRequestReset,
   onResetPassword,
 }: AuthContentProps) {
@@ -350,7 +377,7 @@ export function AuthContent({
           gap={{ base: 7, lg: 12 }}
           alignItems="center"
         >
-          <AuthIllustrationPanel mode={mode} />
+          <AuthIllustrationPanel />
           <Card.Root
             w="full"
             maxW={{ base: "640px", lg: "none" }}
@@ -373,7 +400,9 @@ export function AuthContent({
                   )}
                 </Stack>
 
-                {mode === "login" && (
+                {isInitialLoading && <AuthInitialLoading />}
+
+                {!isInitialLoading && mode === "login" && (
                   <LoginForm
                     errorMessage={errorMessage}
                     isSubmitting={isSubmitting}
@@ -383,7 +412,7 @@ export function AuthContent({
                     onSubmit={onLogin}
                   />
                 )}
-                {mode === "signup" && (
+                {!isInitialLoading && mode === "signup" && (
                   <SignupForm
                     errorMessage={errorMessage}
                     isSubmitting={isSubmitting}
@@ -393,9 +422,10 @@ export function AuthContent({
                     onGoogle={onGoogle}
                     onSubmit={onSignup}
                     onVerifyEmail={onVerifyEmail}
+                    onRestartSignup={onRestartSignup}
                   />
                 )}
-                {mode === "forgot-password" && (
+                {!isInitialLoading && mode === "forgot-password" && (
                   <ForgotPasswordForm
                     errorMessage={errorMessage}
                     isSubmitting={isSubmitting}
@@ -446,18 +476,18 @@ export function LoginForm({
         <Field.ErrorText>{errors.password?.message}</Field.ErrorText>
       </Field.Root>
       <Flex justify="end">
-        <Link href={buildAuthHref("/forgot-password", redirectTo)} color="teal.700" fontWeight="bold" textStyle="sm">
+        <AuthModeLink to="/forgot-password" redirectTo={redirectTo} color="teal.700" fontWeight="bold" textStyle="sm">
           パスワードを忘れた方
-        </Link>
+        </AuthModeLink>
       </Flex>
       <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText="ログイン中">
         ログイン
       </Button>
       <Text color="gray.700" textAlign="center" textStyle="sm">
         はじめての方は{" "}
-        <Link href={buildAuthHref("/signup", redirectTo)} color="teal.700" fontWeight="bold">
+        <AuthModeLink to="/signup" redirectTo={redirectTo} color="teal.700" fontWeight="bold">
           新規登録
-        </Link>
+        </AuthModeLink>
       </Text>
     </Stack>
   );
@@ -472,6 +502,7 @@ export function SignupForm({
   onGoogle,
   onSubmit,
   onVerifyEmail,
+  onRestartSignup,
 }: SignupFormProps) {
   const {
     register,
@@ -502,8 +533,16 @@ export function SignupForm({
         </Button>
         <Text color="gray.700" textAlign="center" textStyle="sm">
           登録方法を変える場合は{" "}
-          <Link href={buildAuthHref("/signup", redirectTo)} color="teal.700" fontWeight="bold">
-            最初からやり直す
+          <Link
+            asChild
+            color="teal.700"
+            fontWeight="bold"
+            cursor="pointer"
+            _hover={{ color: "teal.800", textDecoration: "underline" }}
+          >
+            <button type="button" onClick={onRestartSignup}>
+              最初からやり直す
+            </button>
           </Link>
         </Text>
       </Stack>
@@ -532,9 +571,9 @@ export function SignupForm({
       </Button>
       <Text color="gray.700" textAlign="center" textStyle="sm">
         すでにアカウントをお持ちの方は{" "}
-        <Link href={buildAuthHref("/login", redirectTo)} color="teal.700" fontWeight="bold">
+        <AuthModeLink to="/login" redirectTo={redirectTo} color="teal.700" fontWeight="bold">
           ログイン
-        </Link>
+        </AuthModeLink>
       </Text>
     </Stack>
   );
@@ -584,9 +623,9 @@ export function ForgotPasswordForm({
           パスワードを再設定
         </Button>
         <Text textAlign="center" textStyle="sm">
-          <Link href={buildAuthHref("/login", redirectTo)} color="teal.700" fontWeight="bold">
+          <AuthModeLink to="/login" redirectTo={redirectTo} color="teal.700" fontWeight="bold">
             ログインに戻る
-          </Link>
+          </AuthModeLink>
         </Text>
       </Stack>
     );
@@ -604,9 +643,9 @@ export function ForgotPasswordForm({
         再設定コードを送る
       </Button>
       <Text textAlign="center" textStyle="sm">
-        <Link href={buildAuthHref("/login", redirectTo)} color="teal.700" fontWeight="bold">
+        <AuthModeLink to="/login" redirectTo={redirectTo} color="teal.700" fontWeight="bold">
           ログインに戻る
-        </Link>
+        </AuthModeLink>
       </Text>
     </Stack>
   );
@@ -646,14 +685,35 @@ export function SsoCallbackPage() {
       onLogin={() => {}}
       onSignup={() => {}}
       onVerifyEmail={() => {}}
+      onRestartSignup={() => {}}
       onRequestReset={() => {}}
       onResetPassword={() => {}}
     />
   );
 }
 
-const AuthIllustrationPanel = ({ mode }: { mode: AuthMode }) => (
-  <Box display={{ base: "none", lg: mode === "forgot-password" ? "none" : "block" }}>
+const AuthInitialLoading = () => (
+  <Stack role="status" aria-label="認証情報を確認中" minH={{ base: "340px", md: "360px" }} gap={5}>
+    <Text color="gray.600" textStyle="sm">
+      認証情報を確認しています
+    </Text>
+    <Skeleton h="48px" w="full" borderRadius="lg" />
+    <Flex align="center" gap={4}>
+      <Separator flex={1} />
+      <Skeleton h="14px" w="48px" />
+      <Separator flex={1} />
+    </Flex>
+    <Stack gap={4}>
+      <Skeleton h="72px" w="full" borderRadius="lg" />
+      <Skeleton h="72px" w="full" borderRadius="lg" />
+    </Stack>
+    <Skeleton h="48px" w="full" borderRadius="lg" />
+    <Skeleton h="16px" w="160px" mx="auto" />
+  </Stack>
+);
+
+const AuthIllustrationPanel = () => (
+  <Box display={{ base: "none", lg: "block" }}>
     <VStack align="stretch">
       <Box maxW={{ base: "320px", md: "640px", lg: "720px" }} mx={{ base: "auto", lg: 0 }}>
         <Box borderRadius="2xl" overflow="hidden">
@@ -723,9 +783,19 @@ const ClerkCaptcha = () => (
   <Box id="clerk-captcha" w="full" minH="1px" data-cl-theme="light" data-cl-size="flexible" data-cl-language="ja-JP" />
 );
 
-function buildAuthHref(path: "/login" | "/signup" | "/forgot-password", redirectTo: string) {
-  return `${path}?redirect=${encodeURIComponent(redirectTo)}`;
-}
+type AuthModeLinkProps = Omit<ComponentProps<typeof Link>, "asChild" | "children" | "href"> & {
+  children: ReactNode;
+  redirectTo: string;
+  to: AuthRoutePath;
+};
+
+const AuthModeLink = ({ children, redirectTo, to, ...linkProps }: AuthModeLinkProps) => (
+  <Link asChild _hover={{ color: "teal.800", textDecoration: "underline" }} {...linkProps}>
+    <RouterLink to={to} search={{ redirect: redirectTo }}>
+      {children}
+    </RouterLink>
+  </Link>
+);
 
 const PasswordInput = (props: ComponentProps<typeof Input>) => {
   const [visible, setVisible] = useState(false);
