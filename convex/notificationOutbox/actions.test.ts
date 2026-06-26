@@ -297,6 +297,38 @@ describe("notificationOutbox/actions", () => {
     expect(failures).toEqual([]);
   });
 
+  it("Resend送信成功時はoutbox tagを付けてemail_idを保存する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_provider_123" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, shopId, staffId } = await setupEmailJob({
+      dedupeKey: "email:test:resend-success",
+      context: "test.resendSuccess",
+    });
+    const beforeJobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    const outboxId = beforeJobs[0]._id;
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const resendCall = fetchMock.mock.calls.find(([input]) => String(input).includes("api.resend.com/emails"));
+    expect(resendCall).toBeDefined();
+    const requestBody = JSON.parse(String((resendCall?.[1] as RequestInit | undefined)?.body));
+    expect(requestBody.tags).toEqual([{ name: "shiftori_outbox_id", value: outboxId }]);
+
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      _id: outboxId,
+      channel: "email",
+      shopId,
+      staffId,
+      status: "sent",
+      resendEmailId: "email_provider_123",
+    });
+  });
+
   it("Resend 429 はretry-afterに従って再予約する", async () => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
     vi.spyOn(console, "warn").mockImplementation(() => {});
