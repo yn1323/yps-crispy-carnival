@@ -1,0 +1,4 @@
+interface:
+  display_name: "Shiftori Coding"
+  short_description: "シフトリ固有の実装規約とコード配置判断を案内するためのスキル"
+  default_prompt: "Use $shiftori-coding to implement this Shiftori change in the project style."

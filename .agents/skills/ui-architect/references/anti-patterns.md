@@ -13,7 +13,7 @@
 
 **正解**：
 - 軽い確認 → AlertDialog
-- 中規模編集 → Dialog (PC) / BottomSheet (Mobile)
+- 中規模編集 → Dialog。モバイルは全画面Dialog
 - 大規模編集 → 専用ページ or Drawer
 
 ## ボタンが全部 Primary（ヒエラルキーなし）

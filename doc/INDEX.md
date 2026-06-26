@@ -26,3 +26,4 @@
 ## 関連ドキュメント
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 全体構造、機能マッピング、データフロー
+- [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針

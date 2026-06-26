@@ -4,6 +4,12 @@
 
 このドキュメントは、YPS のテストをどの層に分け、どの粒度で書くかを定義する。特に、E2E では遅すぎ、フロントエンドのユニットテストでは狭すぎる業務フローを、Convex Scenario Test で検証する方針を明確にする。
 
+## 運用
+
+- このドキュメントはテスト方針の Source of Truth として扱う。
+- 実装時の細かいテストコードの書き方、Storybook play function、VRT、Convex Scenario Fixture、E2E Page Object の具体ルールは `.agents/skills/test-strategy/` を参照する。
+- テスト観点、テストケース、テストコードの書き方についてユーザーから指摘を受けた場合は、実装修正だけで終わらせず、このドキュメントと `.agents/skills/test-strategy/` の両方を更新対象にする。
+
 ## 基本方針
 
 - テストは「速く細かいもの」と「遅いが実環境に近いもの」を分ける。
@@ -201,3 +207,6 @@ pnpm e2e
 ```
 
 Convex Scenario Test を追加・変更した場合は `pnpm test:convex` を実行する。
+
+Codexで `pnpm lint`、`pnpm test:ui`、`pnpm e2e`、`pnpm vrt` など IPC や Playwright / ブラウザ起動を伴う検証を実行する場合は、最初から権限付きで実行する。
+`EPERM`、ブラウザ起動不可、IPC/listen 失敗はテスト・lintの失敗ではなく、実行環境由来の問題として扱う。
