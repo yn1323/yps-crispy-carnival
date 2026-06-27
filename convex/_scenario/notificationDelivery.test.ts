@@ -632,6 +632,19 @@ describe("通知配送outboxシナリオ", () => {
         kind: "line",
         toUserId: "U_failure",
         text: "hello",
+        // 実際のLINE通知は fallbackEmail を持ち、不達の通知種別はそのcontextで判定される。
+        // （通常の400失敗ではfallbackは送らないため配送挙動は変わらない）
+        fallbackEmail: {
+          dedupeKey: "email:recruitment:failure-inbox:scenario",
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "failure-staff@example.com",
+            subject: "シフト募集のお知らせ",
+            html: "<p>hello</p>",
+            context: "notification.sendRecruitmentNotificationEmails",
+          },
+        },
       },
     });
 
@@ -648,7 +661,7 @@ describe("通知配送outboxシナリオ", () => {
       status: "open",
       channel: "line",
       dedupeKey: "line:failure-inbox:scenario",
-      notificationContext: "line:failure-inbox",
+      notificationContext: "notification.sendRecruitmentNotificationEmails",
       canRetry: true,
     });
 

@@ -1,4 +1,4 @@
-export type NotificationFailureKind = "recruitment" | "reminder" | "confirmation" | "other";
+export type NotificationFailureKind = "recruitment" | "reminder" | "confirmation" | "lineInvite" | "other";
 
 export type NotificationFailureResendKind = "recruitment" | "reminder" | "confirmation" | "reissue";
 
@@ -26,8 +26,30 @@ export function describeNotificationFailureContext(context: string): {
   if (CONFIRMATION_CONTEXTS.has(context) || context === "notification.sendReissueEmail") {
     return { kind: "confirmation", label: "確定シフト" };
   }
+  if (context === "line.sendInviteEmail") return { kind: "lineInvite", label: "LINE連携案内" };
   return { kind: "other", label: "通知" };
 }
+
+/**
+ * 種別が "other"（ラベル「通知」）の不達は、再通知できずマネージャーが対応しようがないため、
+ * Dashboard 一覧・要対応有無・日次リマインダーのいずれにも出さない。
+ */
+export function isManagerActionableNotificationFailure(context: string): boolean {
+  return describeNotificationFailureContext(context).kind !== "other";
+}
+
+/**
+ * 種別「通知」(other) 以外（= 対応可能）の通知 context の列挙。
+ * ページング前に Convex の `.filter()` で絞り込むために使う（other がページを埋めて
+ * 対応可能な失敗がカーソルの後ろに押し出されるのを防ぐ）。
+ */
+export const ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS: readonly string[] = [
+  ...RECRUITMENT_CONTEXTS,
+  "notification.sendReminderEmails",
+  ...CONFIRMATION_CONTEXTS,
+  "notification.sendReissueEmail",
+  "line.sendInviteEmail",
+];
 
 export function getNotificationFailureResendKind(context: string): NotificationFailureResendKind | null {
   if (RECRUITMENT_CONTEXTS.has(context)) return "recruitment";
