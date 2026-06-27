@@ -2,7 +2,7 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, seedUser } from "../_test/seed";
+import { seedManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
 
@@ -409,17 +409,40 @@ describe("shop/mutations", () => {
   describe("deleteShop", () => {
     it("未認証の場合エラーをthrowする", async () => {
       const t = convexTest(schema, modules);
-      await expect(t.mutation(api.shop.mutations.deleteShop, {})).rejects.toThrow();
+      const shopId = await t.run(async (ctx) => seedShop(ctx));
+      await expect(t.mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId })).rejects.toThrow();
     });
 
     it("店舗が存在しないマネージャーは Not found でエラー", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         await seedUser(ctx, "user_no_shop", "noshop@example.com");
+        return seedShop(ctx);
       });
       await expect(
-        t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.deleteShop, {}),
+        t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId }),
       ).rejects.toThrow();
+    });
+
+    it("confirmShopId が解決された店舗と一致しない場合は削除しない", async () => {
+      const t = convexTest(schema, modules);
+      const { ownShopId, otherShopId } = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        return { ownShopId: shopId, otherShopId: await seedShop(ctx, "別店舗") };
+      });
+
+      await expect(
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.deleteShop, {
+          confirmShopId: otherShopId,
+        }),
+      ).rejects.toThrow();
+
+      const ownShop = await t.run(async (ctx) => ctx.db.get(ownShopId));
+      expect(ownShop?.isDeleted).toBe(false);
     });
 
     it("店舗・所属スタッフ・所属マネージャーを論理削除し、アクセス経路を無効化する", async () => {
@@ -496,7 +519,9 @@ describe("shop/mutations", () => {
         };
       });
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.deleteShop, {});
+      await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId });
 
       await t.run(async (ctx) => {
         expect((await ctx.db.get(ids.shopId))?.isDeleted).toBe(true);
@@ -514,8 +539,8 @@ describe("shop/mutations", () => {
 
     it("他店舗のデータは削除しない", async () => {
       const t = convexTest(schema, modules);
-      const { otherShopId, otherStaffId } = await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const { ownShopId, otherShopId, otherStaffId } = await t.run(async (ctx) => {
+        const own = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
@@ -532,10 +557,12 @@ describe("shop/mutations", () => {
           emailNormalized: "other-staff@example.com",
           isDeleted: false,
         });
-        return { otherShopId: other.shopId, otherStaffId };
+        return { ownShopId: own.shopId, otherShopId: other.shopId, otherStaffId };
       });
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.deleteShop, {});
+      await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ownShopId });
 
       await t.run(async (ctx) => {
         expect((await ctx.db.get(otherShopId))?.isDeleted).toBe(false);

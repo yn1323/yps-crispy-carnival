@@ -46,10 +46,20 @@ export const updateShopSettings = managerMutation({
  * さらに、削除済み店舗へアクセスする経路を塞ぐため、スタッフのセッション/トークン/
  * LINE 連携と、店舗への新規登録リンクを無効化する（deleteStaff と同じ方針）。
  * 物理削除はしない（論理削除パターン）。
+ *
+ * managerMutation は shopId 省略時に「先頭の所属店舗」へフォールバックするため、
+ * 複数店舗マネージャーがうっかり別テナントを消す事故が起きうる。破壊的操作なので
+ * 削除対象を `confirmShopId` で明示させ、解決された店舗（ctx.shop）と一致しない限り
+ * 実行しない（不一致は列挙対策のため "Not found" で区別しない）。
  */
 export const deleteShop = managerMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    confirmShopId: v.id("shops"),
+  },
+  handler: async (ctx, args) => {
+    if (args.confirmShopId !== ctx.shop._id) {
+      throw new ConvexError("Not found");
+    }
     const shopId = ctx.shop._id;
     const now = Date.now();
 
