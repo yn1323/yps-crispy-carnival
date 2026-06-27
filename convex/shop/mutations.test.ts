@@ -1,6 +1,6 @@
 import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -407,6 +407,11 @@ describe("shop/mutations", () => {
   });
 
   describe("deleteShop", () => {
+    // バックグラウンドの cleanupDeletedShop は runAfter(0) で自己再スケジュールするため、
+    // フェイクタイマー + finishAllScheduledFunctions で完了まで進める。
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it("未認証の場合エラーをthrowする", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => seedShop(ctx));
@@ -522,6 +527,7 @@ describe("shop/mutations", () => {
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
         .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
         expect((await ctx.db.get(ids.shopId))?.isDeleted).toBe(true);
@@ -563,10 +569,124 @@ describe("shop/mutations", () => {
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
         .mutation(api.shop.mutations.deleteShop, { confirmShopId: ownShopId });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
         expect((await ctx.db.get(otherShopId))?.isDeleted).toBe(false);
         expect((await ctx.db.get(otherStaffId))?.isDeleted).toBe(false);
+      });
+    });
+
+    it("配信予約済み（pending/processing）の通知をキャンセルし、送信済みは変更しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        const base = {
+          channel: "email" as const,
+          shopId,
+          payload: {
+            kind: "email" as const,
+            context: "test",
+            from: "noreply@example.com",
+            to: "sato@example.com",
+            subject: "件名",
+            html: "<p>body</p>",
+          },
+          attemptCount: 0,
+          nextRunAt: Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        const pendingId = await ctx.db.insert("notificationOutbox", {
+          ...base,
+          status: "pending",
+          dedupeKey: "dedupe-pending",
+        });
+        const processingId = await ctx.db.insert("notificationOutbox", {
+          ...base,
+          status: "processing",
+          dedupeKey: "dedupe-processing",
+        });
+        const sentId = await ctx.db.insert("notificationOutbox", {
+          ...base,
+          status: "sent",
+          dedupeKey: "dedupe-sent",
+          sentAt: Date.now(),
+        });
+        return { shopId, pendingId, processingId, sentId };
+      });
+
+      await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      await t.run(async (ctx) => {
+        expect((await ctx.db.get(ids.pendingId))?.status).toBe("failed");
+        expect((await ctx.db.get(ids.processingId))?.status).toBe("failed");
+        expect((await ctx.db.get(ids.sentId))?.status).toBe("sent");
+      });
+    });
+
+    it("バッチサイズを超える件数でも全件を後片付けできる", async () => {
+      const t = convexTest(schema, modules);
+      const COUNT = 150; // SHOP_CLEANUP_BATCH_SIZE(100) を跨いで再スケジュールされること
+      const { shopId, magicLinkIds } = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-05-01",
+          periodEnd: "2026-05-07",
+          deadline: "2026-04-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "dateOnly" },
+        });
+        const magicLinkIds = [];
+        for (let i = 0; i < COUNT; i++) {
+          const staffId = await ctx.db.insert("staffs", {
+            shopId,
+            name: `スタッフ${i}`,
+            email: `staff${i}@example.com`,
+            emailNormalized: `staff${i}@example.com`,
+            isDeleted: false,
+          });
+          magicLinkIds.push(
+            await ctx.db.insert("magicLinks", {
+              token: `magic-${i}`,
+              staffId,
+              shopId,
+              recruitmentId,
+              expiresAt: Date.now() + 1000,
+            }),
+          );
+        }
+        return { shopId, magicLinkIds };
+      });
+
+      await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      await t.run(async (ctx) => {
+        const remainingStaff = await ctx.db
+          .query("staffs")
+          .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+          .collect();
+        expect(remainingStaff).toHaveLength(0);
+        for (const magicLinkId of magicLinkIds) {
+          expect((await ctx.db.get(magicLinkId))?.revokedAt).toBeTypeOf("number");
+        }
       });
     });
   });
