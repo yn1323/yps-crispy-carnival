@@ -49,6 +49,16 @@ const failures: DashboardNotificationFailure[] = [
     lastFailedAt: new Date("2026-06-22T03:11:00.000Z").getTime(),
     canRetry: true,
   },
+  {
+    _id: id("failure-4"),
+    staffName: "田中 一郎",
+    notificationKind: "lineInvite",
+    notificationKindLabel: "LINE連携案内",
+    periodLabel: null,
+    channel: "email",
+    lastFailedAt: new Date("2026-06-22T02:40:00.000Z").getTime(),
+    canRetry: true,
+  },
 ];
 
 export const Normal: Story = {

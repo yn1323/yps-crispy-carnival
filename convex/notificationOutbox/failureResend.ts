@@ -1,4 +1,4 @@
-export type NotificationFailureKind = "recruitment" | "reminder" | "confirmation" | "other";
+export type NotificationFailureKind = "recruitment" | "reminder" | "confirmation" | "lineInvite" | "other";
 
 export type NotificationFailureResendKind = "recruitment" | "reminder" | "confirmation" | "reissue";
 
@@ -26,6 +26,7 @@ export function describeNotificationFailureContext(context: string): {
   if (CONFIRMATION_CONTEXTS.has(context) || context === "notification.sendReissueEmail") {
     return { kind: "confirmation", label: "確定シフト" };
   }
+  if (context === "line.sendInviteEmail") return { kind: "lineInvite", label: "LINE連携案内" };
   return { kind: "other", label: "通知" };
 }
 
@@ -47,6 +48,7 @@ export const ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS: readonly string[] = [
   "notification.sendReminderEmails",
   ...CONFIRMATION_CONTEXTS,
   "notification.sendReissueEmail",
+  "line.sendInviteEmail",
 ];
 
 export function getNotificationFailureResendKind(context: string): NotificationFailureResendKind | null {
