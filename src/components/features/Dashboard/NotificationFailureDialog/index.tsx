@@ -7,7 +7,7 @@ import { formatDateTime } from "@/src/domains/shift/date";
 export type DashboardNotificationFailure = {
   _id: Id<"notificationFailureInbox">;
   staffName: string;
-  notificationKind: "recruitment" | "reminder" | "confirmation" | "other";
+  notificationKind: "recruitment" | "reminder" | "confirmation" | "lineInvite" | "other";
   notificationKindLabel: string;
   periodLabel: string | null;
   channel?: "email" | "line";
@@ -281,6 +281,8 @@ function kindPalette(kind: DashboardNotificationFailure["notificationKind"]) {
       return "orange";
     case "confirmation":
       return "blue";
+    case "lineInvite":
+      return "green";
     case "other":
       return "gray";
   }

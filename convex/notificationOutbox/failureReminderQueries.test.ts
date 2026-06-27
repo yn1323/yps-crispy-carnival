@@ -14,6 +14,7 @@ async function insertFailure(
     status?: "open" | "retrying" | "resolved";
     lastFailedAt?: number;
     dedupeKey?: string;
+    notificationContext?: string;
   },
 ) {
   const now = Date.now();
@@ -24,7 +25,7 @@ async function insertFailure(
     status: args.status ?? "open",
     shopId: args.shopId,
     dedupeKey: args.dedupeKey ?? `email:test:${args.shopId}`,
-    notificationContext: "notification.sendRecruitmentNotificationEmails",
+    notificationContext: args.notificationContext ?? "notification.sendRecruitmentNotificationEmails",
     firstFailedAt: lastFailedAt,
     lastFailedAt,
     lastError: "boom",
@@ -84,6 +85,25 @@ describe("notificationOutbox/failureReminderQueries", () => {
 
       expect(result.page.map(String)).toEqual([ids.recentShopId]);
       expect(result.page.map(String)).not.toContain(ids.staleShopId);
+    });
+
+    it("種別「通知」(other) しかない店舗は返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const actionable = await seedManagerShop(ctx, { subject: "actionable_shop", shopName: "Actionable" });
+        const otherKind = await seedManagerShop(ctx, { subject: "other_kind_shop", shopName: "OtherKind" });
+        await insertFailure(ctx, { shopId: actionable.shopId, status: "open" });
+        await insertFailure(ctx, { shopId: otherKind.shopId, status: "open", notificationContext: "test.email" });
+        return idsToStrings({ actionableShopId: actionable.shopId, otherKindShopId: otherKind.shopId });
+      });
+
+      const result = await t.query(
+        internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage,
+        { paginationOpts: { numItems: 10, cursor: null } },
+      );
+
+      expect(result.page.map(String)).toEqual([ids.actionableShopId]);
+      expect(result.page.map(String)).not.toContain(ids.otherKindShopId);
     });
 
     it("古い失敗と3日以内の失敗が混在する店舗は返す（最新失敗基準）", async () => {
@@ -158,6 +178,21 @@ describe("notificationOutbox/failureReminderQueries", () => {
           expect.objectContaining({ email: "owner-email@example.com" }),
         ]),
       );
+    });
+
+    it("種別「通知」(other) しかない店舗は null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { otherKindShopId } = await t.run(async (ctx) => {
+        const otherKind = await seedManagerShop(ctx, { subject: "other_kind_target" });
+        await insertFailure(ctx, { shopId: otherKind.shopId, status: "open", notificationContext: "test.email" });
+        return { otherKindShopId: otherKind.shopId };
+      });
+
+      await expect(
+        t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
+          shopId: otherKindShopId,
+        }),
+      ).resolves.toBeNull();
     });
 
     it("open failure がない店舗・削除済み店舗は null を返す", async () => {
