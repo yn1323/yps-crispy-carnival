@@ -37,6 +37,18 @@ export function isManagerActionableNotificationFailure(context: string): boolean
   return describeNotificationFailureContext(context).kind !== "other";
 }
 
+/**
+ * 種別「通知」(other) 以外（= 対応可能）の通知 context の列挙。
+ * ページング前に Convex の `.filter()` で絞り込むために使う（other がページを埋めて
+ * 対応可能な失敗がカーソルの後ろに押し出されるのを防ぐ）。
+ */
+export const ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS: readonly string[] = [
+  ...RECRUITMENT_CONTEXTS,
+  "notification.sendReminderEmails",
+  ...CONFIRMATION_CONTEXTS,
+  "notification.sendReissueEmail",
+];
+
 export function getNotificationFailureResendKind(context: string): NotificationFailureResendKind | null {
   if (RECRUITMENT_CONTEXTS.has(context)) return "recruitment";
   if (context === "notification.sendReminderEmails") return "reminder";

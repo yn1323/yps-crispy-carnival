@@ -113,6 +113,47 @@ describe("notificationOutbox/queries", () => {
     expect(page.page[0]).not.toHaveProperty("lastError");
   });
 
+  it("listOpenFailuresは新しいother失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
+    const t = convexTest(schema, modules);
+    const actionableId = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "manager_pagination",
+        email: "pagination@example.com",
+        shopName: "ページング店舗",
+      });
+      // 対応可能な失敗（古い）
+      const id = await insertFailure(ctx, {
+        shopId,
+        failureKey: "outbox:actionable",
+        status: "open",
+        dedupeKey: "email:test:actionable",
+        lastFailedAt: Date.now() - 10_000,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      // other失敗（新しい）でページ先頭を埋める
+      for (let i = 0; i < 3; i++) {
+        await insertFailure(ctx, {
+          shopId,
+          failureKey: `outbox:other-${i}`,
+          status: "open",
+          dedupeKey: `email:test:other-${i}`,
+          lastFailedAt: Date.now() + i,
+          notificationContext: "test.email",
+        });
+      }
+      return id;
+    });
+
+    // ページング後フィルタだと初回ページが空になるが、前段フィルタなら対応可能な失敗を返す
+    const page = await t
+      .withIdentity({ subject: "manager_pagination" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 1, cursor: null },
+      });
+
+    expect(page.page.map((failure) => failure._id)).toEqual([actionableId]);
+  });
+
   it("hasOpenFailuresは現在店舗のopen失敗の有無だけを返す", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
