@@ -1,7 +1,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
 import {
   buildWeeklyGrid,
@@ -24,6 +24,7 @@ import {
   dailySortedStaffsAtom,
   issueCountByDateAtom,
   lockDailyStaffOrderAtom,
+  selectedDateAtom,
   shiftConfigAtom,
   shiftsAtom,
   validationWarningsAtom,
@@ -67,6 +68,17 @@ export const DateOnlyView = () => {
   const sortableDates = useMemo(() => getSortableDates(visibleDates, holidays), [visibleDates, holidays]);
   const defaultSortDate = sortableDates[0]?.iso ?? "";
   const [sortDate, setSortDate] = useState(defaultSortDate);
+  const selectedDate = useAtomValue(selectedDateAtom);
+  const didInitWeek = useRef(false);
+
+  // 初回1度だけ、選択日（スタッフ確認では今日）を含む週を開く。
+  // 通常の呼び出し元では selectedDate = 期間先頭日 = 1週目のため変更なし。
+  useEffect(() => {
+    if (didInitWeek.current || !selectedDate || weeks.length === 0) return;
+    didInitWeek.current = true;
+    const idx = weeks.findIndex((week) => week.dates.some((date) => date.inRange && date.iso === selectedDate));
+    if (idx > 0) setSelectedWeekIndex(idx);
+  }, [selectedDate, weeks]);
   const visibleInRangeDateKeys = useMemo(
     () => visibleDates.filter((date) => date.inRange).map((date) => date.iso),
     [visibleDates],

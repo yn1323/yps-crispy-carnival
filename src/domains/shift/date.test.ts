@@ -10,6 +10,7 @@ import {
   isDateInRange,
   isPastShiftPeriod,
   pruneDatesInRange,
+  resolveInitialSelectedDate,
   todayJST,
 } from "./date";
 
@@ -43,6 +44,27 @@ describe("date helpers", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("defaultToTodayが有効で今日が期間内なら今日を初期選択日にする", () => {
+    const dates = ["2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29"];
+    expect(resolveInitialSelectedDate(dates, true, "2026-06-28")).toBe("2026-06-28");
+  });
+
+  test("今日が期間外なら先頭日にフォールバックする", () => {
+    const past = ["2026-06-01", "2026-06-02", "2026-06-03"];
+    expect(resolveInitialSelectedDate(past, true, "2026-06-28")).toBe("2026-06-01");
+    const future = ["2026-07-01", "2026-07-02"];
+    expect(resolveInitialSelectedDate(future, true, "2026-06-28")).toBe("2026-07-01");
+  });
+
+  test("defaultToTodayが無効なら今日が期間内でも先頭日を返す", () => {
+    const dates = ["2026-06-26", "2026-06-27", "2026-06-28"];
+    expect(resolveInitialSelectedDate(dates, false, "2026-06-28")).toBe("2026-06-26");
+  });
+
+  test("日付が空なら空文字を返す", () => {
+    expect(resolveInitialSelectedDate([], true, "2026-06-28")).toBe("");
   });
 
   test("期間外の日付を除外してソートできる", () => {
