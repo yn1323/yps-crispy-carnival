@@ -59,3 +59,5 @@
 - 非同期配送で再度失敗した場合は failure 記録により `open` として再表示される。
 - 初回失敗から30日を過ぎた不達通知は日次cronで `resolved/expired` になり、行は残したままDashboard表示と再通知対象から外れる。
 - 同じ通知種別・募集・スタッフの不達は最新1件だけを `open` として扱う。古い重複行は `resolved/superseded` になり、一覧や一斉再通知の対象にはしない。
+- `LINE連携案内`（context `line.sendInviteEmail`）の不達は募集に紐づかないため、PCテーブルの募集期間セルは `-`（ダッシュ）を表示し、SPカードでは募集期間行自体を出さない。
+- `LINE連携案内` の再通知は `sourceType` を問わず `internal.line.actions.sendInviteEmail` を予約し、**送信のたびに新しいマジックリンク（連携トークン）を発行して送り直す**（既存 outbox の再実行で古いトークンを使い回さない）。スタッフIDがあれば再通知可能だが、連携依頼はメールで送るためメール未登録（空文字）のスタッフには再送しない。判定は `isLineInviteResendContext`（`convex/notificationOutbox/failureResend.ts`）。

@@ -21,7 +21,7 @@ import {
   getNotificationFailureIdentityForDoc,
   supersededFailureKey,
 } from "./failureIdentity";
-import { getNotificationFailureResendKind } from "./failureResend";
+import { getNotificationFailureResendKind, isLineInviteResendContext } from "./failureResend";
 import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
 import { type ResendProviderIssueEventType, resendProviderDeliveryStatus } from "./resendProviderEvents";
 import {
@@ -453,6 +453,12 @@ async function requestFailureResend(
   ctx: ManagerNotificationOutboxMutationCtx,
   failure: Doc<"notificationFailureInbox">,
 ) {
+  // LINE連携案内は sourceType を問わず、送信のたびに新しいマジックリンクを発行して送り直す。
+  // （既存 outbox を再実行すると古いトークンを使い回してしまうため別経路にする）
+  if (isLineInviteResendContext(failure.notificationContext)) {
+    return await requestLineInviteResend(ctx, failure);
+  }
+
   if (failure.sourceType === "outbox") {
     return await retryOutboxFailure(ctx, failure, { throwOnNotFound: false });
   }
@@ -510,6 +516,31 @@ async function requestFailureResend(
   }
 
   await markFailureRetrying(ctx, failure._id, now);
+  return { scheduled: true as const };
+}
+
+async function requestLineInviteResend(
+  ctx: ManagerNotificationOutboxMutationCtx,
+  failure: Doc<"notificationFailureInbox">,
+) {
+  if (failure.shopId !== ctx.shop._id || failure.status !== "open" || !failure.staffId) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  const allowed = await allowFailureRetry(ctx, failure._id);
+  if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
+
+  const staff = await ctx.db.get(failure.staffId);
+  // 連携依頼はメールで送るため、メール未登録のスタッフには再送できない。
+  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted || !staff.email) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
+  await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+    staffId: failure.staffId,
+  });
+  await markFailureRetrying(ctx, failure._id, Date.now());
   return { scheduled: true as const };
 }
 
