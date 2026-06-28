@@ -2,6 +2,9 @@ export type NotificationFailureKind = "recruitment" | "reminder" | "confirmation
 
 export type NotificationFailureResendKind = "recruitment" | "reminder" | "confirmation" | "reissue";
 
+/** LINE連携案内メールの送信 context。再送時は新しいマジックリンク（連携トークン）を発行し直す。 */
+export const LINE_INVITE_NOTIFICATION_CONTEXT = "line.sendInviteEmail";
+
 export type NotificationFailureLogicalKind = NotificationFailureResendKind;
 
 const RECRUITMENT_CONTEXTS = new Set([
@@ -26,8 +29,17 @@ export function describeNotificationFailureContext(context: string): {
   if (CONFIRMATION_CONTEXTS.has(context) || context === "notification.sendReissueEmail") {
     return { kind: "confirmation", label: "確定シフト" };
   }
-  if (context === "line.sendInviteEmail") return { kind: "lineInvite", label: "LINE連携案内" };
+  if (isLineInviteResendContext(context)) return { kind: "lineInvite", label: "LINE連携案内" };
   return { kind: "other", label: "通知" };
+}
+
+/**
+ * LINE連携案内メールの不達かどうか。
+ * 募集に紐づかない（recruitmentId を持たない）ため通常の再送種別とは別経路で扱い、
+ * 再送時はスタッフIDから連携依頼メールを送り直す（=新しいマジックリンクを発行する）。
+ */
+export function isLineInviteResendContext(context: string): boolean {
+  return context === LINE_INVITE_NOTIFICATION_CONTEXT;
 }
 
 /**
@@ -48,7 +60,7 @@ export const ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS: readonly string[] = [
   "notification.sendReminderEmails",
   ...CONFIRMATION_CONTEXTS,
   "notification.sendReissueEmail",
-  "line.sendInviteEmail",
+  LINE_INVITE_NOTIFICATION_CONTEXT,
 ];
 
 export function getNotificationFailureResendKind(context: string): NotificationFailureResendKind | null {

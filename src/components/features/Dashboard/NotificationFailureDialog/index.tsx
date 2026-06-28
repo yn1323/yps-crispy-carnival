@@ -120,7 +120,7 @@ export const NotificationFailureDialogContent = ({
                   <NotificationKindBadge failure={failure} />
                 </Table.Cell>
                 <Table.Cell color="gray.800" textAlign="center" verticalAlign="middle">
-                  {failure.periodLabel ?? "対象の募集なし"}
+                  {failure.periodLabel ?? "-"}
                 </Table.Cell>
                 <Table.Cell textAlign="center" verticalAlign="middle">
                   <ChannelText channel={failure.channel} />
@@ -153,9 +153,11 @@ export const NotificationFailureDialogContent = ({
                 <ChannelText channel={failure.channel} />
               </Flex>
 
-              <Text fontSize="sm" color="gray.700" lineHeight="short">
-                {failure.periodLabel ?? "対象の募集なし"}
-              </Text>
+              {failure.periodLabel && (
+                <Text fontSize="sm" color="gray.700" lineHeight="short">
+                  {failure.periodLabel}
+                </Text>
+              )}
 
               <HStack gap={2} wrap="wrap">
                 <NotificationKindBadge failure={failure} />

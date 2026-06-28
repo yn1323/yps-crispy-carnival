@@ -7,6 +7,7 @@ import {
   ACTIONABLE_NOTIFICATION_FAILURE_CONTEXTS,
   describeNotificationFailureContext,
   getNotificationFailureResendKind,
+  isLineInviteResendContext,
   isManagerActionableNotificationFailure,
 } from "./failureResend";
 
@@ -93,6 +94,8 @@ export const hasOpenFailures = managerQuery({
 });
 
 function canRetryFailure(failure: Doc<"notificationFailureInbox">) {
+  // LINE連携案内は募集に紐づかず、スタッフIDから連携依頼メールを送り直せる（新しいマジックリンクを発行）。
+  if (isLineInviteResendContext(failure.notificationContext)) return Boolean(failure.staffId);
   if (failure.sourceType === "outbox") return Boolean(failure.outboxId);
   return Boolean(
     failure.staffId && failure.recruitmentId && getNotificationFailureResendKind(failure.notificationContext),
