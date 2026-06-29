@@ -214,6 +214,21 @@ export const sendCurrentShiftNotification = managerMutation({
   },
 });
 
+export const setShiftExclusion = managerMutation({
+  args: {
+    staffId: v.id("staffs"),
+    excluded: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const staff = await ctx.db.get(args.staffId);
+    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+      throw new ConvexError("Not found");
+    }
+    // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
+    await ctx.db.patch(args.staffId, { excludedFromShift: args.excluded });
+  },
+});
+
 export const deleteStaff = managerMutation({
   args: {
     staffId: v.id("staffs"),

@@ -203,6 +203,7 @@ export const DashboardContent = ({
   const sendLineInvite = useShopMutation(api.line.mutations.sendInvite);
   const sendOpenRecruitmentNotifications = useShopMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
   const sendCurrentShiftNotification = useShopMutation(api.staff.mutations.sendCurrentShiftNotification);
+  const setShiftExclusion = useShopMutation(api.staff.mutations.setShiftExclusion);
   const ensureShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
   const approveStaffRequest = useShopMutation(api.staffRegistration.mutations.approveRequest);
   const rejectStaffRequest = useShopMutation(api.staffRegistration.mutations.rejectRequest);
@@ -582,6 +583,19 @@ export const DashboardContent = ({
     currentShiftNotificationDialog.open();
   };
 
+  const handleToggleShiftExclusion = async (staff: Staff) => {
+    const nextExcluded = !staff.excludedFromShift;
+    try {
+      await setShiftExclusion({ staffId: staff._id, excluded: nextExcluded });
+      toaster.create({
+        title: nextExcluded ? "シフト対象外にしました" : "シフト対象に戻しました",
+        type: "success",
+      });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  };
+
   const { run: handleSendCurrentShiftConfirm, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
     if (!currentShiftNotificationTarget) return;
     try {
@@ -672,6 +686,7 @@ export const DashboardContent = ({
               onSendLineInvite={handleSendLineInviteClick}
               onSendRecruitments={handleSendRecruitmentsClick}
               onSendCurrentShift={handleSendCurrentShiftClick}
+              onToggleShiftExclusion={handleToggleShiftExclusion}
               hasCurrentShift={currentRecruitments.length > 0}
               onLoadMore={loadMoreStaffs}
             />

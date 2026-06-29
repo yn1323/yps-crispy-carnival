@@ -681,4 +681,69 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("自分のアカウントは削除できません");
     });
   });
+
+  describe("setShiftExclusion", () => {
+    it("未認証の場合エラーをthrow", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+      await expect(t.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true })).rejects.toThrow();
+    });
+
+    it("シフト対象外フラグをトグルできる", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true });
+      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(true);
+
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: false });
+      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(false);
+    });
+
+    it("管理者自身もシフト対象外にできる（削除と異なる）", async () => {
+      const t = convexTest(schema, modules);
+
+      const adminStaffId = await t.run(async (ctx) => {
+        const { userId, shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return await ctx.db.insert("staffs", {
+          shopId,
+          name: "店舗共通アドレス",
+          email: "mgr@example.com",
+          userId,
+          isDeleted: false,
+        });
+      });
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.setShiftExclusion, { staffId: adminStaffId, excluded: true });
+
+      expect(await t.run(async (ctx) => (await ctx.db.get(adminStaffId))?.excludedFromShift)).toBe(true);
+    });
+
+    it("他店舗のスタッフは変更できない（IDOR）", async () => {
+      const { t } = setupShopWithStaff();
+
+      const otherStaffId = await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "他店舗");
+        return await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          name: "他店スタッフ",
+          email: "other@example.com",
+          isDeleted: false,
+        });
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.staff.mutations.setShiftExclusion, { staffId: otherStaffId, excluded: true }),
+      ).rejects.toThrow("Not found");
+    });
+  });
 });

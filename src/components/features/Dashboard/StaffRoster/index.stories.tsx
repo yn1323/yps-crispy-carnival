@@ -1,6 +1,6 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockStaffs, mockStaffsMany } from "@/src/components/features/Dashboard/storyMocks";
+import { mockStaffs, mockStaffsMany, mockStaffsWithExcluded } from "@/src/components/features/Dashboard/storyMocks";
 import { StaffRoster, StaffRosterSkeleton } from ".";
 
 const noop = () => {};
@@ -22,6 +22,7 @@ const meta = {
     onSendLineInvite: noop,
     onSendRecruitments: noop,
     onSendCurrentShift: noop,
+    onToggleShiftExclusion: noop,
     hasCurrentShift: true,
     onLoadMore: noop,
   },
@@ -44,6 +45,12 @@ export const CanLoadMore: Story = {
     staffs: mockStaffsMany,
     status: "CanLoadMore",
     canLoadMore: true,
+  },
+};
+
+export const WithExcluded: Story = {
+  args: {
+    staffs: mockStaffsWithExcluded,
   },
 };
 
