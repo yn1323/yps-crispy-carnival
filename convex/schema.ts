@@ -88,6 +88,8 @@ const schema = defineSchema({
     email: v.string(),
     emailNormalized: v.optional(v.string()),
     userId: v.optional(v.id("users")),
+    // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。未定義は false 扱い。
+    excludedFromShift: v.optional(v.boolean()),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])

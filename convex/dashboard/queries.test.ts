@@ -766,6 +766,7 @@ describe("dashboard/queries", () => {
       expect(Object.keys(result.page[0]).sort()).toEqual([
         "_id",
         "email",
+        "excludedFromShift",
         "isLineFollowing",
         "isLineLinked",
         "isManager",

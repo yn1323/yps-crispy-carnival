@@ -5,7 +5,7 @@ import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import type { TourHandle } from "@/src/components/ui/Tour";
-import { toaster } from "@/src/components/ui/toaster";
+import { showSuccessToast } from "@/src/components/ui/toaster";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
@@ -92,7 +92,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
     // tour は handleOpenConfirm 時点で skip + idle 済み。確定後も FAB を出しておきたいので idle のまま
     setConfirmedAt(Date.now());
     confirmModal.close();
-    toaster.create({ title: "確定しました", type: "success" });
+    showSuccessToast({ title: "確定しました" });
   }, [confirmModal]);
 
   const handleTourCloseRequest = useCallback(() => {
@@ -101,7 +101,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
   }, []);
 
   const handleSaveDraft = useCallback(() => {
-    toaster.create({ title: "保存しました", type: "success" });
+    showSuccessToast({ title: "保存しました" });
   }, []);
 
   const confirmTitle = isConfirmed

@@ -20,6 +20,7 @@
 | [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |
 | [シフト募集管理](features/shift-recruitment-management.md) | シフト担当者がシフト募集を作成・確認・削除する管理導線 | 実装済 |
 | [希望シフト提出](features/shift-submission.md) | スタッフの希望提出と前回シフトあり週パターンの再利用 | 実装済 |
+| [シフト対象外スタッフ](features/shift-exclusion.md) | 店舗共通アドレス等シフトを出さないスタッフを表示・シフト関連通知の対象から外す | 実装済 |
 | [シフト確定催促リマインダー](features/shift-confirmation-reminder.md) | 締切翌日17時に未確定の募集があれば店舗マネージャー全員へ確定を催促（失敗は要対応Inbox対象外） | 実装済 |
 | [公開サブページ](features/public-pages.md) | LPコンテンツを流用した、できること・FAQ・デモへの公開導線 | 実装済 |
 

@@ -1,5 +1,15 @@
 import { Badge, Flex, HStack, Menu, Portal, Stack, Text } from "@chakra-ui/react";
-import { LuCalendarCheck, LuEllipsisVertical, LuMail, LuPencil, LuQrCode, LuSend, LuTrash2 } from "react-icons/lu";
+import {
+  LuCalendarCheck,
+  LuEllipsisVertical,
+  LuMail,
+  LuPencil,
+  LuQrCode,
+  LuSend,
+  LuTrash2,
+  LuUserCheck,
+  LuUserX,
+} from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
 import { IconButton } from "@/src/components/ui/Button";
 
@@ -11,6 +21,7 @@ type Props = {
   onSendLineInvite: (staff: Staff) => void;
   onSendRecruitments: (staff: Staff) => void;
   onSendCurrentShift: (staff: Staff) => void;
+  onToggleShiftExclusion: (staff: Staff) => void;
   hasCurrentShift: boolean;
 };
 
@@ -22,15 +33,18 @@ export function StaffRow({
   onSendLineInvite,
   onSendRecruitments,
   onSendCurrentShift,
+  onToggleShiftExclusion,
   hasCurrentShift,
 }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
   const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
+  const isExcluded = staff.excludedFromShift;
   const hasEmail = staff.email.length > 0;
   const canShowLineQr = !isLineActive;
   const canSendLineInvite = hasEmail && !isLineActive;
-  const canSendNotification = hasEmail || isLineActive;
+  // シフト対象外スタッフには募集・確定通知を送れない（送信先から除外されるため）。
+  const canSendNotification = (hasEmail || isLineActive) && !isExcluded;
   const canSendCurrentShift = canSendNotification && hasCurrentShift;
 
   return (
@@ -72,6 +86,11 @@ export function StaffRow({
           {isLineActive && (
             <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
               LINE連携済み
+            </Badge>
+          )}
+          {isExcluded && (
+            <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+              シフト対象外
             </Badge>
           )}
         </HStack>
@@ -141,6 +160,11 @@ export function StaffRow({
               >
                 <LuMail />
                 LINE連携リンクをメールで送る
+              </Menu.Item>
+              <Menu.Separator />
+              <Menu.Item value="toggle-shift-exclusion" cursor="pointer" onClick={() => onToggleShiftExclusion(staff)}>
+                {isExcluded ? <LuUserCheck /> : <LuUserX />}
+                {isExcluded ? "シフト対象に戻す" : "シフト対象外にする"}
               </Menu.Item>
               <Menu.Separator />
               <Menu.Item

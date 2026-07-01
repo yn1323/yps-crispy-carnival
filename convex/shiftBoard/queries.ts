@@ -8,6 +8,7 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
+import { isShiftTargetStaff } from "../staff/service";
 
 function getBoardTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
   if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
@@ -91,7 +92,7 @@ export const getShiftBoardData = managerQuery({
         draftSavedAt: effectiveDraftSavedAt,
       },
       submissionPattern,
-      staffs: allStaffs.map((s) => {
+      staffs: allStaffs.filter(isShiftTargetStaff).map((s) => {
         const submission = submissionByStaffId.get(s._id);
         // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
         const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;

@@ -160,6 +160,7 @@ export type Staff = {
   isManager: boolean;
   isLineLinked: boolean;
   isLineFollowing: boolean;
+  excludedFromShift: boolean;
 };
 
 export type StaffRegistrationRequest = {

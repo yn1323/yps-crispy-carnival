@@ -15,6 +15,20 @@ export function showErrorToast(error: unknown): void {
   toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
 }
 
+// 読了に必要な時間を文字数から概算する。短文は2秒、長文は最大8秒でクランプする
+function calcReadingDuration(title: string, description?: string): number {
+  const charCount = title.length + (description?.length ?? 0);
+  return Math.min(8000, Math.max(2000, charCount * 120));
+}
+
+export function showSuccessToast(args: { title: string; description?: string }): void {
+  toaster.create({
+    ...args,
+    type: "success",
+    duration: calcReadingDuration(args.title, args.description),
+  });
+}
+
 export const toaster = createToaster({
   placement: "top",
   pauseOnPageIdle: true,

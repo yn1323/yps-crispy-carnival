@@ -1,7 +1,7 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   formatDateShort,
   formatDateWithWeekday,
@@ -18,6 +18,7 @@ import {
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
   dailySortedStaffsAtom,
   issueCountByDateAtom,
@@ -204,80 +205,86 @@ const DateRail = ({
   issueCounts: ReadonlyMap<string, number>;
   warningCounts: ReadonlyMap<string, number>;
   onSelect: (iso: string) => void;
-}) => (
-  <Box
-    px={3}
-    pt={3}
-    pb={2}
-    bg="white"
-    borderBottomWidth="1px"
-    borderColor="gray.100"
-    flexShrink={0}
-    data-tour="date-rail"
-  >
-    <Flex gap={2} overflow="auto" pt={2} pb={1}>
-      {dates.map((date) => {
-        const active = date.iso === selectedDate;
-        const isClosed = date.inRange && holidays.includes(date.iso);
-        const issueCount = issueCounts.get(date.iso) ?? 0;
-        const warningCount = warningCounts.get(date.iso) ?? 0;
-        const chipBorderColor = dateIssueBorderColor({
-          active,
-          issueCount,
-          warningCount,
-          activeColor: "teal.500",
-          fallbackColor: "gray.200",
-        });
-        return (
-          <Box
-            as="button"
-            key={date.iso}
-            aria-label={`${formatDateWithWeekday(date.iso)}を表示`}
-            aria-pressed={active}
-            onClick={() => onSelect(date.iso)}
-            position="relative"
-            flexShrink={0}
-            w="56px"
-            minH="58px"
-            py="7px"
-            textAlign="center"
-            borderRadius="md"
-            borderWidth="1px"
-            borderColor={chipBorderColor}
-            bg={active ? "teal.50" : isClosed || !date.inRange ? "gray.50" : "white"}
-            color={!date.inRange || isClosed ? "gray.400" : "gray.800"}
-            cursor="pointer"
-            _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
-          >
-            <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
-            <Text
-              textStyle="md"
-              fontWeight={700}
-              lineHeight="1.1"
-              color={active ? "teal.700" : undefined}
-              fontVariantNumeric="tabular-nums"
+}) => {
+  const stripRef = useRef<HTMLDivElement>(null);
+  useScrollDateIntoView(stripRef, selectedDate, "horizontal");
+
+  return (
+    <Box
+      px={3}
+      pt={3}
+      pb={2}
+      bg="white"
+      borderBottomWidth="1px"
+      borderColor="gray.100"
+      flexShrink={0}
+      data-tour="date-rail"
+    >
+      <Flex ref={stripRef} gap={2} overflow="auto" pt={2} pb={1}>
+        {dates.map((date) => {
+          const active = date.iso === selectedDate;
+          const isClosed = date.inRange && holidays.includes(date.iso);
+          const issueCount = issueCounts.get(date.iso) ?? 0;
+          const warningCount = warningCounts.get(date.iso) ?? 0;
+          const chipBorderColor = dateIssueBorderColor({
+            active,
+            issueCount,
+            warningCount,
+            activeColor: "teal.500",
+            fallbackColor: "gray.200",
+          });
+          return (
+            <Box
+              as="button"
+              key={date.iso}
+              data-date-chip={date.iso}
+              aria-label={`${formatDateWithWeekday(date.iso)}を表示`}
+              aria-pressed={active}
+              onClick={() => onSelect(date.iso)}
+              position="relative"
+              flexShrink={0}
+              w="56px"
+              minH="58px"
+              py="7px"
+              textAlign="center"
+              borderRadius="md"
+              borderWidth="1px"
+              borderColor={chipBorderColor}
+              bg={active ? "teal.50" : isClosed || !date.inRange ? "gray.50" : "white"}
+              color={!date.inRange || isClosed ? "gray.400" : "gray.800"}
+              cursor="pointer"
+              _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
             >
-              {formatDateShort(date.iso)}
-            </Text>
-            <Text
-              textStyle="2xs"
-              mt="2px"
-              fontWeight={active ? 700 : 500}
-              color={!date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
-            >
-              {getWeekdayLabel(date.iso)}
-            </Text>
-            {(isClosed || !date.inRange) && (
-              <Text textStyle="2xs" mt="1px" fontWeight={700} color="gray.400">
-                {date.inRange ? "休" : "外"}
+              <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
+              <Text
+                textStyle="md"
+                fontWeight={700}
+                lineHeight="1.1"
+                color={active ? "teal.700" : undefined}
+                fontVariantNumeric="tabular-nums"
+              >
+                {formatDateShort(date.iso)}
               </Text>
-            )}
-          </Box>
-        );
-      })}
-    </Flex>
-  </Box>
-);
+              <Text
+                textStyle="2xs"
+                mt="2px"
+                fontWeight={active ? 700 : 500}
+                color={!date.inRange || isClosed ? "gray.400" : dayColor(date.iso)}
+              >
+                {getWeekdayLabel(date.iso)}
+              </Text>
+              {(isClosed || !date.inRange) && (
+                <Text textStyle="2xs" mt="1px" fontWeight={700} color="gray.400">
+                  {date.inRange ? "休" : "外"}
+                </Text>
+              )}
+            </Box>
+          );
+        })}
+      </Flex>
+    </Box>
+  );
+};
 
 const StaffToggleRow = ({
   row,

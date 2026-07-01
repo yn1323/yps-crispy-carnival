@@ -2,7 +2,7 @@ import { Box, Flex, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import {
@@ -15,6 +15,7 @@ import {
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
   getShiftTypeOptionColor,
   SHIFT_TYPE_REQUEST_STATUS_COLORS,
@@ -60,6 +61,8 @@ export const SPShiftTypeDailyView = () => {
   const fallbackPosition = config.positions[0] ?? DEFAULT_POSITION;
   const isShopClosedDate = holidays.includes(selectedDate);
   const selectedDay = selectedDate ? dayjs(selectedDate) : null;
+  const dateStripRef = useRef<HTMLDivElement>(null);
+  useScrollDateIntoView(dateStripRef, selectedDate, "horizontal");
   useLockedDailyStaffOrder(selectedDate);
 
   const counts = useMemo(
@@ -87,7 +90,7 @@ export const SPShiftTypeDailyView = () => {
   return (
     <Flex direction="column" flex={1} minH={0}>
       <Box px={3} pt={3} pb={2} bg="white" borderBottomWidth="1px" borderColor="gray.100" flexShrink={0}>
-        <Flex gap={2} overflow="auto" pt={2} pb={1}>
+        <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
           {dates.map((iso) => {
             const date = dayjs(iso);
             const active = iso === selectedDate;
@@ -104,6 +107,7 @@ export const SPShiftTypeDailyView = () => {
             return (
               <Box
                 key={iso}
+                data-date-chip={iso}
                 onClick={() => selectDate(iso)}
                 position="relative"
                 flexShrink={0}

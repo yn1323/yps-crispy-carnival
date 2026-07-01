@@ -5,7 +5,7 @@ import type { StaffRegistrationFormData } from "@/convex/staffRegistration/schem
 import { StaffRegistrationPage, type StaffRegistrationPageData } from "@/src/components/features/StaffRegistration";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
-import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { showErrorToast, showSuccessToast, toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 
 type Props = {
@@ -43,7 +43,7 @@ export function StaffRegistrationRoutePage({ token }: Props) {
         });
         if (result.status === "ok") {
           setSubmitted(true);
-          toaster.create({ title: "参加申請を送りました", type: "success" });
+          showSuccessToast({ title: "参加申請を送りました" });
         } else {
           toaster.create({
             title: DUPLICATE_REGISTRATION_MESSAGE[result.status],
