@@ -28,6 +28,8 @@ export function buildShiftConfirmationLineText(params: {
   isResend: boolean;
 }): string {
   const lines = [
+    params.isResend ? "🔁 シフト変更" : "✅ シフト確定",
+    "",
     `${params.staffName}さん`,
     "",
     params.isResend
@@ -57,6 +59,8 @@ export function buildRecruitmentLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
+    "📩 提出依頼",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName}\n${params.periodLabel} のシフト希望を提出してください。`,
@@ -79,6 +83,8 @@ export function buildReissueLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
+    "🔁 リンク再発行",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName}\n${params.periodLabel} のシフト閲覧リンクを再発行しました。`,
@@ -99,6 +105,8 @@ export function buildReminderLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
+    "🔔 提出リマインド",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName}\n${params.periodLabel} のシフト希望の提出期限が近づいています。`,
@@ -394,6 +402,8 @@ type StaffRegistrationOwnerDigestParams = {
 
 export function buildStaffRegistrationOwnerDigestLineText(params: StaffRegistrationOwnerDigestParams): string {
   return [
+    "📝 承認依頼",
+    "",
     "スタッフの承認依頼が届いています。",
     "シフトリのダッシュボードで確認してください。",
     "",
@@ -442,6 +452,8 @@ type NotificationFailureReminderParams = {
 
 export function buildNotificationFailureReminderLineText(params: NotificationFailureReminderParams): string {
   return [
+    "⚠️ 通知失敗",
+    "",
     "通知の送信に失敗したスタッフがいます。",
     "シフトリのダッシュボードを開いて、再通知してください。",
     "",
@@ -492,6 +504,8 @@ type ShiftConfirmationReminderParams = {
 
 export function buildShiftConfirmationReminderLineText(params: ShiftConfirmationReminderParams): string {
   return [
+    "⏰ 締切超過",
+    "",
     `${params.periodLabel} のシフトがまだ確定していません。`,
     `提出締切（${params.deadlineLabel}）を過ぎています。`,
     "スタッフの希望を確認して、シフトを調整・確定してください。",
@@ -600,6 +614,8 @@ export function buildStaffLegalConsentLineText(params: {
   expiresAt: number;
 }): string {
   return [
+    "📄 ご案内",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName} で利用するシフト管理サービス「シフトリ」のご案内です。`,
