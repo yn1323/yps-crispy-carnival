@@ -11,7 +11,7 @@ import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
-import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { showErrorToast, showSuccessToast, toaster } from "@/src/components/ui/toaster";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -284,7 +284,7 @@ export const DashboardContent = ({
       const result = await resendNotificationFailure({ failureId });
       if (result.scheduled) {
         setAcceptedNotificationFailureIds((current) => new Set(current).add(failureId));
-        toaster.create({ title: "再通知を受け付けました", type: "success" });
+        showSuccessToast({ title: "再通知を受け付けました" });
         return;
       }
       toaster.create({
@@ -352,7 +352,7 @@ export const DashboardContent = ({
         managerEmail: data.email,
         acceptedLegal: data.acceptedLegal as true,
       });
-      toaster.create({ title: "セットアップが完了しました", type: "success" });
+      showSuccessToast({ title: "セットアップが完了しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -362,10 +362,9 @@ export const DashboardContent = ({
     try {
       await createRecruitment(data);
       recruitmentModal.close();
-      toaster.create({
+      showSuccessToast({
         title: "募集をつくり、スタッフに通知しました",
         description: "LINE連携済みのスタッフにはLINE、未連携のスタッフにはメールで届きます。",
-        type: "success",
       });
     } catch (error) {
       const message = getCreateRecruitmentErrorMessage(error);
@@ -388,7 +387,7 @@ export const DashboardContent = ({
       await deleteRecruitmentMut({ recruitmentId: deleteRecruitmentTarget._id });
       deleteRecruitmentDialog.close();
       setDeleteRecruitmentTarget(null);
-      toaster.create({ title: "シフト募集を削除しました", type: "success" });
+      showSuccessToast({ title: "シフト募集を削除しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -397,7 +396,7 @@ export const DashboardContent = ({
   const { run: handleAcceptManagerLegalConsent, isRunning: legalConsentSubmitting } = useSingleFlight(async () => {
     try {
       await acceptManagerLegalConsent({ acceptedLegal: true });
-      toaster.create({ title: "同意を記録しました", type: "success" });
+      showSuccessToast({ title: "同意を記録しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -408,10 +407,9 @@ export const DashboardContent = ({
       try {
         await addStaffs({ entries: data.entries });
         staffModal.close();
-        toaster.create({
+        showSuccessToast({
           title: "スタッフを追加し、案内通知を送りました",
           description: "同意依頼とLINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
-          type: "success",
         });
       } catch (error) {
         showErrorToast(error);
@@ -445,10 +443,9 @@ export const DashboardContent = ({
     async (request: StaffRegistrationRequest) => {
       try {
         await approveStaffRequest({ requestId: request._id });
-        toaster.create({
+        showSuccessToast({
           title: "スタッフ申請を承認し、案内通知を送りました",
           description: "LINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
-          type: "success",
         });
       } catch (error) {
         showErrorToast(error);
@@ -465,7 +462,7 @@ export const DashboardContent = ({
     try {
       await rejectStaffRequest({ requestId: rejectRequestTarget._id });
       setRejectRequestTarget(null);
-      toaster.create({ title: "スタッフ申請を却下しました", type: "success" });
+      showSuccessToast({ title: "スタッフ申請を却下しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -495,7 +492,7 @@ export const DashboardContent = ({
     try {
       await editStaffMut({ staffId: editTarget._id, name: data.name, email: data.email });
       editStaffModal.close();
-      toaster.create({ title: "スタッフ情報を更新しました", type: "success" });
+      showSuccessToast({ title: "スタッフ情報を更新しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -505,7 +502,7 @@ export const DashboardContent = ({
     try {
       await updateShopSettings(data);
       editShopModal.close();
-      toaster.create({ title: "店舗設定を更新しました", type: "success" });
+      showSuccessToast({ title: "店舗設定を更新しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -516,7 +513,7 @@ export const DashboardContent = ({
     try {
       await deleteStaffMut({ staffId: deleteTarget._id });
       deleteStaffDialog.close();
-      toaster.create({ title: "スタッフを削除しました", type: "success" });
+      showSuccessToast({ title: "スタッフを削除しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -548,7 +545,7 @@ export const DashboardContent = ({
     try {
       await sendLineInvite({ staffId: lineInviteTarget._id });
       lineInviteDialog.close();
-      toaster.create({ title: "LINE連携リンクをメールで送りました", type: "success" });
+      showSuccessToast({ title: "LINE連携リンクをメールで送りました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -565,7 +562,7 @@ export const DashboardContent = ({
       const result = await sendOpenRecruitmentNotifications({ staffId: recruitmentNotificationTarget._id });
       recruitmentNotificationDialog.close();
       if (result.scheduled) {
-        toaster.create({ title: "シフト募集通知を送りました", type: "success" });
+        showSuccessToast({ title: "シフト募集通知を送りました" });
         return;
       }
       toaster.create({
@@ -602,7 +599,7 @@ export const DashboardContent = ({
       const result = await sendCurrentShiftNotification({ staffId: currentShiftNotificationTarget._id });
       currentShiftNotificationDialog.close();
       if (result.scheduled) {
-        toaster.create({ title: "現在の確定シフトを送りました", type: "success" });
+        showSuccessToast({ title: "現在の確定シフトを送りました" });
         return;
       }
       toaster.create({

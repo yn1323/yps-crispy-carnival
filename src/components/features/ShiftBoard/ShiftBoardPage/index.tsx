@@ -13,7 +13,7 @@ import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { showErrorToast, showSuccessToast, toaster } from "@/src/components/ui/toaster";
 import { toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import { type AssignmentWarning, computeAssignmentWarnings } from "@/src/domains/shift/assignmentWarnings";
 import { buildAssignments } from "@/src/domains/shift/buildAssignments";
@@ -453,9 +453,8 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         toaster.create({ title: "前回通知から変更されたスタッフはいません", type: "info" });
         return;
       }
-      toaster.create({
+      showSuccessToast({
         title: isConfirmed ? "変更があるスタッフへの通知を受け付けました" : "確定しました",
-        type: "success",
       });
     } catch (error) {
       if (handleMutationError(error)) {
@@ -468,7 +467,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
-      toaster.create({ title: "保存しました", type: "success" });
+      showSuccessToast({ title: "保存しました" });
     } catch (error) {
       handleMutationError(error);
     }
@@ -497,7 +496,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
-      toaster.create({ title: "保存しました", type: "success" });
+      showSuccessToast({ title: "保存しました" });
       blocker.proceed?.();
     } catch (error) {
       // 保存に失敗した場合はダイアログを開いたまま留まる
