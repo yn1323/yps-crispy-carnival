@@ -5,6 +5,14 @@ export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+/**
+ * シフト対象スタッフかどうか（論理削除されておらず、シフト対象外でもない）。
+ * シフトボード表示・募集/催促/確定などシフト関連通知の対象判定に使う。
+ */
+export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShift?: boolean }) {
+  return !staff.isDeleted && !staff.excludedFromShift;
+}
+
 export async function findActiveStaffByEmail(
   ctx: { db: MutationCtx["db"] },
   shopId: Id<"shops">,

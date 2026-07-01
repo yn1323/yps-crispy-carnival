@@ -6,6 +6,7 @@ import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
+import { isShiftTargetStaff } from "../staff/service";
 import { reissueSchema } from "./schemas";
 
 type ExpiredReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
@@ -59,7 +60,8 @@ export const verifyToken = mutation({
     if (recruitment.isDeleted) {
       return expired(magicLink.recruitmentId, "recruitment_deleted");
     }
-    if (!staff || staff.isDeleted || !shop || shop.isDeleted || staff.shopId !== magicLink.shopId) {
+    // シフト対象外スタッフはマジックリンクからセッションを発行させない。
+    if (!staff || !isShiftTargetStaff(staff) || !shop || shop.isDeleted || staff.shopId !== magicLink.shopId) {
       return expired(magicLink.recruitmentId, "invalid_link");
     }
 
@@ -183,6 +185,8 @@ export const requestReissue = mutation({
       )
       .first();
     if (!staff) return logSkip("staff_not_found", { emailDomain });
+    // シフト対象外スタッフには確定シフトの再発行リンクを送らない。
+    if (!isShiftTargetStaff(staff)) return logSkip("staff_excluded", { emailDomain });
 
     const staffId = staff._id;
 
