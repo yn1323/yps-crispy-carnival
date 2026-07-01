@@ -30,7 +30,7 @@ export const FlowSection = () => (
     <Container maxW="7xl">
       <VStack gap={10}>
         <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          希望回収から確定共有まで、ひとつの流れで完結。
+          希望シフトの回収から確定共有まで、ひとつの流れで完結。
         </Heading>
 
         <SimpleGrid columns={{ base: 1, md: 4 }} gap={0} w="full">

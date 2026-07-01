@@ -5,8 +5,8 @@ import { LuBell, LuMessageCircle, LuSend } from "react-icons/lu";
 const reliefItems: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuMessageCircle,
-    title: "LINEで希望回収",
-    body: "LINE・メールで提出リンクを送信。スタッフはリンクからかんたんに提出できます。",
+    title: "LINEで希望シフトを回収",
+    body: "LINE・メールで提出リンクを送信。スタッフはアプリ不要で、リンクを開いて提出するだけです。",
   },
   {
     icon: LuBell,
