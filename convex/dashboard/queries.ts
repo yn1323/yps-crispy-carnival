@@ -69,7 +69,9 @@ async function toDashboardRecruitment(
     shopClosedDates: recruitment.shopClosedDates ?? [],
     status: recruitment.status,
     confirmedAt: recruitment.confirmedAt ?? null,
-    responseCount: stats?.submittedCount ?? submissions.length,
+    // 提出数は対象外スタッフの提出も含みうるため、母数（対象外を除いた総数）を上限にクランプし、
+    // 「3/2人」のような不可能な比率が表示されないようにする。
+    responseCount: Math.min(stats?.submittedCount ?? submissions.length, totalStaffCount),
     totalStaffCount,
   };
 }

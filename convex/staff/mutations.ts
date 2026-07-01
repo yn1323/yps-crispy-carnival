@@ -226,6 +226,28 @@ export const setShiftExclusion = managerMutation({
     }
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
     await ctx.db.patch(args.staffId, { excludedFromShift: args.excluded });
+
+    // 対象外にする場合は、発行済みのシフト用セッション・マジックリンクを失効させ、
+    // 古いリンクでのシフト閲覧・希望提出を即座に遮断する（LINE連携は他通知で使うため残す）。
+    if (args.excluded) {
+      const [sessions, magicLinks] = await Promise.all([
+        ctx.db
+          .query("sessions")
+          .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+          .collect(),
+        ctx.db
+          .query("magicLinks")
+          .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
+          .collect(),
+      ]);
+      const now = Date.now();
+      await Promise.all([
+        ...sessions
+          .filter((session) => !session.revokedAt)
+          .map((session) => ctx.db.patch(session._id, { revokedAt: now })),
+        ...magicLinks.filter((link) => !link.revokedAt).map((link) => ctx.db.patch(link._id, { revokedAt: now })),
+      ]);
+    }
   },
 });
 

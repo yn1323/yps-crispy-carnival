@@ -745,5 +745,51 @@ describe("staff/mutations", () => {
           .mutation(api.staff.mutations.setShiftExclusion, { staffId: otherStaffId, excluded: true }),
       ).rejects.toThrow("Not found");
     });
+
+    it("対象外にすると発行済みのセッション・マジックリンクを失効させる", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { shopId, staffId } = await data;
+
+      const { sessionId, magicLinkId } = await t.run(async (ctx) => {
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-04-01",
+          periodEnd: "2026-04-07",
+          deadline: "2026-03-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const sessionId = await ctx.db.insert("sessions", {
+          sessionToken: "session-token",
+          staffId,
+          shopId,
+          recruitmentId,
+          accessKind: "submit",
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        const magicLinkId = await ctx.db.insert("magicLinks", {
+          token: "magic-token",
+          staffId,
+          shopId,
+          recruitmentId,
+          accessKind: "submit",
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        return { sessionId, magicLinkId };
+      });
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true });
+
+      const { session, magicLink } = await t.run(async (ctx) => ({
+        session: await ctx.db.get(sessionId),
+        magicLink: await ctx.db.get(magicLinkId),
+      }));
+      expect(session?.revokedAt).toEqual(expect.any(Number));
+      expect(magicLink?.revokedAt).toEqual(expect.any(Number));
+    });
   });
 });
