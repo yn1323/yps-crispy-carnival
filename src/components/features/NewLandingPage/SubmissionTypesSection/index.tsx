@@ -48,10 +48,10 @@ export const SubmissionTypesSection = () => (
       <VStack gap={9}>
         <VStack gap={3} textAlign="center">
           <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            シフト希望表を、お店に合わせて3タイプに。
+            シフト希望表は、お店に合わせて3タイプから選べます。
           </Heading>
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            スタッフの働き方や店舗の組み方に合わせて、希望の集め方を選べます。
+            スタッフが答えやすい形で集めると、聞き直しや抜け漏れが減ります。
           </Text>
         </VStack>
 

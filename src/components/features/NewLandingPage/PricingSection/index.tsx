@@ -48,10 +48,10 @@ export const PricingSection = () => (
       <VStack gap={8}>
         <VStack gap={3} textAlign="center">
           <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            シフト管理を無料で始めて、人数や店舗数に合わせて広げられます。
+            シフト管理は、無料から始められます。
           </Heading>
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            少人数のお店なら、無料プランのまま使い続けられます。
+            少人数のお店なら無料プランのままでOK。人数や店舗が増えたら、そのまま広げられます。
           </Text>
         </VStack>
 

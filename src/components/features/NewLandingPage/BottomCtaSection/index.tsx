@@ -11,13 +11,13 @@ export const BottomCtaSection = () => (
       <Grid templateColumns={{ base: "1fr", lg: "minmax(0, 0.9fr) minmax(420px, 0.7fr)" }} gap={9} alignItems="center">
         <VStack align="start" gap={6}>
           <Heading as="h2" fontSize={{ base: "3xl", md: "4xl" }} lineHeight="1.35" letterSpacing="0">
-            シフト管理のやり取りを、
+            シフトのやり取りを、
             <Box as="span" display="block" color="teal.700">
               LINEとメールでひとつに。
             </Box>
           </Heading>
           <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
-            希望シフトの回収、自動リマインド、確定共有まで。まずは無料で、毎月のシフト連絡をラクにしましょう。
+            希望シフトを集めるところから、確定を知らせるところまで。まずは無料で、毎月のシフト連絡をラクにしませんか。
           </Text>
           <Flex gap={4} flexWrap="wrap">
             <BottomButton href="/signup" label="無料で試してみる" primary />

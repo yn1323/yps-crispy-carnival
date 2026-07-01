@@ -62,11 +62,11 @@ export const HeroSection = () => (
               fontWeight="bold"
             >
               <Icon as={LuClipboardCheck} boxSize={4} />
-              小規模店舗向け｜LINEで使える無料シフト管理
+              小規模店舗向け｜LINEで使える無料のシフト管理
             </Flex>
 
             <Heading as="h1" fontSize={{ base: "4xl", md: "5xl", xl: "6xl" }} lineHeight="1.18" letterSpacing="0">
-              シフト管理のやり取りを、
+              シフトのやり取りを、
               <Box as="span" display="block" color="teal.600">
                 LINEとメール
                 <Box as="span" color="gray.950">
@@ -83,8 +83,8 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              希望シフトの回収、未提出者への自動リマインド、シフト調整、確定共有までまとめてラクに。
-              スタッフはアプリ不要で、毎月のシフト連絡から店長を解放します。
+              希望シフトを集めて、出していない人に声をかけて、決まったら知らせる。
+              毎月くり返すその連絡を、シフトリがまとめて引き受けます。スタッフはアプリ不要、無料で始められます。
             </Text>
           </VStack>
 
