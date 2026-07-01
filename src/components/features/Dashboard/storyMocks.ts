@@ -93,6 +93,36 @@ export const mockStaffs = [
   },
 ] as unknown as Staff[];
 
+export const mockStaffsWithExcluded = [
+  {
+    _id: "s1",
+    name: "店舗共通アドレス",
+    email: "shop@example.com",
+    isManager: true,
+    isLineLinked: false,
+    isLineFollowing: false,
+    excludedFromShift: true,
+  },
+  {
+    _id: "s2",
+    name: "佐藤花子",
+    email: "sato@example.com",
+    isManager: false,
+    isLineLinked: false,
+    isLineFollowing: false,
+    excludedFromShift: false,
+  },
+  {
+    _id: "s3",
+    name: "鈴木一郎",
+    email: "suzuki@example.com",
+    isManager: false,
+    isLineLinked: true,
+    isLineFollowing: false,
+    excludedFromShift: true,
+  },
+] as unknown as Staff[];
+
 export const mockStaffsMany = [
   {
     _id: "s1",

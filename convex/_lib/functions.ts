@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc, Id } from "../_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
+import { isShiftTargetStaff } from "../staff/service";
 import { sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
@@ -176,7 +177,8 @@ export const staffSessionQuery = customQuery(query, {
       return { ctx: { staff: null, shop: null, session: null }, args: {} };
     }
     const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
-    if (!staff || staff.isDeleted || !shop || shop.isDeleted) {
+    // シフト対象外スタッフはシフト画面へアクセスさせない（削除同様に境界で弾く）。
+    if (!staff || !isShiftTargetStaff(staff) || !shop || shop.isDeleted) {
       return { ctx: { staff: null, shop: null, session: null }, args: {} };
     }
     return { ctx: { staff, shop, session }, args: {} };
@@ -213,7 +215,8 @@ export const staffSessionMutation = customMutation(mutation, {
       throw new ConvexError("Session expired");
     }
     const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
-    if (!staff || staff.isDeleted || !shop || shop.isDeleted) {
+    // シフト対象外スタッフはシフト希望提出等をさせない。
+    if (!staff || !isShiftTargetStaff(staff) || !shop || shop.isDeleted) {
       throw new ConvexError("Not found");
     }
     return { ctx: { staff, shop, session }, args: {} };

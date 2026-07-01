@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
 import { formatPeriodLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { getStaffLineAccount } from "../line/service";
+import { isShiftTargetStaff } from "../staff/service";
 
 /**
  * 催促メール送信に必要なデータを取得（未提出スタッフのみ）
@@ -31,7 +32,8 @@ export const getReminderEmailData = internalQuery({
     ]);
 
     const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
-    const unsubmittedStaffs = staffs.filter((s) => !submittedStaffIds.has(s._id));
+    // シフト対象外スタッフは募集自体を受け取らないため、催促も送らない。
+    const unsubmittedStaffs = staffs.filter((s) => isShiftTargetStaff(s) && !submittedStaffIds.has(s._id));
     const staffEntries = (
       await Promise.all(
         unsubmittedStaffs.map(async (s) => {
@@ -68,7 +70,7 @@ export const getReminderEmailDataForStaff = internalQuery({
   },
   handler: async (ctx, { recruitmentId, staffId }) => {
     const [recruitment, staff] = await Promise.all([ctx.db.get(recruitmentId), ctx.db.get(staffId)]);
-    if (!recruitment || recruitment.isDeleted || !staff || staff.isDeleted) return null;
+    if (!recruitment || recruitment.isDeleted || !staff || !isShiftTargetStaff(staff)) return null;
     if (staff.shopId !== recruitment.shopId) return null;
     if (recruitment.status !== "open" || !recruitment.reminderScheduledAt) return null;
     if (Date.now() >= getDeadlineCutoff(recruitment.deadline)) return null;
