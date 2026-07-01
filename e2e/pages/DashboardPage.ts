@@ -11,9 +11,6 @@ const CLOSED_DAY_LABELS = {
   sat: "土曜日",
 } as const;
 const DASHBOARD_DATA_TIMEOUT = 20_000;
-// 成功トーストは文字数に応じて最大8秒表示される（src/components/ui/toaster.tsx）。
-// 消滅を待つ際はデフォルト5秒では足りないため、余裕を持ったタイムアウトを使う。
-const TOAST_HIDDEN_TIMEOUT = 10_000;
 const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
 const STAFF_ADDED_TOAST_TITLE = /スタッフを追加しました|スタッフを追加し、案内通知を送りました/;
 const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
@@ -211,9 +208,7 @@ export class DashboardPage {
 
     await dialog.getByRole("button", { name: /保存する|変更を保存/ }).click();
     await expect(dialog).not.toBeVisible();
-    const toast = this.page.getByText("スタッフ情報を更新しました").first();
-    await expect(toast).toBeVisible();
-    await expect(toast).not.toBeVisible();
+    await this.expectToastVisibleThenHidden("スタッフ情報を更新しました");
   }
 
   async deleteStaff(staffName: string) {
@@ -441,9 +436,12 @@ export class DashboardPage {
   }
 
   private async expectToastVisibleThenHidden(title: string | RegExp) {
-    const toast = this.page.getByText(title).first();
+    const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
-    await expect(toast).not.toBeVisible({ timeout: TOAST_HIDDEN_TIMEOUT });
+    // 自動消滅は文字数に応じて最大8秒かかりテスト全体がタイムアウトするため、
+    // 閉じるボタン（全トーストに存在）で即座に閉じて消滅を確認する。
+    await toast.getByRole("button").click();
+    await expect(toast).not.toBeVisible();
   }
 
   private async openStaffMenu(staffName: string) {
