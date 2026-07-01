@@ -11,6 +11,9 @@ const CLOSED_DAY_LABELS = {
   sat: "土曜日",
 } as const;
 const DASHBOARD_DATA_TIMEOUT = 20_000;
+// 成功トーストは文字数に応じて最大8秒表示される（src/components/ui/toaster.tsx）。
+// 消滅を待つ際はデフォルト5秒では足りないため、余裕を持ったタイムアウトを使う。
+const TOAST_HIDDEN_TIMEOUT = 10_000;
 const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
 const STAFF_ADDED_TOAST_TITLE = /スタッフを追加しました|スタッフを追加し、案内通知を送りました/;
 const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
@@ -440,7 +443,7 @@ export class DashboardPage {
   private async expectToastVisibleThenHidden(title: string | RegExp) {
     const toast = this.page.getByText(title).first();
     await expect(toast).toBeVisible();
-    await expect(toast).not.toBeVisible();
+    await expect(toast).not.toBeVisible({ timeout: TOAST_HIDDEN_TIMEOUT });
   }
 
   private async openStaffMenu(staffName: string) {
