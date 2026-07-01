@@ -1,0 +1,15 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { FlowSection } from ".";
+
+const meta = {
+  title: "Features/NewLandingPage/FlowSection",
+  component: FlowSection,
+  parameters: {
+    layout: "fullscreen",
+  },
+} satisfies Meta<typeof FlowSection>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Desktop: Story = {};
