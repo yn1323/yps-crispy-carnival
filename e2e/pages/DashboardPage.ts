@@ -208,9 +208,7 @@ export class DashboardPage {
 
     await dialog.getByRole("button", { name: /保存する|変更を保存/ }).click();
     await expect(dialog).not.toBeVisible();
-    const toast = this.page.getByText("スタッフ情報を更新しました").first();
-    await expect(toast).toBeVisible();
-    await expect(toast).not.toBeVisible();
+    await this.expectToastVisibleThenHidden("スタッフ情報を更新しました");
   }
 
   async deleteStaff(staffName: string) {
@@ -438,8 +436,11 @@ export class DashboardPage {
   }
 
   private async expectToastVisibleThenHidden(title: string | RegExp) {
-    const toast = this.page.getByText(title).first();
+    const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
+    // 自動消滅は文字数に応じて最大8秒かかりテスト全体がタイムアウトするため、
+    // 閉じるボタン（全トーストに存在）で即座に閉じて消滅を確認する。
+    await toast.getByRole("button").click();
     await expect(toast).not.toBeVisible();
   }
 

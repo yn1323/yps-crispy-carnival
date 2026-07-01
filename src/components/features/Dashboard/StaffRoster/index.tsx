@@ -18,6 +18,7 @@ type Props = {
   onSendLineInvite: (staff: Staff) => void;
   onSendRecruitments: (staff: Staff) => void;
   onSendCurrentShift: (staff: Staff) => void;
+  onToggleShiftExclusion: (staff: Staff) => void;
   hasCurrentShift: boolean;
   onLoadMore: () => void;
 };
@@ -33,6 +34,7 @@ export const StaffRoster = ({
   onSendLineInvite,
   onSendRecruitments,
   onSendCurrentShift,
+  onToggleShiftExclusion,
   hasCurrentShift,
   onLoadMore,
 }: Props) => {
@@ -102,6 +104,7 @@ export const StaffRoster = ({
                 onSendLineInvite={onSendLineInvite}
                 onSendRecruitments={onSendRecruitments}
                 onSendCurrentShift={onSendCurrentShift}
+                onToggleShiftExclusion={onToggleShiftExclusion}
                 hasCurrentShift={hasCurrentShift}
               />
             ))}

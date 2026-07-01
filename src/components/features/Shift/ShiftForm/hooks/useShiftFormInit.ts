@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import { resolveInitialSelectedDate } from "@/src/domains/shift/date";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
 import { sortDailyStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
@@ -39,6 +40,7 @@ type UseShiftFormInitParams = {
   requiredStaffing?: RequiredStaffingData[];
   submissionPattern?: ShiftSubmissionPattern;
   displayMode?: "request" | "confirmed";
+  defaultToToday?: boolean;
   initialViewMode?: ViewMode;
   initialSortMode?: SortMode;
   validationIssues?: AssignmentIssue[];
@@ -59,6 +61,7 @@ export const useShiftFormInit = ({
   requiredStaffing,
   submissionPattern,
   displayMode = "request",
+  defaultToToday = false,
   initialViewMode,
   initialSortMode,
   validationIssues,
@@ -80,7 +83,7 @@ export const useShiftFormInit = ({
     isInitialized.current = true;
 
     setShifts(initialShifts);
-    const initialDate = dates[0] ?? "";
+    const initialDate = resolveInitialSelectedDate(dates, defaultToToday);
     setSelectedDate(initialDate);
     if (initialDate && staffs.length > 0) {
       const shiftByStaffId = indexShiftsByStaffId(initialShifts.filter((shift) => shift.date === initialDate));
@@ -105,6 +108,7 @@ export const useShiftFormInit = ({
     dates,
     staffs,
     submissionPattern,
+    defaultToToday,
     setShifts,
     setSelectedDate,
     setLockedDailyStaffOrder,

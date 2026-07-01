@@ -17,6 +17,7 @@ import {
 } from "../../components";
 import { BREAK_POSITION } from "../../constants";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
+import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
 import {
   dailySortedStaffsAtom,
   issueCountByDateAtom,
@@ -82,6 +83,8 @@ export const SPDailyView = () => {
   const detailDialog = useDialog();
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const touchStartX = useRef(0);
+  const dateStripRef = useRef<HTMLDivElement>(null);
+  useScrollDateIntoView(dateStripRef, selectedDate, "horizontal");
 
   const rows = useMemo(
     () =>
@@ -187,7 +190,7 @@ export const SPDailyView = () => {
         flexShrink={0}
         data-tour="date-rail"
       >
-        <Flex gap={2} overflow="auto" pt={2} pb={1}>
+        <Flex ref={dateStripRef} gap={2} overflow="auto" pt={2} pb={1}>
           {dates.map((iso) => {
             const d = dayjs(iso);
             const active = iso === selectedDate;
@@ -204,6 +207,7 @@ export const SPDailyView = () => {
             return (
               <Box
                 key={iso}
+                data-date-chip={iso}
                 onClick={() => selectDate(iso)}
                 position="relative"
                 flexShrink={0}

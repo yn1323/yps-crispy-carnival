@@ -1270,6 +1270,124 @@ describe("notificationOutbox", () => {
     expect(openPage.page).toHaveLength(0);
   });
 
+  it("resendFailureはLINE連携案内の不達を連携依頼メール再送に予約する（募集なしでも可）", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const failureId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "provider:resend:lineInvite",
+        sourceType: "provider",
+        status: "open",
+        shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: `email:lineInvite:${staffId}`,
+        notificationContext: "line.sendInviteEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "bounced",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+
+    expect(result).toEqual({ scheduled: true });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure).toMatchObject({ status: "retrying", retryRequestedByUserId: expect.any(String) });
+    expect(
+      state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffId),
+    ).toBe(true);
+    const openPage = await t
+      .withIdentity({ subject: "user_mgr" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+    expect(openPage.page).toHaveLength(0);
+  });
+
+  it("resendFailureはメール未登録スタッフのLINE連携案内を再送しない", async () => {
+    const { t, shopId } = await setupShop();
+    const staffWithoutEmailId = await t.run(async (ctx) => {
+      return await ctx.db.insert("staffs", { shopId, name: "メールなしスタッフ", email: "", isDeleted: false });
+    });
+    const failureId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "provider:resend:lineInvite-noemail",
+        sourceType: "provider",
+        status: "open",
+        shopId,
+        staffId: staffWithoutEmailId,
+        channel: "email",
+        dedupeKey: `email:lineInvite:${staffWithoutEmailId}`,
+        notificationContext: "line.sendInviteEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "bounced",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+
+    expect(result).toEqual({ scheduled: false, reason: "notRetryable" });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure?.status).toBe("open");
+    expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
+  });
+
+  it("resendOpenFailuresは同一スタッフのLINE連携案内をまとめて1回だけ予約する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      for (const suffix of ["a", "b"]) {
+        await ctx.db.insert("notificationFailureInbox", {
+          failureKey: `provider:resend:lineInvite-${suffix}`,
+          sourceType: "provider",
+          status: "open",
+          shopId,
+          staffId,
+          channel: "email",
+          dedupeKey: `email:lineInvite:${staffId}`,
+          notificationContext: "line.sendInviteEmail",
+          firstFailedAt: now,
+          lastFailedAt: now,
+          lastError: "bounced",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
+
+    expect(result.scheduledCount).toBe(1);
+    expect(result.skippedCount).toBe(1);
+    const scheduled = await t.run(async (ctx) =>
+      ctx.db.system
+        .query("_scheduled_functions")
+        .collect()
+        .then((jobs) => jobs.filter((job) => job.name === "line/actions:sendInviteEmail")),
+    );
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.args[0]?.staffId).toBe(staffId);
+  });
+
   it("resendOpenFailuresは現在店舗のopen失敗だけを一斉再通知する", async () => {
     const { t, shopId, staffId } = await setupShop();
     const ids = await t.run(async (ctx) => {

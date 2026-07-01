@@ -21,7 +21,7 @@ import {
   getNotificationFailureIdentityForDoc,
   supersededFailureKey,
 } from "./failureIdentity";
-import { getNotificationFailureResendKind } from "./failureResend";
+import { getNotificationFailureResendKind, isLineInviteResendContext } from "./failureResend";
 import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
 import { type ResendProviderIssueEventType, resendProviderDeliveryStatus } from "./resendProviderEvents";
 import {
@@ -453,6 +453,12 @@ async function requestFailureResend(
   ctx: ManagerNotificationOutboxMutationCtx,
   failure: Doc<"notificationFailureInbox">,
 ) {
+  // LINE連携案内は sourceType を問わず、送信のたびに新しいマジックリンクを発行して送り直す。
+  // （既存 outbox を再実行すると古いトークンを使い回してしまうため別経路にする）
+  if (isLineInviteResendContext(failure.notificationContext)) {
+    return await requestLineInviteResend(ctx, failure);
+  }
+
   if (failure.sourceType === "outbox") {
     return await retryOutboxFailure(ctx, failure, { throwOnNotFound: false });
   }
@@ -510,6 +516,36 @@ async function requestFailureResend(
   }
 
   await markFailureRetrying(ctx, failure._id, now);
+  return { scheduled: true as const };
+}
+
+async function requestLineInviteResend(
+  ctx: ManagerNotificationOutboxMutationCtx,
+  failure: Doc<"notificationFailureInbox">,
+) {
+  if (failure.shopId !== ctx.shop._id || failure.status !== "open" || !failure.staffId) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  const staff = await ctx.db.get(failure.staffId);
+  // 連携依頼はメールで送るため、メール未登録のスタッフには再送できない。
+  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted || !staff.email) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  // 通常の個別連携依頼（line.mutations.sendInvite）と同じスタッフ単位のレートリミットを使い、
+  // 一斉再通知で同一スタッフへ連携依頼メールが重複送信されるのを防ぐ。
+  const { ok } = await rateLimit(ctx, {
+    name: "lineInviteShort",
+    key: `${ctx.shop._id}:${failure.staffId}`,
+  });
+  if (!ok) return { scheduled: false, reason: "rateLimited" as const };
+
+  // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
+  await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+    staffId: failure.staffId,
+  });
+  await markFailureRetrying(ctx, failure._id, Date.now());
   return { scheduled: true as const };
 }
 
@@ -1020,5 +1056,12 @@ function sortFailureByRecencyDesc(a: Doc<"notificationFailureInbox">, b: Doc<"no
 }
 
 function resendBatchKey(failure: Doc<"notificationFailureInbox">) {
-  return getNotificationFailureIdentityForDoc(failure)?.failureKey ?? `failure:${failure._id}`;
+  const identityKey = getNotificationFailureIdentityForDoc(failure)?.failureKey;
+  if (identityKey) return identityKey;
+  // LINE連携案内は募集に紐づかず論理キーを持たないため、一斉再通知で同一スタッフの
+  // 複数行を1回にまとめられるようスタッフ単位のキーを返す。
+  if (isLineInviteResendContext(failure.notificationContext) && failure.staffId) {
+    return `lineInvite:${failure.shopId}:${failure.staffId}`;
+  }
+  return `failure:${failure._id}`;
 }

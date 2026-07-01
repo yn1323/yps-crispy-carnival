@@ -13,6 +13,7 @@ import {
 import { buildShiftTimeLabel } from "../_lib/time";
 import { DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT, OPEN_RECRUITMENT_NOTIFICATION_LIMIT } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import { isShiftTargetStaff } from "../staff/service";
 import {
   buildConfirmationSnapshotSignature,
   type ConfirmationSnapshotAssignment,
@@ -98,7 +99,7 @@ async function buildConfirmationStaffEntries(
 
 async function getOpenRecruitmentNotificationDataForStaffInternal(ctx: QueryCtx, staffId: Id<"staffs">) {
   const staff = await ctx.db.get(staffId);
-  if (!staff || staff.isDeleted) return null;
+  if (!staff || !isShiftTargetStaff(staff)) return null;
 
   const shop = await ctx.db.get(staff.shopId);
   if (!shop || shop.isDeleted) return null;
@@ -166,7 +167,11 @@ export const getConfirmationEmailData = internalQuery({
     ]);
 
     const targetStaffIdSet = targetStaffIds ? new Set(targetStaffIds) : null;
-    const targetStaffs = targetStaffIdSet ? staffs.filter((staff) => targetStaffIdSet.has(staff._id)) : staffs;
+    // シフト対象外スタッフには確定通知を送らない。
+    const eligibleStaffs = staffs.filter(isShiftTargetStaff);
+    const targetStaffs = targetStaffIdSet
+      ? eligibleStaffs.filter((staff) => targetStaffIdSet.has(staff._id))
+      : eligibleStaffs;
     const staffEntries = await buildConfirmationStaffEntries(ctx, recruitment, targetStaffs, assignments);
 
     return {
@@ -210,7 +215,8 @@ export const getRecruitmentEmailData = internalQuery({
       periodStart: recruitment.periodStart,
       deadline: recruitment.deadline,
       staffEntries: await Promise.all(
-        staffs.map(async (s) => {
+        // シフト対象外スタッフには募集通知を送らない。
+        staffs.filter(isShiftTargetStaff).map(async (s) => {
           const lineAccount = await getStaffLineAccount(ctx, s._id);
           return {
             staffId: s._id,
@@ -235,7 +241,7 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
   },
   handler: async (ctx, { recruitmentId, staffId }) => {
     const [recruitment, staff] = await Promise.all([ctx.db.get(recruitmentId), ctx.db.get(staffId)]);
-    if (!recruitment || recruitment.isDeleted || !staff || staff.isDeleted) return null;
+    if (!recruitment || recruitment.isDeleted || !staff || !isShiftTargetStaff(staff)) return null;
     if (staff.shopId !== recruitment.shopId) return null;
 
     const now = Date.now();
@@ -278,7 +284,7 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
     const staff = await ctx.db.get(staffId);
-    if (!staff || staff.isDeleted) return null;
+    if (!staff || !isShiftTargetStaff(staff)) return null;
 
     const shop = await ctx.db.get(staff.shopId);
     if (!shop || shop.isDeleted) return null;
@@ -369,7 +375,7 @@ export const getReissueEmailData = internalQuery({
   },
   handler: async (ctx, { staffId, recruitmentId }) => {
     const [staff, recruitment] = await Promise.all([ctx.db.get(staffId), ctx.db.get(recruitmentId)]);
-    if (!staff || staff.isDeleted || !recruitment || recruitment.isDeleted) return null;
+    if (!staff || !isShiftTargetStaff(staff) || !recruitment || recruitment.isDeleted) return null;
     if (staff.shopId !== recruitment.shopId) return null;
     if (recruitment.status !== "confirmed") return null;
 

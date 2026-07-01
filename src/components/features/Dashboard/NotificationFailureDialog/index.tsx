@@ -7,7 +7,7 @@ import { formatDateTime } from "@/src/domains/shift/date";
 export type DashboardNotificationFailure = {
   _id: Id<"notificationFailureInbox">;
   staffName: string;
-  notificationKind: "recruitment" | "reminder" | "confirmation" | "other";
+  notificationKind: "recruitment" | "reminder" | "confirmation" | "lineInvite" | "other";
   notificationKindLabel: string;
   periodLabel: string | null;
   channel?: "email" | "line";
@@ -120,7 +120,7 @@ export const NotificationFailureDialogContent = ({
                   <NotificationKindBadge failure={failure} />
                 </Table.Cell>
                 <Table.Cell color="gray.800" textAlign="center" verticalAlign="middle">
-                  {failure.periodLabel ?? "対象の募集なし"}
+                  {failure.periodLabel ?? "-"}
                 </Table.Cell>
                 <Table.Cell textAlign="center" verticalAlign="middle">
                   <ChannelText channel={failure.channel} />
@@ -153,9 +153,11 @@ export const NotificationFailureDialogContent = ({
                 <ChannelText channel={failure.channel} />
               </Flex>
 
-              <Text fontSize="sm" color="gray.700" lineHeight="short">
-                {failure.periodLabel ?? "対象の募集なし"}
-              </Text>
+              {failure.periodLabel && (
+                <Text fontSize="sm" color="gray.700" lineHeight="short">
+                  {failure.periodLabel}
+                </Text>
+              )}
 
               <HStack gap={2} wrap="wrap">
                 <NotificationKindBadge failure={failure} />
@@ -281,6 +283,8 @@ function kindPalette(kind: DashboardNotificationFailure["notificationKind"]) {
       return "orange";
     case "confirmation":
       return "blue";
+    case "lineInvite":
+      return "green";
     case "other":
       return "gray";
   }

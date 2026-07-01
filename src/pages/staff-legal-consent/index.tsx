@@ -8,7 +8,7 @@ import {
 import { useAcceptStaffLegalConsent } from "@/src/components/features/StaffLegalConsent/useAcceptStaffLegalConsent";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
-import { showErrorToast, toaster } from "@/src/components/ui/toaster";
+import { showErrorToast, showSuccessToast, toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 
 type Props = {
@@ -50,7 +50,7 @@ export function StaffLegalConsentRoutePage({ token }: Props) {
           shopName: pageData.shopName,
           documents: pageData.documents,
         });
-        toaster.create({ title: "同意を記録しました", type: "success" });
+        showSuccessToast({ title: "同意を記録しました" });
       } else {
         toaster.create({ title: "リンクの有効期限が切れています", type: "error" });
       }
