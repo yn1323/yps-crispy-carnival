@@ -1,18 +1,4 @@
-import {
-  Box,
-  Container,
-  Flex,
-  Grid,
-  Heading,
-  HStack,
-  Icon,
-  Image,
-  Link,
-  SimpleGrid,
-  Stack,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import {
   LuBell,
@@ -27,13 +13,6 @@ import { SiLine } from "react-icons/si";
 import { Button } from "@/src/components/ui/Button";
 import heroPcImage from "../../LandingPage/hero-pc.webp";
 import heroSpImage from "../../LandingPage/hero-sp.webp";
-
-const navItems = [
-  { label: "機能", href: "#features" },
-  { label: "導入事例", href: "#use-cases" },
-  { label: "よくある質問", href: "#faq" },
-  { label: "お役立ち記事", href: "#articles" },
-];
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: SiLine, label: "LINEで希望シフト回収" },
@@ -51,7 +30,7 @@ export const HeroSection = () => (
         templateColumns={{ base: "1fr", lg: "0.9fr 1.1fr" }}
         gap={{ base: 7, xl: 14 }}
         alignItems="center"
-        pt={{ base: 6, lg: 14 }}
+        pt={{ base: 6, lg: 8 }}
       >
         <VStack
           align={{ base: "center", lg: "start" }}
@@ -137,48 +116,6 @@ export const HeroSection = () => (
       </SimpleGrid>
     </Container>
   </Box>
-);
-
-export const LandingHeader = () => (
-  <Flex align="center" justify="space-between" gap={8}>
-    <Link href="/" _hover={{ textDecoration: "none", opacity: 0.82 }} flexShrink={0}>
-      <Flex align="center" gap={3}>
-        <Image src="/logo192.webp" alt="シフトリ" boxSize={10} objectFit="contain" />
-        <Box>
-          <Text color="gray.950" fontSize="2xl" fontWeight="black" lineHeight="1" letterSpacing="0">
-            シフトリ
-          </Text>
-          <Text mt={1} color="gray.700" fontSize="2xs" fontWeight="bold" lineHeight="1">
-            LINEで使えるシフト管理
-          </Text>
-        </Box>
-      </Flex>
-    </Link>
-
-    <HStack as="nav" gap={{ md: 5, xl: 8 }} hideBelow="lg">
-      {navItems.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          color="gray.900"
-          fontSize="sm"
-          fontWeight="bold"
-          _hover={{ color: "teal.700", textDecoration: "none" }}
-        >
-          {item.label}
-        </Link>
-      ))}
-    </HStack>
-
-    <HStack gap={3} flexShrink={0}>
-      <Button asChild variant="outline" colorPalette="teal" h="42px" px={6} borderRadius="md" fontWeight="bold">
-        <a href="/login">ログイン</a>
-      </Button>
-      <Button asChild colorPalette="teal" h="42px" px={6} borderRadius="md" fontWeight="bold" hideBelow="md">
-        <a href="/signup">無料で試してみる</a>
-      </Button>
-    </HStack>
-  </Flex>
 );
 
 const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: "primary" | "secondary" }) => {
