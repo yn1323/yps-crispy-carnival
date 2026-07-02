@@ -19,38 +19,46 @@ import {
   LuCalendarCheck,
   LuChevronRight,
   LuClipboardCheck,
-  LuMessageCircle,
+  LuMail,
   LuMousePointerClick,
   LuSmartphone,
 } from "react-icons/lu";
+import { SiLine } from "react-icons/si";
 import { Button } from "@/src/components/ui/Button";
 import heroPcImage from "../../LandingPage/hero-pc.webp";
 import heroSpImage from "../../LandingPage/hero-sp.webp";
 
 const navItems = [
   { label: "機能", href: "#features" },
-  { label: "料金プラン", href: "#pricing" },
   { label: "導入事例", href: "#use-cases" },
   { label: "よくある質問", href: "#faq" },
   { label: "お役立ち記事", href: "#articles" },
 ];
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
-  { icon: LuMessageCircle, label: "LINEで希望シフト回収" },
+  { icon: SiLine, label: "LINEで希望シフト回収" },
   { icon: LuBell, label: "自動リマインド" },
   { icon: LuMousePointerClick, label: "アプリ不要" },
-  { icon: LuSmartphone, label: "スマホでも作成OK" },
-  { icon: LuCalendarCheck, label: "確定シフトを自動共有" },
+  { icon: LuSmartphone, label: "スマホでシフト作成" },
+  { icon: LuCalendarCheck, label: "シフトを自動共有" },
+  { icon: LuMail, label: "メールでもOK" },
 ];
 
 export const HeroSection = () => (
   <Box as="section" bg="white" color="gray.950" overflow="hidden">
-    <Container maxW="7xl" pt={6} pb={12}>
-      <LandingHeader />
-
-      <Grid templateColumns={{ base: "1fr", lg: "0.9fr 1.1fr" }} gap={{ base: 10, xl: 14 }} alignItems="center" pt={14}>
-        <VStack align="start" gap={7}>
-          <VStack align="start" gap={5}>
+    <Container maxW="7xl" pt={{ base: 2, md: 6 }} pb={{ base: 8, md: 12 }}>
+      <Grid
+        templateColumns={{ base: "1fr", lg: "0.9fr 1.1fr" }}
+        gap={{ base: 7, xl: 14 }}
+        alignItems="center"
+        pt={{ base: 6, lg: 14 }}
+      >
+        <VStack
+          align={{ base: "center", lg: "start" }}
+          gap={{ base: 5, md: 7 }}
+          textAlign={{ base: "center", lg: "start" }}
+        >
+          <VStack align={{ base: "center", lg: "start" }} gap={{ base: 4, md: 5 }}>
             <Flex
               align="center"
               gap={2}
@@ -63,23 +71,22 @@ export const HeroSection = () => (
               fontWeight="bold"
             >
               <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
-              小規模店舗向け｜LINEで使える無料のシフト管理
+              LINEで使える無料のシフト管理
             </Flex>
 
             <Heading
               as="h1"
-              fontSize={{ base: "3xl", sm: "4xl", md: "5xl", xl: "6xl" }}
+              fontSize={{ base: "3xl", sm: "2xl", md: "3xl", xl: "4xl" }}
               lineHeight={{ base: "1.3", md: "1.18" }}
               letterSpacing="0"
             >
-              シフトのやり取りを、
+              シフトのやり取りを
               <Box as="span" display="block" color="teal.600">
-                LINEとメール
+                LINEやメール
                 <Box as="span" color="gray.950">
-                  で
+                  でひとつに
                 </Box>
               </Box>
-              ひとつに。
             </Heading>
 
             <Text
@@ -89,12 +96,21 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              希望シフトを集めて、出していない人に声をかけて、決まったら知らせる。
-              毎月くり返すその連絡を、シフトリがまとめて引き受けます。スタッフはアプリ不要、無料で始められます。
+              シフトの回収、催促、調整、決まったら共有
+              <br />
+              毎月くり返すやりとりをシフトリがまとめて担当
+              <br />
+              スタッフはアプリ不要、無料で始められます
             </Text>
           </VStack>
 
-          <Stack direction={{ base: "column", sm: "row" }} gap={4} w={{ base: "full", sm: "auto" }}>
+          <Stack
+            direction={{ base: "column", md: "row" }}
+            align={{ base: "stretch", md: "center", lg: "flex-start" }}
+            justify={{ base: "center", lg: "flex-start" }}
+            gap={4}
+            w={{ base: "full", md: "auto" }}
+          >
             <HeroButton href="/signup" label="無料で試してみる" tone="primary" />
             <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" />
           </Stack>
@@ -104,23 +120,27 @@ export const HeroSection = () => (
       </Grid>
 
       <SimpleGrid
-        columns={{ base: 1, sm: 2, md: 5 }}
-        gap={{ base: 3, md: 5 }}
+        columns={{ base: 2, md: 3, lg: 6 }}
+        gap={{ base: 3, md: 4, lg: 5 }}
         mt={10}
         pt={7}
         borderTopWidth="1px"
         borderColor="gray.100"
       >
-        {heroBenefits.map((benefit) => (
-          <HeroBenefit key={benefit.label} {...benefit} />
+        {heroBenefits.map((benefit, index) => (
+          <HeroBenefit
+            key={benefit.label}
+            spanOnSm={heroBenefits.length % 2 === 1 && index === heroBenefits.length - 1}
+            {...benefit}
+          />
         ))}
       </SimpleGrid>
     </Container>
   </Box>
 );
 
-const LandingHeader = () => (
-  <Flex as="header" align="center" justify="space-between" gap={8}>
+export const LandingHeader = () => (
+  <Flex align="center" justify="space-between" gap={8}>
     <Link href="/" _hover={{ textDecoration: "none", opacity: 0.82 }} flexShrink={0}>
       <Flex align="center" gap={3}>
         <Image src="/logo192.webp" alt="シフトリ" boxSize={10} objectFit="contain" />
@@ -172,7 +192,7 @@ const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: 
       bg={isPrimary ? undefined : "white"}
       h={{ base: "56px", md: "64px" }}
       minW="220px"
-      w={{ base: "full", sm: "auto" }}
+      w={{ base: "full", md: "auto" }}
       px={8}
       borderRadius="md"
       fontWeight="bold"
@@ -187,7 +207,13 @@ const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: 
 };
 
 const HeroVisual = () => (
-  <Box position="relative" minH={{ base: "420px", xl: "520px" }} w="full">
+  <Box
+    position="relative"
+    w="full"
+    maxW={{ base: "640px", md: "760px", lg: "none" }}
+    minH={{ base: "360px", md: "500px", lg: "420px", xl: "520px" }}
+    mx={{ base: "auto", lg: 0 }}
+  >
     <Box
       position="absolute"
       insetBlockStart="4%"
@@ -218,13 +244,16 @@ const HeroVisual = () => (
   </Box>
 );
 
-const HeroBenefit = ({ icon, label }: { icon: IconType; label: string }) => (
+const HeroBenefit = ({ icon, label, spanOnSm }: { icon: IconType; label: string; spanOnSm: boolean }) => (
   <Flex
     align="center"
     justify={{ base: "flex-start", md: "center" }}
     gap={3}
     minH={{ base: "32px", md: "48px" }}
+    w="full"
+    px={{ base: 2, sm: 5, md: 0 }}
     color="gray.800"
+    gridColumn={{ sm: spanOnSm ? "1 / -1" : "auto", md: "auto" }}
   >
     <Icon as={icon} boxSize={6} color="teal.600" flexShrink={0} />
     <Text fontSize="sm" fontWeight="bold" lineHeight="1.5">

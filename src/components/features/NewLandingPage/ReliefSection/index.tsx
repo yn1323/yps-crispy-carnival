@@ -1,23 +1,24 @@
 import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuBell, LuMessageCircle, LuSend } from "react-icons/lu";
+import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
 
 const reliefItems: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuMessageCircle,
     title: "LINEで希望シフトを回収",
-    body: "提出リンクをLINEやメールで送るだけ。スタッフはアプリを入れずに、スマホから希望を出せます。",
+    body: "募集開始時に提出リンクをLINE・メールで自動送信。スタッフはアプリを入れずに、スマホから希望を出せます。",
   },
   {
     icon: LuBell,
     title: "自動リマインド",
-    body: "出していない人にだけ、自動でお知らせが届きます。「シフトまだ？」と個別に聞いて回る手間が減ります。",
+    body: "シフトを出していない人に自動でお知らせが届きます。「シフトまだ？」と個別に聞いて回る手間が減ります。",
   },
   {
     icon: LuSend,
     title: "確定シフトを自動共有",
-    body: "確定したシフトは、そのままLINE・メールで全員へ。「見てなかった」を防げます。",
+    body: "確定したシフトをLINE・メールで全員へ。「見てなかった」を防げます。",
   },
 ];
 
@@ -30,10 +31,11 @@ export const ReliefSection = () => (
     borderBottomWidth="1px"
     borderColor="gray.100"
     py={14}
+    scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}
   >
     <Container maxW="7xl">
       <VStack gap={9}>
-        <SectionHeading phrases={["希望シフトの回収はLINEで。", "催促は自動リマインドで。"]} textAlign="center" />
+        <SectionHeading phrases={["自動で回収・催促・共有"]} textAlign="center" />
 
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={8} w="full">
           {reliefItems.map((item) => (

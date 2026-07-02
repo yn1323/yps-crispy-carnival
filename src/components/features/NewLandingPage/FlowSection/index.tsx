@@ -1,27 +1,22 @@
 import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBell, LuChevronDown, LuChevronRight, LuLaptop, LuMailCheck, LuSmartphone } from "react-icons/lu";
+import { LuChevronDown, LuChevronRight, LuLaptop, LuMailCheck, LuSmartphone } from "react-icons/lu";
 import { SectionHeading } from "../SectionHeading";
 
 const flowSteps: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuSmartphone,
-    title: "集める",
-    body: "提出リンクをLINE・メールで送る",
-  },
-  {
-    icon: LuBell,
-    title: "催促する",
-    body: "未提出者へ自動でリマインド",
+    title: "シフト募集期間を決める",
+    body: "指定して期間の提出リンクをLINE・メールで自動送信",
   },
   {
     icon: LuLaptop,
-    title: "調整する",
+    title: "シフトを組む",
     body: "集まった希望を見ながらシフトを組む",
   },
   {
     icon: LuMailCheck,
-    title: "共有する",
+    title: "シフトを確定する",
     body: "確定シフトを自動でお知らせ",
   },
 ];
@@ -30,9 +25,9 @@ export const FlowSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
       <VStack gap={10}>
-        <SectionHeading phrases={["毎月のシフト作成が、", "この4ステップで終わります。"]} textAlign="center" />
+        <SectionHeading phrases={["毎月のシフト作成が3ステップで完了！"]} textAlign="center" />
 
-        <SimpleGrid columns={{ base: 1, md: 4 }} gap={{ base: 5, md: 0 }} w="full">
+        <SimpleGrid columns={{ base: 1, md: 3 }} gap={{ base: 3, md: 0 }} w="full">
           {flowSteps.map((step, index) => (
             <FlowStep key={step.title} number={index + 1} isLast={index === flowSteps.length - 1} {...step} />
           ))}
@@ -81,6 +76,6 @@ const FlowStep = ({
       </Text>
     </Box>
 
-    {!isLast && <Icon as={LuChevronDown} hideFrom="md" boxSize={8} mt={1} color="teal.400" />}
+    {!isLast && <Icon as={LuChevronDown} hideFrom="md" boxSize={8} mt={1} color="teal.600" />}
   </Flex>
 );

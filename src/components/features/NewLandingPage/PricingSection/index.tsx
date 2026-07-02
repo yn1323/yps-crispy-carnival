@@ -1,6 +1,7 @@
 import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
 
 const plans = [
@@ -44,13 +45,13 @@ const plans = [
 ];
 
 export const PricingSection = () => (
-  <Box as="section" id="pricing" bg="white" py={16}>
+  <Box as="section" id="pricing" bg="white" py={16} scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}>
     <Container maxW="7xl">
       <VStack gap={8}>
         <VStack gap={3} textAlign="center">
-          <SectionHeading phrases={["シフト管理は、", "無料から始められます。"]} />
+          <SectionHeading phrases={["まずは無料で始められます"]} />
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            少人数のお店なら無料プランのままでOK。人数や店舗が増えたら、そのまま広げられます。
+            少人数のお店なら無料プランのままでOK
           </Text>
         </VStack>
 

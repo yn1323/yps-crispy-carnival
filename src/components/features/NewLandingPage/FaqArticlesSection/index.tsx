@@ -3,16 +3,17 @@ import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleContent } from "@/src/components/features/ArticleSite/articleContent";
 import { articles } from "@/src/components/features/ArticleSite/articleContent";
+import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
 
 const faqs = [
   {
     q: "LINEでシフト提出はできますか？",
-    a: "できます。スタッフには提出リンクを送り、LINEまたはメールから希望を提出してもらえます。",
+    a: "できます。スタッフにシフトリから提出用リンクを送り、LINEまたはメールから希望を提出してもらえます。",
   },
   {
     q: "無料で使えるシフト管理ツールですか？",
-    a: "無料プランから始められます。人数や店舗数に応じて有料プランへ広げられます。",
+    a: "無料のShift管理ツールです。",
   },
   {
     q: "スタッフはアプリ登録が必要ですか？",
@@ -20,23 +21,15 @@ const faqs = [
   },
   {
     q: "LINEを使わないスタッフがいても利用できますか？",
-    a: "利用できます。LINE未連携のスタッフにはメールで通知できます。",
+    a: "利用できます。LINE未連携のスタッフにはメールで通知します。",
   },
   {
     q: "スマホでもシフト作成できますか？",
-    a: "スマホでも確認・作成できます。細かな調整はPCでも行えます。",
+    a: "スマホでも確認・作成できます。細かな調整もPC版と同じように可能です。",
   },
   {
     q: "未提出者への自動リマインドはできますか？",
     a: "できます。未提出者に自動でリマインドを送り、催促漏れを減らします。",
-  },
-  {
-    q: "AIでシフトを自動作成できますか？",
-    a: "有料オプションで、集まった希望シフトからAIがたたき台を自動作成できます。仕上げは画面上で調整する方式です。",
-  },
-  {
-    q: "複数店舗のシフト管理はできますか？",
-    a: "できます。店舗管理プランで複数店舗のシフトをまとめて管理でき、店舗ごとにマネージャーを分けられます。",
   },
   {
     q: "Excelや紙のシフト管理から移行できますか？",
@@ -51,8 +44,8 @@ export const FaqArticlesSection = () => (
   <Box as="section" bg="#fbfefe" py={16}>
     <Container maxW="7xl">
       <VStack align="stretch" gap={12}>
-        <Box id="faq">
-          <SectionHeading phrases={["よくある質問"]} />
+        <Box id="faq" scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}>
+          <SectionHeading phrases={["よくある質問"]} textAlign="center" />
           <Accordion.Root collapsible multiple variant="plain" mt={5}>
             <VStack align="stretch" gap={2.5}>
               {faqs.map((faq) => (
@@ -84,7 +77,7 @@ export const FaqArticlesSection = () => (
           </Accordion.Root>
         </Box>
 
-        <Box id="articles">
+        <Box id="articles" scrollMarginTop={LANDING_HEADER_SCROLL_MARGIN_TOP}>
           <Flex align="end" justify="space-between" gap={5} mb={5}>
             <Box>
               <SectionHeading phrases={["お役立ち記事"]} />

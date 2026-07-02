@@ -1,5 +1,4 @@
-import { Box, Container, Flex, Icon, Table, Text, VStack } from "@chakra-ui/react";
-import { LuArrowDown } from "react-icons/lu";
+import { Badge, Box, Container, Flex, Table, Text, VStack } from "@chakra-ui/react";
 import { SectionHeading } from "../SectionHeading";
 
 const comparisonRows = [
@@ -25,6 +24,8 @@ const comparisonRows = [
   },
 ];
 
+const shiftoriBodyTextColor = "green.700";
+
 export const ComparisonSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
@@ -33,10 +34,6 @@ export const ComparisonSection = () => (
 
         <ComparisonTable />
         <ComparisonCards />
-
-        <Text color="gray.600" fontSize="sm" textAlign="center" lineHeight="1.8">
-          連絡する場所を増やさずに、誰が出したかの確認も、確定の連絡も、同じ画面でできます。
-        </Text>
       </VStack>
     </Container>
   </Box>
@@ -46,14 +43,14 @@ const ComparisonTable = () => (
   <Box hideBelow="md" w="full" overflowX="auto" borderWidth="1px" borderColor="gray.200" borderRadius="lg">
     <Table.Root size="md">
       <Table.Header>
-        <Table.Row bg="gray.50">
-          <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center" w="28%">
-            項目
+        <Table.Row bg="teal.500">
+          <Table.ColumnHeader color="white" fontWeight="bold" textAlign="center" w="28%">
+            シフト作成タスク
           </Table.ColumnHeader>
-          <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center">
+          <Table.ColumnHeader color="white" fontWeight="bold" textAlign="center">
             紙・Excel・LINEグループ
           </Table.ColumnHeader>
-          <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center">
+          <Table.ColumnHeader color="white" fontWeight="bold" textAlign="center">
             シフトリ
           </Table.ColumnHeader>
         </Table.Row>
@@ -67,7 +64,7 @@ const ComparisonTable = () => (
             <Table.Cell color="gray.700" fontWeight="semibold" textAlign="center" verticalAlign="middle">
               {row.old}
             </Table.Cell>
-            <Table.Cell color="teal.700" fontWeight="black" textAlign="center" verticalAlign="middle">
+            <Table.Cell color={shiftoriBodyTextColor} fontWeight="black" textAlign="center" verticalAlign="middle">
               {row.shiftori}
             </Table.Cell>
           </Table.Row>
@@ -78,26 +75,50 @@ const ComparisonTable = () => (
 );
 
 const ComparisonCards = () => (
-  <VStack hideFrom="md" align="stretch" gap={3} w="full">
+  <VStack hideFrom="md" align="stretch" gap={4} w="full">
     {comparisonRows.map((row) => (
-      <Box key={row.item} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
-        <Box bg="gray.50" px={4} py={2.5}>
-          <Text color="gray.950" fontSize="sm" fontWeight="bold">
-            {row.item}
-          </Text>
-        </Box>
-        <VStack align="stretch" gap={2} px={4} py={4}>
-          <Text color="gray.600" fontSize="sm" fontWeight="semibold" lineHeight="1.7">
+      <Box key={row.item} borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={4}>
+        <Text color="gray.950" fontSize="md" fontWeight="black" lineHeight="1.5">
+          {row.item}
+        </Text>
+        <VStack align="stretch" gap={2.5} mt={4}>
+          <ComparisonValue label="Before" tone="before">
             {row.old}
-          </Text>
-          <Flex align="center" gap={2}>
-            <Icon as={LuArrowDown} boxSize={4} color="teal.500" flexShrink={0} />
-            <Text color="teal.700" fontSize="sm" fontWeight="black" lineHeight="1.7">
-              {row.shiftori}
-            </Text>
-          </Flex>
+          </ComparisonValue>
+          <ComparisonValue label="After" tone="after">
+            {row.shiftori}
+          </ComparisonValue>
         </VStack>
       </Box>
     ))}
   </VStack>
 );
+
+const ComparisonValue = ({
+  label,
+  tone,
+  children,
+}: {
+  label: "Before" | "After";
+  tone: "before" | "after";
+  children: string;
+}) => {
+  const isAfter = tone === "after";
+
+  return (
+    <Flex align="center" gap={3} bg={isAfter ? "green.50" : "gray.50"} borderRadius="md" p={3.5}>
+      <Badge colorPalette={isAfter ? "green" : "gray"} variant="subtle" borderRadius="full" px={2.5} flexShrink={0}>
+        {label}
+      </Badge>
+      <Text
+        minW={0}
+        color={isAfter ? shiftoriBodyTextColor : "gray.700"}
+        fontSize="sm"
+        fontWeight={isAfter ? "black" : "bold"}
+        lineHeight="1.7"
+      >
+        {children}
+      </Text>
+    </Flex>
+  );
+};
