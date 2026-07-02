@@ -65,8 +65,23 @@ const MIME_TYPES: Record<string, string> = {
   ".map": "application/json; charset=utf-8",
 };
 
-const ROUTE_MANAGED_META_NAMES = ["description", "robots", "twitter:title", "twitter:description"];
-const ROUTE_MANAGED_META_PROPERTIES = ["og:title", "og:description", "og:url"];
+const ROUTE_MANAGED_META_NAMES = [
+  "description",
+  "robots",
+  "twitter:title",
+  "twitter:description",
+  "twitter:image",
+  "twitter:image:alt",
+];
+const ROUTE_MANAGED_META_PROPERTIES = [
+  "og:title",
+  "og:description",
+  "og:url",
+  "og:type",
+  "og:image",
+  "og:image:secure_url",
+  "og:image:alt",
+];
 
 async function serveStaticFile(res: ServerResponse, pathname: string): Promise<boolean> {
   // Path traversal 防御: 解決後のパスが必ず dist/ 配下であることを確認
@@ -212,11 +227,23 @@ function assertRenderedHtml(route: string, html: string): void {
     description: (html.match(/<meta\b[^>]*\bname=["']description["'][^>]*>/gi) ?? []).length,
     "og:title": (html.match(/<meta\b[^>]*\bproperty=["']og:title["'][^>]*>/gi) ?? []).length,
     "og:description": (html.match(/<meta\b[^>]*\bproperty=["']og:description["'][^>]*>/gi) ?? []).length,
+    "og:type": (html.match(/<meta\b[^>]*\bproperty=["']og:type["'][^>]*>/gi) ?? []).length,
+    "og:image": (html.match(/<meta\b[^>]*\bproperty=["']og:image["'][^>]*>/gi) ?? []).length,
     "twitter:title": (html.match(/<meta\b[^>]*\bname=["']twitter:title["'][^>]*>/gi) ?? []).length,
     "twitter:description": (html.match(/<meta\b[^>]*\bname=["']twitter:description["'][^>]*>/gi) ?? []).length,
+    "twitter:image": (html.match(/<meta\b[^>]*\bname=["']twitter:image["'][^>]*>/gi) ?? []).length,
     canonical: (html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi) ?? []).length,
   };
-  const requiredMeta = ["description", "og:title", "og:description", "twitter:title", "twitter:description"] as const;
+  const requiredMeta = [
+    "description",
+    "og:title",
+    "og:description",
+    "og:type",
+    "og:image",
+    "twitter:title",
+    "twitter:description",
+    "twitter:image",
+  ] as const;
   const invalidRequiredMeta = requiredMeta.find((name) => routeManagedMetaCounts[name] !== 1);
   if (invalidRequiredMeta) {
     throw new Error(
