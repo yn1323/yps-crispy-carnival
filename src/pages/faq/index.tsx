@@ -1,6 +1,6 @@
 import { Box, Container, Link } from "@chakra-ui/react";
 import { FaqSection } from "@/src/components/features/LandingPage/FaqSection";
-import { FooterSection } from "@/src/components/features/NewLandingPage/FooterSection";
+import { FooterSection } from "@/src/components/features/LandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 export function FaqPage() {

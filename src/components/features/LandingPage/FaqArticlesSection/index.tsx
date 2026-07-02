@@ -4,7 +4,7 @@ import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitor
 import type { ArticleContent } from "@/src/components/features/ArticleSite/articleContent";
 import { articles } from "@/src/components/features/ArticleSite/articleContent";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
-import { newLandingFaqs } from "../faqs";
+import { landingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
 
 const articleIcons = [LuMessageCircle, LuMonitorCheck, LuFileSpreadsheet, LuBookOpen];
@@ -18,7 +18,7 @@ export const FaqArticlesSection = () => (
           <SectionHeading phrases={["よくある質問"]} textAlign="center" />
           <Accordion.Root collapsible multiple variant="plain" mt={5}>
             <VStack align="stretch" gap={2.5}>
-              {newLandingFaqs.map((faq) => (
+              {landingFaqs.map((faq) => (
                 <Accordion.Item
                   key={faq.q}
                   value={faq.q}

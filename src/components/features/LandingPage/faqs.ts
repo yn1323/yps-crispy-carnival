@@ -1,9 +1,9 @@
-export type NewLandingFaq = {
+export type LandingFaq = {
   q: string;
   a: string;
 };
 
-export const newLandingFaqs: NewLandingFaq[] = [
+export const landingFaqs: LandingFaq[] = [
   {
     q: "LINEでシフト提出はできますか？",
     a: "できます。スタッフにシフトリから提出用リンクを送り、LINEまたはメールから希望を提出してもらえます。",

@@ -29,7 +29,7 @@ import {
   LuPenLine,
   LuTable2,
 } from "react-icons/lu";
-import { FooterSection as Footer } from "@/src/components/features/NewLandingPage/FooterSection";
+import { FooterSection as Footer } from "@/src/components/features/LandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { ArticleConversionCta } from "./ArticleConversionCta";
 import type {

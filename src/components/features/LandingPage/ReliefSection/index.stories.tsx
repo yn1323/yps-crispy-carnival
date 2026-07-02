@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ReliefSection } from ".";
 
 const meta = {
-  title: "Features/NewLandingPage/ReliefSection",
+  title: "Features/LandingPage/ReliefSection",
   component: ReliefSection,
   parameters: {
     layout: "fullscreen",

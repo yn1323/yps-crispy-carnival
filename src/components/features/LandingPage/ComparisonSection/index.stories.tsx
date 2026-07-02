@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ComparisonSection } from ".";
 
 const meta = {
-  title: "Features/NewLandingPage/ComparisonSection",
+  title: "Features/LandingPage/ComparisonSection",
   component: ComparisonSection,
   parameters: {
     layout: "fullscreen",

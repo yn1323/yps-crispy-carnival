@@ -1,5 +1,5 @@
-import { NewLandingPage } from "@/src/components/features/NewLandingPage";
+import { LandingPage } from "@/src/components/features/LandingPage";
 
 export function HomePage() {
-  return <NewLandingPage />;
+  return <LandingPage />;
 }

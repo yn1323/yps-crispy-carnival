@@ -1,10 +1,10 @@
 import { Badge, Box, Container, Flex, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuCalendarDays, LuClock3, LuUsers } from "react-icons/lu";
-import dayImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-day.webp";
-import selectionImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-selection.webp";
-import timeImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-time.webp";
 import { SectionHeading } from "../SectionHeading";
+import dayImage from "../SubmissionMethodsSection/function-shift-by-day.webp";
+import selectionImage from "../SubmissionMethodsSection/function-shift-by-selection.webp";
+import timeImage from "../SubmissionMethodsSection/function-shift-by-time.webp";
 
 const submissionTypes: Array<{
   icon: IconType;

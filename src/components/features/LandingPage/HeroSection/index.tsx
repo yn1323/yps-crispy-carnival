@@ -11,8 +11,8 @@ import {
 } from "react-icons/lu";
 import { SiLine } from "react-icons/si";
 import { Button } from "@/src/components/ui/Button";
-import heroPcImage from "../../LandingPage/hero-pc.webp";
-import heroSpImage from "../../LandingPage/hero-sp.webp";
+import heroPcImage from "../hero-pc.webp";
+import heroSpImage from "../hero-sp.webp";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: SiLine, label: "LINEで希望シフト回収" },

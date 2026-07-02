@@ -1,6 +1,6 @@
 import { Box, Heading, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { FooterSection } from "@/src/components/features/NewLandingPage/FooterSection";
+import { FooterSection } from "@/src/components/features/LandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 type LegalPageProps = {

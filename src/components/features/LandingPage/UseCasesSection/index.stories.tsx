@@ -1,14 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { NewLandingPage } from ".";
+import { UseCasesSection } from ".";
 
 const meta = {
-  title: "Features/NewLandingPage",
-  component: NewLandingPage,
+  title: "Features/LandingPage/UseCasesSection",
+  component: UseCasesSection,
   parameters: {
     layout: "fullscreen",
-    vrt: { releaseFixedHeader: true },
   },
-} satisfies Meta<typeof NewLandingPage>;
+} satisfies Meta<typeof UseCasesSection>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

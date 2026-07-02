@@ -11,7 +11,7 @@ import { ReliefSection } from "./ReliefSection";
 import { SubmissionTypesSection } from "./SubmissionTypesSection";
 import { UseCasesSection } from "./UseCasesSection";
 
-export const NewLandingPage = () => (
+export const LandingPage = () => (
   <Box bg="white" color="gray.950">
     <Header variant="public" position="sticky" />
     <HeroSection />
