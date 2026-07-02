@@ -5,7 +5,10 @@ import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("notification/actions", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T00:00:00+09:00"));
+  });
   afterEach(() => vi.useRealTimers());
 
   it("100人分の募集開始通知をoutboxにenqueueする", async () => {
@@ -32,8 +35,7 @@ describe("notification/actions", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
-        shiftStartTime: "09:00",
-        shiftEndTime: "22:00",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
     });
 

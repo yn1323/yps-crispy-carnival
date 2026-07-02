@@ -63,6 +63,71 @@ describe("notification/queries", () => {
         ids.futureOpenRecruitmentId,
       ]);
     });
+
+    it("シフト対象外スタッフには募集通知データを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const staffId = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "募集通知店舗");
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "対象外スタッフ",
+          email: "excluded@example.com",
+          excludedFromShift: true,
+          isDeleted: false,
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-25",
+          periodEnd: "2026-01-28",
+          deadline: "2026-01-23",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return staffId;
+      });
+
+      const result = await t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
+        staffId,
+      });
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getRecruitmentEmailData（シフト対象外の除外）", () => {
+    it("シフト対象外スタッフを募集メールの宛先から除外する", async () => {
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "募集メール店舗");
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "通常スタッフ",
+          email: "normal@example.com",
+          isDeleted: false,
+        });
+        await ctx.db.insert("staffs", {
+          shopId,
+          name: "対象外スタッフ",
+          email: "excluded@example.com",
+          excludedFromShift: true,
+          isDeleted: false,
+        });
+        return await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-25",
+          periodEnd: "2026-01-28",
+          deadline: "2026-01-23",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+      });
+
+      const result = await t.query(internal.notification.queries.getRecruitmentEmailData, { recruitmentId });
+      expect(result?.staffEntries.map((entry) => entry.email)).toEqual(["normal@example.com"]);
+    });
   });
 
   describe("getConfirmationEmailData", () => {

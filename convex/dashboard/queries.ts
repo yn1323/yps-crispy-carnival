@@ -4,7 +4,6 @@ import { ConvexError } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery } from "../_lib/functions";
-import { getSubmissionPattern } from "../_lib/submissionPattern";
 import {
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
@@ -40,7 +39,8 @@ async function getTotalStaffCount(ctx: { db: GenericDatabaseReader<DataModel> },
     .query("staffs")
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
     .collect();
-  return activeStaffs.length;
+  // シフト対象外スタッフは提出率の母数に含めない。
+  return activeStaffs.filter((s) => !s.excludedFromShift).length;
 }
 
 async function toDashboardRecruitment(
@@ -69,7 +69,9 @@ async function toDashboardRecruitment(
     shopClosedDates: recruitment.shopClosedDates ?? [],
     status: recruitment.status,
     confirmedAt: recruitment.confirmedAt ?? null,
-    responseCount: stats?.submittedCount ?? submissions.length,
+    // 提出数は対象外スタッフの提出も含みうるため、母数（対象外を除いた総数）を上限にクランプし、
+    // 「3/2人」のような不可能な比率が表示されないようにする。
+    responseCount: Math.min(stats?.submittedCount ?? submissions.length, totalStaffCount),
     totalStaffCount,
   };
 }
@@ -141,10 +143,7 @@ export const getDashboardShop = authenticatedQuery({
     return {
       name: shop.name,
       regularClosedDays: shop.regularClosedDays,
-      submissionPattern: getSubmissionPattern(shop.submissionPattern, {
-        startTime: shop.shiftStartTime,
-        endTime: shop.shiftEndTime,
-      }),
+      submissionPattern: shop.submissionPattern,
     };
   },
 });
@@ -300,6 +299,7 @@ export const getDashboardStaffs = authenticatedQuery({
           isManager: s.userId === ctx.user?._id,
           isLineLinked: Boolean(lineAccount?.lineUserId),
           isLineFollowing: Boolean(lineAccount?.following),
+          excludedFromShift: s.excludedFromShift ?? false,
         };
       }),
     );

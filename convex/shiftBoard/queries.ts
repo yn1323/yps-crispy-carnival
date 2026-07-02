@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
@@ -8,6 +8,7 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
+import { isShiftTargetStaff } from "../staff/service";
 
 function getBoardTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
   if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
@@ -69,10 +70,7 @@ export const getShiftBoardData = managerQuery({
       (shiftAssignments.length > 0 ? Math.max(...shiftAssignments.map((a) => a._creationTime)) : null);
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
-    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const submissionPattern = recruitment.submissionPattern;
     const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
@@ -94,7 +92,7 @@ export const getShiftBoardData = managerQuery({
         draftSavedAt: effectiveDraftSavedAt,
       },
       submissionPattern,
-      staffs: allStaffs.map((s) => {
+      staffs: allStaffs.filter(isShiftTargetStaff).map((s) => {
         const submission = submissionByStaffId.get(s._id);
         // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
         const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;

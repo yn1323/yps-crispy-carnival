@@ -10,6 +10,8 @@ import {
   notificationFailureResolutionKindValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
+  resendProviderDeliveryStatusValidator,
+  resendProviderIssueEventTypeValidator,
 } from "./notificationOutbox/schemas";
 
 const schema = defineSchema({
@@ -19,9 +21,6 @@ const schema = defineSchema({
   // ========================================
   shops: defineTable({
     name: v.string(),
-    // submissionPattern 移行前の店舗時間帯。全環境で移行完了するまで optional で受ける。
-    shiftStartTime: v.optional(v.string()),
-    shiftEndTime: v.optional(v.string()),
     regularClosedDays: v.array(
       v.union(
         v.literal("sun"),
@@ -33,7 +32,7 @@ const schema = defineSchema({
         v.literal("sat"),
       ),
     ),
-    submissionPattern: v.optional(submissionPatternValidator),
+    submissionPattern: submissionPatternValidator,
     isDeleted: v.boolean(),
   }),
 
@@ -89,6 +88,8 @@ const schema = defineSchema({
     email: v.string(),
     emailNormalized: v.optional(v.string()),
     userId: v.optional(v.id("users")),
+    // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。未定義は false 扱い。
+    excludedFromShift: v.optional(v.boolean()),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
@@ -169,10 +170,7 @@ const schema = defineSchema({
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),
-    // submissionPattern 移行前の募集作成時点スナップショット。全環境で移行完了するまで optional で受ける。
-    shiftStartTime: v.optional(v.string()),
-    shiftEndTime: v.optional(v.string()),
-    submissionPattern: v.optional(submissionPatternValidator),
+    submissionPattern: submissionPatternValidator,
     // 未提出者への自動催促通知を予約した時刻。既存募集には付与せず、作成時に未来時刻のものだけ保存する。
     reminderScheduledAt: v.optional(v.number()),
     // 未提出者への自動催促通知を実際に送信した時刻（UI表示・二重送信防止用）
@@ -368,12 +366,17 @@ const schema = defineSchema({
     processingStartedAt: v.optional(v.number()),
     sentAt: v.optional(v.number()),
     failedAt: v.optional(v.number()),
+    resendEmailId: v.optional(v.string()),
+    resendLastEventType: v.optional(resendProviderIssueEventTypeValidator),
+    resendLastEventAt: v.optional(v.number()),
+    resendDeliveryStatus: v.optional(resendProviderDeliveryStatusValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
-    .index("by_shopId_status", ["shopId", "status"]),
+    .index("by_shopId_status", ["shopId", "status"])
+    .index("by_resendEmailId", ["resendEmailId"]),
 
   notificationDeliveryEvents: defineTable({
     eventType: notificationDeliveryEventTypeValidator,
@@ -389,13 +392,18 @@ const schema = defineSchema({
     notificationContext: v.optional(v.string()),
     attemptCount: v.optional(v.number()),
     nextRunAt: v.optional(v.number()),
+    provider: v.optional(v.literal("resend")),
+    providerEventId: v.optional(v.string()),
+    providerEmailId: v.optional(v.string()),
+    providerEventType: v.optional(resendProviderIssueEventTypeValidator),
     errorMessage: v.string(),
     errorName: v.optional(v.string()),
   })
     .index("by_expiresAt", ["expiresAt"])
     .index("by_shopId_createdAt", ["shopId", "createdAt"])
     .index("by_outboxId_createdAt", ["outboxId", "createdAt"])
-    .index("by_eventType_createdAt", ["eventType", "createdAt"]),
+    .index("by_eventType_createdAt", ["eventType", "createdAt"])
+    .index("by_providerEventId", ["providerEventId"]),
 
   notificationFailureInbox: defineTable({
     failureKey: v.string(),
@@ -425,6 +433,7 @@ const schema = defineSchema({
   })
     .index("by_failureKey", ["failureKey"])
     .index("by_status_firstFailedAt", ["status", "firstFailedAt"])
+    .index("by_status_lastFailedAt", ["status", "lastFailedAt"])
     .index("by_shopId_status_lastFailedAt", ["shopId", "status", "lastFailedAt"])
     .index("by_outboxId", ["outboxId"])
     .index("by_staffId_status_lastFailedAt", ["staffId", "status", "lastFailedAt"]),

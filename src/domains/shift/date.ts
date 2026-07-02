@@ -47,6 +47,17 @@ export const isPastShiftPeriod = (periodEnd: string, today = todayJST()): boolea
   return periodEnd < today;
 };
 
+// シフトの初期選択日を決める。
+// defaultToToday かつ今日が期間内なら今日を、そうでなければ期間の先頭日を返す。
+export const resolveInitialSelectedDate = (
+  dates: string[],
+  defaultToToday: boolean,
+  today: string = todayJST(),
+): string => {
+  if (defaultToToday && dates.includes(today)) return today;
+  return dates[0] ?? "";
+};
+
 export const pruneDatesInRange = (dates: string[], startDate: string, endDate: string): string[] => {
   if (!startDate || !endDate) return [];
   return dates.filter((date) => isDateInRange(date, startDate, endDate)).sort();

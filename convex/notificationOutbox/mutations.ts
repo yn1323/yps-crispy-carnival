@@ -21,11 +21,14 @@ import {
   getNotificationFailureIdentityForDoc,
   supersededFailureKey,
 } from "./failureIdentity";
-import { getNotificationFailureResendKind } from "./failureResend";
+import { getNotificationFailureResendKind, isLineInviteResendContext } from "./failureResend";
+import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
+import { type ResendProviderIssueEventType, resendProviderDeliveryStatus } from "./resendProviderEvents";
 import {
   notificationChannelValidator,
   notificationDeliveryEventTypeValidator,
   notificationPayloadValidator,
+  resendProviderIssueEventTypeValidator,
 } from "./schemas";
 
 const ACTIVE_STATUSES = ["pending", "processing"] as const;
@@ -112,6 +115,7 @@ export const recordDeliveryEvent = internalMutation({
 
     const sourceType = args.eventType === "enqueue_failed" ? "enqueue" : "enqueue_preparation";
     const notificationContext = args.notificationContext ?? dedupeContext(args.dedupeKey);
+    if (shouldSuppressNotificationFailureInbox(notificationContext)) return;
     const identity = getNotificationFailureIdentity({
       shopId: args.shopId,
       recruitmentId: args.recruitmentId,
@@ -135,6 +139,42 @@ export const recordDeliveryEvent = internalMutation({
       lastError: args.errorMessage,
       errorName: args.errorName,
     });
+  },
+});
+
+export const recordResendProviderIssue = internalMutation({
+  args: {
+    providerEventId: v.string(),
+    providerEventType: resendProviderIssueEventTypeValidator,
+    providerEmailId: v.string(),
+    outboxIdTag: v.optional(v.string()),
+    occurredAt: v.number(),
+    errorMessage: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existingEvent = await ctx.db
+      .query("notificationDeliveryEvents")
+      .withIndex("by_providerEventId", (q) => q.eq("providerEventId", args.providerEventId))
+      .first();
+    if (existingEvent) return { recorded: false as const, reason: "duplicate" as const };
+
+    const outbox = await findOutboxForResendProviderIssue(ctx, args.providerEmailId, args.outboxIdTag);
+    const eventId = await insertDeliveryEvent(ctx, resendProviderIssueDeliveryEventInput(args, outbox));
+
+    if (!isEmailNotificationOutbox(outbox)) {
+      return { recorded: true as const, inboxed: false as const, reason: "outboxNotFound" as const };
+    }
+
+    await patchOutboxResendProviderState(ctx, outbox, args);
+
+    const inboxInput = resendProviderFailureInboxInput(outbox, args, eventId);
+    if (!inboxInput) {
+      return { recorded: true as const, inboxed: false as const, reason: "suppressed" as const };
+    }
+
+    const failureId = await upsertFailureInbox(ctx, inboxInput);
+
+    return { recorded: true as const, inboxed: true as const, failureId };
   },
 });
 
@@ -170,8 +210,8 @@ export const claimDue = internalMutation({
 });
 
 export const markSent = internalMutation({
-  args: { outboxId: v.id("notificationOutbox") },
-  handler: async (ctx, { outboxId }) => {
+  args: { outboxId: v.id("notificationOutbox"), resendEmailId: v.optional(v.string()) },
+  handler: async (ctx, { outboxId, resendEmailId }) => {
     const job = await ctx.db.get(outboxId);
     if (!job) return;
 
@@ -181,6 +221,7 @@ export const markSent = internalMutation({
       sentAt: now,
       updatedAt: now,
       lastError: undefined,
+      ...(resendEmailId ? { resendEmailId } : {}),
     });
     await resolveFailureInboxByOutbox(ctx, outboxId, { resolutionKind: "sent" });
 
@@ -250,6 +291,7 @@ export const markFailed = internalMutation({
     if (suppressFailureInbox) return;
 
     const notificationContext = notificationContextForJob(job);
+    if (shouldSuppressNotificationFailureInbox(notificationContext)) return;
     const identity = getNotificationFailureIdentity({
       shopId: job.shopId,
       recruitmentId: job.recruitmentId,
@@ -411,6 +453,12 @@ async function requestFailureResend(
   ctx: ManagerNotificationOutboxMutationCtx,
   failure: Doc<"notificationFailureInbox">,
 ) {
+  // LINE連携案内は sourceType を問わず、送信のたびに新しいマジックリンクを発行して送り直す。
+  // （既存 outbox を再実行すると古いトークンを使い回してしまうため別経路にする）
+  if (isLineInviteResendContext(failure.notificationContext)) {
+    return await requestLineInviteResend(ctx, failure);
+  }
+
   if (failure.sourceType === "outbox") {
     return await retryOutboxFailure(ctx, failure, { throwOnNotFound: false });
   }
@@ -468,6 +516,36 @@ async function requestFailureResend(
   }
 
   await markFailureRetrying(ctx, failure._id, now);
+  return { scheduled: true as const };
+}
+
+async function requestLineInviteResend(
+  ctx: ManagerNotificationOutboxMutationCtx,
+  failure: Doc<"notificationFailureInbox">,
+) {
+  if (failure.shopId !== ctx.shop._id || failure.status !== "open" || !failure.staffId) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  const staff = await ctx.db.get(failure.staffId);
+  // 連携依頼はメールで送るため、メール未登録のスタッフには再送できない。
+  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted || !staff.email) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  // 通常の個別連携依頼（line.mutations.sendInvite）と同じスタッフ単位のレートリミットを使い、
+  // 一斉再通知で同一スタッフへ連携依頼メールが重複送信されるのを防ぐ。
+  const { ok } = await rateLimit(ctx, {
+    name: "lineInviteShort",
+    key: `${ctx.shop._id}:${failure.staffId}`,
+  });
+  if (!ok) return { scheduled: false, reason: "rateLimited" as const };
+
+  // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
+  await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+    staffId: failure.staffId,
+  });
+  await markFailureRetrying(ctx, failure._id, Date.now());
   return { scheduled: true as const };
 }
 
@@ -619,8 +697,26 @@ type DeliveryEventInput = {
   notificationContext?: string;
   attemptCount?: number;
   nextRunAt?: number;
+  provider?: Doc<"notificationDeliveryEvents">["provider"];
+  providerEventId?: string;
+  providerEmailId?: string;
+  providerEventType?: Doc<"notificationDeliveryEvents">["providerEventType"];
   errorMessage: string;
   errorName?: string;
+};
+
+type RecordResendProviderIssueArgs = {
+  providerEventId: string;
+  providerEventType: ResendProviderIssueEventType;
+  providerEmailId: string;
+  outboxIdTag?: string;
+  occurredAt: number;
+  errorMessage: string;
+};
+
+type EmailNotificationOutbox = Doc<"notificationOutbox"> & {
+  channel: "email";
+  payload: Extract<Doc<"notificationOutbox">["payload"], { kind: "email" }>;
 };
 
 type FailureInboxUpsertInput = {
@@ -641,6 +737,88 @@ type FailureInboxUpsertInput = {
   errorName?: string;
 };
 
+function resendProviderIssueDeliveryEventInput(
+  args: RecordResendProviderIssueArgs,
+  outbox: Doc<"notificationOutbox"> | null,
+): DeliveryEventInput {
+  const input: DeliveryEventInput = {
+    eventType: "provider_delivery_issue",
+    provider: "resend",
+    providerEventId: args.providerEventId,
+    providerEmailId: args.providerEmailId,
+    providerEventType: args.providerEventType,
+    errorMessage: args.errorMessage,
+  };
+
+  if (!outbox) return input;
+
+  return {
+    ...input,
+    shopId: outbox.shopId,
+    recruitmentId: outbox.recruitmentId,
+    staffId: outbox.staffId,
+    userId: outbox.userId,
+    outboxId: outbox._id,
+    channel: outbox.channel,
+    dedupeKey: outbox.dedupeKey,
+    notificationContext: notificationContextForJob(outbox),
+    attemptCount: outbox.attemptCount,
+  };
+}
+
+function isEmailNotificationOutbox(outbox: Doc<"notificationOutbox"> | null): outbox is EmailNotificationOutbox {
+  return outbox?.channel === "email" && outbox.payload.kind === "email";
+}
+
+async function patchOutboxResendProviderState(
+  ctx: MutationCtx,
+  outbox: EmailNotificationOutbox,
+  args: RecordResendProviderIssueArgs,
+) {
+  await ctx.db.patch(outbox._id, {
+    ...(outbox.resendEmailId ? {} : { resendEmailId: args.providerEmailId }),
+    resendLastEventType: args.providerEventType,
+    resendLastEventAt: args.occurredAt,
+    resendDeliveryStatus: resendProviderDeliveryStatus(args.providerEventType),
+    updatedAt: Date.now(),
+  });
+}
+
+function resendProviderFailureInboxInput(
+  outbox: EmailNotificationOutbox,
+  args: RecordResendProviderIssueArgs,
+  eventId: Id<"notificationDeliveryEvents">,
+): FailureInboxUpsertInput | null {
+  const notificationContext = notificationContextForJob(outbox);
+  if (outbox.payload.suppressFailureInbox || shouldSuppressNotificationFailureInbox(notificationContext)) {
+    return null;
+  }
+
+  const identity = getNotificationFailureIdentity({
+    shopId: outbox.shopId,
+    recruitmentId: outbox.recruitmentId,
+    staffId: outbox.staffId,
+    notificationContext,
+  });
+
+  return {
+    sourceType: "provider",
+    failureKey: identity?.failureKey ?? providerFailureKey(outbox._id),
+    shopId: outbox.shopId,
+    recruitmentId: outbox.recruitmentId,
+    staffId: outbox.staffId,
+    userId: outbox.userId,
+    outboxId: outbox._id,
+    channel: outbox.channel,
+    dedupeKey: outbox.dedupeKey,
+    notificationContext,
+    attemptCount: outbox.attemptCount,
+    lastFailedAt: args.occurredAt,
+    lastEventId: eventId,
+    lastError: args.errorMessage,
+  };
+}
+
 async function insertDeliveryEvent(ctx: MutationCtx, input: DeliveryEventInput) {
   const now = Date.now();
   return await ctx.db.insert("notificationDeliveryEvents", {
@@ -657,6 +835,10 @@ async function insertDeliveryEvent(ctx: MutationCtx, input: DeliveryEventInput) 
     ...(input.notificationContext ? { notificationContext: input.notificationContext } : {}),
     ...(input.attemptCount !== undefined ? { attemptCount: input.attemptCount } : {}),
     ...(input.nextRunAt !== undefined ? { nextRunAt: input.nextRunAt } : {}),
+    ...(input.provider ? { provider: input.provider } : {}),
+    ...(input.providerEventId ? { providerEventId: input.providerEventId } : {}),
+    ...(input.providerEmailId ? { providerEmailId: input.providerEmailId } : {}),
+    ...(input.providerEventType ? { providerEventType: input.providerEventType } : {}),
     errorMessage: truncateErrorMessage(input.errorMessage),
     ...(input.errorName ? { errorName: input.errorName } : {}),
   });
@@ -781,8 +963,31 @@ function outboxFailureKey(outboxId: Id<"notificationOutbox">) {
   return `outbox:${outboxId}`;
 }
 
+function providerFailureKey(outboxId: Id<"notificationOutbox">) {
+  return `provider:resend:${outboxId}`;
+}
+
 function enqueueFailureKey(sourceType: "enqueue" | "enqueue_preparation", shopId: Id<"shops">, dedupeKey: string) {
   return `${sourceType}:${shopId}:${dedupeKey}`;
+}
+
+async function findOutboxForResendProviderIssue(
+  ctx: MutationCtx,
+  providerEmailId: string,
+  outboxIdTag: string | undefined,
+) {
+  const outboxByEmailId = await ctx.db
+    .query("notificationOutbox")
+    .withIndex("by_resendEmailId", (q) => q.eq("resendEmailId", providerEmailId))
+    .first();
+  if (outboxByEmailId) return outboxByEmailId;
+
+  if (!outboxIdTag) return null;
+  const outboxId = ctx.db.normalizeId("notificationOutbox", outboxIdTag);
+  if (!outboxId) return null;
+  const outboxByTag = await ctx.db.get(outboxId);
+  if (outboxByTag?.resendEmailId && outboxByTag.resendEmailId !== providerEmailId) return null;
+  return outboxByTag;
 }
 
 function truncateErrorMessage(message: string) {
@@ -851,5 +1056,12 @@ function sortFailureByRecencyDesc(a: Doc<"notificationFailureInbox">, b: Doc<"no
 }
 
 function resendBatchKey(failure: Doc<"notificationFailureInbox">) {
-  return getNotificationFailureIdentityForDoc(failure)?.failureKey ?? `failure:${failure._id}`;
+  const identityKey = getNotificationFailureIdentityForDoc(failure)?.failureKey;
+  if (identityKey) return identityKey;
+  // LINE連携案内は募集に紐づかず論理キーを持たないため、一斉再通知で同一スタッフの
+  // 複数行を1回にまとめられるようスタッフ単位のキーを返す。
+  if (isLineInviteResendContext(failure.notificationContext) && failure.staffId) {
+    return `lineInvite:${failure.shopId}:${failure.staffId}`;
+  }
+  return `failure:${failure._id}`;
 }

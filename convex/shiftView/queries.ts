@@ -1,9 +1,10 @@
 import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
-import { getSubmissionPattern, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
+import { isShiftTargetStaff } from "../staff/service";
 
 function getViewTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
   if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
@@ -50,10 +51,7 @@ export const getShiftViewData = staffSessionQuery({
         .take(50),
     ]);
 
-    const submissionPattern = getSubmissionPattern(recruitment.submissionPattern, {
-      startTime: recruitment.shiftStartTime,
-      endTime: recruitment.shiftEndTime,
-    });
+    const submissionPattern = recruitment.submissionPattern;
     const { startTime: startTimeStr, endTime: endTimeStr } = getViewTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
@@ -63,7 +61,7 @@ export const getShiftViewData = staffSessionQuery({
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       periodStart: recruitment.periodStart,
       periodEnd: recruitment.periodEnd,
-      staffs: staffs.map((s) => ({ _id: s._id, name: s.name })),
+      staffs: staffs.filter(isShiftTargetStaff).map((s) => ({ _id: s._id, name: s.name })),
       positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: Boolean(p.isDefault) })),
       assignments: assignments.map((a) => ({
         staffId: a.staffId,

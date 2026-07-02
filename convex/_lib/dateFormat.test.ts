@@ -7,6 +7,7 @@ import {
   formatPeriodLabel,
   generateDateRange,
   getDeadlineCutoff,
+  getManagerConfirmationReminderAt,
   getMondayWeekStart,
   getReminderScheduledAt,
   getSubmitLinkCutoff,
@@ -63,6 +64,11 @@ describe("dateFormat", () => {
 
   it("催促通知は提出締切日の前日17:00 JSTに予約する", () => {
     expect(getReminderScheduledAt("2026-01-05")).toBe(new Date("2026-01-04T08:00:00.000Z").getTime());
+  });
+
+  it("シフト確定催促は提出締切日の翌日17:00 JSTに予約する", () => {
+    // 2026-01-05 締切 → 翌日 2026-01-06 17:00 JST = 2026-01-06 08:00 UTC
+    expect(getManagerConfirmationReminderAt("2026-01-05")).toBe(new Date("2026-01-06T08:00:00.000Z").getTime());
   });
 
   it("todayJSTはUTC日付ではなくJST日付を返す", () => {

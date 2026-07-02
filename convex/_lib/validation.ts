@@ -38,7 +38,7 @@ export const requiredEmailSchema = z
   .trim()
   .min(1, "メールアドレスを入力してください")
   .max(EMAIL_MAX_LENGTH, `メールアドレスは${EMAIL_MAX_LENGTH}文字以内で入力してください`)
-  .email("正しいメールアドレスを入力してください")
+  .email("メールアドレスの形式で入力してください")
   .refine((value) => !hasControlCharacter(value), {
     message: "メールアドレスに使用できない文字が含まれています",
   });
@@ -49,7 +49,7 @@ export const optionalEmail = (val: string, ctx: z.RefinementCtx) => {
   if (!result.success) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: result.error.issues[0]?.message ?? "正しいメールアドレスを入力してください",
+      message: result.error.issues[0]?.message ?? "メールアドレスの形式で入力してください",
     });
   }
 };

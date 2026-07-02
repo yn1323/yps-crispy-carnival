@@ -1,6 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { type DashboardNotificationFailure, NotificationFailureDialogContent } from "./index";
 
@@ -48,6 +49,16 @@ const failures: DashboardNotificationFailure[] = [
     lastFailedAt: new Date("2026-06-22T03:11:00.000Z").getTime(),
     canRetry: true,
   },
+  {
+    _id: id("failure-4"),
+    staffName: "田中 一郎",
+    notificationKind: "lineInvite",
+    notificationKindLabel: "LINE連携案内",
+    periodLabel: null,
+    channel: "email",
+    lastFailedAt: new Date("2026-06-22T02:40:00.000Z").getTime(),
+    canRetry: true,
+  },
 ];
 
 export const Normal: Story = {
@@ -58,6 +69,12 @@ export const Normal: Story = {
     isResendingAll: false,
     onResend: () => {},
     onResendAll: () => {},
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "すべて再通知" })).toBeInTheDocument();
+    await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
+    await expect(await canvas.findByText(/メールが届かない場合は/)).toBeInTheDocument();
   },
 };
 
@@ -85,7 +102,10 @@ export const Mobile: Story = {
     ),
   ],
   play: async ({ canvasElement }) => {
-    assertText(canvasElement, "エラー日時：", "SPカードのエラー日時ラベル");
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
+    await expect(await canvas.findByText(/メールが届かない場合は/)).toBeInTheDocument();
+    await expect(canvas.getAllByText(/エラー日時：/)[0]).toBeInTheDocument();
   },
 };
 
@@ -96,12 +116,11 @@ export const Interactive: Story = {
   },
   render: () => <InteractiveNotificationFailureDialog />,
   play: async ({ canvasElement }) => {
-    const resendButton = findButtonByText(canvasElement, "再通知");
-    resendButton.click();
-    await waitUntil(
-      () => canvasElement.textContent?.includes("再送受付済み") ?? false,
-      "再送受付済みボタンが表示されませんでした",
-    );
+    const canvas = within(canvasElement);
+    const resendButtons = canvas.getAllByRole("button", { name: /^再通知$/ });
+    await userEvent.click(resendButtons[0]);
+    const acceptedButtons = await canvas.findAllByRole("button", { name: "再送受付済み" });
+    await expect(acceptedButtons[0]).toBeInTheDocument();
   },
 };
 
@@ -119,28 +138,3 @@ const InteractiveNotificationFailureDialog = () => {
     />
   );
 };
-
-function findButtonByText(root: Element, text: string) {
-  const button = Array.from(root.querySelectorAll<HTMLButtonElement>("button")).find((candidate) =>
-    candidate.textContent?.includes(text),
-  );
-  if (!button) {
-    throw new Error(`button "${text}" が見つかりませんでした`);
-  }
-  return button;
-}
-
-function assertText(root: Element, text: string, label: string) {
-  if (!root.textContent?.includes(text)) {
-    throw new Error(`${label}: "${text}" が見つかりませんでした`);
-  }
-}
-
-async function waitUntil(predicate: () => boolean, failureMessage: string) {
-  const startedAt = performance.now();
-  while (performance.now() - startedAt < 2000) {
-    if (predicate()) return;
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  }
-  throw new Error(failureMessage);
-}

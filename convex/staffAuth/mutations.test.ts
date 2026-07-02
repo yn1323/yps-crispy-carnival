@@ -78,6 +78,24 @@ describe("staffAuth/mutations", () => {
       }
     });
 
+    it("シフト対象外スタッフのトークンはexpired(invalid_link)になる", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(staffId, { excludedFromShift: true });
+      });
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: magicLinkToken,
+        accessKind: "view",
+      });
+
+      expect(result.status).toBe("expired");
+      if (result.status === "expired") {
+        expect(result.reason).toBe("invalid_link");
+      }
+    });
+
     it("有効なトークンでセッションが14日後に期限切れになる", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken } = await setupTestData(t);

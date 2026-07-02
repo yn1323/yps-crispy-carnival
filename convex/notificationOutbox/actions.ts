@@ -6,6 +6,7 @@ import type { Doc } from "../_generated/dataModel";
 import { type ActionCtx, internalAction } from "../_generated/server";
 import { isDebugNotifyFailEnabled } from "../_lib/config";
 import { LineApiError, pushTextMessage } from "../_lib/lineClient";
+import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
   NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
@@ -16,6 +17,9 @@ import {
 
 type NotificationJob = Doc<"notificationOutbox">;
 const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
+type SendJobResult = {
+  resendEmailId?: string;
+};
 
 export const processPending = internalAction({
   args: {},
@@ -32,8 +36,11 @@ export const processPending = internalAction({
 
     for (const job of jobs) {
       try {
-        await sendJob(ctx, job);
-        await ctx.runMutation(internal.notificationOutbox.mutations.markSent, { outboxId: job._id });
+        const result = await sendJob(ctx, job);
+        await ctx.runMutation(internal.notificationOutbox.mutations.markSent, {
+          outboxId: job._id,
+          ...(result.resendEmailId ? { resendEmailId: result.resendEmailId } : {}),
+        });
       } catch (e) {
         const lastError = errorMessage(e);
         if (shouldRetry(job, e)) {
@@ -44,10 +51,11 @@ export const processPending = internalAction({
             ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         } else {
+          const suppressFailureInbox = lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE;
           await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, {
             outboxId: job._id,
             lastError,
-            ...(lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE ? { suppressFailureInbox: true } : {}),
+            ...(suppressFailureInbox ? { suppressFailureInbox: true } : {}),
             ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         }
@@ -60,21 +68,23 @@ export const processPending = internalAction({
   },
 });
 
-async function sendJob(ctx: ActionCtx, job: NotificationJob) {
+async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobResult> {
   if (job.payload.kind === "email") {
     const resend = getResendClient({ suppressDelivery: job.payload.suppressDelivery });
-    await sendResendEmail(
+    const resendEmailId = await sendResendEmail(
       resend,
       {
         from: job.payload.from,
         to: job.payload.to,
         subject: job.payload.subject,
         html: job.payload.html,
+        tags: [{ name: "shiftori_outbox_id", value: job._id }],
       },
       job.payload.context,
       { idempotencyKey: `notification-outbox-${job._id}` },
     );
-    return;
+    if (isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery })) return {};
+    return { resendEmailId };
   }
 
   if (isDebugNotifyFailEnabled()) {
@@ -82,7 +92,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob) {
       suppressDelivery: job.payload.suppressDelivery,
       retryKey: lineRetryKey(job._id),
     });
-    return;
+    return {};
   }
 
   const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -143,6 +153,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob) {
     suppressDelivery: job.payload.suppressDelivery,
     retryKey: lineRetryKey(job._id),
   });
+  return {};
 }
 
 function shouldRetry(job: NotificationJob, e: unknown) {

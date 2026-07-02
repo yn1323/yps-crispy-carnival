@@ -38,7 +38,7 @@ async function setupSubmissionPageData(
       shopClosedDates: [],
       status: "open",
       isDeleted: false,
-      submissionPattern: options?.submissionPattern,
+      submissionPattern: options?.submissionPattern ?? { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
     const sessionToken = "query-history-session";
     await ctx.db.insert("sessions", {

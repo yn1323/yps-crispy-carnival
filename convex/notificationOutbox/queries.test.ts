@@ -40,6 +40,7 @@ describe("notificationOutbox/queries", () => {
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const oldFailureId = await insertFailure(ctx, {
         shopId: primary.shopId,
@@ -47,6 +48,16 @@ describe("notificationOutbox/queries", () => {
         status: "open",
         dedupeKey: "email:test:old",
         lastFailedAt: Date.now() - 1000,
+        notificationContext: "notification.sendReminderEmails",
+      });
+      // 種別「通知」(other) は一覧から除外される（最新だが表示されない）
+      await insertFailure(ctx, {
+        shopId: primary.shopId,
+        failureKey: "outbox:other-kind",
+        status: "open",
+        dedupeKey: "email:test:other-kind",
+        lastFailedAt: Date.now() + 1000,
+        notificationContext: "test.email",
       });
       const newFailureId = await insertFailure(ctx, {
         shopId: primary.shopId,
@@ -102,6 +113,47 @@ describe("notificationOutbox/queries", () => {
     expect(page.page[0]).not.toHaveProperty("lastError");
   });
 
+  it("listOpenFailuresは新しいother失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
+    const t = convexTest(schema, modules);
+    const actionableId = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "manager_pagination",
+        email: "pagination@example.com",
+        shopName: "ページング店舗",
+      });
+      // 対応可能な失敗（古い）
+      const id = await insertFailure(ctx, {
+        shopId,
+        failureKey: "outbox:actionable",
+        status: "open",
+        dedupeKey: "email:test:actionable",
+        lastFailedAt: Date.now() - 10_000,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      // other失敗（新しい）でページ先頭を埋める
+      for (let i = 0; i < 3; i++) {
+        await insertFailure(ctx, {
+          shopId,
+          failureKey: `outbox:other-${i}`,
+          status: "open",
+          dedupeKey: `email:test:other-${i}`,
+          lastFailedAt: Date.now() + i,
+          notificationContext: "test.email",
+        });
+      }
+      return id;
+    });
+
+    // ページング後フィルタだと初回ページが空になるが、前段フィルタなら対応可能な失敗を返す
+    const page = await t
+      .withIdentity({ subject: "manager_pagination" })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 1, cursor: null },
+      });
+
+    expect(page.page.map((failure) => failure._id)).toEqual([actionableId]);
+  });
+
   it("hasOpenFailuresは現在店舗のopen失敗の有無だけを返す", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
@@ -115,11 +167,25 @@ describe("notificationOutbox/queries", () => {
         email: "empty@example.com",
         shopName: "失敗なし店舗",
       });
+      const otherKindOnly = await seedManagerShop(ctx, {
+        subject: "manager_other_kind",
+        email: "other-kind@example.com",
+        shopName: "通知種別のみ店舗",
+      });
       await insertFailure(ctx, {
         shopId: active.shopId,
         failureKey: "outbox:active",
         status: "open",
         dedupeKey: "email:test:active",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      // 種別「通知」(other) しかない店舗は要対応なし扱い
+      await insertFailure(ctx, {
+        shopId: otherKindOnly.shopId,
+        failureKey: "outbox:other-kind-only",
+        status: "open",
+        dedupeKey: "email:test:other-kind-only",
+        notificationContext: "test.email",
       });
     });
 
@@ -128,6 +194,9 @@ describe("notificationOutbox/queries", () => {
     ).resolves.toBe(true);
     await expect(
       t.withIdentity({ subject: "manager_empty" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+    ).resolves.toBe(false);
+    await expect(
+      t.withIdentity({ subject: "manager_other_kind" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
     ).resolves.toBe(false);
   });
 });

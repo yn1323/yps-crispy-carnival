@@ -149,6 +149,7 @@ export function ShiftViewPage({
           holidays={shopClosedDates}
           submissionPattern={submissionPattern}
           displayMode="confirmed"
+          defaultToToday
           isReadOnly
         />
       </Box>

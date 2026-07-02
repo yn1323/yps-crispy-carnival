@@ -110,6 +110,66 @@ describe("通知配送outboxシナリオ", () => {
     );
   });
 
+  it("Resend provider delayedは既存の不達通知一覧にメール失敗として表示される", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "provider-delayed-manager@example.com",
+        shopName: "Provider遅延店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "遅延メールスタッフ",
+        email: "provider-delayed@example.com",
+      });
+      return { shopId, staffId };
+    });
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+    const jobs = await getOutboxJobs(t);
+    const emailJob = jobs.find((job) => job.channel === "email" && job.staffId === ids.staffId);
+    if (!emailJob) throw new Error("email outbox was not created");
+    await t.mutation(internal.notificationOutbox.mutations.markSent, {
+      outboxId: emailJob._id,
+      resendEmailId: "email_provider_delayed",
+    });
+
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_provider_delayed",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_provider_delayed",
+      occurredAt: SCENARIO_NOW + 1000,
+      errorMessage: "Resend reported email delivery delayed",
+    });
+
+    const openPage = await t
+      .withIdentity({ subject: MANAGER_SUBJECT })
+      .query(api.notificationOutbox.queries.listOpenFailures, {
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+    expect(openPage.page).toHaveLength(1);
+    expect(openPage.page[0]).toMatchObject({
+      sourceType: "provider",
+      channel: "email",
+      notificationKind: "recruitment",
+      staffId: ids.staffId,
+      staffName: "遅延メールスタッフ",
+      recruitmentId,
+      periodLabel: expect.any(String),
+      dedupeKey: `email:recruitment:${recruitmentId}:${ids.staffId}`,
+      canRetry: true,
+    });
+  });
+
   it("手動の募集通知再送はopenかつ開始前・締切前の募集を1スタッフへ送る", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
@@ -572,6 +632,19 @@ describe("通知配送outboxシナリオ", () => {
         kind: "line",
         toUserId: "U_failure",
         text: "hello",
+        // 実際のLINE通知は fallbackEmail を持ち、不達の通知種別はそのcontextで判定される。
+        // （通常の400失敗ではfallbackは送らないため配送挙動は変わらない）
+        fallbackEmail: {
+          dedupeKey: "email:recruitment:failure-inbox:scenario",
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "failure-staff@example.com",
+            subject: "シフト募集のお知らせ",
+            html: "<p>hello</p>",
+            context: "notification.sendRecruitmentNotificationEmails",
+          },
+        },
       },
     });
 
@@ -588,7 +661,7 @@ describe("通知配送outboxシナリオ", () => {
       status: "open",
       channel: "line",
       dedupeKey: "line:failure-inbox:scenario",
-      notificationContext: "line:failure-inbox",
+      notificationContext: "notification.sendRecruitmentNotificationEmails",
       canRetry: true,
     });
 

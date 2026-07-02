@@ -133,7 +133,7 @@ describe("staff/mutations", () => {
         asManager.mutation(api.staff.mutations.addStaffs, {
           entries: [{ name: "不正メール", email: "not-email" }],
         }),
-      ).rejects.toThrow("正しいメールアドレスを入力してください");
+      ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
     it("既存メールアドレスの重複はエラーにしてスタッフを追加しない", async () => {
@@ -545,7 +545,7 @@ describe("staff/mutations", () => {
           name: "田中太郎",
           email: "not-email",
         }),
-      ).rejects.toThrow("正しいメールアドレスを入力してください");
+      ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
     it("他店舗のスタッフは編集できない（IDOR）", async () => {
@@ -679,6 +679,117 @@ describe("staff/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { staffId: adminStaffId }),
       ).rejects.toThrow("自分のアカウントは削除できません");
+    });
+  });
+
+  describe("setShiftExclusion", () => {
+    it("未認証の場合エラーをthrow", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+      await expect(t.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true })).rejects.toThrow();
+    });
+
+    it("シフト対象外フラグをトグルできる", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { staffId } = await data;
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true });
+      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(true);
+
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: false });
+      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(false);
+    });
+
+    it("管理者自身もシフト対象外にできる（削除と異なる）", async () => {
+      const t = convexTest(schema, modules);
+
+      const adminStaffId = await t.run(async (ctx) => {
+        const { userId, shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return await ctx.db.insert("staffs", {
+          shopId,
+          name: "店舗共通アドレス",
+          email: "mgr@example.com",
+          userId,
+          isDeleted: false,
+        });
+      });
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.setShiftExclusion, { staffId: adminStaffId, excluded: true });
+
+      expect(await t.run(async (ctx) => (await ctx.db.get(adminStaffId))?.excludedFromShift)).toBe(true);
+    });
+
+    it("他店舗のスタッフは変更できない（IDOR）", async () => {
+      const { t } = setupShopWithStaff();
+
+      const otherStaffId = await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "他店舗");
+        return await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          name: "他店スタッフ",
+          email: "other@example.com",
+          isDeleted: false,
+        });
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.staff.mutations.setShiftExclusion, { staffId: otherStaffId, excluded: true }),
+      ).rejects.toThrow("Not found");
+    });
+
+    it("対象外にすると発行済みのセッション・マジックリンクを失効させる", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { shopId, staffId } = await data;
+
+      const { sessionId, magicLinkId } = await t.run(async (ctx) => {
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-04-01",
+          periodEnd: "2026-04-07",
+          deadline: "2026-03-28",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const sessionId = await ctx.db.insert("sessions", {
+          sessionToken: "session-token",
+          staffId,
+          shopId,
+          recruitmentId,
+          accessKind: "submit",
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        const magicLinkId = await ctx.db.insert("magicLinks", {
+          token: "magic-token",
+          staffId,
+          shopId,
+          recruitmentId,
+          accessKind: "submit",
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        return { sessionId, magicLinkId };
+      });
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true });
+
+      const { session, magicLink } = await t.run(async (ctx) => ({
+        session: await ctx.db.get(sessionId),
+        magicLink: await ctx.db.get(magicLinkId),
+      }));
+      expect(session?.revokedAt).toEqual(expect.any(Number));
+      expect(magicLink?.revokedAt).toEqual(expect.any(Number));
     });
   });
 });

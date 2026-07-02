@@ -28,6 +28,8 @@ export function buildShiftConfirmationLineText(params: {
   isResend: boolean;
 }): string {
   const lines = [
+    params.isResend ? "🔁 シフト変更" : "✅ シフト確定",
+    "",
     `${params.staffName}さん`,
     "",
     params.isResend
@@ -57,6 +59,8 @@ export function buildRecruitmentLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
+    "📩 提出依頼",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName}\n${params.periodLabel} のシフト希望を提出してください。`,
@@ -79,6 +83,8 @@ export function buildReissueLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
+    "🔁 リンク再発行",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName}\n${params.periodLabel} のシフト閲覧リンクを再発行しました。`,
@@ -99,6 +105,8 @@ export function buildReminderLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
+    "🔔 提出リマインド",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName}\n${params.periodLabel} のシフト希望の提出期限が近づいています。`,
@@ -394,6 +402,8 @@ type StaffRegistrationOwnerDigestParams = {
 
 export function buildStaffRegistrationOwnerDigestLineText(params: StaffRegistrationOwnerDigestParams): string {
   return [
+    "📝 承認依頼",
+    "",
     "スタッフの承認依頼が届いています。",
     "シフトリのダッシュボードで確認してください。",
     "",
@@ -421,6 +431,119 @@ export function buildStaffRegistrationOwnerDigestEmailHtml(
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
               <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
+            </td></tr>
+          </table>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export const NOTIFICATION_FAILURE_REMINDER_SUBJECT = "通知の送信に失敗しています";
+
+type NotificationFailureReminderParams = {
+  dashboardUrl: string;
+};
+
+export function buildNotificationFailureReminderLineText(params: NotificationFailureReminderParams): string {
+  return [
+    "⚠️ 通知失敗",
+    "",
+    "通知の送信に失敗したスタッフがいます。",
+    "シフトリのダッシュボードを開いて、再通知してください。",
+    "",
+    withOpenExternalBrowser(params.dashboardUrl),
+  ].join("\n");
+}
+
+export function buildNotificationFailureReminderEmailHtml(
+  params: NotificationFailureReminderParams & { managerName: string },
+): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">通知の送信に失敗したスタッフがいます。<br/>シフトリのダッシュボードを開いて、再通知してください。</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
+            </td></tr>
+          </table>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export const SHIFT_CONFIRMATION_REMINDER_SUBJECT = "シフトの確定をお願いします";
+
+type ShiftConfirmationReminderParams = {
+  periodLabel: string;
+  deadlineLabel: string; // フォーマット済み（例: "1/17(金) 23:59"）
+  dashboardUrl: string;
+};
+
+export function buildShiftConfirmationReminderLineText(params: ShiftConfirmationReminderParams): string {
+  return [
+    "⏰ 締切超過",
+    "",
+    `${params.periodLabel} のシフトがまだ確定していません。`,
+    `提出締切（${params.deadlineLabel}）を過ぎています。`,
+    "スタッフの希望を確認して、シフトを調整・確定してください。",
+    "",
+    "シフトの確定はこちら",
+    withOpenExternalBrowser(params.dashboardUrl),
+  ].join("\n");
+}
+
+export function buildShiftConfirmationReminderEmailHtml(
+  params: ShiftConfirmationReminderParams & { managerName: string },
+): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフトがまだ確定していません。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフの希望を確認して、シフトを調整・確定してください。</p>
+
+          <!-- Deadline -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+            <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
+              <strong>提出締切:</strong> ${params.deadlineLabel}（締切済み）
+            </td></tr>
+          </table>
+
+          <!-- CTA Button -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトを確定する</a>
             </td></tr>
           </table>
 
@@ -491,6 +614,8 @@ export function buildStaffLegalConsentLineText(params: {
   expiresAt: number;
 }): string {
   return [
+    "📄 ご案内",
+    "",
     `${params.staffName}さん`,
     "",
     `${params.shopName} で利用するシフト管理サービス「シフトリ」のご案内です。`,

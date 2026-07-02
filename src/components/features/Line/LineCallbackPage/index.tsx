@@ -36,13 +36,13 @@ const COPY: Record<
     icon: LuClock,
     tone: "warning",
     title: "リンクの有効期限が切れています",
-    description: "シフト作成担当者にリンクをもう一度送ってもらってください。このリンクは72時間以内に1回だけ使えます。",
+    description: "シフト作成担当者に、リンクの再送をお願いしてください。このリンクは72時間以内に1回だけ使えます。",
   },
   rate_limited: {
     icon: LuCircleAlert,
     tone: "warning",
     title: "アクセスが集中しています",
-    description: "少し時間を空けてから再度お試しください。",
+    description: "少し時間をおいてから、もう一度お試しください。",
   },
   error: {
     icon: LuCircleAlert,

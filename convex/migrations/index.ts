@@ -22,4 +22,6 @@ export const run = migrations.runner([
   internal.migrations.m004_notification_failure_inbox_backfill.migration,
   internal.migrations.m005_shop_billing_states_backfill_free.migration,
   internal.migrations.m006_notification_failure_inbox_collapse_duplicates.migration,
+  internal.migrations.m007_shops_strip_legacy_shift_times.migration,
+  internal.migrations.m008_recruitments_strip_legacy_shift_times.migration,
 ]);

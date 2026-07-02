@@ -29,6 +29,43 @@ describe("shiftBoard/queries", () => {
     expect(result).toBeNull();
   });
 
+  it("シフト対象外スタッフはシフト表に含めない", async () => {
+    const t = convexTest(schema, modules);
+    const { recruitmentId, includedStaffId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, { subject: "manager_excluded", shopName: "テスト店舗" });
+      const includedStaffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "通常スタッフ",
+        email: "normal@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.insert("staffs", {
+        shopId,
+        name: "対象外スタッフ",
+        email: "excluded@example.com",
+        excludedFromShift: true,
+        isDeleted: false,
+      });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-07",
+        deadline: "2026-03-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { recruitmentId, includedStaffId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_excluded" })
+      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+
+    expect(result?.staffs.map((s) => s._id)).toEqual([includedStaffId]);
+  });
+
   it("全休み提出は提出済みとして返す", async () => {
     const t = convexTest(schema, modules);
     const { recruitmentId, staffId } = await t.run(async (ctx) => {
@@ -324,34 +361,6 @@ describe("shiftBoard/queries", () => {
       editableStartMinutes: 330,
       editableEndMinutes: 1350,
     });
-  });
-
-  it("migration前の募集時間スナップショットをsubmissionPatternの代わりに読める", async () => {
-    const t = convexTest(schema, modules);
-    const recruitmentId = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
-        subject: "manager_legacy_time_snapshot",
-        shopName: "テスト店舗",
-      });
-      return await ctx.db.insert("recruitments", {
-        shopId,
-        periodStart: "2026-04-01",
-        periodEnd: "2026-04-07",
-        deadline: "2026-03-28",
-        shopClosedDates: [],
-        status: "open",
-        isDeleted: false,
-        shiftStartTime: "06:30",
-        shiftEndTime: "21:30",
-      });
-    });
-
-    const result = await t
-      .withIdentity({ subject: "manager_legacy_time_snapshot" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
-
-    expect(result?.timeRange.editableStartMinutes).toBe(390);
-    expect(result?.timeRange.editableEndMinutes).toBe(1290);
   });
 
   it("募集スナップショットの時間指定を店舗設定より優先する", async () => {
