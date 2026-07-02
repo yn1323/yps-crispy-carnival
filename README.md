@@ -4,11 +4,10 @@ Welcome to your new TanStack app!
 
 To run this application: 
 
-```bash 
-pnpm install
-pnpm start
+```bash
+pnpm install 
+pnpm start 
 ```
-
 # Building For Production
 
 To build this application for production:
