@@ -1,21 +1,23 @@
-import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
-import type { IconType } from "react-icons";
-import { LuChevronDown, LuChevronRight, LuLaptop, LuMailCheck, LuSmartphone } from "react-icons/lu";
+import { Box, Container, Flex, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { SectionHeading } from "../SectionHeading";
+import buildShiftImage from "./build-shift.webp";
+import confirmShiftImage from "./confirm-shift.webp";
+import setCollectionPeriodImage from "./set-collection-period.webp";
 
-const flowSteps: Array<{ icon: IconType; title: string; body: string }> = [
+const flowSteps: Array<{ imageSrc: string; title: string; body: string }> = [
   {
-    icon: LuSmartphone,
+    imageSrc: setCollectionPeriodImage,
     title: "シフト募集期間を決める",
     body: "指定して期間の提出リンクをLINE・メールで自動送信",
   },
   {
-    icon: LuLaptop,
+    imageSrc: buildShiftImage,
     title: "シフトを組む",
     body: "集まった希望を見ながらシフトを組む",
   },
   {
-    icon: LuMailCheck,
+    imageSrc: confirmShiftImage,
     title: "シフトを確定する",
     body: "確定シフトを自動でお知らせ",
   },
@@ -39,27 +41,27 @@ export const FlowSection = () => (
 
 const FlowStep = ({
   number,
-  icon,
+  imageSrc,
   title,
   body,
   isLast,
 }: {
   number: number;
-  icon: IconType;
+  imageSrc: string;
   title: string;
   body: string;
   isLast: boolean;
 }) => (
   <Flex position="relative" direction="column" align="center" gap={4} px={6} textAlign="center">
-    <Flex align="center" justify="center" boxSize={20} color="teal.600">
-      <Icon as={icon} boxSize={14} strokeWidth={1.7} />
+    <Flex align="center" justify="center" boxSize={{ base: "148px", md: "172px" }}>
+      <Image src={imageSrc} alt="" w="full" h="full" objectFit="contain" loading="lazy" />
     </Flex>
 
     {!isLast && (
       <Icon
         as={LuChevronRight}
         position="absolute"
-        top="30px"
+        top="68px"
         insetInlineEnd="-18px"
         hideBelow="md"
         boxSize={9}
