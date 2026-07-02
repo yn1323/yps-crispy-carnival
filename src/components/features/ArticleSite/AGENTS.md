@@ -227,3 +227,4 @@ Storybookで確認する場合は `Features/ArticleSite` の List / Category / A
 
 ## 編集時の注意点
 - features/ArticleSite配下を修正する際は、 @public/sitemap.xml も確認し、必要であれば修正を加えること
+- 記事の追加・削除・`title` / `categoryLabel` の変更時は `pnpm ogp:articles` で記事別OGP画像（`public/ogp/articles/<slug>.png`）を再生成してコミットすること（日本語フォントのある環境で実行する）
