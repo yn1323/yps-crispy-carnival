@@ -3,6 +3,19 @@ export type LandingFaq = {
   a: string;
 };
 
+/** `/` と `/faq` で共有するFAQPage構造化データ（表示中の landingFaqs と常に一致させる） */
+export function createFaqPageJsonLd(): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: landingFaqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+}
+
 export const landingFaqs: LandingFaq[] = [
   {
     q: "LINEでシフト提出はできますか？",

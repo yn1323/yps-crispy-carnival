@@ -17,7 +17,7 @@
  *   最終出力は `fs.writeFile` で直接書き込む」方式にしている。
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { chromium, type Page } from "playwright";
@@ -188,11 +188,37 @@ async function listContentSlugs(kind: "articles" | "categories"): Promise<string
   return slugs.filter((slug): slug is string => Boolean(slug)).sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * 記事ルートの og:image / BlogPosting.image が参照する記事別OGP画像が
+ * dist/ (public/ からコピーされる) に存在することを確認する。
+ * `pnpm ogp:articles` の実行漏れのまま新記事を公開するのを防ぐ。
+ */
+async function assertArticleOgpImages(articleSlugs: string[]): Promise<void> {
+  const missing: string[] = [];
+  await Promise.all(
+    articleSlugs.map(async (slug) => {
+      try {
+        await access(join(DIST_DIR, "ogp", "articles", `${slug}.png`));
+      } catch {
+        missing.push(slug);
+      }
+    }),
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[prerender] Missing article OGP image(s) for: ${missing.sort().join(", ")} — run \`pnpm ogp:articles\` and commit public/ogp/articles/`,
+    );
+  }
+}
+
 async function collectPrerenderRoutes(): Promise<string[]> {
   const [articleSlugs, categorySlugs] = await Promise.all([
     listContentSlugs("articles"),
     listContentSlugs("categories"),
   ]);
+
+  await assertArticleOgpImages(articleSlugs);
 
   return Array.from(
     new Set([

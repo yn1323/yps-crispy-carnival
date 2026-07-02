@@ -296,12 +296,17 @@ export function createArticleJsonLd(article: ArticleContent): ArticleJsonLd {
   };
 }
 
+/** パンくずの先頭（記事一覧トップ）。UIの `Breadcrumbs` と同じ並びを構造化データに写す */
+function articlesRootBreadcrumbItem(): BreadcrumbJsonLd["itemListElement"][number] {
+  return { "@type": "ListItem", position: 1, name: sitePage.breadcrumbLabel, item: `${SITE_URL}/articles` };
+}
+
 export function createArticleBreadcrumbJsonLd(article: ArticleContent): BreadcrumbJsonLd {
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: sitePage.breadcrumbLabel, item: `${SITE_URL}/articles` },
+      articlesRootBreadcrumbItem(),
       {
         "@type": "ListItem",
         position: 2,
@@ -318,7 +323,7 @@ export function createCategoryBreadcrumbJsonLd(category: CategoryContent): Bread
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: sitePage.breadcrumbLabel, item: `${SITE_URL}/articles` },
+      articlesRootBreadcrumbItem(),
       { "@type": "ListItem", position: 2, name: category.meta.breadcrumbLabel },
     ],
   };
