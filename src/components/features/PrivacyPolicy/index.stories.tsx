@@ -27,3 +27,25 @@ export const SP: Story = {
     vrt: { releaseFixedHeader: true },
   },
 };
+
+export const StaffPC: Story = {
+  args: {
+    audience: "staff",
+  },
+  parameters: {
+    vrt: { releaseFixedHeader: true },
+  },
+};
+
+export const StaffSP: Story = {
+  args: {
+    audience: "staff",
+  },
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  parameters: {
+    vrt: { releaseFixedHeader: true },
+  },
+};
