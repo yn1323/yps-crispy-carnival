@@ -1,6 +1,6 @@
 import { Box, Heading, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { Footer } from "@/src/components/features/LandingPage";
+import { FooterSection } from "@/src/components/features/NewLandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 type LegalPageProps = {
@@ -32,7 +32,7 @@ export function LegalPage({ title, lastUpdated, children }: LegalPageProps): Rea
         </Text>
         {children}
       </VStack>
-      <Footer />
+      <FooterSection />
     </Box>
   );
 }

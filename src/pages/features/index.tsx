@@ -1,5 +1,7 @@
 import { Box, Container, Link } from "@chakra-ui/react";
-import { BenefitsSection, FeatureSection, FooterSection } from "@/src/components/features/LandingPage";
+import { BenefitsSection } from "@/src/components/features/LandingPage/BenefitsSection";
+import { FeatureSection } from "@/src/components/features/LandingPage/FeatureSection";
+import { FooterSection } from "@/src/components/features/NewLandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 export function FeaturesPage() {

@@ -1,5 +1,5 @@
 import { Accordion, Box, Container, Heading, Text, VStack } from "@chakra-ui/react";
-import { faqs } from "./faqs";
+import { newLandingFaqs } from "@/src/components/features/NewLandingPage/faqs";
 
 type FaqSectionProps = {
   headingAs?: "h1" | "h2";
@@ -25,7 +25,7 @@ export const FaqSection = ({ headingAs = "h2" }: FaqSectionProps) => (
 
         <Accordion.Root collapsible multiple variant="plain" w="full" maxW="980px">
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
-            {faqs.map((faq) => (
+            {newLandingFaqs.map((faq) => (
               <Accordion.Item
                 key={faq.q}
                 value={faq.q}
