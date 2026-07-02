@@ -41,14 +41,44 @@
 
 シフトリは、勤怠管理、給与計算、AIによる自動シフト作成を主目的としたサービスではありません。少人数店舗のシフト希望回収、シフト表作成、スタッフ通知をシンプルに進めるためのサービスです。
 
-記事ページは現在準備中のため、このファイルでは案内しません。
-
 ## リンク
 
 - [サービスサイト](https://shiftori.app/)
 - [できること](https://shiftori.app/features)
 - [よくある質問](https://shiftori.app/faq)
+- [シフト作成ガイド記事一覧](https://shiftori.app/articles)
 - [シフト作成フローのデモ](https://shiftori.app/demo/flow)
 - [シフトボードのデモ](https://shiftori.app/demo/shiftboard)
 - [利用規約](https://shiftori.app/terms)
 - [プライバシーポリシー](https://shiftori.app/privacy)
+
+## シフト作成ガイド記事
+
+小さなお店のシフト管理の困りごとを、4つのカテゴリで整理したガイド記事です。
+
+### シフト希望を集める
+
+- [カテゴリ: シフト希望を集める](https://shiftori.app/articles/categories/shift-request): 提出依頼の文面、回収ルール、未提出確認の工夫
+- [LINEでシフト提出を受け付ける方法](https://shiftori.app/articles/line-shift-submission): そのまま使える依頼文と集計をラクにするコツ
+- [シフト希望表の作り方](https://shiftori.app/articles/shift-request-sheet-template): テンプレート例と集計をラクにするコツ
+- [2交代・3交代シフトの希望の集め方](https://shiftori.app/articles/shift-type-request-guide): 早番・遅番・夜勤を整理する5ステップ
+- [LINEのシフト希望、あとから探していませんか](https://shiftori.app/articles/shiftori-line-workflow): 回収から共有までまとめるコツ
+- [カフェのシフト作成でよくある悩みと解決法](https://shiftori.app/articles/cafe-shift-scheduling-problems): ピーク帯から考える組み方
+
+### シフトを組む
+
+- [カテゴリ: シフトを組む](https://shiftori.app/articles/categories/shift-building): 先に枠を決める手順、公平な割り振りのコツ
+- [シフト作成に何時間もかかる人へ](https://shiftori.app/articles/shift-build-faster): 持ち帰り残業を減らす作成手順の型
+- [シフトの偏り・不公平感をなくす組み方](https://shiftori.app/articles/fair-shift-scheduling): 文句や離職を防ぐルールの作り方
+
+### シフトを無理なく回す
+
+- [カテゴリ: シフトを無理なく回す](https://shiftori.app/articles/categories/shift-operation): 急な欠勤対応、属人化解消、労務ルールの整理
+- [急な欠勤でシフトに穴](https://shiftori.app/articles/sudden-absence-coverage): 当日の穴埋め手順と繰り返さないための段取り
+- [シフトが「自分しか作れない」を抜け出す](https://shiftori.app/articles/shift-handover-rules): 引き継ぎと労務ルールの整理術
+
+### Excel・ツールを見直す
+
+- [カテゴリ: Excel・ツールを見直す](https://shiftori.app/articles/categories/tool-review): Excel運用の限界サインと乗り換えの判断基準
+- [Excelでシフト管理する方法と限界](https://shiftori.app/articles/excel-shift-management-limits): 作り方・便利な関数・卒業のサイン
+- [無料のシフト管理ツールの選び方](https://shiftori.app/articles/free-shift-tool-selection): 個人向け・店舗向けの違いとチェックポイント
