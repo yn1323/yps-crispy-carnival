@@ -48,7 +48,12 @@ export const PricingSection = () => (
       <VStack gap={8}>
         <VStack gap={3} textAlign="center">
           <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            シフト管理は、無料から始められます。
+            <Box as="span" display="inline-block">
+              シフト管理は、
+            </Box>
+            <Box as="span" display="inline-block">
+              無料から始められます。
+            </Box>
           </Heading>
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
             少人数のお店なら無料プランのままでOK。人数や店舗が増えたら、そのまま広げられます。
@@ -90,7 +95,7 @@ const PricingCard = ({
 }) => (
   <Flex
     direction="column"
-    minH="360px"
+    minH={{ base: "auto", md: "360px" }}
     bg="white"
     borderWidth={featured ? "2px" : "1px"}
     borderColor={featured ? "teal.500" : "gray.200"}
@@ -101,7 +106,14 @@ const PricingCard = ({
     <Text color={featured ? "teal.700" : "gray.950"} fontSize="lg" fontWeight="black" lineHeight="1.5">
       {name}
     </Text>
-    <Text mt={3} minH="48px" color="gray.700" fontSize="sm" lineHeight="1.7" fontWeight="semibold">
+    <Text
+      mt={3}
+      minH={{ base: "auto", md: "48px" }}
+      color="gray.700"
+      fontSize="sm"
+      lineHeight="1.7"
+      fontWeight="semibold"
+    >
       {lead}
     </Text>
 

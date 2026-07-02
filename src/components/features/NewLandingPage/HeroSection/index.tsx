@@ -9,6 +9,7 @@ import {
   Image,
   Link,
   SimpleGrid,
+  Stack,
   Text,
   VStack,
 } from "@chakra-ui/react";
@@ -56,16 +57,22 @@ export const HeroSection = () => (
               bg="teal.50"
               color="teal.700"
               borderRadius="full"
-              px={4}
+              px={{ base: 3, md: 4 }}
               py={2}
-              textStyle="sm"
+              textStyle={{ base: "xs", md: "sm" }}
               fontWeight="bold"
+              whiteSpace="nowrap"
             >
-              <Icon as={LuClipboardCheck} boxSize={4} />
+              <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
               小規模店舗向け｜LINEで使える無料のシフト管理
             </Flex>
 
-            <Heading as="h1" fontSize={{ base: "4xl", md: "5xl", xl: "6xl" }} lineHeight="1.18" letterSpacing="0">
+            <Heading
+              as="h1"
+              fontSize={{ base: "3xl", sm: "4xl", md: "5xl", xl: "6xl" }}
+              lineHeight={{ base: "1.3", md: "1.18" }}
+              letterSpacing="0"
+            >
               シフトのやり取りを、
               <Box as="span" display="block" color="teal.600">
                 LINEとメール
@@ -88,16 +95,23 @@ export const HeroSection = () => (
             </Text>
           </VStack>
 
-          <HStack gap={4} flexWrap="wrap">
+          <Stack direction={{ base: "column", sm: "row" }} gap={4} w={{ base: "full", sm: "auto" }} flexWrap="wrap">
             <HeroButton href="/signup" label="無料で試してみる" tone="primary" />
             <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" />
-          </HStack>
+          </Stack>
         </VStack>
 
         <HeroVisual />
       </Grid>
 
-      <SimpleGrid columns={{ base: 2, md: 5 }} gap={5} mt={10} pt={7} borderTopWidth="1px" borderColor="gray.100">
+      <SimpleGrid
+        columns={{ base: 1, sm: 2, md: 5 }}
+        gap={{ base: 3, md: 5 }}
+        mt={10}
+        pt={7}
+        borderTopWidth="1px"
+        borderColor="gray.100"
+      >
         {heroBenefits.map((benefit) => (
           <HeroBenefit key={benefit.label} {...benefit} />
         ))}
@@ -157,8 +171,9 @@ const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: 
       colorPalette="teal"
       variant={isPrimary ? "solid" : "outline"}
       bg={isPrimary ? undefined : "white"}
-      h="64px"
+      h={{ base: "56px", md: "64px" }}
       minW="220px"
+      w={{ base: "full", sm: "auto" }}
       px={8}
       borderRadius="md"
       fontWeight="bold"
@@ -205,8 +220,14 @@ const HeroVisual = () => (
 );
 
 const HeroBenefit = ({ icon, label }: { icon: IconType; label: string }) => (
-  <Flex align="center" justify="center" gap={3} minH="48px" color="gray.800">
-    <Icon as={icon} boxSize={6} color="teal.600" />
+  <Flex
+    align="center"
+    justify={{ base: "flex-start", md: "center" }}
+    gap={3}
+    minH={{ base: "32px", md: "48px" }}
+    color="gray.800"
+  >
+    <Icon as={icon} boxSize={6} color="teal.600" flexShrink={0} />
     <Text fontSize="sm" fontWeight="bold" lineHeight="1.5">
       {label}
     </Text>

@@ -113,6 +113,8 @@ export const FaqArticlesSection = () => (
               color="teal.700"
               fontSize="sm"
               fontWeight="bold"
+              whiteSpace="nowrap"
+              flexShrink={0}
               _hover={{ textDecoration: "none", color: "teal.900" }}
             >
               すべての記事を見る

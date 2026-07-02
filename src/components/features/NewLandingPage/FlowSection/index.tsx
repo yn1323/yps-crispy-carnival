@@ -1,6 +1,6 @@
 import { Box, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuBell, LuChevronRight, LuLaptop, LuMailCheck, LuSmartphone } from "react-icons/lu";
+import { LuBell, LuChevronDown, LuChevronRight, LuLaptop, LuMailCheck, LuSmartphone } from "react-icons/lu";
 
 const flowSteps: Array<{ icon: IconType; title: string; body: string }> = [
   {
@@ -30,10 +30,15 @@ export const FlowSection = () => (
     <Container maxW="7xl">
       <VStack gap={10}>
         <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          毎月のシフト作成が、この4ステップで終わります。
+          <Box as="span" display="inline-block">
+            毎月のシフト作成が、
+          </Box>
+          <Box as="span" display="inline-block">
+            この4ステップで終わります。
+          </Box>
         </Heading>
 
-        <SimpleGrid columns={{ base: 1, md: 4 }} gap={0} w="full">
+        <SimpleGrid columns={{ base: 1, md: 4 }} gap={{ base: 5, md: 0 }} w="full">
           {flowSteps.map((step, index) => (
             <FlowStep key={step.title} number={index + 1} isLast={index === flowSteps.length - 1} {...step} />
           ))}
@@ -81,5 +86,7 @@ const FlowStep = ({
         {body}
       </Text>
     </Box>
+
+    {!isLast && <Icon as={LuChevronDown} hideFrom="md" boxSize={8} mt={1} color="teal.400" />}
   </Flex>
 );

@@ -33,7 +33,12 @@ export const ReliefSection = () => (
     <Container maxW="7xl">
       <VStack gap={9}>
         <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          希望シフトの回収はLINEで。催促は自動リマインドで。
+          <Box as="span" display="inline-block">
+            希望シフトの回収はLINEで。
+          </Box>
+          <Box as="span" display="inline-block">
+            催促は自動リマインドで。
+          </Box>
         </Heading>
 
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={8} w="full">
@@ -47,19 +52,19 @@ export const ReliefSection = () => (
 );
 
 const ReliefCard = ({ icon, title, body }: { icon: IconType; title: string; body: string }) => (
-  <Flex align="center" gap={6}>
+  <Flex align="center" gap={{ base: 4, md: 6 }}>
     <Flex
       align="center"
       justify="center"
       flex="0 0 auto"
-      boxSize={24}
+      boxSize={{ base: 20, md: 24 }}
       bg="teal.50"
       color="teal.600"
       borderRadius="full"
       borderWidth="1px"
       borderColor="teal.100"
     >
-      <Icon as={icon} boxSize={11} />
+      <Icon as={icon} boxSize={{ base: 9, md: 11 }} />
     </Flex>
 
     <Box minW={0}>

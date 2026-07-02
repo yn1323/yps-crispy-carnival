@@ -1,4 +1,5 @@
 import { Badge, Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuCalendarDays, LuCheck, LuClock3, LuMail, LuShieldCheck, LuUsers } from "react-icons/lu";
 import dayImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-day.webp";
@@ -48,7 +49,15 @@ export const SubmissionTypesSection = () => (
       <VStack gap={9}>
         <VStack gap={3} textAlign="center">
           <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            シフト希望表は、お店に合わせて3タイプから選べます。
+            <Box as="span" display="inline-block">
+              シフト希望表は、
+            </Box>
+            <Box as="span" display="inline-block">
+              お店に合わせて
+            </Box>
+            <Box as="span" display="inline-block">
+              3タイプから選べます。
+            </Box>
           </Heading>
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
             スタッフが答えやすい形で集めると、聞き直しや抜け漏れが減ります。
@@ -69,7 +78,16 @@ export const SubmissionTypesSection = () => (
             visual="phone"
           />
           <StaffCard
-            title="LINEの人にはLINE。使わない人にはメール。"
+            title={
+              <>
+                <Box as="span" display="inline-block">
+                  LINEの人にはLINE。
+                </Box>
+                <Box as="span" display="inline-block">
+                  使わない人にはメール。
+                </Box>
+              </>
+            }
             body="連絡手段が混ざるお店でも、ひとつの画面から送れます。"
             items={channelItems}
             visual="channel"
@@ -139,7 +157,7 @@ const StaffCard = ({
   items,
   visual,
 }: {
-  title: string;
+  title: ReactNode;
   body: string;
   items: string[];
   visual: "phone" | "channel";

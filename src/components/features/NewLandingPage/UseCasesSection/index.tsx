@@ -29,13 +29,18 @@ export const UseCasesSection = () => (
       <VStack align="stretch" gap={12}>
         <VStack align="stretch" gap={5}>
           <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            いろいろなお店で使われています。
+            <Box as="span" display="inline-block">
+              いろいろなお店で
+            </Box>
+            <Box as="span" display="inline-block">
+              使われています。
+            </Box>
           </Heading>
-          <SimpleGrid columns={{ base: 2, md: 5, lg: 5 }} gap={4}>
+          <Flex wrap="wrap" justify="center" rowGap={4} columnGap={{ base: 2, md: 4 }}>
             {industries.map((industry) => (
               <IndustryItem key={industry.label} {...industry} />
             ))}
-          </SimpleGrid>
+          </Flex>
           <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
             ランチ・ディナー、平日・週末、早番・遅番、短期スタッフなど、お店のシフトの組み方に合わせて使えます。
           </Text>
@@ -60,7 +65,14 @@ export const UseCasesSection = () => (
 );
 
 const IndustryItem = ({ icon, label }: { icon: IconType; label: string }) => (
-  <Flex direction="column" align="center" gap={3} minH="112px" justify="center">
+  <Flex
+    direction="column"
+    align="center"
+    gap={3}
+    minH={{ base: "88px", md: "112px" }}
+    justify="center"
+    w={{ base: "30%", md: "18%" }}
+  >
     <Icon as={icon} boxSize={10} color="gray.800" strokeWidth={1.7} />
     <Text color="gray.950" fontSize="sm" fontWeight="bold" textAlign="center" lineHeight="1.5">
       {label}
