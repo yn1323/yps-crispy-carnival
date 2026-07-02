@@ -1,5 +1,6 @@
-import { Box, Container, Flex, Heading, Icon, Table, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, Table, Text, VStack } from "@chakra-ui/react";
 import { LuArrowDown } from "react-icons/lu";
+import { SectionHeading } from "../SectionHeading";
 
 const comparisonRows = [
   {
@@ -28,14 +29,7 @@ export const ComparisonSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
       <VStack gap={7}>
-        <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          <Box as="span" display="inline-block">
-            紙・Excel・LINEグループの
-          </Box>
-          <Box as="span" display="inline-block">
-            シフト管理を、ひとつに。
-          </Box>
-        </Heading>
+        <SectionHeading phrases={["紙・Excel・LINEグループの", "シフト管理を、ひとつに。"]} textAlign="center" />
 
         <ComparisonTable />
         <ComparisonCards />

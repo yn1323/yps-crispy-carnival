@@ -1,21 +1,9 @@
-import {
-  Accordion,
-  Badge,
-  Box,
-  Container,
-  Flex,
-  Heading,
-  Icon,
-  Image,
-  Link,
-  SimpleGrid,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Accordion, Badge, Box, Container, Flex, Icon, Image, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleContent } from "@/src/components/features/ArticleSite/articleContent";
 import { articles } from "@/src/components/features/ArticleSite/articleContent";
+import { SectionHeading } from "../SectionHeading";
 
 const faqs = [
   {
@@ -64,9 +52,7 @@ export const FaqArticlesSection = () => (
     <Container maxW="7xl">
       <VStack align="stretch" gap={12}>
         <Box id="faq">
-          <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            よくある質問
-          </Heading>
+          <SectionHeading phrases={["よくある質問"]} />
           <Accordion.Root collapsible multiple variant="plain" mt={5}>
             <VStack align="stretch" gap={2.5}>
               {faqs.map((faq) => (
@@ -101,9 +87,7 @@ export const FaqArticlesSection = () => (
         <Box id="articles">
           <Flex align="end" justify="space-between" gap={5} mb={5}>
             <Box>
-              <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-                お役立ち記事
-              </Heading>
+              <SectionHeading phrases={["お役立ち記事"]} />
               <Text mt={2} color="gray.700" fontSize="sm" lineHeight="1.7" fontWeight="semibold">
                 シフト管理に役立つノウハウを公開中
               </Text>

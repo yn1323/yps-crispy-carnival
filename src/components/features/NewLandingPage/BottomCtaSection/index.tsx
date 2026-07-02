@@ -19,7 +19,7 @@ export const BottomCtaSection = () => (
           <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
             希望シフトを集めるところから、確定を知らせるところまで。まずは無料で、毎月のシフト連絡をラクにしませんか。
           </Text>
-          <Stack direction={{ base: "column", sm: "row" }} gap={4} w={{ base: "full", sm: "auto" }} flexWrap="wrap">
+          <Stack direction={{ base: "column", sm: "row" }} gap={4} w={{ base: "full", sm: "auto" }}>
             <BottomButton href="/signup" label="無料で試してみる" primary />
             <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
           </Stack>
@@ -52,8 +52,8 @@ const MobileVisual = () => (
       <ChannelPill icon={LuMail} label="メール" />
     </HStack>
     <Flex align="end" justify="center" gap={5}>
-      <Image src={makerImage} alt="シフトを作る人のイメージ" w="132px" objectFit="contain" />
-      <Image src={userImage} alt="シフトを提出する人のイメージ" w="132px" objectFit="contain" />
+      <Image src={makerImage} alt="シフトを作る人のイメージ" w="128px" objectFit="contain" />
+      <Image src={userImage} alt="シフトを提出する人のイメージ" w="128px" objectFit="contain" />
     </Flex>
   </VStack>
 );

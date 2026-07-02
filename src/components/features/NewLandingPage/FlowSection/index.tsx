@@ -1,6 +1,7 @@
-import { Box, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuBell, LuChevronDown, LuChevronRight, LuLaptop, LuMailCheck, LuSmartphone } from "react-icons/lu";
+import { SectionHeading } from "../SectionHeading";
 
 const flowSteps: Array<{ icon: IconType; title: string; body: string }> = [
   {
@@ -29,14 +30,7 @@ export const FlowSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
       <VStack gap={10}>
-        <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          <Box as="span" display="inline-block">
-            毎月のシフト作成が、
-          </Box>
-          <Box as="span" display="inline-block">
-            この4ステップで終わります。
-          </Box>
-        </Heading>
+        <SectionHeading phrases={["毎月のシフト作成が、", "この4ステップで終わります。"]} textAlign="center" />
 
         <SimpleGrid columns={{ base: 1, md: 4 }} gap={{ base: 5, md: 0 }} w="full">
           {flowSteps.map((step, index) => (

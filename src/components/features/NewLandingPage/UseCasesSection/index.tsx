@@ -1,6 +1,7 @@
-import { Box, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuBot, LuBuilding2, LuHouse, LuScissors, LuShoppingCart, LuUsers, LuUtensils } from "react-icons/lu";
+import { SectionHeading } from "../SectionHeading";
 
 const industries: Array<{ icon: IconType; label: string }> = [
   { icon: LuUtensils, label: "飲食店" },
@@ -28,14 +29,7 @@ export const UseCasesSection = () => (
     <Container maxW="7xl">
       <VStack align="stretch" gap={12}>
         <VStack align="stretch" gap={5}>
-          <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            <Box as="span" display="inline-block">
-              いろいろなお店で
-            </Box>
-            <Box as="span" display="inline-block">
-              使われています。
-            </Box>
-          </Heading>
+          <SectionHeading phrases={["いろいろなお店で", "使われています。"]} />
           <Flex wrap="wrap" justify="center" rowGap={4} columnGap={{ base: 2, md: 4 }}>
             {industries.map((industry) => (
               <IndustryItem key={industry.label} {...industry} />
@@ -47,9 +41,7 @@ export const UseCasesSection = () => (
         </VStack>
 
         <VStack align="stretch" gap={5}>
-          <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            有料プランで、さらに便利に。
-          </Heading>
+          <SectionHeading phrases={["有料プランで、", "さらに便利に。"]} />
           <SimpleGrid columns={{ base: 1, md: 2 }} gap={5}>
             {paidFeatures.map((feature) => (
               <PaidFeatureCard key={feature.title} {...feature} />

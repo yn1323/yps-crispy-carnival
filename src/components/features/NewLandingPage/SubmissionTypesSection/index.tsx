@@ -5,6 +5,7 @@ import { LuCalendarDays, LuCheck, LuClock3, LuMail, LuShieldCheck, LuUsers } fro
 import dayImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-day.webp";
 import selectionImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-selection.webp";
 import timeImage from "../../LandingPage/SubmissionMethodsSection/function-shift-by-time.webp";
+import { SectionHeading } from "../SectionHeading";
 
 const submissionTypes: Array<{
   icon: IconType;
@@ -48,17 +49,7 @@ export const SubmissionTypesSection = () => (
     <Container maxW="7xl">
       <VStack gap={9}>
         <VStack gap={3} textAlign="center">
-          <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            <Box as="span" display="inline-block">
-              シフト希望表は、
-            </Box>
-            <Box as="span" display="inline-block">
-              お店に合わせて
-            </Box>
-            <Box as="span" display="inline-block">
-              3タイプから選べます。
-            </Box>
-          </Heading>
+          <SectionHeading phrases={["シフト希望表は、", "お店に合わせて", "3タイプから選べます。"]} />
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
             スタッフが答えやすい形で集めると、聞き直しや抜け漏れが減ります。
           </Text>

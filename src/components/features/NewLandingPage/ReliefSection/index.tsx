@@ -1,6 +1,7 @@
-import { Box, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuBell, LuMessageCircle, LuSend } from "react-icons/lu";
+import { SectionHeading } from "../SectionHeading";
 
 const reliefItems: Array<{ icon: IconType; title: string; body: string }> = [
   {
@@ -32,14 +33,7 @@ export const ReliefSection = () => (
   >
     <Container maxW="7xl">
       <VStack gap={9}>
-        <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          <Box as="span" display="inline-block">
-            希望シフトの回収はLINEで。
-          </Box>
-          <Box as="span" display="inline-block">
-            催促は自動リマインドで。
-          </Box>
-        </Heading>
+        <SectionHeading phrases={["希望シフトの回収はLINEで。", "催促は自動リマインドで。"]} textAlign="center" />
 
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={8} w="full">
           {reliefItems.map((item) => (

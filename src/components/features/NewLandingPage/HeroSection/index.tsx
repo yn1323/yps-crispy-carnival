@@ -61,7 +61,6 @@ export const HeroSection = () => (
               py={2}
               textStyle={{ base: "xs", md: "sm" }}
               fontWeight="bold"
-              whiteSpace="nowrap"
             >
               <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
               小規模店舗向け｜LINEで使える無料のシフト管理
@@ -95,7 +94,7 @@ export const HeroSection = () => (
             </Text>
           </VStack>
 
-          <Stack direction={{ base: "column", sm: "row" }} gap={4} w={{ base: "full", sm: "auto" }} flexWrap="wrap">
+          <Stack direction={{ base: "column", sm: "row" }} gap={4} w={{ base: "full", sm: "auto" }}>
             <HeroButton href="/signup" label="無料で試してみる" tone="primary" />
             <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" />
           </Stack>
