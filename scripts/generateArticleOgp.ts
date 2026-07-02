@@ -169,7 +169,8 @@ async function main(): Promise<void> {
   try {
     for (const source of sources) {
       await page.setContent(buildTemplate(source, logoDataUri), { waitUntil: "load" });
-      await page.evaluate(() => document.fonts.ready);
+      // FontFaceSet はシリアライズ不能なため undefined に変換して待つ
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
       const outPath = join(OUTPUT_DIR, `${source.slug}.png`);
       await page.screenshot({ path: outPath, type: "png" });
       console.log(`[ogp] Wrote ${outPath}`);
