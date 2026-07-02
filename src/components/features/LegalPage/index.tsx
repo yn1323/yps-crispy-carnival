@@ -1,7 +1,7 @@
 import { Box, Heading, Link, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import type { LegalDocumentInfo } from "@/convex/legal/documents";
-import { Footer } from "@/src/components/features/LandingPage";
+import { FooterSection } from "@/src/components/features/LandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import type { MarkdownBlock } from "@/src/helpers/markdown";
 import type { LegalDocumentContent, LegalSection } from "./legalContent";
@@ -35,7 +35,7 @@ export function LegalPage({ title, lastUpdated, children }: LegalPageProps): Rea
         </Text>
         {children}
       </VStack>
-      <Footer />
+      <FooterSection />
     </Box>
   );
 }

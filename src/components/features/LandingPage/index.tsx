@@ -1,37 +1,40 @@
 import { Box } from "@chakra-ui/react";
-import { ArticlePreviewSection } from "./ArticlePreviewSection";
-import { BenefitsSection } from "./BenefitsSection";
-import { CtaSection } from "./CtaSection";
-import { FaqSection } from "./FaqSection";
-import { FeatureSection } from "./FeatureSection";
+import { Header } from "@/src/components/templates/Header";
+import { BottomCtaSection } from "./BottomCtaSection";
+import { ComparisonSection } from "./ComparisonSection";
+import { FaqArticlesSection } from "./FaqArticlesSection";
+import { FlowSection } from "./FlowSection";
 import { FooterSection } from "./FooterSection";
 import { HeroSection } from "./HeroSection";
-import { ProblemSection } from "./ProblemSection";
-import { SubmissionMethodsSection } from "./SubmissionMethodsSection";
+import { PricingSection } from "./PricingSection";
+import { ReliefSection } from "./ReliefSection";
+import { SubmissionTypesSection } from "./SubmissionTypesSection";
+import { UseCasesSection } from "./UseCasesSection";
 
 export const LandingPage = () => (
-  <Box bg="white" color="fg">
+  <Box bg="white" color="gray.950">
+    <Header variant="public" position="sticky" />
     <HeroSection />
-    <ProblemSection />
-    <FeatureSection />
-    <SubmissionMethodsSection />
-    <BenefitsSection />
-    <CtaSection />
-    <ArticlePreviewSection />
-    <FaqSection />
+    <ReliefSection />
+    <FlowSection />
+    <SubmissionTypesSection />
+    <ComparisonSection />
+    <UseCasesSection />
+    <FaqArticlesSection />
+    <BottomCtaSection />
     <FooterSection />
   </Box>
 );
 
 export {
-  ArticlePreviewSection,
-  BenefitsSection,
-  CtaSection,
-  FaqSection,
-  FeatureSection,
+  BottomCtaSection,
+  ComparisonSection,
+  FaqArticlesSection,
+  FlowSection,
   FooterSection,
-  FooterSection as Footer,
   HeroSection,
-  ProblemSection,
-  SubmissionMethodsSection,
+  PricingSection,
+  ReliefSection,
+  SubmissionTypesSection,
+  UseCasesSection,
 };
