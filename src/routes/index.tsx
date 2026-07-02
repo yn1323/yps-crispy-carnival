@@ -8,9 +8,9 @@ export const Route = createFileRoute("/")({
     links: buildLinks({ canonical: "/" }),
     meta: [
       ...buildMeta({
-        title: "シフトリ｜LINEでシフト希望を集める無料シフト管理ツール",
+        title: "LINEでシフト希望を集める無料シフト管理｜シフトリ",
         description:
-          "LINEでスタッフにシフト希望を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。アプリ不要で、小さなお店でもかんたんに始められるシフト管理ツールです。",
+          "LINEやメールのリンクからスタッフはアプリ登録なしでシフト希望を提出。自動集計・未提出リマインド・確定シフトの共有まで無料。5〜30名の小規模店舗向けシフト管理ツール。",
         canonical: "/",
       }),
       ...jsonLdMeta({

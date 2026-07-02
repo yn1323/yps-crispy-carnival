@@ -38,7 +38,12 @@ type BuildMetaOptions = {
  * - Adds `robots: noindex, nofollow` when `noindex` is set
  */
 export const buildMeta = ({ title, description, noindex, canonical }: BuildMetaOptions): MetaList => {
-  const hasSiteName = title === SITE_NAME || title.startsWith(`${SITE_NAME}｜`) || title.startsWith(`${SITE_NAME} | `);
+  const hasSiteName =
+    title === SITE_NAME ||
+    title.startsWith(`${SITE_NAME}｜`) ||
+    title.startsWith(`${SITE_NAME} | `) ||
+    title.endsWith(`｜${SITE_NAME}`) ||
+    title.endsWith(` | ${SITE_NAME}`);
   const fullTitle = hasSiteName ? title : `${title} | ${SITE_NAME}`;
   const entries: MetaEntry[] = [
     { title: fullTitle },
