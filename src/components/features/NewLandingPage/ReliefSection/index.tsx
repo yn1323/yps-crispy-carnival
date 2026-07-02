@@ -5,18 +5,18 @@ import { LuBell, LuMessageCircle, LuSend } from "react-icons/lu";
 const reliefItems: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuMessageCircle,
-    title: "LINEで希望回収",
-    body: "LINE・メールで提出リンクを送信。スタッフはリンクからかんたんに提出できます。",
+    title: "LINEで希望シフトを回収",
+    body: "提出リンクをLINEやメールで送るだけ。スタッフはアプリを入れずに、スマホから希望を出せます。",
   },
   {
     icon: LuBell,
     title: "自動リマインド",
-    body: "未提出者へ自動でお知らせ。店長が個別に確認する手間を減らします。",
+    body: "出していない人にだけ、自動でお知らせが届きます。「シフトまだ？」と個別に聞いて回る手間が減ります。",
   },
   {
     icon: LuSend,
     title: "確定シフトを自動共有",
-    body: "確定したシフトをLINE・メールで共有。「見てない」を防ぎます。",
+    body: "確定したシフトは、そのままLINE・メールで全員へ。「見てなかった」を防げます。",
   },
 ];
 
@@ -33,7 +33,7 @@ export const ReliefSection = () => (
     <Container maxW="7xl">
       <VStack gap={9}>
         <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          LINEで希望シフトを回収し、未提出者に自動リマインド。
+          希望シフトの回収はLINEで。催促は自動リマインドで。
         </Heading>
 
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={8} w="full">

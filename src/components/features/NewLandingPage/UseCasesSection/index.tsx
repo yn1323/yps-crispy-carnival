@@ -13,13 +13,13 @@ const industries: Array<{ icon: IconType; label: string }> = [
 const paidFeatures: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuBuilding2,
-    title: "複数店舗・複数マネージャー管理",
-    body: "複数店舗のシフトをまとめて管理。役割を分担して運用できます。",
+    title: "複数店舗のシフト管理",
+    body: "複数店舗のシフトをひとつの画面でまとめて管理。店舗ごとにマネージャーを分けて運用できます。",
   },
   {
     icon: LuBot,
     title: "AIシフト作成（たたき台）",
-    body: "集まった希望からAIがシフトのたたき台を作成。調整がラクに。",
+    body: "集まった希望シフトから、AIがたたき台を自動作成。仕上げの調整に集中できます。",
   },
 ];
 

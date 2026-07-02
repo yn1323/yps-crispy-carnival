@@ -26,16 +26,16 @@ const plans = [
     lead: "複数店舗・複数マネージャーで使いたいお店に。",
     price: "¥2,980",
     suffix: "/月〜",
-    features: ["複数店舗の一元管理", "権限・マネージャー管理"],
+    features: ["複数店舗のシフトをまとめて管理", "権限・マネージャー管理"],
     cta: "プランを見る",
     href: "#pricing",
   },
   {
     name: "AIシフト作成オプション",
-    lead: "集まった希望からAIがシフトのたたき台を作成。",
+    lead: "集まった希望シフトから、AIがたたき台を自動作成。",
     price: "+¥980",
     suffix: "/月〜",
-    features: ["AIが割当案を自動生成", "調整の時間を大幅に削減"],
+    features: ["AIが割当案を自動作成", "調整の時間を短縮"],
     cta: "オプションを追加",
     href: "#pricing",
     featured: true,
@@ -48,10 +48,10 @@ export const PricingSection = () => (
       <VStack gap={8}>
         <VStack gap={3} textAlign="center">
           <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            無料で始めて、人数や店舗数に合わせて広げられます。
+            シフト管理は、無料から始められます。
           </Heading>
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            小さく試して、必要になった分だけ拡張できます。
+            少人数のお店なら無料プランのままでOK。人数や店舗が増えたら、そのまま広げられます。
           </Text>
         </VStack>
 

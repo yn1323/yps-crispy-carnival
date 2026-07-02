@@ -65,7 +65,7 @@ export const ComparisonSection = () => (
         </Box>
 
         <Text color="gray.600" fontSize="sm" textAlign="center" lineHeight="1.8">
-          連絡場所を増やさず、提出状況と確定共有を同じ画面で扱えます。
+          連絡する場所を増やさずに、誰が出したかの確認も、確定の連絡も、同じ画面でできます。
         </Text>
       </VStack>
     </Container>
