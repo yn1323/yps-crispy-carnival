@@ -6,6 +6,7 @@ import {
   parsePositiveInteger,
   splitList,
 } from "@/src/helpers/markdown";
+import { SITE_URL } from "@/src/helpers/seo";
 
 export type {
   MarkdownBlock,
@@ -96,13 +97,33 @@ export type ArticleJsonLd = {
   "@type": "BlogPosting";
   headline: string;
   description: string;
+  image: string;
   datePublished: string;
   dateModified: string;
   author: {
     "@type": "Organization";
     name: string;
   };
+  publisher: {
+    "@type": "Organization";
+    name: string;
+    logo: {
+      "@type": "ImageObject";
+      url: string;
+    };
+  };
   mainEntityOfPage: string;
+};
+
+export type BreadcrumbJsonLd = {
+  "@context": "https://schema.org";
+  "@type": "BreadcrumbList";
+  itemListElement: {
+    "@type": "ListItem";
+    position: number;
+    name: string;
+    item?: string;
+  }[];
 };
 
 const pageModules = import.meta.glob<string>("./content/pages/*.md", {
@@ -245,19 +266,61 @@ export function getRepresentativeArticle(category: CategoryContent | undefined):
   return getArticle(category.meta.representativeSlug) ?? getArticlesByCategory(category.meta.slug)[0];
 }
 
+/** 記事別OGP画像のサイトルート相対パス。`pnpm ogp:articles` が同じ場所に生成する。 */
+export function getArticleOgpImagePath(slug: string): string {
+  return `/ogp/articles/${slug}.png`;
+}
+
 export function createArticleJsonLd(article: ArticleContent): ArticleJsonLd {
   return {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: article.meta.ogTitle,
     description: article.meta.ogDescription,
+    image: `${SITE_URL}${getArticleOgpImagePath(article.meta.slug)}`,
     datePublished: article.meta.publishedAt,
     dateModified: article.meta.updatedAt ?? article.meta.publishedAt,
     author: {
       "@type": "Organization",
       name: article.meta.author,
     },
-    mainEntityOfPage: article.meta.canonicalPath,
+    publisher: {
+      "@type": "Organization",
+      name: "シフトリ",
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/logo512.png`,
+      },
+    },
+    mainEntityOfPage: `${SITE_URL}${article.meta.canonicalPath}`,
+  };
+}
+
+export function createArticleBreadcrumbJsonLd(article: ArticleContent): BreadcrumbJsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: sitePage.breadcrumbLabel, item: `${SITE_URL}/articles` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: article.meta.categoryLabel,
+        item: `${SITE_URL}/articles/categories/${article.meta.categorySlug}`,
+      },
+      { "@type": "ListItem", position: 3, name: article.meta.title },
+    ],
+  };
+}
+
+export function createCategoryBreadcrumbJsonLd(category: CategoryContent): BreadcrumbJsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: sitePage.breadcrumbLabel, item: `${SITE_URL}/articles` },
+      { "@type": "ListItem", position: 2, name: category.meta.breadcrumbLabel },
+    ],
   };
 }
 

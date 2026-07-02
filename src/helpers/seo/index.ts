@@ -11,7 +11,7 @@
 import type { JSX } from "react";
 
 const SITE_NAME = "シフトリ";
-const SITE_URL = "https://shiftori.app";
+export const SITE_URL = "https://shiftori.app";
 
 type MetaList = NonNullable<JSX.IntrinsicElements["meta"]>[];
 type LinkList = NonNullable<JSX.IntrinsicElements["link"]>[];
@@ -29,6 +29,14 @@ type BuildMetaOptions = {
   noindex?: boolean;
   /** Canonical path (e.g. "/terms"). Adds `og:url`. */
   canonical?: string;
+  /** og:type override. Omit to keep the static `website` from index.html. */
+  ogType?: "article";
+  /**
+   * Page-specific OGP image. Omit to keep the static /ogp.png from index.html.
+   * `path` is a site-absolute path to a 1200x630 PNG (og:image:width/height/type
+   * in index.html stay valid, so only the URL/alt tags are overridden).
+   */
+  ogImage?: { path: string; alt: string };
 };
 
 /**
@@ -37,7 +45,7 @@ type BuildMetaOptions = {
  * - Mirrors title/description to Open Graph and Twitter Card tags
  * - Adds `robots: noindex, nofollow` when `noindex` is set
  */
-export const buildMeta = ({ title, description, noindex, canonical }: BuildMetaOptions): MetaList => {
+export const buildMeta = ({ title, description, noindex, canonical, ogType, ogImage }: BuildMetaOptions): MetaList => {
   const hasSiteName = title === SITE_NAME || title.startsWith(`${SITE_NAME}｜`) || title.startsWith(`${SITE_NAME} | `);
   const fullTitle = hasSiteName ? title : `${title} | ${SITE_NAME}`;
   const entries: MetaEntry[] = [
@@ -54,6 +62,19 @@ export const buildMeta = ({ title, description, noindex, canonical }: BuildMetaO
 
   if (canonical) {
     entries.push({ property: "og:url", content: `${SITE_URL}${canonical}` });
+  }
+
+  if (ogType) {
+    entries.push({ property: "og:type", content: ogType });
+  }
+
+  if (ogImage) {
+    const imageUrl = `${SITE_URL}${ogImage.path}`;
+    entries.push({ property: "og:image", content: imageUrl });
+    entries.push({ property: "og:image:secure_url", content: imageUrl });
+    entries.push({ property: "og:image:alt", content: ogImage.alt });
+    entries.push({ name: "twitter:image", content: imageUrl });
+    entries.push({ name: "twitter:image:alt", content: ogImage.alt });
   }
 
   if (noindex) {

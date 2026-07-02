@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  createArticleBreadcrumbJsonLd,
   createArticleJsonLd,
+  createCategoryBreadcrumbJsonLd,
   getArticle,
+  getArticleOgpImagePath,
   getRepresentativeArticle,
   parseArticleMarkdown,
   parseCategoryMarkdown,
@@ -210,7 +213,49 @@ describe("ArticleSite markdown content", () => {
       "@type": "BlogPosting",
       headline: "LINEでシフト希望を集めるときに起きやすい困りごと",
       dateModified: "2026-05-21",
-      mainEntityOfPage: "/articles/line-shift-collection-guide",
+      image: "https://shiftori.app/ogp/articles/line-shift-collection-guide.png",
+      publisher: {
+        "@type": "Organization",
+        name: "シフトリ",
+        logo: { "@type": "ImageObject", url: "https://shiftori.app/logo512.png" },
+      },
+      mainEntityOfPage: "https://shiftori.app/articles/line-shift-collection-guide",
+    });
+  });
+
+  it("記事別OGP画像のパスを組み立てられる", () => {
+    expect(getArticleOgpImagePath("line-shift-submission")).toBe("/ogp/articles/line-shift-submission.png");
+  });
+
+  it("記事ページのパンくず structured data を作れる", () => {
+    const article = parseArticleMarkdown(articleMarkdown, "line-shift-collection-guide");
+
+    expect(createArticleBreadcrumbJsonLd(article)).toEqual({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "お役立ち情報", item: "https://shiftori.app/articles" },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "シフト希望の回収",
+          item: "https://shiftori.app/articles/categories/shift-request",
+        },
+        { "@type": "ListItem", position: 3, name: "LINEでシフト希望を集めるときに起きやすい困りごと" },
+      ],
+    });
+  });
+
+  it("カテゴリページのパンくず structured data を作れる", () => {
+    const category = parseCategoryMarkdown(categoryMarkdown, "shift-request");
+
+    expect(createCategoryBreadcrumbJsonLd(category)).toEqual({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "お役立ち情報", item: "https://shiftori.app/articles" },
+        { "@type": "ListItem", position: 2, name: "LINEでシフト希望を集める" },
+      ],
     });
   });
 

@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArticlePage } from "@/src/components/features/ArticleSite";
-import { getArticle } from "@/src/components/features/ArticleSite/articleContent";
+import {
+  createArticleBreadcrumbJsonLd,
+  createArticleJsonLd,
+  getArticle,
+  getArticleOgpImagePath,
+} from "@/src/components/features/ArticleSite/articleContent";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles/$slug")({
@@ -20,20 +25,11 @@ export const Route = createFileRoute("/articles/$slug")({
           title: article.meta.ogTitle,
           description: article.meta.ogDescription,
           canonical: article.meta.canonicalPath,
+          ogType: "article",
+          ogImage: { path: getArticleOgpImagePath(article.meta.slug), alt: article.meta.title },
         }),
-        ...jsonLdMeta({
-          "@context": "https://schema.org",
-          "@type": "BlogPosting",
-          headline: article.meta.ogTitle,
-          description: article.meta.ogDescription,
-          datePublished: article.meta.publishedAt,
-          dateModified: article.meta.updatedAt ?? article.meta.publishedAt,
-          author: {
-            "@type": "Organization",
-            name: article.meta.author,
-          },
-          mainEntityOfPage: article.meta.canonicalPath,
-        }),
+        ...jsonLdMeta(createArticleJsonLd(article)),
+        ...jsonLdMeta(createArticleBreadcrumbJsonLd(article)),
       ],
     };
   },
