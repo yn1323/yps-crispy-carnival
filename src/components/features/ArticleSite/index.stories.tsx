@@ -9,6 +9,7 @@ const meta = {
   },
   parameters: {
     layout: "fullscreen",
+    vrt: { releaseFixedHeader: true },
   },
 } satisfies Meta<typeof ArticlePage>;
 

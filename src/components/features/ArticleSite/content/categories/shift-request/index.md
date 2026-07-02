@@ -7,7 +7,7 @@ pointTitle: "このカテゴリのポイント"
 pointDescription: "LINE・紙・Excelのどれで集めるにしても、依頼文・締切・記入形式・勤務区分の名前を先にそろえておくと、あとからの聞き直しや転記の手間を減らせます。"
 concerns: "提出依頼がトークに流れて見逃される, 早番・遅番・夜勤など希望の書き方がバラバラになる, 途中で出した変更がどれなのか分かりにくくなる, 未提出者や不足しそうな時間帯を把握しづらい"
 representativeSlug: "shift-type-request-guide"
-relatedConcernSlugs: "shift-building, shift-operation"
+relatedConcernSlugs: "shift-building, shift-operation, tool-review"
 ctaTitle: "集めたシフト希望を、一覧で確認しませんか？"
 ctaDescription: "シフトリなら、提出状況の確認や未提出者へのリマインドもまとめてかんたんに行えます。"
 ---

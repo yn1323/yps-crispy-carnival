@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ArticlePreviewSection } from ".";
+import { FaqArticlesSection } from ".";
 
 const meta = {
-  title: "Features/LandingPage/ArticlePreviewSection",
-  component: ArticlePreviewSection,
+  title: "Features/LandingPage/FaqArticlesSection",
+  component: FaqArticlesSection,
   parameters: {
     layout: "fullscreen",
   },
-} satisfies Meta<typeof ArticlePreviewSection>;
+} satisfies Meta<typeof FaqArticlesSection>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

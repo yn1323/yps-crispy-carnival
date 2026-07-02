@@ -80,8 +80,10 @@ test.describe("ログイン周り", () => {
 
     await test.step("Step 2: ダッシュボードへ強制遷移せずLPが表示される", async () => {
       await expect(page).toHaveURL(/\/$/);
-      await expect(page.getByRole("heading", { level: 1, name: /かんたんシフト管理/ })).toBeVisible();
-      await expect(page.getByRole("link", { name: "無料ではじめる" }).first()).toBeVisible();
+      await expect(
+        page.getByRole("heading", { level: 1, name: /シフトのやり取りを\s*LINEやメール\s*でひとつに/ }),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "無料で試してみる" }).first()).toBeVisible();
       await expect(page.getByRole("link", { name: "ログイン" }).first()).toBeVisible();
     });
   });
