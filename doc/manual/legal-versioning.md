@@ -17,10 +17,12 @@
 - `documentVersion`: 本文を更新したら上げる版
 - `requiredConsentVersion`: 再同意が必要な変更の時だけ上げる版
 
-文書本文は以下を更新します。
+文書本文は以下のMarkdownを更新します（frontmatterの `lastUpdated` も忘れずに）。
 
-- 利用規約: `src/components/features/Terms/index.tsx`
-- プライバシーポリシー: `src/components/features/PrivacyPolicy/index.tsx`
+- 利用規約: `src/components/features/Terms/content/manager.md` / `staff.md`
+- プライバシーポリシー: `src/components/features/PrivacyPolicy/content/manager.md` / `staff.md`
+
+画面タイトルと最終更新日はMarkdownのfrontmatter（`title` / `lastUpdated`）から表示されます。文書バージョンは `convex/legal/documents.ts` の `documentVersion` が自動で本文末尾に表示されるため、Markdown側に書く必要はありません。
 
 ## 軽微な修正の場合
 
