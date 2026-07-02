@@ -7,6 +7,7 @@
   "scripts": {
     "build": "vite build && tsc",
     "prerender": "tsx scripts/prerender.ts",
+    "ogp:articles": "tsx scripts/generateArticleOgp.ts",
     "dev": "vite --port 3000",
     "dev:ngrok": "concurrently -n dev,ngrok -c blue,cyan \"vite --port 3000 --host 0.0.0.0\" \"tsx scripts/startNgrok.ts\"",
     "dev:all": "concurrently -n dev,convex,storybook -c blue,green,magenta \"pnpm dev\" \"pnpm convex:dev\" \"pnpm storybook\"",
