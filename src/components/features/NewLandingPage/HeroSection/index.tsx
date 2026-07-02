@@ -35,7 +35,7 @@ const navItems = [
 ];
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
-  { icon: LuMessageCircle, label: "LINEで希望回収" },
+  { icon: LuMessageCircle, label: "LINEで希望シフト回収" },
   { icon: LuBell, label: "自動リマインド" },
   { icon: LuMousePointerClick, label: "アプリ不要" },
   { icon: LuSmartphone, label: "スマホでも作成OK" },
@@ -62,7 +62,7 @@ export const HeroSection = () => (
               fontWeight="bold"
             >
               <Icon as={LuClipboardCheck} boxSize={4} />
-              小規模店舗向け｜LINEで使える無料シフト管理
+              小規模店舗向け｜LINEで使える無料のシフト管理
             </Flex>
 
             <Heading as="h1" fontSize={{ base: "4xl", md: "5xl", xl: "6xl" }} lineHeight="1.18" letterSpacing="0">
@@ -83,8 +83,8 @@ export const HeroSection = () => (
               lineHeight="1.9"
               fontWeight="semibold"
             >
-              希望シフトの回収、未提出者への自動リマインド、シフト調整、確定共有までまとめてラクに。
-              小規模店舗の店長を、毎月のシフト連絡作業から解放します。
+              希望シフトを集めて、出していない人に声をかけて、決まったら知らせる。
+              毎月くり返すその連絡を、シフトリがまとめて引き受けます。スタッフはアプリ不要、無料で始められます。
             </Text>
           </VStack>
 

@@ -17,7 +17,7 @@ export const BottomCtaSection = () => (
             </Box>
           </Heading>
           <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
-            希望回収、未提出リマインド、確定共有まで。まずは無料で、毎月のシフト連絡をラクにしましょう。
+            希望シフトを集めるところから、確定を知らせるところまで。まずは無料で、毎月のシフト連絡をラクにしませんか。
           </Text>
           <Flex gap={4} flexWrap="wrap">
             <BottomButton href="/signup" label="無料で試してみる" primary />
