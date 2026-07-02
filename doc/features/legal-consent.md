@@ -9,7 +9,8 @@
 - `convex/schema.ts` — `legalConsentTokens` / `legalConsentEvents` と `users` / `staffs` の最新同意トップレベル項目
 - `src/components/features/StaffLegalConsent/ConsentPage/` — スタッフ同意ページ UI
 - `src/components/features/Dashboard/LegalReconsentBanner/` — 管理ユーザー再同意バナー
-- `src/components/features/Terms/` / `src/components/features/PrivacyPolicy/` — 管理ユーザー/スタッフ向け法務文書
+- `src/components/features/Terms/content/` / `src/components/features/PrivacyPolicy/content/` — 法務文書本文（audience別Markdown）
+- `src/components/features/LegalPage/` — 法務文書ページの共通シェルとMarkdownレンダラー（`legalContent.ts`）
 - `doc/manual/legal-versioning.md` — 文書更新時のバージョン更新メモ
 
 ## 画面一覧
