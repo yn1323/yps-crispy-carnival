@@ -1,4 +1,6 @@
-import { Box, Container, Heading, Table, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, Table, Text, VStack } from "@chakra-ui/react";
+import { LuArrowDown } from "react-icons/lu";
+import { SectionHeading } from "../SectionHeading";
 
 const comparisonRows = [
   {
@@ -27,42 +29,10 @@ export const ComparisonSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
       <VStack gap={7}>
-        <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0" textAlign="center">
-          紙・Excel・LINEグループのシフト管理を、ひとつに。
-        </Heading>
+        <SectionHeading phrases={["紙・Excel・LINEグループの", "シフト管理を、ひとつに。"]} textAlign="center" />
 
-        <Box w="full" overflowX="auto" borderWidth="1px" borderColor="gray.200" borderRadius="lg">
-          <Table.Root size="md">
-            <Table.Header>
-              <Table.Row bg="gray.50">
-                <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center" w="28%">
-                  項目
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center">
-                  紙・Excel・LINEグループ
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center">
-                  シフトリ
-                </Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {comparisonRows.map((row) => (
-                <Table.Row key={row.item}>
-                  <Table.Cell color="gray.950" fontWeight="bold" textAlign="center" verticalAlign="middle">
-                    {row.item}
-                  </Table.Cell>
-                  <Table.Cell color="gray.700" fontWeight="semibold" textAlign="center" verticalAlign="middle">
-                    {row.old}
-                  </Table.Cell>
-                  <Table.Cell color="teal.700" fontWeight="black" textAlign="center" verticalAlign="middle">
-                    {row.shiftori}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-        </Box>
+        <ComparisonTable />
+        <ComparisonCards />
 
         <Text color="gray.600" fontSize="sm" textAlign="center" lineHeight="1.8">
           連絡する場所を増やさずに、誰が出したかの確認も、確定の連絡も、同じ画面でできます。
@@ -70,4 +40,64 @@ export const ComparisonSection = () => (
       </VStack>
     </Container>
   </Box>
+);
+
+const ComparisonTable = () => (
+  <Box hideBelow="md" w="full" overflowX="auto" borderWidth="1px" borderColor="gray.200" borderRadius="lg">
+    <Table.Root size="md">
+      <Table.Header>
+        <Table.Row bg="gray.50">
+          <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center" w="28%">
+            項目
+          </Table.ColumnHeader>
+          <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center">
+            紙・Excel・LINEグループ
+          </Table.ColumnHeader>
+          <Table.ColumnHeader color="gray.800" fontWeight="bold" textAlign="center">
+            シフトリ
+          </Table.ColumnHeader>
+        </Table.Row>
+      </Table.Header>
+      <Table.Body>
+        {comparisonRows.map((row) => (
+          <Table.Row key={row.item}>
+            <Table.Cell color="gray.950" fontWeight="bold" textAlign="center" verticalAlign="middle">
+              {row.item}
+            </Table.Cell>
+            <Table.Cell color="gray.700" fontWeight="semibold" textAlign="center" verticalAlign="middle">
+              {row.old}
+            </Table.Cell>
+            <Table.Cell color="teal.700" fontWeight="black" textAlign="center" verticalAlign="middle">
+              {row.shiftori}
+            </Table.Cell>
+          </Table.Row>
+        ))}
+      </Table.Body>
+    </Table.Root>
+  </Box>
+);
+
+const ComparisonCards = () => (
+  <VStack hideFrom="md" align="stretch" gap={3} w="full">
+    {comparisonRows.map((row) => (
+      <Box key={row.item} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+        <Box bg="gray.50" px={4} py={2.5}>
+          <Text color="gray.950" fontSize="sm" fontWeight="bold">
+            {row.item}
+          </Text>
+        </Box>
+        <VStack align="stretch" gap={2} px={4} py={4}>
+          <Text color="gray.600" fontSize="sm" fontWeight="semibold" lineHeight="1.7">
+            {row.old}
+          </Text>
+          <Flex align="center" gap={2}>
+            <Icon as={LuArrowDown} boxSize={4} color="teal.500" flexShrink={0} />
+            <Text color="teal.700" fontSize="sm" fontWeight="black" lineHeight="1.7">
+              {row.shiftori}
+            </Text>
+          </Flex>
+        </VStack>
+      </Box>
+    ))}
+  </VStack>
 );

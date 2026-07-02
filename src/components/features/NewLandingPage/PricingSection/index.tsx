@@ -1,6 +1,7 @@
-import { Box, Container, Flex, Heading, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Icon, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
+import { SectionHeading } from "../SectionHeading";
 
 const plans = [
   {
@@ -47,9 +48,7 @@ export const PricingSection = () => (
     <Container maxW="7xl">
       <VStack gap={8}>
         <VStack gap={3} textAlign="center">
-          <Heading as="h2" fontSize={{ base: "2xl", md: "3xl" }} lineHeight="1.5" letterSpacing="0">
-            シフト管理は、無料から始められます。
-          </Heading>
+          <SectionHeading phrases={["シフト管理は、", "無料から始められます。"]} />
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
             少人数のお店なら無料プランのままでOK。人数や店舗が増えたら、そのまま広げられます。
           </Text>
@@ -90,7 +89,7 @@ const PricingCard = ({
 }) => (
   <Flex
     direction="column"
-    minH="360px"
+    minH={{ md: "360px" }}
     bg="white"
     borderWidth={featured ? "2px" : "1px"}
     borderColor={featured ? "teal.500" : "gray.200"}
@@ -101,7 +100,7 @@ const PricingCard = ({
     <Text color={featured ? "teal.700" : "gray.950"} fontSize="lg" fontWeight="black" lineHeight="1.5">
       {name}
     </Text>
-    <Text mt={3} minH="48px" color="gray.700" fontSize="sm" lineHeight="1.7" fontWeight="semibold">
+    <Text mt={3} minH={{ md: "48px" }} color="gray.700" fontSize="sm" lineHeight="1.7" fontWeight="semibold">
       {lead}
     </Text>
 
