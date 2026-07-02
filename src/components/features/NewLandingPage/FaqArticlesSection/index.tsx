@@ -4,38 +4,8 @@ import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitor
 import type { ArticleContent } from "@/src/components/features/ArticleSite/articleContent";
 import { articles } from "@/src/components/features/ArticleSite/articleContent";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
+import { newLandingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
-
-const faqs = [
-  {
-    q: "LINEでシフト提出はできますか？",
-    a: "できます。スタッフにシフトリから提出用リンクを送り、LINEまたはメールから希望を提出してもらえます。",
-  },
-  {
-    q: "無料で使えるシフト管理ツールですか？",
-    a: "無料のShift管理ツールです。",
-  },
-  {
-    q: "スタッフはアプリ登録が必要ですか？",
-    a: "不要です。届いたリンクを開き、スマホから希望シフトを提出できます。",
-  },
-  {
-    q: "LINEを使わないスタッフがいても利用できますか？",
-    a: "利用できます。LINE未連携のスタッフにはメールで通知します。",
-  },
-  {
-    q: "スマホでもシフト作成できますか？",
-    a: "スマホでも確認・作成できます。細かな調整もPC版と同じように可能です。",
-  },
-  {
-    q: "未提出者への自動リマインドはできますか？",
-    a: "できます。未提出者に自動でリマインドを送り、催促漏れを減らします。",
-  },
-  {
-    q: "Excelや紙のシフト管理から移行できますか？",
-    a: "できます。希望シフトの回収から確定の連絡までをシフトリに移すと、Excelへの転記や個別連絡が減ります。",
-  },
-];
 
 const articleIcons = [LuMessageCircle, LuMonitorCheck, LuFileSpreadsheet, LuBookOpen];
 const previewArticles = articles.slice(0, 4);
@@ -48,7 +18,7 @@ export const FaqArticlesSection = () => (
           <SectionHeading phrases={["よくある質問"]} textAlign="center" />
           <Accordion.Root collapsible multiple variant="plain" mt={5}>
             <VStack align="stretch" gap={2.5}>
-              {faqs.map((faq) => (
+              {newLandingFaqs.map((faq) => (
                 <Accordion.Item
                   key={faq.q}
                   value={faq.q}

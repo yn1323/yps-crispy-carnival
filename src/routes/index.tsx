@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { faqs } from "@/src/components/features/LandingPage/faqs";
+import { newLandingFaqs } from "@/src/components/features/NewLandingPage/faqs";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 import { HomePage } from "@/src/pages/home";
 
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
       ...jsonLdMeta({
         "@context": "https://schema.org",
         "@type": "FAQPage",
-        mainEntity: faqs.map((f) => ({
+        mainEntity: newLandingFaqs.map((f) => ({
           "@type": "Question",
           name: f.q,
           acceptedAnswer: { "@type": "Answer", text: f.a },
