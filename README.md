@@ -6,7 +6,7 @@ To run this application:
 
 ```bash
 pnpm install
-pnpm start
+pnpm start 
 ```
 
 # Building For Production
