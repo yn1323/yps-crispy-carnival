@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArticleCategoryPage } from "@/src/components/features/ArticleSite";
-import { getCategory } from "@/src/components/features/ArticleSite/articleContent";
-import { buildLinks, buildMeta } from "@/src/helpers/seo";
+import { createCategoryBreadcrumbJsonLd, getCategory } from "@/src/components/features/ArticleSite/articleContent";
+import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles/categories/$categorySlug")({
   head: ({ params }) => {
@@ -16,11 +16,14 @@ export const Route = createFileRoute("/articles/categories/$categorySlug")({
     const canonical = `/articles/categories/${category.meta.slug}`;
     return {
       links: buildLinks({ canonical }),
-      meta: buildMeta({
-        title: `${category.meta.title}｜小さなお店のシフト作成ガイド`,
-        description: category.meta.description,
-        canonical,
-      }),
+      meta: [
+        ...buildMeta({
+          title: `${category.meta.title}｜小さなお店のシフト作成ガイド`,
+          description: category.meta.description,
+          canonical,
+        }),
+        ...jsonLdMeta(createCategoryBreadcrumbJsonLd(category)),
+      ],
     };
   },
   component: ArticleCategoryRoute,
