@@ -964,7 +964,8 @@ function deliveryEventFromJob(
   };
 }
 
-function notificationContextForJob(job: Doc<"notificationOutbox">) {
+// 分析KPI（analytics/dailyAggregation）でも通知種別の分類に再利用する
+export function notificationContextForJob(job: Doc<"notificationOutbox">) {
   if (job.payload.kind === "email") return job.payload.context;
   return job.payload.fallbackEmail?.payload.context ?? dedupeContext(job.dedupeKey);
 }
