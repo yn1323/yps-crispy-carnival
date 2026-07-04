@@ -23,12 +23,13 @@ async function getUserByIdentity(ctx: DbCtx, identity: UserIdentity) {
 }
 
 async function getShopByUser(ctx: DbCtx, user: Doc<"users">) {
-  const membership = await ctx.db
+  const memberships = ctx.db
     .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-    .first();
-  if (membership) {
-    return await ctx.db.get(membership.shopId);
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
+
+  for await (const membership of memberships) {
+    const shop = await ctx.db.get(membership.shopId);
+    if (shop && !shop.isDeleted) return shop;
   }
   return null;
 }
