@@ -17,7 +17,7 @@
  *   最終出力は `fs.writeFile` で直接書き込む」方式にしている。
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { chromium, type Page } from "playwright";
@@ -65,8 +65,23 @@ const MIME_TYPES: Record<string, string> = {
   ".map": "application/json; charset=utf-8",
 };
 
-const ROUTE_MANAGED_META_NAMES = ["description", "robots", "twitter:title", "twitter:description"];
-const ROUTE_MANAGED_META_PROPERTIES = ["og:title", "og:description", "og:url"];
+const ROUTE_MANAGED_META_NAMES = [
+  "description",
+  "robots",
+  "twitter:title",
+  "twitter:description",
+  "twitter:image",
+  "twitter:image:alt",
+];
+const ROUTE_MANAGED_META_PROPERTIES = [
+  "og:title",
+  "og:description",
+  "og:url",
+  "og:type",
+  "og:image",
+  "og:image:secure_url",
+  "og:image:alt",
+];
 
 async function serveStaticFile(res: ServerResponse, pathname: string): Promise<boolean> {
   // Path traversal 防御: 解決後のパスが必ず dist/ 配下であることを確認
@@ -173,11 +188,37 @@ async function listContentSlugs(kind: "articles" | "categories"): Promise<string
   return slugs.filter((slug): slug is string => Boolean(slug)).sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * 記事ルートの og:image / BlogPosting.image が参照する記事別OGP画像が
+ * dist/ (public/ からコピーされる) に存在することを確認する。
+ * `pnpm ogp:articles` の実行漏れのまま新記事を公開するのを防ぐ。
+ */
+async function assertArticleOgpImages(articleSlugs: string[]): Promise<void> {
+  const missing: string[] = [];
+  await Promise.all(
+    articleSlugs.map(async (slug) => {
+      try {
+        await access(join(DIST_DIR, "ogp", "articles", `${slug}.png`));
+      } catch {
+        missing.push(slug);
+      }
+    }),
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[prerender] Missing article OGP image(s) for: ${missing.sort().join(", ")} — run \`pnpm ogp:articles\` and commit public/ogp/articles/`,
+    );
+  }
+}
+
 async function collectPrerenderRoutes(): Promise<string[]> {
   const [articleSlugs, categorySlugs] = await Promise.all([
     listContentSlugs("articles"),
     listContentSlugs("categories"),
   ]);
+
+  await assertArticleOgpImages(articleSlugs);
 
   return Array.from(
     new Set([
@@ -212,11 +253,23 @@ function assertRenderedHtml(route: string, html: string): void {
     description: (html.match(/<meta\b[^>]*\bname=["']description["'][^>]*>/gi) ?? []).length,
     "og:title": (html.match(/<meta\b[^>]*\bproperty=["']og:title["'][^>]*>/gi) ?? []).length,
     "og:description": (html.match(/<meta\b[^>]*\bproperty=["']og:description["'][^>]*>/gi) ?? []).length,
+    "og:type": (html.match(/<meta\b[^>]*\bproperty=["']og:type["'][^>]*>/gi) ?? []).length,
+    "og:image": (html.match(/<meta\b[^>]*\bproperty=["']og:image["'][^>]*>/gi) ?? []).length,
     "twitter:title": (html.match(/<meta\b[^>]*\bname=["']twitter:title["'][^>]*>/gi) ?? []).length,
     "twitter:description": (html.match(/<meta\b[^>]*\bname=["']twitter:description["'][^>]*>/gi) ?? []).length,
+    "twitter:image": (html.match(/<meta\b[^>]*\bname=["']twitter:image["'][^>]*>/gi) ?? []).length,
     canonical: (html.match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi) ?? []).length,
   };
-  const requiredMeta = ["description", "og:title", "og:description", "twitter:title", "twitter:description"] as const;
+  const requiredMeta = [
+    "description",
+    "og:title",
+    "og:description",
+    "og:type",
+    "og:image",
+    "twitter:title",
+    "twitter:description",
+    "twitter:image",
+  ] as const;
   const invalidRequiredMeta = requiredMeta.find((name) => routeManagedMetaCounts[name] !== 1);
   if (invalidRequiredMeta) {
     throw new Error(

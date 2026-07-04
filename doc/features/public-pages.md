@@ -15,6 +15,16 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 - `src/components/features/LandingPage/FeatureSection.tsx` / `BenefitsSection.tsx` / `FaqSection.tsx` — `/features`・`/faq`で流用している既存LPセクション
 - `src/components/features/ArticleSite/` — Markdown管理の記事サイトとLP記事ミニ導線のソース
 - `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧。記事詳細・カテゴリ詳細はMarkdownディレクトリから自動収集する
+- `scripts/generateArticleOgp.ts` / `public/ogp/articles/` — 記事別OGP画像の生成スクリプトと生成物（`pnpm ogp:articles`。記事の追加・タイトル変更時に再生成してコミットする）
+- `src/helpers/seo/index.ts` — メタタグ・JSON-LDヘルパー（`ogType` / `ogImage` で記事別OGPを上書き）
+
+## OGP・構造化データ
+
+- `index.html` — 全ページ共通の既定値（og:type=website、共通OGP画像、SoftwareApplication / Organization / WebSite）
+- `/`・`/faq` — `FAQPage`（`landingFaqs` を共有）
+- `/articles/:slug` — og:type=article、記事別OGP画像、`BlogPosting` + `BreadcrumbList`
+- `/articles/categories/:categorySlug` — `BreadcrumbList`
+- ルート側で og:type / og:image を出すと、prerender が index.html の既定タグと重複排除して後勝ちで焼き込む（`scripts/prerender.ts` の `ROUTE_MANAGED_META_*`）
 
 ## 画面一覧
 

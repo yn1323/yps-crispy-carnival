@@ -210,6 +210,18 @@ React側で変えること:
 - CTAボタン数やレスポンシブ表示
 - 仮アイコンやプレースホルダーのデザイン
 
+## 記事別OGP画像の再生成（記事の追加・更新時に必須）
+
+記事を追加・更新（削除、`title` / `categoryLabel` の変更を含む）したら、**必ず** 次を実行し、生成された `public/ogp/articles/<slug>.png` を記事の変更と同じコミットに含めてください。
+
+```bash
+pnpm ogp:articles
+```
+
+- 日本語フォントのある環境（macOS / Windows、またはNoto Sans CJK導入済みLinux）で実行すること
+- 実行を忘れると `pnpm prerender` が「Missing article OGP image(s)」エラーでビルドを失敗させます（CIには日本語フォントがないため、ビルド時生成ではなく生成物のコミットで運用しています）
+- 生成ロジックは `scripts/generateArticleOgp.ts`。参照側のパス規約は `articleContent.ts` の `getArticleOgpImagePath` と一致させること
+
 ## 追加・編集後の確認
 
 ArticleSiteの共通parser、frontmatter schema、一覧・カテゴリ・詳細レイアウトを変更したら、最低限次を実行してください。
@@ -227,3 +239,4 @@ Storybookで確認する場合は `Features/ArticleSite` の List / Category / A
 
 ## 編集時の注意点
 - features/ArticleSite配下を修正する際は、 @public/sitemap.xml も確認し、必要であれば修正を加えること
+- 記事の追加・更新時は「記事別OGP画像の再生成」セクションの `pnpm ogp:articles` を必ず実行すること
