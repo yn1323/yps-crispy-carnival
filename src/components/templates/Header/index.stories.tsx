@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { queryByRole } from "@testing-library/dom";
 import { createStore, Provider } from "jotai";
-import { expect } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
@@ -31,6 +31,10 @@ type Story = StoryObj<HeaderProps>;
 
 export const User: Story = {
   args: {},
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("link", { name: "ダッシュボードへ" })).toHaveAttribute("href", "/dashboard");
+  },
 };
 
 export const UserWithoutMenu: Story = {

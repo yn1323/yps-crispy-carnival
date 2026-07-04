@@ -78,7 +78,7 @@ export const Header = (props: HeaderProps = {}) => {
 
   return (
     <HeaderShell position={props.position ?? "fixed"}>
-      <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" showTagline />
+      <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
       {props.showUserMenu !== false && <UserMenu tone="light" />}
     </HeaderShell>
   );
