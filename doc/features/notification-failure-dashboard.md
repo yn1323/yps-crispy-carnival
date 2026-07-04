@@ -26,7 +26,7 @@
 
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
 - `status = open` かつ最新失敗（`lastFailedAt`）が直近3日以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに窓がリセットされ、無ければ最大3回で打ち切られる。
-- 配信先は店舗のmanager users全員。LINE連携済みなら LINE（emailフォールバック付き）、それ以外はメール。
+- 配信先は店舗のmanager users全員。LINE連携済みなら LINE（Quota超過時のemailフォールバック付き）、それ以外はメール。
 - このリマインダー通知自体の配送が失敗しても `notificationFailureInbox` には記録しない（payloadの `suppressFailureInbox` で抑止。メタ失敗でInboxを汚さないため）。
 
 ## 画面一覧

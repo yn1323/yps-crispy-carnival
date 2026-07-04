@@ -8,11 +8,14 @@ export const SHIFT_CONFIRMATION_REMINDER_CONTEXT = "shiftConfirmationReminder.se
 /** 通知不達の管理者向けリマインダー通知 context。 */
 export const NOTIFICATION_FAILURE_REMINDER_CONTEXT = "notificationOutbox.sendFailureReminderDigest";
 const NOTIFICATION_FAILURE_REMINDER_LINE_DEDUPE_CONTEXT = "line:notificationFailureReminder";
+/** 初回店舗登録後の本番募集リマインダー通知 context。 */
+export const SHOP_ACTIVATION_REMINDER_CONTEXT = "shopActivationReminder.sendReminder";
 
 const SUPPRESS_FAILURE_INBOX_CONTEXTS = new Set<string>([
   SHIFT_CONFIRMATION_REMINDER_CONTEXT,
   NOTIFICATION_FAILURE_REMINDER_CONTEXT,
   NOTIFICATION_FAILURE_REMINDER_LINE_DEDUPE_CONTEXT,
+  SHOP_ACTIVATION_REMINDER_CONTEXT,
 ]);
 
 /** この context の通知は failureInbox への登録をスキップするか。 */

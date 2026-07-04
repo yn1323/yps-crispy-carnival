@@ -67,7 +67,7 @@
 - スタッフが連携済み（`lineUserId`）かつ友達追加中（`lineFollowing`）→ line
 - それ以外 → email
 
-Quota が未取得の場合は、LINE送信を試みる。LINE Push が失敗した場合は、通知outboxのfallback emailで補う。
+Quota が未取得の場合は、LINE送信を試みる。処理時に Quota 超過が判明した場合は、通知outboxの `fallbackEmail` を email ジョブとして enqueue する。LINE Push API の失敗は既存の retry / final_failed に任せる。
 
 呼び出し点は既存の `sendShiftConfirmationEmails` / `sendRecruitmentNotificationEmails` / `sendReminderEmails` action のスタッフごとループ内。配送は同期送信ではなく `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ処理する。
 

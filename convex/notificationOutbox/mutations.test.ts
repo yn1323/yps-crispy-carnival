@@ -11,7 +11,7 @@ import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
 } from "../constants";
-import { NOTIFICATION_FAILURE_REMINDER_CONTEXT } from "./failureSuppress";
+import { NOTIFICATION_FAILURE_REMINDER_CONTEXT, SHOP_ACTIVATION_REMINDER_CONTEXT } from "./failureSuppress";
 
 const emailPayload = {
   kind: "email" as const,
@@ -528,6 +528,32 @@ describe("notificationOutbox", () => {
       expect(await collectFailureInbox(t)).toEqual([]);
     });
 
+    it("markFailedは店舗登録後リマインダーcontextでも配送イベントを残し、要対応Inbox化しない", async () => {
+      const { t, shopId } = await setupShop();
+      const dedupeKey = `email:shopActivationReminder:${shopId}:user_test`;
+      const outboxId = await insertProcessingJob(t, {
+        shopId,
+        channel: "email",
+        dedupeKey,
+        context: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      });
+
+      await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "reminder failed" });
+
+      const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType: "final_failed",
+        shopId,
+        outboxId,
+        channel: "email",
+        dedupeKey,
+        notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+        errorMessage: "reminder failed",
+      });
+      expect(await collectFailureInbox(t)).toEqual([]);
+    });
+
     it("同じ通知種別・募集・スタッフの異なるoutbox失敗は最新1件の要対応Inboxに更新する", async () => {
       const { t, shopId, staffId } = await setupShop();
       const recruitmentId = await t.run(async (ctx) => {
@@ -890,6 +916,37 @@ describe("notificationOutbox", () => {
     expect(await collectFailureInbox(t)).toEqual([]);
   });
 
+  it.each([
+    "enqueue_failed",
+    "enqueue_preparation_failed",
+  ] as const)("recordDeliveryEventは店舗登録後リマインダーcontextの%sを要対応Inbox化しない", async (eventType) => {
+    const { t, shopId, staffId } = await setupShop();
+    const dedupeKey = `email:shopActivationReminder:${shopId}:user_test`;
+
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType,
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      errorMessage: "enqueue failed",
+    });
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType,
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      errorMessage: "enqueue failed",
+    });
+    expect(await collectFailureInbox(t)).toEqual([]);
+  });
+
   it("recordDeliveryEventは通知不達リマインダーLINEのdedupe由来contextでも要対応Inbox化しない", async () => {
     const { t, shopId, staffId } = await setupShop();
     const dedupeKey = "line:notificationFailureReminder:shop_test:user_test";
@@ -1088,6 +1145,50 @@ describe("notificationOutbox", () => {
       collectFailureInbox(t),
     ]);
     expect(events).toHaveLength(1);
+    expect(failures).toEqual([]);
+  });
+
+  it("recordResendProviderIssueは店舗登録後リマインダーcontextを要対応Inbox化しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      dedupeKey: `email:shopActivationReminder:${shopId}:user_test`,
+      context: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      resendEmailId: "email_shop_activation_reminder",
+    });
+
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_shop_activation_reminder",
+      providerEventType: "email.failed",
+      providerEmailId: "email_shop_activation_reminder",
+      occurredAt: Date.now(),
+      errorMessage: "Resend reported email failed",
+    });
+
+    const [events, failures, outbox] = await Promise.all([
+      t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
+      collectFailureInbox(t),
+      t.run(async (ctx) => await ctx.db.get(outboxId)),
+    ]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "provider_delivery_issue",
+      provider: "resend",
+      providerEventId: "svix_shop_activation_reminder",
+      providerEmailId: "email_shop_activation_reminder",
+      providerEventType: "email.failed",
+      outboxId,
+      shopId,
+      channel: "email",
+      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      errorMessage: "Resend reported email failed",
+    });
+    expect(outbox).toMatchObject({
+      status: "sent",
+      resendLastEventType: "email.failed",
+      resendDeliveryStatus: "failed",
+    });
     expect(failures).toEqual([]);
   });
 

@@ -10,6 +10,7 @@ import {
   getManagerConfirmationReminderAt,
   getMondayWeekStart,
   getReminderScheduledAt,
+  getShopActivationReminderAt,
   getSubmitLinkCutoff,
   getWeekday,
   isPastShiftPeriod,
@@ -69,6 +70,18 @@ describe("dateFormat", () => {
   it("シフト確定催促は提出締切日の翌日17:00 JSTに予約する", () => {
     // 2026-01-05 締切 → 翌日 2026-01-06 17:00 JST = 2026-01-06 08:00 UTC
     expect(getManagerConfirmationReminderAt("2026-01-05")).toBe(new Date("2026-01-06T08:00:00.000Z").getTime());
+  });
+
+  it("店舗登録リマインドは登録日の7日後17:00 JSTに予約する", () => {
+    const registeredAt = new Date("2026-07-05T23:30:00+09:00").getTime();
+
+    expect(getShopActivationReminderAt(registeredAt)).toBe(new Date("2026-07-12T17:00:00+09:00").getTime());
+  });
+
+  it("店舗登録リマインドはUTC日付ではなくJST日付を基準にする", () => {
+    const registeredAt = new Date("2026-07-05T23:30:00.000Z").getTime();
+
+    expect(getShopActivationReminderAt(registeredAt)).toBe(new Date("2026-07-13T17:00:00+09:00").getTime());
   });
 
   it("todayJSTはUTC日付ではなくJST日付を返す", () => {

@@ -7,26 +7,22 @@ import { RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { selectChannel } from "../_lib/notification";
 import {
-  buildShiftConfirmationReminderEmailHtml,
-  buildShiftConfirmationReminderLineText,
-  SHIFT_CONFIRMATION_REMINDER_SUBJECT,
+  buildShopActivationReminderEmailHtml,
+  buildShopActivationReminderLineText,
+  SHOP_ACTIVATION_REMINDER_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
-import { SHIFT_CONFIRMATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
+import { SHOP_ACTIVATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
+import { getReminderTargetRef } from "./refs";
 
 /**
- * シフト締め切り日の翌日17時に発火。募集がまだ確定していなければ、店舗のマネージャー全員に
- * 「シフトを調整して確定してください」と催促する。
- * - 連携済みかつ友達追加中 → LINE Push（Quota超過時のemailフォールバック付き）
- * - 未連携 / 友達解除 / Quota超過 → メール
+ * 初回店舗登録から7日後17:00 JSTに発火し、本番募集へ戻るきっかけをmanagerへ送る。
  * 補助的な通知のため、失敗しても failureInbox には載せない（context で抑止）。
  */
-export const sendManagerConfirmationReminder = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
-    const data = await ctx.runQuery(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
-      recruitmentId,
-    });
+export const sendReminder = internalAction({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
+    const data = await ctx.runQuery(getReminderTargetRef, { shopId });
     if (!data) return;
 
     const [quota, suppressDelivery] = await Promise.all([
@@ -36,16 +32,15 @@ export const sendManagerConfirmationReminder = internalAction({
       }),
     ]);
 
-    // 店舗単位で一定なので受信者ループの外で組み立てる。
     const from = formatResendFrom(data.shopName, RESEND_FROM_EMAIL);
-    const subject = formatResendSubject(data.shopName, SHIFT_CONFIRMATION_REMINDER_SUBJECT);
+    const subject = formatResendSubject(data.shopName, SHOP_ACTIVATION_REMINDER_SUBJECT);
 
     for (const recipient of data.recipients) {
       const channel = selectChannel(
         { lineUserId: recipient.lineUserId, lineFollowing: recipient.lineFollowing },
         quota,
       );
-      const dedupeBase = `shiftConfirmationReminder:${recruitmentId}:${recipient.userId}`;
+      const dedupeBase = `shopActivationReminder:${data.shopId}:${recipient.userId}`;
       const emailDedupeKey = `email:${dedupeBase}`;
       const lineDedupeKey = `line:${dedupeBase}`;
 
@@ -53,29 +48,22 @@ export const sendManagerConfirmationReminder = internalAction({
         from,
         to: recipient.email,
         subject,
-        html: buildShiftConfirmationReminderEmailHtml({
+        html: buildShopActivationReminderEmailHtml({
           managerName: recipient.name,
-          periodLabel: data.periodLabel,
-          deadlineLabel: data.deadlineLabel,
           dashboardUrl: data.dashboardUrl,
         }),
-        context: SHIFT_CONFIRMATION_REMINDER_CONTEXT,
+        context: SHOP_ACTIVATION_REMINDER_CONTEXT,
         suppressDelivery,
       });
 
       if (channel === "line" && recipient.lineUserId) {
         await enqueueLine(ctx, {
           shopId: data.shopId,
-          recruitmentId,
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: recipient.lineUserId,
-            text: buildShiftConfirmationReminderLineText({
-              periodLabel: data.periodLabel,
-              deadlineLabel: data.deadlineLabel,
-              dashboardUrl: data.dashboardUrl,
-            }),
+            text: buildShopActivationReminderLineText({ dashboardUrl: data.dashboardUrl }),
             suppressDelivery,
             fallbackEmail: { dedupeKey: emailDedupeKey, payload: emailPayloadValue },
           }),
@@ -85,7 +73,6 @@ export const sendManagerConfirmationReminder = internalAction({
 
       await enqueueEmail(ctx, {
         shopId: data.shopId,
-        recruitmentId,
         userId: recipient.userId,
         dedupeKey: emailDedupeKey,
         payload: emailPayloadValue,
