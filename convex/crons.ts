@@ -19,6 +19,9 @@ crons.cron(
 // 通知不達Inboxを1日1回期限切れ化（JST 03:35 = UTC 18:35）
 crons.cron("notification-failure-inbox-expire", "35 18 * * *", internal.notificationOutbox.mutations.expireOldFailures);
 
+// 分析KPI日次集計（JST 03:00 = UTC 18:00）。delivery-event-prune(03:30 JST)より前に実行する
+crons.cron("analytics-daily-aggregation", "0 18 * * *", internal.analytics.dailyAggregation.run, {});
+
 // スタッフ参加申請の見落とし防止通知（JST 17:00 = UTC 08:00）
 crons.cron(
   "staff-registration-owner-daily-digest",

@@ -111,7 +111,9 @@ const schema = defineSchema({
     .index("by_staffId", ["staffId"])
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_lineUserId", ["lineUserId"])
-    .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"]),
+    .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"])
+    // 分析KPI: 日次窓（JST）でのLINE連携完了のレンジスキャン用（再連携でもlinkedAtは初回値を保持）
+    .index("by_linkedAt", ["linkedAt"]),
 
   shopRegistrationLinks: defineTable({
     shopId: v.id("shops"),
@@ -140,7 +142,9 @@ const schema = defineSchema({
   })
     .index("by_shopId_status", ["shopId", "status"])
     .index("by_shopId_emailNormalized_status", ["shopId", "emailNormalized", "status"])
-    .index("by_status_and_createdAt", ["status", "createdAt"]),
+    .index("by_status_and_createdAt", ["status", "createdAt"])
+    // 分析KPI: 日次窓（JST）での承認/却下のレンジスキャン用
+    .index("by_status_and_reviewedAt", ["status", "reviewedAt"]),
 
   legalConsentStates: defineTable({
     subjectType: v.union(v.literal("user"), v.literal("staff")),
@@ -184,7 +188,9 @@ const schema = defineSchema({
     .index("by_shopId_and_isDeleted_and_status_and_periodStart", ["shopId", "isDeleted", "status", "periodStart"])
     .index("by_shopId_and_isDeleted_and_status_and_deadline", ["shopId", "isDeleted", "status", "deadline"])
     .index("by_shopId_and_isDeleted_and_status_and_periodEnd", ["shopId", "isDeleted", "status", "periodEnd"])
-    .index("by_shopId_status", ["shopId", "status"]),
+    .index("by_shopId_status", ["shopId", "status"])
+    // 分析KPI: 日次窓（JST）で確定した募集のレンジスキャン用
+    .index("by_status_and_confirmedAt", ["status", "confirmedAt"]),
 
   shiftSubmissionSlots: defineTable({
     submissionId: v.id("shiftSubmissions"),
@@ -376,7 +382,10 @@ const schema = defineSchema({
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
     .index("by_shopId_status", ["shopId", "status"])
-    .index("by_resendEmailId", ["resendEmailId"]),
+    .index("by_resendEmailId", ["resendEmailId"])
+    // 分析KPI: 日次窓（JST）での送信/最終失敗のレンジスキャン用
+    .index("by_status_sentAt", ["status", "sentAt"])
+    .index("by_status_failedAt", ["status", "failedAt"]),
 
   notificationDeliveryEvents: defineTable({
     eventType: notificationDeliveryEventTypeValidator,
@@ -450,6 +459,55 @@ const schema = defineSchema({
   })
     .index("by_shopId_month", ["shopId", "month"])
     .index("by_month", ["month"]),
+
+  // ========================================
+  // 分析KPI蓄積（internal専用、公開queryなし）
+  // 日次cron（analytics/dailyAggregation）が前日分を絶対値upsertで書き込む
+  // ========================================
+  // サービス全体×日次の状態スナップショット（1日1行、cron導入日から蓄積）
+  analyticsDailyServiceSnapshots: defineTable({
+    date: v.string(), // "YYYY-MM-DD"（JST基準）
+    shopCount: v.number(), // isDeleted=false の店舗数
+    shopCountByPlan: v.object({
+      free: v.number(),
+      standard: v.number(),
+      premium: v.number(),
+    }),
+    staffCount: v.number(), // isDeleted=false のスタッフ数
+    shiftTargetStaffCount: v.number(), // 上記から excludedFromShift を除外した数（LINE連携率の分母）
+    lineLinkedStaffCount: v.number(),
+    lineFollowingStaffCount: v.number(),
+    openRecruitmentCount: v.number(),
+    pendingRegistrationRequestCount: v.number(),
+    computedAt: v.number(),
+  }).index("by_date", ["date"]),
+
+  // 店舗別×日次の状態スナップショット（プラン別セグメント分析・店舗ドリルダウン用）
+  analyticsDailyShopSnapshots: defineTable({
+    date: v.string(), // "YYYY-MM-DD"（JST基準）
+    shopId: v.id("shops"),
+    planKey: v.union(v.literal("free"), v.literal("standard"), v.literal("premium")),
+    staffCount: v.number(),
+    shiftTargetStaffCount: v.number(),
+    lineLinkedStaffCount: v.number(),
+    lineFollowingStaffCount: v.number(),
+    openRecruitmentCount: v.number(),
+    computedAt: v.number(),
+  })
+    .index("by_date_shopId", ["date", "shopId"])
+    .index("by_shopId_date", ["shopId", "date"]),
+
+  // イベント日次カウンタ（date × metric の縦持ち、サービス全体粒度、全期間バックフィル可能）
+  // metric は analytics/metrics.ts の AnalyticsMetric（スキーマはstringにして追加時のデプロイ影響を避ける）
+  analyticsDailyEventCounts: defineTable({
+    date: v.string(), // "YYYY-MM-DD"（JST基準、イベント発生日）
+    metric: v.string(),
+    count: v.number(),
+    valueSum: v.optional(v.number()), // 合計値が意味を持つmetricのみ（リードタイム合計ms等）
+    updatedAt: v.number(),
+  })
+    .index("by_date_metric", ["date", "metric"])
+    .index("by_metric_date", ["metric", "date"]),
 
   legalConsentTokens: defineTable({
     staffId: v.id("staffs"),

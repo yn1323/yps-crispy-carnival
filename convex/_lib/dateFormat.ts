@@ -75,7 +75,18 @@ export function getManagerConfirmationReminderAt(deadline: string): number {
 
 /** JST基準の今日の日付を "YYYY-MM-DD" で返す */
 export function todayJST(): string {
-  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+  return dateJST(Date.now());
+}
+
+/** Unix ms が属するJST日付を "YYYY-MM-DD" で返す */
+export function dateJST(ms: number): string {
+  return new Date(ms + JST_OFFSET_MS).toISOString().split("T")[0];
+}
+
+/** JST日付 "YYYY-MM-DD" の1日分を [開始, 終了) の半開区間（Unix ms）で返す */
+export function jstDayRangeMs(date: string): { startMs: number; endMs: number } {
+  const startMs = dateToUtcMs(date) - JST_OFFSET_MS;
+  return { startMs, endMs: startMs + MS_PER_DAY };
 }
 
 /** シフト終了日の翌日 0:00 JST 以降は過去シフトとして扱う。 */
