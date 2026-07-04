@@ -14,10 +14,13 @@ import {
   buildReminderEmailHtml,
   buildReminderLineText,
   buildShiftConfirmationLineText,
+  buildShopActivationReminderEmailHtml,
+  buildShopActivationReminderLineText,
   buildStaffLegalConsentEmailHtml,
   buildStaffLegalConsentLineText,
   buildStaffRegistrationOwnerDigestEmailHtml,
   buildStaffRegistrationOwnerDigestLineText,
+  SHOP_ACTIVATION_REMINDER_SUBJECT,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "@/convex/notification/templates";
 import { EmailPreview } from ".";
@@ -278,6 +281,15 @@ export const StaffRegistrationDigestEmail = emailStory({
   }),
 });
 
+export const ShopActivationReminderEmail = emailStory({
+  label: "本番募集リマインダー",
+  subject: subject(SHOP_ACTIVATION_REMINDER_SUBJECT),
+  html: buildShopActivationReminderEmailHtml({
+    managerName: fixtures.managerName,
+    dashboardUrl: fixtures.dashboardUrl,
+  }),
+});
+
 export const RecruitmentLineMessage = lineMessageStory({
   label: "募集開始",
   text: buildRecruitmentLineText({
@@ -359,6 +371,13 @@ export const StaffLegalConsentLineMessage = lineMessageStory({
 export const StaffRegistrationDigestLineMessage = lineMessageStory({
   label: "スタッフ参加承認依頼",
   text: buildStaffRegistrationOwnerDigestLineText({
+    dashboardUrl: fixtures.dashboardUrl,
+  }),
+});
+
+export const ShopActivationReminderLineMessage = lineMessageStory({
+  label: "本番募集リマインダー",
+  text: buildShopActivationReminderLineText({
     dashboardUrl: fixtures.dashboardUrl,
   }),
 });

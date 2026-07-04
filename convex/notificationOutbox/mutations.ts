@@ -16,6 +16,7 @@ import {
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import { hasOpenRecruitmentScope, isManagerVisibleNotificationFailure } from "./failureEligibility";
 import {
   getNotificationFailureIdentity,
   getNotificationFailureIdentityForDoc,
@@ -385,6 +386,11 @@ export const resendOpenFailures = managerMutation({
     const handledFailureKeys = new Set<string>();
     let skippedCount = 0;
     for (const failure of failures) {
+      if (!(await isManagerVisibleNotificationFailure(ctx, failure))) {
+        skippedCount += 1;
+        continue;
+      }
+
       const failureKey = resendBatchKey(failure);
       if (handledFailureKeys.has(failureKey)) {
         skippedCount += 1;
@@ -457,6 +463,10 @@ async function requestFailureResend(
   // （既存 outbox を再実行すると古いトークンを使い回してしまうため別経路にする）
   if (isLineInviteResendContext(failure.notificationContext)) {
     return await requestLineInviteResend(ctx, failure);
+  }
+
+  if (!(await hasOpenRecruitmentScope(ctx, failure))) {
+    return { scheduled: false, reason: "notRetryable" as const };
   }
 
   if (failure.sourceType === "outbox") {
@@ -569,6 +579,10 @@ async function retryOutboxFailure(
   if (!outbox || outbox.shopId !== ctx.shop._id || outbox.status !== "failed") {
     if (!throwOnNotFound) return { scheduled: false, reason: "notRetryable" as const };
     throw new ConvexError("Not found");
+  }
+
+  if (!(await hasOpenRecruitmentScope(ctx, failure))) {
+    return { scheduled: false, reason: "notRetryable" as const };
   }
 
   const allowed = await allowFailureRetry(ctx, failure._id);

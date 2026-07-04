@@ -3,7 +3,7 @@ import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/Button";
-import { UserMenu } from "./UserMenu";
+import { UserMenu, type UserMenuDeleteShopAction } from "./UserMenu";
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
 export const STAFF_CONTENT_MAX_W = "1024px";
@@ -35,6 +35,7 @@ type UserHeaderVariantProps = {
   variant?: "user";
   showUserMenu?: boolean;
   position?: HeaderPosition;
+  deleteShopAction?: UserMenuDeleteShopAction;
 };
 
 type StaffHeaderVariantProps = {
@@ -78,8 +79,8 @@ export const Header = (props: HeaderProps = {}) => {
 
   return (
     <HeaderShell position={props.position ?? "fixed"}>
-      <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" showTagline />
-      {props.showUserMenu !== false && <UserMenu tone="light" />}
+      <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
+      {props.showUserMenu !== false && <UserMenu tone="light" deleteShopAction={props.deleteShopAction} />}
     </HeaderShell>
   );
 };

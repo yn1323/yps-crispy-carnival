@@ -500,7 +500,7 @@ describe("通知配送outboxシナリオ", () => {
     ).toEqual([{ recruitmentId: ids.currentRecruitmentId, staffId: ids.staffId }]);
   });
 
-  it("確定シフト通知の複数配送失敗はFailureInbox上で最新1件だけopenにし、一斉再送も1件だけ受け付ける", async () => {
+  it("確定済み募集の配送失敗はFailureInboxに残すが再送モーダルには出さない", async () => {
     vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
     const t = convexTest(schema, modules);
 
@@ -569,23 +569,16 @@ describe("通知配送outboxシナリオ", () => {
       .query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
       });
-    expect(openPage.page).toHaveLength(1);
-    expect(openPage.page[0]).toMatchObject({
-      sourceType: "outbox",
-      notificationKind: "confirmation",
-      staffId: ids.staffId,
-      recruitmentId: ids.recruitmentId,
-      dedupeKey: `email:confirmation:${ids.recruitmentId}:${ids.staffId}:resend:${SCENARIO_NOW + 1}`,
-      canRetry: true,
-    });
+    expect(openPage.page).toHaveLength(0);
 
     const result = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
       .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
     expect(result).toMatchObject({
-      scheduled: true,
-      scheduledCount: 1,
-      scheduledFailureIds: [openPage.page[0]._id],
+      scheduled: false,
+      scheduledCount: 0,
+      scheduledFailureIds: [],
+      skippedCount: 1,
     });
 
     const [jobs, failures, openAfterResend] = await Promise.all([
@@ -595,11 +588,11 @@ describe("通知配送outboxシナリオ", () => {
         paginationOpts: { numItems: 10, cursor: null },
       }),
     ]);
-    expect(jobs.filter((job) => job.status === "pending")).toHaveLength(1);
+    expect(jobs.filter((job) => job.status === "pending")).toHaveLength(0);
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({
       failureKey: `logical:${jobs[0].shopId}:${ids.recruitmentId}:${ids.staffId}:confirmation`,
-      status: "retrying",
+      status: "open",
     });
     expect(openAfterResend.page).toHaveLength(0);
   });

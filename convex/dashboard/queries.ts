@@ -25,13 +25,15 @@ async function getManagerShop(ctx: {
 }) {
   if (!ctx.identity || !ctx.user) return null;
   const user = ctx.user;
-  const membership = await ctx.db
+  const memberships = ctx.db
     .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-    .first();
-  if (!membership) return null;
-  const shop = await ctx.db.get(membership.shopId);
-  return shop && !shop.isDeleted ? shop : null;
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
+
+  for await (const membership of memberships) {
+    const shop = await ctx.db.get(membership.shopId);
+    if (shop && !shop.isDeleted) return shop;
+  }
+  return null;
 }
 
 async function getTotalStaffCount(ctx: { db: GenericDatabaseReader<DataModel> }, shopId: Doc<"shops">["_id"]) {

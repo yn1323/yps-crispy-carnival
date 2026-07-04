@@ -73,6 +73,13 @@ export function getManagerConfirmationReminderAt(deadline: string): number {
   return getDeadlineCutoff(deadline) + 17 * 60 * 60 * 1000;
 }
 
+/** 店舗登録日の7日後 17:00 JST の Unix ms を返す（本番募集リマインド用）。 */
+export function getShopActivationReminderAt(registeredAt: number): number {
+  const registeredDateJst = formatUtcDate(registeredAt + JST_OFFSET_MS);
+  const reminderDate = addDays(registeredDateJst, 7);
+  return dateToUtcMs(reminderDate) + 17 * 60 * 60 * 1000 - JST_OFFSET_MS;
+}
+
 /** JST基準の今日の日付を "YYYY-MM-DD" で返す */
 export function todayJST(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];

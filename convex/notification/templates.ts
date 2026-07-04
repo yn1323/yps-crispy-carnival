@@ -494,6 +494,61 @@ export function buildNotificationFailureReminderEmailHtml(
 </html>`;
 }
 
+export const SHOP_ACTIVATION_REMINDER_SUBJECT = "本番のシフト募集を作れます";
+
+type ShopActivationReminderParams = {
+  dashboardUrl: string;
+};
+
+export function buildShopActivationReminderLineText(params: ShopActivationReminderParams): string {
+  return [
+    "📅 シフト作成の続き",
+    "",
+    "シフトリで店舗登録が完了してから1週間経過しました。",
+    "",
+    "スタッフを追加して実際にシフトを回収してみましょう！",
+    "",
+    "シフト募集作成はこちら↓↓",
+    withOpenExternalBrowser(params.dashboardUrl),
+  ].join("\n");
+}
+
+export function buildShopActivationReminderEmailHtml(
+  params: ShopActivationReminderParams & { managerName: string },
+): string {
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#1a202c;">📅 シフト作成の続き</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトリで店舗登録が完了してから1週間経過しました。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフを追加して実際にシフトを回収してみましょう！</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <p style="margin:0 0 12px;font-size:15px;color:#1a202c;">シフト募集作成はこちら↓↓</p>
+              <a href="${params.dashboardUrl}" style="color:#319795;font-size:14px;font-weight:600;word-break:break-all;" rel="noreferrer">${params.dashboardUrl}</a>
+            </td></tr>
+          </table>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">※ このメールに返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export const SHIFT_CONFIRMATION_REMINDER_SUBJECT = "シフトの確定をお願いします";
 
 type ShiftConfirmationReminderParams = {

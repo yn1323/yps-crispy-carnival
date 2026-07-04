@@ -8,8 +8,11 @@ import {
   buildReminderLineText,
   buildShiftConfirmationLineText,
   buildShiftConfirmationReminderLineText,
+  buildShopActivationReminderEmailHtml,
+  buildShopActivationReminderLineText,
   buildStaffRegistrationOwnerDigestEmailHtml,
   buildStaffRegistrationOwnerDigestLineText,
+  SHOP_ACTIVATION_REMINDER_SUBJECT,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "./templates";
 
@@ -90,15 +93,20 @@ describe("notification/templates", () => {
     const failure = buildNotificationFailureReminderLineText({
       dashboardUrl: "https://shiftori.app/dashboard",
     });
+    const shopActivation = buildShopActivationReminderLineText({
+      dashboardUrl: "https://shiftori.app/dashboard",
+    });
 
     expect(recruitment.startsWith("📩 提出依頼\n")).toBe(true);
     expect(reminder.startsWith("🔔 提出リマインド\n")).toBe(true);
     expect(confirmationReminder.startsWith("⏰ 締切超過\n")).toBe(true);
     expect(failure.startsWith("⚠️ 通知失敗\n")).toBe(true);
+    expect(shopActivation.startsWith("📅 シフト作成の続き\n")).toBe(true);
     // ⚠️ は対応必須の通知失敗のみ。他の種別には使わない
     expect(recruitment).not.toContain("⚠️");
     expect(reminder).not.toContain("⚠️");
     expect(confirmationReminder).not.toContain("⚠️");
+    expect(shopActivation).not.toContain("⚠️");
   });
 
   it("スタッフ参加申請のオーナー通知はダッシュボードリンクのみを案内し、申請者情報を含めない", () => {
@@ -122,6 +130,38 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain(dashboardUrl);
     expect(`${lineText}\n${emailHtml}`).not.toContain("申請スタッフ");
     expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");
+  });
+
+  it("店舗登録後の本番募集リマインダーはスタッフ追加と募集作成CTAを表示する", () => {
+    const dashboardUrl = "https://shiftori.app/dashboard";
+    const lineText = buildShopActivationReminderLineText({ dashboardUrl });
+    const emailHtml = buildShopActivationReminderEmailHtml({
+      managerName: "佐藤 店長",
+      dashboardUrl,
+    });
+
+    expect(formatResendSubject("テスト店舗", SHOP_ACTIVATION_REMINDER_SUBJECT)).toBe(
+      "【シフトリ：テスト店舗】本番のシフト募集を作れます",
+    );
+    expect(lineText).toBe(
+      [
+        "📅 シフト作成の続き",
+        "",
+        "シフトリで店舗登録が完了してから1週間経過しました。",
+        "",
+        "スタッフを追加して実際にシフトを回収してみましょう！",
+        "",
+        "シフト募集作成はこちら↓↓",
+        `${dashboardUrl}?openExternalBrowser=1`,
+      ].join("\n"),
+    );
+    expect(emailHtml).toContain("佐藤 店長さん");
+    expect(emailHtml).toContain("📅 シフト作成の続き");
+    expect(emailHtml).toContain("シフトリで店舗登録が完了してから1週間経過しました。");
+    expect(emailHtml).toContain("スタッフを追加して実際にシフトを回収してみましょう！");
+    expect(emailHtml).toContain("シフト募集作成はこちら↓↓");
+    expect(emailHtml).toContain(dashboardUrl);
+    expect(emailHtml).not.toContain("openExternalBrowser=1");
   });
 
   it("LINEの通常返信文はテンプレートから生成する", () => {

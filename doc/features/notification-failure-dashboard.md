@@ -26,7 +26,7 @@
 
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
 - `status = open` かつ最新失敗（`lastFailedAt`）が直近3日以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに窓がリセットされ、無ければ最大3回で打ち切られる。
-- 配信先は店舗のmanager users全員。LINE連携済みなら LINE（emailフォールバック付き）、それ以外はメール。
+- 配信先は店舗のmanager users全員。LINE連携済みなら LINE（Quota超過時のemailフォールバック付き）、それ以外はメール。
 - このリマインダー通知自体の配送が失敗しても `notificationFailureInbox` には記録しない（payloadの `suppressFailureInbox` で抑止。メタ失敗でInboxを汚さないため）。
 
 ## 画面一覧
@@ -51,6 +51,7 @@
 ## 表示ルール
 
 - 通知種別が `通知`（`other` = どの通知種別にもマッピングされない context）の不達は、再通知できずマネージャーが対応しようがないため、一覧・要対応有無（HeroSummaryの「不達通知があります」カード）・日次リマインダーのいずれにも出さない。判定は `isManagerActionableNotificationFailure`（`convex/notificationOutbox/failureResend.ts`）。記録自体は `notificationFailureInbox` に残す（配送ログ・Resend webhook突合のため）。
+- 募集に紐づく不達は、対象 `recruitments` が非削除かつ `status = open` の場合だけ一覧・要対応有無・日次リマインダー・一斉再通知の対象にする。募集終了後の不達行は記録としては残すが、Dashboard では扱わない。
 - エラー理由、スタッフID、解決済み操作は表示しない。
 - メール channel の不達が含まれる場合は「メールが届かない場合は、メールアドレスに誤りがないか確認ください。それでも失敗する場合は、スタッフ行のメニューからLINE連携リンクを案内できます。」と補足する。
 - Resend provider 由来の遅延・失敗・拒否・抑止は、既存行と同じ `送れなかった通知` として表示する。細かい provider 状態ラベルは出さない。

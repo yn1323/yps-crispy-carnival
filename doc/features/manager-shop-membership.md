@@ -8,13 +8,16 @@
 - `convex/_lib/functions.ts` — manager向けAPIの認証と現在店舗解決
 - `convex/dashboard/queries.ts` — dashboard表示用の現在店舗解決
 - `convex/setup/mutations.ts` — 初回店舗登録とmanager所属作成
+- `src/components/features/auths/AuthGuard.tsx` — フロントの選択中店舗を所属一覧と整合
+- `src/components/features/auths/AuthenticatedHeader/` — 店舗削除確認UI（入口は一時停止中）
 - `convex/staffRegistration/notificationQueries.ts` — 店舗のmanager usersを通知対象として取得
 
 ## 画面一覧
 
 | 画面 | 役割 |
 |---|---|
-| ダッシュボード | 現在はログインmanagerの最初のactive所属店舗を表示する |
+| ダッシュボード | 現在はログインmanagerの最初の有効なactive所属店舗を表示する |
+| 右上ユーザーメニュー | 店舗削除入口は誤操作リスクを再検討するため一時停止中 |
 
 ## API一覧
 
@@ -34,10 +37,11 @@
 - `shopId` 未指定: 先頭のactive所属店舗にフォールバック（後方互換）。
 
 フロント側は `selectedShopAtom`（localStorage永続化）に選択中店舗を保持し、`useShopMutation`（`src/hooks/useShopMutation.ts`）が manager 系 mutation へ `shopId` を自動注入する。`AuthGuard` が `getMyShops` で atom を初期化/整合する。
+`getMyShops` が0件になった場合は `selectedShopAtom` を `null` にし、削除した店舗が保存値に残っている場合は先頭の有効店舗へ切り替える。
 
 ## 補足
 
 - **店舗切替UI（プルダウン等）は未実装**。`selectedShopAtom` は先頭店舗で初期化されるため、現状の挙動は実質これまでと同じ（送信経路だけ整備済み）。
-- ダッシュボードの読み取り（`getDashboardShop` 等）は `authenticatedQuery` + `getManagerShop`（先頭店舗）で、まだ `shopId` を受け取らない。完全な複数店舗読み取りは切替UI導入時に対応する。
+- ダッシュボードの読み取り（`getDashboardShop` 等）は `authenticatedQuery` + `getManagerShop`（先頭の有効店舗）で、まだ `shopId` を受け取らない。完全な複数店舗読み取りは切替UI導入時に対応する。
 - 2店舗目作成、店舗招待は未実装。
 - managerの法務同意はuser単位で判定する。`legalConsentStates.shopId` は同意した店舗文脈の履歴として扱う。

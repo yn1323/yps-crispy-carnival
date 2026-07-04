@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { PERSON_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
@@ -66,6 +67,8 @@ describe("setup/mutations", () => {
 
     it("店舗・ユーザー・スタッフ・同意履歴をトランザクションで作成する", async () => {
       const t = convexTest(schema, modules);
+      const now = new Date("2026-07-05T10:00:00+09:00");
+      vi.setSystemTime(now);
       const asUser = t.withIdentity({
         subject: "user_new",
         name: "新規ユーザー",
@@ -139,6 +142,14 @@ describe("setup/mutations", () => {
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
         scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffs[0]._id),
+      ).toBe(true);
+      expect(
+        scheduled.some(
+          (job) =>
+            job.name === "shopActivationReminder/actions:sendReminder" &&
+            job.args[0]?.shopId === shopId &&
+            job.scheduledTime === getShopActivationReminderAt(now.getTime()),
+        ),
       ).toBe(true);
 
       const consentEvents = await t.run(async (ctx) =>
