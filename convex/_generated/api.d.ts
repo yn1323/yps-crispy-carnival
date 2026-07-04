@@ -69,6 +69,7 @@ import type * as notification_reminderQueries from "../notification/reminderQuer
 import type * as notification_templates from "../notification/templates.js";
 import type * as notificationOutbox_actions from "../notificationOutbox/actions.js";
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
+import type * as notificationOutbox_failureEligibility from "../notificationOutbox/failureEligibility.js";
 import type * as notificationOutbox_failureIdentity from "../notificationOutbox/failureIdentity.js";
 import type * as notificationOutbox_failureReminderActions from "../notificationOutbox/failureReminderActions.js";
 import type * as notificationOutbox_failureReminderQueries from "../notificationOutbox/failureReminderQueries.js";
@@ -96,6 +97,9 @@ import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
 import type * as shiftView_queries from "../shiftView/queries.js";
 import type * as shop_mutations from "../shop/mutations.js";
 import type * as shop_schemas from "../shop/schemas.js";
+import type * as shopActivationReminder_actions from "../shopActivationReminder/actions.js";
+import type * as shopActivationReminder_queries from "../shopActivationReminder/queries.js";
+import type * as shopActivationReminder_refs from "../shopActivationReminder/refs.js";
 import type * as staff_mutations from "../staff/mutations.js";
 import type * as staff_schemas from "../staff/schemas.js";
 import type * as staff_service from "../staff/service.js";
@@ -177,6 +181,7 @@ declare const fullApi: ApiFromModules<{
   "notification/templates": typeof notification_templates;
   "notificationOutbox/actions": typeof notificationOutbox_actions;
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
+  "notificationOutbox/failureEligibility": typeof notificationOutbox_failureEligibility;
   "notificationOutbox/failureIdentity": typeof notificationOutbox_failureIdentity;
   "notificationOutbox/failureReminderActions": typeof notificationOutbox_failureReminderActions;
   "notificationOutbox/failureReminderQueries": typeof notificationOutbox_failureReminderQueries;
@@ -204,6 +209,9 @@ declare const fullApi: ApiFromModules<{
   "shiftView/queries": typeof shiftView_queries;
   "shop/mutations": typeof shop_mutations;
   "shop/schemas": typeof shop_schemas;
+  "shopActivationReminder/actions": typeof shopActivationReminder_actions;
+  "shopActivationReminder/queries": typeof shopActivationReminder_queries;
+  "shopActivationReminder/refs": typeof shopActivationReminder_refs;
   "staff/mutations": typeof staff_mutations;
   "staff/schemas": typeof staff_schemas;
   "staff/service": typeof staff_service;

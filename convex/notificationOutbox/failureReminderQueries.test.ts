@@ -15,6 +15,7 @@ async function insertFailure(
     lastFailedAt?: number;
     dedupeKey?: string;
     notificationContext?: string;
+    recruitmentId?: Id<"recruitments">;
   },
 ) {
   const now = Date.now();
@@ -24,6 +25,7 @@ async function insertFailure(
     sourceType: "outbox",
     status: args.status ?? "open",
     shopId: args.shopId,
+    ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
     dedupeKey: args.dedupeKey ?? `email:test:${args.shopId}`,
     notificationContext: args.notificationContext ?? "notification.sendRecruitmentNotificationEmails",
     firstFailedAt: lastFailedAt,
@@ -42,13 +44,31 @@ describe("notificationOutbox/failureReminderQueries", () => {
         const open = await seedManagerShop(ctx, { subject: "open_shop", shopName: "Open" });
         const retrying = await seedManagerShop(ctx, { subject: "retrying_shop", shopName: "Retrying" });
         const resolved = await seedManagerShop(ctx, { subject: "resolved_shop", shopName: "Resolved" });
+        const closed = await seedManagerShop(ctx, { subject: "closed_shop", shopName: "Closed" });
         await insertFailure(ctx, { shopId: open.shopId, status: "open" });
         await insertFailure(ctx, { shopId: retrying.shopId, status: "retrying" });
         await insertFailure(ctx, { shopId: resolved.shopId, status: "resolved" });
+        const closedRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId: closed.shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-15",
+          deadline: "2026-06-25",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await insertFailure(ctx, {
+          shopId: closed.shopId,
+          status: "open",
+          recruitmentId: closedRecruitmentId,
+        });
         return idsToStrings({
           openShopId: open.shopId,
           retryingShopId: retrying.shopId,
           resolvedShopId: resolved.shopId,
+          closedShopId: closed.shopId,
         });
       });
 
@@ -60,6 +80,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
       expect(result.page.map(String)).toEqual([ids.openShopId]);
       expect(result.page.map(String)).not.toContain(ids.retryingShopId);
       expect(result.page.map(String)).not.toContain(ids.resolvedShopId);
+      expect(result.page.map(String)).not.toContain(ids.closedShopId);
     });
 
     it("最新の失敗が3日を超えた店舗は返さない", async () => {
@@ -104,6 +125,43 @@ describe("notificationOutbox/failureReminderQueries", () => {
 
       expect(result.page.map(String)).toEqual([ids.actionableShopId]);
       expect(result.page.map(String)).not.toContain(ids.otherKindShopId);
+    });
+
+    it("募集終了済み失敗がページを埋めても対応可能な店舗を初回ページで返す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const actionable = await seedManagerShop(ctx, { subject: "actionable_pagination_shop" });
+        const closed = await seedManagerShop(ctx, { subject: "closed_pagination_shop" });
+        const closedRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId: closed.shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-15",
+          deadline: "2026-06-25",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await insertFailure(ctx, {
+          shopId: closed.shopId,
+          recruitmentId: closedRecruitmentId,
+          lastFailedAt: Date.now() - NOTIFICATION_FAILURE_REMINDER_WINDOW_MS + HOUR_MS,
+        });
+        await insertFailure(ctx, {
+          shopId: actionable.shopId,
+          lastFailedAt: Date.now() - HOUR_MS,
+        });
+        return idsToStrings({ actionableShopId: actionable.shopId, closedShopId: closed.shopId });
+      });
+
+      const result = await t.query(
+        internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage,
+        { paginationOpts: { numItems: 1, cursor: null } },
+      );
+
+      expect(result.page.map(String)).toEqual([ids.actionableShopId]);
+      expect(result.page.map(String)).not.toContain(ids.closedShopId);
     });
 
     it("古い失敗と3日以内の失敗が混在する店舗は返す（最新失敗基準）", async () => {
@@ -191,6 +249,32 @@ describe("notificationOutbox/failureReminderQueries", () => {
       await expect(
         t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
           shopId: otherKindShopId,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("募集終了した不達しかない店舗は null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { closedShopId } = await t.run(async (ctx) => {
+        const closed = await seedManagerShop(ctx, { subject: "closed_target" });
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: closed.shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-15",
+          deadline: "2026-06-25",
+          shopClosedDates: [],
+          status: "confirmed",
+          confirmedAt: Date.now(),
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        await insertFailure(ctx, { shopId: closed.shopId, status: "open", recruitmentId });
+        return { closedShopId: closed.shopId };
+      });
+
+      await expect(
+        t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
+          shopId: closedShopId,
         }),
       ).resolves.toBeNull();
     });

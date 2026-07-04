@@ -10,7 +10,7 @@ describe("selectChannel", () => {
     expect(selectChannel({ lineUserId: "U123", lineFollowing: true }, { status: "exceeded" })).toBe("email");
   });
 
-  it("quota が null（cron 未実行）でも LINE を試みる（失敗時は呼び出し側でフォールバック）", () => {
+  it("quota が null（cron 未実行）でも LINE を試みる", () => {
     expect(selectChannel({ lineUserId: "U123", lineFollowing: true }, null)).toBe("line");
   });
 

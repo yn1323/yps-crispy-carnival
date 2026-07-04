@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, testAuthTokenIdentifier } from "../_test/seed";
+import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
@@ -44,6 +44,25 @@ describe("dashboard/queries", () => {
         .withIdentity({ subject: "user_deleted" })
         .query(api.dashboard.queries.getDashboardShop, {});
       expect(result).toBeNull();
+    });
+
+    it("先頭の所属店舗が削除済みの場合、次の有効店舗を返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "user_deleted_first");
+        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        await ctx.db.patch(deletedShopId, { isDeleted: true });
+        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+
+        const activeShopId = await seedShop(ctx, "残っている店舗");
+        await seedShopMembership(ctx, { userId, shopId: activeShopId });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "user_deleted_first" })
+        .query(api.dashboard.queries.getDashboardShop, {});
+
+      expect(result?.name).toBe("残っている店舗");
     });
 
     it("削除済みmembershipでは店舗情報を返さない", async () => {

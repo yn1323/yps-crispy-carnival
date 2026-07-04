@@ -241,7 +241,7 @@ async function recordConfirmationSnapshotSentSafely(
 /**
  * 再発行メールの配信
  * - 連携済みかつ友達追加中 → LINE Push
- * - それ以外 / LINE失敗時 → メール
+ * - 未連携 / 友達解除 / Quota超過 → メール
  */
 export const sendReissueEmail = internalAction({
   args: {
