@@ -32,7 +32,7 @@
 | API | 種別 | 用途 |
 |---|---|---|
 | `internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget` | internalQuery | 募集が `open` のときだけ、店舗名・期間・締切ラベル・Dashboard URL・マネージャー受信者一覧を返す。削除済み/確定済み/対象不在は `null` |
-| `internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder` | internalAction | マネージャーごとに LINE（emailフォールバック付き）またはメールを enqueue する |
+| `internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder` | internalAction | マネージャーごとに LINE（Quota超過時のemailフォールバック付き）またはメールを enqueue する |
 
 ## failureInbox に載せない仕組み
 
@@ -40,7 +40,7 @@
 
 - worker 配送失敗 → `markFailed`: 抑止 context のため要対応Inbox upsert をスキップ。
 - enqueue 失敗 → `recordDeliveryEvent(enqueue_failed)`: 同様にスキップ。
-- LINE quota 超過時は fallback email へ切り替わる既存挙動のまま、最終的に失敗しても上記で抑止。
+- LINE quota 超過時は fallback email へ切り替わる既存挙動のまま、最終的に失敗しても上記で抑止。LINE Push API の失敗は既存の retry / final_failed に任せる。
 - いずれも `notificationDeliveryEvents` には記録が残る。
 
 ## 関連ドキュメント

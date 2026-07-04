@@ -17,8 +17,8 @@ import { SHIFT_CONFIRMATION_REMINDER_CONTEXT } from "../notificationOutbox/failu
 /**
  * シフト締め切り日の翌日17時に発火。募集がまだ確定していなければ、店舗のマネージャー全員に
  * 「シフトを調整して確定してください」と催促する。
- * - 連携済みかつ友達追加中 → LINE Push（email フォールバック付き）
- * - それ以外 → メール
+ * - 連携済みかつ友達追加中 → LINE Push（Quota超過時のemailフォールバック付き）
+ * - 未連携 / 友達解除 / Quota超過 → メール
  * 補助的な通知のため、失敗しても failureInbox には載せない（context で抑止）。
  */
 export const sendManagerConfirmationReminder = internalAction({

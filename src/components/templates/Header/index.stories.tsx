@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { queryByRole } from "@testing-library/dom";
 import { createStore, Provider } from "jotai";
-import { expect } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
@@ -31,6 +31,29 @@ type Story = StoryObj<HeaderProps>;
 
 export const User: Story = {
   args: {},
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("link", { name: "ダッシュボードへ" })).toHaveAttribute("href", "/dashboard");
+  },
+};
+
+export const UserWithoutShopDeletionEntry: Story = {
+  args: {
+    deleteShopAction: {
+      onSelect: () => {},
+    },
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async () => {
+    const screen = within(document.body);
+    await userEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
+
+    await screen.findByRole("menuitem", { name: "ログアウト" });
+    await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+  },
 };
 
 export const UserWithoutMenu: Story = {

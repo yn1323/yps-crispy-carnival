@@ -46,10 +46,20 @@ export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = 3 * DAY_MS;
 // シフト確定催促リマインダーで一度に通知するマネージャーの上限
 export const SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT = 20;
 
+// 初回店舗登録後の本番募集リマインダーで一度に通知するマネージャーの上限
+export const SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT = 20;
+
 // 失敗通知リマインダーの通知期間。最新の失敗からこの期間を過ぎたら通知しない（日次cronで最大3回）
 export const NOTIFICATION_FAILURE_REMINDER_WINDOW_MS = 3 * DAY_MS;
 export const NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE = 100;
 export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
+
+// 分析KPI日次集計のページサイズ。イベント走査は1行=1読み取りなので大きめでよい
+export const ANALYTICS_AGGREGATION_PAGE_SIZE = 100;
+// 店舗スナップショット集計は店舗ごとにスタッフ・LINE連携・募集を読むため小さめにする
+export const ANALYTICS_SHOP_SNAPSHOT_PAGE_SIZE = 10;
+// 分析internalQueryが一度に返す時系列行数の上限（約2年分）
+export const ANALYTICS_QUERY_RANGE_LIMIT = 731;
 
 export const DEFAULT_POSITION_NAME = "シフト";
 export const DEFAULT_POSITION_COLOR = "#3b82f6";

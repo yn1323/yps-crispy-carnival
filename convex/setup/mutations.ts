@@ -1,9 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
+import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { recordStaffLegalConsent, recordUserLegalConsent } from "../legal/service";
 import { ensureDefaultPosition } from "../position/service";
+import { sendReminderRef } from "../shopActivationReminder/refs";
 import { setupShopAndManagerSchema } from "./schemas";
 
 export const setupShopAndManager = authenticatedMutation({
@@ -100,6 +102,9 @@ export const setupShopAndManager = authenticatedMutation({
 
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId,
+    });
+    await ctx.scheduler.runAt(getShopActivationReminderAt(now), sendReminderRef, {
+      shopId,
     });
 
     return shopId;

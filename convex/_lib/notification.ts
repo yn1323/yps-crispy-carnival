@@ -7,7 +7,7 @@
  * - それ以外 → "email"
  *
  * Quota が未取得（cron 未実行）の場合は LINE 送信を試みる。
- * 実際に LINE Push が失敗した場合は呼び出し側で email にフォールバックする。
+ * 処理時に Quota 超過が判明した場合は、outbox worker が fallbackEmail を email として enqueue する。
  */
 export type LineNotificationStaff = {
   lineUserId?: string;

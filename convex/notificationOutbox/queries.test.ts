@@ -42,6 +42,17 @@ describe("notificationOutbox/queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
+      const confirmedRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId: primary.shopId,
+        periodStart: "2026-07-16",
+        periodEnd: "2026-07-31",
+        deadline: "2026-07-10",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
       const oldFailureId = await insertFailure(ctx, {
         shopId: primary.shopId,
         failureKey: "outbox:old",
@@ -67,6 +78,16 @@ describe("notificationOutbox/queries", () => {
         lastFailedAt: Date.now(),
         staffId,
         recruitmentId,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      await insertFailure(ctx, {
+        shopId: primary.shopId,
+        failureKey: "outbox:confirmed-recruitment",
+        status: "open",
+        dedupeKey: "email:test:confirmed-recruitment",
+        lastFailedAt: Date.now() + 2000,
+        staffId,
+        recruitmentId: confirmedRecruitmentId,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
       await insertFailure(ctx, {
@@ -113,13 +134,40 @@ describe("notificationOutbox/queries", () => {
     expect(page.page[0]).not.toHaveProperty("lastError");
   });
 
-  it("listOpenFailuresは新しいother失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
+  it("listOpenFailuresは非表示失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
     const t = convexTest(schema, modules);
     const actionableId = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "manager_pagination",
         email: "pagination@example.com",
         shopName: "ページング店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "ページングスタッフ",
+        email: "pagination-staff@example.com",
+        isDeleted: false,
+      });
+      const openRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const confirmedRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-16",
+        periodEnd: "2026-07-31",
+        deadline: "2026-07-10",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       // 対応可能な失敗（古い）
       const id = await insertFailure(ctx, {
@@ -128,9 +176,24 @@ describe("notificationOutbox/queries", () => {
         status: "open",
         dedupeKey: "email:test:actionable",
         lastFailedAt: Date.now() - 10_000,
+        staffId,
+        recruitmentId: openRecruitmentId,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
-      // other失敗（新しい）でページ先頭を埋める
+      // 募集終了済み失敗（新しい）でページ先頭を埋める
+      for (let i = 0; i < 3; i++) {
+        await insertFailure(ctx, {
+          shopId,
+          failureKey: `outbox:confirmed-recruitment-${i}`,
+          status: "open",
+          dedupeKey: `email:test:confirmed-recruitment-${i}`,
+          lastFailedAt: Date.now() + i + 100,
+          staffId,
+          recruitmentId: confirmedRecruitmentId,
+          notificationContext: "notification.sendRecruitmentNotificationEmails",
+        });
+      }
+      // other失敗（新しい）はDB filterで除外される
       for (let i = 0; i < 3; i++) {
         await insertFailure(ctx, {
           shopId,
@@ -144,7 +207,6 @@ describe("notificationOutbox/queries", () => {
       return id;
     });
 
-    // ページング後フィルタだと初回ページが空になるが、前段フィルタなら対応可能な失敗を返す
     const page = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
@@ -172,6 +234,11 @@ describe("notificationOutbox/queries", () => {
         email: "other-kind@example.com",
         shopName: "通知種別のみ店舗",
       });
+      const closedOnly = await seedManagerShop(ctx, {
+        subject: "manager_closed_only",
+        email: "closed-only@example.com",
+        shopName: "募集終了のみ店舗",
+      });
       await insertFailure(ctx, {
         shopId: active.shopId,
         failureKey: "outbox:active",
@@ -187,6 +254,25 @@ describe("notificationOutbox/queries", () => {
         dedupeKey: "email:test:other-kind-only",
         notificationContext: "test.email",
       });
+      const closedRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId: closedOnly.shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await insertFailure(ctx, {
+        shopId: closedOnly.shopId,
+        failureKey: "outbox:closed-only",
+        status: "open",
+        dedupeKey: "email:test:closed-only",
+        recruitmentId: closedRecruitmentId,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
     });
 
     await expect(
@@ -197,6 +283,9 @@ describe("notificationOutbox/queries", () => {
     ).resolves.toBe(false);
     await expect(
       t.withIdentity({ subject: "manager_other_kind" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+    ).resolves.toBe(false);
+    await expect(
+      t.withIdentity({ subject: "manager_closed_only" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
     ).resolves.toBe(false);
   });
 });

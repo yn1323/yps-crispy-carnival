@@ -4,8 +4,14 @@ import { useAtomValue } from "jotai";
 import { LuChevronDown, LuLogOut, LuUserRound } from "react-icons/lu";
 import { userAtom } from "@/src/stores/user";
 
+export type UserMenuDeleteShopAction = {
+  onSelect: () => void;
+};
+
 type Props = {
   tone?: "dark" | "light";
+  // 店舗削除入口は再検討中。propは再開時の接続点として残す。
+  deleteShopAction?: UserMenuDeleteShopAction;
 };
 
 export const UserMenu = ({ tone = "dark" }: Props) => {
@@ -68,6 +74,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </Text>
             </Box>
             <Menu.Separator />
+            {/* 店舗削除入口は誤操作リスクを再検討するため一時停止中。 */}
             <SignOutButton>
               <Menu.Item value="logout" cursor="pointer" color="red.500">
                 <LuLogOut />

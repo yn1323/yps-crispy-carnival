@@ -11,7 +11,7 @@ import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
 } from "../constants";
-import { NOTIFICATION_FAILURE_REMINDER_CONTEXT } from "./failureSuppress";
+import { NOTIFICATION_FAILURE_REMINDER_CONTEXT, SHOP_ACTIVATION_REMINDER_CONTEXT } from "./failureSuppress";
 
 const emailPayload = {
   kind: "email" as const,
@@ -528,6 +528,32 @@ describe("notificationOutbox", () => {
       expect(await collectFailureInbox(t)).toEqual([]);
     });
 
+    it("markFailedは店舗登録後リマインダーcontextでも配送イベントを残し、要対応Inbox化しない", async () => {
+      const { t, shopId } = await setupShop();
+      const dedupeKey = `email:shopActivationReminder:${shopId}:user_test`;
+      const outboxId = await insertProcessingJob(t, {
+        shopId,
+        channel: "email",
+        dedupeKey,
+        context: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      });
+
+      await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "reminder failed" });
+
+      const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType: "final_failed",
+        shopId,
+        outboxId,
+        channel: "email",
+        dedupeKey,
+        notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+        errorMessage: "reminder failed",
+      });
+      expect(await collectFailureInbox(t)).toEqual([]);
+    });
+
     it("同じ通知種別・募集・スタッフの異なるoutbox失敗は最新1件の要対応Inboxに更新する", async () => {
       const { t, shopId, staffId } = await setupShop();
       const recruitmentId = await t.run(async (ctx) => {
@@ -890,6 +916,37 @@ describe("notificationOutbox", () => {
     expect(await collectFailureInbox(t)).toEqual([]);
   });
 
+  it.each([
+    "enqueue_failed",
+    "enqueue_preparation_failed",
+  ] as const)("recordDeliveryEventは店舗登録後リマインダーcontextの%sを要対応Inbox化しない", async (eventType) => {
+    const { t, shopId, staffId } = await setupShop();
+    const dedupeKey = `email:shopActivationReminder:${shopId}:user_test`;
+
+    await t.mutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType,
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      errorMessage: "enqueue failed",
+    });
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType,
+      shopId,
+      staffId,
+      channel: "email",
+      dedupeKey,
+      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      errorMessage: "enqueue failed",
+    });
+    expect(await collectFailureInbox(t)).toEqual([]);
+  });
+
   it("recordDeliveryEventは通知不達リマインダーLINEのdedupe由来contextでも要対応Inbox化しない", async () => {
     const { t, shopId, staffId } = await setupShop();
     const dedupeKey = "line:notificationFailureReminder:shop_test:user_test";
@@ -1088,6 +1145,50 @@ describe("notificationOutbox", () => {
       collectFailureInbox(t),
     ]);
     expect(events).toHaveLength(1);
+    expect(failures).toEqual([]);
+  });
+
+  it("recordResendProviderIssueは店舗登録後リマインダーcontextを要対応Inbox化しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      dedupeKey: `email:shopActivationReminder:${shopId}:user_test`,
+      context: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      resendEmailId: "email_shop_activation_reminder",
+    });
+
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_shop_activation_reminder",
+      providerEventType: "email.failed",
+      providerEmailId: "email_shop_activation_reminder",
+      occurredAt: Date.now(),
+      errorMessage: "Resend reported email failed",
+    });
+
+    const [events, failures, outbox] = await Promise.all([
+      t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
+      collectFailureInbox(t),
+      t.run(async (ctx) => await ctx.db.get(outboxId)),
+    ]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "provider_delivery_issue",
+      provider: "resend",
+      providerEventId: "svix_shop_activation_reminder",
+      providerEmailId: "email_shop_activation_reminder",
+      providerEventType: "email.failed",
+      outboxId,
+      shopId,
+      channel: "email",
+      notificationContext: SHOP_ACTIVATION_REMINDER_CONTEXT,
+      errorMessage: "Resend reported email failed",
+    });
+    expect(outbox).toMatchObject({
+      status: "sent",
+      resendLastEventType: "email.failed",
+      resendDeliveryStatus: "failed",
+    });
     expect(failures).toEqual([]);
   });
 
@@ -1349,6 +1450,53 @@ describe("notificationOutbox", () => {
     expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
   });
 
+  it("resendFailureは募集終了した不達を再送しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const now = Date.now();
+      const failureId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "enqueue_preparation:test:closed-recruitment",
+        sourceType: "enqueue_preparation",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:recruitment:closed-recruitment",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "preparation failed",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { failureId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId: ids.failureId });
+
+    expect(result).toEqual({ scheduled: false, reason: "notRetryable" });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(ids.failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure?.status).toBe("open");
+    expect(state.scheduled).toHaveLength(0);
+  });
+
   it("resendOpenFailuresは同一スタッフのLINE連携案内をまとめて1回だけ予約する", async () => {
     const { t, shopId, staffId } = await setupShop();
     await t.run(async (ctx) => {
@@ -1480,8 +1628,7 @@ describe("notificationOutbox", () => {
         periodEnd: "2026-07-15",
         deadline: "2026-06-25",
         shopClosedDates: [],
-        status: "confirmed",
-        confirmedAt: Date.now(),
+        status: "open",
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
@@ -1489,11 +1636,11 @@ describe("notificationOutbox", () => {
       const oldOutboxId = await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "failed",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:1`,
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:1`,
         shopId,
         recruitmentId,
         staffId,
-        payload: { ...emailPayload, context: "notification.sendConfirmationEmail" },
+        payload: { ...emailPayload, context: "notification.sendRecruitmentNotificationEmails" },
         attemptCount: 3,
         nextRunAt: now,
         failedAt: now - 2_000,
@@ -1503,11 +1650,11 @@ describe("notificationOutbox", () => {
       const latestOutboxId = await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "failed",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:2`,
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:2`,
         shopId,
         recruitmentId,
         staffId,
-        payload: { ...emailPayload, context: "notification.sendConfirmationEmail" },
+        payload: { ...emailPayload, context: "notification.sendRecruitmentNotificationEmails" },
         attemptCount: 3,
         nextRunAt: now,
         failedAt: now,
@@ -1523,8 +1670,8 @@ describe("notificationOutbox", () => {
         staffId,
         outboxId: oldOutboxId,
         channel: "email",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:1`,
-        notificationContext: "notification.sendConfirmationEmail",
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:1`,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
         firstFailedAt: now - 2_000,
         lastFailedAt: now - 2_000,
         lastError: "old failed",
@@ -1540,8 +1687,8 @@ describe("notificationOutbox", () => {
         staffId,
         outboxId: latestOutboxId,
         channel: "email",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:2`,
-        notificationContext: "notification.sendConfirmationEmail",
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:2`,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
         firstFailedAt: now,
         lastFailedAt: now,
         lastError: "latest failed",
@@ -1572,7 +1719,7 @@ describe("notificationOutbox", () => {
       resolutionKind: "superseded",
     });
     expect(state.latestFailure).toMatchObject({
-      failureKey: `logical:${shopId}:${ids.recruitmentId}:${staffId}:confirmation`,
+      failureKey: `logical:${shopId}:${ids.recruitmentId}:${staffId}:recruitment`,
       status: "retrying",
       retryRequestedByUserId: expect.any(String),
     });

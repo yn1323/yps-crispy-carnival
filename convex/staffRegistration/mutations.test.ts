@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "../constants";
 
@@ -196,6 +196,38 @@ describe("staffRegistration/mutations", () => {
         requestId,
       }),
     ).rejects.toThrow("Not found");
+  });
+
+  it("先頭の所属店舗が削除済みの場合、次の有効店舗の承認待ち申請を返す", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const userId = await seedUser(ctx, "manager_deleted_first", "manager-deleted-first@example.com");
+      const deletedShopId = await seedShop(ctx, "削除済み店舗");
+      await ctx.db.patch(deletedShopId, { isDeleted: true });
+      await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+
+      const activeShopId = await seedShop(ctx, "残っている店舗");
+      await seedShopMembership(ctx, { userId, shopId: activeShopId });
+      await ctx.db.insert("staffRegistrationRequests", {
+        shopId: activeShopId,
+        name: "承認待ちスタッフ",
+        email: "pending-active@example.com",
+        emailNormalized: "pending-active@example.com",
+        status: "pending",
+        termsConsentVersion: "2026-01-01",
+        privacyConsentVersion: "2026-01-01",
+        termsDocumentVersion: "2026-01-01",
+        privacyDocumentVersion: "2026-01-01",
+        consentedAt: Date.now(),
+        createdAt: Date.now(),
+      });
+    });
+
+    const requests = await t
+      .withIdentity({ subject: "manager_deleted_first" })
+      .query(api.staffRegistration.queries.getPendingRequests, {});
+
+    expect(requests).toMatchObject([{ name: "承認待ちスタッフ", email: "pending-active@example.com" }]);
   });
 
   it("承認するとstaffs作成・同意コピー・LINE連携メール・募集中シフト通知へ反映し、同意依頼メールは予約しない", async () => {
