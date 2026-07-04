@@ -17,6 +17,7 @@ const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集を�
 const STAFF_REGISTRATION_APPROVED_TOAST_TITLE = /スタッフ申請を承認しました|スタッフ申請を承認し、案内通知を送りました/;
 const LINE_INVITE_SENT_TOAST_TITLE =
   /LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました|LINE連携リンクをメールで送りました/;
+const SHOP_DELETED_TOAST_TITLE = "店舗を削除しました";
 
 type RegularClosedDay = keyof typeof CLOSED_DAY_LABELS;
 type SubmissionPatternEdit =
@@ -237,6 +238,46 @@ export class DashboardPage {
     await expect(this.page.getByText("シフト募集を削除しました")).toBeVisible();
   }
 
+  async openShopDeleteDialog(shopName: string) {
+    await this.openUserMenu();
+    const menu = this.page.getByRole("menu");
+    await expect(menu.getByRole("menuitem", { name: "店舗削除" })).toBeVisible();
+    await menu.getByRole("menuitem", { name: "店舗削除" }).click();
+
+    const dialog = this.shopDeleteDialog();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("店舗情報、スタッフ、これまでのシフトをすべて削除します。")).toBeVisible();
+    await expect(dialog.getByText(`「${shopName}」を削除してよろしいですか？`)).toBeVisible();
+  }
+
+  async cancelShopDeletion(shopName: string) {
+    await this.openShopDeleteDialog(shopName);
+    const dialog = this.shopDeleteDialog();
+    await dialog.getByRole("button", { name: "キャンセル" }).click();
+    await expect(dialog).not.toBeVisible();
+  }
+
+  async deleteCurrentShop(shopName: string) {
+    await this.openShopDeleteDialog(shopName);
+    await this.shopDeleteDialog().getByRole("button", { name: "この店舗を削除" }).click();
+    await this.expectToastVisibleThenHidden(SHOP_DELETED_TOAST_TITLE);
+    await this.expectSetupRequired();
+  }
+
+  async expectSetupRequired() {
+    await expect(this.page.getByRole("heading", { name: "お店の情報を登録しましょう" })).toBeVisible({
+      timeout: DASHBOARD_DATA_TIMEOUT,
+    });
+    await expect(this.page.getByRole("button", { name: "お店を登録する" })).toBeVisible();
+  }
+
+  async expectShopDeletionUnavailable() {
+    await this.openUserMenu();
+    const menu = this.page.getByRole("menu");
+    await expect(menu.getByRole("menuitem", { name: "店舗削除" })).toHaveCount(0);
+    await this.page.keyboard.press("Escape");
+  }
+
   async openLineQr(staffName: string) {
     await this.openStaffMenu(staffName);
     await this.page.getByRole("menuitem", { name: /LINE連携QRを表示|LINE連携リンクを表示/ }).click();
@@ -429,6 +470,10 @@ export class DashboardPage {
 
   private staffRegistrationRequestDialog() {
     return this.page.getByRole("dialog", { name: /スタッフ参加申請|スタッフ登録申請/ });
+  }
+
+  private shopDeleteDialog() {
+    return this.page.getByRole("alertdialog", { name: "店舗を削除" });
   }
 
   private legalReconsentMessage() {

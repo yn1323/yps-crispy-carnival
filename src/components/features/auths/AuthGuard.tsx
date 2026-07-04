@@ -34,10 +34,22 @@ export const AuthGuard = ({ children }: Props) => {
   // 選択中店舗を初期化/整合する。未選択 or 保存値が所属一覧から消えた場合は先頭店舗にする。
   // （店舗切替UIは未提供。ここで selectedShopAtom にセットした値が manager 系の shopId として送られる）
   useEffect(() => {
-    if (!myShops || myShops.length === 0) return;
-    const stillValid = selectedShop && myShops.some((shop) => shop.shopId === selectedShop.shopId);
-    if (!stillValid) {
+    if (!myShops) return;
+    if (myShops.length === 0) {
+      if (selectedShop !== null) {
+        setSelectedShop(null);
+      }
+      return;
+    }
+
+    const currentShop = selectedShop ? myShops.find((shop) => shop.shopId === selectedShop.shopId) : null;
+    if (!currentShop) {
       setSelectedShop({ shopId: myShops[0].shopId, shopName: myShops[0].shopName });
+      return;
+    }
+
+    if (currentShop.shopName !== selectedShop?.shopName) {
+      setSelectedShop({ shopId: currentShop.shopId, shopName: currentShop.shopName });
     }
   }, [myShops, selectedShop, setSelectedShop]);
 
