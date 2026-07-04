@@ -504,11 +504,11 @@ export function buildShopActivationReminderLineText(params: ShopActivationRemind
   return [
     "📅 シフト作成の続き",
     "",
-    "シフトリで店舗登録が完了してから1週間ほど経ちました。",
+    "シフトリで店舗登録が完了してから1週間経過しました。",
     "",
-    "次回のシフト作成タイミングでしたら、スタッフに送る本番用の募集を作れます。",
+    "スタッフを追加して実際にシフトを回収してみましょう！",
     "",
-    "本番のシフト募集を作る",
+    "シフト募集作成はこちら↓↓",
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
 }
@@ -528,12 +528,14 @@ export function buildShopActivationReminderEmailHtml(
         </td></tr>
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトリで店舗登録が完了してから1週間ほど経ちました。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">次回のシフト作成タイミングでしたら、スタッフに送る本番用の募集をシフトリから作れます。スタッフを登録してから、希望シフトの募集を作成してください。</p>
+          <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#1a202c;">📅 シフト作成の続き</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトリで店舗登録が完了してから1週間経過しました。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフを追加して実際にシフトを回収してみましょう！</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">本番のシフト募集を作る</a>
+              <p style="margin:0 0 12px;font-size:15px;color:#1a202c;">シフト募集作成はこちら↓↓</p>
+              <a href="${params.dashboardUrl}" style="color:#319795;font-size:14px;font-weight:600;word-break:break-all;" rel="noreferrer">${params.dashboardUrl}</a>
             </td></tr>
           </table>
 

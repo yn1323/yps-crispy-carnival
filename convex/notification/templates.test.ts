@@ -132,7 +132,7 @@ describe("notification/templates", () => {
     expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");
   });
 
-  it("店舗登録後の本番募集リマインダーは再開文脈と募集作成CTAを表示する", () => {
+  it("店舗登録後の本番募集リマインダーはスタッフ追加と募集作成CTAを表示する", () => {
     const dashboardUrl = "https://shiftori.app/dashboard";
     const lineText = buildShopActivationReminderLineText({ dashboardUrl });
     const emailHtml = buildShopActivationReminderEmailHtml({
@@ -143,17 +143,25 @@ describe("notification/templates", () => {
     expect(formatResendSubject("テスト店舗", SHOP_ACTIVATION_REMINDER_SUBJECT)).toBe(
       "【シフトリ：テスト店舗】本番のシフト募集を作れます",
     );
-    expect(lineText).toContain("シフトリで店舗登録が完了してから1週間ほど経ちました。");
-    expect(lineText).toContain("スタッフに送る本番用の募集を作れます。");
-    expect(lineText).toContain("本番のシフト募集を作る");
-    expect(lineText).toContain(`${dashboardUrl}?openExternalBrowser=1`);
-    expect(emailHtml).toContain("佐藤 店長さん");
-    expect(emailHtml).toContain("シフトリで店舗登録が完了してから1週間ほど経ちました。");
-    expect(emailHtml).toContain(
-      "次回のシフト作成タイミングでしたら、スタッフに送る本番用の募集をシフトリから作れます。スタッフを登録してから、希望シフトの募集を作成してください。",
+    expect(lineText).toBe(
+      [
+        "📅 シフト作成の続き",
+        "",
+        "シフトリで店舗登録が完了してから1週間経過しました。",
+        "",
+        "スタッフを追加して実際にシフトを回収してみましょう！",
+        "",
+        "シフト募集作成はこちら↓↓",
+        `${dashboardUrl}?openExternalBrowser=1`,
+      ].join("\n"),
     );
-    expect(emailHtml).toContain("本番のシフト募集を作る");
+    expect(emailHtml).toContain("佐藤 店長さん");
+    expect(emailHtml).toContain("📅 シフト作成の続き");
+    expect(emailHtml).toContain("シフトリで店舗登録が完了してから1週間経過しました。");
+    expect(emailHtml).toContain("スタッフを追加して実際にシフトを回収してみましょう！");
+    expect(emailHtml).toContain("シフト募集作成はこちら↓↓");
     expect(emailHtml).toContain(dashboardUrl);
+    expect(emailHtml).not.toContain("openExternalBrowser=1");
   });
 
   it("LINEの通常返信文はテンプレートから生成する", () => {
