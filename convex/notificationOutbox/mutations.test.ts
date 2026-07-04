@@ -1349,6 +1349,53 @@ describe("notificationOutbox", () => {
     expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
   });
 
+  it("resendFailureは募集終了した不達を再送しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const now = Date.now();
+      const failureId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "enqueue_preparation:test:closed-recruitment",
+        sourceType: "enqueue_preparation",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:recruitment:closed-recruitment",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "preparation failed",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { failureId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId: ids.failureId });
+
+    expect(result).toEqual({ scheduled: false, reason: "notRetryable" });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(ids.failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure?.status).toBe("open");
+    expect(state.scheduled).toHaveLength(0);
+  });
+
   it("resendOpenFailuresは同一スタッフのLINE連携案内をまとめて1回だけ予約する", async () => {
     const { t, shopId, staffId } = await setupShop();
     await t.run(async (ctx) => {
@@ -1480,8 +1527,7 @@ describe("notificationOutbox", () => {
         periodEnd: "2026-07-15",
         deadline: "2026-06-25",
         shopClosedDates: [],
-        status: "confirmed",
-        confirmedAt: Date.now(),
+        status: "open",
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
@@ -1489,11 +1535,11 @@ describe("notificationOutbox", () => {
       const oldOutboxId = await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "failed",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:1`,
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:1`,
         shopId,
         recruitmentId,
         staffId,
-        payload: { ...emailPayload, context: "notification.sendConfirmationEmail" },
+        payload: { ...emailPayload, context: "notification.sendRecruitmentNotificationEmails" },
         attemptCount: 3,
         nextRunAt: now,
         failedAt: now - 2_000,
@@ -1503,11 +1549,11 @@ describe("notificationOutbox", () => {
       const latestOutboxId = await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "failed",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:2`,
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:2`,
         shopId,
         recruitmentId,
         staffId,
-        payload: { ...emailPayload, context: "notification.sendConfirmationEmail" },
+        payload: { ...emailPayload, context: "notification.sendRecruitmentNotificationEmails" },
         attemptCount: 3,
         nextRunAt: now,
         failedAt: now,
@@ -1523,8 +1569,8 @@ describe("notificationOutbox", () => {
         staffId,
         outboxId: oldOutboxId,
         channel: "email",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:1`,
-        notificationContext: "notification.sendConfirmationEmail",
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:1`,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
         firstFailedAt: now - 2_000,
         lastFailedAt: now - 2_000,
         lastError: "old failed",
@@ -1540,8 +1586,8 @@ describe("notificationOutbox", () => {
         staffId,
         outboxId: latestOutboxId,
         channel: "email",
-        dedupeKey: `email:confirmation:${recruitmentId}:${staffId}:resend:2`,
-        notificationContext: "notification.sendConfirmationEmail",
+        dedupeKey: `email:recruitment:${recruitmentId}:${staffId}:resend:2`,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
         firstFailedAt: now,
         lastFailedAt: now,
         lastError: "latest failed",
@@ -1572,7 +1618,7 @@ describe("notificationOutbox", () => {
       resolutionKind: "superseded",
     });
     expect(state.latestFailure).toMatchObject({
-      failureKey: `logical:${shopId}:${ids.recruitmentId}:${staffId}:confirmation`,
+      failureKey: `logical:${shopId}:${ids.recruitmentId}:${staffId}:recruitment`,
       status: "retrying",
       retryRequestedByUserId: expect.any(String),
     });
