@@ -2,6 +2,7 @@
 
 `convex/analytics/` に日次蓄積したKPIを、本人だけが見る内部BIとして可視化する別アプリ。
 本体アプリの顧客向け導線とは分離し、Cloudflare Pages FunctionsのBasic認証とConvex HTTP actionの共有secretで読み取り経路を保護する。
+内部用アプリのため、HTMLの `robots` メタタグとPages Functions middlewareの `X-Robots-Tag` で検索インデックス対象から除外する。
 
 ## 関連ファイル
 
@@ -11,6 +12,7 @@
 - `apps/analytics-dashboard/src/api/analyticsClient.ts` — `/api/analytics` のfetch client
 - `apps/analytics-dashboard/src/domains/analytics/` — 派生KPI、表示整形、chart series変換
 - `apps/analytics-dashboard/functions/_middleware.ts` — Basic認証middleware
+- `apps/analytics-dashboard/index.html` — HTML入口と `robots` メタタグ
 - `apps/analytics-dashboard/functions/api/analytics.ts` — Convex HTTP actionへのBFF proxy
 - `convex/analyticsDashboard/dto.ts` — 画面用DTO
 - `convex/analyticsDashboard/schemas.ts` — HTTP action入力検証
@@ -56,6 +58,7 @@
 - ブラウザはConvex public queryを直接呼ばない
 - Convex URLと共有secretはCloudflare Pages Functionsのサーバー側envに置く
 - Convex HTTP actionは `SHIFTORI_INTERNAL_API_SECRET` を検証する
+- HTML、認証エラー、API応答を含むPagesレスポンスへ `X-Robots-Tag: noindex, nofollow` を付ける
 - 返却DTOは集計値と店舗単位の情報に限定し、staff email、manager email、token、raw notification payload、provider error bodyを返さない
 - 期間、metric、limitはHTTP action側で検証する
 

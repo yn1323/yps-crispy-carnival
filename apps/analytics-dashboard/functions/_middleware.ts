@@ -9,13 +9,29 @@ type PagesMiddlewareContext = {
   next: () => Promise<Response>;
 };
 
+const robotsHeaderValue = "noindex, nofollow";
+
+function withNoindexHeader(headersInit?: HeadersInit) {
+  const headers = new Headers(headersInit);
+  headers.set("X-Robots-Tag", robotsHeaderValue);
+  return headers;
+}
+
 function unauthorizedResponse(status = 401) {
   return new Response("Authentication required", {
     status,
-    headers: {
+    headers: withNoindexHeader({
       "www-authenticate": 'Basic realm="Shiftori Analytics", charset="UTF-8"',
       "cache-control": "no-store",
-    },
+    }),
+  });
+}
+
+function withNoindexResponse(response: Response) {
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: withNoindexHeader(response.headers),
   });
 }
 
@@ -38,7 +54,7 @@ export const onRequest = async ({ request, env, next }: PagesMiddlewareContext) 
   if (!env.ANALYTICS_BASIC_USER || !env.ANALYTICS_BASIC_PASSWORD) {
     return new Response("Analytics basic auth is not configured", {
       status: 503,
-      headers: { "cache-control": "no-store" },
+      headers: withNoindexHeader({ "cache-control": "no-store" }),
     });
   }
 
@@ -48,5 +64,5 @@ export const onRequest = async ({ request, env, next }: PagesMiddlewareContext) 
     return unauthorizedResponse();
   }
 
-  return await next();
+  return withNoindexResponse(await next());
 };
