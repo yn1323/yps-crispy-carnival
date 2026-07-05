@@ -10,7 +10,8 @@ import {
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
-// shop未登録のsetup中に paginated query が走ってもエラーログを出さないための空結果
+// shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
+// エラーログを出さないための空結果（queryはthrowせず空を返す規約）
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   page: never[];
   isDone: boolean;
