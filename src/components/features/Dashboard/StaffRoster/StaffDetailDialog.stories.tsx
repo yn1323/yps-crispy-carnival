@@ -59,13 +59,25 @@ export const Default: Story = {
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await expect(within(dialog).getAllByText("LINE未連携").length).toBeGreaterThan(0);
-    await userEvent.click(within(dialog).getByRole("tab", { name: "通知" }));
-    await expect(await within(dialog).findByText("対象とするシフト")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("tab", { name: "LINE連携" }));
-    await expect(await within(dialog).findByRole("button", { name: "LINE連携リンクを表示" })).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await expect(await within(dialog).findByText("次のいずれかの方法でLINEに通知できます。")).toBeInTheDocument();
+    await expect(await within(dialog).findByRole("heading", { name: "1. LINE連携リンクを表示" })).toBeInTheDocument();
+    await expect(
+      await within(dialog).findByRole("heading", { name: "2. メールでLINE連携リンク送付" }),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "メールでLINE連携リンクを送る" }));
+    await expect(within(dialog).queryByRole("button", { name: "やめる" })).toBeNull();
+    await userEvent.click(within(dialog).getByRole("tab", { name: "シフト再送" }));
+    await expect(await within(dialog).findByText("現在の募集中シフト")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "募集中のシフトを送る" }));
+    await expect(within(dialog).queryByRole("button", { name: "やめる" })).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "確定シフトを送る" }));
+    await expect(within(dialog).queryByRole("button", { name: "やめる" })).toBeNull();
+    await userEvent.click(within(dialog).getByRole("tab", { name: "その他設定" }));
     await expect(await within(dialog).findByRole("heading", { name: "シフト対象" })).toBeInTheDocument();
     await expect(within(dialog).getByRole("checkbox", { name: /シフト対象/ })).toBeChecked();
+    await expect(within(dialog).getByRole("button", { name: "スタッフを削除" })).toBeInTheDocument();
+    await expect(within(dialog).queryByText("危険な操作")).toBeNull();
   },
 };
 
@@ -93,7 +105,7 @@ export const ExcludedFromShift: Story = {
   },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
-    await userEvent.click(within(dialog).getByRole("tab", { name: "通知" }));
+    await userEvent.click(within(dialog).getByRole("tab", { name: "シフト再送" }));
     await expect(await within(dialog).findByText("このスタッフはシフト対象外です")).toBeInTheDocument();
     await expect(within(dialog).getByRole("button", { name: "募集中のシフトを送る" })).toBeDisabled();
   },
@@ -112,7 +124,7 @@ export const ManagerStaff: Story = {
   },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
-    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
-    await expect(await within(dialog).findByRole("button", { name: "このスタッフを削除" })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole("tab", { name: "その他設定" }));
+    await expect(await within(dialog).findByRole("button", { name: "スタッフを削除" })).toBeDisabled();
   },
 };

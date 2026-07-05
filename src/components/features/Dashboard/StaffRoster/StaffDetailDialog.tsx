@@ -1,8 +1,7 @@
-import { Badge, Box, Flex, Heading, HStack, Stack, Switch, Tabs, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Stack, Switch, Tabs, Text, VisuallyHidden } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LuBell, LuCalendarCheck, LuMail, LuMessageCircle, LuQrCode, LuSend, LuTrash2 } from "react-icons/lu";
-import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
 import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -11,7 +10,8 @@ import { EditStaffForm } from "../EditStaffForm/index.tsx";
 import { RecruitmentSummaryRow } from "../RecruitmentBoard/RecruitmentSummaryRow";
 import type { Recruitment, Staff } from "../types";
 
-type PendingAction = "sendRecruitments" | "sendCurrentShift" | "sendLineInvite" | "delete" | null;
+type PendingAction = "delete" | null;
+type DirectAction = "sendRecruitments" | "sendCurrentShift" | "sendLineInvite";
 
 type Props = {
   staff: Staff | null;
@@ -63,6 +63,8 @@ export const StaffDetailDialog = ({
   isChangingShiftTarget,
 }: Props) => {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const directActionRef = useRef<DirectAction | null>(null);
+  const [directAction, setDirectAction] = useState<DirectAction | null>(null);
 
   if (!staff) return null;
 
@@ -87,11 +89,21 @@ export const StaffDetailDialog = ({
   const showLineQr = lineQrState.staffId === staff._id;
 
   const handleConfirm = async (action: Exclude<PendingAction, null>) => {
-    if (action === "sendRecruitments") await onSendRecruitments(staff);
-    if (action === "sendCurrentShift") await onSendCurrentShift(staff);
-    if (action === "sendLineInvite") await onSendLineInvite(staff);
     if (action === "delete") await onDelete(staff);
     setPendingAction(null);
+  };
+
+  const runDirectAction = async (action: DirectAction, handler: () => void | Promise<void>) => {
+    if (directActionRef.current !== null) return;
+
+    directActionRef.current = action;
+    setDirectAction(action);
+    try {
+      await handler();
+    } finally {
+      directActionRef.current = null;
+      setDirectAction(null);
+    }
   };
 
   return (
@@ -124,13 +136,13 @@ export const StaffDetailDialog = ({
               基本
             </Tabs.Trigger>
             <Tabs.Trigger value="notification" flexShrink={0}>
-              通知
+              シフト再送
             </Tabs.Trigger>
             <Tabs.Trigger value="line" flexShrink={0}>
               LINE連携
             </Tabs.Trigger>
             <Tabs.Trigger value="settings" flexShrink={0}>
-              設定
+              その他設定
             </Tabs.Trigger>
           </Tabs.List>
 
@@ -146,7 +158,7 @@ export const StaffDetailDialog = ({
           </Tabs.Content>
 
           <Tabs.Content value="notification" pt={4}>
-            <Stack gap={5}>
+            <Stack gap={8}>
               {!isShiftTarget && (
                 <InfoPanel tone="muted">
                   <Text fontWeight="semibold">このスタッフはシフト対象外です</Text>
@@ -156,49 +168,30 @@ export const StaffDetailDialog = ({
                 </InfoPanel>
               )}
               <Text fontSize="sm" color="fg.muted">
-                通常は自動で送っています。届いていない場合だけ、ここからもう一度送れます。
+                シフト関連の重要な通知を再送します。
+                <br />
+                通常はスタッフ登録時、シフト作成・確定時に自動で送信しています。
               </Text>
-              <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-                対象とするシフト
-              </Heading>
               <NotificationSection
-                title="募集中"
+                title="現在の募集中シフト"
                 icon={<LuSend />}
                 recruitments={openRecruitments}
                 emptyText="送信できる募集中シフトはありません。"
                 actionLabel="募集中のシフトを送る"
-                isDisabled={!canSendRecruitments}
-                onAction={() => setPendingAction("sendRecruitments")}
+                isDisabled={!canSendRecruitments || directAction !== null}
+                isLoading={isSendingRecruitments || directAction === "sendRecruitments"}
+                onAction={() => runDirectAction("sendRecruitments", () => onSendRecruitments(staff))}
               />
-              {pendingAction === "sendRecruitments" && (
-                <ConfirmPanel
-                  title="募集中のシフトを送る"
-                  description={`${staff.name}さんに、現在送れる募集中シフトを送ります。`}
-                  confirmLabel="送る"
-                  isLoading={isSendingRecruitments}
-                  onCancel={() => setPendingAction(null)}
-                  onConfirm={() => handleConfirm("sendRecruitments")}
-                />
-              )}
               <NotificationSection
                 title="確定シフト"
                 icon={<LuCalendarCheck />}
                 recruitments={currentRecruitments}
                 emptyText="送信できる現在の確定シフトはありません。"
                 actionLabel="確定シフトを送る"
-                isDisabled={!canSendCurrentShift}
-                onAction={() => setPendingAction("sendCurrentShift")}
+                isDisabled={!canSendCurrentShift || directAction !== null}
+                isLoading={isSendingCurrentShift || directAction === "sendCurrentShift"}
+                onAction={() => runDirectAction("sendCurrentShift", () => onSendCurrentShift(staff))}
               />
-              {pendingAction === "sendCurrentShift" && (
-                <ConfirmPanel
-                  title="現在の確定シフトを送る"
-                  description={`${staff.name}さんに、現在の期間に含まれる確定済みシフトを送ります。`}
-                  confirmLabel="送る"
-                  isLoading={isSendingCurrentShift}
-                  onCancel={() => setPendingAction(null)}
-                  onConfirm={() => handleConfirm("sendCurrentShift")}
-                />
-              )}
             </Stack>
           </Tabs.Content>
 
@@ -206,103 +199,116 @@ export const StaffDetailDialog = ({
             <Stack gap={5}>
               <LineStatusPanel staff={staff} />
               {!isLineActive && (
-                <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  スタッフ本人に連携リンクを開いてもらうと、次回からシフト通知がLINEに届きます。
-                </Text>
-              )}
-              {canShowLineQr && (
-                <Stack gap={3}>
-                  <Button variant="outline" colorPalette="teal" gap={1.5} onClick={() => onShowLineQr(staff)}>
-                    <LuQrCode />
-                    LINE連携リンクを表示
-                  </Button>
-                  {showLineQr && (
-                    <LineLinkQrDialog
-                      authorizeUrl={lineQrState.authorizeUrl}
-                      isLoading={lineQrState.isLoading}
-                      staffName={staff.name}
-                    />
+                <Stack gap={5}>
+                  <Stack gap={3}>
+                    <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+                      次のいずれかの方法でLINEに通知できます。
+                    </Text>
+                    <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+                      ※シフトリ登録時、自動でLINE連携リンクをメールでお送りしています。
+                    </Text>
+                  </Stack>
+
+                  {canShowLineQr && (
+                    <LineConnectionMethod
+                      number="1"
+                      title="LINE連携リンクを表示"
+                      description="表示されたリンクを直接スタッフに共有してください。"
+                    >
+                      <Button colorPalette="teal" gap={1.5} onClick={() => onShowLineQr(staff)}>
+                        <LuQrCode />
+                        LINE連携リンクを表示
+                      </Button>
+                      {showLineQr && (
+                        <LineLinkQrDialog
+                          authorizeUrl={lineQrState.authorizeUrl}
+                          isLoading={lineQrState.isLoading}
+                          staffName={staff.name}
+                        />
+                      )}
+                    </LineConnectionMethod>
                   )}
+
+                  <LineConnectionMethod
+                    number="2"
+                    title="メールでLINE連携リンク送付"
+                    description="スタッフのメールアドレスにLINE連携リンクをお送りします。"
+                  >
+                    <Button
+                      colorPalette="teal"
+                      gap={1.5}
+                      disabled={!canSendLineInvite || isSendingLineInvite || directAction !== null}
+                      loading={isSendingLineInvite || directAction === "sendLineInvite"}
+                      onClick={() => runDirectAction("sendLineInvite", () => onSendLineInvite(staff))}
+                    >
+                      <LuMail />
+                      メールでLINE連携リンクを送る
+                    </Button>
+                    {!hasEmail && (
+                      <Text fontSize="xs" color="fg.muted">
+                        メールアドレスがないため、メールでは送れません。リンクを直接共有してください。
+                      </Text>
+                    )}
+                  </LineConnectionMethod>
                 </Stack>
               )}
-              <Stack gap={3}>
-                <Button
-                  variant="outline"
-                  colorPalette="teal"
-                  gap={1.5}
-                  disabled={!canSendLineInvite}
-                  onClick={() => setPendingAction("sendLineInvite")}
-                >
-                  <LuMail />
-                  メールでLINE連携リンクを送る
-                </Button>
-                {!hasEmail && (
-                  <Text fontSize="xs" color="fg.muted">
-                    メールアドレスがないため、メールでは送れません。QRコードかリンクを直接共有してください。
-                  </Text>
-                )}
-                {pendingAction === "sendLineInvite" && (
-                  <ConfirmPanel
-                    title="LINE連携リンクをメールで送る"
-                    description={<LineInviteConfirmContent staffName={staff.name} staffEmail={staff.email} />}
-                    confirmLabel="送信"
-                    isLoading={isSendingLineInvite}
-                    onCancel={() => setPendingAction(null)}
-                    onConfirm={() => handleConfirm("sendLineInvite")}
-                  />
-                )}
-              </Stack>
+              {isLineActive && (
+                <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+                  このスタッフはLINE連携済みです。必要な場合は、シフト再送タブからシフト関連の通知を再送できます。
+                </Text>
+              )}
             </Stack>
           </Tabs.Content>
 
           <Tabs.Content value="settings" pt={4}>
             <Stack gap={6}>
-              <Stack gap={3}>
-                <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-                  シフト対象
-                </Heading>
-                <Switch.Root
-                  checked={isShiftTarget}
-                  disabled={isChangingShiftTarget}
-                  colorPalette="teal"
-                  onCheckedChange={(details) => onChangeShiftTarget(staff, details.checked)}
-                >
-                  <Switch.HiddenInput />
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                  <Switch.Label>{isShiftTarget ? "シフト対象にする" : "シフト対象外にする"}</Switch.Label>
-                </Switch.Root>
+              <Stack gap={2}>
+                <Flex align="center" justify="space-between" gap={4}>
+                  <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+                    シフト対象
+                  </Heading>
+                  <Switch.Root
+                    checked={isShiftTarget}
+                    disabled={isChangingShiftTarget}
+                    colorPalette="teal"
+                    onCheckedChange={(details) => onChangeShiftTarget(staff, details.checked)}
+                  >
+                    <Switch.HiddenInput />
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    <Switch.Label>
+                      <VisuallyHidden>シフト対象</VisuallyHidden>
+                    </Switch.Label>
+                  </Switch.Root>
+                </Flex>
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  ONのスタッフは、シフト表、提出依頼、確定シフト通知の対象になります。OFFにすると、今後のシフト作成やシフト関連通知から外れます。
-                  LINE連携など、シフト以外の案内には使えます。
+                  OFFにするとシフト表から非表示になり、シフト募集、確定通知も来なくなります。
                 </Text>
               </Stack>
 
               <Stack gap={3}>
-                <Heading as="h3" fontSize="sm" fontWeight="semibold" color="red.700">
-                  危険な操作
-                </Heading>
-                <Button
-                  variant="outline"
-                  colorPalette="red"
-                  gap={1.5}
-                  disabled={staff.isManager}
-                  onClick={() => setPendingAction("delete")}
-                >
-                  <LuTrash2 />
-                  このスタッフを削除
-                </Button>
+                <Flex justify="flex-end">
+                  <Button
+                    colorPalette="red"
+                    gap={1.5}
+                    disabled={staff.isManager}
+                    onClick={() => setPendingAction("delete")}
+                  >
+                    <LuTrash2 />
+                    スタッフを削除
+                  </Button>
+                </Flex>
                 {staff.isManager && (
-                  <Text fontSize="xs" color="fg.muted">
-                    管理者本人のスタッフ情報は削除できません。
+                  <Text fontSize="xs" color="fg.muted" textAlign="right">
+                    管理者は削除できません
                   </Text>
                 )}
                 {pendingAction === "delete" && (
                   <ConfirmPanel
-                    title="このスタッフを削除しますか？"
+                    title="スタッフを削除しますか？"
                     description="削除すると元に戻せません。既存のシフト用リンクやLINE連携も使えなくなります。"
-                    confirmLabel="このスタッフを削除"
+                    confirmLabel="スタッフを削除"
                     colorPalette="red"
                     isLoading={isDeleting}
                     onCancel={() => setPendingAction(null)}
@@ -370,6 +376,7 @@ const NotificationSection = ({
   emptyText,
   actionLabel,
   isDisabled,
+  isLoading = false,
   onAction,
 }: {
   title: string;
@@ -378,15 +385,30 @@ const NotificationSection = ({
   emptyText: string;
   actionLabel: string;
   isDisabled: boolean;
-  onAction: () => void;
+  isLoading?: boolean;
+  onAction: () => void | Promise<void>;
 }) => (
   <Stack gap={3}>
-    <HStack gap={2} color="gray.900">
-      {icon}
-      <Heading as="h3" fontSize="sm" fontWeight="semibold">
-        {title}
-      </Heading>
-    </HStack>
+    <Flex align="center" gap={3} justify="space-between">
+      <HStack gap={2} color="gray.900" minW={0}>
+        {icon}
+        <Heading as="h3" fontSize="sm" fontWeight="semibold">
+          {title}
+        </Heading>
+      </HStack>
+      <Button
+        colorPalette="teal"
+        flexShrink={0}
+        gap={1.5}
+        disabled={isDisabled || isLoading}
+        loading={isLoading}
+        onClick={onAction}
+        size="sm"
+      >
+        <LuBell />
+        {actionLabel}
+      </Button>
+    </Flex>
     {recruitments.length > 0 ? (
       <Stack gap={2}>
         {recruitments.map((recruitment) => (
@@ -398,10 +420,6 @@ const NotificationSection = ({
         {emptyText}
       </Text>
     )}
-    <Button alignSelf="flex-start" colorPalette="teal" gap={1.5} disabled={isDisabled} onClick={onAction}>
-      <LuBell />
-      {actionLabel}
-    </Button>
   </Stack>
 );
 
@@ -420,6 +438,32 @@ const LineStatusPanel = ({ staff }: { staff: Staff }) => {
     </InfoPanel>
   );
 };
+
+const LineConnectionMethod = ({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) => (
+  <Stack gap={3}>
+    <Stack gap={1}>
+      <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+        {number}. {title}
+      </Heading>
+      <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+        {description}
+      </Text>
+    </Stack>
+    <Stack gap={3} align="flex-start">
+      {children}
+    </Stack>
+  </Stack>
+);
 
 const ConfirmPanel = ({
   title,
@@ -485,7 +529,7 @@ function getLineStatus(staff: Staff): {
   if (staff.isLineLinked && staff.isLineFollowing) {
     return {
       label: "LINE連携済み",
-      description: "このスタッフには、次回からシフト通知がLINEに届きます。",
+      description: "LINEでシフトリの通知を行います。",
       colorPalette: "green",
       tone: "brand",
     };
@@ -493,14 +537,15 @@ function getLineStatus(staff: Staff): {
   if (staff.isLineLinked && !staff.isLineFollowing) {
     return {
       label: "LINEで受け取れません",
-      description: "LINE連携はありますが、スタッフが友だち追加を解除している可能性があります。",
+      description:
+        "LINE連携されていますが、友だち追加を解除している可能性があります。メールにてシフトリの通知を行います。",
       colorPalette: "orange",
       tone: "muted",
     };
   }
   return {
     label: "LINE未連携",
-    description: "LINE連携リンクを案内すると、スタッフ本人がLINEでシフト通知を受け取れるようになります。",
+    description: "LINE未連携です。メールにてシフトリの通知を行います。",
     colorPalette: "gray",
     tone: "muted",
   };
