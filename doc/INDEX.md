@@ -25,6 +25,7 @@
 | [シフト確定催促リマインダー](features/shift-confirmation-reminder.md) | 締切翌日17時に未確定の募集があれば店舗マネージャー全員へ確定を催促（失敗は要対応Inbox対象外） | 実装済 |
 | [公開サブページ](features/public-pages.md) | LPコンテンツを流用した、できること・FAQ・デモへの公開導線 | 実装済 |
 | [分析KPI蓄積基盤](features/analytics.md) | サービス利用状況KPIを日次cronで蓄積し時系列分析できるようにするinternal専用基盤 | 実装済 |
+| [分析KPI可視化アプリ](features/analytics-dashboard.md) | 蓄積済みKPIを本人用の内部BIとしてCloudflare Pages別アプリで可視化 | 実装済 |
 
 ## 関連ドキュメント
 

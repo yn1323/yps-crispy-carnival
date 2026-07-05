@@ -16,9 +16,12 @@ import { recordNotificationPreparationFailure } from "./failureRecording";
 import {
   buildConfirmationEmailHtml,
   buildRecruitmentEmailHtml,
+  buildRecruitmentLineFlexMessage,
   buildRecruitmentLineText,
   buildReissueEmailHtml,
+  buildReissueLineFlexMessage,
   buildReissueLineText,
+  buildShiftConfirmationLineFlexMessage,
   buildShiftConfirmationLineText,
 } from "./templates";
 
@@ -69,14 +72,15 @@ export const sendShiftConfirmationEmails = internalAction({
         const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
         if (selectedChannel === "line" && staffData.lineUserId) {
-          const text = buildShiftConfirmationLineText({
+          const lineParams = {
             staffName: staffData.name,
             shopName: data.shopName,
             periodLabel: data.periodLabel,
             shifts: staffData.shifts,
             magicLinkUrl,
             isResend,
-          });
+          };
+          const text = buildShiftConfirmationLineText(lineParams);
           const fallbackEmail = await buildConfirmationEmail({
             ctx,
             staffData,
@@ -95,6 +99,7 @@ export const sendShiftConfirmationEmails = internalAction({
             payload: linePayload({
               toUserId: staffData.lineUserId,
               text,
+              message: buildShiftConfirmationLineFlexMessage(lineParams),
               suppressDelivery,
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),
@@ -278,6 +283,12 @@ export const sendReissueEmail = internalAction({
     const magicLinkUrl = `${APP_URL}/shifts/view?token=${token}`;
 
     if (channel === "line" && data.lineUserId) {
+      const lineParams = {
+        staffName: data.staffName,
+        shopName: data.shopName,
+        periodLabel: data.periodLabel,
+        magicLinkUrl,
+      };
       const fallbackEmail = data.staffEmail
         ? {
             dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
@@ -301,12 +312,8 @@ export const sendReissueEmail = internalAction({
         dedupeKey: `line:reissue:${recruitmentId}:${staffId}`,
         payload: linePayload({
           toUserId: data.lineUserId,
-          text: buildReissueLineText({
-            staffName: data.staffName,
-            shopName: data.shopName,
-            periodLabel: data.periodLabel,
-            magicLinkUrl,
-          }),
+          text: buildReissueLineText(lineParams),
+          message: buildReissueLineFlexMessage(lineParams),
           suppressDelivery,
           ...(fallbackEmail ? { fallbackEmail } : {}),
         }),
@@ -383,6 +390,13 @@ export const sendRecruitmentNotificationEmails = internalAction({
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
         if (selectedChannel === "line" && staff.lineUserId) {
+          const lineParams = {
+            staffName: staff.name,
+            shopName: data.shopName,
+            periodLabel: data.periodLabel,
+            deadline: formatDeadlineLabel(data.deadline),
+            magicLinkUrl,
+          };
           const fallbackEmail = staff.email
             ? await buildRecruitmentEmail({
                 ctx,
@@ -405,13 +419,8 @@ export const sendRecruitmentNotificationEmails = internalAction({
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staff.lineUserId,
-              text: buildRecruitmentLineText({
-                staffName: staff.name,
-                shopName: data.shopName,
-                periodLabel: data.periodLabel,
-                deadline: formatDeadlineLabel(data.deadline),
-                magicLinkUrl,
-              }),
+              text: buildRecruitmentLineText(lineParams),
+              message: buildRecruitmentLineFlexMessage(lineParams),
               suppressDelivery,
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),
@@ -564,6 +573,13 @@ export const sendRecruitmentNotificationForStaff = internalAction({
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
       if (selectedChannel === "line" && data.staff.lineUserId) {
+        const lineParams = {
+          staffName: data.staff.name,
+          shopName: data.shopName,
+          periodLabel: data.recruitment.periodLabel,
+          deadline: formatDeadlineLabel(data.recruitment.deadline),
+          magicLinkUrl,
+        };
         const fallbackEmail = data.staff.email
           ? await buildRecruitmentEmail({
               ctx,
@@ -586,13 +602,8 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
-            text: buildRecruitmentLineText({
-              staffName: data.staff.name,
-              shopName: data.shopName,
-              periodLabel: data.recruitment.periodLabel,
-              deadline: formatDeadlineLabel(data.recruitment.deadline),
-              magicLinkUrl,
-            }),
+            text: buildRecruitmentLineText(lineParams),
+            message: buildRecruitmentLineFlexMessage(lineParams),
             suppressDelivery,
             ...(fallbackEmail ? { fallbackEmail } : {}),
           }),
@@ -828,6 +839,13 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
         if (selectedChannel === "line" && data.staff.lineUserId) {
+          const lineParams = {
+            staffName: data.staff.name,
+            shopName: data.shopName,
+            periodLabel: recruitment.periodLabel,
+            deadline: formatDeadlineLabel(recruitment.deadline),
+            magicLinkUrl,
+          };
           const fallbackEmail = data.staff.email
             ? await buildRecruitmentEmail({
                 ctx,
@@ -850,13 +868,8 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: data.staff.lineUserId,
-              text: buildRecruitmentLineText({
-                staffName: data.staff.name,
-                shopName: data.shopName,
-                periodLabel: recruitment.periodLabel,
-                deadline: formatDeadlineLabel(recruitment.deadline),
-                magicLinkUrl,
-              }),
+              text: buildRecruitmentLineText(lineParams),
+              message: buildRecruitmentLineFlexMessage(lineParams),
               suppressDelivery,
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),
@@ -939,6 +952,13 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
           expiresAt: getSubmitLinkCutoff(recruitment.periodStart),
         });
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
+        const lineParams = {
+          staffName: data.staff.name,
+          shopName: data.shopName,
+          periodLabel: recruitment.periodLabel,
+          deadline: formatDeadlineLabel(recruitment.deadline),
+          magicLinkUrl,
+        };
         await enqueueLine(ctx, {
           shopId: data.shopId,
           recruitmentId: recruitment.recruitmentId,
@@ -946,13 +966,8 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
           dedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
-            text: buildRecruitmentLineText({
-              staffName: data.staff.name,
-              shopName: data.shopName,
-              periodLabel: recruitment.periodLabel,
-              deadline: formatDeadlineLabel(recruitment.deadline),
-              magicLinkUrl,
-            }),
+            text: buildRecruitmentLineText(lineParams),
+            message: buildRecruitmentLineFlexMessage(lineParams),
             suppressDelivery,
           }),
         });
@@ -1020,6 +1035,14 @@ export const sendCurrentShiftConfirmationForStaff = internalAction({
         const magicLinkUrl = `${APP_URL}/shifts/view?token=${viewToken}`;
 
         if (selectedChannel === "line" && staffData.lineUserId) {
+          const lineParams = {
+            staffName: staffData.name,
+            shopName: data.shopName,
+            periodLabel: recruitment.periodLabel,
+            shifts: staffData.shifts,
+            magicLinkUrl,
+            isResend: false,
+          };
           const fallbackEmail = await buildConfirmationEmail({
             ctx,
             staffData,
@@ -1037,14 +1060,8 @@ export const sendCurrentShiftConfirmationForStaff = internalAction({
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staffData.lineUserId,
-              text: buildShiftConfirmationLineText({
-                staffName: staffData.name,
-                shopName: data.shopName,
-                periodLabel: recruitment.periodLabel,
-                shifts: staffData.shifts,
-                magicLinkUrl,
-                isResend: false,
-              }),
+              text: buildShiftConfirmationLineText(lineParams),
+              message: buildShiftConfirmationLineFlexMessage(lineParams),
               suppressDelivery,
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),

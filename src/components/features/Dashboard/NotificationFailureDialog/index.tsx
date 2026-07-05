@@ -26,7 +26,7 @@ type Props = {
 
 const EMAIL_FAILURE_HELP_LINES = [
   "メールが届かない場合は、メールアドレスに誤りがないか確認ください。",
-  "それでも失敗する場合は、スタッフ行のメニューからLINE連携リンクを案内できます。",
+  "それでも失敗する場合は、スタッフ詳細のLINE連携から連携リンクを案内できます。",
 ];
 
 export const NotificationFailureDialogContent = ({

@@ -562,6 +562,8 @@ function RelatedConcernSection({ concerns }: { concerns: ConcernContent[] }): Re
 function ArticleAside({ article }: { article: ArticleContent }): ReactNode {
   return (
     <VStack
+      as="aside"
+      aria-label="この記事の目次"
       align="stretch"
       gap={4}
       display={{ base: "none", xl: "flex" }}

@@ -5,7 +5,11 @@ import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
-import { buildStaffLegalConsentEmailHtml, buildStaffLegalConsentLineText } from "../notification/templates";
+import {
+  buildStaffLegalConsentEmailHtml,
+  buildStaffLegalConsentLineFlexMessage,
+  buildStaffLegalConsentLineText,
+} from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 
 export const sendStaffConsentEmail = internalAction({
@@ -67,6 +71,12 @@ export const sendStaffConsentLine = internalAction({
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
 
     try {
+      const lineParams = {
+        staffName: data.staffName,
+        shopName: data.shopName,
+        consentUrl,
+        expiresAt,
+      };
       const fallbackEmail = data.staffEmail
         ? {
             dedupeKey: `email:legalConsent:${staffId}`,
@@ -92,12 +102,8 @@ export const sendStaffConsentLine = internalAction({
         dedupeKey: `line:legalConsent:${staffId}`,
         payload: linePayload({
           toUserId: data.lineUserId,
-          text: buildStaffLegalConsentLineText({
-            staffName: data.staffName,
-            shopName: data.shopName,
-            consentUrl,
-            expiresAt,
-          }),
+          text: buildStaffLegalConsentLineText(lineParams),
+          message: buildStaffLegalConsentLineFlexMessage(lineParams),
           suppressDelivery,
           ...(fallbackEmail ? { fallbackEmail } : {}),
         }),

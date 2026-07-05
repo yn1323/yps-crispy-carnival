@@ -4,6 +4,31 @@ import { ArticleCategoryPage, ArticleListPage, ArticlePage } from ".";
 const meta = {
   title: "Features/ArticleSite/ArticlePage",
   component: ArticlePage,
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          /* full-page VRT stitches viewport captures, so fixed/sticky elements must not follow each tile. */
+          html[data-vrt="true"] header {
+            position: static !important;
+            inset-inline-start: auto !important;
+            inset-inline-end: auto !important;
+            top: auto !important;
+          }
+
+          html[data-vrt="true"] main {
+            padding-top: 0 !important;
+          }
+
+          html[data-vrt="true"] aside[aria-label="この記事の目次"] {
+            position: static !important;
+            top: auto !important;
+          }
+        `}</style>
+        <Story />
+      </>
+    ),
+  ],
   args: {
     slug: "shift-type-request-guide",
   },
