@@ -5,12 +5,10 @@
     "jsx": "react-jsx",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
-
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": true,
@@ -19,20 +17,10 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/app/*": ["./app/*"],
-      "@/src/*": ["./src/*"],
-      "@/e2e/*": ["./e2e/*"],
-      "@/convex/*": ["./convex/*"]
+      "@/*": ["./src/*"],
+      "@convex/*": ["../../convex/*"]
     }
   },
-  "types": ["vitest/globals", "@vitest/browser/providers/playwright"],
-  "include": [
-    "./cloudflare-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "vitest.config.ts",
-    "vite.config.ts",
-    "src/configs/vitest/vitest-setup.ts"
-  ],
-  "exclude": ["node_modules", ".scaffdog", "apps/**"]
+  "include": ["src", "functions", "vite.config.ts"],
+  "exclude": ["dist", "node_modules"]
 }
