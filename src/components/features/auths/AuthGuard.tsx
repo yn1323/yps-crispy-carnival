@@ -53,18 +53,20 @@ export const AuthGuard = ({ children }: Props) => {
     }
   }, [myShops, selectedShop, setSelectedShop]);
 
+  // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
+  // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）
+  if (isLoaded && !isSignedIn) {
+    return (
+      <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(`${location.pathname}${location.searchStr}`) }} />
+    );
+  }
+
   if (user.authId) {
     return children;
   }
 
   if (!isLoaded) {
     return <FullPageSpinner showHeader />;
-  }
-
-  if (!isSignedIn) {
-    return (
-      <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(`${location.pathname}${location.searchStr}`) }} />
-    );
   }
 
   if (currentUser === undefined) {
