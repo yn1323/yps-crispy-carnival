@@ -354,16 +354,13 @@ export const DismissedOnboardingShowsNextAction: Story = {
     const root = requireElement(canvasElement, '[data-testid="onboarding-dismissal-root"]');
     assertText(root, "シフトリへようこそ！", "閉じる前のオンボーディング見出し");
     assertText(root, "1/4", "閉じる前の進捗表示");
-    assertNoText(root, "今やること", "閉じる前の通常アクション非表示");
+    assertNoText(root, "TODO", "閉じる前の通常アクション非表示");
 
     requireElement<HTMLButtonElement>(root, 'button[aria-label="シフトリへようこそを閉じる"]').click();
 
-    await waitUntil(
-      () => root.textContent?.includes("今やること") ?? false,
-      "閉じた後に今やることが表示されませんでした",
-    );
+    await waitUntil(() => root.textContent?.includes("TODO") ?? false, "閉じた後にTODOが表示されませんでした");
 
-    assertText(root, "今やること", "閉じた後の通常アクション見出し");
+    assertText(root, "TODO", "閉じた後の通常アクション見出し");
     assertNoText(root, "シフトリへようこそ！", "閉じた後のオンボーディング非表示");
   },
 };
@@ -391,9 +388,9 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
   ),
   play: async ({ canvasElement }) => {
     const root = requireElement(canvasElement, '[data-testid="pending-requests-onboarding-root"]');
-    await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
+    await waitUntil(() => root.textContent?.includes("TODO") ?? false, "TODOが表示されませんでした");
 
-    assertText(root, "今やること", "承認待ちがある時の通常アクション見出し");
+    assertText(root, "TODO", "承認待ちがある時の通常アクション見出し");
     assertText(root, "スタッフ登録申請が2件あります", "承認待ちカードの見出し");
     assertText(root, "申請を確認", "承認待ちカードのCTA");
     assertNoText(root, "田中 花子", "カード表示時は申請者名を隠す");
@@ -435,9 +432,9 @@ export const NotificationFailuresShowNextActionDuringOnboarding: Story = {
   ),
   play: async ({ canvasElement }) => {
     const root = requireElement(canvasElement, '[data-testid="notification-failures-onboarding-root"]');
-    await waitUntil(() => root.textContent?.includes("今やること") ?? false, "今やることが表示されませんでした");
+    await waitUntil(() => root.textContent?.includes("TODO") ?? false, "TODOが表示されませんでした");
 
-    assertText(root, "今やること", "通知失敗がある時の通常アクション見出し");
+    assertText(root, "TODO", "通知失敗がある時の通常アクション見出し");
     assertText(root, "送れなかった通知があります", "通知失敗カードの見出し");
     assertText(root, "通知を確認", "通知失敗カードのCTA");
     assertText(root, "シフトリへようこそ！", "通知失敗があってもオンボーディングは継続表示");
