@@ -10,6 +10,7 @@ import { selectChannel } from "../_lib/notification";
 import { NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE } from "../constants";
 import {
   buildNotificationFailureReminderEmailHtml,
+  buildNotificationFailureReminderLineFlexMessage,
   buildNotificationFailureReminderLineText,
   NOTIFICATION_FAILURE_REMINDER_SUBJECT,
 } from "../notification/templates";
@@ -76,6 +77,10 @@ async function sendFailureReminderForShop(ctx: ActionCtx, shopId: Id<"shops">) {
         payload: linePayload({
           toUserId: recipient.lineUserId,
           text: buildNotificationFailureReminderLineText({ dashboardUrl: data.dashboardUrl }),
+          message: buildNotificationFailureReminderLineFlexMessage({
+            shopName: data.shopName,
+            dashboardUrl: data.dashboardUrl,
+          }),
           suppressDelivery,
           fallbackEmail: {
             dedupeKey: `email:notificationFailureReminder:${data.shopId}:${recipient.userId}`,

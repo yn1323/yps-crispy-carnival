@@ -1,6 +1,6 @@
 # 通知不達Dashboard
 
-送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「今やること」から再通知を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
+送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
 
 マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗のmanager usersへ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
 
@@ -9,7 +9,7 @@
 ### フロントエンド（`src/`）
 
 - `src/pages/dashboard/index.tsx` — 店舗選択後に open 不達通知を取得し、Dashboardへ渡す
-- `src/components/features/Dashboard/HeroSummary/index.tsx` — 「今やること」に不達通知カードを表示する
+- `src/components/features/Dashboard/HeroSummary/index.tsx` — 「TODO」に不達通知カードを表示する
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — 不達通知Dialogの開閉、個別/一斉再通知mutation、受付済み状態を管理する
 - `src/components/features/Dashboard/NotificationFailureDialog/` — 不達通知一覧、PCテーブル、SPリスト、Storybook
 
@@ -53,7 +53,7 @@
 - 通知種別が `通知`（`other` = どの通知種別にもマッピングされない context）の不達は、再通知できずマネージャーが対応しようがないため、一覧・要対応有無（HeroSummaryの「不達通知があります」カード）・日次リマインダーのいずれにも出さない。判定は `isManagerActionableNotificationFailure`（`convex/notificationOutbox/failureResend.ts`）。記録自体は `notificationFailureInbox` に残す（配送ログ・Resend webhook突合のため）。
 - 募集に紐づく不達は、対象 `recruitments` が非削除かつ `status = open` の場合だけ一覧・要対応有無・日次リマインダー・一斉再通知の対象にする。募集終了後の不達行は記録としては残すが、Dashboard では扱わない。
 - エラー理由、スタッフID、解決済み操作は表示しない。
-- メール channel の不達が含まれる場合は「メールが届かない場合は、メールアドレスに誤りがないか確認ください。それでも失敗する場合は、スタッフ行のメニューからLINE連携リンクを案内できます。」と補足する。
+- メール channel の不達が含まれる場合は「メールが届かない場合は、メールアドレスに誤りがないか確認ください。それでも失敗する場合は、スタッフ詳細のLINE連携から連携リンクを案内できます。」と補足する。
 - Resend provider 由来の遅延・失敗・拒否・抑止は、既存行と同じ `送れなかった通知` として表示する。細かい provider 状態ラベルは出さない。
 - 再通知受付に成功した行は、開いているDialog内では `再通知済み` として押せなくする。
 - Dialogを開き直すと `status = open` の不達通知だけを表示するため、`retrying` の行は表示されない。

@@ -11,7 +11,7 @@
 - `convex/shopActivationReminder/refs.ts` - 生成API更新前でも参照できる function reference
 - `convex/notification/templates.ts` - メール / LINE 文面
 - `convex/notificationOutbox/failureSuppress.ts` - failureInbox 抑止 context
-- `src/components/devtools/EmailPreview/index.stories.tsx` - メール / LINE 文面プレビュー
+- `src/components/devtools/NotificationPreview/ShopActivationReminder/index.stories.tsx` - メール / LINE 文面プレビュー
 
 ## 画面一覧
 

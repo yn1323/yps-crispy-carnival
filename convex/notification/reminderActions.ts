@@ -10,7 +10,7 @@ import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { recordNotificationPreparationFailure } from "./failureRecording";
-import { buildReminderEmailHtml, buildReminderLineText } from "./templates";
+import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLineText } from "./templates";
 
 /**
  * 未提出スタッフ全員に催促を送信
@@ -50,6 +50,13 @@ export const sendReminderEmails = internalAction({
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
         if (selectedChannel === "line" && staff.lineUserId) {
+          const lineParams = {
+            staffName: staff.name,
+            shopName: data.shopName,
+            periodLabel: data.periodLabel,
+            linkExpiresAtLabel: deadlineLabel,
+            magicLinkUrl,
+          };
           const fallbackEmail = staff.email
             ? {
                 dedupeKey: emailDedupeKey,
@@ -85,13 +92,8 @@ export const sendReminderEmails = internalAction({
             dedupeKey: lineDedupeKey,
             payload: linePayload({
               toUserId: staff.lineUserId,
-              text: buildReminderLineText({
-                staffName: staff.name,
-                shopName: data.shopName,
-                periodLabel: data.periodLabel,
-                linkExpiresAtLabel: deadlineLabel,
-                magicLinkUrl,
-              }),
+              text: buildReminderLineText(lineParams),
+              message: buildReminderLineFlexMessage(lineParams),
               suppressDelivery,
               ...(fallbackEmail ? { fallbackEmail } : {}),
             }),
@@ -199,6 +201,13 @@ export const sendReminderEmailForStaff = internalAction({
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
       if (selectedChannel === "line" && data.staff.lineUserId) {
+        const lineParams = {
+          staffName: data.staff.name,
+          shopName: data.shopName,
+          periodLabel: data.periodLabel,
+          linkExpiresAtLabel: deadlineLabel,
+          magicLinkUrl,
+        };
         const fallbackEmail = data.staff.email
           ? {
               dedupeKey: emailDedupeKey,
@@ -231,13 +240,8 @@ export const sendReminderEmailForStaff = internalAction({
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: data.staff.lineUserId,
-            text: buildReminderLineText({
-              staffName: data.staff.name,
-              shopName: data.shopName,
-              periodLabel: data.periodLabel,
-              linkExpiresAtLabel: deadlineLabel,
-              magicLinkUrl,
-            }),
+            text: buildReminderLineText(lineParams),
+            message: buildReminderLineFlexMessage(lineParams),
             suppressDelivery,
             ...(fallbackEmail ? { fallbackEmail } : {}),
           }),

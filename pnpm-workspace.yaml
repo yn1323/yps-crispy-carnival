@@ -1,6 +1,21 @@
 packages:
   - "."
+  - "apps/*"
 
 allowBuilds:
   "@clerk/shared": false
   esbuild: true
+
+catalog:
+  "@biomejs/biome": "2.5.1"
+  "@chakra-ui/react": "3.36.0"
+  "@emotion/react": "11.14.0"
+  "@types/node": "24.13.2"
+  "@types/react": "19.2.14"
+  "@types/react-dom": "19.2.3"
+  "@vitejs/plugin-react": "5.1.2"
+  react: "19.2.5"
+  react-dom: "19.2.5"
+  typescript: "5.9.3"
+  vite: "7.3.5"
+  vite-tsconfig-paths: "6.1.1"

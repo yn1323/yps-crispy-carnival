@@ -1,4 +1,5 @@
 import type { Id } from "../_generated/dataModel";
+import type { LinePushMessage } from "../notification/templates";
 
 export type NotificationEmailPayload = {
   kind: "email";
@@ -16,6 +17,7 @@ export type NotificationLinePayload = {
   kind: "line";
   toUserId: string;
   text: string;
+  message?: LinePushMessage;
   suppressDelivery?: boolean;
   // 互換用。新規のInbox抑止は notification context を failureSuppress.ts に追加する。
   suppressFailureInbox?: boolean;

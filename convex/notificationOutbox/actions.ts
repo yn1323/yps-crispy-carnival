@@ -5,7 +5,7 @@ import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { type ActionCtx, internalAction } from "../_generated/server";
 import { isDebugNotifyFailEnabled } from "../_lib/config";
-import { LineApiError, pushTextMessage } from "../_lib/lineClient";
+import { LineApiError, pushLineMessage } from "../_lib/lineClient";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
@@ -14,6 +14,7 @@ import {
   NOTIFICATION_OUTBOX_RETRY_MAX_MS,
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
+import type { LinePushMessage } from "../notification/templates";
 
 type NotificationJob = Doc<"notificationOutbox">;
 const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
@@ -88,7 +89,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
   }
 
   if (isDebugNotifyFailEnabled()) {
-    await pushTextMessage(job.payload.toUserId, job.payload.text, {
+    await pushLineMessage(job.payload.toUserId, lineMessageFromPayload(job.payload), {
       suppressDelivery: job.payload.suppressDelivery,
       retryKey: lineRetryKey(job._id),
     });
@@ -149,11 +150,15 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
     throw new Error("LINE quota exceeded");
   }
 
-  await pushTextMessage(job.payload.toUserId, job.payload.text, {
+  await pushLineMessage(job.payload.toUserId, lineMessageFromPayload(job.payload), {
     suppressDelivery: job.payload.suppressDelivery,
     retryKey: lineRetryKey(job._id),
   });
   return {};
+}
+
+function lineMessageFromPayload(payload: Extract<NotificationJob["payload"], { kind: "line" }>): LinePushMessage {
+  return payload.message ?? { type: "text", text: payload.text };
 }
 
 function shouldRetry(job: NotificationJob, e: unknown) {

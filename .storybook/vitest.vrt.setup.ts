@@ -11,6 +11,8 @@ declare const __VRT_VIEWPORT__: ViewportSize;
 
 const FREEZE_STYLE_ID = "vrt-freeze-animations";
 const RELEASE_FIXED_HEADER_STYLE_ID = "vrt-release-fixed-header";
+const VRT_ROOT_ATTRIBUTE = "data-vrt";
+const VRT_FONT_READY_TIMEOUT_MS = 1500;
 
 // play実行中〜安定性チェック中も画面を静止させる
 // （animation: none だとfade-in系が初期状態のまま固まるため、duration≒0 + 1回再生にする）
@@ -58,8 +60,19 @@ function applyReleaseFixedHeaderStyle() {
   document.head.appendChild(style);
 }
 
+async function waitForVrtStableFrame() {
+  await waitWithTimeout(document.fonts?.ready.catch(() => undefined) ?? Promise.resolve(), VRT_FONT_READY_TIMEOUT_MS);
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+}
+
+async function waitWithTimeout(promise: Promise<unknown>, timeoutMs: number) {
+  await Promise.race([promise, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+}
+
 beforeEach(async () => {
   await page.viewport(__VRT_VIEWPORT__.width, __VRT_VIEWPORT__.height);
+  document.documentElement.setAttribute(VRT_ROOT_ATTRIBUTE, "true");
   freezeAnimations();
 });
 
@@ -68,6 +81,7 @@ afterEach(async (context) => {
   const story = getStoryContext(context);
   const hooks = story?.parameters?.vrt?.releaseFixedHeader === true ? [releaseFixedHeaderForFullPage()] : [];
 
+  await waitForVrtStableFrame();
   await screenshot(page, context, {
     hooks,
     image: {

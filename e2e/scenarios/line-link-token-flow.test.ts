@@ -19,7 +19,7 @@ test.describe("LINE連携URL発行", () => {
     const seed = seedManagerScenario<LineLinkSeed>("testing:seedLineLinkScenario");
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: LINE連携QR/URLを発行する", async () => {
+    await test.step("Step 1: LINE連携リンクを発行する", async () => {
       await dashboard.goto();
       await dashboard.openLineQr(MANAGER.name);
       const lineToken = await getOrCreateLineLinkToken({ staffEmail: MANAGER.email, shopId: seed.shopId });

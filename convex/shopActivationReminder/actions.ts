@@ -8,6 +8,7 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { selectChannel } from "../_lib/notification";
 import {
   buildShopActivationReminderEmailHtml,
+  buildShopActivationReminderLineFlexMessage,
   buildShopActivationReminderLineText,
   SHOP_ACTIVATION_REMINDER_SUBJECT,
 } from "../notification/templates";
@@ -64,6 +65,10 @@ export const sendReminder = internalAction({
           payload: linePayload({
             toUserId: recipient.lineUserId,
             text: buildShopActivationReminderLineText({ dashboardUrl: data.dashboardUrl }),
+            message: buildShopActivationReminderLineFlexMessage({
+              shopName: data.shopName,
+              dashboardUrl: data.dashboardUrl,
+            }),
             suppressDelivery,
             fallbackEmail: { dedupeKey: emailDedupeKey, payload: emailPayloadValue },
           }),

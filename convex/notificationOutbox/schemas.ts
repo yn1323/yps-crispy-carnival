@@ -65,10 +65,23 @@ export const notificationEmailPayloadValidator = v.object({
   suppressFailureInbox: v.optional(v.boolean()),
 });
 
+export const notificationLineMessageValidator = v.union(
+  v.object({
+    type: v.literal("text"),
+    text: v.string(),
+  }),
+  v.object({
+    type: v.literal("flex"),
+    altText: v.string(),
+    contents: v.any(),
+  }),
+);
+
 export const notificationLinePayloadValidator = v.object({
   kind: v.literal("line"),
   toUserId: v.string(),
   text: v.string(),
+  message: v.optional(notificationLineMessageValidator),
   suppressDelivery: v.optional(v.boolean()),
   suppressFailureInbox: v.optional(v.boolean()),
   fallbackEmail: v.optional(

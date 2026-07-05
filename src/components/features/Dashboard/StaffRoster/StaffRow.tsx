@@ -1,63 +1,35 @@
-import { Badge, Flex, HStack, Menu, Portal, Stack, Text } from "@chakra-ui/react";
-import {
-  LuCalendarCheck,
-  LuEllipsisVertical,
-  LuMail,
-  LuPencil,
-  LuQrCode,
-  LuSend,
-  LuTrash2,
-  LuUserCheck,
-  LuUserX,
-} from "react-icons/lu";
+import { Badge, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import { LuChevronRight } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
-import { IconButton } from "@/src/components/ui/Button";
 
 type Props = {
   staff: Staff;
-  onEdit: (staff: Staff) => void;
-  onDelete: (staff: Staff) => void;
-  onShowLineQr: (staff: Staff) => void;
-  onSendLineInvite: (staff: Staff) => void;
-  onSendRecruitments: (staff: Staff) => void;
-  onSendCurrentShift: (staff: Staff) => void;
-  onToggleShiftExclusion: (staff: Staff) => void;
-  hasCurrentShift: boolean;
+  onOpenDetail: (staff: Staff) => void;
 };
 
-export function StaffRow({
-  staff,
-  onEdit,
-  onDelete,
-  onShowLineQr,
-  onSendLineInvite,
-  onSendRecruitments,
-  onSendCurrentShift,
-  onToggleShiftExclusion,
-  hasCurrentShift,
-}: Props) {
+export function StaffRow({ staff, onOpenDetail }: Props) {
   const initial = staff.name.trim().charAt(0) || "?";
   const avatarPalette = staff.isManager ? { bg: "teal.500", fg: "white" } : { bg: "teal.50", fg: "teal.700" };
   const isLineActive = staff.isLineLinked && staff.isLineFollowing;
   const isExcluded = staff.excludedFromShift;
-  const hasEmail = staff.email.length > 0;
-  const canShowLineQr = !isLineActive;
-  const canSendLineInvite = hasEmail && !isLineActive;
-  // シフト対象外スタッフには募集・確定通知を送れない（送信先から除外されるため）。
-  const canSendNotification = (hasEmail || isLineActive) && !isExcluded;
-  const canSendCurrentShift = canSendNotification && hasCurrentShift;
 
   return (
     <HStack
-      as="article"
-      aria-label={`${staff.name}のスタッフ情報`}
+      as="button"
+      aria-label={`${staff.name}のスタッフ詳細を開く`}
       gap={3}
       px={{ base: 3, lg: 4 }}
       py={3.5}
       align="center"
+      w="full"
+      textAlign="left"
       bg={staff.isManager ? "teal.50/50" : "transparent"}
+      borderWidth={0}
+      cursor="pointer"
       transition="background-color 150ms ease"
       _hover={{ bg: staff.isManager ? "teal.50" : "blackAlpha.50" }}
+      _focusVisible={{ outlineWidth: "2px", outlineStyle: "solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
+      onClick={() => onOpenDetail(staff)}
     >
       <Flex
         boxSize="40px"
@@ -98,91 +70,9 @@ export function StaffRow({
           {staff.email}
         </Text>
       </Stack>
-      <Menu.Root positioning={{ placement: "bottom-end" }}>
-        <Menu.Trigger asChild>
-          <IconButton aria-label="スタッフの操作メニュー" variant="ghost" size="sm" color="fg.muted">
-            <LuEllipsisVertical />
-          </IconButton>
-        </Menu.Trigger>
-        <Portal>
-          <Menu.Positioner>
-            <Menu.Content minW="250px">
-              <Menu.Item value="edit" cursor="pointer" onClick={() => onEdit(staff)}>
-                <LuPencil />
-                編集
-              </Menu.Item>
-              <Menu.Separator />
-              <Menu.Item
-                value="send-recruitments"
-                cursor={canSendNotification ? "pointer" : "not-allowed"}
-                color={canSendNotification ? undefined : "fg.muted"}
-                disabled={!canSendNotification}
-                onClick={() => {
-                  if (canSendNotification) onSendRecruitments(staff);
-                }}
-              >
-                <LuSend />
-                現在募集中のシフトを送る
-              </Menu.Item>
-              <Menu.Item
-                value="send-current-shift"
-                cursor={canSendCurrentShift ? "pointer" : "not-allowed"}
-                color={canSendCurrentShift ? undefined : "fg.muted"}
-                disabled={!canSendCurrentShift}
-                onClick={() => {
-                  if (canSendCurrentShift) onSendCurrentShift(staff);
-                }}
-              >
-                <LuCalendarCheck />
-                現在の確定シフトを送る
-              </Menu.Item>
-              <Menu.Separator />
-              <Menu.Item
-                value="line-qr"
-                cursor={canShowLineQr ? "pointer" : "not-allowed"}
-                color={canShowLineQr ? undefined : "fg.muted"}
-                disabled={!canShowLineQr}
-                onClick={() => {
-                  if (canShowLineQr) onShowLineQr(staff);
-                }}
-              >
-                <LuQrCode />
-                LINE連携リンクを表示
-              </Menu.Item>
-              <Menu.Item
-                value="line-invite"
-                cursor={canSendLineInvite ? "pointer" : "not-allowed"}
-                color={canSendLineInvite ? undefined : "fg.muted"}
-                disabled={!canSendLineInvite}
-                onClick={() => {
-                  if (canSendLineInvite) onSendLineInvite(staff);
-                }}
-              >
-                <LuMail />
-                LINE連携リンクをメールで送る
-              </Menu.Item>
-              <Menu.Separator />
-              <Menu.Item value="toggle-shift-exclusion" cursor="pointer" onClick={() => onToggleShiftExclusion(staff)}>
-                {isExcluded ? <LuUserCheck /> : <LuUserX />}
-                {isExcluded ? "シフト対象に戻す" : "シフト対象外にする"}
-              </Menu.Item>
-              <Menu.Separator />
-              <Menu.Item
-                value="delete"
-                color={staff.isManager ? "fg.muted" : "fg.error"}
-                cursor={staff.isManager ? "not-allowed" : "pointer"}
-                disabled={staff.isManager}
-                onClick={() => {
-                  if (!staff.isManager) onDelete(staff);
-                }}
-              >
-                <LuTrash2 />
-                削除
-              </Menu.Item>
-            </Menu.Content>
-          </Menu.Positioner>
-        </Portal>
-      </Menu.Root>
+      <Flex color="fg.muted" fontSize="lg" flexShrink={0} aria-hidden>
+        <LuChevronRight />
+      </Flex>
     </HStack>
   );
 }

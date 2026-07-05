@@ -2,7 +2,8 @@ import { Box, Code, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { LuCheck, LuCopy } from "react-icons/lu";
-import { Button } from "@/src/components/ui/Button";
+import { IconButton } from "@/src/components/ui/Button";
+import { Tooltip } from "@/src/components/ui/tooltip";
 
 type Props = {
   /** 認可フローの URL（state 入りの完成形） */
@@ -74,22 +75,31 @@ export const LineLinkQrDialog = ({ authorizeUrl, isLoading, staffName }: Props) 
           スマホのカメラで読み取ってください
         </Text>
       </Stack>
-      <Code
-        p={2}
-        fontSize="xs"
-        whiteSpace="pre-wrap"
-        wordBreak="break-all"
-        bg="blackAlpha.50"
-        borderRadius="md"
-        color="gray.800"
-      >
-        {authorizeUrl}
-      </Code>
-      <HStack>
-        <Button onClick={handleCopy} variant="outline" size="sm" colorPalette="teal" gap={1.5}>
-          {copied ? <LuCheck /> : <LuCopy />}
-          {copied ? "コピーしました" : "リンクをコピー"}
-        </Button>
+      <HStack gap={2} align="center">
+        <Code
+          p={2}
+          fontSize="xs"
+          whiteSpace="pre-wrap"
+          wordBreak="break-all"
+          bg="blackAlpha.50"
+          borderRadius="md"
+          color="gray.800"
+          flex={1}
+          minW={0}
+        >
+          {authorizeUrl}
+        </Code>
+        <Tooltip content={copied ? "コピーしました" : "リンクをコピー"}>
+          <IconButton
+            aria-label={copied ? "コピーしました" : "リンクをコピー"}
+            onClick={handleCopy}
+            size="sm"
+            colorPalette="teal"
+            flexShrink={0}
+          >
+            {copied ? <LuCheck /> : <LuCopy />}
+          </IconButton>
+        </Tooltip>
       </HStack>
     </Stack>
   );

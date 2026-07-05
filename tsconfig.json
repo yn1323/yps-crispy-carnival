@@ -34,5 +34,5 @@
     "vite.config.ts",
     "src/configs/vitest/vitest-setup.ts"
   ],
-  "exclude": ["node_modules", ".scaffdog"]
+  "exclude": ["node_modules", ".scaffdog", "apps/**"]
 }
