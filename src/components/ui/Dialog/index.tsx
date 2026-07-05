@@ -9,9 +9,19 @@ import {
   useDialogVisualViewportStyle,
 } from "@/src/hooks/useDialogVisualViewportStyle";
 
-const getToasterLayerElement = () => {
-  if (typeof document === "undefined") return null;
-  return document.querySelector(TOASTER_LAYER_SELECTOR);
+const getInteractOutsideTarget = (event: Event) => {
+  if (event.target instanceof Element) return event.target;
+
+  const originalEvent = (event as { detail?: { originalEvent?: Event } }).detail?.originalEvent;
+  return originalEvent?.target instanceof Element ? originalEvent.target : null;
+};
+
+const preventCloseWhenInteractingWithToaster: NonNullable<
+  ComponentProps<typeof ChakraDialog.Root>["onInteractOutside"]
+> = (event) => {
+  if (getInteractOutsideTarget(event)?.closest(TOASTER_LAYER_SELECTOR)) {
+    event.preventDefault();
+  }
 };
 
 // useDialogフック - Dialog の開閉を制御
@@ -55,7 +65,6 @@ type DialogProps = {
   maxH?: ComponentProps<typeof ChakraDialog.Content>["maxH"];
   formId?: string;
   modal?: boolean;
-  motionPreset?: ComponentProps<typeof ChakraDialog.Root>["motionPreset"];
   keyboardAwareViewport?: boolean;
   positionerProps?: ComponentProps<typeof ChakraDialog.Positioner>;
   contentProps?: ComponentProps<typeof ChakraDialog.Content>;
@@ -81,7 +90,6 @@ export const Dialog = ({
   maxH,
   formId,
   modal = true,
-  motionPreset,
   keyboardAwareViewport = false,
   positionerProps,
   contentProps,
@@ -97,8 +105,7 @@ export const Dialog = ({
       role={role}
       placement="center"
       modal={modal}
-      motionPreset={motionPreset}
-      persistentElements={[getToasterLayerElement]}
+      onInteractOutside={preventCloseWhenInteractingWithToaster}
     >
       <Portal>
         <ChakraDialog.Backdrop />
