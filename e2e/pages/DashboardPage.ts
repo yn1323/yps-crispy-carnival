@@ -193,11 +193,10 @@ export class DashboardPage {
   }
 
   async editStaff(staffName: string, newData: { name: string; email: string }) {
-    await this.openStaffMenu(staffName);
-    await this.page.getByRole("menuitem", { name: "編集" }).click();
-
-    const dialog = this.page.getByRole("dialog", { name: "スタッフを編集" });
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
     await expect(dialog).toBeVisible();
+    await dialog.getByRole("tab", { name: "基本" }).click();
     const form = this.page.locator("[id='edit-staff-form']");
     const nameInput = form.getByPlaceholder("例：田中 花子");
     const emailInput = form.getByPlaceholder("例：hanako@example.com");
@@ -207,21 +206,38 @@ export class DashboardPage {
     await emailInput.clear();
     await emailInput.fill(newData.email);
 
-    await dialog.getByRole("button", { name: /保存する|変更を保存/ }).click();
-    await expect(dialog).not.toBeVisible();
+    await dialog.getByRole("button", { name: "変更を保存" }).click();
     await this.expectToastVisibleThenHidden("スタッフ情報を更新しました");
+    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await expect(dialog).not.toBeVisible();
   }
 
   async deleteStaff(staffName: string) {
-    await this.openStaffMenu(staffName);
-    await this.page.getByRole("menuitem", { name: "削除" }).click();
-
-    await expect(this.page.getByRole("alertdialog", { name: "スタッフを削除" })).toBeVisible();
-    await this.page
-      .getByRole("alertdialog")
-      .getByRole("button", { name: /削除する|このスタッフを削除/ })
-      .click();
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
+    await dialog.getByRole("tab", { name: "設定" }).click();
+    await dialog.getByRole("button", { name: "このスタッフを削除" }).click();
+    await expect(dialog.getByText("このスタッフを削除しますか？")).toBeVisible();
+    await dialog.getByRole("button", { name: "このスタッフを削除" }).last().click();
     await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
+  }
+
+  async setStaffShiftTarget(staffName: string, isShiftTarget: boolean) {
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("tab", { name: "設定" }).click();
+
+    const shiftTargetSwitch = dialog.getByRole("checkbox", { name: /シフト対象/ });
+    await expect(shiftTargetSwitch).toBeVisible();
+    if ((await shiftTargetSwitch.isChecked()) !== isShiftTarget) {
+      await shiftTargetSwitch.click();
+      await this.expectToastVisibleThenHidden(isShiftTarget ? "シフト対象に戻しました" : "シフト対象外にしました");
+      await expect(shiftTargetSwitch).toBeChecked({ checked: isShiftTarget });
+    }
+
+    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await expect(dialog).not.toBeVisible();
   }
 
   async deleteRecruitment() {
@@ -279,17 +295,20 @@ export class DashboardPage {
   }
 
   async openLineQr(staffName: string) {
-    await this.openStaffMenu(staffName);
-    await this.page.getByRole("menuitem", { name: /LINE連携QRを表示|LINE連携リンクを表示/ }).click();
-    await expect(this.page.getByRole("dialog", { name: /LINE連携QR \/ URL|LINE連携リンク/ })).toBeVisible();
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
+    await dialog.getByRole("tab", { name: "LINE連携" }).click();
+    await dialog.getByRole("button", { name: "LINE連携リンクを表示" }).click();
+    await expect(dialog.getByText(`${staffName}さんにLINE連携リンクを共有してください。`)).toBeVisible();
   }
 
   async sendLineInvite(staffName: string) {
-    await this.openStaffMenu(staffName);
-    await this.page.getByRole("menuitem", { name: /メールでLINE連携URLを送る|LINE連携リンクをメールで送る/ }).click();
-
-    const dialog = this.page.getByRole("dialog", { name: /メールでLINE連携URLを送る|LINE連携リンクをメールで送る/ });
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
     await expect(dialog).toBeVisible();
+    await dialog.getByRole("tab", { name: "LINE連携" }).click();
+    await dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
+    await expect(dialog.getByText("LINE連携リンクをメールで送る")).toBeVisible();
     await dialog.getByRole("button", { name: "送信" }).click();
     await expect(this.page.getByText(LINE_INVITE_SENT_TOAST_TITLE).first()).toBeVisible();
   }
@@ -445,7 +464,16 @@ export class DashboardPage {
   }
 
   async expectStaffRowCount(count: number) {
-    await expect(this.staffSection().getByRole("button", { name: "スタッフの操作メニュー" })).toHaveCount(count);
+    await expect(this.staffSection().getByRole("button", { name: /のスタッフ詳細を開く/ })).toHaveCount(count);
+  }
+
+  async expectStaffShiftExcludedBadge(staffName: string, isVisible: boolean) {
+    const badge = this.staffRow(staffName).getByText("シフト対象外", { exact: true });
+    if (isVisible) {
+      await expect(badge).toBeVisible();
+      return;
+    }
+    await expect(badge).not.toBeVisible();
   }
 
   async expectShowAllStaffsVisible() {
@@ -476,6 +504,10 @@ export class DashboardPage {
     return this.page.getByRole("alertdialog", { name: "店舗を削除" });
   }
 
+  private staffDetailDialog() {
+    return this.page.getByRole("dialog", { name: "スタッフ詳細" });
+  }
+
   private legalReconsentMessage() {
     return this.page.getByText("利用規約・プライバシーポリシーを更新しました");
   }
@@ -489,9 +521,12 @@ export class DashboardPage {
     await expect(toast).not.toBeVisible();
   }
 
-  private async openStaffMenu(staffName: string) {
-    const row = this.staffSection().getByRole("article", { name: `${staffName}のスタッフ情報` });
-    await row.getByRole("button", { name: "スタッフの操作メニュー" }).click({ noWaitAfter: true });
+  private async openStaffDetail(staffName: string) {
+    await this.staffRow(staffName).click({ noWaitAfter: true });
+  }
+
+  private staffRow(staffName: string) {
+    return this.staffSection().getByRole("button", { name: `${staffName}のスタッフ詳細を開く` });
   }
 
   // 同名オプションが複数Select間で重複するため、listbox にスコープして選択

@@ -5,8 +5,6 @@ import { useEffect, useState } from "react";
 import { LuSparkles, LuUserPlus } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { LineInviteConfirmContent } from "@/src/components/features/Line/LineInviteConfirmContent";
-import { LineLinkQrDialog } from "@/src/components/features/Line/LineLinkQrDialog";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
@@ -23,7 +21,6 @@ import { DashboardAnnouncement } from "../DashboardAnnouncement";
 import type { EditShopFormData } from "../EditShopForm/index";
 import { EditShopForm } from "../EditShopForm/index.tsx";
 import type { EditStaffFormData } from "../EditStaffForm/index";
-import { EditStaffForm } from "../EditStaffForm/index.tsx";
 import { HeroSummary, HeroSummarySkeleton, WelcomeHero } from "../HeroSummary";
 import { LegalReconsentBanner } from "../LegalReconsentBanner";
 import { type DashboardNotificationFailure, NotificationFailureDialogContent } from "../NotificationFailureDialog";
@@ -33,6 +30,7 @@ import { SetupModal } from "../SetupModal";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRegistrationRequestDialog } from "../StaffRegistrationRequests";
 import { StaffRoster, StaffRosterSkeleton } from "../StaffRoster";
+import { StaffDetailDialog } from "../StaffRoster/StaffDetailDialog";
 import {
   buildDashboardRecruitmentGroups,
   type DashboardAnnouncement as DashboardAnnouncementData,
@@ -122,27 +120,18 @@ export const DashboardContent = ({
   const navigate = useNavigate();
   const recruitmentModal = useDialog();
   const staffModal = useDialog();
-  const editStaffModal = useDialog();
   const editShopModal = useDialog();
   const deleteRecruitmentDialog = useDialog();
-  const deleteStaffDialog = useDialog();
+  const staffDetailDialog = useDialog();
   const staffRegistrationDialog = useDialog();
   const notificationFailureDialog = useDialog();
-  const lineQrDialog = useDialog();
-  const lineInviteDialog = useDialog();
-  const recruitmentNotificationDialog = useDialog();
-  const currentShiftNotificationDialog = useDialog();
   const setupModal = useDialog();
   const isSetupRequired = shop === null;
-  const [editTarget, setEditTarget] = useState<Staff | null>(null);
   const [deleteRecruitmentTarget, setDeleteRecruitmentTarget] = useState<Recruitment | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Staff | null>(null);
-  const [lineQrTarget, setLineQrTarget] = useState<Staff | null>(null);
+  const [detailStaffId, setDetailStaffId] = useState<Staff["_id"] | null>(null);
+  const [lineQrTargetId, setLineQrTargetId] = useState<Staff["_id"] | null>(null);
   const [lineQrAuthorizeUrl, setLineQrAuthorizeUrl] = useState<string | null>(null);
   const [lineQrLoading, setLineQrLoading] = useState(false);
-  const [lineInviteTarget, setLineInviteTarget] = useState<Staff | null>(null);
-  const [recruitmentNotificationTarget, setRecruitmentNotificationTarget] = useState<Staff | null>(null);
-  const [currentShiftNotificationTarget, setCurrentShiftNotificationTarget] = useState<Staff | null>(null);
   const [staffModalMode, setStaffModalMode] = useState<"qr" | "manual">("qr");
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [registrationUrlLoading, setRegistrationUrlLoading] = useState(false);
@@ -187,6 +176,9 @@ export const DashboardContent = ({
     : "シフト募集を削除";
   const visibleRecruitmentGroups =
     recruitmentGroups ?? buildDashboardRecruitmentGroups({ recruitments: recruitmentList }).groups;
+  const openRecruitmentsForStaffDetail =
+    visibleRecruitmentGroups.find((group) => group.key === "collecting")?.recruitments ?? [];
+  const detailStaff = detailStaffId ? (staffs.find((staff) => staff._id === detailStaffId) ?? null) : null;
 
   // shop 未作成状態でも呼ぶため authenticatedMutation（shopId なし）
   const setupShopAndManager = useMutation(api.setup.mutations.setupShopAndManager);
@@ -477,21 +469,35 @@ export const DashboardContent = ({
     }
   };
 
-  const handleEditClick = (staff: Staff) => {
-    setEditTarget(staff);
-    editStaffModal.open();
+  const handleOpenStaffDetail = (staff: Staff) => {
+    setDetailStaffId(staff._id);
+    setLineQrTargetId(null);
+    setLineQrAuthorizeUrl(null);
+    setLineQrLoading(false);
+    staffDetailDialog.open();
   };
 
-  const handleDeleteClick = (staff: Staff) => {
-    setDeleteTarget(staff);
-    deleteStaffDialog.open();
+  const handleStaffDetailOpenChange = (details: { open: boolean }) => {
+    staffDetailDialog.onOpenChange(details);
+    if (details.open) return;
+    setDetailStaffId(null);
+    setLineQrTargetId(null);
+    setLineQrAuthorizeUrl(null);
+    setLineQrLoading(false);
+  };
+
+  const handleCloseStaffDetail = () => {
+    staffDetailDialog.close();
+    setDetailStaffId(null);
+    setLineQrTargetId(null);
+    setLineQrAuthorizeUrl(null);
+    setLineQrLoading(false);
   };
 
   const { run: handleEditStaff, isRunning: isEditingStaff } = useSingleFlight(async (data: EditStaffFormData) => {
-    if (!editTarget) return;
+    if (!detailStaff) return;
     try {
-      await editStaffMut({ staffId: editTarget._id, name: data.name, email: data.email });
-      editStaffModal.close();
+      await editStaffMut({ staffId: detailStaff._id, name: data.name, email: data.email });
       showSuccessToast({ title: "スタッフ情報を更新しました" });
     } catch (error) {
       showErrorToast(error);
@@ -508,11 +514,10 @@ export const DashboardContent = ({
     }
   });
 
-  const { run: handleDeleteStaff, isRunning: isDeletingStaff } = useSingleFlight(async () => {
-    if (!deleteTarget) return;
+  const { run: handleDeleteStaff, isRunning: isDeletingStaff } = useSingleFlight(async (staff: Staff) => {
     try {
-      await deleteStaffMut({ staffId: deleteTarget._id });
-      deleteStaffDialog.close();
+      await deleteStaffMut({ staffId: staff._id });
+      handleCloseStaffDetail();
       showSuccessToast({ title: "スタッフを削除しました" });
     } catch (error) {
       showErrorToast(error);
@@ -520,99 +525,83 @@ export const DashboardContent = ({
   });
 
   const handleShowLineQr = async (staff: Staff) => {
-    setLineQrTarget(staff);
+    setLineQrTargetId(staff._id);
     setLineQrAuthorizeUrl(null);
     setLineQrLoading(true);
-    lineQrDialog.open();
     try {
       const r = await generateLineLinkToken({ staffId: staff._id });
       setLineQrAuthorizeUrl(r.authorizeUrl);
     } catch (error) {
       showErrorToast(error);
-      lineQrDialog.close();
+      setLineQrTargetId(null);
     } finally {
       setLineQrLoading(false);
     }
   };
 
-  const handleSendLineInviteClick = (staff: Staff) => {
-    setLineInviteTarget(staff);
-    lineInviteDialog.open();
-  };
-
-  const { run: handleSendLineInviteConfirm, isRunning: isSendingLineInvite } = useSingleFlight(async () => {
-    if (!lineInviteTarget) return;
+  const { run: handleSendLineInviteConfirm, isRunning: isSendingLineInvite } = useSingleFlight(async (staff: Staff) => {
     try {
-      await sendLineInvite({ staffId: lineInviteTarget._id });
-      lineInviteDialog.close();
+      await sendLineInvite({ staffId: staff._id });
       showSuccessToast({ title: "LINE連携リンクをメールで送りました" });
     } catch (error) {
       showErrorToast(error);
     }
   });
 
-  const handleSendRecruitmentsClick = (staff: Staff) => {
-    setRecruitmentNotificationTarget(staff);
-    recruitmentNotificationDialog.open();
-  };
-
-  const { run: handleSendRecruitmentsConfirm, isRunning: isSendingRecruitments } = useSingleFlight(async () => {
-    if (!recruitmentNotificationTarget) return;
-    try {
-      const result = await sendOpenRecruitmentNotifications({ staffId: recruitmentNotificationTarget._id });
-      recruitmentNotificationDialog.close();
-      if (result.scheduled) {
-        showSuccessToast({ title: "シフト募集通知を送りました" });
-        return;
+  const { run: handleSendRecruitmentsConfirm, isRunning: isSendingRecruitments } = useSingleFlight(
+    async (staff: Staff) => {
+      try {
+        const result = await sendOpenRecruitmentNotifications({ staffId: staff._id });
+        if (result.scheduled) {
+          showSuccessToast({ title: "シフト募集通知を送りました" });
+          return;
+        }
+        toaster.create({
+          title:
+            result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できるシフト募集がありません",
+          type: result.reason === "rateLimited" ? "error" : "info",
+        });
+      } catch (error) {
+        showErrorToast(error);
       }
-      toaster.create({
-        title:
-          result.reason === "rateLimited" ? "少し時間をおいて再送してください" : "送信できるシフト募集がありません",
-        type: result.reason === "rateLimited" ? "error" : "info",
-      });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
+    },
+  );
 
-  const handleSendCurrentShiftClick = (staff: Staff) => {
-    setCurrentShiftNotificationTarget(staff);
-    currentShiftNotificationDialog.open();
-  };
-
-  const handleToggleShiftExclusion = async (staff: Staff) => {
-    const nextExcluded = !staff.excludedFromShift;
-    try {
-      await setShiftExclusion({ staffId: staff._id, excluded: nextExcluded });
-      toaster.create({
-        title: nextExcluded ? "シフト対象外にしました" : "シフト対象に戻しました",
-        type: "success",
-      });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  };
-
-  const { run: handleSendCurrentShiftConfirm, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
-    if (!currentShiftNotificationTarget) return;
-    try {
-      const result = await sendCurrentShiftNotification({ staffId: currentShiftNotificationTarget._id });
-      currentShiftNotificationDialog.close();
-      if (result.scheduled) {
-        showSuccessToast({ title: "現在の確定シフトを送りました" });
-        return;
+  const { run: handleChangeShiftTarget, isRunning: isChangingShiftTarget } = useSingleFlight(
+    async (staff: Staff, isShiftTarget: boolean) => {
+      const nextExcluded = !isShiftTarget;
+      try {
+        await setShiftExclusion({ staffId: staff._id, excluded: nextExcluded });
+        toaster.create({
+          title: nextExcluded ? "シフト対象外にしました" : "シフト対象に戻しました",
+          type: "success",
+        });
+      } catch (error) {
+        showErrorToast(error);
       }
-      toaster.create({
-        title:
-          result.reason === "rateLimited"
-            ? "少し時間をおいて再送してください"
-            : "送信できる現在の確定シフトがありません",
-        type: result.reason === "rateLimited" ? "error" : "info",
-      });
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
+    },
+  );
+
+  const { run: handleSendCurrentShiftConfirm, isRunning: isSendingCurrentShift } = useSingleFlight(
+    async (staff: Staff) => {
+      try {
+        const result = await sendCurrentShiftNotification({ staffId: staff._id });
+        if (result.scheduled) {
+          showSuccessToast({ title: "現在の確定シフトを送りました" });
+          return;
+        }
+        toaster.create({
+          title:
+            result.reason === "rateLimited"
+              ? "少し時間をおいて再送してください"
+              : "送信できる現在の確定シフトがありません",
+          type: result.reason === "rateLimited" ? "error" : "info",
+        });
+      } catch (error) {
+        showErrorToast(error);
+      }
+    },
+  );
 
   return (
     <>
@@ -677,14 +666,7 @@ export const DashboardContent = ({
               status={staffStatus}
               canLoadMore={canLoadMoreStaffs}
               onAddClick={handleOpenStaffModal}
-              onEdit={handleEditClick}
-              onDelete={handleDeleteClick}
-              onShowLineQr={handleShowLineQr}
-              onSendLineInvite={handleSendLineInviteClick}
-              onSendRecruitments={handleSendRecruitmentsClick}
-              onSendCurrentShift={handleSendCurrentShiftClick}
-              onToggleShiftExclusion={handleToggleShiftExclusion}
-              hasCurrentShift={currentRecruitments.length > 0}
+              onOpenDetail={handleOpenStaffDetail}
               onLoadMore={loadMoreStaffs}
             />
           </>
@@ -771,6 +753,33 @@ export const DashboardContent = ({
         )}
       </Dialog>
 
+      <StaffDetailDialog
+        staff={detailStaff}
+        isOpen={staffDetailDialog.isOpen}
+        onOpenChange={handleStaffDetailOpenChange}
+        onClose={handleCloseStaffDetail}
+        openRecruitments={openRecruitmentsForStaffDetail}
+        currentRecruitments={currentRecruitments}
+        onEdit={handleEditStaff}
+        isEditing={isEditingStaff}
+        onDelete={handleDeleteStaff}
+        isDeleting={isDeletingStaff}
+        onShowLineQr={handleShowLineQr}
+        lineQrState={{
+          staffId: lineQrTargetId,
+          authorizeUrl: lineQrAuthorizeUrl,
+          isLoading: lineQrLoading,
+        }}
+        onSendLineInvite={handleSendLineInviteConfirm}
+        isSendingLineInvite={isSendingLineInvite}
+        onSendRecruitments={handleSendRecruitmentsConfirm}
+        isSendingRecruitments={isSendingRecruitments}
+        onSendCurrentShift={handleSendCurrentShiftConfirm}
+        isSendingCurrentShift={isSendingCurrentShift}
+        onChangeShiftTarget={handleChangeShiftTarget}
+        isChangingShiftTarget={isChangingShiftTarget}
+      />
+
       <StaffRegistrationRequestDialog
         isOpen={staffRegistrationDialog.isOpen}
         onOpenChange={staffRegistrationDialog.onOpenChange}
@@ -802,19 +811,6 @@ export const DashboardContent = ({
         </Text>
       </Dialog>
 
-      <Dialog
-        title="スタッフを編集"
-        isOpen={editStaffModal.isOpen}
-        onOpenChange={editStaffModal.onOpenChange}
-        formId="edit-staff-form"
-        submitLabel="変更を保存"
-        onClose={editStaffModal.close}
-        isLoading={isEditingStaff}
-        isSubmitDisabled={isEditingStaff}
-      >
-        {editTarget && <EditStaffForm staff={editTarget} onSubmit={handleEditStaff} />}
-      </Dialog>
-
       <StepperDialog
         title="店舗設定"
         isOpen={editShopModal.isOpen}
@@ -834,91 +830,6 @@ export const DashboardContent = ({
           />
         )}
       </StepperDialog>
-
-      <Dialog
-        title="スタッフを削除"
-        isOpen={deleteStaffDialog.isOpen}
-        onOpenChange={deleteStaffDialog.onOpenChange}
-        onClose={deleteStaffDialog.close}
-        onSubmit={handleDeleteStaff}
-        submitLabel="このスタッフを削除"
-        role="alertdialog"
-        submitColorPalette="red"
-        isLoading={isDeletingStaff}
-        isSubmitDisabled={isDeletingStaff}
-      >
-        <Text>「{deleteTarget?.name}」を削除しますか？</Text>
-        <Text fontSize="sm" color="gray.600">
-          削除すると元に戻せません。
-        </Text>
-      </Dialog>
-
-      <Dialog
-        title="LINE連携リンク"
-        isOpen={lineQrDialog.isOpen}
-        onOpenChange={lineQrDialog.onOpenChange}
-        onClose={lineQrDialog.close}
-        hideFooter
-      >
-        <LineLinkQrDialog
-          authorizeUrl={lineQrAuthorizeUrl}
-          isLoading={lineQrLoading}
-          staffName={lineQrTarget?.name ?? ""}
-        />
-      </Dialog>
-
-      <Dialog
-        title="LINE連携リンクをメールで送る"
-        isOpen={lineInviteDialog.isOpen}
-        onOpenChange={lineInviteDialog.onOpenChange}
-        onClose={lineInviteDialog.close}
-        onSubmit={handleSendLineInviteConfirm}
-        submitLabel="送信"
-        isLoading={isSendingLineInvite}
-        isSubmitDisabled={isSendingLineInvite}
-      >
-        {lineInviteTarget && (
-          <LineInviteConfirmContent staffName={lineInviteTarget.name} staffEmail={lineInviteTarget.email} />
-        )}
-      </Dialog>
-
-      <Dialog
-        title="シフト募集通知を送る"
-        isOpen={recruitmentNotificationDialog.isOpen}
-        onOpenChange={recruitmentNotificationDialog.onOpenChange}
-        onClose={recruitmentNotificationDialog.close}
-        onSubmit={handleSendRecruitmentsConfirm}
-        submitLabel="現在の募集中シフトを送る"
-        isLoading={isSendingRecruitments}
-        isSubmitDisabled={isSendingRecruitments}
-      >
-        {recruitmentNotificationTarget && (
-          <NotificationResendConfirmContent
-            staff={recruitmentNotificationTarget}
-            description="現在送れる募集中シフトの通知を送ります。"
-            note="通常はシフト作成時に自動で通知しています。届いていない場合のみ再送してください。"
-          />
-        )}
-      </Dialog>
-
-      <Dialog
-        title="現在の確定シフトを送る"
-        isOpen={currentShiftNotificationDialog.isOpen}
-        onOpenChange={currentShiftNotificationDialog.onOpenChange}
-        onClose={currentShiftNotificationDialog.close}
-        onSubmit={handleSendCurrentShiftConfirm}
-        submitLabel="確定シフトを送る"
-        isLoading={isSendingCurrentShift}
-        isSubmitDisabled={isSendingCurrentShift}
-      >
-        {currentShiftNotificationTarget && (
-          <NotificationResendConfirmContent
-            staff={currentShiftNotificationTarget}
-            description="現在の期間に含まれる確定済みシフトを送ります。"
-            note="通常はシフト確定時に自動で通知しています。届いていない場合のみ再送してください。"
-          />
-        )}
-      </Dialog>
 
       <Dialog
         title="送れなかった通知"
@@ -968,25 +879,6 @@ export const DashboardContentSkeleton = () => (
     <RecruitmentBoardSkeleton />
     <StaffRosterSkeleton />
   </ContentWrapper>
-);
-
-const NotificationResendConfirmContent = ({
-  staff,
-  description,
-  note,
-}: {
-  staff: Staff;
-  description: string;
-  note: string;
-}) => (
-  <Stack gap={3}>
-    <Text fontSize="sm" color="gray.800">
-      {staff.name}さん{staff.email ? `（${staff.email}）` : ""}に{description}
-    </Text>
-    <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-      {note}
-    </Text>
-  </Stack>
 );
 
 function readReviewedRecruitmentIds(): string[] {
