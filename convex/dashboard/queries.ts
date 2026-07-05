@@ -1,6 +1,5 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
-import { ConvexError } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery } from "../_lib/functions";
@@ -11,7 +10,8 @@ import {
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 
-// shop未登録のsetup中に paginated query が走ってもエラーログを出さないための空結果
+// shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
+// エラーログを出さないための空結果（queryはthrowせず空を返す規約）
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   page: never[];
   isDone: boolean;
@@ -196,7 +196,6 @@ export const getActiveDashboardAnnouncement = authenticatedQuery({
 export const getDashboardRecruitments = authenticatedQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    if (!ctx.identity) throw new ConvexError("Unauthenticated");
     const shop = await getManagerShop(ctx);
     if (!shop) return EMPTY_PAGE;
 
@@ -219,7 +218,6 @@ export const getDashboardRecruitments = authenticatedQuery({
 export const hasDashboardPastRecruitments = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    if (!ctx.identity) throw new ConvexError("Unauthenticated");
     const shop = await getManagerShop(ctx);
     if (!shop) return false;
 
@@ -238,7 +236,6 @@ export const hasDashboardPastRecruitments = authenticatedQuery({
 export const getDashboardPastRecruitments = authenticatedQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    if (!ctx.identity) throw new ConvexError("Unauthenticated");
     const shop = await getManagerShop(ctx);
     if (!shop) return EMPTY_PAGE;
 
@@ -266,7 +263,6 @@ export const getDashboardPastRecruitments = authenticatedQuery({
 export const getDashboardCurrentRecruitments = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    if (!ctx.identity) throw new ConvexError("Unauthenticated");
     const shop = await getManagerShop(ctx);
     if (!shop) return [];
 
@@ -282,7 +278,6 @@ export const getDashboardCurrentRecruitments = authenticatedQuery({
 export const getDashboardStaffs = authenticatedQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    if (!ctx.identity) throw new ConvexError("Unauthenticated");
     const shop = await getManagerShop(ctx);
     if (!shop) return EMPTY_PAGE;
 
