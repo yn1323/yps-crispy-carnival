@@ -200,11 +200,11 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardRecruitments", () => {
-    it("未認証の場合、エラーをthrowする", async () => {
+    it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
-      await expect(t.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE)).rejects.toThrow(
-        "Unauthenticated",
-      );
+      const result = await t.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      expect(result.page).toEqual([]);
+      expect(result.isDone).toBe(true);
     });
 
     it("認証済みだが店舗未登録の場合、空ページを返す", async () => {
@@ -717,11 +717,11 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardStaffs", () => {
-    it("未認証の場合、エラーをthrowする", async () => {
+    it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
-      await expect(t.query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE)).rejects.toThrow(
-        "Unauthenticated",
-      );
+      const result = await t.query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE);
+      expect(result.page).toEqual([]);
+      expect(result.isDone).toBe(true);
     });
 
     it("認証済みだが店舗未登録の場合、空ページを返す", async () => {
