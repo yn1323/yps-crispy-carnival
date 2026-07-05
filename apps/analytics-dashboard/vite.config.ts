@@ -52,6 +52,11 @@ function getConvexHost(baseUrl: string) {
 }
 
 function resolveAnalyticsDevEnv(env: RawAnalyticsDevEnv, envLabel: string): AnalyticsDevEnv {
+  console.log({
+    convexHttpUrl: env.VITE_CONVEX_SITE_URL ?? getConvexHttpUrl(env.VITE_CONVEX_URL),
+    envLabel,
+    internalApiSecret: env.SHIFTORI_INTERNAL_API_SECRET ? "[set]" : undefined,
+  });
   return {
     convexHttpUrl: env.VITE_CONVEX_SITE_URL ?? getConvexHttpUrl(env.VITE_CONVEX_URL),
     envLabel,

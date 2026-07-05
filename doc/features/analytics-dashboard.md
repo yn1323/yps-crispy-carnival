@@ -1,8 +1,9 @@
 # 分析KPI可視化アプリ
 
 `convex/analytics/` に日次蓄積したKPIを、本人だけが見る内部BIとして可視化する別アプリ。
-本体アプリの顧客向け導線とは分離し、Cloudflare Pages FunctionsのBasic認証とConvex HTTP actionの共有secretで読み取り経路を保護する。
-内部用アプリのため、HTMLの `robots` メタタグとPages Functions middlewareの `X-Robots-Tag` で検索インデックス対象から除外する。
+本体アプリの顧客向け導線とは分離し、Cloudflare Workers + Static Assets の別Workerで可視化する。
+ブラウザは同一originのWorker APIだけを呼び、WorkerとConvex HTTP actionの共有secretで読み取り経路を保護する。
+内部用アプリのため、HTMLの `robots` メタタグとWorker応答の `X-Robots-Tag` で検索インデックス対象から除外する。
 
 ## 関連ファイル
 
@@ -11,9 +12,10 @@
 - `apps/analytics-dashboard/src/pages/DashboardPage.tsx` — KPI可視化画面
 - `apps/analytics-dashboard/src/api/analyticsClient.ts` — `/api/analytics` のfetch client
 - `apps/analytics-dashboard/src/domains/analytics/` — 派生KPI、表示整形、chart series変換
-- `apps/analytics-dashboard/functions/_middleware.ts` — Basic認証middleware
+- `apps/analytics-dashboard/src/worker.ts` — Workers + Static Assets の入口、`/api/analytics` ルーティング、静的asset応答
+- `apps/analytics-dashboard/src/server/analyticsProxy.ts` — Convex HTTP actionへのBFF proxy
 - `apps/analytics-dashboard/index.html` — HTML入口と `robots` メタタグ
-- `apps/analytics-dashboard/functions/api/analytics.ts` — Convex HTTP actionへのBFF proxy
+- `apps/analytics-dashboard/wrangler.jsonc` — Worker entrypoint、Static Assets、`/api/*` の先行ルーティング設定
 - `convex/analyticsDashboard/dto.ts` — 画面用DTO
 - `convex/analyticsDashboard/schemas.ts` — HTTP action入力検証
 - `convex/analyticsDashboard/queries.ts` — internal query
@@ -30,12 +32,12 @@
 
 ## API一覧
 
-### Cloudflare Pages Functions
+### Cloudflare Worker
 
 | API | 用途 |
 |---|---|
-| `functions/_middleware.ts:onRequest` | 静的ファイル/APIの前段でBasic認証を検証 |
-| `functions/api/analytics.ts:onRequest` | ブラウザからのPOSTをConvex HTTP actionへproxyし、env labelを付与 |
+| `src/worker.ts:fetch` | `/api/analytics` をWorkerで処理し、それ以外をStatic Assetsへ委譲 |
+| `src/server/analyticsProxy.ts:handleAnalyticsApi` | ブラウザからのPOSTをConvex HTTP actionへproxyし、env labelを付与 |
 
 ### Convex HTTP action
 
@@ -56,9 +58,9 @@
 ## セキュリティ境界
 
 - ブラウザはConvex public queryを直接呼ばない
-- Convex URLと共有secretはCloudflare Pages Functionsのサーバー側envに置く
+- Convex URLと共有secretはCloudflare Workerのサーバー側envに置く
 - Convex HTTP actionは `SHIFTORI_INTERNAL_API_SECRET` を検証する
-- HTML、認証エラー、API応答を含むPagesレスポンスへ `X-Robots-Tag: noindex, nofollow` を付ける
+- HTMLと静的assetのWorker応答へ `X-Robots-Tag: noindex, nofollow` を付ける
 - 返却DTOは集計値と店舗単位の情報に限定し、staff email、manager email、token、raw notification payload、provider error bodyを返さない
 - 期間、metric、limitはHTTP action側で検証する
 
@@ -68,4 +70,12 @@
 - `pnpm analytics:dev:production` はworkspace rootの `.env.production` を読んでVite dev serverを起動する
 - Vite dev proxyはworkspace rootの `.env` / `.env.local` を読み込む
 - 接続先Convexは `VITE_CONVEX_SITE_URL` を使い、未設定時は `VITE_CONVEX_URL` の `.convex.cloud` を `.convex.site` に変換する
-- Pages Functions / Vite dev proxy / Convex deployment側で同じ値の `SHIFTORI_INTERNAL_API_SECRET` を使う
+- Cloudflare Worker / Vite dev proxy / Convex deployment側で同じ値の `SHIFTORI_INTERNAL_API_SECRET` を使う
+
+## デプロイ
+
+- Cloudflare WorkersのRoot directoryは `apps/analytics-dashboard`
+- Build commandは `pnpm build`
+- Deploy commandは `npx wrangler deploy`
+- Static Assetsは `wrangler.jsonc` の `assets.directory = "./dist"` を使う
+- `/api/*` は `run_worker_first` でWorkerに先に通す

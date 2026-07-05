@@ -21,6 +21,6 @@
       "@convex/*": ["../../convex/*"]
     }
   },
-  "include": ["src", "functions", "vite.config.ts"],
+  "include": ["src", "vite.config.ts"],
   "exclude": ["dist", "node_modules"]
 }
