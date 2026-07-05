@@ -15,11 +15,11 @@
 - `convex/line/actions.ts` — `redeemLineToken`（公開）、Push 送信、Reply、Quota 更新、連携依頼メール送信
 - `convex/line/webhook.ts` — `httpAction`（HMAC 検証 + イベントディスパッチ）
 - `convex/_lib/lineSignature.ts` — HMAC-SHA256 署名検証
-- `convex/_lib/lineClient.ts` — LINE API ラッパー（push / reply / quota / profile / token / authorizeUrl）
+- `convex/_lib/lineClient.ts` — LINE API ラッパー（Flex/text push / reply / quota / profile / token / authorizeUrl）
 - `convex/_lib/notification.ts` — `selectChannel`（純粋関数）
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — 既存通知に LINE 振り分け統合
 - `convex/notificationOutbox/` — LINE / メール通知の配送予約、重複排除、再試行 worker
-- `convex/notification/templates.ts` — `buildLineInviteEmailHtml` / `buildLineCtaSection` / `buildShiftConfirmation/Recruitment/ReminderLineText`
+- `convex/notification/templates.ts` — メールHTML、LINE text fallback、LINE Flex Message builder / 型
 
 ### フロントエンド（`src/`）
 
@@ -29,7 +29,8 @@
 - `src/components/features/Line/LineCallbackPage/` — コールバック完了 / エラー UI
 - `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — `…` メニューに LINE 連携項目追加
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — モーダル接続
-- `src/components/devtools/EmailPreview/` — Storybook でメール文面・LINE本文を VRT 管理
+- `src/components/devtools/NotificationPreview/` — Storybook で目的別にメール文面・LINE Flex previewを VRT 管理
+- `src/components/devtools/FlexMessagePreview/` — シフトリで生成するFlex JSON subsetのReact preview
 
 ## 画面一覧
 
@@ -71,9 +72,15 @@ Quota が未取得の場合は、LINE送信を試みる。処理時に Quota 超
 
 呼び出し点は既存の `sendShiftConfirmationEmails` / `sendRecruitmentNotificationEmails` / `sendReminderEmails` action のスタッフごとループ内。配送は同期送信ではなく `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ処理する。
 
-## LINE本文URLの外部ブラウザ対応
+## LINE Flex Messageと外部ブラウザ対応
 
-LINEメッセージ本文に載せるURLには `withOpenExternalBrowser()`（`convex/_lib/lineUrl.ts`）で `openExternalBrowser=1` を一律付与する。LINEアプリ内ブラウザではGoogle OAuthがブロックされる（403: disallowed_useragent）ため、リンクを端末の既定ブラウザで開かせる。適用箇所は `convex/notification/templates.ts` の `build*LineText()` 内部。メールHTML内のURLには付与しない。
+outbox経由のLINE PushはFlex Messageを優先して送る。`payload.text` は必須のまま残し、既存pendingジョブ・altText・fallback用途に使う。Webhook通常返信はReply APIのtext messageのまま。
+
+Flex Messageのタイトルは「店舗名」と「通知目的」を改行して表示し、本文内では店舗名を繰り返さない。Flex非対応時や通知一覧で使われるtext fallback / altTextには、単独でも文脈が分かるよう店舗名を残す。
+
+Flex MessageのCTA URLにも `withOpenExternalBrowser()`（`convex/_lib/lineUrl.ts`）で `openExternalBrowser=1` を一律付与する。LINEアプリ内ブラウザではGoogle OAuthがブロックされる（403: disallowed_useragent）ため、リンクを端末の既定ブラウザで開かせる。メールHTML内のURLには付与しない。
+
+StorybookのLINE previewは公式LINE rendererの完全再現ではなく、シフトリが生成する `bubble` / `box` / `text` / `separator` / `button` / `uri action` subsetをReactで描画し、Flex JSONとレイアウト意図の退行をVRTで検知する。LINE previewのStoryでは、Flex Message Simulatorへ貼り付けやすいように、そのStoryで使う `contents` のJSONをブラウザconsoleへ出力し、画面上のボタンからもコピーできる。
 
 ## レートリミット
 
