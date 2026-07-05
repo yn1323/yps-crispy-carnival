@@ -27,8 +27,9 @@
 - `src/components/features/Line/LineLinkQrDialog/` — シフト担当者UI: QR / URL 表示
 - `src/components/features/Line/LineInviteConfirmContent/` — 個別連携依頼確認モーダル中身
 - `src/components/features/Line/LineCallbackPage/` — コールバック完了 / エラー UI
-- `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — `…` メニューに LINE 連携項目追加
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — モーダル接続
+- `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — スタッフ詳細モーダル入口
+- `src/components/features/Dashboard/StaffRoster/StaffDetailDialog.tsx` — LINE連携状態表示、連携リンク表示、個別連携依頼、個別通知再送
+- `src/components/features/Dashboard/DashboardContent/index.tsx` — スタッフ詳細モーダル接続
 - `src/components/devtools/NotificationPreview/` — Storybook で目的別にメール文面・LINE Flex previewを VRT 管理
 - `src/components/devtools/FlexMessagePreview/` — シフトリで生成するFlex JSON subsetのReact preview
 
@@ -36,8 +37,8 @@
 
 | 画面 | 役割 |
 |---|---|
-| シフト担当者ダッシュボード（既存）| StaffRow メニュー経由で連携リンク表示 / 個別連携依頼 |
-| シフト担当者ダッシュボード（既存）| StaffRow メニュー経由で募集通知 / 現在の確定シフト通知を個別再送 |
+| シフト担当者ダッシュボード（既存）| スタッフ詳細モーダルのLINE連携タブで連携状態確認 / 連携リンク表示 / 個別連携依頼 |
+| シフト担当者ダッシュボード（既存）| スタッフ詳細モーダルの通知タブで募集通知 / 現在の確定シフト通知を個別再送 |
 | LineLinkQrDialog | QR 表示 + URL コピー |
 | 連携依頼確認ダイアログ（個別） | 送信前の確認 |
 | `/line/callback` | OAuth 完了画面（成功 / 期限切れ / レート超過 / エラー） |
@@ -114,7 +115,7 @@ StorybookのLINE previewは公式LINE rendererの完全再現ではなく、シ�
 - メール変更時の追送: `staff.mutations.editStaff` でメールが実際に変わった場合だけ、変更後メールへ `internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange` をスケジュール。LINE受信可能なスタッフには送らず、未連携・unfollow・Quota超過時はメールで送る
 - LINE通知: `line.mutations.finalizeLinking` / `dispatchWebhookEvents` から `internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff` をスケジュール
 - 複数の対象募集がある場合は募集ごとに1通ずつ送る
-- スタッフ一覧の個別メニューから、募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時・シフト確定時に自動通知されるため、不達時だけ使う補助導線として扱う。操作後のUIでは「送りました」と案内する
+- スタッフ詳細モーダルの通知タブから、募集通知と現在の確定シフト通知を手動再送できる。通常は募集作成時・シフト確定時に自動通知されるため、不達時だけ使う補助導線として扱う。操作後のUIでは「送りました」と案内する
 
 ## 複数店舗での連携
 
