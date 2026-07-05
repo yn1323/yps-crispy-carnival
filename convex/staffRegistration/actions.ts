@@ -10,6 +10,7 @@ import { selectChannel } from "../_lib/notification";
 import { STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE } from "../constants";
 import {
   buildStaffRegistrationOwnerDigestEmailHtml,
+  buildStaffRegistrationOwnerDigestLineFlexMessage,
   buildStaffRegistrationOwnerDigestLineText,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "../notification/templates";
@@ -75,6 +76,10 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
         payload: linePayload({
           toUserId: recipient.lineUserId,
           text: buildStaffRegistrationOwnerDigestLineText({
+            dashboardUrl: data.dashboardUrl,
+          }),
+          message: buildStaffRegistrationOwnerDigestLineFlexMessage({
+            shopName: data.shopName,
             dashboardUrl: data.dashboardUrl,
           }),
           suppressDelivery,

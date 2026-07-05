@@ -11,6 +11,7 @@
  *   DEBUG_NOTIFY_FAIL
  */
 
+import type { LinePushMessage, LineTextMessage } from "../notification/templates";
 import { isDebugNotifyFailEnabled } from "./config";
 import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
 
@@ -23,8 +24,6 @@ function getMessagingAccessToken(): string {
   if (!token) throw new Error("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN is not set");
   return token;
 }
-
-export type LineTextMessage = { type: "text"; text: string };
 
 type LineDeliveryOptions = {
   suppressDelivery?: boolean;
@@ -43,9 +42,9 @@ export class LineApiError extends Error {
 }
 
 /** Push 送信。連携済みかつ友達追加中のスタッフに対して使う */
-export async function pushTextMessage(
+export async function pushLineMessage(
   toUserId: string,
-  text: string,
+  message: LinePushMessage,
   options: LineDeliveryOptions = {},
 ): Promise<void> {
   if (isDebugNotifyFailEnabled()) {
@@ -53,7 +52,10 @@ export async function pushTextMessage(
   }
 
   if (isNotificationDeliverySuppressed(options)) {
-    logSuppressedNotification("line.push", { toUserIdLength: toUserId.length, textLength: text.length });
+    logSuppressedNotification("line.push", {
+      toUserIdLength: toUserId.length,
+      ...(message.type === "text" ? { textLength: message.text.length } : { altTextLength: message.altText.length }),
+    });
     return;
   }
 
@@ -64,12 +66,20 @@ export async function pushTextMessage(
       Authorization: `Bearer ${getMessagingAccessToken()}`,
       ...(options.retryKey ? { "X-Line-Retry-Key": options.retryKey } : {}),
     },
-    body: JSON.stringify({ to: toUserId, messages: [{ type: "text", text } satisfies LineTextMessage] }),
+    body: JSON.stringify({ to: toUserId, messages: [message] }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new LineApiError(`LINE push failed: ${res.status} ${body}`, res.status, body);
   }
+}
+
+export async function pushTextMessage(
+  toUserId: string,
+  text: string,
+  options: LineDeliveryOptions = {},
+): Promise<void> {
+  await pushLineMessage(toUserId, { type: "text", text } satisfies LineTextMessage, options);
 }
 
 /** Reply 送信。replyToken を消費する。課金対象外 */

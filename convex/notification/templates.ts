@@ -15,6 +15,207 @@ function shiftTimeLabel(shift: ShiftEntry): string | null {
   return shift.startTime && shift.endTime ? formatShiftClockTimeRange(shift.startTime, shift.endTime, "-") : null;
 }
 
+const FLEX_ALT_TEXT_MAX_LENGTH = 1500;
+const FLEX_PRIMARY_COLOR = "#319795";
+const FLEX_TEXT_COLOR = "#1A202C";
+const FLEX_MUTED_COLOR = "#718096";
+const FLEX_BORDER_COLOR = "#E2E8F0";
+
+export type LineTextMessage = {
+  type: "text";
+  text: string;
+};
+
+export type LineFlexMessage = {
+  type: "flex";
+  altText: string;
+  contents: unknown;
+};
+
+export type LinePushMessage = LineTextMessage | LineFlexMessage;
+
+type FlexTextComponent = {
+  type: "text";
+  text: string;
+  size?: string;
+  weight?: string;
+  color?: string;
+  wrap?: boolean;
+  margin?: string;
+  align?: string;
+  flex?: number;
+};
+
+type FlexSeparatorComponent = {
+  type: "separator";
+  margin?: string;
+  color?: string;
+};
+
+type FlexButtonComponent = {
+  type: "button";
+  style?: string;
+  color?: string;
+  height?: string;
+  margin?: string;
+  action: {
+    type: "uri";
+    label: string;
+    uri: string;
+  };
+};
+
+type FlexBoxComponent = {
+  type: "box";
+  layout: "vertical" | "horizontal" | "baseline";
+  contents: FlexComponent[];
+  spacing?: string;
+  margin?: string;
+  paddingAll?: string;
+  paddingTop?: string;
+  paddingBottom?: string;
+  paddingStart?: string;
+  paddingEnd?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: string;
+  cornerRadius?: string;
+};
+
+type FlexComponent = FlexTextComponent | FlexSeparatorComponent | FlexButtonComponent | FlexBoxComponent;
+
+type FlexBubble = {
+  type: "bubble";
+  size?: string;
+  body: FlexBoxComponent;
+  footer?: FlexBoxComponent;
+  styles?: {
+    footer?: {
+      separator?: boolean;
+      separatorColor?: string;
+    };
+  };
+};
+
+export type NotificationLineFlexMessage = LineFlexMessage & {
+  contents: FlexBubble;
+};
+
+function truncateFlexAltText(text: string): string {
+  if (text.length <= FLEX_ALT_TEXT_MAX_LENGTH) return text;
+  let truncated = text.slice(0, FLEX_ALT_TEXT_MAX_LENGTH - 1);
+  if (/[\uD800-\uDBFF]$/.test(truncated)) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${truncated}…`;
+}
+
+function flexText(text: string, options: Omit<FlexTextComponent, "type" | "text"> = {}): FlexTextComponent {
+  return { type: "text", text, wrap: true, color: FLEX_TEXT_COLOR, ...options };
+}
+
+function flexBox(
+  layout: FlexBoxComponent["layout"],
+  contents: FlexComponent[],
+  options: Omit<FlexBoxComponent, "type" | "layout" | "contents"> = {},
+): FlexBoxComponent {
+  return { type: "box", layout, contents, ...options };
+}
+
+function flexTitle(title: string): FlexTextComponent {
+  return flexText(title, { size: "lg", weight: "bold" });
+}
+
+function flexTitleWithShop(shopName: string, title: string): string {
+  return `${shopName}\n${title}`;
+}
+
+function flexBodyText(text: string): FlexTextComponent {
+  return flexText(text, { size: "sm" });
+}
+
+function flexMutedText(text: string): FlexTextComponent {
+  return flexText(text, { size: "xs", color: FLEX_MUTED_COLOR });
+}
+
+function flexMetaText(text: string): FlexTextComponent {
+  return flexText(text, { size: "sm", weight: "bold" });
+}
+
+function flexSeparator(margin: string = "md"): FlexSeparatorComponent {
+  return { type: "separator", margin, color: FLEX_BORDER_COLOR };
+}
+
+function flexUriButton(label: string, uri: string): FlexButtonComponent {
+  return {
+    type: "button",
+    style: "primary",
+    color: FLEX_PRIMARY_COLOR,
+    height: "sm",
+    action: { type: "uri", label, uri: withOpenExternalBrowser(uri) },
+  };
+}
+
+function buildFlexMessage(params: {
+  altText: string;
+  title: string;
+  body: FlexComponent[];
+  cta?: {
+    label: string;
+    uri: string;
+  };
+}): NotificationLineFlexMessage {
+  return {
+    type: "flex",
+    altText: truncateFlexAltText(params.altText),
+    contents: {
+      type: "bubble",
+      size: "mega",
+      body: flexBox("vertical", [flexTitle(params.title), flexSeparator(), ...params.body], {
+        paddingAll: "20px",
+        spacing: "md",
+      }),
+      ...(params.cta
+        ? {
+            footer: flexBox("vertical", [flexUriButton(params.cta.label, params.cta.uri)], {
+              paddingAll: "20px",
+              paddingTop: "0px",
+            }),
+            styles: { footer: { separator: true, separatorColor: FLEX_BORDER_COLOR } },
+          }
+        : {}),
+    },
+  };
+}
+
+function flexShiftRows(shifts: ShiftEntry[]): FlexBoxComponent {
+  return flexBox(
+    "vertical",
+    [
+      flexText("▼あなたのシフト", { size: "sm", weight: "bold" }),
+      ...shifts.map((shift) => {
+        const timeLabel = shiftTimeLabel(shift);
+        const isRest = !timeLabel;
+        return flexBox(
+          "horizontal",
+          [
+            flexText(shift.date, { size: "sm", color: isRest ? FLEX_MUTED_COLOR : FLEX_TEXT_COLOR, flex: 2 }),
+            flexText(timeLabel ?? "休み", {
+              size: "sm",
+              color: isRest ? FLEX_MUTED_COLOR : FLEX_TEXT_COLOR,
+              weight: isRest ? "regular" : "bold",
+              align: "end",
+              flex: 3,
+            }),
+          ],
+          { spacing: "md" },
+        );
+      }),
+    ],
+    { spacing: "sm", margin: "lg" },
+  );
+}
+
 /**
  * LINE 用のシフト確定通知テキスト（プレーンテキスト・短文）
  * Push 1通には text を1メッセージで載せる
@@ -42,10 +243,34 @@ export function buildShiftConfirmationLineText(params: {
       return timeLabel ? `${s.date} ${timeLabel}` : `${s.date} 休み`;
     }),
     "",
-    `全員分の確認はこちら（24時間有効）`,
+    "全員分の確認はこちら",
     withOpenExternalBrowser(params.magicLinkUrl),
   ];
   return lines.join("\n");
+}
+
+export function buildShiftConfirmationLineFlexMessage(params: {
+  staffName: string;
+  shopName: string;
+  periodLabel: string;
+  shifts: ShiftEntry[];
+  magicLinkUrl: string;
+  isResend: boolean;
+}): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildShiftConfirmationLineText(params),
+    title: flexTitleWithShop(params.shopName, params.isResend ? "🔁 シフト変更" : "✅ シフト確定"),
+    body: [
+      flexBodyText(`${params.staffName}さん`),
+      flexBodyText(
+        params.isResend
+          ? `${params.periodLabel} のシフトが変更されました。`
+          : `${params.periodLabel} のシフトが確定しました。`,
+      ),
+      flexShiftRows(params.shifts),
+    ],
+    cta: { label: "全員分の確認はこちら", uri: params.magicLinkUrl },
+  });
 }
 
 /**
@@ -73,6 +298,26 @@ export function buildRecruitmentLineText(params: {
   ].join("\n");
 }
 
+export function buildRecruitmentLineFlexMessage(params: {
+  staffName: string;
+  shopName: string;
+  periodLabel: string;
+  deadline: string;
+  magicLinkUrl: string;
+}): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildRecruitmentLineText(params),
+    title: flexTitleWithShop(params.shopName, "📩 提出依頼"),
+    body: [
+      flexBodyText(`${params.staffName}さん`),
+      flexBodyText(`${params.periodLabel} のシフト希望を提出してください。`),
+      flexMetaText(`提出締切: ${params.deadline}`),
+      flexMutedText("提出・修正は提出締切までです。提出後は、締切後もシフト確定まで内容を確認できます。"),
+    ],
+    cta: { label: "提出はこちら", uri: params.magicLinkUrl },
+  });
+}
+
 /**
  * 閲覧リンク再発行通知（LINE 用テキスト）
  */
@@ -89,9 +334,26 @@ export function buildReissueLineText(params: {
     "",
     `${params.shopName}\n${params.periodLabel} のシフト閲覧リンクを再発行しました。`,
     "",
-    "シフトの確認はこちら（24時間有効）",
+    "シフトの確認はこちら",
     withOpenExternalBrowser(params.magicLinkUrl),
   ].join("\n");
+}
+
+export function buildReissueLineFlexMessage(params: {
+  staffName: string;
+  shopName: string;
+  periodLabel: string;
+  magicLinkUrl: string;
+}): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildReissueLineText(params),
+    title: flexTitleWithShop(params.shopName, "🔁 リンク再発行"),
+    body: [
+      flexBodyText(`${params.staffName}さん`),
+      flexBodyText(`${params.periodLabel} のシフト閲覧リンクを再発行しました。`),
+    ],
+    cta: { label: "シフトの確認はこちら", uri: params.magicLinkUrl },
+  });
 }
 
 /**
@@ -118,6 +380,27 @@ export function buildReminderLineText(params: {
     "",
     "提出・修正は提出締切までです。提出済みの場合は、締切後もシフト確定まで内容を確認できます。",
   ].join("\n");
+}
+
+export function buildReminderLineFlexMessage(params: {
+  staffName: string;
+  shopName: string;
+  periodLabel: string;
+  linkExpiresAtLabel: string;
+  magicLinkUrl: string;
+}): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildReminderLineText(params),
+    title: flexTitleWithShop(params.shopName, "🔔 提出リマインド"),
+    body: [
+      flexBodyText(`${params.staffName}さん`),
+      flexBodyText(`${params.periodLabel} のシフト希望の提出期限が近づいています。`),
+      flexBodyText("まだ提出されていないようです。できるだけお早めに提出してください。"),
+      flexMetaText(`提出締切: ${params.linkExpiresAtLabel}`),
+      flexMutedText("提出・修正は提出締切までです。提出済みの場合は、締切後もシフト確定まで内容を確認できます。"),
+    ],
+    cta: { label: "提出はこちら", uri: params.magicLinkUrl },
+  });
 }
 
 export function buildLineDefaultReplyText(): string {
@@ -411,6 +694,20 @@ export function buildStaffRegistrationOwnerDigestLineText(params: StaffRegistrat
   ].join("\n");
 }
 
+export function buildStaffRegistrationOwnerDigestLineFlexMessage(
+  params: StaffRegistrationOwnerDigestParams & { shopName: string },
+): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildStaffRegistrationOwnerDigestLineText(params),
+    title: flexTitleWithShop(params.shopName, "📝 承認依頼"),
+    body: [
+      flexBodyText("スタッフの承認依頼が届いています。"),
+      flexBodyText("シフトリのダッシュボードで確認してください。"),
+    ],
+    cta: { label: "ダッシュボードを確認", uri: params.dashboardUrl },
+  });
+}
+
 export function buildStaffRegistrationOwnerDigestEmailHtml(
   params: StaffRegistrationOwnerDigestParams & { managerName: string },
 ): string {
@@ -459,6 +756,20 @@ export function buildNotificationFailureReminderLineText(params: NotificationFai
     "",
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
+}
+
+export function buildNotificationFailureReminderLineFlexMessage(
+  params: NotificationFailureReminderParams & { shopName: string },
+): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildNotificationFailureReminderLineText(params),
+    title: flexTitleWithShop(params.shopName, "⚠️ 通知失敗"),
+    body: [
+      flexBodyText("通知の送信に失敗したスタッフがいます。"),
+      flexBodyText("シフトリのダッシュボードを開いて、再通知してください。"),
+    ],
+    cta: { label: "ダッシュボードを確認", uri: params.dashboardUrl },
+  });
 }
 
 export function buildNotificationFailureReminderEmailHtml(
@@ -511,6 +822,20 @@ export function buildShopActivationReminderLineText(params: ShopActivationRemind
     "シフト募集作成はこちら↓↓",
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
+}
+
+export function buildShopActivationReminderLineFlexMessage(
+  params: ShopActivationReminderParams & { shopName: string },
+): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildShopActivationReminderLineText(params),
+    title: flexTitleWithShop(params.shopName, "📅 シフト作成の続き"),
+    body: [
+      flexBodyText("シフトリで店舗登録が完了してから1週間経過しました。"),
+      flexBodyText("スタッフを追加して実際にシフトを回収してみましょう！"),
+    ],
+    cta: { label: "シフト募集作成はこちら", uri: params.dashboardUrl },
+  });
 }
 
 export function buildShopActivationReminderEmailHtml(
@@ -568,6 +893,21 @@ export function buildShiftConfirmationReminderLineText(params: ShiftConfirmation
     "シフトの確定はこちら",
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
+}
+
+export function buildShiftConfirmationReminderLineFlexMessage(
+  params: ShiftConfirmationReminderParams & { shopName: string },
+): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildShiftConfirmationReminderLineText(params),
+    title: flexTitleWithShop(params.shopName, "⏰ 締切超過"),
+    body: [
+      flexBodyText(`${params.periodLabel} のシフトがまだ確定していません。`),
+      flexMetaText(`提出締切（${params.deadlineLabel}）を過ぎています。`),
+      flexBodyText("スタッフの希望を確認して、シフトを調整・確定してください。"),
+    ],
+    cta: { label: "シフトの確定はこちら", uri: params.dashboardUrl },
+  });
 }
 
 export function buildShiftConfirmationReminderEmailHtml(
@@ -684,6 +1024,29 @@ export function buildStaffLegalConsentLineText(params: {
     `リンク有効期限: ${formatDateTimeJa(params.expiresAt)}`,
     "未同意でもシフトのお知らせは引き続き受け取れます。期限が切れた場合はシフト提出時にも同意できます。",
   ].join("\n");
+}
+
+export function buildStaffLegalConsentLineFlexMessage(params: {
+  staffName: string;
+  shopName: string;
+  consentUrl: string;
+  expiresAt: number;
+}): NotificationLineFlexMessage {
+  return buildFlexMessage({
+    altText: buildStaffLegalConsentLineText(params),
+    title: flexTitleWithShop(params.shopName, "📄 ご案内"),
+    body: [
+      flexBodyText(`${params.staffName}さん`),
+      flexBodyText("シフト管理サービス「シフトリ」のご案内です。"),
+      flexBodyText("シフトリでは、メール・LINEで届くリンクからシフト希望の提出や確定シフトの確認ができます。"),
+      flexBodyText("シフトリの使い方と、利用規約・プライバシーポリシーを確認できます。"),
+      flexMetaText(`リンク有効期限: ${formatDateTimeJa(params.expiresAt)}`),
+      flexMutedText(
+        "未同意でもシフトのお知らせは引き続き受け取れます。期限が切れた場合はシフト提出時にも同意できます。",
+      ),
+    ],
+    cta: { label: "確認はこちら", uri: params.consentUrl },
+  });
 }
 
 export function buildReissueEmailHtml(params: ReissueEmailParams): string {

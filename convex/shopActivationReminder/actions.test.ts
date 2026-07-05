@@ -92,6 +92,15 @@ describe("shopActivationReminder/actions", () => {
     if (payload.kind !== "line") throw new Error("line payload expected");
     expect(payload.text).toContain("📅 シフト作成の続き");
     expect(payload.text).toContain("シフト募集作成はこちら↓↓");
+    expect(payload.message).toMatchObject({
+      type: "flex",
+      altText: expect.stringContaining("📅 シフト作成の続き"),
+      contents: {
+        body: {
+          contents: expect.arrayContaining([expect.objectContaining({ text: "通知店舗\n📅 シフト作成の続き" })]),
+        },
+      },
+    });
   });
 
   it("LINE Quota超過時はLINE連携済みでもemail outboxを作る", async () => {
