@@ -216,9 +216,9 @@ export class DashboardPage {
     await this.openStaffDetail(staffName);
     const dialog = this.staffDetailDialog();
     await dialog.getByRole("tab", { name: "設定" }).click();
-    await dialog.getByRole("button", { name: "このスタッフを削除" }).click();
-    await expect(dialog.getByText("このスタッフを削除しますか？")).toBeVisible();
-    await dialog.getByRole("button", { name: "このスタッフを削除" }).last().click();
+    await dialog.getByRole("button", { name: "スタッフを削除" }).click();
+    await expect(dialog.getByText("スタッフを削除しますか？")).toBeVisible();
+    await dialog.getByRole("button", { name: "スタッフを削除" }).last().click();
     await expect(this.page.getByText("スタッフを削除しました")).toBeVisible();
   }
 
@@ -231,7 +231,7 @@ export class DashboardPage {
     const shiftTargetSwitch = dialog.getByRole("checkbox", { name: /シフト対象/ });
     await expect(shiftTargetSwitch).toBeVisible();
     if ((await shiftTargetSwitch.isChecked()) !== isShiftTarget) {
-      await shiftTargetSwitch.click();
+      await shiftTargetSwitch.press("Space");
       await this.expectToastVisibleThenHidden(isShiftTarget ? "シフト対象に戻しました" : "シフト対象外にしました");
       await expect(shiftTargetSwitch).toBeChecked({ checked: isShiftTarget });
     }
@@ -516,8 +516,9 @@ export class DashboardPage {
     const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
     await expect(toast).toBeVisible();
     // 自動消滅は文字数に応じて最大8秒かかりテスト全体がタイムアウトするため、
-    // 閉じるボタン（全トーストに存在）で即座に閉じて消滅を確認する。
-    await toast.getByRole("button").click();
+    // 閉じるボタン（全トーストに存在）を直接発火して即座に閉じる。
+    // 座標クリックだと、トースト消滅の瞬間に下のダイアログへクリックが落ちることがある。
+    await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
     await expect(toast).not.toBeVisible();
   }
 
