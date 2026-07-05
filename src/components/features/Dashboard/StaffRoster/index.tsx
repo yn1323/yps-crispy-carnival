@@ -12,32 +12,11 @@ type Props = {
   status: PaginationStatus;
   canLoadMore: boolean;
   onAddClick: () => void;
-  onEdit: (staff: Staff) => void;
-  onDelete: (staff: Staff) => void;
-  onShowLineQr: (staff: Staff) => void;
-  onSendLineInvite: (staff: Staff) => void;
-  onSendRecruitments: (staff: Staff) => void;
-  onSendCurrentShift: (staff: Staff) => void;
-  onToggleShiftExclusion: (staff: Staff) => void;
-  hasCurrentShift: boolean;
+  onOpenDetail: (staff: Staff) => void;
   onLoadMore: () => void;
 };
 
-export const StaffRoster = ({
-  staffs,
-  status,
-  canLoadMore,
-  onAddClick,
-  onEdit,
-  onDelete,
-  onShowLineQr,
-  onSendLineInvite,
-  onSendRecruitments,
-  onSendCurrentShift,
-  onToggleShiftExclusion,
-  hasCurrentShift,
-  onLoadMore,
-}: Props) => {
+export const StaffRoster = ({ staffs, status, canLoadMore, onAddClick, onOpenDetail, onLoadMore }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
 
@@ -95,18 +74,7 @@ export const StaffRoster = ({
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
             {sorted.map((s) => (
-              <StaffRow
-                key={s._id}
-                staff={s}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onShowLineQr={onShowLineQr}
-                onSendLineInvite={onSendLineInvite}
-                onSendRecruitments={onSendRecruitments}
-                onSendCurrentShift={onSendCurrentShift}
-                onToggleShiftExclusion={onToggleShiftExclusion}
-                hasCurrentShift={hasCurrentShift}
-              />
+              <StaffRow key={s._id} staff={s} onOpenDetail={onOpenDetail} />
             ))}
           </Stack>
         </Box>

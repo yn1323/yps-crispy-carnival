@@ -1,0 +1,36 @@
+{
+  "name": "@shiftori/analytics-dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3001",
+    "dev:production": "vite --mode production --port 3001",
+    "build": "vite build && tsc -p tsconfig.json --noEmit",
+    "start": "vite --port 3001",
+    "start:production": "vite --mode production --port 3001",
+    "serve": "vite preview --port 3001",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check . ../../convex/analyticsDashboard"
+  },
+  "dependencies": {
+    "@chakra-ui/charts": "^3.36.0",
+    "@chakra-ui/react": "catalog:",
+    "@emotion/react": "catalog:",
+    "@tanstack/react-query": "^5.101.2",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-is": "^19.2.7",
+    "recharts": "^3.9.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-tsconfig-paths": "catalog:"
+  }
+}

@@ -8,6 +8,7 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { selectChannel } from "../_lib/notification";
 import {
   buildShiftConfirmationReminderEmailHtml,
+  buildShiftConfirmationReminderLineFlexMessage,
   buildShiftConfirmationReminderLineText,
   SHIFT_CONFIRMATION_REMINDER_SUBJECT,
 } from "../notification/templates";
@@ -64,6 +65,12 @@ export const sendManagerConfirmationReminder = internalAction({
       });
 
       if (channel === "line" && recipient.lineUserId) {
+        const lineParams = {
+          shopName: data.shopName,
+          periodLabel: data.periodLabel,
+          deadlineLabel: data.deadlineLabel,
+          dashboardUrl: data.dashboardUrl,
+        };
         await enqueueLine(ctx, {
           shopId: data.shopId,
           recruitmentId,
@@ -71,11 +78,8 @@ export const sendManagerConfirmationReminder = internalAction({
           dedupeKey: lineDedupeKey,
           payload: linePayload({
             toUserId: recipient.lineUserId,
-            text: buildShiftConfirmationReminderLineText({
-              periodLabel: data.periodLabel,
-              deadlineLabel: data.deadlineLabel,
-              dashboardUrl: data.dashboardUrl,
-            }),
+            text: buildShiftConfirmationReminderLineText(lineParams),
+            message: buildShiftConfirmationReminderLineFlexMessage(lineParams),
             suppressDelivery,
             fallbackEmail: { dedupeKey: emailDedupeKey, payload: emailPayloadValue },
           }),

@@ -31,5 +31,15 @@ test.describe("ダッシュボードの一覧表示", () => {
       await dashboard.expectStaffRowCount(13);
       await dashboard.expectShowAllStaffsNotVisible();
     });
+
+    await test.step("Step 3: シフト対象の切り替えでスタッフ一覧のバッジが変わる", async () => {
+      await dashboard.expectStaffShiftExcludedBadge("スタッフ01", false);
+
+      await dashboard.setStaffShiftTarget("スタッフ01", false);
+      await dashboard.expectStaffShiftExcludedBadge("スタッフ01", true);
+
+      await dashboard.setStaffShiftTarget("スタッフ01", true);
+      await dashboard.expectStaffShiftExcludedBadge("スタッフ01", false);
+    });
   });
 });

@@ -72,6 +72,72 @@ describe("notificationOutbox/actions", () => {
     vi.restoreAllMocks();
   });
 
+  it("LINE payload.message がある場合はFlex Messageを送信し、既存textはfallbackとして残す", async () => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const { shopId, staffId } = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "user_mgr",
+        email: "manager@example.com",
+        shopName: "LINE通知店舗",
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "LINEスタッフ",
+        email: "line-staff@example.com",
+        isDeleted: false,
+      });
+      return { shopId, staffId };
+    });
+    const flexMessage = {
+      type: "flex" as const,
+      altText: "提出依頼",
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [{ type: "text", text: "📩 提出依頼" }],
+        },
+      },
+    };
+    await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "line",
+      shopId,
+      staffId,
+      dedupeKey: "line:test:flex",
+      payload: {
+        kind: "line",
+        toUserId: "U_test",
+        text: "fallback text",
+        message: flexMessage,
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      to: "U_test",
+      messages: [flexMessage],
+    });
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      channel: "line",
+      status: "sent",
+      payload: {
+        kind: "line",
+        text: "fallback text",
+        message: flexMessage,
+      },
+    });
+  });
+
   it.each([429, 500])("LINE %i はpendingに戻して再試行予約する", async (status) => {
     const { t } = await setupLineJob(status);
 

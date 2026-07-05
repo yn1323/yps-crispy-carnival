@@ -17,7 +17,8 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/crons.ts` — 1分ごとの outbox 回収、古い配送イベントログ削除、古いFailureInboxの期限切れ化
 - `convex/_lib/resend.ts` — Resend 送信間隔・retry header 対応・idempotency key 指定
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
-- `convex/_lib/lineClient.ts` — LINE Push の `X-Line-Retry-Key` 付与とエラー分類
+- `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
+- `convex/notification/templates.ts` — LINE Push payload の text / Flex message 型と通知文面builder
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — 募集開始・確定・再発行・催促通知の enqueue
 - `convex/line/actions.ts` — LINE連携依頼メールの enqueue
 - `convex/legal/actions.ts` — スタッフ法務同意通知の enqueue
@@ -57,7 +58,8 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - Resend の一時エラーや retry header 対応は `convex/_lib/resend.ts` に集約する。
 - Resend provider webhook は `RESEND_WEBHOOK_SECRET` と `svix-*` headers で raw body を署名検証してから処理する。`delivered` は受信対象にせず、遅延・失敗・拒否・抑止だけを扱う。
 - provider payload の店舗・スタッフ情報は信用しない。`resendEmailId` または `shiftori_outbox_id` tag から保存済み outbox を引き、`shopId` / `staffId` / `recruitmentId` / `notificationContext` を復元する。
-- `line` は LINE Push API に `X-Line-Retry-Key` を付けて配送する。
+- `line` は `payload.message` があればそのmessageを、なければ既存 `payload.text` からtext messageを作って LINE Push API に配送する。どちらも `X-Line-Retry-Key` を付ける。
+- 新規のLINE Push通知は `payload.message.type === "flex"` を優先し、`payload.text` は既存ジョブ互換・altText・fallback用途として必須のまま保持する。
 - LINE の 429 / 5xx は再試行し、恒久的な 4xx は `failed` にする。
 - LINE quota が `exceeded` の場合、fallback email があれば email ジョブを enqueue して LINE ジョブは `failed` にする。
 - `DEBUG_NOTIFY_FAIL` に空でない値がある場合、メール/LINE送信は dry-run より優先して非リトライの失敗にする。FailureInbox の確認用デバッグスイッチとして扱い、実送信は行わない。
@@ -86,7 +88,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `retryFailure` は manager mutation として同一店舗の `open` な outbox 失敗だけを `retrying` にし、配送ジョブを `pending` に戻す。再失敗すれば `markFailed` が `open` に戻す。
 - `resolveFailure` は manager mutation として同一店舗の失敗を `resolved/dismissed` にする。
 - 初回失敗 `firstFailedAt` から30日を過ぎた `open` / `retrying` は、日次cronで `resolved/expired` にする。行は削除せず、Dashboard表示と再通知対象から外す。
-- メールHTML、LINE本文、payload全文は複製しない。Inboxは `recruitmentId` / `staffId` / `channel` / `dedupeKey` / `notificationContext` / 最終エラーなどの要約だけを持つ。
+- メールHTML、LINE本文、LINE Flex JSON、payload全文は複製しない。Inboxは `recruitmentId` / `staffId` / `channel` / `dedupeKey` / `notificationContext` / 最終エラーなどの要約だけを持つ。
 - `sourceType: "outbox"` は既存 outbox job を `retryFailure` で再実行できる。`sourceType: "enqueue"` / `"enqueue_preparation"` は outbox job が存在しないため、UIからの個別再送では通知種別ごとの再送処理で新しく Outbox に投入する。
 - 既存データの重複open行は `m006_notification_failure_inbox_collapse_duplicates` migration で最新1件だけを残し、古い行を `resolved/superseded` にする。
 

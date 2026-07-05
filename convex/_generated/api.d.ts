@@ -38,6 +38,11 @@ import type * as analytics_dailyAggregation from "../analytics/dailyAggregation.
 import type * as analytics_metrics from "../analytics/metrics.js";
 import type * as analytics_mutations from "../analytics/mutations.js";
 import type * as analytics_queries from "../analytics/queries.js";
+import type * as analyticsDashboard_dto from "../analyticsDashboard/dto.js";
+import type * as analyticsDashboard_httpActions from "../analyticsDashboard/httpActions.js";
+import type * as analyticsDashboard_queries from "../analyticsDashboard/queries.js";
+import type * as analyticsDashboard_refs from "../analyticsDashboard/refs.js";
+import type * as analyticsDashboard_schemas from "../analyticsDashboard/schemas.js";
 import type * as billing_service from "../billing/service.js";
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
@@ -155,6 +160,11 @@ declare const fullApi: ApiFromModules<{
   "analytics/metrics": typeof analytics_metrics;
   "analytics/mutations": typeof analytics_mutations;
   "analytics/queries": typeof analytics_queries;
+  "analyticsDashboard/dto": typeof analyticsDashboard_dto;
+  "analyticsDashboard/httpActions": typeof analyticsDashboard_httpActions;
+  "analyticsDashboard/queries": typeof analyticsDashboard_queries;
+  "analyticsDashboard/refs": typeof analyticsDashboard_refs;
+  "analyticsDashboard/schemas": typeof analyticsDashboard_schemas;
   "billing/service": typeof billing_service;
   constants: typeof constants;
   crons: typeof crons;
