@@ -2,11 +2,17 @@ import { Dialog as ChakraDialog, CloseButton, Portal } from "@chakra-ui/react";
 import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
+import { TOASTER_LAYER_SELECTOR } from "@/src/components/ui/toaster";
 import {
   DIALOG_VISUAL_VIEWPORT_HEIGHT,
   DIALOG_VISUAL_VIEWPORT_OFFSET_TOP,
   useDialogVisualViewportStyle,
 } from "@/src/hooks/useDialogVisualViewportStyle";
+
+const getToasterLayerElement = () => {
+  if (typeof document === "undefined") return null;
+  return document.querySelector(TOASTER_LAYER_SELECTOR);
+};
 
 // useDialogフック - Dialog の開閉を制御
 export const useDialog = (defaultOpen = false) => {
@@ -49,6 +55,7 @@ type DialogProps = {
   maxH?: ComponentProps<typeof ChakraDialog.Content>["maxH"];
   formId?: string;
   modal?: boolean;
+  motionPreset?: ComponentProps<typeof ChakraDialog.Root>["motionPreset"];
   keyboardAwareViewport?: boolean;
   positionerProps?: ComponentProps<typeof ChakraDialog.Positioner>;
   contentProps?: ComponentProps<typeof ChakraDialog.Content>;
@@ -74,6 +81,7 @@ export const Dialog = ({
   maxH,
   formId,
   modal = true,
+  motionPreset,
   keyboardAwareViewport = false,
   positionerProps,
   contentProps,
@@ -83,7 +91,15 @@ export const Dialog = ({
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
 
   return (
-    <ChakraDialog.Root open={isOpen} onOpenChange={onOpenChange} role={role} placement="center" modal={modal}>
+    <ChakraDialog.Root
+      open={isOpen}
+      onOpenChange={onOpenChange}
+      role={role}
+      placement="center"
+      modal={modal}
+      motionPreset={motionPreset}
+      persistentElements={[getToasterLayerElement]}
+    >
       <Portal>
         <ChakraDialog.Backdrop />
         <ChakraDialog.Positioner
