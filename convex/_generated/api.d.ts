@@ -38,6 +38,7 @@ import type * as analytics_dailyAggregation from "../analytics/dailyAggregation.
 import type * as analytics_metrics from "../analytics/metrics.js";
 import type * as analytics_mutations from "../analytics/mutations.js";
 import type * as analytics_queries from "../analytics/queries.js";
+import type * as analytics_stage from "../analytics/stage.js";
 import type * as analyticsDashboard_dto from "../analyticsDashboard/dto.js";
 import type * as analyticsDashboard_httpActions from "../analyticsDashboard/httpActions.js";
 import type * as analyticsDashboard_queries from "../analyticsDashboard/queries.js";
@@ -160,6 +161,7 @@ declare const fullApi: ApiFromModules<{
   "analytics/metrics": typeof analytics_metrics;
   "analytics/mutations": typeof analytics_mutations;
   "analytics/queries": typeof analytics_queries;
+  "analytics/stage": typeof analytics_stage;
   "analyticsDashboard/dto": typeof analyticsDashboard_dto;
   "analyticsDashboard/httpActions": typeof analyticsDashboard_httpActions;
   "analyticsDashboard/queries": typeof analyticsDashboard_queries;

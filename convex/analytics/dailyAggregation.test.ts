@@ -11,6 +11,7 @@ import { ANALYTICS_METRICS, notificationMetric } from "./metrics";
 
 const TARGET_DATE = "2026-07-03";
 const { startMs, endMs } = jstDayRangeMs(TARGET_DATE);
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function setup() {
   return convexTest(schema, modules);
@@ -218,9 +219,16 @@ describe("analytics/dailyAggregation", () => {
       lineLinkedStaffCount: 2,
       lineFollowingStaffCount: 1,
       openRecruitmentCount: 1,
+      // 実スタッフ2人（3人未満）なので実利用開始前。判定材料も保存される
+      stage: "beforeStart",
+      recruitmentCount: 2,
+      confirmedRecruitmentCount: 1,
+      hasSubmission: false,
+      hasNotificationSent: false,
+      hasCurrentOrFutureConfirmedShift: true,
     });
     const snapshotB = shopSnapshots.find((s) => s.shopId === shopB);
-    expect(snapshotB).toMatchObject({ planKey: "free", staffCount: 1 });
+    expect(snapshotB).toMatchObject({ planKey: "free", staffCount: 1, stage: "beforeStart" });
 
     const service = await t.run(async (ctx) => {
       return await ctx.db
@@ -237,6 +245,386 @@ describe("analytics/dailyAggregation", () => {
       lineFollowingStaffCount: 1,
       openRecruitmentCount: 1,
       pendingRegistrationRequestCount: 2,
+      shopStageCounts: { beforeStart: 2, activeTrial: 0, activeTrialDormant: 0, retained: 0, retainedDormant: 0 },
+    });
+  });
+
+  it("店舗ステージを継続中/継続後休眠まで判定して集計する", async () => {
+    const t = setup();
+    const oldMs = startMs - 45 * 24 * 60 * 60 * 1000; // 45日前
+
+    const recruitmentBase = {
+      shopClosedDates: [] as string[],
+      submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+      isDeleted: false,
+    };
+
+    // 休眠店舗: 45日前に一式作成し、それ以降イベントがない（確定3件・提出あり・通知あり）
+    vi.setSystemTime(new Date(oldMs));
+    const dormantShop = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "休眠店舗");
+      for (let i = 0; i < 3; i++) {
+        await insertStaff(ctx, shopId, { email: `dormant${i}@example.com` });
+      }
+      for (let i = 0; i < 3; i++) {
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          ...recruitmentBase,
+          shopId,
+          periodStart: "2026-05-01",
+          periodEnd: "2026-05-07",
+          deadline: "2026-04-28",
+          status: "confirmed",
+          confirmedAt: oldMs,
+        });
+        await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId,
+          submittedCount: 2,
+          activeStaffCountSnapshot: 3,
+          updatedAt: oldMs,
+        });
+      }
+      await insertOutbox(ctx, {
+        shopId,
+        channel: "email",
+        status: "sent",
+        at: oldMs,
+        context: "notification.sendRecruitmentNotificationEmails",
+      });
+      return shopId;
+    });
+
+    // 継続店舗: 同じ実績 + 進行中の募集がある（現在も稼働中）
+    vi.setSystemTime(new Date(startMs + 12 * 60 * 60 * 1000));
+    const retainedShop = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "継続店舗");
+      for (let i = 0; i < 3; i++) {
+        await insertStaff(ctx, shopId, { email: `retained${i}@example.com` });
+      }
+      for (let i = 0; i < 3; i++) {
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          ...recruitmentBase,
+          shopId,
+          periodStart: "2026-06-01",
+          periodEnd: "2026-06-07",
+          deadline: "2026-05-28",
+          status: "confirmed",
+          confirmedAt: startMs - 24 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId,
+          submittedCount: 2,
+          activeStaffCountSnapshot: 3,
+          updatedAt: startMs,
+        });
+      }
+      const openId = await ctx.db.insert("recruitments", {
+        ...recruitmentBase,
+        shopId,
+        periodStart: "2026-07-10",
+        periodEnd: "2026-07-16",
+        deadline: "2026-07-07",
+        status: "open",
+      });
+      await ctx.db.insert("recruitmentStats", {
+        recruitmentId: openId,
+        shopId,
+        submittedCount: 0,
+        activeStaffCountSnapshot: 3,
+        updatedAt: startMs,
+      });
+      await insertOutbox(ctx, {
+        shopId,
+        channel: "email",
+        status: "sent",
+        at: startMs + 60 * 60 * 1000,
+        context: "notification.sendRecruitmentNotificationEmails",
+      });
+      return shopId;
+    });
+
+    await runDailyAggregation(t, TARGET_DATE);
+
+    const snapshots = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("analyticsDailyShopSnapshots")
+        .withIndex("by_date_shopId", (q) => q.eq("date", TARGET_DATE))
+        .collect();
+    });
+
+    // 過去に継続実績はあるが、現在/未来シフト・進行中募集・直近30日の活動がない → 継続後休眠
+    const dormantSnapshot = snapshots.find((s) => s.shopId === dormantShop);
+    expect(dormantSnapshot).toMatchObject({
+      stage: "retainedDormant",
+      recruitmentCount: 3,
+      confirmedRecruitmentCount: 3,
+      hasSubmission: true,
+      hasNotificationSent: true,
+      hasCurrentOrFutureConfirmedShift: false,
+    });
+    // _creationTime はconvex-testでサブミリ秒が付くため、45日前ちょうど付近であることだけ確認する
+    expect(dormantSnapshot?.lastActivityAt).toBeGreaterThanOrEqual(oldMs);
+    expect(dormantSnapshot?.lastActivityAt).toBeLessThan(oldMs + 1000);
+
+    // 確定3件以上 + 進行中の募集あり → 継続中。進行中募集の提出0件も判定材料として残る
+    expect(snapshots.find((s) => s.shopId === retainedShop)).toMatchObject({
+      stage: "retained",
+      recruitmentCount: 4,
+      confirmedRecruitmentCount: 3,
+      openRecruitmentCount: 1,
+      openRecruitmentSubmittedCount: 0,
+    });
+
+    const service = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("analyticsDailyServiceSnapshots")
+        .withIndex("by_date", (q) => q.eq("date", TARGET_DATE))
+        .first();
+    });
+    expect(service?.shopStageCounts).toEqual({
+      beforeStart: 0,
+      activeTrial: 0,
+      activeTrialDormant: 0,
+      retained: 1,
+      retainedDormant: 1,
+    });
+  });
+
+  it("ステージ判定は実行日ではなく集計対象日の終端を基準にする", async () => {
+    const t = setup();
+    const oldMs = startMs - 45 * 24 * 60 * 60 * 1000;
+    const recruitmentBase = {
+      shopClosedDates: [] as string[],
+      submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+      isDeleted: false,
+    };
+
+    vi.setSystemTime(new Date(oldMs));
+    const shopId = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "対象日基準の店舗");
+      for (let i = 0; i < 3; i++) {
+        await insertStaff(ctx, shopId, { email: `asof${i}@example.com` });
+      }
+      for (let i = 0; i < 3; i++) {
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          ...recruitmentBase,
+          shopId,
+          periodStart: i === 0 ? TARGET_DATE : "2026-05-01",
+          periodEnd: i === 0 ? TARGET_DATE : "2026-05-07",
+          deadline: "2026-04-28",
+          status: "confirmed",
+          confirmedAt: oldMs,
+        });
+        await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId,
+          submittedCount: 2,
+          activeStaffCountSnapshot: 3,
+          updatedAt: oldMs,
+        });
+      }
+      await insertOutbox(ctx, {
+        shopId,
+        channel: "email",
+        status: "sent",
+        at: oldMs,
+        context: "notification.sendRecruitmentNotificationEmails",
+      });
+      return shopId;
+    });
+
+    // 翌日以降に前日分を集計しても、TARGET_DATE時点では「現在/未来シフトあり」と判定する。
+    vi.setSystemTime(new Date(endMs + 12 * 60 * 60 * 1000));
+    await runDailyAggregation(t, TARGET_DATE);
+
+    const snapshot = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("analyticsDailyShopSnapshots")
+        .withIndex("by_date_shopId", (q) => q.eq("date", TARGET_DATE).eq("shopId", shopId))
+        .first();
+    });
+    expect(snapshot).toMatchObject({
+      stage: "retained",
+      hasCurrentOrFutureConfirmedShift: true,
+      stageReferenceAt: endMs - 1,
+    });
+  });
+
+  it("継続店舗向けの作成頻度と確定リードタイムを店舗スナップショットに保存する", async () => {
+    const t = setup();
+    const recruitmentBase = {
+      shopClosedDates: [] as string[],
+      submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+      isDeleted: false,
+    };
+    const recruitmentSpecs = [
+      { createdAt: startMs - 20 * DAY_MS, leadTimeMs: 2 * DAY_MS },
+      { createdAt: startMs - 10 * DAY_MS, leadTimeMs: 1 * DAY_MS },
+      { createdAt: startMs - 40 * DAY_MS, leadTimeMs: 4 * DAY_MS },
+    ];
+
+    vi.setSystemTime(new Date(startMs - 45 * DAY_MS));
+    const { shopId, staffIds } = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "継続KPI店舗");
+      const staffIds: Id<"staffs">[] = [];
+      for (let i = 0; i < 3; i++) {
+        staffIds.push(await insertStaff(ctx, shopId, { email: `retained-kpi-${i}@example.com` }));
+      }
+      return { shopId, staffIds };
+    });
+
+    for (const [index, spec] of recruitmentSpecs.entries()) {
+      vi.setSystemTime(new Date(spec.createdAt));
+      await t.run(async (ctx) => {
+        const confirmedAt = spec.createdAt + spec.leadTimeMs;
+        const firstSubmittedAt = spec.createdAt + 12 * 60 * 60 * 1000;
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          ...recruitmentBase,
+          shopId,
+          periodStart: "2026-06-01",
+          periodEnd: "2026-06-07",
+          deadline: "2026-05-28",
+          status: "confirmed",
+          confirmedAt,
+          lastReminderSentAt: spec.createdAt + 6 * 60 * 60 * 1000,
+        });
+        await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId,
+          submittedCount: 2,
+          activeStaffCountSnapshot: 3,
+          updatedAt: confirmedAt,
+        });
+        await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId: staffIds[0],
+          firstSubmittedAt,
+          submittedAt: index === 0 ? firstSubmittedAt + 60 * 60 * 1000 : firstSubmittedAt,
+        });
+        await ctx.db.insert("shiftSubmissions", {
+          recruitmentId,
+          staffId: staffIds[1],
+          firstSubmittedAt: firstSubmittedAt + 60 * 60 * 1000,
+          submittedAt: firstSubmittedAt + 60 * 60 * 1000,
+        });
+      });
+    }
+
+    await t.run(async (ctx) => {
+      await insertOutbox(ctx, {
+        shopId,
+        channel: "email",
+        status: "sent",
+        at: startMs + 60 * 60 * 1000,
+        context: "notification.sendRecruitmentNotificationEmails",
+      });
+      await insertOutbox(ctx, {
+        shopId,
+        channel: "email",
+        status: "sent",
+        at: startMs + 2 * 60 * 60 * 1000,
+        context: "notification.sendReminderEmails",
+      });
+      await insertOutbox(ctx, {
+        shopId,
+        channel: "line",
+        status: "sent",
+        at: startMs + 3 * 60 * 60 * 1000,
+        context: "notification.sendRecruitmentNotificationEmails",
+      });
+    });
+
+    const expected = await t.run(async (ctx) => {
+      const recruitments = await ctx.db
+        .query("recruitments")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+        .collect();
+      const submissionsByRecruitment = await Promise.all(
+        recruitments.map(async (recruitment) => {
+          return {
+            recruitment,
+            submissions: await ctx.db
+              .query("shiftSubmissions")
+              .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+              .collect(),
+          };
+        }),
+      );
+      const snapshotAt = endMs - 1;
+      const recentStartAt = snapshotAt - 30 * DAY_MS;
+      const leadTimes = recruitments.flatMap((recruitment) =>
+        recruitment.status === "confirmed" && recruitment.confirmedAt !== undefined
+          ? [Math.max(0, recruitment.confirmedAt - recruitment._creationTime)]
+          : [],
+      );
+      const lastConfirmedRecruitment = recruitments.reduce<{
+        recruitment: (typeof recruitments)[number];
+        confirmedAt: number;
+      } | null>((latest, recruitment) => {
+        if (recruitment.status !== "confirmed" || recruitment.confirmedAt === undefined) return latest;
+        return latest === null || recruitment.confirmedAt > latest.confirmedAt
+          ? { recruitment, confirmedAt: recruitment.confirmedAt }
+          : latest;
+      }, null);
+      const firstSubmissionLeadTimes = submissionsByRecruitment.map(({ recruitment, submissions }) => {
+        const firstSubmittedAt = Math.min(
+          ...submissions.map((submission) => submission.firstSubmittedAt ?? submission.submittedAt),
+        );
+        return Math.max(0, firstSubmittedAt - recruitment._creationTime);
+      });
+      return {
+        averageConfirmationLeadTimeMs: leadTimes.reduce((sum, value) => sum + value, 0) / leadTimes.length,
+        averageFirstSubmissionLeadTimeMs:
+          firstSubmissionLeadTimes.reduce((sum, value) => sum + value, 0) / firstSubmissionLeadTimes.length,
+        lastRecruitmentConfirmedAt: Math.max(...recruitments.flatMap((recruitment) => recruitment.confirmedAt ?? [])),
+        lastConfirmedRecruitmentLeadTimeMs: lastConfirmedRecruitment
+          ? lastConfirmedRecruitment.confirmedAt - lastConfirmedRecruitment.recruitment._creationTime
+          : null,
+        lastRecruitmentCreatedAt: Math.max(...recruitments.map((recruitment) => recruitment._creationTime)),
+        recruitmentCreatedLast30Days: recruitments.filter((recruitment) => recruitment._creationTime >= recentStartAt)
+          .length,
+        submittedRecruitmentCount: submissionsByRecruitment.filter(({ submissions }) => submissions.length > 0).length,
+      };
+    });
+
+    vi.setSystemTime(new Date(endMs + 12 * 60 * 60 * 1000));
+    await runDailyAggregation(t, TARGET_DATE);
+
+    const snapshot = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("analyticsDailyShopSnapshots")
+        .withIndex("by_date_shopId", (q) => q.eq("date", TARGET_DATE).eq("shopId", shopId))
+        .first();
+    });
+    expect(snapshot).toMatchObject({
+      stage: "retained",
+      recruitmentCreatedLast30Days: expected.recruitmentCreatedLast30Days,
+      submittedRecruitmentCount: expected.submittedRecruitmentCount,
+      submissionRate: 6 / 9,
+      averageFirstSubmissionLeadTimeMs: expected.averageFirstSubmissionLeadTimeMs,
+      averageConfirmationLeadTimeMs: expected.averageConfirmationLeadTimeMs,
+      emailNotificationSentCount: 2,
+      lineNotificationSentCount: 1,
+      postReminderSubmissionRate: 6 / 9,
+      resubmissionRate: 1 / 6,
+      lastRecruitmentSubmissionRate: 2 / 3,
+      lastRecruitmentConfirmedAt: expected.lastRecruitmentConfirmedAt,
+      lastConfirmedRecruitmentLeadTimeMs: expected.lastConfirmedRecruitmentLeadTimeMs,
+    });
+    expect(snapshot?.lastRecruitmentCreatedAt).toBe(expected.lastRecruitmentCreatedAt);
+
+    const stages = await t.query(internal.analyticsDashboard.queries.getShopStages, { date: TARGET_DATE });
+    const row = stages.rows.find((item) => item.shopId === shopId);
+    expect(row).toMatchObject({
+      submissionRate: 6 / 9,
+      submittedRecruitmentCount: expected.submittedRecruitmentCount,
+      averageFirstSubmissionLeadTimeMs: expected.averageFirstSubmissionLeadTimeMs,
+      lastConfirmedRecruitmentLeadTimeMs: expected.lastConfirmedRecruitmentLeadTimeMs,
+      notificationLineSentRate: 1 / 3,
+      postReminderSubmissionRate: 6 / 9,
+      resubmissionRate: 1 / 6,
+      lastRecruitmentSubmissionRate: 2 / 3,
     });
   });
 

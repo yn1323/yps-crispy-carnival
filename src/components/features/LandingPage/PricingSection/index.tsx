@@ -7,19 +7,19 @@ import { SectionHeading } from "../SectionHeading";
 const plans = [
   {
     name: "無料プラン",
-    lead: "まず試したい小規模店舗に。",
+    lead: "まず試したいお店に。",
     price: "¥0",
     suffix: "/月",
-    features: ["スタッフ数：〜10名程度", "基本機能をすべて利用可能"],
+    features: ["希望回収から確定共有まで利用可能", "基本機能をすべて利用可能"],
     cta: "無料で始める",
     href: "/signup",
   },
   {
     name: "スタンダード",
-    lead: "スタッフ数が増えてきたお店に。",
+    lead: "運用を広げたいお店に。",
     price: "¥980",
     suffix: "/月〜",
-    features: ["スタッフ数上限アップ", "より便利な運用機能"],
+    features: ["利用上限アップ", "より便利な運用機能"],
     cta: "プランを見る",
     href: "#pricing",
   },
@@ -51,7 +51,7 @@ export const PricingSection = () => (
         <VStack gap={3} textAlign="center">
           <SectionHeading phrases={["まずは無料で始められます"]} />
           <Text color="gray.700" fontSize="md" lineHeight="1.8" fontWeight="semibold">
-            少人数のお店なら無料プランのままでOK
+            無料プランで基本機能を試せます
           </Text>
         </VStack>
 

@@ -34,7 +34,7 @@ export function DemoShiftBoardRoutePage() {
             </Alert.Root>
 
             <Text color="fg.muted" lineHeight={1.7}>
-              シフトリは、少人数のお店のシフト管理をラクにする無料ツールです。このデモでは、店長・シフト担当者の操作画面を会員登録なしで試せます。
+              シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。このデモでは、店長・シフト担当者の操作画面を会員登録なしで試せます。
             </Text>
 
             <Box>
@@ -52,10 +52,10 @@ export function DemoShiftBoardRoutePage() {
 
             <Box>
               <Heading as="h2" size="md" mb={3}>
-                どんなお店向け？
+                どんな場面で使える？
               </Heading>
               <Text color="fg.muted" lineHeight={1.7}>
-                2人から20人くらいの少人数のお店を想定しています。飲食店、カフェ、美容室、小売店、クリニックなど、シフトづくりが必要なお店ならお使いいただけます。
+                飲食店、カフェ、美容室、小売店、クリニックなど、シフトづくりが必要なお店で使えます。希望回収、調整、確定シフトの共有までの流れを試せます。
               </Text>
             </Box>
           </VStack>

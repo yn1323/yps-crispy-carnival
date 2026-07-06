@@ -12,7 +12,7 @@ import {
 } from "./articleContent";
 
 const sitePageMarkdown = `---
-title: "小さなお店のシフト作成ガイド"
+title: "シフト作成ガイド"
 description: "毎月のシフト作成で起きやすい困りごとを整理します。"
 breadcrumbLabel: "お役立ち情報"
 concernTitle: "よくある困りごとから探す"
@@ -96,7 +96,7 @@ LINEは便利ですが、集め方のルールが曖昧だと確認が大変に�
 describe("ArticleSite markdown content", () => {
   it("page md frontmatter を読み取れる", () => {
     expect(parseSitePageMarkdown(sitePageMarkdown, "articles")).toMatchObject({
-      title: "小さなお店のシフト作成ガイド",
+      title: "シフト作成ガイド",
       concernSlugs: ["shift-request", "excel-recording"],
       ctaPrimaryHref: "/demo/flow",
       landingPreviewTitle: "シフト作成のヒント",
