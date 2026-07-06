@@ -16,10 +16,10 @@ export async function setDailyEventCount(
   ctx: MutationCtx,
   args: { date: string; metric: AnalyticsMetric; count: number; valueSum?: number },
 ) {
-  const existing = await ctx.db
+  const existingRows = await ctx.db
     .query("analyticsDailyEventCounts")
     .withIndex("by_date_metric", (q) => q.eq("date", args.date).eq("metric", args.metric))
-    .first();
+    .collect();
   const row = {
     date: args.date,
     metric: args.metric,
@@ -27,32 +27,44 @@ export async function setDailyEventCount(
     valueSum: args.valueSum,
     updatedAt: Date.now(),
   };
+  const [existing, ...duplicates] = existingRows;
   if (existing) {
     await ctx.db.replace(existing._id, row);
+    for (const duplicate of duplicates) {
+      await ctx.db.delete(duplicate._id);
+    }
     return;
   }
   await ctx.db.insert("analyticsDailyEventCounts", row);
 }
 
 export async function setShopSnapshot(ctx: MutationCtx, values: ShopSnapshotValues) {
-  const existing = await ctx.db
+  const existingRows = await ctx.db
     .query("analyticsDailyShopSnapshots")
     .withIndex("by_date_shopId", (q) => q.eq("date", values.date).eq("shopId", values.shopId))
-    .first();
+    .collect();
+  const [existing, ...duplicates] = existingRows;
   if (existing) {
     await ctx.db.replace(existing._id, values);
+    for (const duplicate of duplicates) {
+      await ctx.db.delete(duplicate._id);
+    }
     return;
   }
   await ctx.db.insert("analyticsDailyShopSnapshots", values);
 }
 
 export async function setServiceSnapshot(ctx: MutationCtx, values: ServiceSnapshotValues) {
-  const existing = await ctx.db
+  const existingRows = await ctx.db
     .query("analyticsDailyServiceSnapshots")
     .withIndex("by_date", (q) => q.eq("date", values.date))
-    .first();
+    .collect();
+  const [existing, ...duplicates] = existingRows;
   if (existing) {
     await ctx.db.replace(existing._id, values);
+    for (const duplicate of duplicates) {
+      await ctx.db.delete(duplicate._id);
+    }
     return;
   }
   await ctx.db.insert("analyticsDailyServiceSnapshots", values);

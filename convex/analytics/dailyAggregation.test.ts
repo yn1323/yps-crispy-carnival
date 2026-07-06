@@ -721,7 +721,7 @@ describe("analytics/dailyAggregation", () => {
 
   it("同日を再実行しても値が変わらない（絶対値upsertの冪等性）", async () => {
     const t = setup();
-    await t.run(async (ctx) => {
+    const shopId = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx);
       await insertStaff(ctx, shopId);
       await insertOutbox(ctx, {
@@ -731,9 +731,52 @@ describe("analytics/dailyAggregation", () => {
         at: startMs + 1000,
         context: "notification.sendReminderEmails",
       });
+      return shopId;
     });
 
     await runDailyAggregation(t, TARGET_DATE);
+
+    await t.run(async (ctx) => {
+      const shopSnapshot = await ctx.db
+        .query("analyticsDailyShopSnapshots")
+        .withIndex("by_date_shopId", (q) => q.eq("date", TARGET_DATE).eq("shopId", shopId))
+        .first();
+      if (!shopSnapshot) throw new Error("shopSnapshot is missing");
+      const { _creationTime: _shopCreationTime, _id: _shopSnapshotId, ...shopSnapshotValues } = shopSnapshot;
+      await ctx.db.insert("analyticsDailyShopSnapshots", {
+        ...shopSnapshotValues,
+        computedAt: shopSnapshotValues.computedAt - 1,
+      });
+
+      const serviceSnapshot = await ctx.db
+        .query("analyticsDailyServiceSnapshots")
+        .withIndex("by_date", (q) => q.eq("date", TARGET_DATE))
+        .first();
+      if (!serviceSnapshot) throw new Error("serviceSnapshot is missing");
+      const {
+        _creationTime: _serviceCreationTime,
+        _id: _serviceSnapshotId,
+        ...serviceSnapshotValues
+      } = serviceSnapshot;
+      await ctx.db.insert("analyticsDailyServiceSnapshots", {
+        ...serviceSnapshotValues,
+        computedAt: serviceSnapshotValues.computedAt - 1,
+      });
+
+      const eventCount = await ctx.db
+        .query("analyticsDailyEventCounts")
+        .withIndex("by_date_metric", (q) =>
+          q.eq("date", TARGET_DATE).eq("metric", notificationMetric("email", "sent", "reminder")),
+        )
+        .first();
+      if (!eventCount) throw new Error("eventCount is missing");
+      const { _creationTime: _eventCreationTime, _id: _eventCountId, ...eventCountValues } = eventCount;
+      await ctx.db.insert("analyticsDailyEventCounts", {
+        ...eventCountValues,
+        updatedAt: eventCountValues.updatedAt - 1,
+      });
+    });
+
     await runDailyAggregation(t, TARGET_DATE);
 
     expect(await getEventCount(t, TARGET_DATE, notificationMetric("email", "sent", "reminder"))).toMatchObject({
@@ -751,6 +794,14 @@ describe("analytics/dailyAggregation", () => {
         .collect();
     });
     expect(reminderRows).toHaveLength(1);
+
+    const shopRows = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("analyticsDailyShopSnapshots")
+        .withIndex("by_date_shopId", (q) => q.eq("date", TARGET_DATE).eq("shopId", shopId))
+        .collect();
+    });
+    expect(shopRows).toHaveLength(1);
 
     const serviceRows = await t.run(async (ctx) => {
       return await ctx.db
