@@ -44,6 +44,21 @@ export type ShopStageKey = "beforeStart" | "activeTrial" | "activeTrialDormant" 
 
 export type ShopStageCounts = Record<ShopStageKey, number>;
 
+export type StageTransitionMetricDto = {
+  numerator: number;
+  denominator: number;
+  rate: number | null;
+};
+
+export type StageTransitionSummaryDto = {
+  fromDate: string;
+  toDate: string;
+  beforeStartToActiveTrial: StageTransitionMetricDto;
+  activeTrialToRetained: StageTransitionMetricDto;
+  retainedToDormant: StageTransitionMetricDto;
+  dormantToRecovered: StageTransitionMetricDto;
+};
+
 export type ShopStageRowDto = {
   shopId: string;
   shopName: string;
@@ -56,10 +71,28 @@ export type ShopStageRowDto = {
   recruitmentCount: number | null;
   confirmedRecruitmentCount: number | null;
   openRecruitmentCount: number;
+  openRecruitmentSubmittedCount: number | null;
+  submittedRecruitmentCount: number | null;
+  openNotificationFailureCount: number | null;
+  recruitmentCreatedLast30Days: number | null;
+  submissionRate: number | null;
+  averageFirstSubmissionLeadTimeMs: number | null;
+  averageConfirmationLeadTimeMs: number | null;
+  emailNotificationSentCount: number | null;
+  lineNotificationSentCount: number | null;
+  notificationLineSentRate: number | null;
+  postReminderSubmissionRate: number | null;
+  resubmissionRate: number | null;
+  lastRecruitmentSubmissionRate: number | null;
+  lastRecruitmentCreatedAt: number | null;
+  lastRecruitmentConfirmedAt: number | null;
+  lastConfirmedRecruitmentLeadTimeMs: number | null;
   hasSubmission: boolean | null;
   hasNotificationSent: boolean | null;
   hasCurrentOrFutureConfirmedShift: boolean | null;
   lastActivityAt: number | null;
+  /** ステージ判定の基準時刻（対象JST日の終端） */
+  stageReferenceAt: number | null;
   /** 最終活動からの停止日数（スナップショット計算時点基準） */
   stalledDays: number | null;
   /** オンボーディングの最終到達ステップ（日本語ラベル） */
@@ -97,6 +130,7 @@ export type OverviewResponse = {
   latestServiceSnapshot: ServiceSnapshotDto | null;
   serviceSnapshots: ServiceSnapshotDto[];
   eventTotals: EventMetricTotalDto[];
+  stageTransitions: StageTransitionSummaryDto | null;
 };
 
 export type EventTrendsResponse = {

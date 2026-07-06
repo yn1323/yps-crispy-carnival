@@ -105,17 +105,29 @@ describe("lastReachedOnboardingStep", () => {
     expect(lastReachedOnboardingStep(inputs())).toBe("shopCreated");
   });
 
-  it("スタッフ登録 → 募集作成 → 通知送信の順に進む", () => {
-    expect(lastReachedOnboardingStep(inputs({ realStaffCount: 1 }))).toBe("staffRegistered");
-    expect(lastReachedOnboardingStep(inputs({ realStaffCount: 1, recruitmentCount: 1 }))).toBe("recruitmentCreated");
+  it("テスト募集作成 → テスト申請 → テスト確定の順に進む", () => {
+    expect(lastReachedOnboardingStep(inputs({ realStaffCount: 1 }))).toBe("firstStaffRegistered");
+    expect(lastReachedOnboardingStep(inputs({ recruitmentCount: 1 }))).toBe("testRecruitmentCreated");
+    expect(lastReachedOnboardingStep(inputs({ recruitmentCount: 1, hasSubmission: true }))).toBe(
+      "selfTestSubmissionReceived",
+    );
+    expect(lastReachedOnboardingStep(inputs({ recruitmentCount: 1, confirmedRecruitmentCount: 1 }))).toBe(
+      "testRecruitmentConfirmed",
+    );
+  });
+
+  it("本番シフト作成と通知送信を判定する", () => {
+    expect(lastReachedOnboardingStep(inputs({ realStaffCount: 3, recruitmentCount: 2 }))).toBe(
+      "productionRecruitmentCreated",
+    );
     expect(
-      lastReachedOnboardingStep(inputs({ realStaffCount: 1, recruitmentCount: 1, hasNotificationSent: true })),
+      lastReachedOnboardingStep(inputs({ realStaffCount: 2, recruitmentCount: 2, hasNotificationSent: true })),
     ).toBe("notificationSent");
   });
 
-  it("確定まで到達していれば確定を返す（順序を飛ばしても最も先の到達点を返す）", () => {
-    const confirmedWithoutNotification = inputs({ recruitmentCount: 1, confirmedRecruitmentCount: 1 });
-    expect(lastReachedOnboardingStep(confirmedWithoutNotification)).toBe("recruitmentConfirmed");
+  it("順序を飛ばしても最も先の到達点を返す", () => {
+    const submittedWithoutNotification = inputs({ recruitmentCount: 2, hasSubmission: true });
+    expect(lastReachedOnboardingStep(submittedWithoutNotification)).toBe("productionRecruitmentCreated");
   });
 
   it("実利用開始条件を満たすと実利用開始を返す", () => {

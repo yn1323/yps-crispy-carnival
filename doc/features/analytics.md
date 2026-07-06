@@ -70,7 +70,7 @@
 
 ## 店舗ライフサイクルステージ（`analytics/stage.ts`）
 
-店舗スナップショット集計（Phase 1）で、店舗を利用段階で分類して保存する。ステージそのものはKPIではなく、日次の`shopStageCounts`推移と店舗別`stage`履歴から**遷移率**（開始前→実利用開始率、立ち上がり→継続化率、継続→休眠化率、休眠→復帰率）を読むための元データ。
+店舗スナップショット集計（Phase 1）で、店舗を利用段階で分類して保存する。ステージそのものはKPIではなく、日次の`shopStageCounts`推移と店舗別`stage`履歴から**遷移率**（開始前→実利用開始率、立ち上がり→継続化率、継続→休眠化率、休眠→復帰率）を算出するための元データ。ダッシュボードでは、選択期間内の最初と最後のステージスナップショットを比較して期間内ステージ遷移率を表示する。
 
 | ステージ | 条件 |
 |---|---|
@@ -81,8 +81,11 @@
 | `retainedDormant`（継続後休眠） | 確定3件以上だが稼働停止 |
 
 - **実利用開始条件** = シフト対象スタッフ3人以上 + 募集2件以上 + 通知送信または提出が発生済み
-- **現在稼働中** = 現在/未来の確定シフト or 進行中募集 or 直近30日以内の主要イベント（スタッフ追加・募集作成・提出・確定・催促・LINE連携）のいずれか
-- 判定材料（`recruitmentCount` / `confirmedRecruitmentCount` / `hasSubmission` / `lastActivityAt` 等）もスナップショットに保存し、ダッシュボードで判定理由とアラート（気になる点）を再構成できるようにする
+- **現在稼働中** = 対象日基準の現在/未来の確定シフト or 進行中募集 or 直近30日以内の主要イベント（スタッフ追加・募集作成・提出・確定・催促・LINE連携）のいずれか
+- ステージ判定は、集計実行時刻ではなく対象JST日の終端（`stageReferenceAt`）を基準にする。cronが翌日03:00 JSTに前日分を集計しても、前日終了時点の店舗状態として扱う
+- 判定材料（`recruitmentCount` / `confirmedRecruitmentCount` / `hasSubmission` / `lastActivityAt` / `stageReferenceAt` 等）もスナップショットに保存し、ダッシュボードで判定理由とアラート（気になる点）を再構成できるようにする
+- 開始前店舗の最終到達ステップは、分析DBで確認できる事実だけで `店舗登録` / `テスト募集作成` / `テスト申請` / `テスト確定` / `スタッフ登録` / `スタッフ3人登録` / `本番シフト作成` / `通知送信` / `実利用開始` の順に出す。現状は「ガイド開始」を永続計測していないため、ダッシュボードのチェックリストでは `未計測 ガイド開始` として表示する
+- 継続/休眠の目検用に、店舗別スナップショットへ `recruitmentCreatedLast30Days`（直近30日の募集作成数）、`submittedRecruitmentCount`、`submissionRate`、`averageFirstSubmissionLeadTimeMs`、`averageConfirmationLeadTimeMs`、`emailNotificationSentCount`、`lineNotificationSentCount`、`postReminderSubmissionRate`、`resubmissionRate`、`lastRecruitmentSubmissionRate`、`lastRecruitmentCreatedAt`、`lastRecruitmentConfirmedAt`、`lastConfirmedRecruitmentLeadTimeMs` も保存する。既存日付は `analytics/dailyAggregation:run` で対象日を再集計すると埋まる
 - LINE連携は実利用開始条件に**含めない**（メール運用でも継続店舗として扱う）。利用深度の指標としてのみ見る
 
 ## 集計の仕組み

@@ -80,11 +80,13 @@ export function classifyShopStage(inputs: ShopStageInputs, nowMs: number): ShopS
 
 export const ONBOARDING_STEPS = [
   { key: "shopCreated", label: "店舗登録" },
-  { key: "staffRegistered", label: "スタッフ登録" },
-  { key: "recruitmentCreated", label: "募集作成" },
+  { key: "testRecruitmentCreated", label: "テスト募集作成" },
+  { key: "selfTestSubmissionReceived", label: "テスト申請" },
+  { key: "testRecruitmentConfirmed", label: "テスト確定" },
+  { key: "firstStaffRegistered", label: "スタッフ登録" },
+  { key: "staffReady", label: "スタッフ3人登録" },
+  { key: "productionRecruitmentCreated", label: "本番シフト作成" },
   { key: "notificationSent", label: "通知送信" },
-  { key: "submissionReceived", label: "シフト提出" },
-  { key: "recruitmentConfirmed", label: "シフト確定" },
   { key: "activated", label: "実利用開始" },
 ] as const;
 
@@ -94,16 +96,20 @@ function onboardingStepReached(key: OnboardingStepKey, inputs: ShopStageInputs):
   switch (key) {
     case "shopCreated":
       return true;
-    case "staffRegistered":
-      return inputs.realStaffCount >= 1;
-    case "recruitmentCreated":
+    case "testRecruitmentCreated":
       return inputs.recruitmentCount >= 1;
+    case "selfTestSubmissionReceived":
+      return inputs.hasSubmission;
+    case "testRecruitmentConfirmed":
+      return inputs.confirmedRecruitmentCount >= 1;
+    case "firstStaffRegistered":
+      return inputs.realStaffCount >= 1;
+    case "staffReady":
+      return inputs.realStaffCount >= STAGE_ACTIVATION_STAFF_MIN;
+    case "productionRecruitmentCreated":
+      return inputs.recruitmentCount >= STAGE_ACTIVATION_RECRUITMENT_MIN;
     case "notificationSent":
       return inputs.hasNotificationSent;
-    case "submissionReceived":
-      return inputs.hasSubmission;
-    case "recruitmentConfirmed":
-      return inputs.confirmedRecruitmentCount >= 1;
     case "activated":
       return isActivated(inputs);
   }

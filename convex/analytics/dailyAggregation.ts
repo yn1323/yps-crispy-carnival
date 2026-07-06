@@ -30,6 +30,8 @@ import { classifyShopStage, type ShopStageInputs } from "./stage";
 
 const cursorValidator = v.union(v.string(), v.null());
 const followUpValidator = v.optional(v.object({ untilDate: v.string() }));
+const SNAPSHOT_END_OFFSET_MS = 1;
+const RECENT_RECRUITMENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const run = internalMutation({
   args: { date: v.optional(v.string()) },
@@ -50,11 +52,13 @@ export const run = internalMutation({
 export const aggregateShopSnapshots = internalMutation({
   args: { date: v.string(), cursor: cursorValidator },
   handler: async (ctx, { date, cursor }) => {
+    const snapshotAt = jstDayRangeMs(date).endMs - SNAPSHOT_END_OFFSET_MS;
     const page = await ctx.db.query("shops").paginate({ cursor, numItems: ANALYTICS_SHOP_SNAPSHOT_PAGE_SIZE });
 
     for (const shop of page.page) {
       if (shop.isDeleted) continue;
-      const values = await computeShopSnapshotValues(ctx, shop);
+      if (shop._creationTime > snapshotAt) continue;
+      const values = await computeShopSnapshotValues(ctx, shop, { date, snapshotAt });
       await setShopSnapshot(ctx, { date, shopId: shop._id, ...values, computedAt: Date.now() });
     }
 
@@ -74,12 +78,93 @@ export const aggregateShopSnapshots = internalMutation({
   },
 });
 
-async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">) {
+type ShopSnapshotContext = {
+  date: string;
+  snapshotAt: number;
+};
+
+function confirmedAtForStage(recruitment: Doc<"recruitments">): number | null {
+  if (recruitment.status !== "confirmed") return null;
+  return recruitment.confirmedAt ?? recruitment._creationTime;
+}
+
+function happenedBy(at: number | undefined, snapshotAt: number): at is number {
+  return at !== undefined && at <= snapshotAt;
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function ratioOrNull(numerator: number, denominator: number): number | null {
+  if (denominator === 0) return null;
+  return numerator / denominator;
+}
+
+async function computeSubmissionTimingKpis(
+  ctx: MutationCtx,
+  recruitments: Doc<"recruitments">[],
+  statsByRecruitmentId: Map<Doc<"recruitments">["_id"], Doc<"recruitmentStats">>,
+  snapshotAt: number,
+) {
+  const firstSubmissionLeadTimes: number[] = [];
+  let submittedRows = 0;
+  let resubmittedRows = 0;
+  let postReminderSubmittedRows = 0;
+  let postReminderExpectedStaff = 0;
+
+  for (const recruitment of recruitments) {
+    const submissions = await ctx.db
+      .query("shiftSubmissions")
+      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+      .take(SHIFT_BOARD_STAFF_LIMIT);
+    const visibleSubmissions = submissions.filter((submission) => {
+      const firstSubmittedAt = submission.firstSubmittedAt ?? submission.submittedAt;
+      return firstSubmittedAt <= snapshotAt;
+    });
+    const firstSubmittedAtValues = visibleSubmissions.map(
+      (submission) => submission.firstSubmittedAt ?? submission.submittedAt,
+    );
+    if (firstSubmittedAtValues.length > 0) {
+      firstSubmissionLeadTimes.push(Math.max(0, Math.min(...firstSubmittedAtValues) - recruitment._creationTime));
+    }
+
+    submittedRows += visibleSubmissions.length;
+    resubmittedRows += visibleSubmissions.filter(
+      (submission) =>
+        submission.firstSubmittedAt !== undefined &&
+        submission.submittedAt > submission.firstSubmittedAt &&
+        submission.submittedAt <= snapshotAt,
+    ).length;
+
+    const lastReminderSentAt = recruitment.lastReminderSentAt;
+    if (happenedBy(lastReminderSentAt, snapshotAt)) {
+      const stats = statsByRecruitmentId.get(recruitment._id);
+      if (stats && stats.activeStaffCountSnapshot > 0) {
+        postReminderExpectedStaff += stats.activeStaffCountSnapshot;
+        postReminderSubmittedRows += visibleSubmissions.filter((submission) => {
+          const firstSubmittedAt = submission.firstSubmittedAt ?? submission.submittedAt;
+          return firstSubmittedAt > lastReminderSentAt;
+        }).length;
+      }
+    }
+  }
+
+  return {
+    averageFirstSubmissionLeadTimeMs: average(firstSubmissionLeadTimes),
+    postReminderSubmissionRate: ratioOrNull(postReminderSubmittedRows, postReminderExpectedStaff),
+    resubmissionRate: ratioOrNull(resubmittedRows, submittedRows),
+  };
+}
+
+async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, snapshot: ShopSnapshotContext) {
   const shopId = shop._id;
-  const staffs = await ctx.db
+  const allStaffs = await ctx.db
     .query("staffs")
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
     .take(SHIFT_BOARD_STAFF_LIMIT);
+  const staffs = allStaffs.filter((staff) => staff._creationTime <= snapshot.snapshotAt);
   const staffIds = new Set(staffs.map((staff) => staff._id));
 
   // 論理削除されていないLINE連携のうち、生きているスタッフに紐づくものだけを数える
@@ -87,44 +172,109 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">) {
     .query("staffLineAccounts")
     .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
     .take(SHIFT_BOARD_STAFF_LIMIT);
-  const linkedAccounts = lineAccounts.filter((account) => staffIds.has(account.staffId));
+  const linkedAccounts = lineAccounts.filter(
+    (account) => staffIds.has(account.staffId) && account.linkedAt <= snapshot.snapshotAt,
+  );
 
   const billingState = await ctx.db
     .query("shopBillingStates")
     .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
     .first();
 
-  const recruitments = await ctx.db
+  const allRecruitments = await ctx.db
     .query("recruitments")
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
     .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
-  const openRecruitments = recruitments.filter((recruitment) => recruitment.status === "open");
-  const confirmedRecruitments = recruitments.filter((recruitment) => recruitment.status === "confirmed");
-  const today = todayJST();
-  const hasCurrentOrFutureConfirmedShift = confirmedRecruitments.some((recruitment) => recruitment.periodEnd >= today);
+  const recruitments = allRecruitments.filter((recruitment) => recruitment._creationTime <= snapshot.snapshotAt);
+  const confirmedRecruitments = recruitments.filter((recruitment) => {
+    const confirmedAt = confirmedAtForStage(recruitment);
+    return confirmedAt !== null && confirmedAt <= snapshot.snapshotAt;
+  });
+  const lastConfirmedRecruitment = confirmedRecruitments.reduce<{
+    recruitment: Doc<"recruitments">;
+    confirmedAt: number;
+  } | null>((latest, recruitment) => {
+    const confirmedAt = confirmedAtForStage(recruitment);
+    if (confirmedAt === null) return latest;
+    return latest === null || confirmedAt > latest.confirmedAt ? { recruitment, confirmedAt } : latest;
+  }, null);
+  const confirmationLeadTimes = confirmedRecruitments.flatMap((recruitment) => {
+    const confirmedAt = confirmedAtForStage(recruitment);
+    return confirmedAt === null ? [] : [Math.max(0, confirmedAt - recruitment._creationTime)];
+  });
+  const averageConfirmationLeadTimeMs = average(confirmationLeadTimes);
+  const recentRecruitmentStartAt = snapshot.snapshotAt - RECENT_RECRUITMENT_WINDOW_MS;
+  const recruitmentCreatedLast30Days = recruitments.filter(
+    (recruitment) => recruitment._creationTime >= recentRecruitmentStartAt,
+  ).length;
+  const lastRecruitmentCreatedAt =
+    recruitments.length === 0 ? null : Math.max(...recruitments.map((recruitment) => recruitment._creationTime));
+  const lastRecruitmentConfirmedAt = lastConfirmedRecruitment?.confirmedAt ?? null;
+  const lastConfirmedRecruitmentLeadTimeMs = lastConfirmedRecruitment
+    ? Math.max(0, lastConfirmedRecruitment.confirmedAt - lastConfirmedRecruitment.recruitment._creationTime)
+    : null;
+  const openRecruitments = recruitments.filter((recruitment) => {
+    const confirmedAt = confirmedAtForStage(recruitment);
+    return recruitment.status === "open" || (confirmedAt !== null && confirmedAt > snapshot.snapshotAt);
+  });
+  const hasCurrentOrFutureConfirmedShift = confirmedRecruitments.some(
+    (recruitment) => recruitment.periodEnd >= snapshot.date,
+  );
 
   const recruitmentStats = await ctx.db
     .query("recruitmentStats")
     .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
     .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
-  const submittedByRecruitmentId = new Map(recruitmentStats.map((stats) => [stats.recruitmentId, stats]));
-  const hasSubmission = recruitmentStats.some((stats) => stats.submittedCount > 0);
+  const visibleRecruitmentIds = new Set(recruitments.map((recruitment) => recruitment._id));
+  const visibleStats = recruitmentStats.filter(
+    (stats) => visibleRecruitmentIds.has(stats.recruitmentId) && stats.updatedAt <= snapshot.snapshotAt,
+  );
+  const submittedStats = visibleStats.filter((stats) => stats.submittedCount > 0);
+  const submittedRecruitmentCount = submittedStats.length;
+  const submittedByRecruitmentId = new Map(visibleStats.map((stats) => [stats.recruitmentId, stats]));
+  const hasSubmission = submittedStats.length > 0;
   const openRecruitmentSubmittedCount = openRecruitments.reduce(
     (sum, recruitment) => sum + (submittedByRecruitmentId.get(recruitment._id)?.submittedCount ?? 0),
     0,
+  );
+  const submittedTotal = visibleStats.reduce((sum, stats) => sum + stats.submittedCount, 0);
+  const expectedStaffTotal = visibleStats.reduce((sum, stats) => sum + stats.activeStaffCountSnapshot, 0);
+  const submissionRate = ratioOrNull(submittedTotal, expectedStaffTotal);
+  const lastRecruitment = recruitments.reduce<Doc<"recruitments"> | null>(
+    (latest, recruitment) =>
+      latest === null || recruitment._creationTime > latest._creationTime ? recruitment : latest,
+    null,
+  );
+  const lastRecruitmentStats = lastRecruitment ? submittedByRecruitmentId.get(lastRecruitment._id) : undefined;
+  const lastRecruitmentSubmissionRate = lastRecruitmentStats
+    ? ratioOrNull(lastRecruitmentStats.submittedCount, lastRecruitmentStats.activeStaffCountSnapshot)
+    : null;
+  const submissionTimingKpis = await computeSubmissionTimingKpis(
+    ctx,
+    recruitments,
+    submittedByRecruitmentId,
+    snapshot.snapshotAt,
   );
 
   // dry-run（suppressDelivery）だけの店舗を「通知送信あり」にしないため、先頭数件から実配送を探す
   const sentNotifications = await ctx.db
     .query("notificationOutbox")
     .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "sent"))
-    .take(20);
-  const hasNotificationSent = sentNotifications.some((job) => job.payload.suppressDelivery !== true);
+    .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
+  const deliveredNotifications = sentNotifications.filter(
+    (job) => job.payload.suppressDelivery !== true && happenedBy(job.sentAt, snapshot.snapshotAt),
+  );
+  const hasNotificationSent = deliveredNotifications.length > 0;
+  const emailNotificationSentCount = deliveredNotifications.filter((job) => job.channel === "email").length;
+  const lineNotificationSentCount = deliveredNotifications.filter((job) => job.channel === "line").length;
 
   const openNotificationFailures = await ctx.db
     .query("notificationFailureInbox")
     .withIndex("by_shopId_status_lastFailedAt", (q) => q.eq("shopId", shopId).eq("status", "open"))
     .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
+  const openNotificationFailureCount = openNotificationFailures.filter(
+    (failure) => failure.lastFailedAt <= snapshot.snapshotAt,
+  ).length;
 
   // 主要イベント（店舗作成・スタッフ追加・LINE連携・募集作成・確定・催促・下書き保存・提出）の最終発生時刻
   const lastActivityAt = Math.max(
@@ -133,11 +283,11 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">) {
     ...linkedAccounts.map((account) => account.linkedAt),
     ...recruitments.flatMap((recruitment) => [
       recruitment._creationTime,
-      recruitment.confirmedAt ?? 0,
-      recruitment.lastReminderSentAt ?? 0,
-      recruitment.draftSavedAt ?? 0,
+      happenedBy(recruitment.confirmedAt, snapshot.snapshotAt) ? recruitment.confirmedAt : 0,
+      happenedBy(recruitment.lastReminderSentAt, snapshot.snapshotAt) ? recruitment.lastReminderSentAt : 0,
+      happenedBy(recruitment.draftSavedAt, snapshot.snapshotAt) ? recruitment.draftSavedAt : 0,
     ]),
-    ...recruitmentStats.filter((stats) => stats.submittedCount > 0).map((stats) => stats.updatedAt),
+    ...visibleStats.map((stats) => stats.updatedAt),
   );
 
   const stageInputs: ShopStageInputs = {
@@ -158,15 +308,35 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">) {
     lineLinkedStaffCount: linkedAccounts.length,
     lineFollowingStaffCount: linkedAccounts.filter((account) => account.following).length,
     openRecruitmentCount: openRecruitments.length,
-    stage: classifyShopStage(stageInputs, Date.now()),
+    stage: classifyShopStage(stageInputs, snapshot.snapshotAt),
     recruitmentCount: stageInputs.recruitmentCount,
     confirmedRecruitmentCount: stageInputs.confirmedRecruitmentCount,
     hasSubmission,
     hasNotificationSent,
     hasCurrentOrFutureConfirmedShift,
     lastActivityAt,
+    stageReferenceAt: snapshot.snapshotAt,
     openRecruitmentSubmittedCount,
-    openNotificationFailureCount: openNotificationFailures.length,
+    submittedRecruitmentCount,
+    openNotificationFailureCount,
+    recruitmentCreatedLast30Days,
+    emailNotificationSentCount,
+    lineNotificationSentCount,
+    ...(submissionRate === null ? {} : { submissionRate }),
+    ...(submissionTimingKpis.averageFirstSubmissionLeadTimeMs === null
+      ? {}
+      : { averageFirstSubmissionLeadTimeMs: submissionTimingKpis.averageFirstSubmissionLeadTimeMs }),
+    ...(averageConfirmationLeadTimeMs === null ? {} : { averageConfirmationLeadTimeMs }),
+    ...(submissionTimingKpis.postReminderSubmissionRate === null
+      ? {}
+      : { postReminderSubmissionRate: submissionTimingKpis.postReminderSubmissionRate }),
+    ...(submissionTimingKpis.resubmissionRate === null
+      ? {}
+      : { resubmissionRate: submissionTimingKpis.resubmissionRate }),
+    ...(lastRecruitmentSubmissionRate === null ? {} : { lastRecruitmentSubmissionRate }),
+    ...(lastRecruitmentCreatedAt === null ? {} : { lastRecruitmentCreatedAt }),
+    ...(lastRecruitmentConfirmedAt === null ? {} : { lastRecruitmentConfirmedAt }),
+    ...(lastConfirmedRecruitmentLeadTimeMs === null ? {} : { lastConfirmedRecruitmentLeadTimeMs }),
   };
 }
 
@@ -224,6 +394,7 @@ export const rollupServiceSnapshot = internalMutation({
     acc: serviceAccValidator,
   },
   handler: async (ctx, { date, stage, cursor, acc }) => {
+    const snapshotAt = jstDayRangeMs(date).endMs - SNAPSHOT_END_OFFSET_MS;
     if (stage === "shopSnapshots") {
       const page = await ctx.db
         .query("analyticsDailyShopSnapshots")
@@ -255,7 +426,7 @@ export const rollupServiceSnapshot = internalMutation({
 
     const page = await ctx.db
       .query("staffRegistrationRequests")
-      .withIndex("by_status_and_createdAt", (q) => q.eq("status", "pending"))
+      .withIndex("by_status_and_createdAt", (q) => q.eq("status", "pending").lte("createdAt", snapshotAt))
       .paginate({ cursor, numItems: ANALYTICS_AGGREGATION_PAGE_SIZE });
     acc.pendingRegistrationRequestCount += page.page.length;
 

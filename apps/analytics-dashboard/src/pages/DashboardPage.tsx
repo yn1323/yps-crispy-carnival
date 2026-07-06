@@ -7,6 +7,8 @@ import type {
   ShopSnapshotDto,
   ShopStageRowDto,
   ShopStagesResponse,
+  StageTransitionMetricDto,
+  StageTransitionSummaryDto,
 } from "@/api/analyticsTypes";
 import { ChartPanel } from "@/components/ChartPanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
@@ -30,11 +32,15 @@ import {
 } from "@/domains/analytics/metrics";
 import {
   filterStageRows,
+  nextOnboardingGap,
+  onboardingProgressItems,
   STAGE_COLORS,
   STAGE_FILTERS,
   STAGE_LABELS,
   type StageFilter,
+  type StageRowsSummary,
   stageCountsLineSeries,
+  summarizeStageRows,
 } from "@/domains/analytics/stages";
 
 type DashboardTab = "stages" | "service" | "recruitment" | "notification" | "line" | "shops";
@@ -107,7 +113,16 @@ function analyticsErrorMessage(error: unknown) {
 
 function TabButton({ active, children, onClick }: { active: boolean; children: string; onClick: () => void }) {
   return (
-    <Button colorPalette={active ? "teal" : "gray"} onClick={onClick} size="sm" variant={active ? "solid" : "ghost"}>
+    <Button
+      colorPalette={active ? "teal" : "gray"}
+      minW={0}
+      onClick={onClick}
+      px={{ base: 2, md: 3 }}
+      size="sm"
+      variant={active ? "solid" : "ghost"}
+      w={{ base: "full", md: "auto" }}
+      whiteSpace="nowrap"
+    >
       {children}
     </Button>
   );
@@ -211,7 +226,7 @@ export const DashboardPage = () => {
             justify="space-between"
           >
             <Box>
-              <Heading color="gray.950" fontSize={{ base: "2xl", md: "3xl" }}>
+              <Heading color="gray.950" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }}>
                 Shiftori Analytics
               </Heading>
               <Text color="gray.600" fontSize="sm" mt={1}>
@@ -235,44 +250,61 @@ export const DashboardPage = () => {
 
           {overviewQuery.error ? <ErrorPanel message={analyticsErrorMessage(overviewQuery.error)} /> : null}
 
-          <Grid gap={3} templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
-            <KpiCard
-              accent="teal"
-              helper={`最終更新 ${formatDateTime(latest?.computedAt)}`}
-              isLoading={overviewQuery.isLoading}
-              label="店舗数"
-              value={formatNumber(latest?.shopCount)}
+          {activeTab === "stages" ? (
+            <StageSummaryCards
+              isLoading={shopStagesQuery.isLoading}
+              latestComputedAt={latest?.computedAt}
+              stages={shopStagesQuery.data?.data ?? null}
+              transitions={overview?.stageTransitions ?? null}
             />
-            <KpiCard
-              accent="blue"
-              helper={`対象スタッフ ${formatNumber(latest?.shiftTargetStaffCount)}`}
-              isLoading={overviewQuery.isLoading}
-              label="スタッフ数"
-              value={formatNumber(latest?.staffCount)}
-            />
-            <KpiCard
-              accent="green"
-              helper={`follow率 ${formatPercent(latestLineFollowingRate(latest))}`}
-              isLoading={overviewQuery.isLoading}
-              label="LINE連携率"
-              value={formatPercent(latestLineLinkedRate(latest))}
-            />
-            <KpiCard
-              accent="orange"
-              helper={`登録申請 ${formatNumber(latest?.pendingRegistrationRequestCount)}`}
-              isLoading={overviewQuery.isLoading}
-              label="募集中"
-              value={formatNumber(latest?.openRecruitmentCount)}
-            />
-          </Grid>
+          ) : (
+            <Grid gap={3} templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
+              <KpiCard
+                accent="teal"
+                helper={`最終更新 ${formatDateTime(latest?.computedAt)}`}
+                isLoading={overviewQuery.isLoading}
+                label="店舗数"
+                value={formatNumber(latest?.shopCount)}
+              />
+              <KpiCard
+                accent="blue"
+                helper={`対象スタッフ ${formatNumber(latest?.shiftTargetStaffCount)}`}
+                isLoading={overviewQuery.isLoading}
+                label="スタッフ数"
+                value={formatNumber(latest?.staffCount)}
+              />
+              <KpiCard
+                accent="green"
+                helper={`follow率 ${formatPercent(latestLineFollowingRate(latest))}`}
+                isLoading={overviewQuery.isLoading}
+                label="LINE連携率"
+                value={formatPercent(latestLineLinkedRate(latest))}
+              />
+              <KpiCard
+                accent="orange"
+                helper={`登録申請 ${formatNumber(latest?.pendingRegistrationRequestCount)}`}
+                isLoading={overviewQuery.isLoading}
+                label="募集中"
+                value={formatNumber(latest?.openRecruitmentCount)}
+              />
+            </Grid>
+          )}
 
-          <HStack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={1} overflowX="auto" p={2}>
+          <Grid
+            bg="white"
+            border="1px solid"
+            borderColor="gray.200"
+            borderRadius="lg"
+            gap={1}
+            p={2}
+            templateColumns={{ base: "repeat(3, minmax(0, 1fr))", md: "repeat(6, max-content)" }}
+          >
             {TABS.map((tab) => (
               <TabButton key={tab.value} active={activeTab === tab.value} onClick={() => setActiveTab(tab.value)}>
                 {tab.label}
               </TabButton>
             ))}
-          </HStack>
+          </Grid>
 
           {activeTab === "stages" ? (
             <StagesSection
@@ -445,6 +477,148 @@ type StagesSectionProps = {
   stageChartData: ReturnType<typeof stageCountsLineSeries>;
 };
 
+function StageSummaryCards({
+  stages,
+  isLoading,
+  latestComputedAt,
+  transitions,
+}: {
+  stages: ShopStagesResponse | null;
+  isLoading: boolean;
+  latestComputedAt?: number;
+  transitions: StageTransitionSummaryDto | null;
+}) {
+  const counts = stages?.stageCounts ?? null;
+  const summary = summarizeStageRows(stages?.rows ?? []);
+  const retainedHelper =
+    summary.retainedAverageRecruitmentCreatedLast30Days !== null ||
+    summary.retainedAverageConfirmationLeadTimeMs !== null
+      ? `作成頻度 ${formatNumber(summary.retainedAverageRecruitmentCreatedLast30Days)}件/30日 / 確定 ${formatLeadTimeMs(summary.retainedAverageConfirmationLeadTimeMs)}`
+      : `平均 ${formatNumber(summary.retainedAverageStaffCount)}人 / LINE ${formatPercent(summary.retainedLineLinkedRate)}`;
+  const dormantHelper = summary.dormantTopStoppedStep
+    ? `停止 ${summary.dormantTopStoppedStep.label} ${summary.dormantTopStoppedStep.count}店`
+    : `停止 - / 立ち上がり後 ${formatNumber(summary.activeTrialDormantCount)}店`;
+  return (
+    <Stack gap={3}>
+      <Grid gap={3} templateColumns={{ base: "repeat(2, minmax(0, 1fr))", xl: "repeat(4, minmax(0, 1fr))" }}>
+        <KpiCard
+          accent="gray"
+          helper={
+            summary.beforeStartTopStep
+              ? `最多: ${summary.beforeStartTopStep.label} ${summary.beforeStartTopStep.count}店`
+              : `最終更新 ${formatDateTime(latestComputedAt)}`
+          }
+          isLoading={isLoading}
+          label="開始前"
+          value={formatNumber(counts?.beforeStart)}
+        />
+        <KpiCard
+          accent="blue"
+          helper={`要確認 ${formatNumber(summary.activeTrialAttentionCount)} / 順調 ${formatNumber(summary.activeTrialOkCount)}`}
+          isLoading={isLoading}
+          label="立ち上がり中"
+          value={formatNumber(counts?.activeTrial)}
+        />
+        <KpiCard
+          accent="green"
+          helper={retainedHelper}
+          isLoading={isLoading}
+          label="継続中"
+          value={formatNumber(counts?.retained)}
+        />
+        <KpiCard
+          accent="orange"
+          helper={dormantHelper}
+          isLoading={isLoading}
+          label="休眠中"
+          value={formatNumber(counts ? counts.activeTrialDormant + counts.retainedDormant : undefined)}
+        />
+      </Grid>
+      <StageTransitionKpis isLoading={isLoading} transitions={transitions} />
+    </Stack>
+  );
+}
+
+function metricFraction(metric: StageTransitionMetricDto | null | undefined) {
+  if (!metric) return "読み込み中";
+  if (metric.denominator === 0) return "対象なし";
+  return `${formatNumber(metric.numerator)}/${formatNumber(metric.denominator)}店舗`;
+}
+
+function StageKpiTile({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <Box bg="gray.50" borderRadius="md" minH="72px" minW={0} p={3}>
+      <Text color="gray.500" fontSize="xs" fontWeight="bold">
+        {label}
+      </Text>
+      <Text color="gray.950" fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" lineHeight="1.1" mt={1}>
+        {value}
+      </Text>
+      <Text color="gray.500" fontSize="xs" mt={1} overflowWrap="anywhere">
+        {helper}
+      </Text>
+    </Box>
+  );
+}
+
+function StageTransitionKpis({
+  transitions,
+  isLoading,
+}: {
+  transitions: StageTransitionSummaryDto | null;
+  isLoading: boolean;
+}) {
+  const transitionLabel = transitions
+    ? `${transitions.fromDate} → ${transitions.toDate}`
+    : isLoading
+      ? "期間内の遷移を読み込み中"
+      : "期間内の遷移データは未取得";
+  const metricHelper = (metric: StageTransitionMetricDto | null | undefined) =>
+    isLoading ? "読み込み中" : transitions ? metricFraction(metric) : "未取得";
+  const metricValue = (metric: StageTransitionMetricDto | null | undefined) =>
+    isLoading || !transitions ? "-" : formatPercent(metric?.rate);
+
+  return (
+    <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" p={3}>
+      <Flex
+        align={{ base: "start", md: "center" }}
+        direction={{ base: "column", md: "row" }}
+        gap={1}
+        justify="space-between"
+      >
+        <Text color="gray.950" fontSize="sm" fontWeight="bold">
+          期間内ステージ遷移
+        </Text>
+        <Text color="gray.500" fontSize="xs">
+          {transitionLabel}
+        </Text>
+      </Flex>
+      <Grid gap={2} mt={3} templateColumns={{ base: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" }}>
+        <StageKpiTile
+          helper={metricHelper(transitions?.beforeStartToActiveTrial)}
+          label="開始前→立ち上がり"
+          value={metricValue(transitions?.beforeStartToActiveTrial)}
+        />
+        <StageKpiTile
+          helper={metricHelper(transitions?.activeTrialToRetained)}
+          label="立ち上がり→継続"
+          value={metricValue(transitions?.activeTrialToRetained)}
+        />
+        <StageKpiTile
+          helper={metricHelper(transitions?.retainedToDormant)}
+          label="継続→休眠"
+          value={metricValue(transitions?.retainedToDormant)}
+        />
+        <StageKpiTile
+          helper={metricHelper(transitions?.dormantToRecovered)}
+          label="休眠→復帰"
+          value={metricValue(transitions?.dormantToRecovered)}
+        />
+      </Grid>
+    </Box>
+  );
+}
+
 function StagesSection({
   stages,
   isLoading,
@@ -454,74 +628,55 @@ function StagesSection({
   onStageFilterChange,
   stageChartData,
 }: StagesSectionProps) {
-  const counts = stages?.stageCounts ?? null;
   const rows = stages?.rows ?? [];
   const attentionCount = rows.filter((row) => row.alerts.length > 0).length;
   const filteredRows = filterStageRows(rows, stageFilter);
+  const summary = summarizeStageRows(rows);
 
   return (
     <Stack gap={4}>
       {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
-      <Grid gap={3} templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
-        <KpiCard
-          accent="gray"
-          helper="スタッフ3人+募集2件+通知/提出が未達"
-          isLoading={isLoading}
-          label="開始前"
-          value={formatNumber(counts?.beforeStart)}
-        />
-        <KpiCard
-          accent="blue"
-          helper="実利用開始済み・確定3件未満"
-          isLoading={isLoading}
-          label="立ち上がり中"
-          value={formatNumber(counts?.activeTrial)}
-        />
-        <KpiCard
-          accent="green"
-          helper="確定3件以上+現在も稼働中"
-          isLoading={isLoading}
-          label="継続中"
-          value={formatNumber(counts?.retained)}
-        />
-        <KpiCard
-          accent="orange"
-          helper={
-            counts ? `立ち上がり後 ${counts.activeTrialDormant} / 継続後 ${counts.retainedDormant}` : "内訳を読み込み中"
-          }
-          isLoading={isLoading}
-          label="休眠中"
-          value={formatNumber(counts ? counts.activeTrialDormant + counts.retainedDormant : undefined)}
-        />
-      </Grid>
-
       <ChartPanel
+        contentHeight="auto"
         description={`${latestDate} 時点のステージ判定です。要確認 → 停止日数が長い順に並びます`}
         isLoading={isLoading}
         title="店舗一覧"
       >
         <Stack gap={3}>
-          <HStack gap={1} overflowX="auto">
+          <Grid gap={1} templateColumns={{ base: "repeat(3, minmax(0, 1fr))", md: "repeat(6, max-content)" }}>
             {STAGE_FILTERS.map((filter) => (
               <Button
                 key={filter.value}
                 colorPalette={stageFilter === filter.value ? "teal" : "gray"}
+                minW={0}
                 onClick={() => onStageFilterChange(filter.value)}
+                px={{ base: 1, md: 3 }}
                 size="xs"
                 variant={stageFilter === filter.value ? "solid" : "outline"}
+                w={{ base: "full", md: "auto" }}
+                whiteSpace="nowrap"
               >
                 {filter.value === "attention" && attentionCount > 0
                   ? `${filter.label} ${attentionCount}`
                   : filter.label}
               </Button>
             ))}
-          </HStack>
-          <DataTable
-            columns={stageColumns()}
-            emptyText={stageFilter === "attention" ? "要確認の店舗はありません" : "該当する店舗はありません"}
-            getRowKey={(row) => row.shopId}
-            rows={filteredRows}
-          />
+          </Grid>
+          <Box display={{ base: "block", lg: "none" }} h="full" minH={0}>
+            <StageRowList
+              emptyText={stageFilter === "attention" ? "要確認の店舗はありません" : "該当する店舗はありません"}
+              rows={filteredRows}
+              summary={summary}
+            />
+          </Box>
+          <Box display={{ base: "none", lg: "block" }} h="full" minH={0}>
+            <DataTable
+              columns={stageColumns(summary)}
+              emptyText={stageFilter === "attention" ? "要確認の店舗はありません" : "該当する店舗はありません"}
+              getRowKey={(row) => row.shopId}
+              rows={filteredRows}
+            />
+          </Box>
           {stages && stages.unclassifiedCount > 0 ? (
             <Text color="gray.500" fontSize="xs">
               ステージ未集計 {stages.unclassifiedCount}店舗（次回の日次集計で反映されます）
@@ -530,43 +685,429 @@ function StagesSection({
         </Stack>
       </ChartPanel>
 
-      <ChartPanel
-        description="ステージ別店舗数の日次推移です。開始前→立ち上がり率などの遷移KPIはこの推移から読みます"
-        title="ステージ推移"
-      >
+      <ChartPanel description="ステージ別店舗数の日次推移です。日ごとの構成変化を見ます" title="ステージ推移">
         <TrendChart data={stageChartData} keys={["開始前", "立ち上がり中", "継続中", "休眠中"]} />
       </ChartPanel>
     </Stack>
   );
 }
 
-function stageColumns(): DataTableColumn<ShopStageRowDto>[] {
+function StageBadge({ row }: { row: ShopStageRowDto }) {
+  return row.stage ? (
+    <Badge colorPalette={STAGE_COLORS[row.stage]} variant="subtle">
+      {STAGE_LABELS[row.stage]}
+    </Badge>
+  ) : (
+    <Badge colorPalette="gray" variant="outline">
+      未集計
+    </Badge>
+  );
+}
+
+function stageReasonLabels(row: ShopStageRowDto): string[] {
+  if (row.stage === null) return ["ステージ未集計"];
+  const isDormant = row.stage === "activeTrialDormant" || row.stage === "retainedDormant";
+  const nextGap = nextOnboardingGap(row);
+  const activationSignal = row.hasNotificationSent === true || row.hasSubmission === true ? "あり" : "なし";
+  const labels = [
+    `スタッフ ${formatNumber(row.shiftTargetStaffCount)}人 / 条件3人以上`,
+    `本番シフト ${formatNumber(row.recruitmentCount)}件 / 条件2件以上`,
+    `通知または提出 ${activationSignal}`,
+  ];
+  if (row.stage === "beforeStart" && nextGap) labels.push(`未達 ${nextGap.label}`);
+  if (row.stage !== "beforeStart") {
+    labels.push(`確定 ${formatNumber(row.confirmedRecruitmentCount)}件 / 継続条件3件以上`);
+    if (row.hasCurrentOrFutureConfirmedShift) labels.push("現在/未来シフトあり");
+    else if (row.openRecruitmentCount > 0) labels.push("進行中の募集あり");
+    else labels.push("現在/未来シフト・進行中募集なし");
+  }
+  if (isDormant) {
+    labels.push(`停止ステップ ${row.onboardingStepLabel ?? "-"}`);
+    labels.push(`最終活動 ${formatDateTime(row.lastActivityAt)}`);
+    labels.push(`最後のシフト作成 ${formatDateTime(row.lastRecruitmentCreatedAt)}`);
+    labels.push(`最後の確定 ${formatDateTime(row.lastRecruitmentConfirmedAt)}`);
+  }
+  return labels;
+}
+
+function stageRowLineLinkedRate(row: ShopStageRowDto) {
+  if (row.shiftTargetStaffCount === 0) return null;
+  return row.lineLinkedStaffCount / row.shiftTargetStaffCount;
+}
+
+function stageRowNotificationLineHelper(row: ShopStageRowDto) {
+  if (row.emailNotificationSentCount === null || row.lineNotificationSentCount === null) return undefined;
+  const total = row.emailNotificationSentCount + row.lineNotificationSentCount;
+  return `${formatNumber(row.lineNotificationSentCount)}/${formatNumber(total)}件`;
+}
+
+function formatPresence(value: boolean | null | undefined) {
+  if (value === null || value === undefined) return "-";
+  return value ? "あり" : "なし";
+}
+
+function formatNumberWithUnit(value: number | null | undefined, unit: string) {
+  if (value === null || value === undefined) return "-";
+  return `${formatNumber(value)}${unit}`;
+}
+
+function formatRecruitmentFrequency(value: number | null | undefined) {
+  if (value === null || value === undefined) return "-";
+  return `${formatNumber(value)}件/30日`;
+}
+
+function formatPercentPointDelta(delta: number) {
+  return `${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(0)}pt`;
+}
+
+function formatLeadTimeDelta(deltaMs: number) {
+  const sign = deltaMs >= 0 ? "+" : "-";
+  return `${sign}${formatLeadTimeMs(Math.abs(deltaMs))}`;
+}
+
+function formatNumberDelta(delta: number, unit = "") {
+  const sign = delta >= 0 ? "+" : "";
+  const value = Number.isInteger(delta) ? formatNumber(delta) : delta.toFixed(1);
+  return `${sign}${value}${unit}`;
+}
+
+function isDormantStage(row: ShopStageRowDto) {
+  return row.stage === "activeTrialDormant" || row.stage === "retainedDormant";
+}
+
+function dormantDifferenceLabels(row: ShopStageRowDto, summary: StageRowsSummary) {
+  if (!isDormantStage(row)) return [];
+  const labels: string[] = [];
+  if (row.submissionRate !== null && summary.retainedSubmissionRate !== null) {
+    const delta = row.submissionRate - summary.retainedSubmissionRate;
+    if (delta <= -0.1) labels.push(`提出率 ${formatPercentPointDelta(delta)}`);
+  }
+  if (row.averageConfirmationLeadTimeMs !== null && summary.retainedAverageConfirmationLeadTimeMs !== null) {
+    const delta = row.averageConfirmationLeadTimeMs - summary.retainedAverageConfirmationLeadTimeMs;
+    if (delta >= 24 * 60 * 60 * 1000) labels.push(`確定 ${formatLeadTimeDelta(delta)}`);
+  }
+  if (row.notificationLineSentRate !== null && summary.retainedNotificationLineSentRate !== null) {
+    const delta = row.notificationLineSentRate - summary.retainedNotificationLineSentRate;
+    if (delta <= -0.1) labels.push(`LINE比率 ${formatPercentPointDelta(delta)}`);
+  }
+  if (summary.retainedAverageStaffCount !== null) {
+    const delta = row.shiftTargetStaffCount - summary.retainedAverageStaffCount;
+    if (delta <= -1) labels.push(`スタッフ ${formatNumberDelta(delta, "人")}`);
+  }
+  if (row.openNotificationFailureCount !== null && summary.retainedAverageNotificationFailureCount !== null) {
+    const delta = row.openNotificationFailureCount - summary.retainedAverageNotificationFailureCount;
+    if (delta >= 1) labels.push(`通知失敗 ${formatNumberDelta(delta, "件")}`);
+  }
+  return labels;
+}
+
+function StageMetricItem({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <Box minW={0}>
+      <Text color="gray.500" fontSize="xs" fontWeight="bold">
+        {label}
+      </Text>
+      <Text color="gray.900" fontSize="sm" fontWeight="semibold" lineHeight="1.3">
+        {value}
+      </Text>
+      {helper ? (
+        <Text color="gray.500" fontSize="xs" lineHeight="1.3">
+          {helper}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
+
+function StageMetricChip({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <Box bg="gray.50" borderRadius="sm" minW={0} px={2} py={1}>
+      <Text color="gray.500" fontSize="xs" lineHeight="1.35" whiteSpace="nowrap">
+        {label}{" "}
+        <Text as="span" color="gray.900" fontWeight="semibold">
+          {value}
+        </Text>
+        {helper ? (
+          <Text as="span" color="gray.500">
+            {" "}
+            {helper}
+          </Text>
+        ) : null}
+      </Text>
+    </Box>
+  );
+}
+
+function stageMetricItems(row: ShopStageRowDto) {
+  return [
+    { label: "スタッフ", value: formatNumber(row.shiftTargetStaffCount) },
+    { label: "募集", value: formatNumber(row.recruitmentCount) },
+    { helper: "募集", label: "提出あり", value: formatNumberWithUnit(row.submittedRecruitmentCount, "件") },
+    { label: "提出率", value: formatPercent(row.submissionRate) },
+    { label: "確定", value: formatNumber(row.confirmedRecruitmentCount) },
+    { label: "作成頻度", value: formatRecruitmentFrequency(row.recruitmentCreatedLast30Days) },
+    { label: "確定日数", value: formatLeadTimeMs(row.averageConfirmationLeadTimeMs) },
+    {
+      helper: `${formatNumber(row.lineLinkedStaffCount)}/${formatNumber(row.shiftTargetStaffCount)}人`,
+      label: "LINE",
+      value: formatPercent(stageRowLineLinkedRate(row)),
+    },
+    { label: "通知失敗", value: formatNumber(row.openNotificationFailureCount) },
+    { label: "初回提出", value: formatLeadTimeMs(row.averageFirstSubmissionLeadTimeMs) },
+    {
+      helper: stageRowNotificationLineHelper(row),
+      label: "LINE比率",
+      value: formatPercent(row.notificationLineSentRate),
+    },
+    { label: "再提出", value: formatPercent(row.resubmissionRate) },
+    { label: "催促後", value: formatPercent(row.postReminderSubmissionRate) },
+    { label: "最終提出率", value: formatPercent(row.lastRecruitmentSubmissionRate) },
+    { label: "最終確定日数", value: formatLeadTimeMs(row.lastConfirmedRecruitmentLeadTimeMs) },
+    { label: "進行中提出", value: formatNumber(row.openRecruitmentSubmittedCount) },
+    { label: "現在/未来", value: formatPresence(row.hasCurrentOrFutureConfirmedShift) },
+  ];
+}
+
+function StageRowMetrics({ row, compact = false }: { row: ShopStageRowDto; compact?: boolean }) {
+  if (compact) {
+    return (
+      <HStack align="start" gap={1} maxW="460px" wrap="wrap">
+        {stageMetricItems(row).map((item) => (
+          <StageMetricChip key={item.label} {...item} />
+        ))}
+      </HStack>
+    );
+  }
+
+  return (
+    <Stack gap={2} minW={{ base: 0, lg: "300px" }}>
+      <Grid gap={2} templateColumns={{ base: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))" }}>
+        <StageMetricItem label="スタッフ" value={formatNumber(row.shiftTargetStaffCount)} />
+        <StageMetricItem label="募集" value={formatNumber(row.recruitmentCount)} />
+        <StageMetricItem
+          helper="募集"
+          label="提出あり"
+          value={formatNumberWithUnit(row.submittedRecruitmentCount, "件")}
+        />
+        <StageMetricItem label="提出率" value={formatPercent(row.submissionRate)} />
+        <StageMetricItem label="確定" value={formatNumber(row.confirmedRecruitmentCount)} />
+        <StageMetricItem label="作成頻度" value={formatRecruitmentFrequency(row.recruitmentCreatedLast30Days)} />
+        <StageMetricItem label="確定日数" value={formatLeadTimeMs(row.averageConfirmationLeadTimeMs)} />
+        <StageMetricItem
+          helper={`${formatNumber(row.lineLinkedStaffCount)}/${formatNumber(row.shiftTargetStaffCount)}人`}
+          label="LINE"
+          value={formatPercent(stageRowLineLinkedRate(row))}
+        />
+        <StageMetricItem label="通知失敗" value={formatNumber(row.openNotificationFailureCount)} />
+      </Grid>
+      <Grid
+        borderTop="1px solid"
+        borderColor="gray.100"
+        gap={2}
+        pt={2}
+        templateColumns={{ base: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))" }}
+      >
+        <StageMetricItem label="初回提出" value={formatLeadTimeMs(row.averageFirstSubmissionLeadTimeMs)} />
+        <StageMetricItem
+          helper={stageRowNotificationLineHelper(row)}
+          label="LINE比率"
+          value={formatPercent(row.notificationLineSentRate)}
+        />
+        <StageMetricItem label="再提出" value={formatPercent(row.resubmissionRate)} />
+        <StageMetricItem label="催促後" value={formatPercent(row.postReminderSubmissionRate)} />
+        <StageMetricItem label="最終提出率" value={formatPercent(row.lastRecruitmentSubmissionRate)} />
+        <StageMetricItem label="最終確定日数" value={formatLeadTimeMs(row.lastConfirmedRecruitmentLeadTimeMs)} />
+        <StageMetricItem label="進行中提出" value={formatNumber(row.openRecruitmentSubmittedCount)} />
+        <StageMetricItem label="現在/未来" value={formatPresence(row.hasCurrentOrFutureConfirmedShift)} />
+      </Grid>
+    </Stack>
+  );
+}
+
+function StageDifferenceBadges({ row, summary }: { row: ShopStageRowDto; summary: StageRowsSummary }) {
+  const labels = dormantDifferenceLabels(row, summary);
+  if (labels.length === 0) return null;
+  return (
+    <Stack gap={1}>
+      <Text color="gray.500" fontSize="xs" fontWeight="bold">
+        継続平均との差
+      </Text>
+      <HStack gap={1} wrap="wrap">
+        {labels.map((label) => (
+          <Badge key={label} colorPalette="purple" variant="subtle">
+            {label}
+          </Badge>
+        ))}
+      </HStack>
+    </Stack>
+  );
+}
+
+function StageSignals({ row, summary }: { row: ShopStageRowDto; summary: StageRowsSummary }) {
+  if (row.alerts.length === 0 && dormantDifferenceLabels(row, summary).length === 0) {
+    return (
+      <Text color="gray.400" fontSize="xs">
+        -
+      </Text>
+    );
+  }
+  return (
+    <Stack gap={1}>
+      {row.alerts.length > 0 ? (
+        <HStack gap={1} wrap="wrap">
+          {row.alerts.map((alert) => (
+            <Badge key={alert} colorPalette="orange" variant="subtle">
+              {alert}
+            </Badge>
+          ))}
+        </HStack>
+      ) : null}
+      <StageDifferenceBadges row={row} summary={summary} />
+    </Stack>
+  );
+}
+
+function StageProgressBadges({ compact = false, row }: { row: ShopStageRowDto; compact?: boolean }) {
+  if (row.stage !== "beforeStart") return null;
+  const badgeConfig = (status: "reached" | "unreached" | "unknown") => {
+    if (status === "reached") return { colorPalette: "green", prefix: "済", variant: "subtle" as const };
+    if (status === "unknown") return { colorPalette: "gray", prefix: "未計測", variant: "surface" as const };
+    return { colorPalette: "gray", prefix: "未", variant: "outline" as const };
+  };
+  return (
+    <Stack gap={1} maxW={compact ? "260px" : undefined}>
+      {compact ? null : (
+        <Text color="gray.500" fontSize="xs" fontWeight="bold">
+          オンボーディング進捗
+        </Text>
+      )}
+      <HStack gap={1} wrap="wrap">
+        {onboardingProgressItems(row).map((item) => {
+          const config = badgeConfig(item.status);
+          return (
+            <Badge key={item.label} colorPalette={config.colorPalette} variant={config.variant}>
+              {config.prefix} {item.label}
+            </Badge>
+          );
+        })}
+      </HStack>
+    </Stack>
+  );
+}
+
+function StageStepSummary({ row }: { row: ShopStageRowDto }) {
+  const nextGap = nextOnboardingGap(row);
+  return (
+    <Stack gap={1}>
+      <Text color="gray.900" fontSize="sm" fontWeight="semibold">
+        {row.onboardingStepLabel ?? "-"}
+      </Text>
+      {row.stage === "beforeStart" && nextGap ? (
+        <Text color="orange.700" fontSize="xs" fontWeight="semibold">
+          未達: {nextGap.label}
+        </Text>
+      ) : null}
+      <StageProgressBadges compact row={row} />
+    </Stack>
+  );
+}
+
+function StageRowList({
+  rows,
+  emptyText,
+  summary,
+}: {
+  rows: ShopStageRowDto[];
+  emptyText: string;
+  summary: StageRowsSummary;
+}) {
+  if (rows.length === 0) {
+    return (
+      <Box bg="gray.50" borderRadius="md" p={5}>
+        <Text color="gray.500" fontSize="sm">
+          {emptyText}
+        </Text>
+      </Box>
+    );
+  }
+  return (
+    <Stack gap={0} h="full" overflow="auto" pr={1}>
+      {rows.map((row) => (
+        <Box key={row.shopId} borderBottom="1px solid" borderColor="gray.100" py={3}>
+          <Box>
+            <Flex align="start" gap={2} justify="space-between">
+              <Box minW={0}>
+                <Text color="gray.950" fontSize="sm" fontWeight="bold">
+                  {row.shopName}
+                </Text>
+              </Box>
+              <HStack flexShrink={0} gap={1} wrap="wrap">
+                <StageBadge row={row} />
+                {row.stalledDays === null ? null : (
+                  <Badge colorPalette={row.stalledDays >= 30 ? "orange" : "gray"} variant="surface">
+                    {row.stalledDays}日停止
+                  </Badge>
+                )}
+              </HStack>
+            </Flex>
+            <Text color="gray.500" fontSize="xs" mt={1}>
+              最終到達: {row.onboardingStepLabel ?? "-"}
+            </Text>
+            {row.stage === "beforeStart" ? (
+              <Text color="orange.700" fontSize="xs" fontWeight="semibold" mt={1}>
+                未達: {nextOnboardingGap(row)?.label ?? "-"}
+              </Text>
+            ) : null}
+          </Box>
+          <Box mt={3}>
+            <StageRowMetrics row={row} />
+          </Box>
+          {row.stage === "beforeStart" ? (
+            <Box mt={2}>
+              <StageProgressBadges row={row} />
+            </Box>
+          ) : null}
+          {row.alerts.length > 0 ? (
+            <HStack gap={1} mt={2} wrap="wrap">
+              {row.alerts.map((alert) => (
+                <Badge key={alert} colorPalette="orange" variant="subtle">
+                  {alert}
+                </Badge>
+              ))}
+            </HStack>
+          ) : null}
+          <Box mt={2}>
+            <StageDifferenceBadges row={row} summary={summary} />
+          </Box>
+          <Stack gap={1} mt={2}>
+            {stageReasonLabels(row).map((label) => (
+              <Text key={label} color="gray.500" fontSize="xs">
+                {label}
+              </Text>
+            ))}
+          </Stack>
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
+function stageColumns(summary: StageRowsSummary): DataTableColumn<ShopStageRowDto>[] {
   return [
     { header: "店舗", key: "shop", render: (row) => row.shopName },
     {
       header: "ステージ",
       key: "stage",
-      render: (row) =>
-        row.stage ? (
-          <Badge colorPalette={STAGE_COLORS[row.stage]} variant="subtle">
-            {STAGE_LABELS[row.stage]}
-          </Badge>
-        ) : (
-          <Badge colorPalette="gray" variant="outline">
-            未集計
-          </Badge>
-        ),
+      render: (row) => <StageBadge row={row} />,
     },
-    { header: "最終到達", key: "step", render: (row) => row.onboardingStepLabel ?? "-" },
+    { header: "最終到達", key: "step", render: (row) => <StageStepSummary row={row} /> },
     {
       align: "right",
       header: "停止日数",
       key: "stalled",
       render: (row) => (row.stalledDays === null ? "-" : `${row.stalledDays}日`),
     },
-    { align: "right", header: "スタッフ", key: "staff", render: (row) => formatNumber(row.shiftTargetStaffCount) },
-    { align: "right", header: "募集", key: "recruitment", render: (row) => formatNumber(row.recruitmentCount) },
-    { align: "right", header: "確定", key: "confirmed", render: (row) => formatNumber(row.confirmedRecruitmentCount) },
+    { header: "利用KPI", key: "metrics", render: (row) => <StageRowMetrics compact row={row} /> },
     {
       align: "center",
       header: "現在/未来シフト",
@@ -577,20 +1118,7 @@ function stageColumns(): DataTableColumn<ShopStageRowDto>[] {
     {
       header: "気になる点",
       key: "alerts",
-      render: (row) =>
-        row.alerts.length === 0 ? (
-          <Text color="gray.400" fontSize="xs">
-            -
-          </Text>
-        ) : (
-          <HStack gap={1} wrap="wrap">
-            {row.alerts.map((alert) => (
-              <Badge key={alert} colorPalette="orange" variant="subtle">
-                {alert}
-              </Badge>
-            ))}
-          </HStack>
-        ),
+      render: (row) => <StageSignals row={row} summary={summary} />,
     },
   ];
 }

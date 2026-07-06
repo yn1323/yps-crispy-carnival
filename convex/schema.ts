@@ -519,8 +519,22 @@ const schema = defineSchema({
     hasNotificationSent: v.optional(v.boolean()),
     hasCurrentOrFutureConfirmedShift: v.optional(v.boolean()),
     lastActivityAt: v.optional(v.number()), // 主要イベントの最終発生時刻
+    stageReferenceAt: v.optional(v.number()), // ステージ判定の基準時刻（対象JST日の終端）
     openRecruitmentSubmittedCount: v.optional(v.number()), // 進行中募集への提出人数合計
+    submittedRecruitmentCount: v.optional(v.number()), // 提出が1件以上ある募集数
     openNotificationFailureCount: v.optional(v.number()), // 未解決の通知失敗件数
+    recruitmentCreatedLast30Days: v.optional(v.number()), // 直近30日間の募集作成数
+    submissionRate: v.optional(v.number()), // 全募集の提出率（提出人数合計 / 対象スタッフ合計）
+    averageFirstSubmissionLeadTimeMs: v.optional(v.number()), // 募集作成から初回提出までの平均時間
+    averageConfirmationLeadTimeMs: v.optional(v.number()), // 確定済み募集の平均作成→確定時間
+    emailNotificationSentCount: v.optional(v.number()), // 実配送されたメール通知数
+    lineNotificationSentCount: v.optional(v.number()), // 実配送されたLINE通知数
+    postReminderSubmissionRate: v.optional(v.number()), // 催促送信後の初回提出率
+    resubmissionRate: v.optional(v.number()), // 再提出率
+    lastRecruitmentSubmissionRate: v.optional(v.number()), // 最後に作成された募集の提出率
+    lastRecruitmentCreatedAt: v.optional(v.number()), // 最後の募集作成時刻
+    lastRecruitmentConfirmedAt: v.optional(v.number()), // 最後のシフト確定時刻
+    lastConfirmedRecruitmentLeadTimeMs: v.optional(v.number()), // 最後に確定した募集の作成→確定時間
     computedAt: v.number(),
   })
     .index("by_date_shopId", ["date", "shopId"])

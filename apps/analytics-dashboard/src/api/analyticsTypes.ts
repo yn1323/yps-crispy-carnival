@@ -17,6 +17,8 @@ export type {
   ShopStageKey,
   ShopStageRowDto,
   ShopStagesResponse,
+  StageTransitionMetricDto,
+  StageTransitionSummaryDto,
 } from "@convex/analyticsDashboard/dto";
 
 export type AnalyticsApiEnvelope<T> = {
