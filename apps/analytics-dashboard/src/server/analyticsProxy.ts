@@ -1,23 +1,32 @@
-type AnalyticsApiEnv = {
+export type AnalyticsProxyEnv = {
+  ANALYTICS_ENV_LABEL?: string;
   CF_PAGES_BRANCH?: string;
   SHIFTORI_INTERNAL_API_SECRET?: string;
   VITE_CONVEX_SITE_URL?: string;
   VITE_CONVEX_URL?: string;
 };
 
-type PagesApiContext = {
-  request: Request;
-  env: AnalyticsApiEnv;
-};
+const robotsHeaderValue = "noindex, nofollow";
 
-function jsonResponse(body: unknown, init: ResponseInit = {}) {
+export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     ...init,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      "X-Robots-Tag": robotsHeaderValue,
       ...init.headers,
     },
+  });
+}
+
+export function withNoindexResponse(response: Response) {
+  const headers = new Headers(response.headers);
+  headers.set("X-Robots-Tag", robotsHeaderValue);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
   });
 }
 
@@ -47,7 +56,11 @@ function getConvexHost(baseUrl: string) {
   }
 }
 
-export const onRequest = async ({ request, env }: PagesApiContext) => {
+function getEnvLabel(env: AnalyticsProxyEnv, fallback: string) {
+  return env.ANALYTICS_ENV_LABEL ?? env.CF_PAGES_BRANCH ?? fallback;
+}
+
+export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEnv, fallbackEnvLabel: string) {
   if (request.method !== "POST") {
     return jsonResponse({ error: { message: "POSTでリクエストしてください" } }, { status: 405 });
   }
@@ -73,18 +86,15 @@ export const onRequest = async ({ request, env }: PagesApiContext) => {
     return jsonResponse({ error: { message: "分析データを読み込めませんでした" } }, { status });
   }
 
-  let data: unknown;
   try {
-    data = JSON.parse(responseText);
+    return jsonResponse({
+      env: {
+        label: getEnvLabel(env, fallbackEnvLabel),
+        convexHost: getConvexHost(convexHttpUrl),
+      },
+      data: JSON.parse(responseText) as unknown,
+    });
   } catch {
     return jsonResponse({ error: { message: "分析データの形式が正しくありません" } }, { status: 502 });
   }
-
-  return jsonResponse({
-    env: {
-      label: env.CF_PAGES_BRANCH ?? "unknown",
-      convexHost: getConvexHost(convexHttpUrl),
-    },
-    data,
-  });
-};
+}

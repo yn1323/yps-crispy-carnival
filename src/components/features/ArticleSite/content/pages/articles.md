@@ -1,11 +1,11 @@
 ---
 title: "お役立ちガイド"
-description: "シフト希望の集め方からExcel・LINE運用のコツまで、小さなお店のシフト作成でつまずきやすいポイントを記事で解説します。"
+description: "シフト希望の集め方からExcel・LINE運用のコツまで、シフト作成でつまずきやすいポイントを記事で解説します。"
 breadcrumbLabel: "お役立ち情報"
 concernTitle: "よくある困りごとから探す"
 latestTitle: "新着記事"
 ctaTitle: "シフト作成の手間を、そろそろラクにしませんか？"
-ctaDescription: "LINEで希望を集めて、シフト作成まで。小さなお店のためのシフト作成ツール、シフトリ。"
+ctaDescription: "LINEで希望を集めて、シフト作成まで。シフト作成をまとめて進められるツール、シフトリ。"
 ctaPrimaryLabel: "シフトリを見てみる"
 ctaPrimaryHref: "/demo/flow"
 ctaSecondaryLabel: "無料で試してみる"

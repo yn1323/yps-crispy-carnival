@@ -1,8 +1,9 @@
 # 分析KPI可視化アプリ
 
 `convex/analytics/` に日次蓄積したKPIを、本人だけが見る内部BIとして可視化する別アプリ。
-本体アプリの顧客向け導線とは分離し、Cloudflare Pages FunctionsのBasic認証とConvex HTTP actionの共有secretで読み取り経路を保護する。
-内部用アプリのため、HTMLの `robots` メタタグとPages Functions middlewareの `X-Robots-Tag` で検索インデックス対象から除外する。
+本体アプリの顧客向け導線とは分離し、Cloudflare Workers + Static Assets の別Workerで可視化する。
+ブラウザは同一originのWorker APIだけを呼び、WorkerとConvex HTTP actionの共有secretで読み取り経路を保護する。
+内部用アプリのため、HTMLの `robots` メタタグとWorker応答の `X-Robots-Tag` で検索インデックス対象から除外する。
 
 ## 関連ファイル
 
@@ -11,9 +12,10 @@
 - `apps/analytics-dashboard/src/pages/DashboardPage.tsx` — KPI可視化画面
 - `apps/analytics-dashboard/src/api/analyticsClient.ts` — `/api/analytics` のfetch client
 - `apps/analytics-dashboard/src/domains/analytics/` — 派生KPI、表示整形、chart series変換
-- `apps/analytics-dashboard/functions/_middleware.ts` — Basic認証middleware
+- `apps/analytics-dashboard/src/worker.ts` — Workers + Static Assets の入口、`/api/analytics` ルーティング、静的asset応答
+- `apps/analytics-dashboard/src/server/analyticsProxy.ts` — Convex HTTP actionへのBFF proxy
 - `apps/analytics-dashboard/index.html` — HTML入口と `robots` メタタグ
-- `apps/analytics-dashboard/functions/api/analytics.ts` — Convex HTTP actionへのBFF proxy
+- `apps/analytics-dashboard/wrangler.jsonc` — Worker entrypoint、Static Assets、`/api/*` の先行ルーティング設定
 - `convex/analyticsDashboard/dto.ts` — 画面用DTO
 - `convex/analyticsDashboard/schemas.ts` — HTTP action入力検証
 - `convex/analyticsDashboard/queries.ts` — internal query
@@ -26,16 +28,18 @@
 
 | 画面 | パス | 用途 |
 |---|---|---|
-| Analytics Dashboard | `/` | サービス全体、募集・提出、通知、LINE、店舗別のKPIを期間指定で確認する |
+| Analytics Dashboard | `/` | 店舗ステージ、サービス全体、募集・提出、通知、LINE、店舗別のKPIを期間指定で確認する |
+
+「店舗ステージ」タブが最初に開く。ファーストビューではステージ別店舗数カード（開始前/立ち上がり中/継続中/休眠中）を主役にし、開始前の最多停止ステップ、立ち上がり中の要確認件数、継続店舗の作成頻度/平均確定日数、休眠店舗の最多停止ステップを添える。続けて期間内のステージ遷移率（開始前→立ち上がり、立ち上がり→継続、継続→休眠、休眠→復帰）を表示する。下部には要確認フィルタ付きの店舗一覧（最終到達ステップ・次の未達ステップ・停止日数・スタッフ/募集/提出あり募集数/提出率/確定/作成頻度/確定日数/LINE/通知失敗/初回提出/LINE比率/再提出/催促後提出率/最終提出率/最終確定日数/進行中提出/現在未来シフト・判定理由・気になる点タグ）と、ステージ別店舗数の日次推移を表示する。PCの開始前行とスマホの開始前店舗カードには、データで確認できるオンボーディング進捗チェックリストを表示し、未計測のガイド開始は `未計測` として明示する。休眠店舗には、原因断定ではなく目検の入口として、継続平均との差（提出率・確定日数・LINE比率・スタッフ数・通知失敗）をタグで添える。分類ロジックは `convex/analytics/stage.ts`（`doc/features/analytics.md` 参照）。
 
 ## API一覧
 
-### Cloudflare Pages Functions
+### Cloudflare Worker
 
 | API | 用途 |
 |---|---|
-| `functions/_middleware.ts:onRequest` | 静的ファイル/APIの前段でBasic認証を検証 |
-| `functions/api/analytics.ts:onRequest` | ブラウザからのPOSTをConvex HTTP actionへproxyし、env labelを付与 |
+| `src/worker.ts:fetch` | `/api/analytics` をWorkerで処理し、それ以外をStatic Assetsへ委譲 |
+| `src/server/analyticsProxy.ts:handleAnalyticsApi` | ブラウザからのPOSTをConvex HTTP actionへproxyし、env labelを付与 |
 
 ### Convex HTTP action
 
@@ -50,15 +54,16 @@
 | `analyticsDashboard/queries:getOverview` | サービス全体スナップショットと主要イベント合計 |
 | `analyticsDashboard/queries:getEventTrends` | metric別の時系列 |
 | `analyticsDashboard/queries:getNotificationBreakdown` | 通知チャネル・結果・種別ごとの内訳 |
+| `analyticsDashboard/queries:getShopStages` | 指定日の店舗ステージ一覧（判定材料・最終到達ステップ・気になる点タグ付き） |
 | `analyticsDashboard/queries:getShopRanking` | 店舗別スナップショットのランキング |
 | `analyticsDashboard/queries:getShopDetail` | 1店舗の時系列ドリルダウン |
 
 ## セキュリティ境界
 
 - ブラウザはConvex public queryを直接呼ばない
-- Convex URLと共有secretはCloudflare Pages Functionsのサーバー側envに置く
+- Convex URLと共有secretはCloudflare Workerのサーバー側envに置く
 - Convex HTTP actionは `SHIFTORI_INTERNAL_API_SECRET` を検証する
-- HTML、認証エラー、API応答を含むPagesレスポンスへ `X-Robots-Tag: noindex, nofollow` を付ける
+- HTMLと静的assetのWorker応答へ `X-Robots-Tag: noindex, nofollow` を付ける
 - 返却DTOは集計値と店舗単位の情報に限定し、staff email、manager email、token、raw notification payload、provider error bodyを返さない
 - 期間、metric、limitはHTTP action側で検証する
 
@@ -68,4 +73,12 @@
 - `pnpm analytics:dev:production` はworkspace rootの `.env.production` を読んでVite dev serverを起動する
 - Vite dev proxyはworkspace rootの `.env` / `.env.local` を読み込む
 - 接続先Convexは `VITE_CONVEX_SITE_URL` を使い、未設定時は `VITE_CONVEX_URL` の `.convex.cloud` を `.convex.site` に変換する
-- Pages Functions / Vite dev proxy / Convex deployment側で同じ値の `SHIFTORI_INTERNAL_API_SECRET` を使う
+- Cloudflare Worker / Vite dev proxy / Convex deployment側で同じ値の `SHIFTORI_INTERNAL_API_SECRET` を使う
+
+## デプロイ
+
+- Cloudflare WorkersのRoot directoryは `apps/analytics-dashboard`
+- Build commandは `pnpm build`
+- Deploy commandは `npx wrangler deploy`
+- Static Assetsは `wrangler.jsonc` の `assets.directory = "./dist"` を使う
+- `/api/*` は `run_worker_first` でWorkerに先に通す

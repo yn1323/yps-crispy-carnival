@@ -1,7 +1,7 @@
 # AGENTS.md
 
 このディレクトリは、Shiftoriの分析KPIを可視化する本人用の内部BIアプリです。
-本体アプリの顧客向け導線とは分離し、Cloudflare Pagesの別project / 別サブドメインで運用します。
+本体アプリの顧客向け導線とは分離し、Cloudflare Workers + Static Assets の別Worker / 別サブドメインで運用します。
 
 主な目的は、日次蓄積されたproductionデータをサービス全体、通知、LINE、募集・提出、店舗別の角度から確認し、施策判断とデバッグを速くすることです。
 develop / previewはデバッグ目的で使い、画面内の環境切替ではなく、デプロイ環境やローカルenvが接続しているConvexを見ます。
@@ -11,14 +11,17 @@ develop / previewはデバッグ目的で使い、画面内の環境切替では
 共通化は、重複コストが明確になってから検討します。
 
 ブラウザからConvex public queryを直接呼ばないでください。
-データ取得は Cloudflare Pages Functions -> Convex HTTP action -> internal query のBFF経路に限定します。
+データ取得は Cloudflare Worker -> Convex HTTP action -> internal query のBFF経路に限定します。
 ブラウザbundleへConvex secret、Basic password、HTTP action secretを入れてはいけません。
 
 ローカル開発では、Vite dev proxyがworkspace rootの `.env` / `.env.local` を読みます。
 production接続でローカル起動したい場合は、`pnpm analytics:dev:production` を使ってworkspace rootの `.env.production` を読みます。
 接続先Convexは `VITE_CONVEX_SITE_URL` を使い、未設定なら `VITE_CONVEX_URL` の `.convex.cloud` を `.convex.site` に変換して使います。
-Pages Functions / Vite dev proxy / Convex HTTP action の共有secretは `SHIFTORI_INTERNAL_API_SECRET` に統一します。
+Cloudflare Worker / Vite dev proxy / Convex HTTP action の共有secretは `SHIFTORI_INTERNAL_API_SECRET` に統一します。
 これはVite dev server側だけの処理であり、secretをbrowser bundleへ渡してはいけません。
+
+Cloudflare Workers + Static Assets では `functions/` ディレクトリは使いません。
+本番BFFは `src/worker.ts` と `src/server/analyticsProxy.ts` に実装し、`wrangler.jsonc` の `run_worker_first` で `/api/*` をWorkerへ先に通します。
 
 画面やログに、staff email、manager email、token、raw notification payload、provider error bodyを出さないでください。
 返却DTOは画面に必要な集計値と店舗単位の情報に限定します。

@@ -8,6 +8,7 @@ import type {
   ShopDetailResponse,
   ShopRankingResponse,
   ShopRankingSort,
+  ShopStagesResponse,
 } from "./dto";
 
 export const getOverviewRef = makeFunctionReference<"query", { from: string; to: string }, OverviewResponse>(
@@ -35,6 +36,10 @@ export const getNotificationBreakdownRef = makeFunctionReference<
   { from: string; to: string },
   NotificationBreakdownResponse
 >;
+
+export const getShopStagesRef = makeFunctionReference<"query", { date: string }, ShopStagesResponse>(
+  "analyticsDashboard/queries:getShopStages",
+) as unknown as FunctionReference<"query", "internal", { date: string }, ShopStagesResponse>;
 
 export const getShopRankingRef = makeFunctionReference<
   "query",

@@ -97,6 +97,13 @@ export function parseAnalyticsDashboardRequest(input: unknown): ParseResult<Anal
     if (!range.ok) return range;
     return { ok: true, value: { kind, ...range.value } };
   }
+  if (kind === "shopStages") {
+    const date = readString(input, "date");
+    if (!date.ok) return date;
+    const parsedDate = parseDateParts(date.value);
+    if (!parsedDate.ok) return parsedDate;
+    return { ok: true, value: { kind, date: date.value } };
+  }
   if (kind === "shopRanking") {
     const date = readString(input, "date");
     if (!date.ok) return date;
