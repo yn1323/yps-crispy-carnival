@@ -1,4 +1,4 @@
-import { Box, Flex, Skeleton, Text } from "@chakra-ui/react";
+import { Box, type BoxProps, Flex, Skeleton, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 
 type ChartPanelProps = {
@@ -7,9 +7,17 @@ type ChartPanelProps = {
   action?: ReactNode;
   children: ReactNode;
   isLoading?: boolean;
+  contentHeight?: BoxProps["h"];
 };
 
-export const ChartPanel = ({ title, description, action, children, isLoading = false }: ChartPanelProps) => {
+export const ChartPanel = ({
+  title,
+  description,
+  action,
+  children,
+  isLoading = false,
+  contentHeight = "280px",
+}: ChartPanelProps) => {
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" p={4}>
       <Flex
@@ -30,7 +38,7 @@ export const ChartPanel = ({ title, description, action, children, isLoading = f
         </Box>
         {action}
       </Flex>
-      <Box h="280px" mt={4} minW={0}>
+      <Box h={contentHeight} mt={4} minW={0}>
         {isLoading ? <Skeleton h="full" w="full" /> : children}
       </Box>
     </Box>

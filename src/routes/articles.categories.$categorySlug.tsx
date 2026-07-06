@@ -18,7 +18,7 @@ export const Route = createFileRoute("/articles/categories/$categorySlug")({
       links: buildLinks({ canonical }),
       meta: [
         ...buildMeta({
-          title: `${category.meta.title}｜小さなお店のシフト作成ガイド`,
+          title: `${category.meta.title}｜シフト作成ガイド`,
           description: category.meta.description,
           canonical,
         }),

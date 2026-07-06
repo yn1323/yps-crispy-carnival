@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
       ...buildMeta({
         title: "LINEでシフト希望を集める無料シフト管理｜シフトリ",
         description:
-          "LINEやメールのリンクからスタッフはアプリ登録なしでシフト希望を提出。自動集計・未提出リマインド・確定シフトの共有まで無料。5〜30名の小規模店舗向けシフト管理ツール。",
+          "LINEやメールのリンクからスタッフはアプリ登録なしでシフト希望を提出。自動集計・未提出リマインド・確定シフトの共有まで無料で使えます。",
         canonical: "/",
       }),
       ...jsonLdMeta(createFaqPageJsonLd()),

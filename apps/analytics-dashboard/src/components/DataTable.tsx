@@ -61,6 +61,7 @@ export function DataTable<T>({
                   key={column.key}
                   lineHeight="1.6"
                   textAlign={column.align}
+                  verticalAlign="top"
                   whiteSpace={column.align ? "nowrap" : "normal"}
                 >
                   {column.render(row)}
