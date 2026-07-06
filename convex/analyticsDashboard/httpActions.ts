@@ -6,6 +6,7 @@ import {
   getOverviewRef,
   getShopDetailRef,
   getShopRankingRef,
+  getShopStagesRef,
 } from "./refs";
 import { ANALYTICS_DASHBOARD_MAX_BODY_BYTES, parseAnalyticsDashboardRequest } from "./schemas";
 
@@ -64,6 +65,9 @@ export const query = httpAction(async (ctx, request) => {
   }
   if (input.kind === "notificationBreakdown") {
     return jsonResponse(await ctx.runQuery(getNotificationBreakdownRef, { from: input.from, to: input.to }));
+  }
+  if (input.kind === "shopStages") {
+    return jsonResponse(await ctx.runQuery(getShopStagesRef, { date: input.date }));
   }
   if (input.kind === "shopRanking") {
     return jsonResponse(

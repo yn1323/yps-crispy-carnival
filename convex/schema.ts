@@ -479,6 +479,16 @@ const schema = defineSchema({
     lineFollowingStaffCount: v.number(),
     openRecruitmentCount: v.number(),
     pendingRegistrationRequestCount: v.number(),
+    // 店舗ライフサイクルステージ別の店舗数（analytics/stage.ts で分類。導入前の行は undefined）
+    shopStageCounts: v.optional(
+      v.object({
+        beforeStart: v.number(),
+        activeTrial: v.number(),
+        activeTrialDormant: v.number(),
+        retained: v.number(),
+        retainedDormant: v.number(),
+      }),
+    ),
     computedAt: v.number(),
   }).index("by_date", ["date"]),
 
@@ -492,6 +502,25 @@ const schema = defineSchema({
     lineLinkedStaffCount: v.number(),
     lineFollowingStaffCount: v.number(),
     openRecruitmentCount: v.number(),
+    // 店舗ライフサイクルステージ（analytics/stage.ts で分類。導入前の行は undefined）
+    stage: v.optional(
+      v.union(
+        v.literal("beforeStart"),
+        v.literal("activeTrial"),
+        v.literal("activeTrialDormant"),
+        v.literal("retained"),
+        v.literal("retainedDormant"),
+      ),
+    ),
+    // ステージ判定材料（判定理由の透明性とアラート算出のために保存する）
+    recruitmentCount: v.optional(v.number()), // 論理削除を除く募集数
+    confirmedRecruitmentCount: v.optional(v.number()),
+    hasSubmission: v.optional(v.boolean()),
+    hasNotificationSent: v.optional(v.boolean()),
+    hasCurrentOrFutureConfirmedShift: v.optional(v.boolean()),
+    lastActivityAt: v.optional(v.number()), // 主要イベントの最終発生時刻
+    openRecruitmentSubmittedCount: v.optional(v.number()), // 進行中募集への提出人数合計
+    openNotificationFailureCount: v.optional(v.number()), // 未解決の通知失敗件数
     computedAt: v.number(),
   })
     .index("by_date_shopId", ["date", "shopId"])

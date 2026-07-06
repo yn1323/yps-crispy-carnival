@@ -28,7 +28,9 @@
 
 | 画面 | パス | 用途 |
 |---|---|---|
-| Analytics Dashboard | `/` | サービス全体、募集・提出、通知、LINE、店舗別のKPIを期間指定で確認する |
+| Analytics Dashboard | `/` | 店舗ステージ、サービス全体、募集・提出、通知、LINE、店舗別のKPIを期間指定で確認する |
+
+「店舗ステージ」タブが最初に開く。ステージ別店舗数カード（開始前/立ち上がり中/継続中/休眠中）、要確認フィルタ付きの店舗一覧（最終到達ステップ・停止日数・気になる点タグ）、ステージ別店舗数の日次推移を表示する。分類ロジックは `convex/analytics/stage.ts`（`doc/features/analytics.md` 参照）。
 
 ## API一覧
 
@@ -52,6 +54,7 @@
 | `analyticsDashboard/queries:getOverview` | サービス全体スナップショットと主要イベント合計 |
 | `analyticsDashboard/queries:getEventTrends` | metric別の時系列 |
 | `analyticsDashboard/queries:getNotificationBreakdown` | 通知チャネル・結果・種別ごとの内訳 |
+| `analyticsDashboard/queries:getShopStages` | 指定日の店舗ステージ一覧（判定材料・最終到達ステップ・気になる点タグ付き） |
 | `analyticsDashboard/queries:getShopRanking` | 店舗別スナップショットのランキング |
 | `analyticsDashboard/queries:getShopDetail` | 1店舗の時系列ドリルダウン |
 

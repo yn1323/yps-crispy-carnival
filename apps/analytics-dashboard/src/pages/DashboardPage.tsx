@@ -2,7 +2,12 @@ import { Alert, Badge, Box, Button, Container, Flex, Grid, Heading, HStack, Stac
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { AnalyticsApiError, fetchAnalytics } from "@/api/analyticsClient";
-import type { NotificationBreakdownRow, ShopSnapshotDto } from "@/api/analyticsTypes";
+import type {
+  NotificationBreakdownRow,
+  ShopSnapshotDto,
+  ShopStageRowDto,
+  ShopStagesResponse,
+} from "@/api/analyticsTypes";
 import { ChartPanel } from "@/components/ChartPanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { FilterBar, type PeriodPreset } from "@/components/FilterBar";
@@ -23,10 +28,19 @@ import {
   RECRUITMENT_TREND_METRICS,
   SERVICE_TREND_METRICS,
 } from "@/domains/analytics/metrics";
+import {
+  filterStageRows,
+  STAGE_COLORS,
+  STAGE_FILTERS,
+  STAGE_LABELS,
+  type StageFilter,
+  stageCountsLineSeries,
+} from "@/domains/analytics/stages";
 
-type DashboardTab = "service" | "recruitment" | "notification" | "line" | "shops";
+type DashboardTab = "stages" | "service" | "recruitment" | "notification" | "line" | "shops";
 
 const TABS: { value: DashboardTab; label: string }[] = [
+  { value: "stages", label: "店舗ステージ" },
   { value: "service", label: "サービス全体" },
   { value: "recruitment", label: "募集・提出" },
   { value: "notification", label: "通知" },
@@ -42,7 +56,7 @@ const PERIOD_DAYS: Record<PeriodPreset, number> = {
   "365d": 365,
 };
 
-const TAB_EVENT_METRICS: Record<Exclude<DashboardTab, "notification" | "shops">, readonly string[]> = {
+const TAB_EVENT_METRICS: Record<Exclude<DashboardTab, "stages" | "notification" | "shops">, readonly string[]> = {
   line: LINE_TREND_METRICS,
   recruitment: RECRUITMENT_TREND_METRICS,
   service: SERVICE_TREND_METRICS,
@@ -71,7 +85,7 @@ function initialSearchState() {
   const tab = params.get("tab");
   return {
     period: period && period in PERIOD_DAYS ? (period as PeriodPreset) : "30d",
-    tab: TABS.some((item) => item.value === tab) ? (tab as DashboardTab) : "service",
+    tab: TABS.some((item) => item.value === tab) ? (tab as DashboardTab) : "stages",
   };
 }
 
@@ -113,6 +127,7 @@ export const DashboardPage = () => {
   const [period, setPeriod] = useState<PeriodPreset>(initial.period);
   const [activeTab, setActiveTab] = useState<DashboardTab>(initial.tab);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<StageFilter>("attention");
   const range = useMemo(() => rangeForPeriod(period), [period]);
 
   useEffect(() => {
@@ -127,7 +142,8 @@ export const DashboardPage = () => {
     queryFn: () => fetchAnalytics({ kind: "overview", from: range.from, to: range.to }),
   });
 
-  const tabMetrics = activeTab === "notification" || activeTab === "shops" ? [] : TAB_EVENT_METRICS[activeTab];
+  const tabMetrics =
+    activeTab === "stages" || activeTab === "notification" || activeTab === "shops" ? [] : TAB_EVENT_METRICS[activeTab];
   const eventTrendsQuery = useQuery({
     enabled: tabMetrics.length > 0,
     queryKey: ["analytics", "eventTrends", range.from, range.to, tabMetrics],
@@ -141,6 +157,12 @@ export const DashboardPage = () => {
   });
 
   const latestDate = overviewQuery.data?.data.latestServiceSnapshot?.date ?? range.to;
+  const shopStagesQuery = useQuery({
+    enabled: activeTab === "stages",
+    queryKey: ["analytics", "shopStages", latestDate],
+    queryFn: () => fetchAnalytics({ date: latestDate, kind: "shopStages" }),
+  });
+
   const shopRankingQuery = useQuery({
     enabled: activeTab === "shops",
     queryKey: ["analytics", "shopRanking", latestDate],
@@ -251,6 +273,18 @@ export const DashboardPage = () => {
               </TabButton>
             ))}
           </HStack>
+
+          {activeTab === "stages" ? (
+            <StagesSection
+              errorMessage={shopStagesQuery.error ? analyticsErrorMessage(shopStagesQuery.error) : null}
+              isLoading={shopStagesQuery.isLoading}
+              latestDate={latestDate}
+              onStageFilterChange={setStageFilter}
+              stageChartData={stageCountsLineSeries(overview?.serviceSnapshots ?? [])}
+              stageFilter={stageFilter}
+              stages={shopStagesQuery.data?.data ?? null}
+            />
+          ) : null}
 
           {activeTab === "service" ? (
             <Grid gap={4} templateColumns={{ base: "1fr", xl: "1.2fr 1fr" }}>
@@ -400,6 +434,166 @@ export const DashboardPage = () => {
     </Box>
   );
 };
+
+type StagesSectionProps = {
+  stages: ShopStagesResponse | null;
+  isLoading: boolean;
+  latestDate: string;
+  errorMessage: string | null;
+  stageFilter: StageFilter;
+  onStageFilterChange: (filter: StageFilter) => void;
+  stageChartData: ReturnType<typeof stageCountsLineSeries>;
+};
+
+function StagesSection({
+  stages,
+  isLoading,
+  latestDate,
+  errorMessage,
+  stageFilter,
+  onStageFilterChange,
+  stageChartData,
+}: StagesSectionProps) {
+  const counts = stages?.stageCounts ?? null;
+  const rows = stages?.rows ?? [];
+  const attentionCount = rows.filter((row) => row.alerts.length > 0).length;
+  const filteredRows = filterStageRows(rows, stageFilter);
+
+  return (
+    <Stack gap={4}>
+      {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
+      <Grid gap={3} templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
+        <KpiCard
+          accent="gray"
+          helper="スタッフ3人+募集2件+通知/提出が未達"
+          isLoading={isLoading}
+          label="開始前"
+          value={formatNumber(counts?.beforeStart)}
+        />
+        <KpiCard
+          accent="blue"
+          helper="実利用開始済み・確定3件未満"
+          isLoading={isLoading}
+          label="立ち上がり中"
+          value={formatNumber(counts?.activeTrial)}
+        />
+        <KpiCard
+          accent="green"
+          helper="確定3件以上+現在も稼働中"
+          isLoading={isLoading}
+          label="継続中"
+          value={formatNumber(counts?.retained)}
+        />
+        <KpiCard
+          accent="orange"
+          helper={
+            counts ? `立ち上がり後 ${counts.activeTrialDormant} / 継続後 ${counts.retainedDormant}` : "内訳を読み込み中"
+          }
+          isLoading={isLoading}
+          label="休眠中"
+          value={formatNumber(counts ? counts.activeTrialDormant + counts.retainedDormant : undefined)}
+        />
+      </Grid>
+
+      <ChartPanel
+        description={`${latestDate} 時点のステージ判定です。要確認 → 停止日数が長い順に並びます`}
+        isLoading={isLoading}
+        title="店舗一覧"
+      >
+        <Stack gap={3}>
+          <HStack gap={1} overflowX="auto">
+            {STAGE_FILTERS.map((filter) => (
+              <Button
+                key={filter.value}
+                colorPalette={stageFilter === filter.value ? "teal" : "gray"}
+                onClick={() => onStageFilterChange(filter.value)}
+                size="xs"
+                variant={stageFilter === filter.value ? "solid" : "outline"}
+              >
+                {filter.value === "attention" && attentionCount > 0
+                  ? `${filter.label} ${attentionCount}`
+                  : filter.label}
+              </Button>
+            ))}
+          </HStack>
+          <DataTable
+            columns={stageColumns()}
+            emptyText={stageFilter === "attention" ? "要確認の店舗はありません" : "該当する店舗はありません"}
+            getRowKey={(row) => row.shopId}
+            rows={filteredRows}
+          />
+          {stages && stages.unclassifiedCount > 0 ? (
+            <Text color="gray.500" fontSize="xs">
+              ステージ未集計 {stages.unclassifiedCount}店舗（次回の日次集計で反映されます）
+            </Text>
+          ) : null}
+        </Stack>
+      </ChartPanel>
+
+      <ChartPanel
+        description="ステージ別店舗数の日次推移です。開始前→立ち上がり率などの遷移KPIはこの推移から読みます"
+        title="ステージ推移"
+      >
+        <TrendChart data={stageChartData} keys={["開始前", "立ち上がり中", "継続中", "休眠中"]} />
+      </ChartPanel>
+    </Stack>
+  );
+}
+
+function stageColumns(): DataTableColumn<ShopStageRowDto>[] {
+  return [
+    { header: "店舗", key: "shop", render: (row) => row.shopName },
+    {
+      header: "ステージ",
+      key: "stage",
+      render: (row) =>
+        row.stage ? (
+          <Badge colorPalette={STAGE_COLORS[row.stage]} variant="subtle">
+            {STAGE_LABELS[row.stage]}
+          </Badge>
+        ) : (
+          <Badge colorPalette="gray" variant="outline">
+            未集計
+          </Badge>
+        ),
+    },
+    { header: "最終到達", key: "step", render: (row) => row.onboardingStepLabel ?? "-" },
+    {
+      align: "right",
+      header: "停止日数",
+      key: "stalled",
+      render: (row) => (row.stalledDays === null ? "-" : `${row.stalledDays}日`),
+    },
+    { align: "right", header: "スタッフ", key: "staff", render: (row) => formatNumber(row.shiftTargetStaffCount) },
+    { align: "right", header: "募集", key: "recruitment", render: (row) => formatNumber(row.recruitmentCount) },
+    { align: "right", header: "確定", key: "confirmed", render: (row) => formatNumber(row.confirmedRecruitmentCount) },
+    {
+      align: "center",
+      header: "現在/未来シフト",
+      key: "future",
+      render: (row) =>
+        row.hasCurrentOrFutureConfirmedShift === null ? "-" : row.hasCurrentOrFutureConfirmedShift ? "あり" : "なし",
+    },
+    {
+      header: "気になる点",
+      key: "alerts",
+      render: (row) =>
+        row.alerts.length === 0 ? (
+          <Text color="gray.400" fontSize="xs">
+            -
+          </Text>
+        ) : (
+          <HStack gap={1} wrap="wrap">
+            {row.alerts.map((alert) => (
+              <Badge key={alert} colorPalette="orange" variant="subtle">
+                {alert}
+              </Badge>
+            ))}
+          </HStack>
+        ),
+    },
+  ];
+}
 
 function shopRankingColumns(onSelect: (shopId: string) => void): DataTableColumn<ShopSnapshotDto>[] {
   return [

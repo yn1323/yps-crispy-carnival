@@ -1,19 +1,20 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { internalMutation } from "../_generated/server";
 import { addDays, jstDayRangeMs, todayJST } from "../_lib/dateFormat";
 import {
   ANALYTICS_AGGREGATION_PAGE_SIZE,
   ANALYTICS_SHOP_SNAPSHOT_PAGE_SIZE,
-  DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
+  ANALYTICS_SHOP_STAGE_SCAN_LIMIT,
   SHIFT_BOARD_STAFF_LIMIT,
 } from "../constants";
 import { describeNotificationFailureContext } from "../notificationOutbox/failureResend";
 import { notificationContextForJob } from "../notificationOutbox/mutations";
 import { ANALYTICS_METRICS, allNotificationEventMetrics, notificationMetric } from "./metrics";
 import { setDailyEventCount, setServiceSnapshot, setShopSnapshot } from "./mutations";
+import { classifyShopStage, type ShopStageInputs } from "./stage";
 
 /**
  * 分析KPIの日次集計。cron（03:00 JST）が前日分を集計する。
@@ -53,7 +54,7 @@ export const aggregateShopSnapshots = internalMutation({
 
     for (const shop of page.page) {
       if (shop.isDeleted) continue;
-      const values = await computeShopSnapshotValues(ctx, shop._id);
+      const values = await computeShopSnapshotValues(ctx, shop);
       await setShopSnapshot(ctx, { date, shopId: shop._id, ...values, computedAt: Date.now() });
     }
 
@@ -73,7 +74,8 @@ export const aggregateShopSnapshots = internalMutation({
   },
 });
 
-async function computeShopSnapshotValues(ctx: MutationCtx, shopId: Id<"shops">) {
+async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">) {
+  const shopId = shop._id;
   const staffs = await ctx.db
     .query("staffs")
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
@@ -92,18 +94,79 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shopId: Id<"shops">) 
     .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
     .first();
 
-  const openRecruitments = await ctx.db
+  const recruitments = await ctx.db
     .query("recruitments")
-    .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "open"))
-    .take(DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT);
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+    .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
+  const openRecruitments = recruitments.filter((recruitment) => recruitment.status === "open");
+  const confirmedRecruitments = recruitments.filter((recruitment) => recruitment.status === "confirmed");
+  const today = todayJST();
+  const hasCurrentOrFutureConfirmedShift = confirmedRecruitments.some((recruitment) => recruitment.periodEnd >= today);
+
+  const recruitmentStats = await ctx.db
+    .query("recruitmentStats")
+    .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+    .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
+  const submittedByRecruitmentId = new Map(recruitmentStats.map((stats) => [stats.recruitmentId, stats]));
+  const hasSubmission = recruitmentStats.some((stats) => stats.submittedCount > 0);
+  const openRecruitmentSubmittedCount = openRecruitments.reduce(
+    (sum, recruitment) => sum + (submittedByRecruitmentId.get(recruitment._id)?.submittedCount ?? 0),
+    0,
+  );
+
+  // dry-run（suppressDelivery）だけの店舗を「通知送信あり」にしないため、先頭数件から実配送を探す
+  const sentNotifications = await ctx.db
+    .query("notificationOutbox")
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "sent"))
+    .take(20);
+  const hasNotificationSent = sentNotifications.some((job) => job.payload.suppressDelivery !== true);
+
+  const openNotificationFailures = await ctx.db
+    .query("notificationFailureInbox")
+    .withIndex("by_shopId_status_lastFailedAt", (q) => q.eq("shopId", shopId).eq("status", "open"))
+    .take(ANALYTICS_SHOP_STAGE_SCAN_LIMIT);
+
+  // 主要イベント（店舗作成・スタッフ追加・LINE連携・募集作成・確定・催促・下書き保存・提出）の最終発生時刻
+  const lastActivityAt = Math.max(
+    shop._creationTime,
+    ...staffs.map((staff) => staff._creationTime),
+    ...linkedAccounts.map((account) => account.linkedAt),
+    ...recruitments.flatMap((recruitment) => [
+      recruitment._creationTime,
+      recruitment.confirmedAt ?? 0,
+      recruitment.lastReminderSentAt ?? 0,
+      recruitment.draftSavedAt ?? 0,
+    ]),
+    ...recruitmentStats.filter((stats) => stats.submittedCount > 0).map((stats) => stats.updatedAt),
+  );
+
+  const stageInputs: ShopStageInputs = {
+    realStaffCount: staffs.filter((staff) => staff.excludedFromShift !== true).length,
+    recruitmentCount: recruitments.length,
+    confirmedRecruitmentCount: confirmedRecruitments.length,
+    hasSubmission,
+    hasNotificationSent,
+    hasCurrentOrFutureConfirmedShift,
+    hasOpenRecruitment: openRecruitments.length > 0,
+    lastActivityAt,
+  };
 
   return {
     planKey: billingState?.planKey ?? ("free" as const),
     staffCount: staffs.length,
-    shiftTargetStaffCount: staffs.filter((staff) => staff.excludedFromShift !== true).length,
+    shiftTargetStaffCount: stageInputs.realStaffCount,
     lineLinkedStaffCount: linkedAccounts.length,
     lineFollowingStaffCount: linkedAccounts.filter((account) => account.following).length,
-    openRecruitmentCount: openRecruitments.filter((recruitment) => !recruitment.isDeleted).length,
+    openRecruitmentCount: openRecruitments.length,
+    stage: classifyShopStage(stageInputs, Date.now()),
+    recruitmentCount: stageInputs.recruitmentCount,
+    confirmedRecruitmentCount: stageInputs.confirmedRecruitmentCount,
+    hasSubmission,
+    hasNotificationSent,
+    hasCurrentOrFutureConfirmedShift,
+    lastActivityAt,
+    openRecruitmentSubmittedCount,
+    openNotificationFailureCount: openNotificationFailures.length,
   };
 }
 
@@ -122,6 +185,13 @@ const serviceAccValidator = v.object({
   lineFollowingStaffCount: v.number(),
   openRecruitmentCount: v.number(),
   pendingRegistrationRequestCount: v.number(),
+  stageCounts: v.object({
+    beforeStart: v.number(),
+    activeTrial: v.number(),
+    activeTrialDormant: v.number(),
+    retained: v.number(),
+    retainedDormant: v.number(),
+  }),
 });
 
 function emptyServiceAcc() {
@@ -136,6 +206,13 @@ function emptyServiceAcc() {
     lineFollowingStaffCount: 0,
     openRecruitmentCount: 0,
     pendingRegistrationRequestCount: 0,
+    stageCounts: {
+      beforeStart: 0,
+      activeTrial: 0,
+      activeTrialDormant: 0,
+      retained: 0,
+      retainedDormant: 0,
+    },
   };
 }
 
@@ -163,6 +240,8 @@ export const rollupServiceSnapshot = internalMutation({
         acc.lineLinkedStaffCount += snapshot.lineLinkedStaffCount;
         acc.lineFollowingStaffCount += snapshot.lineFollowingStaffCount;
         acc.openRecruitmentCount += snapshot.openRecruitmentCount;
+        // Phase 1 導入前の古い行には stage がない
+        if (snapshot.stage) acc.stageCounts[snapshot.stage] += 1;
       }
 
       await ctx.scheduler.runAfter(0, internal.analytics.dailyAggregation.rollupServiceSnapshot, {
@@ -204,6 +283,7 @@ export const rollupServiceSnapshot = internalMutation({
       lineFollowingStaffCount: acc.lineFollowingStaffCount,
       openRecruitmentCount: acc.openRecruitmentCount,
       pendingRegistrationRequestCount: acc.pendingRegistrationRequestCount,
+      shopStageCounts: acc.stageCounts,
       computedAt: Date.now(),
     });
     await ctx.scheduler.runAfter(0, internal.analytics.dailyAggregation.aggregateNotificationEvents, {

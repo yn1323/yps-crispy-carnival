@@ -4,6 +4,13 @@ import type { QueryCtx } from "../_generated/server";
 import { internalQuery } from "../_generated/server";
 import { ANALYTICS_METRICS, allNotificationEventMetrics, notificationMetric } from "../analytics/metrics";
 import { fetchEventSeries, fetchServiceSnapshotRange, fetchShopSnapshotSeries } from "../analytics/queries";
+import {
+  daysSince,
+  lastReachedOnboardingStep,
+  onboardingStepLabel,
+  type ShopStageInputs,
+  shopStageAlerts,
+} from "../analytics/stage";
 import type {
   EventCountDto,
   EventMetricTotalDto,
@@ -11,6 +18,8 @@ import type {
   ServiceSnapshotDto,
   ShopRankingSort,
   ShopSnapshotDto,
+  ShopStageCounts,
+  ShopStageRowDto,
 } from "./dto";
 import { ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT } from "./schemas";
 
@@ -37,6 +46,7 @@ function toServiceSnapshotDto(doc: Doc<"analyticsDailyServiceSnapshots">): Servi
     lineFollowingStaffCount: doc.lineFollowingStaffCount,
     openRecruitmentCount: doc.openRecruitmentCount,
     pendingRegistrationRequestCount: doc.pendingRegistrationRequestCount,
+    shopStageCounts: doc.shopStageCounts ?? null,
     computedAt: doc.computedAt,
   };
 }
@@ -178,6 +188,99 @@ export const getNotificationBreakdown = internalQuery({
       range: args,
       rows,
       series,
+    };
+  },
+});
+
+function emptyStageCounts(): ShopStageCounts {
+  return { beforeStart: 0, activeTrial: 0, activeTrialDormant: 0, retained: 0, retainedDormant: 0 };
+}
+
+async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">): Promise<ShopStageRowDto> {
+  const base = {
+    shopId: doc.shopId,
+    shopName: await getShopName(ctx, doc.shopId),
+    planKey: doc.planKey,
+    staffCount: doc.staffCount,
+    shiftTargetStaffCount: doc.shiftTargetStaffCount,
+    lineLinkedStaffCount: doc.lineLinkedStaffCount,
+    openRecruitmentCount: doc.openRecruitmentCount,
+    computedAt: doc.computedAt,
+  };
+  // ステージ集計導入前のスナップショット（再集計されれば埋まる）
+  if (doc.stage === undefined) {
+    return {
+      ...base,
+      stage: null,
+      recruitmentCount: null,
+      confirmedRecruitmentCount: null,
+      hasSubmission: null,
+      hasNotificationSent: null,
+      hasCurrentOrFutureConfirmedShift: null,
+      lastActivityAt: null,
+      stalledDays: null,
+      onboardingStepLabel: null,
+      alerts: [],
+    };
+  }
+
+  const inputs: ShopStageInputs = {
+    realStaffCount: doc.shiftTargetStaffCount,
+    recruitmentCount: doc.recruitmentCount ?? 0,
+    confirmedRecruitmentCount: doc.confirmedRecruitmentCount ?? 0,
+    hasSubmission: doc.hasSubmission ?? false,
+    hasNotificationSent: doc.hasNotificationSent ?? false,
+    hasCurrentOrFutureConfirmedShift: doc.hasCurrentOrFutureConfirmedShift ?? false,
+    hasOpenRecruitment: doc.openRecruitmentCount > 0,
+    lastActivityAt: doc.lastActivityAt ?? doc.computedAt,
+  };
+  return {
+    ...base,
+    stage: doc.stage,
+    recruitmentCount: inputs.recruitmentCount,
+    confirmedRecruitmentCount: inputs.confirmedRecruitmentCount,
+    hasSubmission: inputs.hasSubmission,
+    hasNotificationSent: inputs.hasNotificationSent,
+    hasCurrentOrFutureConfirmedShift: inputs.hasCurrentOrFutureConfirmedShift,
+    lastActivityAt: inputs.lastActivityAt,
+    stalledDays: daysSince(inputs.lastActivityAt, doc.computedAt),
+    onboardingStepLabel: onboardingStepLabel(lastReachedOnboardingStep(inputs)),
+    alerts: shopStageAlerts({
+      inputs,
+      stage: doc.stage,
+      openRecruitmentSubmittedCount: doc.openRecruitmentSubmittedCount ?? 0,
+      openNotificationFailureCount: doc.openNotificationFailureCount ?? 0,
+      nowMs: doc.computedAt,
+    }),
+  };
+}
+
+export const getShopStages = internalQuery({
+  args: { date: v.string() },
+  handler: async (ctx, args) => {
+    const snapshots = await ctx.db
+      .query("analyticsDailyShopSnapshots")
+      .withIndex("by_date_shopId", (q) => q.eq("date", args.date))
+      .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT);
+
+    const stageCounts = emptyStageCounts();
+    let unclassifiedCount = 0;
+    const rows: ShopStageRowDto[] = [];
+    for (const snapshot of snapshots) {
+      const row = await toShopStageRowDto(ctx, snapshot);
+      rows.push(row);
+      if (row.stage === null) unclassifiedCount += 1;
+      else stageCounts[row.stage] += 1;
+    }
+    // 要確認（アラートあり）を先頭に、次に停止日数が長い順
+    rows.sort((a, b) => b.alerts.length - a.alerts.length || (b.stalledDays ?? 0) - (a.stalledDays ?? 0));
+
+    return {
+      kind: "shopStages" as const,
+      date: args.date,
+      stageCounts,
+      unclassifiedCount,
+      rows,
     };
   },
 });

@@ -13,6 +13,10 @@ export type {
   ShopRankingResponse,
   ShopRankingSort,
   ShopSnapshotDto,
+  ShopStageCounts,
+  ShopStageKey,
+  ShopStageRowDto,
+  ShopStagesResponse,
 } from "@convex/analyticsDashboard/dto";
 
 export type AnalyticsApiEnvelope<T> = {
