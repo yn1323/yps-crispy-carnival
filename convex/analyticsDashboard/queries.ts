@@ -281,9 +281,11 @@ function emptyStageCounts(): ShopStageCounts {
 }
 
 async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">): Promise<ShopStageRowDto> {
+  const shop = await ctx.db.get(doc.shopId);
   const base = {
     shopId: doc.shopId,
-    shopName: await getShopName(ctx, doc.shopId),
+    shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
+    shopCreatedAt: shop?._creationTime ?? null,
     planKey: doc.planKey,
     staffCount: doc.staffCount,
     shiftTargetStaffCount: doc.shiftTargetStaffCount,

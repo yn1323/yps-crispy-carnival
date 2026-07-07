@@ -62,6 +62,7 @@ export type StageTransitionSummaryDto = {
 export type ShopStageRowDto = {
   shopId: string;
   shopName: string;
+  shopCreatedAt: number | null;
   planKey: AnalyticsPlanKey;
   /** ステージ集計導入前のスナップショットは null（再集計待ち） */
   stage: ShopStageKey | null;

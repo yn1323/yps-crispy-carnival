@@ -27,6 +27,19 @@ const logicProject = defineConfig({
   },
 });
 
+const analyticsDashboardProject = defineConfig({
+  root: path.join(dirname, "apps/analytics-dashboard"),
+  plugins: [
+    // biome-ignore lint/suspicious/noExplicitAny: temp
+    tsconfigPaths({ projects: [path.join(dirname, "apps/analytics-dashboard/tsconfig.json")] }) as any,
+  ],
+  test: {
+    name: "analytics-dashboard",
+    include: ["./src/**/*.test.ts"],
+    exclude: ["node_modules"],
+  },
+});
+
 const uiProject = defineConfig({
   plugins: [
     // biome-ignore lint/suspicious/noExplicitAny: temp
@@ -83,6 +96,6 @@ const convexScenarioProject = defineConfig({
 
 export default defineProject({
   test: {
-    projects: [logicProject, uiProject, convexLogicProject, convexScenarioProject],
+    projects: [logicProject, analyticsDashboardProject, uiProject, convexLogicProject, convexScenarioProject],
   },
 });

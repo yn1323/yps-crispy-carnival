@@ -24,8 +24,9 @@ import type {
   StageTransitionSummaryDto,
 } from "@/api/analyticsTypes";
 import { formatDateTime, formatNumber, formatPercent } from "@/domains/analytics/format";
+import { BeforeStartTabContent } from "./BeforeStartTabContent";
 
-type DashboardView = "summary" | "beforeStart" | "activation" | "retention" | "dormant";
+type DashboardView = "summary" | "beforeStart" | "activation" | "retention" | "dormant" | "shops";
 
 type DashboardTopProps = {
   env?: {
@@ -48,8 +49,9 @@ const VIEW_TABS: { value: DashboardView; label: string }[] = [
   { value: "summary", label: "全体サマリー" },
   { value: "beforeStart", label: "開始前" },
   { value: "activation", label: "立ち上がり" },
-  { value: "retention", label: "継続店舗" },
+  { value: "retention", label: "継続" },
   { value: "dormant", label: "休眠" },
+  { value: "shops", label: "店舗一覧" },
 ];
 
 const CARD_TONES = {
@@ -737,16 +739,22 @@ function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapsho
           <ResponsiveContainer height="100%" width="100%">
             <LineChart data={data} margin={{ bottom: 8, left: 0, right: 12, top: 8 }}>
               <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4" vertical={false} />
-              <XAxis axisLine={{ stroke: "#d1d5db" }} dataKey="date" tick={{ fill: "#6b7280", fontSize: 12 }} />
+              <XAxis axisLine={{ stroke: "#d1d5db" }} dataKey="date" tick={{ fill: "#6b7280", fontSize: 10 }} />
               <YAxis
                 allowDecimals={false}
                 axisLine={false}
-                tick={{ fill: "#6b7280", fontSize: 12 }}
+                tick={{ fill: "#6b7280", fontSize: 10 }}
                 tickLine={false}
                 width={36}
               />
               <Tooltip formatter={(value, name) => [`${formatNumber(Number(value))}店舗`, name]} />
-              <Legend align="center" height={36} iconType="circle" verticalAlign="top" />
+              <Legend
+                align="center"
+                height={32}
+                iconType="circle"
+                verticalAlign="top"
+                wrapperStyle={{ fontSize: 12 }}
+              />
               {STAGE_CHART_SERIES.map((series) => (
                 <Line
                   key={series.key}
@@ -830,30 +838,38 @@ export const DashboardTop = ({
             {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
             {stagesErrorMessage ? <ErrorPanel message={stagesErrorMessage} /> : null}
 
-            <Box>
-              <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
-                店舗ステージ別の店舗数
-              </Text>
-              <StageCards
-                activeView={activeView}
-                counts={counts}
-                isLoading={isLoading}
-                previousCounts={previousCounts}
-              />
-            </Box>
+            {activeView === "beforeStart" ? null : (
+              <Box>
+                <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
+                  店舗ステージ別の店舗数
+                </Text>
+                <StageCards
+                  activeView={activeView}
+                  counts={counts}
+                  isLoading={isLoading}
+                  previousCounts={previousCounts}
+                />
+              </Box>
+            )}
 
-            <StageTrendPanel isLoading={isLoading} snapshots={serviceSnapshots} />
+            {activeView === "beforeStart" ? (
+              <BeforeStartTabContent isLoading={isLoading} previousStages={previousStages} stages={stages} />
+            ) : (
+              <>
+                <StageTrendPanel isLoading={isLoading} snapshots={serviceSnapshots} />
 
-            <StageTransitionPanel
-              activeView={activeView}
-              counts={counts}
-              isLoading={isLoading}
-              latest={latest}
-              previousCounts={previousCounts}
-              previousLatest={previousLatest}
-              previousTransitions={previousTransitions}
-              transitions={transitions}
-            />
+                <StageTransitionPanel
+                  activeView={activeView}
+                  counts={counts}
+                  isLoading={isLoading}
+                  latest={latest}
+                  previousCounts={previousCounts}
+                  previousLatest={previousLatest}
+                  previousTransitions={previousTransitions}
+                  transitions={transitions}
+                />
+              </>
+            )}
           </Stack>
         </Box>
       </Container>
