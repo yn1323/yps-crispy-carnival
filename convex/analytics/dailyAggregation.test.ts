@@ -219,7 +219,7 @@ describe("analytics/dailyAggregation", () => {
       lineLinkedStaffCount: 2,
       lineFollowingStaffCount: 1,
       openRecruitmentCount: 1,
-      // 実スタッフ2人 + 現在/未来シフトあり + 今日の確定シフトなしなので立ち上がり中。判定材料も保存される
+      // 実スタッフ2人 + 現在/未来シフトあり + 今日の確定シフトなしなので立ち上げ。判定材料も保存される
       stage: "activeTrial",
       recruitmentCount: 2,
       confirmedRecruitmentCount: 1,

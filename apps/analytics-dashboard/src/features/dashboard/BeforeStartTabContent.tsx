@@ -291,7 +291,7 @@ export function BeforeStartTabContent({
           開始前の店舗一覧と状況
         </Text>
         <Grid gap={{ base: 4, lg: 5 }} templateColumns={{ base: "1fr", lg: "0.95fr 1.05fr" }}>
-          <Grid gap={4} templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))", lg: "repeat(2, 1fr)" }}>
+          <Grid gap={4} templateColumns={{ base: "repeat(2, minmax(0, 1fr))", lg: "repeat(2, 1fr)" }}>
             <BeforeStartSummaryCard
               delta={numberDelta(rows.length, previousRows.length)}
               isLoading={isLoading}

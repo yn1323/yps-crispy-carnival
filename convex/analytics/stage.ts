@@ -6,7 +6,7 @@
  *
  * - beforeStart:        下記ステージに該当しない
  * - activeTrial:        スタッフ2人以上で現在/未来の募集または確定シフトがあり、今日に被る確定シフトはない
- * - activeTrialDormant: 過去に立ち上がり/継続だったが、現在/未来シフトと直近30日活動がない
+ * - activeTrialDormant: 過去に立ち上げ/継続だったが、現在/未来シフトと直近30日活動がない
  * - retained:           スタッフ2人以上で今日に被る確定シフトがある
  * - retainedDormant:    過去に継続だったが、現在/未来シフトと直近30日活動がない
  */
@@ -42,7 +42,7 @@ export type ShopStageInputs = {
   hasCurrentConfirmedShift: boolean;
   /** 進行中（open）の募集があるか */
   hasOpenRecruitment: boolean;
-  /** 過去に立ち上がり中または継続だったことがあるか */
+  /** 過去に立ち上げまたは継続だったことがあるか */
   hadActiveOrRetainedStage: boolean;
   /** 過去に継続だったことがあるか */
   hadRetainedStage: boolean;

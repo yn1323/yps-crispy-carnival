@@ -2,7 +2,7 @@ import type { ServiceSnapshotDto, ShopStageKey, ShopStageRowDto } from "@/api/an
 
 export const STAGE_LABELS: Record<ShopStageKey, string> = {
   beforeStart: "開始前",
-  activeTrial: "立ち上がり中",
+  activeTrial: "立ち上げ",
   activeTrialDormant: "休眠",
   retained: "継続",
   retainedDormant: "休眠",
@@ -21,7 +21,7 @@ export type StageFilter = "attention" | "all" | "beforeStart" | "activeTrial" | 
 export const STAGE_FILTERS: { value: StageFilter; label: string }[] = [
   { value: "attention", label: "要確認" },
   { value: "beforeStart", label: "開始前" },
-  { value: "activeTrial", label: "立ち上がり中" },
+  { value: "activeTrial", label: "立ち上げ" },
   { value: "retained", label: "継続" },
   { value: "dormant", label: "休眠" },
   { value: "all", label: "すべて" },
@@ -199,7 +199,7 @@ export function stageCountsLineSeries(snapshots: ServiceSnapshotDto[]) {
       {
         date: snapshot.date,
         開始前: counts.beforeStart,
-        立ち上がり中: counts.activeTrial,
+        立ち上げ: counts.activeTrial,
         継続: counts.retained,
         休眠: counts.activeTrialDormant + counts.retainedDormant,
       },

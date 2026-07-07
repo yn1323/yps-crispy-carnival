@@ -280,12 +280,32 @@ function emptyStageCounts(): ShopStageCounts {
   return { beforeStart: 0, activeTrial: 0, activeTrialDormant: 0, retained: 0, retainedDormant: 0 };
 }
 
+async function getFirstRecruitmentForDashboard(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">) {
+  const recruitment = await ctx.db
+    .query("recruitments")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", doc.shopId).eq("isDeleted", false))
+    .order("asc")
+    .first();
+  if (!recruitment || recruitment._creationTime > doc.computedAt) {
+    return { firstRecruitmentCreatedAt: null, firstRecruitmentDeadline: null };
+  }
+  return {
+    firstRecruitmentCreatedAt: recruitment._creationTime,
+    firstRecruitmentDeadline: recruitment.deadline,
+  };
+}
+
 async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">): Promise<ShopStageRowDto> {
-  const shop = await ctx.db.get(doc.shopId);
+  const [shop, firstRecruitment] = await Promise.all([
+    ctx.db.get(doc.shopId),
+    getFirstRecruitmentForDashboard(ctx, doc),
+  ]);
   const base = {
     shopId: doc.shopId,
     shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
     shopCreatedAt: shop?._creationTime ?? null,
+    firstRecruitmentCreatedAt: firstRecruitment.firstRecruitmentCreatedAt,
+    firstRecruitmentDeadline: firstRecruitment.firstRecruitmentDeadline,
     planKey: doc.planKey,
     staffCount: doc.staffCount,
     shiftTargetStaffCount: doc.shiftTargetStaffCount,

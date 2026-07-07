@@ -22,6 +22,8 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     emailNotificationSentCount: null,
     hadActiveOrRetainedStage: false,
     hadRetainedStage: false,
+    firstRecruitmentCreatedAt: null,
+    firstRecruitmentDeadline: null,
     hasCurrentConfirmedShift: false,
     hasCurrentOrFutureConfirmedShift: false,
     hasNotificationSent: false,

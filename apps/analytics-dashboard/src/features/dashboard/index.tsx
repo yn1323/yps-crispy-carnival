@@ -24,6 +24,7 @@ import type {
   StageTransitionSummaryDto,
 } from "@/api/analyticsTypes";
 import { formatDateTime, formatNumber, formatPercent } from "@/domains/analytics/format";
+import { ActivationTabContent } from "./ActivationTabContent";
 import { BeforeStartTabContent } from "./BeforeStartTabContent";
 
 type DashboardView = "summary" | "beforeStart" | "activation" | "retention" | "dormant" | "shops";
@@ -48,7 +49,7 @@ type DashboardTopProps = {
 const VIEW_TABS: { value: DashboardView; label: string }[] = [
   { value: "summary", label: "全体サマリー" },
   { value: "beforeStart", label: "開始前" },
-  { value: "activation", label: "立ち上がり" },
+  { value: "activation", label: "立ち上げ" },
   { value: "retention", label: "継続" },
   { value: "dormant", label: "休眠" },
   { value: "shops", label: "店舗一覧" },
@@ -83,7 +84,7 @@ const CARD_TONES = {
 
 const STAGE_CHART_SERIES = [
   { color: "#2563eb", key: "beforeStart", label: "開始前" },
-  { color: "#ea580c", key: "activeTrial", label: "立ち上がり中" },
+  { color: "#ea580c", key: "activeTrial", label: "立ち上げ" },
   { color: "#16a34a", key: "retained", label: "継続" },
   { color: "#7c3aed", key: "dormant", label: "休眠" },
 ] as const;
@@ -307,7 +308,7 @@ function StageCards({
         delta={numberDelta(counts?.activeTrial, previousCounts?.activeTrial)}
         icon="rocket"
         isLoading={isLoading}
-        label="立ち上がり中"
+        label="立ち上げ"
         selected={selected.activation}
         tone="launch"
         value={counts?.activeTrial}
@@ -448,14 +449,14 @@ function TransitionFlow({
           <FlowStage tone="activation">開始前</FlowStage>
           <FlowConnector
             accent="blue.600"
-            label="開始前 → 立ち上がり率"
+            label="開始前 → 立ち上げ率"
             metric={transitions?.beforeStartToActiveTrial}
             previousMetric={previousTransitions?.beforeStartToActiveTrial}
           />
-          <FlowStage tone="launch">立ち上がり中</FlowStage>
+          <FlowStage tone="launch">立ち上げ</FlowStage>
           <FlowConnector
             accent="orange.600"
-            label="立ち上がり → 継続率"
+            label="立ち上げ → 継続率"
             metric={transitions?.activeTrialToRetained}
             previousMetric={previousTransitions?.activeTrialToRetained}
           />
@@ -481,13 +482,13 @@ function TransitionFlow({
       <Grid display={{ base: "grid", lg: "none" }} gap={3} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }}>
         <TransitionRate
           accent="blue.600"
-          label="開始前 → 立ち上がり率"
+          label="開始前 → 立ち上げ率"
           metric={transitions?.beforeStartToActiveTrial}
           previousMetric={previousTransitions?.beforeStartToActiveTrial}
         />
         <TransitionRate
           accent="orange.600"
-          label="立ち上がり → 継続率"
+          label="立ち上げ → 継続率"
           metric={transitions?.activeTrialToRetained}
           previousMetric={previousTransitions?.activeTrialToRetained}
         />
@@ -551,7 +552,7 @@ function FocusPanel({
         ? [
             {
               delta: numberDelta(counts?.activeTrial, previousCounts?.activeTrial),
-              label: "立ち上がり中",
+              label: "立ち上げ",
               value: `${formatNumber(counts?.activeTrial)}店舗`,
             },
             {
@@ -838,7 +839,7 @@ export const DashboardTop = ({
             {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
             {stagesErrorMessage ? <ErrorPanel message={stagesErrorMessage} /> : null}
 
-            {activeView === "beforeStart" ? null : (
+            {activeView === "beforeStart" || activeView === "activation" ? null : (
               <Box>
                 <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
                   店舗ステージ別の店舗数
@@ -854,6 +855,8 @@ export const DashboardTop = ({
 
             {activeView === "beforeStart" ? (
               <BeforeStartTabContent isLoading={isLoading} previousStages={previousStages} stages={stages} />
+            ) : activeView === "activation" ? (
+              <ActivationTabContent isLoading={isLoading} previousStages={previousStages} stages={stages} />
             ) : (
               <>
                 <StageTrendPanel isLoading={isLoading} snapshots={serviceSnapshots} />

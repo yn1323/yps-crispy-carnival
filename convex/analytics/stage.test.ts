@@ -68,11 +68,11 @@ describe("classifyShopStage", () => {
     expect(classifyShopStage(retainedInputs({ realStaffCount: 1 }), NOW)).toBe("beforeStart");
   });
 
-  it("スタッフ2人以上 + 現在/未来の募集中シフトあり + 今日の確定シフトなし = 立ち上がり中", () => {
+  it("スタッフ2人以上 + 現在/未来の募集中シフトあり + 今日の確定シフトなし = 立ち上げ", () => {
     expect(classifyShopStage(activeTrialInputs({ hasOpenRecruitment: true }), NOW)).toBe("activeTrial");
   });
 
-  it("スタッフ2人以上 + 未来の確定シフトあり + 今日の確定シフトなし = 立ち上がり中", () => {
+  it("スタッフ2人以上 + 未来の確定シフトあり + 今日の確定シフトなし = 立ち上げ", () => {
     expect(
       classifyShopStage(
         activeTrialInputs({
@@ -92,7 +92,7 @@ describe("classifyShopStage", () => {
     expect(classifyShopStage(retainedInputs({ hasOpenRecruitment: true }), NOW)).toBe("retained");
   });
 
-  it("過去に立ち上がり中または継続で、現在/未来シフトと直近30日活動がなければ休眠", () => {
+  it("過去に立ち上げまたは継続で、現在/未来シフトと直近30日活動がなければ休眠", () => {
     expect(classifyShopStage(dormantInputs(), NOW)).toBe("activeTrialDormant");
   });
 

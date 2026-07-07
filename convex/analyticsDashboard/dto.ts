@@ -88,6 +88,8 @@ export type ShopStageRowDto = {
   lastRecruitmentCreatedAt: number | null;
   lastRecruitmentConfirmedAt: number | null;
   lastConfirmedRecruitmentLeadTimeMs: number | null;
+  firstRecruitmentCreatedAt: number | null;
+  firstRecruitmentDeadline: string | null;
   hasSubmission: boolean | null;
   hasNotificationSent: boolean | null;
   hasCurrentOrFutureConfirmedShift: boolean | null;
