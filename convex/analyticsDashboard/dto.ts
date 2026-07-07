@@ -90,6 +90,9 @@ export type ShopStageRowDto = {
   hasSubmission: boolean | null;
   hasNotificationSent: boolean | null;
   hasCurrentOrFutureConfirmedShift: boolean | null;
+  hasCurrentConfirmedShift: boolean | null;
+  hadActiveOrRetainedStage: boolean | null;
+  hadRetainedStage: boolean | null;
   lastActivityAt: number | null;
   /** ステージ判定の基準時刻（対象JST日の終端） */
   stageReferenceAt: number | null;

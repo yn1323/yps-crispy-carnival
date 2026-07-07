@@ -18,18 +18,42 @@ function inputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
     hasSubmission: false,
     hasNotificationSent: false,
     hasCurrentOrFutureConfirmedShift: false,
+    hasCurrentConfirmedShift: false,
     hasOpenRecruitment: false,
+    hadActiveOrRetainedStage: false,
+    hadRetainedStage: false,
     lastActivityAt: NOW,
     ...overrides,
   };
 }
 
-/** 実利用開始条件（スタッフ3人 + 募集2件 + 通知あり）を満たした状態 */
-function activatedInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
+function activeTrialInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
   return inputs({
-    realStaffCount: 3,
-    recruitmentCount: 2,
-    hasNotificationSent: true,
+    realStaffCount: 2,
+    recruitmentCount: 1,
+    hasOpenRecruitment: true,
+    lastActivityAt: NOW,
+    ...overrides,
+  });
+}
+
+function retainedInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
+  return inputs({
+    realStaffCount: 2,
+    recruitmentCount: 1,
+    confirmedRecruitmentCount: 1,
+    hasCurrentOrFutureConfirmedShift: true,
+    hasCurrentConfirmedShift: true,
+    lastActivityAt: NOW,
+    ...overrides,
+  });
+}
+
+function dormantInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
+  return inputs({
+    realStaffCount: 2,
+    hadActiveOrRetainedStage: true,
+    lastActivityAt: NOW - 31 * DAY_MS,
     ...overrides,
   });
 }
@@ -39,63 +63,51 @@ describe("classifyShopStage", () => {
     expect(classifyShopStage(inputs(), NOW)).toBe("beforeStart");
   });
 
-  it("実利用開始条件をどれか1つでも欠くと開始前のまま", () => {
-    // スタッフ2人（3人未満）
-    expect(classifyShopStage(activatedInputs({ realStaffCount: 2 }), NOW)).toBe("beforeStart");
-    // 募集1件（2件未満）
-    expect(classifyShopStage(activatedInputs({ recruitmentCount: 1 }), NOW)).toBe("beforeStart");
-    // 通知も提出もない（募集を作っただけ）
-    expect(classifyShopStage(activatedInputs({ hasNotificationSent: false }), NOW)).toBe("beforeStart");
+  it("スタッフ2人未満なら現在/未来シフトがあっても開始前", () => {
+    expect(classifyShopStage(activeTrialInputs({ realStaffCount: 1 }), NOW)).toBe("beforeStart");
+    expect(classifyShopStage(retainedInputs({ realStaffCount: 1 }), NOW)).toBe("beforeStart");
   });
 
-  it("通知送信がなくても提出があれば実利用開始と判定する", () => {
-    const result = classifyShopStage(activatedInputs({ hasNotificationSent: false, hasSubmission: true }), NOW);
-    expect(result).toBe("activeTrial");
+  it("スタッフ2人以上 + 現在/未来の募集中シフトあり + 今日の確定シフトなし = 立ち上がり中", () => {
+    expect(classifyShopStage(activeTrialInputs({ hasOpenRecruitment: true }), NOW)).toBe("activeTrial");
   });
 
-  it("実利用開始済み + 確定3件未満 + 直近活動あり = 立ち上がり中", () => {
-    expect(classifyShopStage(activatedInputs({ confirmedRecruitmentCount: 2 }), NOW)).toBe("activeTrial");
+  it("スタッフ2人以上 + 未来の確定シフトあり + 今日の確定シフトなし = 立ち上がり中", () => {
+    expect(
+      classifyShopStage(
+        activeTrialInputs({
+          hasCurrentOrFutureConfirmedShift: true,
+          hasOpenRecruitment: false,
+        }),
+        NOW,
+      ),
+    ).toBe("activeTrial");
   });
 
-  it("実利用開始済みでも31日以上活動がなければ立ち上がり後休眠", () => {
-    const stale = activatedInputs({ lastActivityAt: NOW - 31 * DAY_MS });
-    expect(classifyShopStage(stale, NOW)).toBe("activeTrialDormant");
+  it("スタッフ2人以上 + 今日に被る確定シフトあり = 継続", () => {
+    expect(classifyShopStage(retainedInputs(), NOW)).toBe("retained");
   });
 
-  it("確定3件以上 + 現在も稼働 = 継続中", () => {
-    expect(classifyShopStage(activatedInputs({ confirmedRecruitmentCount: 3 }), NOW)).toBe("retained");
+  it("今日に被る確定シフトがあれば、進行中募集があっても継続を優先する", () => {
+    expect(classifyShopStage(retainedInputs({ hasOpenRecruitment: true }), NOW)).toBe("retained");
   });
 
-  it("確定3件以上でも現在/未来シフト・進行中募集・直近活動がなければ継続後休眠", () => {
-    const dormant = activatedInputs({
-      confirmedRecruitmentCount: 5,
-      lastActivityAt: NOW - 45 * DAY_MS,
-    });
-    expect(classifyShopStage(dormant, NOW)).toBe("retainedDormant");
+  it("過去に立ち上がり中または継続で、現在/未来シフトと直近30日活動がなければ休眠", () => {
+    expect(classifyShopStage(dormantInputs(), NOW)).toBe("activeTrialDormant");
   });
 
-  it("直近活動がなくても未来の確定シフトがあれば継続中（月末に翌月分を作る店舗を誤判定しない）", () => {
-    const monthly = activatedInputs({
-      confirmedRecruitmentCount: 3,
-      lastActivityAt: NOW - 45 * DAY_MS,
-      hasCurrentOrFutureConfirmedShift: true,
-    });
-    expect(classifyShopStage(monthly, NOW)).toBe("retained");
+  it("過去に継続だった店舗の休眠は継続後休眠として残す", () => {
+    expect(classifyShopStage(dormantInputs({ hadRetainedStage: true }), NOW)).toBe("retainedDormant");
   });
 
-  it("直近活動がなくても進行中の募集があれば稼働中とみなす", () => {
-    const openOnly = activatedInputs({
-      confirmedRecruitmentCount: 3,
-      lastActivityAt: NOW - 45 * DAY_MS,
-      hasOpenRecruitment: true,
-    });
-    expect(classifyShopStage(openOnly, NOW)).toBe("retained");
+  it("過去ステージ履歴がなければ、活動が止まっていても開始前", () => {
+    expect(classifyShopStage(dormantInputs({ hadActiveOrRetainedStage: false }), NOW)).toBe("beforeStart");
   });
 
-  it("休眠判定の境界: ちょうど30日は稼働中、31日で休眠", () => {
-    const at30 = activatedInputs({ lastActivityAt: NOW - 30 * DAY_MS });
-    const at31 = activatedInputs({ lastActivityAt: NOW - 31 * DAY_MS });
-    expect(classifyShopStage(at30, NOW)).toBe("activeTrial");
+  it("休眠判定の境界: ちょうど30日は休眠ではなく、31日で休眠", () => {
+    const at30 = dormantInputs({ lastActivityAt: NOW - 30 * DAY_MS });
+    const at31 = dormantInputs({ lastActivityAt: NOW - 31 * DAY_MS });
+    expect(classifyShopStage(at30, NOW)).toBe("beforeStart");
     expect(classifyShopStage(at31, NOW)).toBe("activeTrialDormant");
   });
 });
@@ -117,7 +129,7 @@ describe("lastReachedOnboardingStep", () => {
   });
 
   it("本番シフト作成と通知送信を判定する", () => {
-    expect(lastReachedOnboardingStep(inputs({ realStaffCount: 3, recruitmentCount: 2 }))).toBe(
+    expect(lastReachedOnboardingStep(inputs({ realStaffCount: 2, recruitmentCount: 2 }))).toBe(
       "productionRecruitmentCreated",
     );
     expect(
@@ -131,14 +143,15 @@ describe("lastReachedOnboardingStep", () => {
   });
 
   it("実利用開始条件を満たすと実利用開始を返す", () => {
-    expect(lastReachedOnboardingStep(activatedInputs())).toBe("activated");
+    expect(lastReachedOnboardingStep(activeTrialInputs())).toBe("activated");
+    expect(lastReachedOnboardingStep(retainedInputs())).toBe("activated");
   });
 });
 
 describe("shopStageAlerts", () => {
   it("順調な店舗にはアラートを出さない", () => {
     const alerts = shopStageAlerts({
-      inputs: activatedInputs({ confirmedRecruitmentCount: 3, hasCurrentOrFutureConfirmedShift: true }),
+      inputs: retainedInputs(),
       stage: "retained",
       openRecruitmentSubmittedCount: 0,
       openNotificationFailureCount: 0,
@@ -149,7 +162,7 @@ describe("shopStageAlerts", () => {
 
   it("募集中なのに提出0件を検出する", () => {
     const alerts = shopStageAlerts({
-      inputs: activatedInputs({ hasOpenRecruitment: true }),
+      inputs: activeTrialInputs({ hasOpenRecruitment: true }),
       stage: "activeTrial",
       openRecruitmentSubmittedCount: 0,
       openNotificationFailureCount: 0,
@@ -160,7 +173,7 @@ describe("shopStageAlerts", () => {
 
   it("提出があるのに一度も確定していない店舗を検出する", () => {
     const alerts = shopStageAlerts({
-      inputs: activatedInputs({ hasSubmission: true, hasOpenRecruitment: true }),
+      inputs: activeTrialInputs({ confirmedRecruitmentCount: 0, hasSubmission: true, hasOpenRecruitment: true }),
       stage: "activeTrial",
       openRecruitmentSubmittedCount: 2,
       openNotificationFailureCount: 0,
@@ -184,7 +197,7 @@ describe("shopStageAlerts", () => {
 
   it("実利用開始後に現在/未来シフトがない店舗を検出する", () => {
     const alerts = shopStageAlerts({
-      inputs: activatedInputs({ confirmedRecruitmentCount: 3, lastActivityAt: NOW - 40 * DAY_MS }),
+      inputs: dormantInputs({ hadRetainedStage: true, lastActivityAt: NOW - 40 * DAY_MS }),
       stage: "retainedDormant",
       openRecruitmentSubmittedCount: 0,
       openNotificationFailureCount: 0,

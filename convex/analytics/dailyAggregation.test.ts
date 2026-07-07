@@ -219,13 +219,14 @@ describe("analytics/dailyAggregation", () => {
       lineLinkedStaffCount: 2,
       lineFollowingStaffCount: 1,
       openRecruitmentCount: 1,
-      // 実スタッフ2人（3人未満）なので実利用開始前。判定材料も保存される
-      stage: "beforeStart",
+      // 実スタッフ2人 + 現在/未来シフトあり + 今日の確定シフトなしなので立ち上がり中。判定材料も保存される
+      stage: "activeTrial",
       recruitmentCount: 2,
       confirmedRecruitmentCount: 1,
       hasSubmission: false,
       hasNotificationSent: false,
       hasCurrentOrFutureConfirmedShift: true,
+      hasCurrentConfirmedShift: false,
     });
     const snapshotB = shopSnapshots.find((s) => s.shopId === shopB);
     expect(snapshotB).toMatchObject({ planKey: "free", staffCount: 1, stage: "beforeStart" });
@@ -245,7 +246,7 @@ describe("analytics/dailyAggregation", () => {
       lineFollowingStaffCount: 1,
       openRecruitmentCount: 1,
       pendingRegistrationRequestCount: 2,
-      shopStageCounts: { beforeStart: 2, activeTrial: 0, activeTrialDormant: 0, retained: 0, retainedDormant: 0 },
+      shopStageCounts: { beforeStart: 1, activeTrial: 1, activeTrialDormant: 0, retained: 0, retainedDormant: 0 },
     });
   });
 
@@ -294,7 +295,7 @@ describe("analytics/dailyAggregation", () => {
       return shopId;
     });
 
-    // 継続店舗: 同じ実績 + 進行中の募集がある（現在も稼働中）
+    // 継続店舗: 対象日と被る確定シフトがある（現在も稼働中）
     vi.setSystemTime(new Date(startMs + 12 * 60 * 60 * 1000));
     const retainedShop = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "継続店舗");
@@ -305,8 +306,8 @@ describe("analytics/dailyAggregation", () => {
         const recruitmentId = await ctx.db.insert("recruitments", {
           ...recruitmentBase,
           shopId,
-          periodStart: "2026-06-01",
-          periodEnd: "2026-06-07",
+          periodStart: i === 0 ? TARGET_DATE : "2026-06-01",
+          periodEnd: i === 0 ? TARGET_DATE : "2026-06-07",
           deadline: "2026-05-28",
           status: "confirmed",
           confirmedAt: startMs - 24 * 60 * 60 * 1000,
@@ -362,16 +363,19 @@ describe("analytics/dailyAggregation", () => {
       hasSubmission: true,
       hasNotificationSent: true,
       hasCurrentOrFutureConfirmedShift: false,
+      hasCurrentConfirmedShift: false,
+      hadRetainedStage: true,
     });
     // _creationTime はconvex-testでサブミリ秒が付くため、45日前ちょうど付近であることだけ確認する
     expect(dormantSnapshot?.lastActivityAt).toBeGreaterThanOrEqual(oldMs);
     expect(dormantSnapshot?.lastActivityAt).toBeLessThan(oldMs + 1000);
 
-    // 確定3件以上 + 進行中の募集あり → 継続中。進行中募集の提出0件も判定材料として残る
+    // 今日に被る確定シフトあり → 継続。進行中募集の提出0件も判定材料として残る
     expect(snapshots.find((s) => s.shopId === retainedShop)).toMatchObject({
       stage: "retained",
       recruitmentCount: 4,
       confirmedRecruitmentCount: 3,
+      hasCurrentConfirmedShift: true,
       openRecruitmentCount: 1,
       openRecruitmentSubmittedCount: 0,
     });
@@ -447,6 +451,7 @@ describe("analytics/dailyAggregation", () => {
     expect(snapshot).toMatchObject({
       stage: "retained",
       hasCurrentOrFutureConfirmedShift: true,
+      hasCurrentConfirmedShift: true,
       stageReferenceAt: endMs - 1,
     });
   });
@@ -482,8 +487,8 @@ describe("analytics/dailyAggregation", () => {
         const recruitmentId = await ctx.db.insert("recruitments", {
           ...recruitmentBase,
           shopId,
-          periodStart: "2026-06-01",
-          periodEnd: "2026-06-07",
+          periodStart: index === 1 ? TARGET_DATE : "2026-06-01",
+          periodEnd: index === 1 ? TARGET_DATE : "2026-06-07",
           deadline: "2026-05-28",
           status: "confirmed",
           confirmedAt,

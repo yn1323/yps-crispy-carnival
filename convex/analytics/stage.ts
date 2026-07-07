@@ -4,22 +4,20 @@
  * ステージはKPIそのものではなく「店舗が今どの利用段階にいるか」の分類。
  * KPIはステージ間の遷移（開始前→実利用開始率など）を日次スナップショットの推移から読む。
  *
- * - beforeStart:        実利用開始条件を満たしていない（オンボーディング途中）
- * - activeTrial:        実利用開始済みだが継続実績（確定3件）はまだ。現在稼働中
- * - activeTrialDormant: 実利用開始後、継続実績に到達しないまま稼働が止まった
- * - retained:           確定3件以上の実績があり、現在も稼働中
- * - retainedDormant:    継続実績はあるが、現在/未来の確定シフト・進行中募集・直近活動がない
+ * - beforeStart:        下記ステージに該当しない
+ * - activeTrial:        スタッフ2人以上で現在/未来の募集または確定シフトがあり、今日に被る確定シフトはない
+ * - activeTrialDormant: 過去に立ち上がり/継続だったが、現在/未来シフトと直近30日活動がない
+ * - retained:           スタッフ2人以上で今日に被る確定シフトがある
+ * - retainedDormant:    過去に継続だったが、現在/未来シフトと直近30日活動がない
  */
 
 export const SHOP_STAGES = ["beforeStart", "activeTrial", "activeTrialDormant", "retained", "retainedDormant"] as const;
 
 export type ShopStage = (typeof SHOP_STAGES)[number];
 
-// 実利用開始（アクティベーション）条件
-export const STAGE_ACTIVATION_STAFF_MIN = 3;
+// ステージ判定に使う最小スタッフ数
+export const STAGE_ACTIVATION_STAFF_MIN = 2;
 export const STAGE_ACTIVATION_RECRUITMENT_MIN = 2;
-// 継続実績条件
-export const STAGE_RETAINED_CONFIRMED_MIN = 3;
 // 主要イベントがこの日数以上ないと「現在稼働していない」とみなす
 export const STAGE_DORMANT_AFTER_DAYS = 30;
 // 開始前ステージでこの日数以上停止していたらアラート
@@ -40,38 +38,61 @@ export type ShopStageInputs = {
   hasNotificationSent: boolean;
   /** 期間末日が集計日以降の確定済み募集があるか（現在/未来の確定シフト） */
   hasCurrentOrFutureConfirmedShift: boolean;
+  /** 期間が集計日と重なる確定済み募集があるか（今日に被る確定シフト） */
+  hasCurrentConfirmedShift: boolean;
   /** 進行中（open）の募集があるか */
   hasOpenRecruitment: boolean;
+  /** 過去に立ち上がり中または継続だったことがあるか */
+  hadActiveOrRetainedStage: boolean;
+  /** 過去に継続だったことがあるか */
+  hadRetainedStage: boolean;
   /** 主要イベント（店舗作成・スタッフ追加・募集作成・提出・確定・催促・LINE連携）の最終発生時刻 */
   lastActivityAt: number;
 };
 
-/** 実利用開始条件: 実スタッフ3人以上 + 募集2件以上 + 通知送信または提出が発生済み */
-export function isActivated(inputs: ShopStageInputs): boolean {
-  return (
-    inputs.realStaffCount >= STAGE_ACTIVATION_STAFF_MIN &&
-    inputs.recruitmentCount >= STAGE_ACTIVATION_RECRUITMENT_MIN &&
-    (inputs.hasNotificationSent || inputs.hasSubmission)
-  );
+export function hasStageReadyStaff(inputs: ShopStageInputs): boolean {
+  return inputs.realStaffCount >= STAGE_ACTIVATION_STAFF_MIN;
 }
 
 export function daysSince(at: number, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - at) / DAY_MS));
 }
 
-/** 現在稼働中か: 現在/未来の確定シフト・進行中募集・直近30日以内の主要イベントのいずれかがある */
-export function hasCurrentOperation(inputs: ShopStageInputs, nowMs: number): boolean {
-  if (inputs.hasCurrentOrFutureConfirmedShift) return true;
-  if (inputs.hasOpenRecruitment) return true;
+export function hasCurrentOrFutureShift(inputs: ShopStageInputs): boolean {
+  return inputs.hasOpenRecruitment || inputs.hasCurrentOrFutureConfirmedShift;
+}
+
+export function hasRecentActivity(inputs: ShopStageInputs, nowMs: number): boolean {
   return daysSince(inputs.lastActivityAt, nowMs) <= STAGE_DORMANT_AFTER_DAYS;
 }
 
+export function isRetainedStageCandidate(inputs: ShopStageInputs): boolean {
+  return hasStageReadyStaff(inputs) && inputs.hasCurrentConfirmedShift;
+}
+
+export function isActiveTrialStageCandidate(inputs: ShopStageInputs): boolean {
+  return hasStageReadyStaff(inputs) && hasCurrentOrFutureShift(inputs) && !inputs.hasCurrentConfirmedShift;
+}
+
+export function isDormantStageCandidate(inputs: ShopStageInputs, nowMs: number): boolean {
+  return (
+    hasStageReadyStaff(inputs) &&
+    inputs.hadActiveOrRetainedStage &&
+    !inputs.hasOpenRecruitment &&
+    !inputs.hasCurrentOrFutureConfirmedShift &&
+    !hasRecentActivity(inputs, nowMs)
+  );
+}
+
+export function isActivated(inputs: ShopStageInputs): boolean {
+  return isActiveTrialStageCandidate(inputs) || isRetainedStageCandidate(inputs);
+}
+
 export function classifyShopStage(inputs: ShopStageInputs, nowMs: number): ShopStage {
-  if (!isActivated(inputs)) return "beforeStart";
-  const hasRetainedHistory = inputs.confirmedRecruitmentCount >= STAGE_RETAINED_CONFIRMED_MIN;
-  const operating = hasCurrentOperation(inputs, nowMs);
-  if (hasRetainedHistory) return operating ? "retained" : "retainedDormant";
-  return operating ? "activeTrial" : "activeTrialDormant";
+  if (isRetainedStageCandidate(inputs)) return "retained";
+  if (isActiveTrialStageCandidate(inputs)) return "activeTrial";
+  if (isDormantStageCandidate(inputs, nowMs)) return inputs.hadRetainedStage ? "retainedDormant" : "activeTrialDormant";
+  return "beforeStart";
 }
 
 // ========================================
@@ -84,7 +105,7 @@ export const ONBOARDING_STEPS = [
   { key: "selfTestSubmissionReceived", label: "テスト申請" },
   { key: "testRecruitmentConfirmed", label: "テスト確定" },
   { key: "firstStaffRegistered", label: "スタッフ登録" },
-  { key: "staffReady", label: "スタッフ3人登録" },
+  { key: "staffReady", label: "スタッフ2人登録" },
   { key: "productionRecruitmentCreated", label: "本番シフト作成" },
   { key: "notificationSent", label: "通知送信" },
   { key: "activated", label: "実利用開始" },

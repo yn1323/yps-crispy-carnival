@@ -3,9 +3,9 @@ import type { ServiceSnapshotDto, ShopStageKey, ShopStageRowDto } from "@/api/an
 export const STAGE_LABELS: Record<ShopStageKey, string> = {
   beforeStart: "開始前",
   activeTrial: "立ち上がり中",
-  activeTrialDormant: "立ち上がり後休眠",
-  retained: "継続中",
-  retainedDormant: "継続後休眠",
+  activeTrialDormant: "休眠",
+  retained: "継続",
+  retainedDormant: "休眠",
 };
 
 export const STAGE_COLORS: Record<ShopStageKey, string> = {
@@ -22,8 +22,8 @@ export const STAGE_FILTERS: { value: StageFilter; label: string }[] = [
   { value: "attention", label: "要確認" },
   { value: "beforeStart", label: "開始前" },
   { value: "activeTrial", label: "立ち上がり中" },
-  { value: "retained", label: "継続中" },
-  { value: "dormant", label: "休眠中" },
+  { value: "retained", label: "継続" },
+  { value: "dormant", label: "休眠" },
   { value: "all", label: "すべて" },
 ];
 
@@ -58,7 +58,7 @@ export function onboardingProgressItems(row: ShopStageRowDto): OnboardingProgres
     { label: "テスト申請", status: row.hasSubmission === true ? "reached" : "unreached" },
     { label: "テスト確定", status: hasNumberAtLeast(row.confirmedRecruitmentCount, 1) ? "reached" : "unreached" },
     { label: "スタッフ登録", status: row.shiftTargetStaffCount >= 1 ? "reached" : "unreached" },
-    { label: "スタッフ3人登録", status: row.shiftTargetStaffCount >= 3 ? "reached" : "unreached" },
+    { label: "スタッフ2人登録", status: row.shiftTargetStaffCount >= 2 ? "reached" : "unreached" },
     { label: "本番シフト作成", status: productionRecruitmentCreated ? "reached" : "unreached" },
     { label: "通知送信", status: row.hasNotificationSent === true ? "reached" : "unreached" },
     { label: "実利用開始", status: row.stage !== null && row.stage !== "beforeStart" ? "reached" : "unreached" },
@@ -200,8 +200,8 @@ export function stageCountsLineSeries(snapshots: ServiceSnapshotDto[]) {
         date: snapshot.date,
         開始前: counts.beforeStart,
         立ち上がり中: counts.activeTrial,
-        継続中: counts.retained,
-        休眠中: counts.activeTrialDormant + counts.retainedDormant,
+        継続: counts.retained,
+        休眠: counts.activeTrialDormant + counts.retainedDormant,
       },
     ];
   });
