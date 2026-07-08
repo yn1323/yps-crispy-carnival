@@ -1,4 +1,5 @@
-import { Box, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
+import { useState } from "react";
 import type { ShopStageRowDto, ShopStagesResponse } from "@/api/analyticsTypes";
 import {
   getActiveTrialRows,
@@ -9,6 +10,24 @@ import {
   getNotificationFailureShopCount,
 } from "@/domains/analytics/activeTrialProgress";
 import { formatNumber, formatPercent } from "@/domains/analytics/format";
+import { compareSortValues, finiteNumber, type SortState, sortRowsBy } from "@/domains/analytics/tableSort";
+import { SortableColumnHeader } from "./SortableColumnHeader";
+
+type ActivationSortKey =
+  | "shopName"
+  | "registeredAt"
+  | "staffCount"
+  | "recruitmentCount"
+  | "confirmedRecruitmentCount"
+  | "submissionRate"
+  | "firstRecruitmentCreatedAt"
+  | "firstRecruitmentDeadline"
+  | "firstRecruitmentDurationDays";
+
+const INITIAL_ACTIVATION_SORT: SortState<ActivationSortKey> = {
+  direction: "desc",
+  key: "registeredAt",
+};
 
 function numberDelta(current: number | null, previous: number | null) {
   if (current === null || previous === null) return null;
@@ -44,6 +63,14 @@ function formatDateString(value: string | null | undefined) {
   return `${year}/${month}/${day}`;
 }
 
+function dateStringToSortableDay(value: string | null | undefined) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day));
+}
+
 function formatWithUnit(value: number | null | undefined, unit: string) {
   if (value === null || value === undefined) return "-";
   return `${formatNumber(value)}${unit}`;
@@ -52,6 +79,35 @@ function formatWithUnit(value: number | null | undefined, unit: string) {
 function formatPercentNumber(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "-";
   return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 }).format(value * 100);
+}
+
+function activationSortValue(row: ShopStageRowDto, key: ActivationSortKey) {
+  switch (key) {
+    case "shopName":
+      return row.shopName;
+    case "registeredAt":
+      return finiteNumber(row.shopCreatedAt);
+    case "staffCount":
+      return finiteNumber(row.staffCount);
+    case "recruitmentCount":
+      return finiteNumber(row.recruitmentCount);
+    case "confirmedRecruitmentCount":
+      return finiteNumber(row.confirmedRecruitmentCount);
+    case "submissionRate":
+      return finiteNumber(row.submissionRate);
+    case "firstRecruitmentCreatedAt":
+      return finiteNumber(row.firstRecruitmentCreatedAt);
+    case "firstRecruitmentDeadline":
+      return dateStringToSortableDay(row.firstRecruitmentDeadline);
+    case "firstRecruitmentDurationDays":
+      return getFirstRecruitmentDurationDays(row);
+  }
+}
+
+function sortActivationRows(rows: ShopStageRowDto[], sort: SortState<ActivationSortKey>) {
+  return sortRowsBy(rows, sort, activationSortValue, (a, b) =>
+    compareSortValues(finiteNumber(a.shopCreatedAt), finiteNumber(b.shopCreatedAt), "desc"),
+  );
 }
 
 function MetricCard({
@@ -108,7 +164,18 @@ function MetricCard({
   );
 }
 
-function ActivationTable({ isLoading, rows }: { isLoading: boolean; rows: ShopStageRowDto[] }) {
+function ActivationTable({
+  isLoading,
+  onOpenShopRecruitments,
+  rows,
+}: {
+  isLoading: boolean;
+  onOpenShopRecruitments: (shopId: string) => void;
+  rows: ShopStageRowDto[];
+}) {
+  const [sort, setSort] = useState<SortState<ActivationSortKey>>(INITIAL_ACTIVATION_SORT);
+  const sortedRows = sortActivationRows(rows, sort);
+
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" minW={0} p={{ base: 4, md: 5 }}>
       <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
@@ -125,39 +192,70 @@ function ActivationTable({ isLoading, rows }: { isLoading: boolean; rows: ShopSt
           <Table.Root minW="1040px" size="sm" variant="outline">
             <Table.Header>
               <Table.Row bg="gray.50">
-                <Table.ColumnHeader color="gray.600" fontWeight="bold">
-                  店舗名
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold">
-                  登録日
-                </Table.ColumnHeader>
+                <SortableColumnHeader
+                  defaultDirection="asc"
+                  label="店舗名"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="shopName"
+                />
+                <SortableColumnHeader label="登録日" onSortChange={setSort} sort={sort} sortKey="registeredAt" />
+                <SortableColumnHeader
+                  label="スタッフ数"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="staffCount"
+                  textAlign="right"
+                />
+                <SortableColumnHeader
+                  label="募集数"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="recruitmentCount"
+                  textAlign="right"
+                />
+                <SortableColumnHeader
+                  label="確定数"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="confirmedRecruitmentCount"
+                  textAlign="right"
+                />
+                <SortableColumnHeader
+                  label="提出率"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="submissionRate"
+                  textAlign="right"
+                />
+                <SortableColumnHeader
+                  label="初回募集開始日"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="firstRecruitmentCreatedAt"
+                />
+                <SortableColumnHeader
+                  label="初回募集締切日"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="firstRecruitmentDeadline"
+                />
+                <SortableColumnHeader
+                  label="初回募集期間"
+                  onSortChange={setSort}
+                  sort={sort}
+                  sortKey="firstRecruitmentDurationDays"
+                  textAlign="right"
+                />
                 <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  スタッフ数
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  募集数
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  確定数
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  提出率
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold">
-                  初回募集開始日
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold">
-                  初回募集締切日
-                </Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  初回募集期間
+                  詳細
                 </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={9}>
+                  <Table.Cell colSpan={10}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
                         立ち上げの店舗はありません
@@ -166,7 +264,7 @@ function ActivationTable({ isLoading, rows }: { isLoading: boolean; rows: ShopSt
                   </Table.Cell>
                 </Table.Row>
               ) : (
-                rows.map((row) => {
+                sortedRows.map((row) => {
                   const firstRecruitmentDurationDays = getFirstRecruitmentDurationDays(row);
                   return (
                     <Table.Row key={row.shopId}>
@@ -193,6 +291,16 @@ function ActivationTable({ isLoading, rows }: { isLoading: boolean; rows: ShopSt
                           ? "-"
                           : `${formatNumber(firstRecruitmentDurationDays)}日`}
                       </Table.Cell>
+                      <Table.Cell textAlign="right">
+                        <Button
+                          colorPalette="blue"
+                          onClick={() => onOpenShopRecruitments(row.shopId)}
+                          size="xs"
+                          variant="outline"
+                        >
+                          詳細
+                        </Button>
+                      </Table.Cell>
                     </Table.Row>
                   );
                 })
@@ -207,10 +315,12 @@ function ActivationTable({ isLoading, rows }: { isLoading: boolean; rows: ShopSt
 
 export function ActivationTabContent({
   isLoading,
+  onOpenShopRecruitments,
   previousStages,
   stages,
 }: {
   isLoading: boolean;
+  onOpenShopRecruitments: (shopId: string) => void;
   previousStages: ShopStagesResponse | null;
   stages: ShopStagesResponse | null;
 }) {
@@ -272,7 +382,7 @@ export function ActivationTabContent({
           />
         </Grid>
       </Box>
-      <ActivationTable isLoading={isLoading} rows={rows} />
+      <ActivationTable isLoading={isLoading} onOpenShopRecruitments={onOpenShopRecruitments} rows={rows} />
     </Stack>
   );
 }

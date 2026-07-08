@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnalyticsApiError, fetchAnalytics } from "@/api/analyticsClient";
 import { DashboardTop } from "@/features/dashboard";
 
@@ -33,6 +33,7 @@ function analyticsErrorMessage(error: unknown) {
 export const DashboardPage = () => {
   const range = useMemo(() => rangeForDays(0), []);
   const previousRange = useMemo(() => rangeForDays(DASHBOARD_PERIOD_DAYS), []);
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -64,6 +65,16 @@ export const DashboardPage = () => {
     queryKey: ["analytics", "shopStages", previousLatestDate],
     queryFn: () => fetchAnalytics({ date: previousLatestDate ?? "", kind: "shopStages" }),
   });
+  const shopRecruitmentsQuery = useQuery({
+    enabled: selectedShopId !== null,
+    queryKey: ["analytics", "shopRecruitments", selectedShopId],
+    queryFn: () => {
+      if (selectedShopId === null) {
+        throw new Error("店舗が選択されていません");
+      }
+      return fetchAnalytics({ kind: "shopRecruitments", shopId: selectedShopId });
+    },
+  });
 
   return (
     <DashboardTop
@@ -71,10 +82,18 @@ export const DashboardPage = () => {
       errorMessage={overviewQuery.error ? analyticsErrorMessage(overviewQuery.error) : null}
       isLoading={overviewQuery.isLoading || shopStagesQuery.isLoading}
       latest={overviewQuery.data?.data.latestServiceSnapshot ?? null}
+      onCloseShopRecruitments={() => setSelectedShopId(null)}
+      onOpenShopRecruitments={setSelectedShopId}
       previousLatest={previousOverviewQuery.data?.data.latestServiceSnapshot ?? null}
       previousStages={previousShopStagesQuery.data?.data ?? null}
       previousTransitions={previousOverviewQuery.data?.data.stageTransitions ?? null}
       serviceSnapshots={overviewQuery.data?.data.serviceSnapshots ?? []}
+      selectedShopId={selectedShopId}
+      selectedShopRecruitments={shopRecruitmentsQuery.data?.data ?? null}
+      selectedShopRecruitmentsErrorMessage={
+        shopRecruitmentsQuery.error ? analyticsErrorMessage(shopRecruitmentsQuery.error) : null
+      }
+      selectedShopRecruitmentsLoading={shopRecruitmentsQuery.isLoading}
       stages={shopStagesQuery.data?.data ?? null}
       stagesErrorMessage={shopStagesQuery.error ? analyticsErrorMessage(shopStagesQuery.error) : null}
       transitions={overviewQuery.data?.data.stageTransitions ?? null}

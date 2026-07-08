@@ -18,6 +18,7 @@ import { LuChartColumnIncreasing, LuFlag, LuMoonStar, LuRocket } from "react-ico
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type {
   ServiceSnapshotDto,
+  ShopRecruitmentsResponse,
   ShopStageCounts,
   ShopStagesResponse,
   StageTransitionMetricDto,
@@ -26,6 +27,10 @@ import type {
 import { formatDateTime, formatNumber, formatPercent } from "@/domains/analytics/format";
 import { ActivationTabContent } from "./ActivationTabContent";
 import { BeforeStartTabContent } from "./BeforeStartTabContent";
+import { DormantTabContent } from "./DormantTabContent";
+import { RetainedTabContent } from "./RetainedTabContent";
+import { ShopListTabContent } from "./ShopListTabContent";
+import { ShopRecruitmentsDialog } from "./ShopRecruitmentsDialog";
 
 type DashboardView = "summary" | "beforeStart" | "activation" | "retention" | "dormant" | "shops";
 
@@ -41,6 +46,12 @@ type DashboardTopProps = {
   transitions: StageTransitionSummaryDto | null;
   previousTransitions: StageTransitionSummaryDto | null;
   serviceSnapshots: ServiceSnapshotDto[];
+  selectedShopId: string | null;
+  selectedShopRecruitments: ShopRecruitmentsResponse | null;
+  selectedShopRecruitmentsErrorMessage: string | null;
+  selectedShopRecruitmentsLoading: boolean;
+  onOpenShopRecruitments: (shopId: string) => void;
+  onCloseShopRecruitments: () => void;
   isLoading: boolean;
   errorMessage: string | null;
   stagesErrorMessage: string | null;
@@ -783,6 +794,12 @@ export const DashboardTop = ({
   previousStages,
   previousTransitions,
   serviceSnapshots,
+  selectedShopId,
+  selectedShopRecruitments,
+  selectedShopRecruitmentsErrorMessage,
+  selectedShopRecruitmentsLoading,
+  onOpenShopRecruitments,
+  onCloseShopRecruitments,
   stages,
   transitions,
   isLoading,
@@ -793,6 +810,7 @@ export const DashboardTop = ({
   const counts = stages?.stageCounts ?? latest?.shopStageCounts ?? null;
   const previousCounts = previousStages?.stageCounts ?? previousLatest?.shopStageCounts ?? null;
   const latestComputedAt = stages?.rows[0]?.computedAt ?? latest?.computedAt ?? null;
+  const selectedShop = stages?.rows.find((row) => row.shopId === selectedShopId) ?? null;
 
   return (
     <Box bg="gray.50" minH="100vh" py={{ base: 4, md: 6 }}>
@@ -839,7 +857,11 @@ export const DashboardTop = ({
             {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
             {stagesErrorMessage ? <ErrorPanel message={stagesErrorMessage} /> : null}
 
-            {activeView === "beforeStart" || activeView === "activation" ? null : (
+            {activeView === "beforeStart" ||
+            activeView === "activation" ||
+            activeView === "retention" ||
+            activeView === "dormant" ||
+            activeView === "shops" ? null : (
               <Box>
                 <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
                   店舗ステージ別の店舗数
@@ -854,9 +876,39 @@ export const DashboardTop = ({
             )}
 
             {activeView === "beforeStart" ? (
-              <BeforeStartTabContent isLoading={isLoading} previousStages={previousStages} stages={stages} />
+              <BeforeStartTabContent
+                isLoading={isLoading}
+                onOpenShopRecruitments={onOpenShopRecruitments}
+                previousStages={previousStages}
+                stages={stages}
+              />
             ) : activeView === "activation" ? (
-              <ActivationTabContent isLoading={isLoading} previousStages={previousStages} stages={stages} />
+              <ActivationTabContent
+                isLoading={isLoading}
+                onOpenShopRecruitments={onOpenShopRecruitments}
+                previousStages={previousStages}
+                stages={stages}
+              />
+            ) : activeView === "retention" ? (
+              <RetainedTabContent
+                isLoading={isLoading}
+                onOpenShopRecruitments={onOpenShopRecruitments}
+                previousStages={previousStages}
+                stages={stages}
+              />
+            ) : activeView === "dormant" ? (
+              <DormantTabContent
+                isLoading={isLoading}
+                onOpenShopRecruitments={onOpenShopRecruitments}
+                previousStages={previousStages}
+                stages={stages}
+              />
+            ) : activeView === "shops" ? (
+              <ShopListTabContent
+                isLoading={isLoading}
+                onOpenShopRecruitments={onOpenShopRecruitments}
+                stages={stages}
+              />
             ) : (
               <>
                 <StageTrendPanel isLoading={isLoading} snapshots={serviceSnapshots} />
@@ -874,6 +926,15 @@ export const DashboardTop = ({
               </>
             )}
           </Stack>
+
+          <ShopRecruitmentsDialog
+            data={selectedShopRecruitments}
+            errorMessage={selectedShopRecruitmentsErrorMessage}
+            isLoading={selectedShopRecruitmentsLoading}
+            isOpen={selectedShopId !== null}
+            onClose={onCloseShopRecruitments}
+            shopName={selectedShopRecruitments?.shopName ?? selectedShop?.shopName ?? "店舗"}
+          />
         </Box>
       </Container>
     </Box>
