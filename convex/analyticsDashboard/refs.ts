@@ -8,6 +8,7 @@ import type {
   ShopDetailResponse,
   ShopRankingResponse,
   ShopRankingSort,
+  ShopRecruitmentsResponse,
   ShopStagesResponse,
 } from "./dto";
 
@@ -62,3 +63,7 @@ export const getShopDetailRef = makeFunctionReference<
   { shopId: Id<"shops">; from: string; to: string },
   ShopDetailResponse
 >;
+
+export const getShopRecruitmentsRef = makeFunctionReference<"query", { shopId: Id<"shops"> }, ShopRecruitmentsResponse>(
+  "analyticsDashboard/queries:getShopRecruitments",
+) as unknown as FunctionReference<"query", "internal", { shopId: Id<"shops"> }, ShopRecruitmentsResponse>;

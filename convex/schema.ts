@@ -518,6 +518,11 @@ const schema = defineSchema({
     hasSubmission: v.optional(v.boolean()),
     hasNotificationSent: v.optional(v.boolean()),
     hasCurrentOrFutureConfirmedShift: v.optional(v.boolean()),
+    hasCurrentConfirmedShift: v.optional(v.boolean()),
+    hasFutureOpenRecruitment: v.optional(v.boolean()),
+    hasFutureConfirmedShift: v.optional(v.boolean()),
+    hadActiveOrRetainedStage: v.optional(v.boolean()),
+    hadRetainedStage: v.optional(v.boolean()),
     lastActivityAt: v.optional(v.number()), // 主要イベントの最終発生時刻
     stageReferenceAt: v.optional(v.number()), // ステージ判定の基準時刻（対象JST日の終端）
     openRecruitmentSubmittedCount: v.optional(v.number()), // 進行中募集への提出人数合計

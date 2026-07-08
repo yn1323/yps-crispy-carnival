@@ -7,6 +7,7 @@ import type {
   OverviewResponse,
   ShopDetailResponse,
   ShopRankingResponse,
+  ShopRecruitmentsResponse,
   ShopStagesResponse,
 } from "./analyticsTypes";
 
@@ -20,9 +21,11 @@ type ResponseByRequest<T extends AnalyticsDashboardRequest> = T extends { kind: 
         ? ShopStagesResponse
         : T extends { kind: "shopRanking" }
           ? ShopRankingResponse
-          : T extends { kind: "shopDetail" }
-            ? ShopDetailResponse
-            : AnalyticsDashboardResponse;
+          : T extends { kind: "shopRecruitments" }
+            ? ShopRecruitmentsResponse
+            : T extends { kind: "shopDetail" }
+              ? ShopDetailResponse
+              : AnalyticsDashboardResponse;
 
 type ErrorResponse = {
   error?: {

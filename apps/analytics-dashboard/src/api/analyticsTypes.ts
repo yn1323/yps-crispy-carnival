@@ -12,6 +12,8 @@ export type {
   ShopDetailResponse,
   ShopRankingResponse,
   ShopRankingSort,
+  ShopRecruitmentRowDto,
+  ShopRecruitmentsResponse,
   ShopSnapshotDto,
   ShopStageCounts,
   ShopStageKey,
