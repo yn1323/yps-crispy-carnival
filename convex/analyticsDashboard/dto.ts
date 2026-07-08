@@ -11,6 +11,7 @@ export type AnalyticsDashboardRequest =
   | { kind: "notificationBreakdown"; from: string; to: string }
   | { kind: "shopStages"; date: string }
   | { kind: "shopRanking"; date: string; sort: ShopRankingSort; limit: number }
+  | { kind: "shopRecruitments"; shopId: string }
   | { kind: "shopDetail"; shopId: string; from: string; to: string };
 
 export type AnalyticsDashboardResponse =
@@ -19,6 +20,7 @@ export type AnalyticsDashboardResponse =
   | NotificationBreakdownResponse
   | ShopStagesResponse
   | ShopRankingResponse
+  | ShopRecruitmentsResponse
   | ShopDetailResponse;
 
 export type ServiceSnapshotDto = {
@@ -90,10 +92,26 @@ export type ShopStageRowDto = {
   lastConfirmedRecruitmentLeadTimeMs: number | null;
   firstRecruitmentCreatedAt: number | null;
   firstRecruitmentDeadline: string | null;
+  /** 最後のシフト期間として扱う募集の作成時刻 */
+  lastShiftCreatedAt: number | null;
+  /** 最後のシフト期間の開始日 */
+  lastShiftPeriodStart: string | null;
+  /** 最後のシフト期間の終了日 */
+  lastShiftPeriodEnd: string | null;
+  /** 最後のシフト期間として扱う募集の提出率 */
+  lastShiftSubmissionRate: number | null;
+  /** 募集作成日から締切日までの平均日数 */
+  averageRecruitmentOpenDays: number | null;
+  /** 締切日から確定日までの平均日数 */
+  averageDeadlineToConfirmationDays: number | null;
+  /** 催促送信済み募集の割合 */
+  reminderTargetRecruitmentRate: number | null;
   hasSubmission: boolean | null;
   hasNotificationSent: boolean | null;
   hasCurrentOrFutureConfirmedShift: boolean | null;
   hasCurrentConfirmedShift: boolean | null;
+  hasFutureOpenRecruitment: boolean | null;
+  hasFutureConfirmedShift: boolean | null;
   hadActiveOrRetainedStage: boolean | null;
   hadRetainedStage: boolean | null;
   lastActivityAt: number | null;
@@ -192,4 +210,22 @@ export type ShopDetailResponse = {
   shopId: string;
   shopName: string;
   series: ShopSnapshotDto[];
+};
+
+export type ShopRecruitmentRowDto = {
+  recruitmentId: string;
+  status: "open" | "confirmed";
+  periodStart: string;
+  periodEnd: string;
+  submittedCount: number | null;
+  activeStaffCountSnapshot: number | null;
+  createdAt: number;
+  confirmedAt: number | null;
+};
+
+export type ShopRecruitmentsResponse = {
+  kind: "shopRecruitments";
+  shopId: string;
+  shopName: string;
+  rows: ShopRecruitmentRowDto[];
 };

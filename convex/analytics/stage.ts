@@ -5,10 +5,10 @@
  * KPIはステージ間の遷移（開始前→実利用開始率など）を日次スナップショットの推移から読む。
  *
  * - beforeStart:        下記ステージに該当しない
- * - activeTrial:        スタッフ2人以上で現在/未来の募集または確定シフトがあり、今日に被る確定シフトはない
- * - activeTrialDormant: 過去に立ち上げ/継続だったが、現在/未来シフトと直近30日活動がない
- * - retained:           スタッフ2人以上で今日に被る確定シフトがある
- * - retainedDormant:    過去に継続だったが、現在/未来シフトと直近30日活動がない
+ * - activeTrial:        スタッフ2人以上で現在/未来の募集または確定シフトがあり、継続条件に該当しない
+ * - activeTrialDormant: 過去に立ち上げ/継続で確定シフト経験があるが、現在/未来シフトと直近30日活動がない
+ * - retained:           スタッフ2人以上で今日に被る確定シフトがあり、未来の募集または確定シフトがある
+ * - retainedDormant:    過去に継続で確定シフト経験があるが、現在/未来シフトと直近30日活動がない
  */
 
 export const SHOP_STAGES = ["beforeStart", "activeTrial", "activeTrialDormant", "retained", "retainedDormant"] as const;
@@ -42,6 +42,10 @@ export type ShopStageInputs = {
   hasCurrentConfirmedShift: boolean;
   /** 進行中（open）の募集があるか */
   hasOpenRecruitment: boolean;
+  /** 集計日より後に開始する進行中（open）の募集があるか */
+  hasFutureOpenRecruitment: boolean;
+  /** 集計日より後に開始する確定済み募集があるか */
+  hasFutureConfirmedShift: boolean;
   /** 過去に立ち上げまたは継続だったことがあるか */
   hadActiveOrRetainedStage: boolean;
   /** 過去に継続だったことがあるか */
@@ -62,21 +66,26 @@ export function hasCurrentOrFutureShift(inputs: ShopStageInputs): boolean {
   return inputs.hasOpenRecruitment || inputs.hasCurrentOrFutureConfirmedShift;
 }
 
+export function hasFutureShift(inputs: ShopStageInputs): boolean {
+  return inputs.hasFutureOpenRecruitment || inputs.hasFutureConfirmedShift;
+}
+
 export function hasRecentActivity(inputs: ShopStageInputs, nowMs: number): boolean {
   return daysSince(inputs.lastActivityAt, nowMs) <= STAGE_DORMANT_AFTER_DAYS;
 }
 
 export function isRetainedStageCandidate(inputs: ShopStageInputs): boolean {
-  return hasStageReadyStaff(inputs) && inputs.hasCurrentConfirmedShift;
+  return hasStageReadyStaff(inputs) && inputs.hasCurrentConfirmedShift && hasFutureShift(inputs);
 }
 
 export function isActiveTrialStageCandidate(inputs: ShopStageInputs): boolean {
-  return hasStageReadyStaff(inputs) && hasCurrentOrFutureShift(inputs) && !inputs.hasCurrentConfirmedShift;
+  return hasStageReadyStaff(inputs) && hasCurrentOrFutureShift(inputs) && !isRetainedStageCandidate(inputs);
 }
 
 export function isDormantStageCandidate(inputs: ShopStageInputs, nowMs: number): boolean {
   return (
     hasStageReadyStaff(inputs) &&
+    inputs.confirmedRecruitmentCount >= 1 &&
     inputs.hadActiveOrRetainedStage &&
     !inputs.hasOpenRecruitment &&
     !inputs.hasCurrentOrFutureConfirmedShift &&

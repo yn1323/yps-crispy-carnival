@@ -239,12 +239,14 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
       (confirmedAt !== null && confirmedAt > snapshot.snapshotAt && recruitment.periodEnd >= snapshot.date)
     );
   });
+  const hasFutureOpenRecruitment = openRecruitments.some((recruitment) => recruitment.periodStart > snapshot.date);
   const hasCurrentOrFutureConfirmedShift = confirmedRecruitments.some(
     (recruitment) => recruitment.periodEnd >= snapshot.date,
   );
   const hasCurrentConfirmedShift = confirmedRecruitments.some(
     (recruitment) => recruitment.periodStart <= snapshot.date && recruitment.periodEnd >= snapshot.date,
   );
+  const hasFutureConfirmedShift = confirmedRecruitments.some((recruitment) => recruitment.periodStart > snapshot.date);
 
   const recruitmentStats = await ctx.db
     .query("recruitmentStats")
@@ -333,6 +335,8 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     hasCurrentOrFutureConfirmedShift,
     hasCurrentConfirmedShift,
     hasOpenRecruitment: openRecruitments.length > 0,
+    hasFutureOpenRecruitment,
+    hasFutureConfirmedShift,
     hadActiveOrRetainedStage,
     hadRetainedStage,
     lastActivityAt,
@@ -352,6 +356,8 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     hasNotificationSent,
     hasCurrentOrFutureConfirmedShift,
     hasCurrentConfirmedShift,
+    hasFutureOpenRecruitment,
+    hasFutureConfirmedShift,
     hadActiveOrRetainedStage,
     hadRetainedStage,
     lastActivityAt,

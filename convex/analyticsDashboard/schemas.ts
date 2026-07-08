@@ -119,6 +119,11 @@ export function parseAnalyticsDashboardRequest(input: unknown): ParseResult<Anal
     }
     return { ok: true, value: { kind, date: date.value, sort: sort as ShopRankingSort, limit } };
   }
+  if (kind === "shopRecruitments") {
+    const shopId = readString(input, "shopId");
+    if (!shopId.ok) return shopId;
+    return { ok: true, value: { kind, shopId: shopId.value } };
+  }
   if (kind === "shopDetail") {
     const range = readRange(input);
     if (!range.ok) return range;

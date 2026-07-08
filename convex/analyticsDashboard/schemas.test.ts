@@ -36,4 +36,11 @@ describe("analyticsDashboard/schemas", () => {
       }),
     ).toMatchObject({ ok: false });
   });
+
+  it("店舗別シフト一覧requestを受け付ける", () => {
+    expect(parseAnalyticsDashboardRequest({ kind: "shopRecruitments", shopId: "shop_123" })).toEqual({
+      ok: true,
+      value: { kind: "shopRecruitments", shopId: "shop_123" },
+    });
+  });
 });

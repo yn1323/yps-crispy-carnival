@@ -20,6 +20,8 @@ function inputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
     hasCurrentOrFutureConfirmedShift: false,
     hasCurrentConfirmedShift: false,
     hasOpenRecruitment: false,
+    hasFutureOpenRecruitment: false,
+    hasFutureConfirmedShift: false,
     hadActiveOrRetainedStage: false,
     hadRetainedStage: false,
     lastActivityAt: NOW,
@@ -44,6 +46,8 @@ function retainedInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInpu
     confirmedRecruitmentCount: 1,
     hasCurrentOrFutureConfirmedShift: true,
     hasCurrentConfirmedShift: true,
+    hasOpenRecruitment: true,
+    hasFutureOpenRecruitment: true,
     lastActivityAt: NOW,
     ...overrides,
   });
@@ -52,6 +56,7 @@ function retainedInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInpu
 function dormantInputs(overrides: Partial<ShopStageInputs> = {}): ShopStageInputs {
   return inputs({
     realStaffCount: 2,
+    confirmedRecruitmentCount: 1,
     hadActiveOrRetainedStage: true,
     lastActivityAt: NOW - 31 * DAY_MS,
     ...overrides,
@@ -84,20 +89,49 @@ describe("classifyShopStage", () => {
     ).toBe("activeTrial");
   });
 
-  it("スタッフ2人以上 + 今日に被る確定シフトあり = 継続", () => {
+  it("スタッフ2人以上 + 今日に被る確定シフトあり + 未来の募集中シフトあり = 継続", () => {
     expect(classifyShopStage(retainedInputs(), NOW)).toBe("retained");
   });
 
-  it("今日に被る確定シフトがあれば、進行中募集があっても継続を優先する", () => {
-    expect(classifyShopStage(retainedInputs({ hasOpenRecruitment: true }), NOW)).toBe("retained");
+  it("スタッフ2人以上 + 今日に被る確定シフトあり + 未来の確定シフトあり = 継続", () => {
+    expect(
+      classifyShopStage(
+        retainedInputs({
+          hasFutureConfirmedShift: true,
+          hasFutureOpenRecruitment: false,
+          hasOpenRecruitment: false,
+        }),
+        NOW,
+      ),
+    ).toBe("retained");
   });
 
-  it("過去に立ち上げまたは継続で、現在/未来シフトと直近30日活動がなければ休眠", () => {
+  it("今日に被る確定シフトがあっても、未来の募集または確定がなければ立ち上げに残す", () => {
+    expect(
+      classifyShopStage(
+        retainedInputs({
+          hasFutureConfirmedShift: false,
+          hasFutureOpenRecruitment: false,
+          hasOpenRecruitment: false,
+        }),
+        NOW,
+      ),
+    ).toBe("activeTrial");
+  });
+
+  it("過去に立ち上げまたは継続で、確定シフト経験があり、現在/未来シフトと直近30日活動がなければ休眠", () => {
     expect(classifyShopStage(dormantInputs(), NOW)).toBe("activeTrialDormant");
   });
 
   it("過去に継続だった店舗の休眠は継続後休眠として残す", () => {
     expect(classifyShopStage(dormantInputs({ hadRetainedStage: true }), NOW)).toBe("retainedDormant");
+  });
+
+  it("確定シフト経験がなければ、過去ステージ履歴があっても休眠ではなく開始前", () => {
+    expect(classifyShopStage(dormantInputs({ confirmedRecruitmentCount: 0 }), NOW)).toBe("beforeStart");
+    expect(classifyShopStage(dormantInputs({ confirmedRecruitmentCount: 0, hadRetainedStage: true }), NOW)).toBe(
+      "beforeStart",
+    );
   });
 
   it("過去ステージ履歴がなければ、活動が止まっていても開始前", () => {
@@ -151,7 +185,11 @@ describe("lastReachedOnboardingStep", () => {
 describe("shopStageAlerts", () => {
   it("順調な店舗にはアラートを出さない", () => {
     const alerts = shopStageAlerts({
-      inputs: retainedInputs(),
+      inputs: retainedInputs({
+        hasOpenRecruitment: false,
+        hasFutureOpenRecruitment: false,
+        hasFutureConfirmedShift: true,
+      }),
       stage: "retained",
       openRecruitmentSubmittedCount: 0,
       openNotificationFailureCount: 0,

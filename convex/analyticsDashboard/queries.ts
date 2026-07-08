@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { internalQuery } from "../_generated/server";
+import { dateJST, dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
 import { ANALYTICS_METRICS, allNotificationEventMetrics, notificationMetric } from "../analytics/metrics";
 import { fetchEventSeries, fetchServiceSnapshotRange, fetchShopSnapshotSeries } from "../analytics/queries";
 import {
@@ -17,6 +18,7 @@ import type {
   NotificationBreakdownRow,
   ServiceSnapshotDto,
   ShopRankingSort,
+  ShopRecruitmentRowDto,
   ShopSnapshotDto,
   ShopStageCounts,
   ShopStageKey,
@@ -37,6 +39,8 @@ const OVERVIEW_METRICS = [
   ANALYTICS_METRICS.lineLinked,
   ANALYTICS_METRICS.registrationRequested,
 ] as const;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function toServiceSnapshotDto(doc: Doc<"analyticsDailyServiceSnapshots">): ServiceSnapshotDto {
   return {
@@ -83,6 +87,25 @@ async function getEventSeriesDtos(ctx: QueryCtx, args: { metric: string; from: s
 function ratio(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
   return numerator / denominator;
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function dateStringToEpochDay(value: string | null | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const ms = dateToUtcMs(value);
+  if (!Number.isFinite(ms) || formatUtcDate(ms) !== value) return null;
+  return Math.floor(ms / MS_PER_DAY);
+}
+
+function daysBetweenJstDates(from: string | null | undefined, to: string | null | undefined) {
+  const fromDay = dateStringToEpochDay(from);
+  const toDay = dateStringToEpochDay(to);
+  if (fromDay === null || toDay === null) return null;
+  return toDay - fromDay;
 }
 
 async function getShopStageSnapshotsByDate(ctx: QueryCtx, date: string) {
@@ -280,32 +303,82 @@ function emptyStageCounts(): ShopStageCounts {
   return { beforeStart: 0, activeTrial: 0, activeTrialDormant: 0, retained: 0, retainedDormant: 0 };
 }
 
-async function getFirstRecruitmentForDashboard(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">) {
-  const recruitment = await ctx.db
+async function getRecruitmentDashboardStats(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">) {
+  const snapshotAt = doc.stageReferenceAt ?? doc.computedAt;
+  const recruitments = await ctx.db
     .query("recruitments")
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", doc.shopId).eq("isDeleted", false))
     .order("asc")
-    .first();
-  if (!recruitment || recruitment._creationTime > doc.computedAt) {
-    return { firstRecruitmentCreatedAt: null, firstRecruitmentDeadline: null };
-  }
+    .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT);
+  const visibleRecruitments = recruitments.filter((recruitment) => recruitment._creationTime <= snapshotAt);
+  const firstRecruitment = visibleRecruitments[0] ?? null;
+  const lastShiftRecruitment = visibleRecruitments.reduce<Doc<"recruitments"> | null>((latest, recruitment) => {
+    if (latest === null) return recruitment;
+    const recruitmentEndDay = dateStringToEpochDay(recruitment.periodEnd) ?? Number.NEGATIVE_INFINITY;
+    const latestEndDay = dateStringToEpochDay(latest.periodEnd) ?? Number.NEGATIVE_INFINITY;
+    if (recruitmentEndDay !== latestEndDay) return recruitmentEndDay > latestEndDay ? recruitment : latest;
+    const recruitmentStartDay = dateStringToEpochDay(recruitment.periodStart) ?? Number.NEGATIVE_INFINITY;
+    const latestStartDay = dateStringToEpochDay(latest.periodStart) ?? Number.NEGATIVE_INFINITY;
+    if (recruitmentStartDay !== latestStartDay) return recruitmentStartDay > latestStartDay ? recruitment : latest;
+    return recruitment._creationTime > latest._creationTime ? recruitment : latest;
+  }, null);
+  const recruitmentOpenDays = visibleRecruitments.flatMap((recruitment) => {
+    const openedDate = dateJST(recruitment._creationTime);
+    const days = daysBetweenJstDates(openedDate, recruitment.deadline);
+    return days === null ? [] : [Math.max(0, days + 1)];
+  });
+  const deadlineToConfirmationDays = visibleRecruitments.flatMap((recruitment) => {
+    if (
+      recruitment.status !== "confirmed" ||
+      recruitment.confirmedAt === undefined ||
+      recruitment.confirmedAt > snapshotAt
+    ) {
+      return [];
+    }
+    const confirmedDate = dateJST(recruitment.confirmedAt);
+    const days = daysBetweenJstDates(recruitment.deadline, confirmedDate);
+    return days === null ? [] : [Math.max(0, days)];
+  });
+  const reminderSentCount = visibleRecruitments.filter(
+    (recruitment) => recruitment.lastReminderSentAt !== undefined && recruitment.lastReminderSentAt <= snapshotAt,
+  ).length;
+  const recruitmentStats = await ctx.db
+    .query("recruitmentStats")
+    .withIndex("by_shopId", (q) => q.eq("shopId", doc.shopId))
+    .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT);
+  const statsByRecruitmentId = new Map(
+    recruitmentStats
+      .filter((stats) => stats.updatedAt <= snapshotAt)
+      .map((stats) => [stats.recruitmentId, ratio(stats.submittedCount, stats.activeStaffCountSnapshot)]),
+  );
   return {
-    firstRecruitmentCreatedAt: recruitment._creationTime,
-    firstRecruitmentDeadline: recruitment.deadline,
+    firstRecruitmentCreatedAt: firstRecruitment?._creationTime ?? null,
+    firstRecruitmentDeadline: firstRecruitment?.deadline ?? null,
+    lastShiftCreatedAt: lastShiftRecruitment?._creationTime ?? null,
+    lastShiftPeriodStart: lastShiftRecruitment?.periodStart ?? null,
+    lastShiftPeriodEnd: lastShiftRecruitment?.periodEnd ?? null,
+    lastShiftSubmissionRate: lastShiftRecruitment ? (statsByRecruitmentId.get(lastShiftRecruitment._id) ?? null) : null,
+    averageRecruitmentOpenDays: average(recruitmentOpenDays),
+    averageDeadlineToConfirmationDays: average(deadlineToConfirmationDays),
+    reminderTargetRecruitmentRate: ratio(reminderSentCount, visibleRecruitments.length),
   };
 }
 
 async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">): Promise<ShopStageRowDto> {
-  const [shop, firstRecruitment] = await Promise.all([
-    ctx.db.get(doc.shopId),
-    getFirstRecruitmentForDashboard(ctx, doc),
-  ]);
+  const [shop, recruitmentStats] = await Promise.all([ctx.db.get(doc.shopId), getRecruitmentDashboardStats(ctx, doc)]);
   const base = {
     shopId: doc.shopId,
     shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
     shopCreatedAt: shop?._creationTime ?? null,
-    firstRecruitmentCreatedAt: firstRecruitment.firstRecruitmentCreatedAt,
-    firstRecruitmentDeadline: firstRecruitment.firstRecruitmentDeadline,
+    firstRecruitmentCreatedAt: recruitmentStats.firstRecruitmentCreatedAt,
+    firstRecruitmentDeadline: recruitmentStats.firstRecruitmentDeadline,
+    lastShiftCreatedAt: recruitmentStats.lastShiftCreatedAt,
+    lastShiftPeriodStart: recruitmentStats.lastShiftPeriodStart,
+    lastShiftPeriodEnd: recruitmentStats.lastShiftPeriodEnd,
+    lastShiftSubmissionRate: recruitmentStats.lastShiftSubmissionRate,
+    averageRecruitmentOpenDays: recruitmentStats.averageRecruitmentOpenDays,
+    averageDeadlineToConfirmationDays: recruitmentStats.averageDeadlineToConfirmationDays,
+    reminderTargetRecruitmentRate: recruitmentStats.reminderTargetRecruitmentRate,
     planKey: doc.planKey,
     staffCount: doc.staffCount,
     shiftTargetStaffCount: doc.shiftTargetStaffCount,
@@ -340,6 +413,8 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
       hasNotificationSent: null,
       hasCurrentOrFutureConfirmedShift: null,
       hasCurrentConfirmedShift: null,
+      hasFutureOpenRecruitment: null,
+      hasFutureConfirmedShift: null,
       hadActiveOrRetainedStage: null,
       hadRetainedStage: null,
       lastActivityAt: null,
@@ -359,6 +434,9 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
     hasCurrentOrFutureConfirmedShift: doc.hasCurrentOrFutureConfirmedShift ?? false,
     hasCurrentConfirmedShift: doc.hasCurrentConfirmedShift ?? false,
     hasOpenRecruitment: doc.openRecruitmentCount > 0,
+    hasFutureOpenRecruitment: doc.hasFutureOpenRecruitment ?? doc.openRecruitmentCount > 0,
+    hasFutureConfirmedShift:
+      doc.hasFutureConfirmedShift ?? ((doc.hasCurrentOrFutureConfirmedShift ?? false) && !doc.hasCurrentConfirmedShift),
     hadActiveOrRetainedStage: doc.hadActiveOrRetainedStage ?? doc.stage !== "beforeStart",
     hadRetainedStage: doc.hadRetainedStage ?? isRetainedStage(doc.stage),
     lastActivityAt: doc.lastActivityAt ?? doc.computedAt,
@@ -395,6 +473,8 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
     hasNotificationSent: inputs.hasNotificationSent,
     hasCurrentOrFutureConfirmedShift: inputs.hasCurrentOrFutureConfirmedShift,
     hasCurrentConfirmedShift: inputs.hasCurrentConfirmedShift,
+    hasFutureOpenRecruitment: inputs.hasFutureOpenRecruitment,
+    hasFutureConfirmedShift: inputs.hasFutureConfirmedShift,
     hadActiveOrRetainedStage: inputs.hadActiveOrRetainedStage,
     hadRetainedStage: inputs.hadRetainedStage,
     lastActivityAt: inputs.lastActivityAt,
@@ -464,6 +544,54 @@ export const getShopRanking = internalQuery({
       date: args.date,
       sort: args.sort,
       rows: rows.slice(0, args.limit),
+    };
+  },
+});
+
+function recruitmentSortValue(recruitment: Doc<"recruitments">) {
+  return dateStringToEpochDay(recruitment.periodStart) ?? Number.NEGATIVE_INFINITY;
+}
+
+function toShopRecruitmentRowDto(
+  recruitment: Doc<"recruitments">,
+  stats: Doc<"recruitmentStats"> | null,
+): ShopRecruitmentRowDto {
+  return {
+    activeStaffCountSnapshot: stats?.activeStaffCountSnapshot ?? null,
+    confirmedAt: recruitment.confirmedAt ?? null,
+    createdAt: recruitment._creationTime,
+    periodEnd: recruitment.periodEnd,
+    periodStart: recruitment.periodStart,
+    recruitmentId: recruitment._id,
+    status: recruitment.status,
+    submittedCount: stats?.submittedCount ?? null,
+  };
+}
+
+export const getShopRecruitments = internalQuery({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, args) => {
+    const [recruitments, recruitmentStats] = await Promise.all([
+      ctx.db
+        .query("recruitments")
+        .withIndex("by_shopId_and_isDeleted_and_periodStart", (q) => q.eq("shopId", args.shopId).eq("isDeleted", false))
+        .order("desc")
+        .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT),
+      ctx.db
+        .query("recruitmentStats")
+        .withIndex("by_shopId", (q) => q.eq("shopId", args.shopId))
+        .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT),
+    ]);
+    const statsByRecruitmentId = new Map(recruitmentStats.map((stats) => [stats.recruitmentId, stats]));
+    const rows = recruitments
+      .sort((a, b) => recruitmentSortValue(b) - recruitmentSortValue(a) || b._creationTime - a._creationTime)
+      .map((recruitment) => toShopRecruitmentRowDto(recruitment, statsByRecruitmentId.get(recruitment._id) ?? null));
+
+    return {
+      kind: "shopRecruitments" as const,
+      shopId: args.shopId,
+      shopName: await getShopName(ctx, args.shopId),
+      rows,
     };
   },
 });

@@ -227,6 +227,8 @@ describe("analytics/dailyAggregation", () => {
       hasNotificationSent: false,
       hasCurrentOrFutureConfirmedShift: true,
       hasCurrentConfirmedShift: false,
+      hasFutureOpenRecruitment: true,
+      hasFutureConfirmedShift: true,
     });
     const snapshotB = shopSnapshots.find((s) => s.shopId === shopB);
     expect(snapshotB).toMatchObject({ planKey: "free", staffCount: 1, stage: "beforeStart" });
@@ -295,7 +297,7 @@ describe("analytics/dailyAggregation", () => {
       return shopId;
     });
 
-    // 継続店舗: 対象日と被る確定シフトがある（現在も稼働中）
+    // 継続店舗: 対象日と被る確定シフトがあり、次の未来募集もある
     vi.setSystemTime(new Date(startMs + 12 * 60 * 60 * 1000));
     const retainedShop = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "継続店舗");
@@ -345,6 +347,31 @@ describe("analytics/dailyAggregation", () => {
       return shopId;
     });
 
+    // 立ち上げ店舗: 現在の確定シフトはあるが、次の未来募集/確定がまだない
+    const currentOnlyShop = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "現在シフトのみ店舗");
+      for (let i = 0; i < 3; i++) {
+        await insertStaff(ctx, shopId, { email: `current-only-${i}@example.com` });
+      }
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        ...recruitmentBase,
+        shopId,
+        periodStart: TARGET_DATE,
+        periodEnd: TARGET_DATE,
+        deadline: "2026-07-02",
+        status: "confirmed",
+        confirmedAt: startMs - 24 * 60 * 60 * 1000,
+      });
+      await ctx.db.insert("recruitmentStats", {
+        recruitmentId,
+        shopId,
+        submittedCount: 2,
+        activeStaffCountSnapshot: 3,
+        updatedAt: startMs,
+      });
+      return shopId;
+    });
+
     await runDailyAggregation(t, TARGET_DATE);
 
     const snapshots = await t.run(async (ctx) => {
@@ -370,14 +397,23 @@ describe("analytics/dailyAggregation", () => {
     expect(dormantSnapshot?.lastActivityAt).toBeGreaterThanOrEqual(oldMs);
     expect(dormantSnapshot?.lastActivityAt).toBeLessThan(oldMs + 1000);
 
-    // 今日に被る確定シフトあり → 継続。進行中募集の提出0件も判定材料として残る
+    // 今日に被る確定シフト + 未来募集あり → 継続。進行中募集の提出0件も判定材料として残る
     expect(snapshots.find((s) => s.shopId === retainedShop)).toMatchObject({
       stage: "retained",
       recruitmentCount: 4,
       confirmedRecruitmentCount: 3,
       hasCurrentConfirmedShift: true,
+      hasFutureOpenRecruitment: true,
+      hasFutureConfirmedShift: false,
       openRecruitmentCount: 1,
       openRecruitmentSubmittedCount: 0,
+    });
+    expect(snapshots.find((s) => s.shopId === currentOnlyShop)).toMatchObject({
+      stage: "activeTrial",
+      hasCurrentConfirmedShift: true,
+      hasFutureOpenRecruitment: false,
+      hasFutureConfirmedShift: false,
+      openRecruitmentCount: 0,
     });
 
     const service = await t.run(async (ctx) => {
@@ -388,7 +424,7 @@ describe("analytics/dailyAggregation", () => {
     });
     expect(service?.shopStageCounts).toEqual({
       beforeStart: 0,
-      activeTrial: 0,
+      activeTrial: 1,
       activeTrialDormant: 0,
       retained: 1,
       retainedDormant: 1,
@@ -414,8 +450,8 @@ describe("analytics/dailyAggregation", () => {
         const recruitmentId = await ctx.db.insert("recruitments", {
           ...recruitmentBase,
           shopId,
-          periodStart: i === 0 ? TARGET_DATE : "2026-05-01",
-          periodEnd: i === 0 ? TARGET_DATE : "2026-05-07",
+          periodStart: i === 0 ? TARGET_DATE : i === 1 ? "2026-07-08" : "2026-05-01",
+          periodEnd: i === 0 ? TARGET_DATE : i === 1 ? "2026-07-14" : "2026-05-07",
           deadline: "2026-04-28",
           status: "confirmed",
           confirmedAt: oldMs,
@@ -452,6 +488,7 @@ describe("analytics/dailyAggregation", () => {
       stage: "retained",
       hasCurrentOrFutureConfirmedShift: true,
       hasCurrentConfirmedShift: true,
+      hasFutureConfirmedShift: true,
       stageReferenceAt: endMs - 1,
     });
   });
@@ -487,8 +524,8 @@ describe("analytics/dailyAggregation", () => {
         const recruitmentId = await ctx.db.insert("recruitments", {
           ...recruitmentBase,
           shopId,
-          periodStart: index === 1 ? TARGET_DATE : "2026-06-01",
-          periodEnd: index === 1 ? TARGET_DATE : "2026-06-07",
+          periodStart: index === 1 ? TARGET_DATE : index === 2 ? "2026-07-08" : "2026-06-01",
+          periodEnd: index === 1 ? TARGET_DATE : index === 2 ? "2026-07-14" : "2026-06-07",
           deadline: "2026-05-28",
           status: "confirmed",
           confirmedAt,
@@ -604,6 +641,7 @@ describe("analytics/dailyAggregation", () => {
     });
     expect(snapshot).toMatchObject({
       stage: "retained",
+      hasFutureConfirmedShift: true,
       recruitmentCreatedLast30Days: expected.recruitmentCreatedLast30Days,
       submittedRecruitmentCount: expected.submittedRecruitmentCount,
       submissionRate: 6 / 9,

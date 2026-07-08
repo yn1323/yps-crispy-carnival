@@ -519,6 +519,8 @@ const schema = defineSchema({
     hasNotificationSent: v.optional(v.boolean()),
     hasCurrentOrFutureConfirmedShift: v.optional(v.boolean()),
     hasCurrentConfirmedShift: v.optional(v.boolean()),
+    hasFutureOpenRecruitment: v.optional(v.boolean()),
+    hasFutureConfirmedShift: v.optional(v.boolean()),
     hadActiveOrRetainedStage: v.optional(v.boolean()),
     hadRetainedStage: v.optional(v.boolean()),
     lastActivityAt: v.optional(v.number()), // 主要イベントの最終発生時刻
