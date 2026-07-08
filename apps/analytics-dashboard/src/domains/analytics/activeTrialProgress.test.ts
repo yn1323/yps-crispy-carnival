@@ -4,6 +4,7 @@ import {
   getActiveTrialRows,
   getAverageSubmissionRate,
   getFirstConfirmedShopCount,
+  getFirstConfirmedShopNames,
   getFirstRecruitmentDurationDays,
   getLineLinkedRate,
   getNotificationFailureShopCount,
@@ -20,6 +21,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     averageFirstSubmissionLeadTimeMs: null,
     averageRecruitmentOpenDays: null,
     computedAt: BASE_REFERENCE_AT,
+    confirmedSubmissionRate: null,
     confirmedRecruitmentCount: 0,
     emailNotificationSentCount: null,
     firstRecruitmentCreatedAt: Date.UTC(2026, 6, 1, 1),
@@ -52,7 +54,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     postReminderSubmissionRate: null,
     recruitmentCount: 0,
     recruitmentCreatedLast30Days: null,
-    reminderTargetRecruitmentRate: null,
+    reminderSentStaffRate: null,
     resubmissionRate: null,
     shiftTargetStaffCount: 0,
     shopCreatedAt: BASE_CREATED_AT,
@@ -92,6 +94,7 @@ describe("activeTrialProgress", () => {
         lineLinkedStaffCount: 1,
         openNotificationFailureCount: 2,
         shiftTargetStaffCount: 2,
+        shopName: "TeamA&A",
         submissionRate: 0.5,
       }),
       shopStageRow({
@@ -101,14 +104,21 @@ describe("activeTrialProgress", () => {
         shiftTargetStaffCount: 4,
         submissionRate: 1,
       }),
-      shopStageRow({ confirmedRecruitmentCount: null, openNotificationFailureCount: null, submissionRate: null }),
+      shopStageRow({
+        confirmedRecruitmentCount: 2,
+        openNotificationFailureCount: null,
+        shopName: "こども食堂せかい",
+        submissionRate: null,
+      }),
+      shopStageRow({ confirmedRecruitmentCount: null, shopName: "未確定店舗" }),
     ];
 
     expect(getAverageSubmissionRate(rows)).toBe(0.75);
     expect(getLineLinkedRate(rows)).toBe(0.5);
     expect(getLineLinkedRate([shopStageRow({ lineLinkedStaffCount: 0, shiftTargetStaffCount: 0 })])).toBeNull();
     expect(getNotificationFailureShopCount(rows)).toBe(1);
-    expect(getFirstConfirmedShopCount(rows)).toBe(1);
+    expect(getFirstConfirmedShopCount(rows)).toBe(2);
+    expect(getFirstConfirmedShopNames(rows)).toEqual(["TeamA&A", "こども食堂せかい"]);
   });
 
   it("初回募集の開始日から締切日までの期間日数を算出する", () => {

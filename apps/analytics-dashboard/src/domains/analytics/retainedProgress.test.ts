@@ -4,10 +4,11 @@ import {
   getAverageDeadlineToConfirmationDays,
   getAverageMissingSubmissionRate,
   getAverageRecruitmentOpenDays,
-  getAverageReminderTargetRate,
   getAverageStaffCount,
   getLineLinkedRate,
   getMissingSubmissionRate,
+  getNextShiftMissingCount,
+  getReminderSentStaffRate,
   getRetainedRows,
   getShopLineLinkedRate,
 } from "./retainedProgress";
@@ -23,6 +24,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     averageFirstSubmissionLeadTimeMs: null,
     averageRecruitmentOpenDays: null,
     computedAt: BASE_REFERENCE_AT,
+    confirmedSubmissionRate: null,
     confirmedRecruitmentCount: 0,
     emailNotificationSentCount: null,
     firstRecruitmentCreatedAt: null,
@@ -55,7 +57,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     postReminderSubmissionRate: null,
     recruitmentCount: 0,
     recruitmentCreatedLast30Days: null,
-    reminderTargetRecruitmentRate: null,
+    reminderSentStaffRate: null,
     resubmissionRate: null,
     shiftTargetStaffCount: 0,
     shopCreatedAt: BASE_CREATED_AT,
@@ -72,7 +74,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
 }
 
 describe("retainedProgress", () => {
-  it("継続店舗を最終確定日の新しい順に並べ、同日の場合は登録日の新しい順にする", () => {
+  it("運用中店舗を最終確定日の新しい順に並べ、同日の場合は登録日の新しい順にする", () => {
     const olderConfirmed = shopStageRow({ lastRecruitmentConfirmedAt: BASE_CREATED_AT + 1000, shopId: "old" });
     const newerConfirmed = shopStageRow({ lastRecruitmentConfirmedAt: BASE_CREATED_AT + 2000, shopId: "new" });
     const sameConfirmedNewerShop = shopStageRow({
@@ -103,37 +105,54 @@ describe("retainedProgress", () => {
         averageDeadlineToConfirmationDays: 2,
         averageRecruitmentOpenDays: 8,
         lineLinkedStaffCount: 3,
-        reminderTargetRecruitmentRate: 0.25,
+        reminderSentStaffRate: 0.25,
         shiftTargetStaffCount: 4,
         staffCount: 6,
-        submissionRate: 0.75,
+        confirmedSubmissionRate: 0.75,
+        submissionRate: 0.25,
       }),
       shopStageRow({
         averageDeadlineToConfirmationDays: 4,
         averageRecruitmentOpenDays: 10,
         lineLinkedStaffCount: 1,
-        reminderTargetRecruitmentRate: 0.5,
+        reminderSentStaffRate: 0.5,
         shiftTargetStaffCount: 2,
         staffCount: 8,
-        submissionRate: 0.5,
+        confirmedSubmissionRate: 0.5,
+        submissionRate: 0,
       }),
       shopStageRow({ staffCount: 10 }),
     ];
 
     expect(getAverageStaffCount(rows)).toBe(8);
     expect(getLineLinkedRate(rows)).toBeCloseTo(4 / 6);
-    expect(getAverageReminderTargetRate(rows)).toBe(0.375);
+    expect(getReminderSentStaffRate(rows)).toBeCloseTo(1 / 3);
     expect(getAverageMissingSubmissionRate(rows)).toBe(0.375);
     expect(getAverageRecruitmentOpenDays(rows)).toBe(9);
     expect(getAverageDeadlineToConfirmationDays(rows)).toBe(3);
   });
 
-  it("行ごとのLINE連携率と未提出率を算出する", () => {
-    const row = shopStageRow({ lineLinkedStaffCount: 2, shiftTargetStaffCount: 5, submissionRate: 0.8 });
+  it("未来の募集または確定がない運用中店舗を次シフト未設定として数える", () => {
+    const rows = [
+      shopStageRow({ hasFutureConfirmedShift: false, hasFutureOpenRecruitment: false }),
+      shopStageRow({ hasFutureConfirmedShift: true, hasFutureOpenRecruitment: false }),
+      shopStageRow({ hasFutureConfirmedShift: false, hasFutureOpenRecruitment: true }),
+    ];
+
+    expect(getNextShiftMissingCount(rows)).toBe(1);
+  });
+
+  it("行ごとのLINE連携率と確定シフトに対する未提出率を算出する", () => {
+    const row = shopStageRow({
+      confirmedSubmissionRate: 0.8,
+      lineLinkedStaffCount: 2,
+      shiftTargetStaffCount: 5,
+      submissionRate: 0.2,
+    });
 
     expect(getShopLineLinkedRate(row)).toBe(0.4);
     expect(getMissingSubmissionRate(row)).toBeCloseTo(0.2);
     expect(getShopLineLinkedRate(shopStageRow({ shiftTargetStaffCount: 0 }))).toBeNull();
-    expect(getMissingSubmissionRate(shopStageRow({ submissionRate: null }))).toBeNull();
+    expect(getMissingSubmissionRate(shopStageRow({ confirmedSubmissionRate: null, submissionRate: 1 }))).toBeNull();
   });
 });

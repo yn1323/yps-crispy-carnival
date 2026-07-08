@@ -1,10 +1,23 @@
-import { Box, Button, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import {
+  Box,
+  Button,
+  Tooltip as ChakraTooltip,
+  Flex,
+  Grid,
+  HStack,
+  Portal,
+  Skeleton,
+  Stack,
+  Table,
+  Text,
+} from "@chakra-ui/react";
+import { type ReactNode, useState } from "react";
 import type { ShopStageRowDto, ShopStagesResponse } from "@/api/analyticsTypes";
 import {
   getActiveTrialRows,
   getAverageSubmissionRate,
   getFirstConfirmedShopCount,
+  getFirstConfirmedShopNames,
   getFirstRecruitmentDurationDays,
   getLineLinkedRate,
   getNotificationFailureShopCount,
@@ -28,6 +41,7 @@ const INITIAL_ACTIVATION_SORT: SortState<ActivationSortKey> = {
   direction: "desc",
   key: "registeredAt",
 };
+const MAX_METRIC_TOOLTIP_SHOP_NAMES = 8;
 
 function numberDelta(current: number | null, previous: number | null) {
   if (current === null || previous === null) return null;
@@ -110,12 +124,38 @@ function sortActivationRows(rows: ShopStageRowDto[], sort: SortState<ActivationS
   );
 }
 
+function ConfirmedShopTooltipContent({ shopNames }: { shopNames: string[] }) {
+  const visibleShopNames = shopNames.slice(0, MAX_METRIC_TOOLTIP_SHOP_NAMES);
+  const hiddenCount = shopNames.length - visibleShopNames.length;
+
+  return (
+    <Stack gap={2}>
+      <Text color="white" fontSize="xs" fontWeight="bold">
+        シフト確定済みの店舗
+      </Text>
+      <Box as="ul" m={0} ps={4}>
+        {visibleShopNames.map((shopName, index) => (
+          <Text as="li" color="white" fontSize="xs" key={`${shopName}-${index}`}>
+            {shopName}
+          </Text>
+        ))}
+        {hiddenCount > 0 ? (
+          <Text as="li" color="white" fontSize="xs">
+            ほか{formatNumber(hiddenCount)}店舗
+          </Text>
+        ) : null}
+      </Box>
+    </Stack>
+  );
+}
+
 function MetricCard({
   delta,
   deltaKind = "count",
   goodDirection = "up",
   isLoading,
   label,
+  tooltipContent,
   unit,
   value,
 }: {
@@ -124,11 +164,22 @@ function MetricCard({
   goodDirection?: "up" | "down";
   isLoading: boolean;
   label: string;
+  tooltipContent?: ReactNode;
   unit?: string;
   value: string;
 }) {
-  return (
-    <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" minH="150px" p={{ base: 4, md: 5 }}>
+  const hasTooltip = !isLoading && tooltipContent !== undefined && tooltipContent !== null;
+  const card = (
+    <Box
+      bg="white"
+      border="1px solid"
+      borderColor="gray.200"
+      borderRadius="md"
+      cursor={hasTooltip ? "help" : undefined}
+      minH="150px"
+      p={{ base: 4, md: 5 }}
+      tabIndex={hasTooltip ? 0 : undefined}
+    >
       <Text color="gray.600" fontSize="sm" fontWeight="bold">
         {label}
       </Text>
@@ -161,6 +212,32 @@ function MetricCard({
         </>
       )}
     </Box>
+  );
+
+  if (!hasTooltip) return card;
+
+  return (
+    <ChakraTooltip.Root closeDelay={80} openDelay={120}>
+      <ChakraTooltip.Trigger asChild>{card}</ChakraTooltip.Trigger>
+      <Portal>
+        <ChakraTooltip.Positioner>
+          <ChakraTooltip.Content
+            bg="gray.900"
+            borderRadius="md"
+            boxShadow="lg"
+            color="white"
+            maxW="280px"
+            px={3}
+            py={2}
+          >
+            <ChakraTooltip.Arrow>
+              <ChakraTooltip.ArrowTip bg="gray.900" />
+            </ChakraTooltip.Arrow>
+            {tooltipContent}
+          </ChakraTooltip.Content>
+        </ChakraTooltip.Positioner>
+      </Portal>
+    </ChakraTooltip.Root>
   );
 }
 
@@ -334,6 +411,7 @@ export function ActivationTabContent({
   const previousNotificationFailureShopCount = getNotificationFailureShopCount(previousRows);
   const firstConfirmedShopCount = getFirstConfirmedShopCount(rows);
   const previousFirstConfirmedShopCount = getFirstConfirmedShopCount(previousRows);
+  const firstConfirmedShopNames = getFirstConfirmedShopNames(rows);
 
   return (
     <Stack gap={{ base: 5, md: 6 }}>
@@ -377,6 +455,11 @@ export function ActivationTabContent({
             delta={numberDelta(firstConfirmedShopCount, previousFirstConfirmedShopCount)}
             isLoading={isLoading}
             label="初回確定済み店舗数"
+            tooltipContent={
+              firstConfirmedShopNames.length > 0 ? (
+                <ConfirmedShopTooltipContent shopNames={firstConfirmedShopNames} />
+              ) : undefined
+            }
             unit="店舗"
             value={formatNumber(firstConfirmedShopCount)}
           />

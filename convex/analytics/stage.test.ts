@@ -89,11 +89,11 @@ describe("classifyShopStage", () => {
     ).toBe("activeTrial");
   });
 
-  it("スタッフ2人以上 + 今日に被る確定シフトあり + 未来の募集中シフトあり = 継続", () => {
+  it("スタッフ2人以上 + 今日に被る確定シフトあり + 未来の募集中シフトあり = 運用中", () => {
     expect(classifyShopStage(retainedInputs(), NOW)).toBe("retained");
   });
 
-  it("スタッフ2人以上 + 今日に被る確定シフトあり + 未来の確定シフトあり = 継続", () => {
+  it("スタッフ2人以上 + 今日に被る確定シフトあり + 未来の確定シフトあり = 運用中", () => {
     expect(
       classifyShopStage(
         retainedInputs({
@@ -106,7 +106,7 @@ describe("classifyShopStage", () => {
     ).toBe("retained");
   });
 
-  it("今日に被る確定シフトがあっても、未来の募集または確定がなければ立ち上げに残す", () => {
+  it("今日に被る確定シフトがあれば、未来の募集または確定がなくても運用中に残す", () => {
     expect(
       classifyShopStage(
         retainedInputs({
@@ -116,14 +116,18 @@ describe("classifyShopStage", () => {
         }),
         NOW,
       ),
-    ).toBe("activeTrial");
+    ).toBe("retained");
   });
 
-  it("過去に立ち上げまたは継続で、確定シフト経験があり、現在/未来シフトと直近30日活動がなければ休眠", () => {
+  it("過去に立ち上げまたは運用中で、確定シフト経験があり、現在/未来シフトがなければ休眠", () => {
     expect(classifyShopStage(dormantInputs(), NOW)).toBe("activeTrialDormant");
   });
 
-  it("過去に継続だった店舗の休眠は継続後休眠として残す", () => {
+  it("現在/未来シフトがなければ、直近30日以内の活動があっても休眠", () => {
+    expect(classifyShopStage(dormantInputs({ lastActivityAt: NOW }), NOW)).toBe("activeTrialDormant");
+  });
+
+  it("過去に運用中だった店舗の休眠は運用後休眠として残す", () => {
     expect(classifyShopStage(dormantInputs({ hadRetainedStage: true }), NOW)).toBe("retainedDormant");
   });
 
@@ -138,11 +142,18 @@ describe("classifyShopStage", () => {
     expect(classifyShopStage(dormantInputs({ hadActiveOrRetainedStage: false }), NOW)).toBe("beforeStart");
   });
 
-  it("休眠判定の境界: ちょうど30日は休眠ではなく、31日で休眠", () => {
-    const at30 = dormantInputs({ lastActivityAt: NOW - 30 * DAY_MS });
-    const at31 = dormantInputs({ lastActivityAt: NOW - 31 * DAY_MS });
-    expect(classifyShopStage(at30, NOW)).toBe("beforeStart");
-    expect(classifyShopStage(at31, NOW)).toBe("activeTrialDormant");
+  it("現在/未来シフトがあれば、過去シフトがあっても休眠ではなく利用中として扱う", () => {
+    expect(classifyShopStage(dormantInputs({ hasOpenRecruitment: true }), NOW)).toBe("activeTrial");
+    expect(
+      classifyShopStage(
+        dormantInputs({
+          hasCurrentConfirmedShift: true,
+          hasCurrentOrFutureConfirmedShift: true,
+          hasFutureOpenRecruitment: true,
+        }),
+        NOW,
+      ),
+    ).toBe("retained");
   });
 });
 
@@ -243,6 +254,22 @@ describe("shopStageAlerts", () => {
     });
     expect(alerts).toContain("現在/未来シフトなし");
     expect(alerts).toContain("30日以上活動なし");
+  });
+
+  it("運用中で次シフトが未設定の店舗を検出する", () => {
+    const alerts = shopStageAlerts({
+      inputs: retainedInputs({
+        hasFutureConfirmedShift: false,
+        hasFutureOpenRecruitment: false,
+        hasOpenRecruitment: false,
+      }),
+      stage: "retained",
+      openRecruitmentSubmittedCount: 0,
+      openNotificationFailureCount: 0,
+      nowMs: NOW,
+    });
+    expect(alerts).toContain("次シフト未設定");
+    expect(alerts).not.toContain("現在/未来シフトなし");
   });
 });
 

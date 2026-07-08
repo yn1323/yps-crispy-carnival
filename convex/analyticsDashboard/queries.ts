@@ -12,6 +12,7 @@ import {
   type ShopStageInputs,
   shopStageAlerts,
 } from "../analytics/stage";
+import { isShiftTargetStaff } from "../staff/service";
 import type {
   EventCountDto,
   EventMetricTotalDto,
@@ -87,6 +88,35 @@ async function getEventSeriesDtos(ctx: QueryCtx, args: { metric: string; from: s
 function ratio(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
   return numerator / denominator;
+}
+
+function confirmedAtForDashboard(recruitment: Doc<"recruitments">): number | null {
+  if (recruitment.status !== "confirmed") return null;
+  return recruitment.confirmedAt ?? recruitment._creationTime;
+}
+
+function submittedCountForCurrentStaff(stats: Doc<"recruitmentStats">, currentShiftTargetStaffCount: number) {
+  return Math.min(stats.submittedCount, currentShiftTargetStaffCount);
+}
+
+function submissionRateForCurrentStaff(
+  stats: Doc<"recruitmentStats"> | null | undefined,
+  currentShiftTargetStaffCount: number,
+) {
+  if (!stats) return null;
+  return ratio(submittedCountForCurrentStaff(stats, currentShiftTargetStaffCount), currentShiftTargetStaffCount);
+}
+
+function aggregateSubmissionRateForCurrentStaff(
+  stats: Doc<"recruitmentStats">[],
+  currentShiftTargetStaffCount: number,
+) {
+  if (stats.length === 0) return null;
+  const submittedTotal = stats.reduce(
+    (sum, stat) => sum + submittedCountForCurrentStaff(stat, currentShiftTargetStaffCount),
+    0,
+  );
+  return ratio(submittedTotal, currentShiftTargetStaffCount * stats.length);
 }
 
 function average(values: number[]): number | null {
@@ -305,6 +335,8 @@ function emptyStageCounts(): ShopStageCounts {
 
 async function getRecruitmentDashboardStats(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnapshots">) {
   const snapshotAt = doc.stageReferenceAt ?? doc.computedAt;
+  const currentShiftTargetStaffIds = await getCurrentShiftTargetStaffIds(ctx, doc.shopId);
+  const currentShiftTargetStaffCount = currentShiftTargetStaffIds.size;
   const recruitments = await ctx.db
     .query("recruitments")
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", doc.shopId).eq("isDeleted", false))
@@ -339,28 +371,44 @@ async function getRecruitmentDashboardStats(ctx: QueryCtx, doc: Doc<"analyticsDa
     const days = daysBetweenJstDates(recruitment.deadline, confirmedDate);
     return days === null ? [] : [Math.max(0, days)];
   });
-  const reminderSentCount = visibleRecruitments.filter(
-    (recruitment) => recruitment.lastReminderSentAt !== undefined && recruitment.lastReminderSentAt <= snapshotAt,
-  ).length;
+  const visibleRecruitmentIds = new Set(visibleRecruitments.map((recruitment) => recruitment._id));
   const recruitmentStats = await ctx.db
     .query("recruitmentStats")
     .withIndex("by_shopId", (q) => q.eq("shopId", doc.shopId))
     .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT);
   const statsByRecruitmentId = new Map(
     recruitmentStats
-      .filter((stats) => stats.updatedAt <= snapshotAt)
-      .map((stats) => [stats.recruitmentId, ratio(stats.submittedCount, stats.activeStaffCountSnapshot)]),
+      .filter((stats) => visibleRecruitmentIds.has(stats.recruitmentId) && stats.updatedAt <= snapshotAt)
+      .map((stats) => [stats.recruitmentId, stats]),
   );
+  const visibleStats = [...statsByRecruitmentId.values()];
+  const confirmedRecruitmentIds = new Set(
+    visibleRecruitments.flatMap((recruitment) => {
+      const confirmedAt = confirmedAtForDashboard(recruitment);
+      return confirmedAt !== null && confirmedAt <= snapshotAt ? [recruitment._id] : [];
+    }),
+  );
+  const confirmedStats = visibleStats.filter((stats) => confirmedRecruitmentIds.has(stats.recruitmentId));
+  const lastRecruitment = visibleRecruitments.reduce<Doc<"recruitments"> | null>(
+    (latest, recruitment) =>
+      latest === null || recruitment._creationTime > latest._creationTime ? recruitment : latest,
+    null,
+  );
+  const lastShiftStats = lastShiftRecruitment ? statsByRecruitmentId.get(lastShiftRecruitment._id) : null;
+  const lastRecruitmentStats = lastRecruitment ? statsByRecruitmentId.get(lastRecruitment._id) : null;
   return {
     firstRecruitmentCreatedAt: firstRecruitment?._creationTime ?? null,
     firstRecruitmentDeadline: firstRecruitment?.deadline ?? null,
     lastShiftCreatedAt: lastShiftRecruitment?._creationTime ?? null,
     lastShiftPeriodStart: lastShiftRecruitment?.periodStart ?? null,
     lastShiftPeriodEnd: lastShiftRecruitment?.periodEnd ?? null,
-    lastShiftSubmissionRate: lastShiftRecruitment ? (statsByRecruitmentId.get(lastShiftRecruitment._id) ?? null) : null,
+    submissionRate: aggregateSubmissionRateForCurrentStaff(visibleStats, currentShiftTargetStaffCount),
+    confirmedSubmissionRate: aggregateSubmissionRateForCurrentStaff(confirmedStats, currentShiftTargetStaffCount),
+    lastShiftSubmissionRate: submissionRateForCurrentStaff(lastShiftStats, currentShiftTargetStaffCount),
+    lastRecruitmentSubmissionRate: submissionRateForCurrentStaff(lastRecruitmentStats, currentShiftTargetStaffCount),
     averageRecruitmentOpenDays: average(recruitmentOpenDays),
     averageDeadlineToConfirmationDays: average(deadlineToConfirmationDays),
-    reminderTargetRecruitmentRate: ratio(reminderSentCount, visibleRecruitments.length),
+    reminderSentStaffRate: await getReminderSentStaffRate(ctx, doc.shopId, snapshotAt, currentShiftTargetStaffIds),
   };
 }
 
@@ -378,7 +426,7 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
     lastShiftSubmissionRate: recruitmentStats.lastShiftSubmissionRate,
     averageRecruitmentOpenDays: recruitmentStats.averageRecruitmentOpenDays,
     averageDeadlineToConfirmationDays: recruitmentStats.averageDeadlineToConfirmationDays,
-    reminderTargetRecruitmentRate: recruitmentStats.reminderTargetRecruitmentRate,
+    reminderSentStaffRate: recruitmentStats.reminderSentStaffRate,
     planKey: doc.planKey,
     staffCount: doc.staffCount,
     shiftTargetStaffCount: doc.shiftTargetStaffCount,
@@ -398,6 +446,7 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
       openNotificationFailureCount: null,
       recruitmentCreatedLast30Days: null,
       submissionRate: null,
+      confirmedSubmissionRate: null,
       averageFirstSubmissionLeadTimeMs: null,
       averageConfirmationLeadTimeMs: null,
       emailNotificationSentCount: null,
@@ -457,7 +506,8 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
     submittedRecruitmentCount: doc.submittedRecruitmentCount ?? null,
     openNotificationFailureCount: doc.openNotificationFailureCount ?? 0,
     recruitmentCreatedLast30Days: doc.recruitmentCreatedLast30Days ?? null,
-    submissionRate: doc.submissionRate ?? null,
+    submissionRate: recruitmentStats.submissionRate,
+    confirmedSubmissionRate: recruitmentStats.confirmedSubmissionRate,
     averageFirstSubmissionLeadTimeMs: doc.averageFirstSubmissionLeadTimeMs ?? null,
     averageConfirmationLeadTimeMs: doc.averageConfirmationLeadTimeMs ?? null,
     emailNotificationSentCount,
@@ -465,7 +515,7 @@ async function toShopStageRowDto(ctx: QueryCtx, doc: Doc<"analyticsDailyShopSnap
     notificationLineSentRate,
     postReminderSubmissionRate: doc.postReminderSubmissionRate ?? null,
     resubmissionRate: doc.resubmissionRate ?? null,
-    lastRecruitmentSubmissionRate: doc.lastRecruitmentSubmissionRate ?? null,
+    lastRecruitmentSubmissionRate: recruitmentStats.lastRecruitmentSubmissionRate,
     lastRecruitmentCreatedAt: doc.lastRecruitmentCreatedAt ?? null,
     lastRecruitmentConfirmedAt: doc.lastRecruitmentConfirmedAt ?? null,
     lastConfirmedRecruitmentLeadTimeMs: doc.lastConfirmedRecruitmentLeadTimeMs ?? null,
@@ -552,26 +602,77 @@ function recruitmentSortValue(recruitment: Doc<"recruitments">) {
   return dateStringToEpochDay(recruitment.periodStart) ?? Number.NEGATIVE_INFINITY;
 }
 
+async function getCurrentShiftTargetStaffIds(ctx: QueryCtx, shopId: Id<"shops">) {
+  const staffs = await ctx.db
+    .query("staffs")
+    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
+    .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT);
+  return new Set(staffs.filter(isShiftTargetStaff).map((staff) => staff._id));
+}
+
+async function getCurrentShiftTargetStaffCount(ctx: QueryCtx, shopId: Id<"shops">) {
+  return (await getCurrentShiftTargetStaffIds(ctx, shopId)).size;
+}
+
+function reminderNotificationContext(payload: Doc<"notificationOutbox">["payload"]) {
+  if (payload.kind === "email") return payload.context;
+  return payload.fallbackEmail?.payload.context ?? null;
+}
+
+function isReminderNotificationJob(job: Doc<"notificationOutbox">) {
+  return (
+    reminderNotificationContext(job.payload) === "notification.sendReminderEmails" ||
+    job.dedupeKey.startsWith("line:reminder:") ||
+    job.dedupeKey.startsWith("line:failureRetryReminder:")
+  );
+}
+
+async function getReminderSentStaffRate(
+  ctx: QueryCtx,
+  shopId: Id<"shops">,
+  snapshotAt: number,
+  currentShiftTargetStaffIds: Set<Id<"staffs">>,
+) {
+  if (currentShiftTargetStaffIds.size === 0) return null;
+  const sentJobs = await ctx.db
+    .query("notificationOutbox")
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "sent"))
+    .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT);
+  const reminderSentStaffIds = new Set(
+    sentJobs.flatMap((job) => {
+      if (!job.staffId || !currentShiftTargetStaffIds.has(job.staffId)) return [];
+      if (job.sentAt === undefined || job.sentAt > snapshotAt) return [];
+      if (job.payload.suppressDelivery === true) return [];
+      if (!isReminderNotificationJob(job)) return [];
+      return [job.staffId];
+    }),
+  );
+  return ratio(reminderSentStaffIds.size, currentShiftTargetStaffIds.size);
+}
+
 function toShopRecruitmentRowDto(
   recruitment: Doc<"recruitments">,
   stats: Doc<"recruitmentStats"> | null,
+  currentShiftTargetStaffCount: number,
 ): ShopRecruitmentRowDto {
   return {
-    activeStaffCountSnapshot: stats?.activeStaffCountSnapshot ?? null,
     confirmedAt: recruitment.confirmedAt ?? null,
     createdAt: recruitment._creationTime,
+    currentShiftTargetStaffCount,
+    deadline: recruitment.deadline,
     periodEnd: recruitment.periodEnd,
     periodStart: recruitment.periodStart,
     recruitmentId: recruitment._id,
     status: recruitment.status,
-    submittedCount: stats?.submittedCount ?? null,
+    submittedCount:
+      stats?.submittedCount === undefined ? null : Math.min(stats.submittedCount, currentShiftTargetStaffCount),
   };
 }
 
 export const getShopRecruitments = internalQuery({
   args: { shopId: v.id("shops") },
   handler: async (ctx, args) => {
-    const [recruitments, recruitmentStats] = await Promise.all([
+    const [recruitments, recruitmentStats, currentShiftTargetStaffCount] = await Promise.all([
       ctx.db
         .query("recruitments")
         .withIndex("by_shopId_and_isDeleted_and_periodStart", (q) => q.eq("shopId", args.shopId).eq("isDeleted", false))
@@ -581,11 +682,18 @@ export const getShopRecruitments = internalQuery({
         .query("recruitmentStats")
         .withIndex("by_shopId", (q) => q.eq("shopId", args.shopId))
         .take(ANALYTICS_DASHBOARD_SHOP_SCAN_LIMIT),
+      getCurrentShiftTargetStaffCount(ctx, args.shopId),
     ]);
     const statsByRecruitmentId = new Map(recruitmentStats.map((stats) => [stats.recruitmentId, stats]));
     const rows = recruitments
       .sort((a, b) => recruitmentSortValue(b) - recruitmentSortValue(a) || b._creationTime - a._creationTime)
-      .map((recruitment) => toShopRecruitmentRowDto(recruitment, statsByRecruitmentId.get(recruitment._id) ?? null));
+      .map((recruitment) =>
+        toShopRecruitmentRowDto(
+          recruitment,
+          statsByRecruitmentId.get(recruitment._id) ?? null,
+          currentShiftTargetStaffCount,
+        ),
+      );
 
     return {
       kind: "shopRecruitments" as const,

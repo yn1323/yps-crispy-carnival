@@ -9,6 +9,11 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function ratioOrNull(numerator: number, denominator: number) {
+  if (denominator === 0) return null;
+  return numerator / denominator;
+}
+
 function averageRowValue(rows: ShopStageRowDto[], getter: (row: ShopStageRowDto) => number | null | undefined) {
   return average(
     rows.flatMap((row) => {
@@ -39,13 +44,25 @@ export function getLineLinkedRate(rows: ShopStageRowDto[]) {
   return linkedStaffCount / targetStaffCount;
 }
 
-export function getAverageReminderTargetRate(rows: ShopStageRowDto[]) {
-  return averageRowValue(rows, (row) => row.reminderTargetRecruitmentRate);
+export function getNextShiftMissingCount(rows: ShopStageRowDto[]) {
+  return rows.filter((row) => row.hasFutureOpenRecruitment !== true && row.hasFutureConfirmedShift !== true).length;
+}
+
+export function getReminderSentStaffRate(rows: ShopStageRowDto[]) {
+  let reminderSentStaffCount = 0;
+  let targetStaffCount = 0;
+  for (const row of rows) {
+    const rate = finiteNumber(row.reminderSentStaffRate);
+    if (rate === null || row.shiftTargetStaffCount === 0) continue;
+    reminderSentStaffCount += rate * row.shiftTargetStaffCount;
+    targetStaffCount += row.shiftTargetStaffCount;
+  }
+  return ratioOrNull(reminderSentStaffCount, targetStaffCount);
 }
 
 export function getAverageMissingSubmissionRate(rows: ShopStageRowDto[]) {
   return averageRowValue(rows, (row) => {
-    const submissionRate = finiteNumber(row.submissionRate);
+    const submissionRate = finiteNumber(row.confirmedSubmissionRate);
     return submissionRate === null ? null : Math.max(0, 1 - submissionRate);
   });
 }
@@ -59,7 +76,7 @@ export function getAverageDeadlineToConfirmationDays(rows: ShopStageRowDto[]) {
 }
 
 export function getMissingSubmissionRate(row: ShopStageRowDto) {
-  const submissionRate = finiteNumber(row.submissionRate);
+  const submissionRate = finiteNumber(row.confirmedSubmissionRate);
   return submissionRate === null ? null : Math.max(0, 1 - submissionRate);
 }
 

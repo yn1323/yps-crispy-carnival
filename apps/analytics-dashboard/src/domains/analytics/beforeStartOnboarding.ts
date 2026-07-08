@@ -42,7 +42,13 @@ export const BEFORE_START_TUTORIAL_STEPS: BeforeStartTutorialStep[] = [
   },
 ];
 
-export const BEFORE_START_DROPOFF_STEPS = BEFORE_START_TUTORIAL_STEPS.filter((step) => step.index > 1);
+export const BEFORE_START_DROPOFF_STEPS = [...BEFORE_START_TUTORIAL_STEPS];
+
+export type BeforeStartDropoffStepCount = BeforeStartTutorialStep & {
+  count: number;
+  displayIndex: number;
+  percentage: number;
+};
 
 export function getShopCreatedAt(row: ShopStageRowDto) {
   return typeof row.shopCreatedAt === "number" && Number.isFinite(row.shopCreatedAt) ? row.shopCreatedAt : null;
@@ -61,6 +67,23 @@ export function resolveBeforeStartTutorialStep(row: ShopStageRowDto) {
     reached = step;
   }
   return reached;
+}
+
+export function getBeforeStartDropoffStepCounts(rows: ShopStageRowDto[]): BeforeStartDropoffStepCount[] {
+  const counts = new Map<number, number>();
+  for (const row of rows) {
+    const step = resolveBeforeStartTutorialStep(row);
+    counts.set(step.index, (counts.get(step.index) ?? 0) + 1);
+  }
+  return BEFORE_START_DROPOFF_STEPS.map((step, index) => {
+    const count = counts.get(step.index) ?? 0;
+    return {
+      ...step,
+      count,
+      displayIndex: index + 1,
+      percentage: rows.length === 0 ? 0 : count / rows.length,
+    };
+  });
 }
 
 export function getBeforeStartElapsedDays(row: ShopStageRowDto) {

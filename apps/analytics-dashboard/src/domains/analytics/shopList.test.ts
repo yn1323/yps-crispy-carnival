@@ -12,6 +12,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     averageFirstSubmissionLeadTimeMs: null,
     averageRecruitmentOpenDays: null,
     computedAt: BASE_CREATED_AT,
+    confirmedSubmissionRate: null,
     confirmedRecruitmentCount: 0,
     emailNotificationSentCount: null,
     firstRecruitmentCreatedAt: null,
@@ -44,7 +45,7 @@ function shopStageRow(overrides: Partial<ShopStageRowDto> = {}): ShopStageRowDto
     postReminderSubmissionRate: null,
     recruitmentCount: 0,
     recruitmentCreatedLast30Days: null,
-    reminderTargetRecruitmentRate: null,
+    reminderSentStaffRate: null,
     resubmissionRate: null,
     shiftTargetStaffCount: 0,
     shopCreatedAt: BASE_CREATED_AT,
@@ -121,6 +122,7 @@ describe("shopList", () => {
   });
 
   it("表示用のステージ名とLINE連携率を返す", () => {
+    expect(getShopStageLabel("retained")).toBe("運用中");
     expect(getShopStageLabel("retainedDormant")).toBe("休眠");
     expect(getShopStageLabel(null)).toBe("未分類");
     expect(getShopLineLinkedRate(shopStageRow({ lineLinkedStaffCount: 3, shiftTargetStaffCount: 4 }))).toBe(0.75);

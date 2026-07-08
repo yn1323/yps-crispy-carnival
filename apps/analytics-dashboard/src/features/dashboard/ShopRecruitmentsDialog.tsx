@@ -16,7 +16,7 @@ import { formatNumber } from "@/domains/analytics/format";
 import { type SortState, sortRowsBy } from "@/domains/analytics/tableSort";
 import { SortableColumnHeader } from "./SortableColumnHeader";
 
-type RecruitmentSortKey = "status" | "period" | "submittedCount";
+type RecruitmentSortKey = "status" | "period" | "deadline" | "submittedCount";
 
 const INITIAL_RECRUITMENT_SORT: SortState<RecruitmentSortKey> = {
   direction: "desc",
@@ -44,8 +44,7 @@ function statusColorPalette(status: ShopRecruitmentRowDto["status"]) {
 
 function formatSubmittedCount(row: ShopRecruitmentRowDto) {
   if (row.submittedCount === null) return "-";
-  if (row.activeStaffCountSnapshot === null) return `${formatNumber(row.submittedCount)}人`;
-  return `${formatNumber(row.submittedCount)} / ${formatNumber(row.activeStaffCountSnapshot)}人`;
+  return `${formatNumber(row.submittedCount)} / ${formatNumber(row.currentShiftTargetStaffCount)}人`;
 }
 
 function dateStringToSortableDay(value: string | null | undefined) {
@@ -62,6 +61,8 @@ function recruitmentSortValue(row: ShopRecruitmentRowDto, key: RecruitmentSortKe
       return statusLabel(row.status);
     case "period":
       return dateStringToSortableDay(row.periodStart);
+    case "deadline":
+      return dateStringToSortableDay(row.deadline);
     case "submittedCount":
       return row.submittedCount;
   }
@@ -124,7 +125,7 @@ export function ShopRecruitmentsDialog({
                 </Flex>
               ) : (
                 <Box overflowX="auto">
-                  <Table.Root minW="560px" size="sm" variant="outline">
+                  <Table.Root minW="660px" size="sm" variant="outline">
                     <Table.Header>
                       <Table.Row bg="gray.50">
                         <SortableColumnHeader
@@ -135,6 +136,7 @@ export function ShopRecruitmentsDialog({
                           sortKey="status"
                         />
                         <SortableColumnHeader label="期間" onSortChange={setSort} sort={sort} sortKey="period" />
+                        <SortableColumnHeader label="締切" onSortChange={setSort} sort={sort} sortKey="deadline" />
                         <SortableColumnHeader
                           label="提出人数"
                           onSortChange={setSort}
@@ -155,6 +157,7 @@ export function ShopRecruitmentsDialog({
                           <Table.Cell color="gray.700" fontWeight="medium">
                             {formatPeriod(row.periodStart, row.periodEnd)}
                           </Table.Cell>
+                          <Table.Cell color="gray.700">{formatDate(row.deadline)}</Table.Cell>
                           <Table.Cell color="gray.700" textAlign="right">
                             {formatSubmittedCount(row)}
                           </Table.Cell>

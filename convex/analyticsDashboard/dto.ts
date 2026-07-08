@@ -79,6 +79,7 @@ export type ShopStageRowDto = {
   openNotificationFailureCount: number | null;
   recruitmentCreatedLast30Days: number | null;
   submissionRate: number | null;
+  confirmedSubmissionRate: number | null;
   averageFirstSubmissionLeadTimeMs: number | null;
   averageConfirmationLeadTimeMs: number | null;
   emailNotificationSentCount: number | null;
@@ -104,8 +105,8 @@ export type ShopStageRowDto = {
   averageRecruitmentOpenDays: number | null;
   /** 締切日から確定日までの平均日数 */
   averageDeadlineToConfirmationDays: number | null;
-  /** 催促送信済み募集の割合 */
-  reminderTargetRecruitmentRate: number | null;
+  /** 現在のシフト対象スタッフのうち、催促通知を実送信したスタッフの割合 */
+  reminderSentStaffRate: number | null;
   hasSubmission: boolean | null;
   hasNotificationSent: boolean | null;
   hasCurrentOrFutureConfirmedShift: boolean | null;
@@ -217,8 +218,9 @@ export type ShopRecruitmentRowDto = {
   status: "open" | "confirmed";
   periodStart: string;
   periodEnd: string;
+  deadline: string;
   submittedCount: number | null;
-  activeStaffCountSnapshot: number | null;
+  currentShiftTargetStaffCount: number;
   createdAt: number;
   confirmedAt: number | null;
 };

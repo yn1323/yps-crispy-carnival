@@ -20,7 +20,7 @@ export function SortableColumnHeader<Key extends string>({
   label: string;
   onSortChange: (sort: SortState<Key>) => void;
   sort: SortState<Key>;
-  sortKey: Key;
+  sortKey: NoInfer<Key>;
   textAlign?: "left" | "right";
   width?: string;
 }) {

@@ -18,7 +18,7 @@ export type ShopListSort = {
 export const SHOP_LIST_STAGE_FILTERS: { value: ShopListStageFilter; label: string; colorPalette: string }[] = [
   { value: "beforeStart", label: "開始前", colorPalette: "blue" },
   { value: "activeTrial", label: "立ち上げ", colorPalette: "orange" },
-  { value: "retained", label: "継続", colorPalette: "green" },
+  { value: "retained", label: "運用中", colorPalette: "green" },
   { value: "dormant", label: "休眠", colorPalette: "purple" },
 ];
 
@@ -39,7 +39,7 @@ export function getShopStageFilter(row: ShopStageRowDto): ShopListStageFilter | 
 export function getShopStageLabel(stage: ShopStageKey | null) {
   if (stage === "beforeStart") return "開始前";
   if (stage === "activeTrial") return "立ち上げ";
-  if (stage === "retained") return "継続";
+  if (stage === "retained") return "運用中";
   if (stage === "activeTrialDormant" || stage === "retainedDormant") return "休眠";
   return "未分類";
 }

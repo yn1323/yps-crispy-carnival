@@ -5,10 +5,11 @@ import { formatNumber, formatPercent } from "@/domains/analytics/format";
 import {
   getAverageDeadlineToConfirmationDays,
   getAverageMissingSubmissionRate,
-  getAverageReminderTargetRate,
   getAverageStaffCount,
   getLineLinkedRate,
   getMissingSubmissionRate,
+  getNextShiftMissingCount,
+  getReminderSentStaffRate,
   getRetainedRows,
   getShopLineLinkedRate,
 } from "@/domains/analytics/retainedProgress";
@@ -22,7 +23,7 @@ type RetainedSortKey =
   | "recruitmentCount"
   | "openRecruitmentCount"
   | "averageRecruitmentOpenDays"
-  | "reminderTargetRecruitmentRate"
+  | "reminderSentStaffRate"
   | "missingSubmissionRate"
   | "averageDeadlineToConfirmationDays"
   | "lastRecruitmentConfirmedAt";
@@ -88,8 +89,8 @@ function retainedSortValue(row: ShopStageRowDto, key: RetainedSortKey) {
       return finiteNumber(row.openRecruitmentCount);
     case "averageRecruitmentOpenDays":
       return finiteNumber(row.averageRecruitmentOpenDays);
-    case "reminderTargetRecruitmentRate":
-      return finiteNumber(row.reminderTargetRecruitmentRate);
+    case "reminderSentStaffRate":
+      return finiteNumber(row.reminderSentStaffRate);
     case "missingSubmissionRate":
       return getMissingSubmissionRate(row);
     case "averageDeadlineToConfirmationDays":
@@ -176,7 +177,7 @@ function RetainedTable({
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" minW={0} p={{ base: 4, md: 5 }}>
       <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
-        店舗一覧（継続の店舗）
+        店舗一覧（運用中の店舗）
       </Text>
       <Box mt={4} overflowX="auto">
         {isLoading ? (
@@ -232,14 +233,14 @@ function RetainedTable({
                   textAlign="right"
                 />
                 <SortableColumnHeader
-                  label="催促対象率"
+                  label="催促送信スタッフ率"
                   onSortChange={setSort}
                   sort={sort}
-                  sortKey="reminderTargetRecruitmentRate"
+                  sortKey="reminderSentStaffRate"
                   textAlign="right"
                 />
                 <SortableColumnHeader
-                  label="未提出率"
+                  label="確定シフト未提出率"
                   onSortChange={setSort}
                   sort={sort}
                   sortKey="missingSubmissionRate"
@@ -269,7 +270,7 @@ function RetainedTable({
                   <Table.Cell colSpan={11}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
-                        継続の店舗はありません
+                        運用中の店舗はありません
                       </Text>
                     </Flex>
                   </Table.Cell>
@@ -296,7 +297,7 @@ function RetainedTable({
                       {formatWithUnit(row.averageRecruitmentOpenDays, "日", 1)}
                     </Table.Cell>
                     <Table.Cell color="gray.700" textAlign="right">
-                      {formatPercent(row.reminderTargetRecruitmentRate)}
+                      {formatPercent(row.reminderSentStaffRate)}
                     </Table.Cell>
                     <Table.Cell color="gray.700" textAlign="right">
                       {formatPercent(getMissingSubmissionRate(row))}
@@ -341,29 +342,40 @@ export function RetainedTabContent({
   const previousRows = getRetainedRows(previousStages);
   const averageStaffCount = getAverageStaffCount(rows);
   const previousAverageStaffCount = getAverageStaffCount(previousRows);
-  const reminderTargetRate = getAverageReminderTargetRate(rows);
-  const previousReminderTargetRate = getAverageReminderTargetRate(previousRows);
+  const reminderSentStaffRate = getReminderSentStaffRate(rows);
+  const previousReminderSentStaffRate = getReminderSentStaffRate(previousRows);
   const missingSubmissionRate = getAverageMissingSubmissionRate(rows);
   const previousMissingSubmissionRate = getAverageMissingSubmissionRate(previousRows);
   const averageDeadlineToConfirmationDays = getAverageDeadlineToConfirmationDays(rows);
   const previousAverageDeadlineToConfirmationDays = getAverageDeadlineToConfirmationDays(previousRows);
   const lineLinkedRate = getLineLinkedRate(rows);
   const previousLineLinkedRate = getLineLinkedRate(previousRows);
+  const nextShiftMissingCount = getNextShiftMissingCount(rows);
+  const previousNextShiftMissingCount = getNextShiftMissingCount(previousRows);
 
   return (
     <Stack gap={{ base: 5, md: 6 }}>
       <Box>
         <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
-          継続のサマリー
+          運用中のサマリー
         </Text>
-        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(6, 1fr)" }}>
+        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
           <MetricCard
             delta={numberDelta(rows.length, previousRows.length)}
             deltaUnit="店舗"
             isLoading={isLoading}
-            label="継続店舗数"
+            label="運用中店舗数"
             unit="店舗"
             value={formatNumber(rows.length)}
+          />
+          <MetricCard
+            delta={numberDelta(nextShiftMissingCount, previousNextShiftMissingCount)}
+            deltaUnit="店舗"
+            goodDirection="down"
+            isLoading={isLoading}
+            label="次シフト未設定"
+            unit="店舗"
+            value={formatNumber(nextShiftMissingCount)}
           />
           <MetricCard
             delta={numberDelta(averageStaffCount, previousAverageStaffCount)}
@@ -374,20 +386,20 @@ export function RetainedTabContent({
             value={formatFixedNumber(averageStaffCount, 1)}
           />
           <MetricCard
-            delta={numberDelta(reminderTargetRate, previousReminderTargetRate)}
+            delta={numberDelta(reminderSentStaffRate, previousReminderSentStaffRate)}
             deltaKind="point"
             goodDirection="down"
             isLoading={isLoading}
-            label="催促対象率"
-            unit={reminderTargetRate === null ? undefined : "%"}
-            value={formatPercentNumber(reminderTargetRate)}
+            label="催促送信スタッフ率"
+            unit={reminderSentStaffRate === null ? undefined : "%"}
+            value={formatPercentNumber(reminderSentStaffRate)}
           />
           <MetricCard
             delta={numberDelta(missingSubmissionRate, previousMissingSubmissionRate)}
             deltaKind="point"
             goodDirection="down"
             isLoading={isLoading}
-            label="未提出率"
+            label="確定シフト未提出率"
             unit={missingSubmissionRate === null ? undefined : "%"}
             value={formatPercentNumber(missingSubmissionRate)}
           />

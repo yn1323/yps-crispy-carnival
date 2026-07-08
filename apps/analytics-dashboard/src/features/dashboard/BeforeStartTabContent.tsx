@@ -5,6 +5,7 @@ import {
   BEFORE_START_DROPOFF_STEPS,
   type BeforeStartTutorialStep,
   getBeforeStartAverageElapsedDays,
+  getBeforeStartDropoffStepCounts,
   getBeforeStartRows,
   getShopCreatedAt,
   resolveBeforeStartTutorialStep,
@@ -150,23 +151,6 @@ function BeforeStartSummaryCard({
   );
 }
 
-function tutorialStepCounts(rows: ShopStageRowDto[]) {
-  const counts = new Map<number, number>();
-  for (const row of rows) {
-    const step = resolveBeforeStartTutorialStep(row);
-    counts.set(step.index, (counts.get(step.index) ?? 0) + 1);
-  }
-  return BEFORE_START_DROPOFF_STEPS.map((step, index) => {
-    const count = counts.get(step.index) ?? 0;
-    return {
-      ...step,
-      count,
-      displayIndex: index + 1,
-      percentage: rows.length === 0 ? 0 : count / rows.length,
-    };
-  });
-}
-
 function formatPercentDelta(value: number) {
   if (!Number.isFinite(value)) return "-";
   if (value === 0) return "0.0%";
@@ -182,8 +166,8 @@ function DropoffPanel({
   previousRows: ShopStageRowDto[];
   rows: ShopStageRowDto[];
 }) {
-  const counts = tutorialStepCounts(rows);
-  const previousCountsByStep = new Map(tutorialStepCounts(previousRows).map((item) => [item.index, item]));
+  const counts = getBeforeStartDropoffStepCounts(rows);
+  const previousCountsByStep = new Map(getBeforeStartDropoffStepCounts(previousRows).map((item) => [item.index, item]));
   const maxCount = Math.max(...counts.map((item) => item.count), 1);
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" p={{ base: 4, md: 5 }}>
@@ -191,44 +175,58 @@ function DropoffPanel({
         ドロップアウト起点別の店舗数
       </Text>
       <Stack gap={3.5} mt={5}>
-        {isLoading ? (
-          <>
-            <Skeleton h="24px" w="full" />
-            <Skeleton h="24px" w="full" />
-            <Skeleton h="24px" w="full" />
-            <Skeleton h="24px" w="full" />
-          </>
-        ) : (
-          counts.map((item) => (
-            <Grid
-              alignItems="center"
-              gap={3}
-              key={item.index}
-              templateColumns={{
-                base: "104px minmax(0, 1fr) 78px 64px",
-                md: "132px minmax(0, 1fr) 88px 72px",
-              }}
-            >
-              <Text color="gray.700" fontSize="sm" fontWeight="bold">
-                {item.displayIndex}. {item.shortLabel}
-              </Text>
-              <Box bg="gray.100" borderRadius="full" h="12px" overflow="hidden">
-                <Box bg="blue.500" borderRadius="full" h="full" w={`${Math.max(6, (item.count / maxCount) * 100)}%`} />
-              </Box>
-              <Text color="gray.700" fontSize="sm" fontWeight="bold" textAlign="right">
-                {formatNumber(item.count)}（{formatFixedNumber(item.percentage * 100, 1)}%）
-              </Text>
-              <Text
-                color={deltaColor(item.percentage - (previousCountsByStep.get(item.index)?.percentage ?? 0))}
-                fontSize="sm"
-                fontWeight="bold"
-                textAlign="right"
+        {isLoading
+          ? BEFORE_START_DROPOFF_STEPS.map((step) => <Skeleton h="24px" key={step.index} w="full" />)
+          : counts.map((item) => (
+              <Grid
+                alignItems="center"
+                columnGap={3}
+                gridTemplateAreas={{
+                  base: `"label value" "bar delta"`,
+                  md: `"label bar value delta"`,
+                }}
+                key={item.index}
+                rowGap={{ base: 2, md: 0 }}
+                templateColumns={{
+                  base: "minmax(0, 1fr) max-content",
+                  md: "132px minmax(0, 1fr) max-content max-content",
+                }}
               >
-                {formatPercentDelta(item.percentage - (previousCountsByStep.get(item.index)?.percentage ?? 0))}
-              </Text>
-            </Grid>
-          ))
-        )}
+                <Text color="gray.700" fontSize="sm" fontWeight="bold" gridArea="label" minW={0} whiteSpace="nowrap">
+                  {item.displayIndex}. {item.shortLabel}
+                </Text>
+                <Box bg="gray.100" borderRadius="full" gridArea="bar" h="12px" minW={0} overflow="hidden">
+                  <Box
+                    bg="blue.500"
+                    borderRadius="full"
+                    h="full"
+                    w={`${Math.max(6, (item.count / maxCount) * 100)}%`}
+                  />
+                </Box>
+                <Text
+                  color="gray.700"
+                  fontSize="sm"
+                  fontVariantNumeric="tabular-nums"
+                  fontWeight="bold"
+                  gridArea="value"
+                  textAlign="right"
+                  whiteSpace="nowrap"
+                >
+                  {formatNumber(item.count)}（{formatFixedNumber(item.percentage * 100, 1)}%）
+                </Text>
+                <Text
+                  color={deltaColor(item.percentage - (previousCountsByStep.get(item.index)?.percentage ?? 0))}
+                  fontSize="sm"
+                  fontVariantNumeric="tabular-nums"
+                  fontWeight="bold"
+                  gridArea="delta"
+                  textAlign="right"
+                  whiteSpace="nowrap"
+                >
+                  {formatPercentDelta(item.percentage - (previousCountsByStep.get(item.index)?.percentage ?? 0))}
+                </Text>
+              </Grid>
+            ))}
       </Stack>
     </Box>
   );

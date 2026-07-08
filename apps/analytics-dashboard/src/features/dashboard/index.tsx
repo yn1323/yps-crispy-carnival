@@ -61,7 +61,7 @@ const VIEW_TABS: { value: DashboardView; label: string }[] = [
   { value: "summary", label: "全体サマリー" },
   { value: "beforeStart", label: "開始前" },
   { value: "activation", label: "立ち上げ" },
-  { value: "retention", label: "継続" },
+  { value: "retention", label: "運用中" },
   { value: "dormant", label: "休眠" },
   { value: "shops", label: "店舗一覧" },
 ];
@@ -96,7 +96,7 @@ const CARD_TONES = {
 const STAGE_CHART_SERIES = [
   { color: "#2563eb", key: "beforeStart", label: "開始前" },
   { color: "#ea580c", key: "activeTrial", label: "立ち上げ" },
-  { color: "#16a34a", key: "retained", label: "継続" },
+  { color: "#16a34a", key: "retained", label: "運用中" },
   { color: "#7c3aed", key: "dormant", label: "休眠" },
 ] as const;
 
@@ -328,7 +328,7 @@ function StageCards({
         delta={numberDelta(counts?.retained, previousCounts?.retained)}
         icon="chart"
         isLoading={isLoading}
-        label="継続"
+        label="運用中"
         selected={selected.retained}
         tone="retained"
         value={counts?.retained}
@@ -467,14 +467,14 @@ function TransitionFlow({
           <FlowStage tone="launch">立ち上げ</FlowStage>
           <FlowConnector
             accent="orange.600"
-            label="立ち上げ → 継続率"
+            label="立ち上げ → 運用中率"
             metric={transitions?.activeTrialToRetained}
             previousMetric={previousTransitions?.activeTrialToRetained}
           />
-          <FlowStage tone="retained">継続</FlowStage>
+          <FlowStage tone="retained">運用中</FlowStage>
           <FlowConnector
             accent="green.600"
-            label="継続 → 休眠率"
+            label="運用中 → 休眠率"
             metric={transitions?.retainedToDormant}
             previousMetric={previousTransitions?.retainedToDormant}
           />
@@ -499,13 +499,13 @@ function TransitionFlow({
         />
         <TransitionRate
           accent="orange.600"
-          label="立ち上げ → 継続率"
+          label="立ち上げ → 運用中率"
           metric={transitions?.activeTrialToRetained}
           previousMetric={previousTransitions?.activeTrialToRetained}
         />
         <TransitionRate
           accent="green.600"
-          label="継続 → 休眠率"
+          label="運用中 → 休眠率"
           metric={transitions?.retainedToDormant}
           previousMetric={previousTransitions?.retainedToDormant}
         />
@@ -579,7 +579,7 @@ function FocusPanel({
                 transitions?.activeTrialToRetained,
                 previousTransitions?.activeTrialToRetained,
               ),
-              label: "継続移動",
+              label: "運用中移行",
               value: metricMovementCount(transitions?.activeTrialToRetained),
             },
           ]
@@ -587,7 +587,7 @@ function FocusPanel({
           ? [
               {
                 delta: numberDelta(counts?.retained, previousCounts?.retained),
-                label: "継続",
+                label: "運用中",
                 value: `${formatNumber(counts?.retained)}店舗`,
               },
               {

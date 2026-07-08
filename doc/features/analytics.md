@@ -70,22 +70,24 @@
 
 ## 店舗ライフサイクルステージ（`analytics/stage.ts`）
 
-店舗スナップショット集計（Phase 1）で、店舗を利用段階で分類して保存する。ステージそのものはKPIではなく、日次の`shopStageCounts`推移と店舗別`stage`履歴から**遷移率**（開始前→実利用開始率、立ち上げ→継続化率、継続→休眠化率、休眠→復帰率）を算出するための元データ。ダッシュボードでは、選択期間内の最初と最後のステージスナップショットを比較して期間内ステージ遷移率を表示する。
+店舗スナップショット集計（Phase 1）で、店舗を利用段階で分類して保存する。ステージそのものはKPIではなく、日次の`shopStageCounts`推移と店舗別`stage`履歴から**遷移率**（開始前→実利用開始率、立ち上げ→運用中化率、運用中→休眠化率、休眠→復帰率）を算出するための元データ。ダッシュボードでは、選択期間内の最初と最後のステージスナップショットを比較して期間内ステージ遷移率を表示する。
 
 | ステージ | 条件 |
 |---|---|
 | `beforeStart`（開始前） | 下記ステージに該当しない |
-| `activeTrial`（立ち上げ） | シフト対象スタッフ2人以上 + 現在/未来の募集または確定シフトがある + 継続条件に該当しない |
-| `activeTrialDormant`（立ち上げ後休眠） | 過去に立ち上げ/継続だった + 確定シフト経験がある + 現在/未来シフトがない + 直近30日以内の活動がない |
-| `retained`（継続中） | シフト対象スタッフ2人以上 + 対象日と被る確定シフトがある + 未来の募集または確定シフトがある |
-| `retainedDormant`（継続後休眠） | 過去に継続だった + 確定シフト経験がある + 現在/未来シフトがない + 直近30日以内の活動がない |
+| `activeTrial`（立ち上げ） | シフト対象スタッフ2人以上 + 現在/未来の募集または確定シフトがある + 運用中条件に該当しない |
+| `activeTrialDormant`（立ち上げ後休眠） | 過去に立ち上げ/運用中だった + 確定シフト経験がある + 現在/未来シフトがない |
+| `retained`（運用中） | シフト対象スタッフ2人以上 + 対象日と被る確定シフトがある |
+| `retainedDormant`（運用後休眠） | 過去に運用中だった + 確定シフト経験がある + 現在/未来シフトがない |
 
 - **未来の募集または確定シフト** = 対象日より後に開始する進行中募集、または対象日より後に開始する確定済み募集
 - ステージ判定は、集計実行時刻ではなく対象JST日の終端（`stageReferenceAt`）を基準にする。cronが翌日03:00 JSTに前日分を集計しても、前日終了時点の店舗状態として扱う
 - 判定材料（`recruitmentCount` / `confirmedRecruitmentCount` / `hasSubmission` / `lastActivityAt` / `stageReferenceAt` 等）もスナップショットに保存し、ダッシュボードで判定理由とアラート（気になる点）を再構成できるようにする
+- `lastActivityAt` から30日以上経過しているかは休眠判定ではなく、長期停止アラートとして扱う
 - 開始前店舗の最終到達ステップは、分析DBで確認できる事実だけで `店舗登録` / `テスト募集作成` / `テスト申請` / `テスト確定` / `スタッフ登録` / `スタッフ2人登録` / `本番シフト作成` / `通知送信` / `実利用開始` の順に出す
-- 継続/休眠の目検用に、店舗別スナップショットへ `recruitmentCreatedLast30Days`（直近30日の募集作成数）、`submittedRecruitmentCount`、`submissionRate`、`averageFirstSubmissionLeadTimeMs`、`averageConfirmationLeadTimeMs`、`emailNotificationSentCount`、`lineNotificationSentCount`、`postReminderSubmissionRate`、`resubmissionRate`、`lastRecruitmentSubmissionRate`、`lastRecruitmentCreatedAt`、`lastRecruitmentConfirmedAt`、`lastConfirmedRecruitmentLeadTimeMs` も保存する。既存日付は `analytics/dailyAggregation:run` で対象日を再集計すると埋まる
-- LINE連携は実利用開始条件に**含めない**（メール運用でも継続店舗として扱う）。利用深度の指標としてのみ見る
+- 運用中/休眠の目検用に、店舗別スナップショットへ `recruitmentCreatedLast30Days`（直近30日の募集作成数）、`submittedRecruitmentCount`、`submissionRate`、`averageFirstSubmissionLeadTimeMs`、`averageConfirmationLeadTimeMs`、`emailNotificationSentCount`、`lineNotificationSentCount`、`postReminderSubmissionRate`、`resubmissionRate`、`lastRecruitmentSubmissionRate`、`lastRecruitmentCreatedAt`、`lastRecruitmentConfirmedAt`、`lastConfirmedRecruitmentLeadTimeMs` も保存する。既存日付は `analytics/dailyAggregation:run` で対象日を再集計すると埋まる
+- LINE連携は実利用開始条件に**含めない**（メール運用でも運用中店舗として扱う）。利用深度の指標としてのみ見る
+- 運用中店舗が未来の募集/確定シフトを持たない場合は、ステージを戻さず `次シフト未設定` アラートと運用中タブのKPIで拾う
 
 ## 集計の仕組み
 

@@ -36,6 +36,10 @@ export function getFirstConfirmedShopCount(rows: ShopStageRowDto[]) {
   return rows.filter((row) => (row.confirmedRecruitmentCount ?? 0) > 0).length;
 }
 
+export function getFirstConfirmedShopNames(rows: ShopStageRowDto[]) {
+  return rows.flatMap((row) => ((row.confirmedRecruitmentCount ?? 0) > 0 ? [row.shopName] : []));
+}
+
 function toJstDateString(value: number) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",

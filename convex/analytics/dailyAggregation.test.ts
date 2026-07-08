@@ -252,7 +252,7 @@ describe("analytics/dailyAggregation", () => {
     });
   });
 
-  it("店舗ステージを継続中/継続後休眠まで判定して集計する", async () => {
+  it("店舗ステージを運用中/運用後休眠まで判定して集計する", async () => {
     const t = setup();
     const oldMs = startMs - 45 * 24 * 60 * 60 * 1000; // 45日前
 
@@ -297,10 +297,10 @@ describe("analytics/dailyAggregation", () => {
       return shopId;
     });
 
-    // 継続店舗: 対象日と被る確定シフトがあり、次の未来募集もある
+    // 運用中店舗: 対象日と被る確定シフトがあり、次の未来募集もある
     vi.setSystemTime(new Date(startMs + 12 * 60 * 60 * 1000));
     const retainedShop = await t.run(async (ctx) => {
-      const shopId = await seedShop(ctx, "継続店舗");
+      const shopId = await seedShop(ctx, "運用中店舗");
       for (let i = 0; i < 3; i++) {
         await insertStaff(ctx, shopId, { email: `retained${i}@example.com` });
       }
@@ -347,7 +347,7 @@ describe("analytics/dailyAggregation", () => {
       return shopId;
     });
 
-    // 立ち上げ店舗: 現在の確定シフトはあるが、次の未来募集/確定がまだない
+    // 次シフト未設定の運用中店舗: 現在の確定シフトはあるが、次の未来募集/確定がまだない
     const currentOnlyShop = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "現在シフトのみ店舗");
       for (let i = 0; i < 3; i++) {
@@ -372,6 +372,36 @@ describe("analytics/dailyAggregation", () => {
       return shopId;
     });
 
+    // 次シフト未設定店舗: 直近でスタッフ追加はあるが、現在/未来シフトがない
+    vi.setSystemTime(new Date(startMs - 25 * DAY_MS));
+    const recentNoScheduleShop = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "次シフト未設定店舗");
+      for (let i = 0; i < 2; i++) {
+        await insertStaff(ctx, shopId, { email: `no-schedule-${i}@example.com` });
+      }
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        ...recruitmentBase,
+        shopId,
+        periodStart: "2026-06-10",
+        periodEnd: "2026-06-16",
+        deadline: "2026-06-05",
+        status: "confirmed",
+        confirmedAt: startMs - 24 * 60 * 60 * 1000,
+      });
+      await ctx.db.insert("recruitmentStats", {
+        recruitmentId,
+        shopId,
+        submittedCount: 2,
+        activeStaffCountSnapshot: 2,
+        updatedAt: startMs - 25 * DAY_MS,
+      });
+      return shopId;
+    });
+    vi.setSystemTime(new Date(startMs + 6 * 60 * 60 * 1000));
+    await t.run(async (ctx) => {
+      await insertStaff(ctx, recentNoScheduleShop, { email: "no-schedule-recent@example.com" });
+    });
+
     await runDailyAggregation(t, TARGET_DATE);
 
     const snapshots = await t.run(async (ctx) => {
@@ -381,7 +411,7 @@ describe("analytics/dailyAggregation", () => {
         .collect();
     });
 
-    // 過去に継続実績はあるが、現在/未来シフト・進行中募集・直近30日の活動がない → 継続後休眠
+    // 過去に運用中実績はあるが、現在/未来シフト・進行中募集がない → 運用後休眠
     const dormantSnapshot = snapshots.find((s) => s.shopId === dormantShop);
     expect(dormantSnapshot).toMatchObject({
       stage: "retainedDormant",
@@ -397,7 +427,7 @@ describe("analytics/dailyAggregation", () => {
     expect(dormantSnapshot?.lastActivityAt).toBeGreaterThanOrEqual(oldMs);
     expect(dormantSnapshot?.lastActivityAt).toBeLessThan(oldMs + 1000);
 
-    // 今日に被る確定シフト + 未来募集あり → 継続。進行中募集の提出0件も判定材料として残る
+    // 今日に被る確定シフト + 未来募集あり → 運用中。進行中募集の提出0件も判定材料として残る
     expect(snapshots.find((s) => s.shopId === retainedShop)).toMatchObject({
       stage: "retained",
       recruitmentCount: 4,
@@ -409,8 +439,16 @@ describe("analytics/dailyAggregation", () => {
       openRecruitmentSubmittedCount: 0,
     });
     expect(snapshots.find((s) => s.shopId === currentOnlyShop)).toMatchObject({
-      stage: "activeTrial",
+      stage: "retained",
       hasCurrentConfirmedShift: true,
+      hasFutureOpenRecruitment: false,
+      hasFutureConfirmedShift: false,
+      openRecruitmentCount: 0,
+    });
+    expect(snapshots.find((s) => s.shopId === recentNoScheduleShop)).toMatchObject({
+      stage: "retainedDormant",
+      hasCurrentOrFutureConfirmedShift: false,
+      hasCurrentConfirmedShift: false,
       hasFutureOpenRecruitment: false,
       hasFutureConfirmedShift: false,
       openRecruitmentCount: 0,
@@ -424,10 +462,10 @@ describe("analytics/dailyAggregation", () => {
     });
     expect(service?.shopStageCounts).toEqual({
       beforeStart: 0,
-      activeTrial: 1,
+      activeTrial: 0,
       activeTrialDormant: 0,
-      retained: 1,
-      retainedDormant: 1,
+      retained: 2,
+      retainedDormant: 2,
     });
   });
 
@@ -493,7 +531,7 @@ describe("analytics/dailyAggregation", () => {
     });
   });
 
-  it("継続店舗向けの作成頻度と確定リードタイムを店舗スナップショットに保存する", async () => {
+  it("運用中店舗向けの作成頻度と確定リードタイムを店舗スナップショットに保存する", async () => {
     const t = setup();
     const recruitmentBase = {
       shopClosedDates: [] as string[],
@@ -508,7 +546,7 @@ describe("analytics/dailyAggregation", () => {
 
     vi.setSystemTime(new Date(startMs - 45 * DAY_MS));
     const { shopId, staffIds } = await t.run(async (ctx) => {
-      const shopId = await seedShop(ctx, "継続KPI店舗");
+      const shopId = await seedShop(ctx, "運用中KPI店舗");
       const staffIds: Id<"staffs">[] = [];
       for (let i = 0; i < 3; i++) {
         staffIds.push(await insertStaff(ctx, shopId, { email: `retained-kpi-${i}@example.com` }));
