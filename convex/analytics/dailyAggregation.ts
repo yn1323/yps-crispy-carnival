@@ -14,7 +14,7 @@ import { describeNotificationFailureContext } from "../notificationOutbox/failur
 import { notificationContextForJob } from "../notificationOutbox/mutations";
 import { ANALYTICS_METRICS, allNotificationEventMetrics, notificationMetric } from "./metrics";
 import { setDailyEventCount, setServiceSnapshot, setShopSnapshot } from "./mutations";
-import { classifyShopStage, type ShopStageInputs } from "./stage";
+import { classifyShopStage, type ShopStage, type ShopStageInputs } from "./stage";
 
 /**
  * 分析KPIの日次集計。cron（03:00 JST）が前日分を集計する。
@@ -90,6 +90,25 @@ function confirmedAtForStage(recruitment: Doc<"recruitments">): number | null {
 
 function happenedBy(at: number | undefined, snapshotAt: number): at is number {
   return at !== undefined && at <= snapshotAt;
+}
+
+function isActiveOrRetainedHistoryStage(stage: ShopStage | undefined): boolean {
+  return (
+    stage === "activeTrial" || stage === "retained" || stage === "activeTrialDormant" || stage === "retainedDormant"
+  );
+}
+
+function isRetainedHistoryStage(stage: ShopStage | undefined): boolean {
+  return stage === "retained" || stage === "retainedDormant";
+}
+
+async function latestPreviousShopStage(ctx: MutationCtx, shopId: Doc<"shops">["_id"], date: string) {
+  const previous = await ctx.db
+    .query("analyticsDailyShopSnapshots")
+    .withIndex("by_shopId_date", (q) => q.eq("shopId", shopId).lt("date", date))
+    .order("desc")
+    .first();
+  return previous?.stage;
 }
 
 function average(values: number[]): number | null {
@@ -215,11 +234,19 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     : null;
   const openRecruitments = recruitments.filter((recruitment) => {
     const confirmedAt = confirmedAtForStage(recruitment);
-    return recruitment.status === "open" || (confirmedAt !== null && confirmedAt > snapshot.snapshotAt);
+    return (
+      (recruitment.status === "open" && recruitment.periodEnd >= snapshot.date) ||
+      (confirmedAt !== null && confirmedAt > snapshot.snapshotAt && recruitment.periodEnd >= snapshot.date)
+    );
   });
+  const hasFutureOpenRecruitment = openRecruitments.some((recruitment) => recruitment.periodStart > snapshot.date);
   const hasCurrentOrFutureConfirmedShift = confirmedRecruitments.some(
     (recruitment) => recruitment.periodEnd >= snapshot.date,
   );
+  const hasCurrentConfirmedShift = confirmedRecruitments.some(
+    (recruitment) => recruitment.periodStart <= snapshot.date && recruitment.periodEnd >= snapshot.date,
+  );
+  const hasFutureConfirmedShift = confirmedRecruitments.some((recruitment) => recruitment.periodStart > snapshot.date);
 
   const recruitmentStats = await ctx.db
     .query("recruitmentStats")
@@ -290,6 +317,15 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     ...visibleStats.map((stats) => stats.updatedAt),
   );
 
+  const previousStage = await latestPreviousShopStage(ctx, shopId, snapshot.date);
+  const hadRetainedStage =
+    isRetainedHistoryStage(previousStage) ||
+    confirmedRecruitments.some((recruitment) => recruitment.periodEnd < snapshot.date);
+  const hadActiveOrRetainedStage =
+    isActiveOrRetainedHistoryStage(previousStage) ||
+    hadRetainedStage ||
+    recruitments.some((recruitment) => recruitment.periodEnd < snapshot.date);
+
   const stageInputs: ShopStageInputs = {
     realStaffCount: staffs.filter((staff) => staff.excludedFromShift !== true).length,
     recruitmentCount: recruitments.length,
@@ -297,7 +333,12 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     hasSubmission,
     hasNotificationSent,
     hasCurrentOrFutureConfirmedShift,
+    hasCurrentConfirmedShift,
     hasOpenRecruitment: openRecruitments.length > 0,
+    hasFutureOpenRecruitment,
+    hasFutureConfirmedShift,
+    hadActiveOrRetainedStage,
+    hadRetainedStage,
     lastActivityAt,
   };
 
@@ -314,6 +355,11 @@ async function computeShopSnapshotValues(ctx: MutationCtx, shop: Doc<"shops">, s
     hasSubmission,
     hasNotificationSent,
     hasCurrentOrFutureConfirmedShift,
+    hasCurrentConfirmedShift,
+    hasFutureOpenRecruitment,
+    hasFutureConfirmedShift,
+    hadActiveOrRetainedStage,
+    hadRetainedStage,
     lastActivityAt,
     stageReferenceAt: snapshot.snapshotAt,
     openRecruitmentSubmittedCount,

@@ -6,6 +6,7 @@ import {
   getOverviewRef,
   getShopDetailRef,
   getShopRankingRef,
+  getShopRecruitmentsRef,
   getShopStagesRef,
 } from "./refs";
 import { ANALYTICS_DASHBOARD_MAX_BODY_BYTES, parseAnalyticsDashboardRequest } from "./schemas";
@@ -73,6 +74,9 @@ export const query = httpAction(async (ctx, request) => {
     return jsonResponse(
       await ctx.runQuery(getShopRankingRef, { date: input.date, sort: input.sort, limit: input.limit }),
     );
+  }
+  if (input.kind === "shopRecruitments") {
+    return jsonResponse(await ctx.runQuery(getShopRecruitmentsRef, { shopId: input.shopId as Id<"shops"> }));
   }
   return jsonResponse(
     await ctx.runQuery(getShopDetailRef, {

@@ -11,6 +11,7 @@ export type AnalyticsDashboardRequest =
   | { kind: "notificationBreakdown"; from: string; to: string }
   | { kind: "shopStages"; date: string }
   | { kind: "shopRanking"; date: string; sort: ShopRankingSort; limit: number }
+  | { kind: "shopRecruitments"; shopId: string }
   | { kind: "shopDetail"; shopId: string; from: string; to: string };
 
 export type AnalyticsDashboardResponse =
@@ -19,6 +20,7 @@ export type AnalyticsDashboardResponse =
   | NotificationBreakdownResponse
   | ShopStagesResponse
   | ShopRankingResponse
+  | ShopRecruitmentsResponse
   | ShopDetailResponse;
 
 export type ServiceSnapshotDto = {
@@ -62,6 +64,7 @@ export type StageTransitionSummaryDto = {
 export type ShopStageRowDto = {
   shopId: string;
   shopName: string;
+  shopCreatedAt: number | null;
   planKey: AnalyticsPlanKey;
   /** ステージ集計導入前のスナップショットは null（再集計待ち） */
   stage: ShopStageKey | null;
@@ -76,6 +79,7 @@ export type ShopStageRowDto = {
   openNotificationFailureCount: number | null;
   recruitmentCreatedLast30Days: number | null;
   submissionRate: number | null;
+  confirmedSubmissionRate: number | null;
   averageFirstSubmissionLeadTimeMs: number | null;
   averageConfirmationLeadTimeMs: number | null;
   emailNotificationSentCount: number | null;
@@ -87,9 +91,30 @@ export type ShopStageRowDto = {
   lastRecruitmentCreatedAt: number | null;
   lastRecruitmentConfirmedAt: number | null;
   lastConfirmedRecruitmentLeadTimeMs: number | null;
+  firstRecruitmentCreatedAt: number | null;
+  firstRecruitmentDeadline: string | null;
+  /** 最後のシフト期間として扱う募集の作成時刻 */
+  lastShiftCreatedAt: number | null;
+  /** 最後のシフト期間の開始日 */
+  lastShiftPeriodStart: string | null;
+  /** 最後のシフト期間の終了日 */
+  lastShiftPeriodEnd: string | null;
+  /** 最後のシフト期間として扱う募集の提出率 */
+  lastShiftSubmissionRate: number | null;
+  /** 募集作成日から締切日までの平均日数 */
+  averageRecruitmentOpenDays: number | null;
+  /** 締切日から確定日までの平均日数 */
+  averageDeadlineToConfirmationDays: number | null;
+  /** 現在のシフト対象スタッフのうち、催促通知を実送信したスタッフの割合 */
+  reminderSentStaffRate: number | null;
   hasSubmission: boolean | null;
   hasNotificationSent: boolean | null;
   hasCurrentOrFutureConfirmedShift: boolean | null;
+  hasCurrentConfirmedShift: boolean | null;
+  hasFutureOpenRecruitment: boolean | null;
+  hasFutureConfirmedShift: boolean | null;
+  hadActiveOrRetainedStage: boolean | null;
+  hadRetainedStage: boolean | null;
   lastActivityAt: number | null;
   /** ステージ判定の基準時刻（対象JST日の終端） */
   stageReferenceAt: number | null;
@@ -186,4 +211,23 @@ export type ShopDetailResponse = {
   shopId: string;
   shopName: string;
   series: ShopSnapshotDto[];
+};
+
+export type ShopRecruitmentRowDto = {
+  recruitmentId: string;
+  status: "open" | "confirmed";
+  periodStart: string;
+  periodEnd: string;
+  deadline: string;
+  submittedCount: number | null;
+  currentShiftTargetStaffCount: number;
+  createdAt: number;
+  confirmedAt: number | null;
+};
+
+export type ShopRecruitmentsResponse = {
+  kind: "shopRecruitments";
+  shopId: string;
+  shopName: string;
+  rows: ShopRecruitmentRowDto[];
 };
