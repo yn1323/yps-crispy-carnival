@@ -74,17 +74,16 @@
 
 | ステージ | 条件 |
 |---|---|
-| `beforeStart`（開始前） | 実利用開始条件を満たしていない |
-| `activeTrial`（立ち上げ） | 実利用開始済み・確定3件未満・現在稼働中 |
-| `activeTrialDormant`（立ち上げ後休眠） | 実利用開始済み・確定3件未満・稼働停止 |
-| `retained`（継続中） | 確定3件以上 + 現在も稼働中 |
-| `retainedDormant`（継続後休眠） | 確定3件以上だが稼働停止 |
+| `beforeStart`（開始前） | 下記ステージに該当しない |
+| `activeTrial`（立ち上げ） | シフト対象スタッフ2人以上 + 現在/未来の募集または確定シフトがある + 継続条件に該当しない |
+| `activeTrialDormant`（立ち上げ後休眠） | 過去に立ち上げ/継続だった + 確定シフト経験がある + 現在/未来シフトがない + 直近30日以内の活動がない |
+| `retained`（継続中） | シフト対象スタッフ2人以上 + 対象日と被る確定シフトがある + 未来の募集または確定シフトがある |
+| `retainedDormant`（継続後休眠） | 過去に継続だった + 確定シフト経験がある + 現在/未来シフトがない + 直近30日以内の活動がない |
 
-- **実利用開始条件** = シフト対象スタッフ3人以上 + 募集2件以上 + 通知送信または提出が発生済み
-- **現在稼働中** = 対象日基準の現在/未来の確定シフト or 進行中募集 or 直近30日以内の主要イベント（スタッフ追加・募集作成・提出・確定・催促・LINE連携）のいずれか
+- **未来の募集または確定シフト** = 対象日より後に開始する進行中募集、または対象日より後に開始する確定済み募集
 - ステージ判定は、集計実行時刻ではなく対象JST日の終端（`stageReferenceAt`）を基準にする。cronが翌日03:00 JSTに前日分を集計しても、前日終了時点の店舗状態として扱う
 - 判定材料（`recruitmentCount` / `confirmedRecruitmentCount` / `hasSubmission` / `lastActivityAt` / `stageReferenceAt` 等）もスナップショットに保存し、ダッシュボードで判定理由とアラート（気になる点）を再構成できるようにする
-- 開始前店舗の最終到達ステップは、分析DBで確認できる事実だけで `店舗登録` / `テスト募集作成` / `テスト申請` / `テスト確定` / `スタッフ登録` / `スタッフ3人登録` / `本番シフト作成` / `通知送信` / `実利用開始` の順に出す。現状は「ガイド開始」を永続計測していないため、ダッシュボードのチェックリストでは `未計測 ガイド開始` として表示する
+- 開始前店舗の最終到達ステップは、分析DBで確認できる事実だけで `店舗登録` / `テスト募集作成` / `テスト申請` / `テスト確定` / `スタッフ登録` / `スタッフ2人登録` / `本番シフト作成` / `通知送信` / `実利用開始` の順に出す
 - 継続/休眠の目検用に、店舗別スナップショットへ `recruitmentCreatedLast30Days`（直近30日の募集作成数）、`submittedRecruitmentCount`、`submissionRate`、`averageFirstSubmissionLeadTimeMs`、`averageConfirmationLeadTimeMs`、`emailNotificationSentCount`、`lineNotificationSentCount`、`postReminderSubmissionRate`、`resubmissionRate`、`lastRecruitmentSubmissionRate`、`lastRecruitmentCreatedAt`、`lastRecruitmentConfirmedAt`、`lastConfirmedRecruitmentLeadTimeMs` も保存する。既存日付は `analytics/dailyAggregation:run` で対象日を再集計すると埋まる
 - LINE連携は実利用開始条件に**含めない**（メール運用でも継続店舗として扱う）。利用深度の指標としてのみ見る
 
