@@ -359,7 +359,7 @@ export function RetainedTabContent({
         <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
           運用中のサマリー
         </Text>
-        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
+        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
           <MetricCard
             delta={numberDelta(rows.length, previousRows.length)}
             deltaUnit="店舗"

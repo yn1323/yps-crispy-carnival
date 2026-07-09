@@ -210,7 +210,7 @@ const STAGE_ICONS: Record<StageIconName, IconType> = {
 };
 
 function StageIcon({ name }: { name: StageIconName }) {
-  return <Icon aria-hidden as={STAGE_ICONS[name]} boxSize={7} strokeWidth={2} />;
+  return <Icon aria-hidden as={STAGE_ICONS[name]} boxSize={{ base: 5, md: 7 }} strokeWidth={2} />;
 }
 
 function StageKpiCard({
@@ -242,18 +242,18 @@ function StageKpiCard({
       minW={0}
       p={{ base: 4, md: 5 }}
     >
-      <Flex align="start" gap={4}>
+      <Flex align="start" gap={{ base: 3, md: 4 }}>
         <Flex
           align="center"
           bg={colors.soft}
           borderRadius="full"
           color={colors.fg}
           flexShrink={0}
-          fontSize="2xl"
+          fontSize={{ base: "lg", md: "2xl" }}
           fontWeight="bold"
-          h="56px"
+          h={{ base: "40px", md: "56px" }}
           justify="center"
-          w="56px"
+          w={{ base: "40px", md: "56px" }}
         >
           <StageIcon name={icon} />
         </Flex>
@@ -305,7 +305,7 @@ function StageCards({
     retained: activeView === "retention",
   };
   return (
-    <Grid gap={{ base: 3, xl: 5 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
+    <Grid gap={{ base: 3, xl: 5 }} templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
       <StageKpiCard
         delta={numberDelta(counts?.beforeStart, previousCounts?.beforeStart)}
         icon="flag"
