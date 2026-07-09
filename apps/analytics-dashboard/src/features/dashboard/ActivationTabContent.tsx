@@ -419,7 +419,7 @@ export function ActivationTabContent({
         <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
           立ち上げのサマリー
         </Text>
-        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(5, 1fr)" }}>
+        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(5, 1fr)" }}>
           <MetricCard
             delta={numberDelta(rows.length, previousRows.length)}
             isLoading={isLoading}
