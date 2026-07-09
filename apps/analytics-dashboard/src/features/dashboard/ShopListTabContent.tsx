@@ -161,15 +161,12 @@ export function ShopListTabContent({
                     sortKey="recruitmentCount"
                     textAlign="right"
                   />
-                  <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                    詳細
-                  </Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
                 {rows.length === 0 ? (
                   <Table.Row>
-                    <Table.Cell colSpan={7}>
+                    <Table.Cell colSpan={6}>
                       <Flex align="center" h="96px" justify="center">
                         <Text color="gray.500" fontSize="sm">
                           該当する店舗はありません
@@ -179,7 +176,12 @@ export function ShopListTabContent({
                   </Table.Row>
                 ) : (
                   rows.map((row) => (
-                    <Table.Row key={row.shopId}>
+                    <Table.Row
+                      key={row.shopId}
+                      _hover={{ bg: "gray.50" }}
+                      cursor="pointer"
+                      onClick={() => onOpenShopRecruitments(row.shopId)}
+                    >
                       <Table.Cell color="gray.700">{formatNullableDateTime(row.shopCreatedAt)}</Table.Cell>
                       <Table.Cell color="gray.950" fontWeight="bold" maxW="160px" w="160px">
                         <Text
@@ -204,16 +206,6 @@ export function ShopListTabContent({
                       </Table.Cell>
                       <Table.Cell color="gray.700" textAlign="right">
                         {formatRecruitmentCount(row.recruitmentCount)}
-                      </Table.Cell>
-                      <Table.Cell textAlign="right">
-                        <Button
-                          colorPalette="blue"
-                          onClick={() => onOpenShopRecruitments(row.shopId)}
-                          size="xs"
-                          variant="outline"
-                        >
-                          詳細
-                        </Button>
                       </Table.Cell>
                     </Table.Row>
                   ))

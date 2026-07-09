@@ -1,6 +1,5 @@
 import {
   Box,
-  Button,
   Tooltip as ChakraTooltip,
   Flex,
   Grid,
@@ -324,15 +323,12 @@ function ActivationTable({
                   sortKey="firstRecruitmentDurationDays"
                   textAlign="right"
                 />
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  詳細
-                </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={10}>
+                  <Table.Cell colSpan={9}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
                         立ち上げの店舗はありません
@@ -344,7 +340,12 @@ function ActivationTable({
                 sortedRows.map((row) => {
                   const firstRecruitmentDurationDays = getFirstRecruitmentDurationDays(row);
                   return (
-                    <Table.Row key={row.shopId}>
+                    <Table.Row
+                      key={row.shopId}
+                      _hover={{ bg: "gray.50" }}
+                      cursor="pointer"
+                      onClick={() => onOpenShopRecruitments(row.shopId)}
+                    >
                       <Table.Cell color="gray.950" fontWeight="bold">
                         {row.shopName}
                       </Table.Cell>
@@ -367,16 +368,6 @@ function ActivationTable({
                         {firstRecruitmentDurationDays === null
                           ? "-"
                           : `${formatNumber(firstRecruitmentDurationDays)}日`}
-                      </Table.Cell>
-                      <Table.Cell textAlign="right">
-                        <Button
-                          colorPalette="blue"
-                          onClick={() => onOpenShopRecruitments(row.shopId)}
-                          size="xs"
-                          variant="outline"
-                        >
-                          詳細
-                        </Button>
                       </Table.Cell>
                     </Table.Row>
                   );
