@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import type { ShopStageRowDto, ShopStagesResponse } from "@/api/analyticsTypes";
 import { formatNumber, formatPercent } from "@/domains/analytics/format";
@@ -259,15 +259,12 @@ function RetainedTable({
                   sort={sort}
                   sortKey="lastRecruitmentConfirmedAt"
                 />
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  詳細
-                </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={11}>
+                  <Table.Cell colSpan={10}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
                         運用中の店舗はありません
@@ -277,7 +274,12 @@ function RetainedTable({
                 </Table.Row>
               ) : (
                 sortedRows.map((row) => (
-                  <Table.Row key={row.shopId}>
+                  <Table.Row
+                    key={row.shopId}
+                    _hover={{ bg: "gray.50" }}
+                    cursor="pointer"
+                    onClick={() => onOpenShopRecruitments(row.shopId)}
+                  >
                     <Table.Cell color="gray.950" fontWeight="bold">
                       {row.shopName}
                     </Table.Cell>
@@ -306,16 +308,6 @@ function RetainedTable({
                       {formatWithUnit(row.averageDeadlineToConfirmationDays, "日", 1)}
                     </Table.Cell>
                     <Table.Cell color="gray.700">{formatDate(row.lastRecruitmentConfirmedAt)}</Table.Cell>
-                    <Table.Cell textAlign="right">
-                      <Button
-                        colorPalette="blue"
-                        onClick={() => onOpenShopRecruitments(row.shopId)}
-                        size="xs"
-                        variant="outline"
-                      >
-                        詳細
-                      </Button>
-                    </Table.Cell>
                   </Table.Row>
                 ))
               )}

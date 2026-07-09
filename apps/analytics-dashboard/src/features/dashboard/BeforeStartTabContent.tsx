@@ -1,4 +1,4 @@
-import { Badge, Box, Button, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import type { ShopStageRowDto, ShopStagesResponse } from "@/api/analyticsTypes";
 import {
@@ -269,15 +269,12 @@ function BeforeStartTable({
                 />
                 <SortableColumnHeader label="登録日" onSortChange={setSort} sort={sort} sortKey="registeredAt" />
                 <SortableColumnHeader label="到達ステップ" onSortChange={setSort} sort={sort} sortKey="step" />
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  詳細
-                </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={4}>
+                  <Table.Cell colSpan={3}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
                         開始前の店舗はありません
@@ -289,23 +286,18 @@ function BeforeStartTable({
                 sortedRows.map((row) => {
                   const step = resolveBeforeStartTutorialStep(row);
                   return (
-                    <Table.Row key={row.shopId}>
+                    <Table.Row
+                      key={row.shopId}
+                      _hover={{ bg: "gray.50" }}
+                      cursor="pointer"
+                      onClick={() => onOpenShopRecruitments(row.shopId)}
+                    >
                       <Table.Cell color="gray.950" fontWeight="bold">
                         {row.shopName}
                       </Table.Cell>
                       <Table.Cell color="gray.700">{formatDate(getShopCreatedAt(row))}</Table.Cell>
                       <Table.Cell>
                         <StepLabel step={step} />
-                      </Table.Cell>
-                      <Table.Cell textAlign="right">
-                        <Button
-                          colorPalette="blue"
-                          onClick={() => onOpenShopRecruitments(row.shopId)}
-                          size="xs"
-                          variant="outline"
-                        >
-                          詳細
-                        </Button>
                       </Table.Cell>
                     </Table.Row>
                   );
