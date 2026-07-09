@@ -3,9 +3,10 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import pkg from "./package.json" with { type: "json" };
+import { markdownFrontmatterPlugin } from "./vite/markdownFrontmatterPlugin";
 
 export default defineConfig({
-  plugins: [tanstackRouter({ autoCodeSplitting: true }), viteReact(), tsconfigPaths()],
+  plugins: [markdownFrontmatterPlugin(), tanstackRouter({ autoCodeSplitting: true }), viteReact(), tsconfigPaths()],
   server: {
     allowedHosts: [".ngrok.app", ".ngrok-free.app"],
   },

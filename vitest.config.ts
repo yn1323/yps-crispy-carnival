@@ -5,12 +5,14 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
+import { markdownFrontmatterPlugin } from "./vite/markdownFrontmatterPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
 
 const logicProject = defineConfig({
   plugins: [
+    markdownFrontmatterPlugin(),
     // biome-ignore lint/suspicious/noExplicitAny: temp
     tsconfigPaths() as any,
   ],

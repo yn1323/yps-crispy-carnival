@@ -3,14 +3,14 @@ import { ArticlePage } from "@/src/components/features/ArticleSite";
 import {
   createArticleBreadcrumbJsonLd,
   createArticleJsonLd,
-  getArticle,
+  getArticleMeta,
   getArticleOgpImagePath,
-} from "@/src/components/features/ArticleSite/articleContent";
+} from "@/src/components/features/ArticleSite/articleMeta";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles/$slug")({
   head: ({ params }) => {
-    const article = getArticle(params.slug);
+    const article = getArticleMeta(params.slug);
 
     if (!article) {
       return {
@@ -19,14 +19,14 @@ export const Route = createFileRoute("/articles/$slug")({
     }
 
     return {
-      links: buildLinks({ canonical: article.meta.canonicalPath }),
+      links: buildLinks({ canonical: article.canonicalPath }),
       meta: [
         ...buildMeta({
-          title: article.meta.ogTitle,
-          description: article.meta.ogDescription,
-          canonical: article.meta.canonicalPath,
+          title: article.ogTitle,
+          description: article.ogDescription,
+          canonical: article.canonicalPath,
           ogType: "article",
-          ogImage: { path: getArticleOgpImagePath(article.meta.slug), alt: article.meta.title },
+          ogImage: { path: getArticleOgpImagePath(article.slug), alt: article.title },
         }),
         ...jsonLdMeta(createArticleJsonLd(article)),
         ...jsonLdMeta(createArticleBreadcrumbJsonLd(article)),

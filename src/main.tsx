@@ -1,20 +1,24 @@
-import { ClerkProvider } from "@clerk/clerk-react";
-import { jaJP } from "@clerk/localizations";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { type ReactNode, StrictMode } from "react";
+import { flushSync } from "react-dom";
 import ReactDOM from "react-dom/client";
 import z from "zod";
 import { ChakraProvider } from "@/src/components/config/ChakraProvider.tsx";
-import { ConvexClientProvider } from "@/src/components/config/ConvexProvider.tsx";
 import { RouteErrorFallback } from "@/src/components/ui/ErrorBoundary";
 import { customErrorMap } from "@/src/configs/zod/zop-setup.ts";
-import { CLERK_PUBLISHABLE_KEY, CONVEX_URL, GTM_ID } from "@/src/constants/env";
+import { GTM_ID } from "@/src/constants/env";
 import { initGTM } from "@/src/helpers/gtm";
 import { isPrerendering } from "@/src/helpers/seo";
 import reportWebVitals from "./reportWebVitals.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
-initGTM(GTM_ID);
+// GTM(→GA4/Clarity)の読み込みを初期描画後まで遅延し、LCP/TBTと帯域を奪い合わないようにする。
+// 遅延中のイベントは gtm helper が dataLayer にバッファし、GTM 読み込み時にまとめて処理される。
+const scheduleGtmInit =
+  typeof window.requestIdleCallback === "function"
+    ? (cb: () => void) => window.requestIdleCallback(cb, { timeout: 5000 })
+    : (cb: () => void) => window.setTimeout(cb, 3000);
+scheduleGtmInit(() => initGTM(GTM_ID));
 
 // Create a new router instance
 const router = createRouter({
@@ -48,8 +52,13 @@ async function mountPrerenderedApp(element: HTMLElement, tree: ReactNode): Promi
   // replace the baked DOM with the live app to avoid React hydration mismatches.
   await router.load({ sync: true });
   removePrerenderedPortals();
+  // replaceChildren と React の初回コミットを flushSync で同一タスク内に収め、
+  // 焼き込みDOM除去→再描画の間にブラウザが空白フレームを描く「ちらつき」を防ぐ。
+  const root = ReactDOM.createRoot(element);
   element.replaceChildren();
-  ReactDOM.createRoot(element).render(tree);
+  flushSync(() => {
+    root.render(tree);
+  });
   // SPAフォールバック時のスプラッシュ（index.html 参照）を、Reactの初回コミット後に解除する
   requestAnimationFrame(() => {
     document.documentElement.removeAttribute("data-spa-fallback");
@@ -60,14 +69,12 @@ async function mountPrerenderedApp(element: HTMLElement, tree: ReactNode): Promi
 // Render the app
 const rootElement = document.getElementById("app");
 if (rootElement) {
+  // Clerk / Convex は認証が必要なレイアウト側（AuthProviders）でラップする。
+  // ここに置くとLPなどの公開ページのバンドル・起動コストに乗ってしまう。
   const tree = (
     <StrictMode>
       <ChakraProvider>
-        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} localization={jaJP}>
-          <ConvexClientProvider env={CONVEX_URL}>
-            <RouterProvider router={router} />
-          </ConvexClientProvider>
-        </ClerkProvider>
+        <RouterProvider router={router} />
       </ChakraProvider>
     </StrictMode>
   );

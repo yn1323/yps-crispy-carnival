@@ -25,6 +25,8 @@ import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
 import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
+import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
+import { Route as DemoFlowRouteImport } from './routes/demo.flow'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
@@ -33,8 +35,6 @@ import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregister
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
 import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
-import { Route as UnregisteredDemoShiftboardRouteImport } from './routes/_unregistered/demo.shiftboard'
-import { Route as UnregisteredDemoFlowRouteImport } from './routes/_unregistered/demo.flow'
 import { Route as AuthShiftboardRecruitmentIdRouteImport } from './routes/_auth/shiftboard.$recruitmentId'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
@@ -117,6 +117,16 @@ const PrivacyManagerRoute = PrivacyManagerRouteImport.update({
   path: '/privacy/manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoShiftboardRoute = DemoShiftboardRouteImport.update({
+  id: '/demo/shiftboard',
+  path: '/demo/shiftboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoFlowRoute = DemoFlowRouteImport.update({
+  id: '/demo/flow',
+  path: '/demo/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -162,17 +172,6 @@ const UnregisteredLineCallbackRoute =
     path: '/line/callback',
     getParentRoute: () => UnregisteredRoute,
   } as any)
-const UnregisteredDemoShiftboardRoute =
-  UnregisteredDemoShiftboardRouteImport.update({
-    id: '/demo/shiftboard',
-    path: '/demo/shiftboard',
-    getParentRoute: () => UnregisteredRoute,
-  } as any)
-const UnregisteredDemoFlowRoute = UnregisteredDemoFlowRouteImport.update({
-  id: '/demo/flow',
-  path: '/demo/flow',
-  getParentRoute: () => UnregisteredRoute,
-} as any)
 const AuthShiftboardRecruitmentIdRoute =
   AuthShiftboardRecruitmentIdRouteImport.update({
     id: '/shiftboard/$recruitmentId',
@@ -205,13 +204,13 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/articles/$slug': typeof ArticlesSlugRoute
+  '/demo/flow': typeof DemoFlowRoute
+  '/demo/shiftboard': typeof DemoShiftboardRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
-  '/demo/flow': typeof UnregisteredDemoFlowRoute
-  '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
@@ -234,13 +233,13 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/articles/$slug': typeof ArticlesSlugRoute
+  '/demo/flow': typeof DemoFlowRoute
+  '/demo/shiftboard': typeof DemoShiftboardRoute
   '/privacy/manager': typeof PrivacyManagerRoute
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
-  '/demo/flow': typeof UnregisteredDemoFlowRoute
-  '/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
@@ -266,13 +265,13 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/articles/$slug': typeof ArticlesSlugRoute
+  '/demo/flow': typeof DemoFlowRoute
+  '/demo/shiftboard': typeof DemoShiftboardRoute
   '/privacy_/manager': typeof PrivacyManagerRoute
   '/privacy_/staff': typeof PrivacyStaffRoute
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
-  '/_unregistered/demo/flow': typeof UnregisteredDemoFlowRoute
-  '/_unregistered/demo/shiftboard': typeof UnregisteredDemoShiftboardRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
@@ -297,13 +296,13 @@ export interface FileRouteTypes {
     | '/terms'
     | '/dashboard'
     | '/articles/$slug'
+    | '/demo/flow'
+    | '/demo/shiftboard'
     | '/privacy/manager'
     | '/privacy/staff'
     | '/terms/manager'
     | '/terms/staff'
     | '/shiftboard/$recruitmentId'
-    | '/demo/flow'
-    | '/demo/shiftboard'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
@@ -326,13 +325,13 @@ export interface FileRouteTypes {
     | '/terms'
     | '/dashboard'
     | '/articles/$slug'
+    | '/demo/flow'
+    | '/demo/shiftboard'
     | '/privacy/manager'
     | '/privacy/staff'
     | '/terms/manager'
     | '/terms/staff'
     | '/shiftboard/$recruitmentId'
-    | '/demo/flow'
-    | '/demo/shiftboard'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
@@ -357,13 +356,13 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_auth/dashboard'
     | '/articles/$slug'
+    | '/demo/flow'
+    | '/demo/shiftboard'
     | '/privacy_/manager'
     | '/privacy_/staff'
     | '/terms_/manager'
     | '/terms_/staff'
     | '/_auth/shiftboard/$recruitmentId'
-    | '/_unregistered/demo/flow'
-    | '/_unregistered/demo/shiftboard'
     | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
     | '/_unregistered/shifts/submit'
@@ -387,6 +386,8 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
   TermsRoute: typeof TermsRoute
+  DemoFlowRoute: typeof DemoFlowRoute
+  DemoShiftboardRoute: typeof DemoShiftboardRoute
   PrivacyManagerRoute: typeof PrivacyManagerRoute
   PrivacyStaffRoute: typeof PrivacyStaffRoute
   TermsManagerRoute: typeof TermsManagerRoute
@@ -507,6 +508,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demo/shiftboard': {
+      id: '/demo/shiftboard'
+      path: '/demo/shiftboard'
+      fullPath: '/demo/shiftboard'
+      preLoaderRoute: typeof DemoShiftboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/flow': {
+      id: '/demo/flow'
+      path: '/demo/flow'
+      fullPath: '/demo/flow'
+      preLoaderRoute: typeof DemoFlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/articles/$slug': {
       id: '/articles/$slug'
       path: '/$slug'
@@ -563,20 +578,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnregisteredLineCallbackRouteImport
       parentRoute: typeof UnregisteredRoute
     }
-    '/_unregistered/demo/shiftboard': {
-      id: '/_unregistered/demo/shiftboard'
-      path: '/demo/shiftboard'
-      fullPath: '/demo/shiftboard'
-      preLoaderRoute: typeof UnregisteredDemoShiftboardRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
-    '/_unregistered/demo/flow': {
-      id: '/_unregistered/demo/flow'
-      path: '/demo/flow'
-      fullPath: '/demo/flow'
-      preLoaderRoute: typeof UnregisteredDemoFlowRouteImport
-      parentRoute: typeof UnregisteredRoute
-    }
     '/_auth/shiftboard/$recruitmentId': {
       id: '/_auth/shiftboard/$recruitmentId'
       path: '/shiftboard/$recruitmentId'
@@ -614,8 +615,6 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface UnregisteredRouteChildren {
-  UnregisteredDemoFlowRoute: typeof UnregisteredDemoFlowRoute
-  UnregisteredDemoShiftboardRoute: typeof UnregisteredDemoShiftboardRoute
   UnregisteredLineCallbackRoute: typeof UnregisteredLineCallbackRoute
   UnregisteredShiftsReissueRoute: typeof UnregisteredShiftsReissueRoute
   UnregisteredShiftsSubmitRoute: typeof UnregisteredShiftsSubmitRoute
@@ -626,8 +625,6 @@ interface UnregisteredRouteChildren {
 }
 
 const UnregisteredRouteChildren: UnregisteredRouteChildren = {
-  UnregisteredDemoFlowRoute: UnregisteredDemoFlowRoute,
-  UnregisteredDemoShiftboardRoute: UnregisteredDemoShiftboardRoute,
   UnregisteredLineCallbackRoute: UnregisteredLineCallbackRoute,
   UnregisteredShiftsReissueRoute: UnregisteredShiftsReissueRoute,
   UnregisteredShiftsSubmitRoute: UnregisteredShiftsSubmitRoute,
@@ -669,6 +666,8 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,
   TermsRoute: TermsRoute,
+  DemoFlowRoute: DemoFlowRoute,
+  DemoShiftboardRoute: DemoShiftboardRoute,
   PrivacyManagerRoute: PrivacyManagerRoute,
   PrivacyStaffRoute: PrivacyStaffRoute,
   TermsManagerRoute: TermsManagerRoute,

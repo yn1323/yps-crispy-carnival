@@ -1,3 +1,4 @@
+import { AuthProviders } from "@/src/components/config/AuthProviders";
 import { AuthPage, SsoCallbackPage } from "@/src/components/features/AuthPage";
 
 type AuthRoutePageProps = {
@@ -5,17 +6,33 @@ type AuthRoutePageProps = {
 };
 
 export function LoginPage({ redirect }: AuthRoutePageProps) {
-  return <AuthPage mode="login" redirect={redirect} />;
+  return (
+    <AuthProviders>
+      <AuthPage mode="login" redirect={redirect} />
+    </AuthProviders>
+  );
 }
 
 export function SignupPage({ redirect }: AuthRoutePageProps) {
-  return <AuthPage mode="signup" redirect={redirect} />;
+  return (
+    <AuthProviders>
+      <AuthPage mode="signup" redirect={redirect} />
+    </AuthProviders>
+  );
 }
 
 export function ForgotPasswordPage({ redirect }: AuthRoutePageProps) {
-  return <AuthPage mode="forgot-password" redirect={redirect} />;
+  return (
+    <AuthProviders>
+      <AuthPage mode="forgot-password" redirect={redirect} />
+    </AuthProviders>
+  );
 }
 
 export function SsoCallbackRoutePage() {
-  return <SsoCallbackPage />;
+  return (
+    <AuthProviders>
+      <SsoCallbackPage />
+    </AuthProviders>
+  );
 }

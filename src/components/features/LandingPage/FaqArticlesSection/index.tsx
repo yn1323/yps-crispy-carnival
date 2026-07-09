@@ -1,14 +1,14 @@
 import { Accordion, Badge, Box, Container, Flex, Icon, Image, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
-import type { ArticleContent } from "@/src/components/features/ArticleSite/articleContent";
-import { articles } from "@/src/components/features/ArticleSite/articleContent";
+import type { ArticleMetadata } from "@/src/components/features/ArticleSite/articleMeta";
+import { articleMetas } from "@/src/components/features/ArticleSite/articleMeta";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { landingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
 
 const articleIcons = [LuMessageCircle, LuMonitorCheck, LuFileSpreadsheet, LuBookOpen];
-const previewArticles = articles.slice(0, 4);
+const previewArticles = articleMetas.slice(0, 4);
 
 export const FaqArticlesSection = () => (
   <Box as="section" bg="#fbfefe" py={16}>
@@ -70,7 +70,7 @@ export const FaqArticlesSection = () => (
 
           <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
             {previewArticles.map((article, index) => (
-              <ArticleCard key={article.meta.slug} article={article} icon={articleIcons[index % articleIcons.length]} />
+              <ArticleCard key={article.slug} article={article} icon={articleIcons[index % articleIcons.length]} />
             ))}
           </SimpleGrid>
         </Box>
@@ -79,9 +79,9 @@ export const FaqArticlesSection = () => (
   </Box>
 );
 
-const ArticleCard = ({ article, icon }: { article: ArticleContent; icon: IconType }) => (
+const ArticleCard = ({ article, icon }: { article: ArticleMetadata; icon: IconType }) => (
   <Link
-    href={article.meta.canonicalPath}
+    href={article.canonicalPath}
     color="inherit"
     display="block"
     textDecoration="none"
@@ -102,10 +102,10 @@ const ArticleCard = ({ article, icon }: { article: ArticleContent; icon: IconTyp
       <ArticleThumbnail article={article} icon={icon} />
       <Flex direction="column" flex="1" p={5}>
         <Badge alignSelf="start" colorPalette="green" variant="subtle" borderRadius="full" px={2.5}>
-          {article.meta.categoryLabel}
+          {article.categoryLabel}
         </Badge>
         <Text mt={3} color="gray.950" fontSize="md" fontWeight="black" lineHeight="1.55" lineClamp={2}>
-          {article.meta.title}
+          {article.title}
         </Text>
         <Flex align="center" gap={2} mt="auto" pt={4} color="teal.700" fontSize="sm" fontWeight="bold">
           詳しく見る
@@ -116,12 +116,12 @@ const ArticleCard = ({ article, icon }: { article: ArticleContent; icon: IconTyp
   </Link>
 );
 
-const ArticleThumbnail = ({ article, icon }: { article: ArticleContent; icon: IconType }) => {
-  if (article.meta.heroImage) {
+const ArticleThumbnail = ({ article, icon }: { article: ArticleMetadata; icon: IconType }) => {
+  if (article.heroImage) {
     return (
       <Image
-        src={article.meta.heroImage.src}
-        alt={article.meta.heroImage.alt}
+        src={article.heroImage.src}
+        alt={article.heroImage.alt}
         h="112px"
         w="full"
         objectFit="cover"
