@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "@storybook/react-vite";
+import { markdownFrontmatterPlugin } from "../vite/markdownFrontmatterPlugin.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
@@ -44,6 +45,7 @@ const config: StorybookConfig = {
     // convex/react 等のモック差し替えには resolveId フックを使う
     config.plugins = [
       ...(config.plugins ?? []),
+      markdownFrontmatterPlugin(),
       {
         name: "storybook-mock-modules",
         enforce: "pre" as const,

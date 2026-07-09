@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArticleCategoryPage } from "@/src/components/features/ArticleSite";
-import { createCategoryBreadcrumbJsonLd, getCategory } from "@/src/components/features/ArticleSite/articleContent";
+import { createCategoryBreadcrumbJsonLd, getCategoryMeta } from "@/src/components/features/ArticleSite/articleMeta";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles/categories/$categorySlug")({
   head: ({ params }) => {
-    const category = getCategory(params.categorySlug);
+    const category = getCategoryMeta(params.categorySlug);
 
     if (!category) {
       return {
@@ -13,13 +13,13 @@ export const Route = createFileRoute("/articles/categories/$categorySlug")({
       };
     }
 
-    const canonical = `/articles/categories/${category.meta.slug}`;
+    const canonical = `/articles/categories/${category.slug}`;
     return {
       links: buildLinks({ canonical }),
       meta: [
         ...buildMeta({
-          title: `${category.meta.title}｜シフト作成ガイド`,
-          description: category.meta.description,
+          title: `${category.title}｜シフト作成ガイド`,
+          description: category.description,
           canonical,
         }),
         ...jsonLdMeta(createCategoryBreadcrumbJsonLd(category)),

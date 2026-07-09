@@ -13,7 +13,9 @@ for (const user of E2E_CLERK_USERS) {
     await clerkSetup();
 
     // Clerk の認証画面そのものはE2E対象外。以降の manager 画面検証に必要な storageState だけ作る。
-    await page.goto("/");
+    // clerk.signIn は window.Clerk が必要。LP(/)は Clerk を読み込まないため、
+    // ClerkProvider を持つ /login へ遷移してからサインインする。
+    await page.goto("/login");
     await clerk.signIn({
       page,
       signInParams: {
