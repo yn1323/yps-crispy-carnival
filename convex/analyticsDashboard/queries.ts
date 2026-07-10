@@ -12,10 +12,12 @@ import {
   type ShopStageInputs,
   shopStageAlerts,
 } from "../analytics/stage";
+import { FEATURE_REQUEST_LIST_LIMIT } from "../constants";
 import { isShiftTargetStaff } from "../staff/service";
 import type {
   EventCountDto,
   EventMetricTotalDto,
+  FeatureRequestRowDto,
   NotificationBreakdownRow,
   ServiceSnapshotDto,
   ShopRankingSort,
@@ -700,6 +702,39 @@ export const getShopRecruitments = internalQuery({
       shopId: args.shopId,
       shopName: await getShopName(ctx, args.shopId),
       rows,
+    };
+  },
+});
+
+export const getFeatureRequests = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()), limit: v.number() },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("featureRequests")
+      .order("desc")
+      .paginate({
+        cursor: args.cursor,
+        numItems: Math.min(Math.max(1, args.limit), FEATURE_REQUEST_LIST_LIMIT),
+      });
+    const rows: FeatureRequestRowDto[] = await Promise.all(
+      page.page.map(async (request) => {
+        const shop = await ctx.db.get(request.shopId);
+        const isStaffRequest = request.staffId !== undefined;
+        return {
+          id: request._id,
+          shopId: request.shopId,
+          shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
+          senderType: isStaffRequest ? ("staff" as const) : ("manager" as const),
+          comment: request.comment,
+          createdAt: request._creationTime,
+        };
+      }),
+    );
+    return {
+      kind: "featureRequests" as const,
+      rows,
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
     };
   },
 });

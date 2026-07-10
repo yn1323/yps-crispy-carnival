@@ -12,11 +12,12 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuChartColumnIncreasing, LuFlag, LuMoonStar, LuRocket } from "react-icons/lu";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type {
+  FeatureRequestRowDto,
   ServiceSnapshotDto,
   ShopRecruitmentsResponse,
   ShopStageCounts,
@@ -28,13 +29,23 @@ import { formatDateTime, formatNumber, formatPercent } from "@/domains/analytics
 import { ActivationTabContent } from "./ActivationTabContent";
 import { BeforeStartTabContent } from "./BeforeStartTabContent";
 import { DormantTabContent } from "./DormantTabContent";
+import { FeatureRequestsTabContent } from "./FeatureRequestsTabContent";
 import { RetainedTabContent } from "./RetainedTabContent";
 import { ShopListTabContent } from "./ShopListTabContent";
 import { ShopRecruitmentsDialog } from "./ShopRecruitmentsDialog";
 
-type DashboardView = "summary" | "beforeStart" | "activation" | "retention" | "dormant" | "shops";
+export type DashboardView =
+  | "summary"
+  | "beforeStart"
+  | "activation"
+  | "retention"
+  | "dormant"
+  | "shops"
+  | "featureRequests";
 
 type DashboardTopProps = {
+  activeView: DashboardView;
+  onActiveViewChange: (view: DashboardView) => void;
   env?: {
     label: string;
     convexHost: string | null;
@@ -55,6 +66,12 @@ type DashboardTopProps = {
   isLoading: boolean;
   errorMessage: string | null;
   stagesErrorMessage: string | null;
+  featureRequests: FeatureRequestRowDto[];
+  featureRequestsErrorMessage: string | null;
+  featureRequestsLoading: boolean;
+  featureRequestsLoadingMore: boolean;
+  featureRequestsHasMore: boolean;
+  onLoadMoreFeatureRequests: () => void;
 };
 
 const VIEW_TABS: { value: DashboardView; label: string }[] = [
@@ -64,6 +81,7 @@ const VIEW_TABS: { value: DashboardView; label: string }[] = [
   { value: "retention", label: "運用中" },
   { value: "dormant", label: "休眠" },
   { value: "shops", label: "店舗一覧" },
+  { value: "featureRequests", label: "要望" },
 ];
 
 const CARD_TONES = {
@@ -788,6 +806,8 @@ function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapsho
 }
 
 export const DashboardTop = ({
+  activeView,
+  onActiveViewChange,
   env,
   latest,
   previousLatest,
@@ -805,8 +825,13 @@ export const DashboardTop = ({
   isLoading,
   errorMessage,
   stagesErrorMessage,
+  featureRequests,
+  featureRequestsErrorMessage,
+  featureRequestsLoading,
+  featureRequestsLoadingMore,
+  featureRequestsHasMore,
+  onLoadMoreFeatureRequests,
 }: DashboardTopProps) => {
-  const [activeView, setActiveView] = useState<DashboardView>("summary");
   const counts = stages?.stageCounts ?? latest?.shopStageCounts ?? null;
   const previousCounts = previousStages?.stageCounts ?? previousLatest?.shopStageCounts ?? null;
   const latestComputedAt = stages?.rows[0]?.computedAt ?? latest?.computedAt ?? null;
@@ -851,17 +876,20 @@ export const DashboardTop = ({
             </Box>
           </Flex>
 
-          <ViewTabs activeView={activeView} onChange={setActiveView} />
+          <ViewTabs activeView={activeView} onChange={onActiveViewChange} />
 
           <Stack gap={{ base: 5, md: 6 }} p={{ base: 4, md: 6 }}>
-            {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
-            {stagesErrorMessage ? <ErrorPanel message={stagesErrorMessage} /> : null}
+            {activeView !== "featureRequests" && errorMessage ? <ErrorPanel message={errorMessage} /> : null}
+            {activeView !== "featureRequests" && stagesErrorMessage ? (
+              <ErrorPanel message={stagesErrorMessage} />
+            ) : null}
 
             {activeView === "beforeStart" ||
             activeView === "activation" ||
             activeView === "retention" ||
             activeView === "dormant" ||
-            activeView === "shops" ? null : (
+            activeView === "shops" ||
+            activeView === "featureRequests" ? null : (
               <Box>
                 <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
                   ステージ別店舗数
@@ -908,6 +936,15 @@ export const DashboardTop = ({
                 isLoading={isLoading}
                 onOpenShopRecruitments={onOpenShopRecruitments}
                 stages={stages}
+              />
+            ) : activeView === "featureRequests" ? (
+              <FeatureRequestsTabContent
+                errorMessage={featureRequestsErrorMessage}
+                hasMore={featureRequestsHasMore}
+                isLoading={featureRequestsLoading}
+                isLoadingMore={featureRequestsLoadingMore}
+                onLoadMore={onLoadMoreFeatureRequests}
+                rows={featureRequests}
               />
             ) : (
               <>

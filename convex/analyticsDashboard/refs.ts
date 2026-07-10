@@ -3,6 +3,7 @@ import { makeFunctionReference } from "convex/server";
 import type { Id } from "../_generated/dataModel";
 import type {
   EventTrendsResponse,
+  FeatureRequestsResponse,
   NotificationBreakdownResponse,
   OverviewResponse,
   ShopDetailResponse,
@@ -67,3 +68,14 @@ export const getShopDetailRef = makeFunctionReference<
 export const getShopRecruitmentsRef = makeFunctionReference<"query", { shopId: Id<"shops"> }, ShopRecruitmentsResponse>(
   "analyticsDashboard/queries:getShopRecruitments",
 ) as unknown as FunctionReference<"query", "internal", { shopId: Id<"shops"> }, ShopRecruitmentsResponse>;
+
+export const getFeatureRequestsRef = makeFunctionReference<
+  "query",
+  { cursor: string | null; limit: number },
+  FeatureRequestsResponse
+>("analyticsDashboard/queries:getFeatureRequests") as unknown as FunctionReference<
+  "query",
+  "internal",
+  { cursor: string | null; limit: number },
+  FeatureRequestsResponse
+>;

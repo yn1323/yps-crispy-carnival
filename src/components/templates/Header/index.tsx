@@ -41,11 +41,13 @@ type UserHeaderVariantProps = {
   showUserMenu?: boolean;
   position?: HeaderPosition;
   deleteShopAction?: UserMenuDeleteShopAction;
+  userActions?: ReactNode;
 };
 
 type StaffHeaderVariantProps = {
   variant: "staff";
   shopName: string;
+  actions?: ReactNode;
   fixed?: boolean;
   maxW?: ContainerProps["maxW"];
   px?: ContainerProps["px"];
@@ -77,7 +79,7 @@ export const Header = (props: HeaderProps = {}) => {
   if (props.variant === "staff") {
     return (
       <HeaderShell position={props.fixed === false ? "static" : "fixed"} maxW={props.maxW ?? "1024px"} px={props.px}>
-        <StaffHeaderContent shopName={props.shopName} />
+        <StaffHeaderContent shopName={props.shopName} actions={props.actions} />
       </HeaderShell>
     );
   }
@@ -85,11 +87,14 @@ export const Header = (props: HeaderProps = {}) => {
   return (
     <HeaderShell position={props.position ?? "fixed"}>
       <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
-      {props.showUserMenu !== false && (
-        <Suspense fallback={null}>
-          <UserMenu tone="light" deleteShopAction={props.deleteShopAction} />
-        </Suspense>
-      )}
+      <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
+        {props.userActions}
+        {props.showUserMenu !== false && (
+          <Suspense fallback={null}>
+            <UserMenu tone="light" deleteShopAction={props.deleteShopAction} />
+          </Suspense>
+        )}
+      </Flex>
     </HeaderShell>
   );
 };
@@ -257,7 +262,7 @@ const PublicSignupButton = () => (
   </Button>
 );
 
-const StaffHeaderContent = ({ shopName }: { shopName: string }) => (
+const StaffHeaderContent = ({ shopName, actions }: { shopName: string; actions?: ReactNode }) => (
   <Flex align="center" justify="space-between" gap={4} minW={0} w="full">
     <Text
       color="gray.950"
@@ -272,6 +277,7 @@ const StaffHeaderContent = ({ shopName }: { shopName: string }) => (
       {shopName}
     </Text>
     <Flex align="center" gap={{ base: 1.5, lg: 2 }} flexShrink={0}>
+      {actions}
       <Text color="gray.700" fontSize={{ base: "2xs", lg: "xs" }} fontWeight="semibold" whiteSpace="nowrap">
         Powered by
       </Text>

@@ -9,3 +9,8 @@ if (!CONVEX_URL) {
 }
 
 export const GTM_ID = import.meta.env.VITE_GTM_ID ?? "";
+
+export const CONVEX_SITE_URL =
+  import.meta.env.VITE_CONVEX_SITE_URL ?? CONVEX_URL.replace(".convex.cloud", ".convex.site");
+
+export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "";

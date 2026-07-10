@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { queryByRole } from "@testing-library/dom";
 import { createStore, Provider } from "jotai";
 import { expect, userEvent, within } from "storybook/test";
+import { Button } from "@/src/components/ui/Button";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
@@ -48,8 +49,12 @@ export const UserWithoutShopDeletionEntry: Story = {
   },
   play: async () => {
     const screen = within(document.body);
-    await userEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
+    const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
+    await userEvent.click(trigger);
 
+    const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
+    await expect(contactLink).toHaveAttribute("href", "/contact");
+    await expect(contactLink).toHaveAttribute("target", "_blank");
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
     await userEvent.keyboard("{Escape}");
@@ -59,6 +64,25 @@ export const UserWithoutShopDeletionEntry: Story = {
 export const UserWithoutMenu: Story = {
   args: {
     showUserMenu: false,
+  },
+};
+
+export const UserWithAction: Story = {
+  args: {
+    userActions: <Button size="sm">要望を送る</Button>,
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    await expect(within(canvasElement).getByRole("button", { name: "要望を送る" })).toBeVisible();
+  },
+};
+
+export const MobileUserWithAction: Story = {
+  tags: ["vrt-mobile2"],
+  args: {
+    userActions: <Button size="sm">要望</Button>,
+  },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
   },
 };
 
@@ -85,6 +109,19 @@ export const Staff: Story = {
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     expect(queryByRole(canvasElement, "link", { name: "シフトリのトップページへ" })).toBeNull();
+  },
+};
+
+export const StaffWithAction: Story = {
+  args: {
+    variant: "staff",
+    shopName: "居酒屋さくら",
+    actions: <Button size="sm">要望を送る</Button>,
+    maxW: "1024px",
+    px: { base: 4, lg: 6 },
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    await expect(within(canvasElement).getByRole("button", { name: "要望を送る" })).toBeVisible();
   },
 };
 

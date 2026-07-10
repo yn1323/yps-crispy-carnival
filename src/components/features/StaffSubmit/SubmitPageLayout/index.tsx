@@ -8,6 +8,7 @@ type Props = {
 
 type HeaderProps = {
   shopName: string;
+  actions?: ReactNode;
 };
 
 export function SubmitPageLayout({ children }: Props): ReactNode {
@@ -26,6 +27,8 @@ export function SubmitPageContent({ children }: Props): ReactNode {
   );
 }
 
-export function SubmitPageHeader({ shopName }: HeaderProps): ReactNode {
-  return <Header variant="staff" shopName={shopName} fixed={false} maxW={STAFF_CONTENT_MAX_W} px={4} />;
+export function SubmitPageHeader({ shopName, actions }: HeaderProps): ReactNode {
+  return (
+    <Header variant="staff" shopName={shopName} actions={actions} fixed={false} maxW={STAFF_CONTENT_MAX_W} px={4} />
+  );
 }
