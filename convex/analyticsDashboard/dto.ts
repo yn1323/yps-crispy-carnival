@@ -12,6 +12,7 @@ export type AnalyticsDashboardRequest =
   | { kind: "shopStages"; date: string }
   | { kind: "shopRanking"; date: string; sort: ShopRankingSort; limit: number }
   | { kind: "shopRecruitments"; shopId: string }
+  | { kind: "featureRequests"; cursor: string | null; limit: number }
   | { kind: "shopDetail"; shopId: string; from: string; to: string };
 
 export type AnalyticsDashboardResponse =
@@ -21,6 +22,7 @@ export type AnalyticsDashboardResponse =
   | ShopStagesResponse
   | ShopRankingResponse
   | ShopRecruitmentsResponse
+  | FeatureRequestsResponse
   | ShopDetailResponse;
 
 export type ServiceSnapshotDto = {
@@ -230,4 +232,20 @@ export type ShopRecruitmentsResponse = {
   shopId: string;
   shopName: string;
   rows: ShopRecruitmentRowDto[];
+};
+
+export type FeatureRequestRowDto = {
+  id: string;
+  shopId: string;
+  shopName: string;
+  senderType: "manager" | "staff";
+  comment: string;
+  createdAt: number;
+};
+
+export type FeatureRequestsResponse = {
+  kind: "featureRequests";
+  rows: FeatureRequestRowDto[];
+  continueCursor: string;
+  isDone: boolean;
 };

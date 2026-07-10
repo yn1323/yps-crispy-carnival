@@ -1,7 +1,7 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { useAtomValue } from "jotai";
-import { LuChevronDown, LuLogOut, LuUserRound } from "react-icons/lu";
+import { LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
 import { userAtom } from "@/src/stores/user";
 
 export type UserMenuDeleteShopAction = {
@@ -74,6 +74,12 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </Text>
             </Box>
             <Menu.Separator />
+            <Menu.Item asChild value="contact">
+              <a href="/contact" target="_blank" rel="noreferrer">
+                <LuMailQuestion />
+                お問い合わせ
+              </a>
+            </Menu.Item>
             {/* 店舗削除入口は誤操作リスクを再検討するため一時停止中。 */}
             <SignOutButton>
               <Menu.Item value="logout" cursor="pointer" color="red.500">

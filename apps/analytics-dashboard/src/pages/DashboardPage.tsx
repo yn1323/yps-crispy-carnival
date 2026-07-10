@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { AnalyticsApiError, fetchAnalytics } from "@/api/analyticsClient";
-import { DashboardTop } from "@/features/dashboard";
+import { DashboardTop, type DashboardView } from "@/features/dashboard";
 
 const DASHBOARD_PERIOD_DAYS = 30;
 
@@ -34,6 +34,7 @@ export const DashboardPage = () => {
   const range = useMemo(() => rangeForDays(0), []);
   const previousRange = useMemo(() => rangeForDays(DASHBOARD_PERIOD_DAYS), []);
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<DashboardView>("summary");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -75,14 +76,32 @@ export const DashboardPage = () => {
       return fetchAnalytics({ kind: "shopRecruitments", shopId: selectedShopId });
     },
   });
+  const featureRequestsQuery = useInfiniteQuery({
+    enabled: activeView === "featureRequests",
+    queryKey: ["analytics", "featureRequests"],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => fetchAnalytics({ kind: "featureRequests", cursor: pageParam, limit: 50 }),
+    getNextPageParam: (lastPage) => (lastPage.data.isDone ? undefined : lastPage.data.continueCursor),
+  });
+  const featureRequests = featureRequestsQuery.data?.pages.flatMap((page) => page.data.rows) ?? [];
 
   return (
     <DashboardTop
+      activeView={activeView}
       env={overviewQuery.data?.env}
       errorMessage={overviewQuery.error ? analyticsErrorMessage(overviewQuery.error) : null}
+      featureRequests={featureRequests}
+      featureRequestsErrorMessage={
+        featureRequestsQuery.error ? analyticsErrorMessage(featureRequestsQuery.error) : null
+      }
+      featureRequestsHasMore={featureRequestsQuery.hasNextPage === true}
+      featureRequestsLoading={featureRequestsQuery.isLoading}
+      featureRequestsLoadingMore={featureRequestsQuery.isFetchingNextPage}
       isLoading={overviewQuery.isLoading || shopStagesQuery.isLoading}
       latest={overviewQuery.data?.data.latestServiceSnapshot ?? null}
       onCloseShopRecruitments={() => setSelectedShopId(null)}
+      onActiveViewChange={setActiveView}
+      onLoadMoreFeatureRequests={() => void featureRequestsQuery.fetchNextPage()}
       onOpenShopRecruitments={setSelectedShopId}
       previousLatest={previousOverviewQuery.data?.data.latestServiceSnapshot ?? null}
       previousStages={previousShopStagesQuery.data?.data ?? null}

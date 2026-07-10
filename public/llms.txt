@@ -68,6 +68,7 @@
 - [サービスサイト](https://shiftori.app/)
 - [できること](https://shiftori.app/features)
 - [よくある質問](https://shiftori.app/faq)
+- [お問い合わせ](https://shiftori.app/contact): 利用開始、機能や使い方、不具合やトラブルの相談窓口
 - [シフト作成ガイド記事一覧](https://shiftori.app/articles)
 - [シフト作成フローのデモ](https://shiftori.app/demo/flow)
 - [シフトボードのデモ](https://shiftori.app/demo/shiftboard)

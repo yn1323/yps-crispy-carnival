@@ -43,4 +43,20 @@ describe("analyticsDashboard/schemas", () => {
       value: { kind: "shopRecruitments", shopId: "shop_123" },
     });
   });
+
+  it("要望一覧requestを受け付ける", () => {
+    expect(parseAnalyticsDashboardRequest({ kind: "featureRequests", cursor: null, limit: 50 })).toEqual({
+      ok: true,
+      value: { kind: "featureRequests", cursor: null, limit: 50 },
+    });
+  });
+
+  it("要望一覧の不正なcursorとlimitを拒否する", () => {
+    expect(parseAnalyticsDashboardRequest({ kind: "featureRequests", cursor: 1, limit: 50 })).toMatchObject({
+      ok: false,
+    });
+    expect(parseAnalyticsDashboardRequest({ kind: "featureRequests", cursor: null, limit: 51 })).toMatchObject({
+      ok: false,
+    });
+  });
 });

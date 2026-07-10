@@ -68,6 +68,18 @@ const schema = defineSchema({
     .index("by_userId_and_shopId", ["userId", "shopId"])
     .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
+  featureRequests: defineTable({
+    shopId: v.id("shops"),
+    // 管理者要望はuserId、スタッフ要望はstaffIdで送信者をサーバー側から確定する。
+    userId: v.optional(v.id("users")),
+    staffId: v.optional(v.id("staffs")),
+    comment: v.string(),
+    requestId: v.string(),
+  })
+    .index("by_shopId", ["shopId"])
+    .index("by_userId_and_requestId", ["userId", "requestId"])
+    .index("by_staffId_and_requestId", ["staffId", "requestId"]),
+
   // ========================================
   // ダッシュボードお知らせ（全店舗共通）
   // ========================================
