@@ -69,14 +69,14 @@ describe("legal/mutations", () => {
     expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
     expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
     expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
+    expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-07-10");
     expect(state?.method).toBe("staff_email_link");
     expect(events).toHaveLength(1);
     expect(events[0].method).toBe("staff_email_link");
     expect(events[0].termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
     expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-05-09");
     expect(events[0].termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-05-09");
+    expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-07-10");
   });
 
   it("期限切れトークンでは同意できない", async () => {
@@ -144,7 +144,7 @@ describe("legal/mutations", () => {
     expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-05-09");
     expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-05-09");
     expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-05-09");
-    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-05-09");
+    expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-07-10");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);
     expect(events[0].shopId).toBe(shopId);
