@@ -25,8 +25,8 @@ type Props = {
 };
 
 const EMAIL_FAILURE_HELP_LINES = [
-  "メールが届かない場合は、メールアドレスに誤りがないか確認ください。",
-  "それでも失敗する場合は、スタッフ詳細のLINE連携から連携リンクを案内できます。",
+  "メールが届かない場合は、メールアドレスに誤りがないか確認してください。",
+  "それでも送れない場合は、スタッフ詳細のLINEから連携リンクを案内できます。",
 ];
 
 export const NotificationFailureDialogContent = ({
@@ -74,7 +74,7 @@ export const NotificationFailureDialogContent = ({
           gap={1.5}
         >
           <LuRefreshCw />
-          すべて再通知
+          すべて再送
         </Button>
       </Flex>
 
@@ -254,7 +254,7 @@ const ResendButton = ({
     return (
       <Button size="sm" variant="outline" colorPalette="gray" disabled gap={1.5} w={fullWidth ? "100%" : undefined}>
         <LuCheck />
-        再送受付済み
+        再送済み
       </Button>
     );
   }
@@ -270,7 +270,7 @@ const ResendButton = ({
       gap={1.5}
     >
       <LuRefreshCw />
-      {failure.canRetry ? "再通知" : "再通知不可"}
+      {failure.canRetry ? "再送" : "再送できません"}
     </Button>
   );
 };

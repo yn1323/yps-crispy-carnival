@@ -20,11 +20,11 @@ export class StaffViewPage {
   }
 
   async expectExpiredVisible() {
-    await expect(this.page.getByText(/このリンクの有効期限が/)).toBeVisible();
+    await expect(this.page.getByText("このリンクではシフトを確認できません")).toBeVisible();
   }
 
   async requestReissue(email: string) {
-    await this.page.getByRole("link", { name: "リンクを再発行する" }).click();
+    await this.page.getByRole("link", { name: "新しい閲覧リンクを受け取る" }).click();
     await expect(this.page).toHaveURL(/\/shifts\/reissue/);
     await this.page.getByLabel("メールアドレス").fill(email);
     await this.page.getByRole("button", { name: "リンクを送信する" }).click();

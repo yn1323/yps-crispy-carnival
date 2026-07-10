@@ -133,16 +133,16 @@ export const StaffDetailDialog = ({
         <Tabs.Root defaultValue="basic" colorPalette="teal" variant="line">
           <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
             <Tabs.Trigger value="basic" flexShrink={0}>
-              基本
+              情報
             </Tabs.Trigger>
             <Tabs.Trigger value="notification" flexShrink={0}>
-              シフト再送
+              通知
             </Tabs.Trigger>
             <Tabs.Trigger value="line" flexShrink={0}>
-              LINE連携
+              LINE
             </Tabs.Trigger>
             <Tabs.Trigger value="settings" flexShrink={0}>
-              その他設定
+              設定
             </Tabs.Trigger>
           </Tabs.List>
 
@@ -202,7 +202,7 @@ export const StaffDetailDialog = ({
                 <Stack gap={5}>
                   <Stack gap={3}>
                     <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                      次のいずれかの方法でLINEに通知できます。
+                      次のいずれかの方法でLINE連携できます。
                     </Text>
                     <Text fontSize="xs" color="fg.muted" lineHeight="tall">
                       ※シフトリ登録時、自動でLINE連携リンクをメールでお送りしています。
@@ -231,7 +231,7 @@ export const StaffDetailDialog = ({
 
                   <LineConnectionMethod
                     number="2"
-                    title="メールでLINE連携リンク送付"
+                    title="LINE連携リンクをメールで送る"
                     description="スタッフのメールアドレスにLINE連携リンクをお送りします。"
                   >
                     <Button
@@ -254,7 +254,7 @@ export const StaffDetailDialog = ({
               )}
               {isLineActive && (
                 <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  このスタッフはLINE連携済みです。必要な場合は、シフト再送タブからシフト関連の通知を再送できます。
+                  このスタッフはLINE連携済みです。必要な場合は、通知タブからシフト関連の通知を再送できます。
                 </Text>
               )}
             </Stack>
@@ -529,7 +529,7 @@ function getLineStatus(staff: Staff): {
   if (staff.isLineLinked && staff.isLineFollowing) {
     return {
       label: "LINE連携済み",
-      description: "LINEでシフトリの通知を行います。",
+      description: "シフトのお知らせはLINEで送ります。",
       colorPalette: "green",
       tone: "brand",
     };
@@ -538,14 +538,14 @@ function getLineStatus(staff: Staff): {
     return {
       label: "LINEで受け取れません",
       description:
-        "LINE連携されていますが、友だち追加を解除している可能性があります。メールにてシフトリの通知を行います。",
+        "LINE連携されていますが、友だち追加を解除している可能性があります。シフトのお知らせはメールで送ります。",
       colorPalette: "orange",
       tone: "muted",
     };
   }
   return {
     label: "LINE未連携",
-    description: "LINE未連携です。メールにてシフトリの通知を行います。",
+    description: "LINE未連携です。シフトのお知らせはメールで送ります。",
     colorPalette: "gray",
     tone: "muted",
   };

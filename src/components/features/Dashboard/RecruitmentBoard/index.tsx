@@ -87,7 +87,7 @@ export const RecruitmentBoard = ({
           action={
             <Button colorPalette="teal" size="md" onClick={onCreateClick} gap={1.5}>
               <LuPlus />
-              はじめてのシフトを作成する
+              はじめての募集をつくる
             </Button>
           }
         />

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { findByText, getByRole, getByText } from "@testing-library/dom";
+import { findByText, getAllByText, getByRole, getByText } from "@testing-library/dom";
 import dayjs from "dayjs";
 import { expect } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
@@ -71,7 +71,7 @@ export const InteractiveBasicFlow: Story = {
     await findByText(root, "内容を確認");
     expect(getByText(root, "お店のお休み")).toBeTruthy();
     expect(getByText(root, "なし")).toBeTruthy();
-    expect(getByText(root, "提出締切")).toBeTruthy();
+    expect(getAllByText(root, "提出締切").length).toBeGreaterThan(0);
     expect(getByText(root, "通知")).toBeTruthy();
     expect(await findByText(root, "スタッフにシフト提出案内を送ります")).toBeTruthy();
   },

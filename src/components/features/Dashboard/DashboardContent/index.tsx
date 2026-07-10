@@ -276,11 +276,11 @@ export const DashboardContent = ({
       const result = await resendNotificationFailure({ failureId });
       if (result.scheduled) {
         setAcceptedNotificationFailureIds((current) => new Set(current).add(failureId));
-        showSuccessToast({ title: "再通知を受け付けました" });
+        showSuccessToast({ title: "通知を再送しました" });
         return;
       }
       toaster.create({
-        title: result.reason === "rateLimited" ? "少し時間をおいて再通知してください" : "再通知できませんでした",
+        title: result.reason === "rateLimited" ? "少し時間をおいてから再送してください" : "再送できませんでした",
         type: result.reason === "rateLimited" ? "error" : "info",
       });
     } catch (error) {
@@ -312,21 +312,15 @@ export const DashboardContent = ({
             return next;
           });
           toaster.create({
-            title: result.hasRemainingFailures
-              ? "一部の再送を受け付けました"
-              : "送れなかった通知の再送を受け付けました",
-            description: result.hasRemainingFailures
-              ? "残りの通知は少し時間をおいてから、もう一度再通知してください。"
-              : undefined,
+            title: result.hasRemainingFailures ? "一部の通知を再送しました" : "送れなかった通知を再送しました",
+            description: result.hasRemainingFailures ? "残りの通知は少し時間をおいてから再送してください。" : undefined,
             type: result.hasRemainingFailures ? "warning" : "success",
           });
           return;
         }
         toaster.create({
           title: result.hasRemainingFailures ? "一部の通知を再送できませんでした" : "再送できる通知がありません",
-          description: result.hasRemainingFailures
-            ? "残りの通知は少し時間をおいてから、もう一度再通知してください。"
-            : undefined,
+          description: result.hasRemainingFailures ? "残りの通知は少し時間をおいてから再送してください。" : undefined,
           type: result.hasRemainingFailures ? "warning" : "info",
         });
       } catch (error) {
@@ -436,7 +430,7 @@ export const DashboardContent = ({
       try {
         await approveStaffRequest({ requestId: request._id });
         showSuccessToast({
-          title: "スタッフ申請を承認し、案内通知を送りました",
+          title: "スタッフ登録申請を承認し、案内通知を送りました",
           description: "LINE連携案内をメールで送りました。募集中シフトがある場合は提出リンクも届きます。",
         });
       } catch (error) {
@@ -454,7 +448,7 @@ export const DashboardContent = ({
     try {
       await rejectStaffRequest({ requestId: rejectRequestTarget._id });
       setRejectRequestTarget(null);
-      showSuccessToast({ title: "スタッフ申請を却下しました" });
+      showSuccessToast({ title: "スタッフ登録申請を却下しました" });
     } catch (error) {
       showErrorToast(error);
     }
@@ -792,7 +786,7 @@ export const DashboardContent = ({
       />
 
       <Dialog
-        title="スタッフ申請を却下"
+        title="スタッフ登録申請を却下"
         isOpen={rejectRequestTarget !== null}
         onOpenChange={({ open }) => {
           if (!open) setRejectRequestTarget(null);
@@ -805,9 +799,9 @@ export const DashboardContent = ({
         isLoading={isRejectingStaffRequest}
         isSubmitDisabled={isRejectingStaffRequest}
       >
-        <Text>「{rejectRequestTarget?.name}」さんの参加申請を却下しますか？</Text>
+        <Text>「{rejectRequestTarget?.name}」さんのスタッフ登録申請を却下しますか？</Text>
         <Text fontSize="sm" color="gray.600">
-          却下してもスタッフには通知されません。必要な場合はシフト担当者から直接案内してください。
+          却下してもスタッフには通知されません。必要な場合はシフト作成担当者から直接案内してください。
         </Text>
       </Dialog>
 

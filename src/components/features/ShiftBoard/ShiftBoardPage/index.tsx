@@ -454,7 +454,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
         return;
       }
       showSuccessToast({
-        title: isConfirmed ? "変更があるスタッフへの通知を受け付けました" : "確定しました",
+        title: isConfirmed ? "変更があるスタッフに通知を送りました" : "シフトを確定しました",
       });
     } catch (error) {
       if (handleMutationError(error)) {
@@ -467,7 +467,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
-      showSuccessToast({ title: "保存しました" });
+      showSuccessToast({ title: "下書きを保存しました" });
     } catch (error) {
       handleMutationError(error);
     }
@@ -496,7 +496,7 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
     try {
       const saved = await persistCurrentShifts();
       if (!saved) return;
-      showSuccessToast({ title: "保存しました" });
+      showSuccessToast({ title: "下書きを保存しました" });
       blocker.proceed?.();
     } catch (error) {
       // 保存に失敗した場合はダイアログを開いたまま留まる

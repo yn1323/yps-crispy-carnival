@@ -43,7 +43,7 @@ export function StaffRegistrationRoutePage({ token }: Props) {
         });
         if (result.status === "ok") {
           setSubmitted(true);
-          showSuccessToast({ title: "参加申請を送りました" });
+          showSuccessToast({ title: "スタッフ登録申請を送りました" });
         } else {
           toaster.create({
             title: DUPLICATE_REGISTRATION_MESSAGE[result.status],

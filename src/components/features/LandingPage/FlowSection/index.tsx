@@ -9,7 +9,7 @@ const flowSteps: Array<{ imageSrc: string; title: string; body: string }> = [
   {
     imageSrc: setCollectionPeriodImage,
     title: "シフト募集期間を決める",
-    body: "指定して期間の提出リンクをLINE・メールで自動送信",
+    body: "指定した期間の提出リンクをLINE・メールで自動送信",
   },
   {
     imageSrc: buildShiftImage,

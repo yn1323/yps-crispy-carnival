@@ -987,7 +987,7 @@ describe("shiftBoard/mutations", () => {
           recruitmentId,
           intent: "resend",
         }),
-      ).rejects.toThrow("確定済みのシフトだけ再通知できます");
+      ).rejects.toThrow("確定済みのシフトだけ再送できます");
     });
 
     it("定休日に既存シフトが残っている場合は確定できない", async () => {

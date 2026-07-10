@@ -112,7 +112,7 @@ export const confirmRecruitment = managerMutation({
     const isResend = recruitment.status === "confirmed";
     const intent = args.intent ?? "confirm";
     if (intent === "resend" && !isResend) {
-      throw new ConvexError("確定済みのシフトだけ再通知できます");
+      throw new ConvexError("確定済みのシフトだけ再送できます");
     }
     if (intent === "confirm" && isResend) {
       return null;

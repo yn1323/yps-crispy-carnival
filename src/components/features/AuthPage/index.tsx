@@ -844,7 +844,7 @@ function getClerkErrorMessage(error: unknown) {
     case "too_many_requests":
       return "試行回数が多すぎます。時間をおいてもう一度お試しください。";
     default:
-      return clerkError.longMessage || clerkError.message || "認証に失敗しました。入力内容を確認してください。";
+      return "認証に失敗しました。入力内容を確認してください。";
   }
 }
 

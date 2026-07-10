@@ -335,7 +335,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
               {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
             </Text>
             <Text fontSize="xs" color="fg.muted">
-              提出締切: {formatDateWithWeekday(data.deadline)} 23:59
+              提出締切：{formatDateWithWeekday(data.deadline)} 23:59
             </Text>
           </Box>
         </Flex>

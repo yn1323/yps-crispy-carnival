@@ -58,7 +58,7 @@ export const BenefitsSection = () => (
           </Heading>
           <Box w="56px" h="6px" bg="teal.600" borderRadius="full" />
           <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="720px">
-            シフト担当者の手間と、スタッフの提出負担をどちらも減らします。
+            シフト作成担当者の手間と、スタッフの提出負担をどちらも減らします。
           </Text>
         </VStack>
 

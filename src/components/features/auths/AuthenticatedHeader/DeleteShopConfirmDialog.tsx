@@ -32,12 +32,12 @@ export const DeleteShopConfirmDialog = ({
       role="alertdialog"
     >
       <Stack gap={3}>
-        <Text color="fg.muted" lineHeight="tall">
-          店舗情報、スタッフ、これまでのシフトをすべて削除します。
+        <Text fontWeight="semibold" color="gray.900">
+          「{shopName}」を削除すると元に戻せません。
         </Text>
 
-        <Text fontWeight="semibold" color="gray.900">
-          「{shopName}」を削除してよろしいですか？
+        <Text color="fg.muted" lineHeight="tall">
+          店舗情報、スタッフ、これまでのシフトをすべて削除します。
         </Text>
       </Stack>
     </Dialog>

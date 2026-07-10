@@ -72,7 +72,7 @@ export const Normal: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "すべて再通知" })).toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "すべて再送" })).toBeInTheDocument();
     await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
     await expect(await canvas.findByText(/メールが届かない場合は/)).toBeInTheDocument();
   },
@@ -117,9 +117,9 @@ export const Interactive: Story = {
   render: () => <InteractiveNotificationFailureDialog />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const resendButtons = canvas.getAllByRole("button", { name: /^再通知$/ });
+    const resendButtons = canvas.getAllByRole("button", { name: /^再送$/ });
     await userEvent.click(resendButtons[0]);
-    const acceptedButtons = await canvas.findAllByRole("button", { name: "再送受付済み" });
+    const acceptedButtons = await canvas.findAllByRole("button", { name: "再送済み" });
     await expect(acceptedButtons[0]).toBeInTheDocument();
   },
 };

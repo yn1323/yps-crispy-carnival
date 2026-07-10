@@ -1,5 +1,6 @@
 import { Toaster as ChakraToaster, createToaster, Portal, Spinner, Stack, Toast } from "@chakra-ui/react";
 import { ConvexError } from "convex/values";
+import { getUserFacingErrorMessage } from "@/src/domains/errors";
 
 export const TOASTER_LAYER_SELECTOR = "[data-shiftori-toaster-layer]";
 
@@ -8,12 +9,15 @@ function hasStringData(error: unknown): error is { data: string } {
 }
 
 export function showErrorToast(error: unknown): void {
-  let title = "うまく処理できませんでした";
+  let message: string | undefined;
   if (hasStringData(error)) {
-    title = error.data;
+    message = error.data;
   } else if (error instanceof ConvexError && typeof error.data === "string") {
-    title = error.data;
+    message = error.data;
+  } else if (error instanceof Error) {
+    message = error.message;
   }
+  const title = getUserFacingErrorMessage(message);
   toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
 }
 

@@ -330,7 +330,7 @@ export const ConfirmButton = ({
       : "処理中"
     : compact
       ? isConfirmed
-        ? "再通知"
+        ? "再送"
         : "確定"
       : isConfirmed
         ? "もう一度通知"

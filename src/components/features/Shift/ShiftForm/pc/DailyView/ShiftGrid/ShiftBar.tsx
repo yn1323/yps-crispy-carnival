@@ -75,7 +75,7 @@ export const ShiftBar = memo(function ShiftBar({
       top={0}
       pointerEvents={isDragging ? "none" : "auto"}
     >
-      {/* 希望シフトバー（灰色の点線、「希望: HH:MM-HH:MM」ラベルを左寄せで表示） */}
+      {/* 希望シフトバー（灰色の点線、「希望：HH:MM-HH:MM」ラベルを左寄せで表示） */}
       {!isReadOnly &&
         hasRequestedTime &&
         requestedTimes.map((request, index) => {
@@ -107,7 +107,7 @@ export const ShiftBar = memo(function ShiftBar({
                 whiteSpace="nowrap"
                 fontVariantNumeric="tabular-nums"
               >
-                希望: {formatShiftClockTime(request.start)}-{formatShiftClockTime(request.end)}
+                希望：{formatShiftClockTime(request.start)}-{formatShiftClockTime(request.end)}
               </Text>
             </Box>
           );

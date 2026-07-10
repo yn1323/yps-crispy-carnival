@@ -11,7 +11,7 @@ export class StaffRegistrationPage {
     await this.fillRequestForm(data);
     await this.page.getByRole("button", { name: "申請する" }).click();
 
-    await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "スタッフ登録申請を送りました" })).toBeVisible();
   }
 
   async submitRequestAndExpectError(data: { name: string; email: string }, errorMessage: string | RegExp) {
@@ -19,7 +19,7 @@ export class StaffRegistrationPage {
     await this.page.getByRole("button", { name: "申請する" }).click();
 
     await expect(this.page.getByText(errorMessage).first()).toBeVisible();
-    await expect(this.page.getByRole("heading", { name: "申請を送りました" })).toBeHidden();
+    await expect(this.page.getByRole("heading", { name: "スタッフ登録申請を送りました" })).toBeHidden();
   }
 
   private async fillRequestForm(data: { name: string; email: string }) {
