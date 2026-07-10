@@ -15,6 +15,9 @@ permissions:
 env:
   VRT_REPORT_DIR: yps-crispy-carnival-vrt
   VRT_BASELINE_DIR: yps-crispy-carnival-vrt-baselines
+  # Storybookでは外部サービスをモックするため、公開設定は決定的なテスト値を使う。
+  VITE_CLERK_PUBLISHABLE_KEY: pk_test_storybook
+  VITE_CONVEX_URL: https://storybook.convex.cloud
 
 jobs:
   prepare:
