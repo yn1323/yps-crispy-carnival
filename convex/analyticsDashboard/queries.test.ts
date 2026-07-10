@@ -1,9 +1,9 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
-import { seedShop } from "../_test/seed";
+import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { getShopRecruitmentsRef, getShopStagesRef } from "./refs";
+import { getFeatureRequestsRef, getShopRecruitmentsRef, getShopStagesRef } from "./refs";
 
 function setup() {
   return convexTest(schema, modules);
@@ -92,6 +92,82 @@ function sentNotificationOutboxInput(
 }
 
 describe("analyticsDashboard/queries", () => {
+  it("要望を新しい順にページングし、メールアドレスを返さない", async () => {
+    const t = setup();
+    await t.run(async (ctx) => {
+      const first = await seedManagerShop(ctx, {
+        subject: "analytics_feature_first",
+        email: "first@example.com",
+        shopName: "最初の店舗",
+      });
+      const second = await seedManagerShop(ctx, {
+        subject: "analytics_feature_second",
+        email: "second@example.com",
+        shopName: "次の店舗",
+      });
+      await ctx.db.insert("featureRequests", {
+        shopId: first.shopId,
+        userId: first.userId,
+        comment: "古い要望",
+        requestId: "8ca40779-a0b3-4185-99ef-38d42ea35618",
+      });
+      await ctx.db.insert("featureRequests", {
+        shopId: second.shopId,
+        userId: second.userId,
+        comment: "新しい要望",
+        requestId: "86320607-e172-4df6-9770-eec6394f65aa",
+      });
+    });
+
+    const firstPage = await t.query(getFeatureRequestsRef, { cursor: null, limit: 1 });
+    expect(firstPage.rows).toHaveLength(1);
+    expect(firstPage.rows[0]).toMatchObject({
+      comment: "新しい要望",
+      shopName: "次の店舗",
+      senderType: "manager",
+    });
+    expect(firstPage.rows[0]).not.toHaveProperty("email");
+    expect(firstPage.rows[0]).not.toHaveProperty("userName");
+    expect(firstPage.rows[0]).not.toHaveProperty("senderId");
+    expect(firstPage.isDone).toBe(false);
+
+    const secondPage = await t.query(getFeatureRequestsRef, { cursor: firstPage.continueCursor, limit: 1 });
+    expect(secondPage.rows).toHaveLength(1);
+    expect(secondPage.rows[0]).toMatchObject({ comment: "古い要望", shopName: "最初の店舗" });
+    expect(secondPage.isDone).toBe(true);
+  });
+
+  it("スタッフからの要望は送信者種別だけを返す", async () => {
+    const t = setup();
+    const { shopId } = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "スタッフ要望店舗");
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        name: "スタッフ名は返さない",
+        email: "staff@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.insert("featureRequests", {
+        shopId,
+        staffId,
+        comment: "スタッフからの要望",
+        requestId: "12ac7915-4341-4cd4-93ca-e1cbdbfe6b48",
+      });
+      return { shopId };
+    });
+
+    const result = await t.query(getFeatureRequestsRef, { cursor: null, limit: 50 });
+
+    expect(result.rows[0]).toMatchObject({
+      shopId,
+      shopName: "スタッフ要望店舗",
+      senderType: "staff",
+      comment: "スタッフからの要望",
+    });
+    expect(result.rows[0]).not.toHaveProperty("userName");
+    expect(result.rows[0]).not.toHaveProperty("senderId");
+  });
+
   it("店舗別シフト履歴を期間の新しい順に返し、削除済み募集を除外する", async () => {
     const t = setup();
     const { newerRecruitment, olderRecruitment, shopId } = await t.run(async (ctx) => {

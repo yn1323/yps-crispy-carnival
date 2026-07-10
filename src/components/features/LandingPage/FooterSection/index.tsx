@@ -4,7 +4,10 @@ type FooterColLink = { label: string; href: string };
 
 const productLinks: FooterColLink[] = [{ label: "できること", href: "/features" }];
 
-const supportLinks: FooterColLink[] = [{ label: "よくある質問", href: "/faq" }];
+const supportLinks: FooterColLink[] = [
+  { label: "よくある質問", href: "/faq" },
+  { label: "お問い合わせ", href: "/contact" },
+];
 
 const companyLinks: FooterColLink[] = [
   { label: "利用規約", href: "/terms" },

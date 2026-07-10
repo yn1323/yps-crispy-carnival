@@ -5,6 +5,8 @@ export type {
   EventCountDto,
   EventMetricTotalDto,
   EventTrendsResponse,
+  FeatureRequestRowDto,
+  FeatureRequestsResponse,
   NotificationBreakdownResponse,
   NotificationBreakdownRow,
   OverviewResponse,

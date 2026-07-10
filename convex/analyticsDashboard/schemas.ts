@@ -1,6 +1,6 @@
 import { dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
 import { ANALYTICS_METRICS, allNotificationEventMetrics } from "../analytics/metrics";
-import { ANALYTICS_QUERY_RANGE_LIMIT } from "../constants";
+import { ANALYTICS_QUERY_RANGE_LIMIT, FEATURE_REQUEST_LIST_LIMIT } from "../constants";
 import type { AnalyticsDashboardRequest, ShopRankingSort } from "./dto";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,6 +60,20 @@ function readRange(input: Record<string, unknown>): ParseResult<{ from: string; 
   const to = readString(input, "to");
   if (!to.ok) return to;
   return validateDateRange(from.value, to.value);
+}
+
+function readFeatureRequestPagination(
+  input: Record<string, unknown>,
+): ParseResult<{ cursor: string | null; limit: number }> {
+  const cursor = input.cursor;
+  if (cursor !== null && typeof cursor !== "string") {
+    return { ok: false, message: "cursorが正しくありません" };
+  }
+  const limit = input.limit;
+  if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > FEATURE_REQUEST_LIST_LIMIT) {
+    return { ok: false, message: `limitは1から${FEATURE_REQUEST_LIST_LIMIT}で指定してください` };
+  }
+  return { ok: true, value: { cursor, limit } };
 }
 
 function readMetrics(input: Record<string, unknown>): ParseResult<string[]> {
@@ -123,6 +137,11 @@ export function parseAnalyticsDashboardRequest(input: unknown): ParseResult<Anal
     const shopId = readString(input, "shopId");
     if (!shopId.ok) return shopId;
     return { ok: true, value: { kind, shopId: shopId.value } };
+  }
+  if (kind === "featureRequests") {
+    const pagination = readFeatureRequestPagination(input);
+    if (!pagination.ok) return pagination;
+    return { ok: true, value: { kind, ...pagination.value } };
   }
   if (kind === "shopDetail") {
     const range = readRange(input);

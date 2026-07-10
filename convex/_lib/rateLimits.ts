@@ -1,5 +1,5 @@
 import { defineRateLimits } from "convex-helpers/server/rateLimit";
-import { HOUR_MS, MINUTE_MS } from "../constants";
+import { DAY_MS, HOUR_MS, MINUTE_MS } from "../constants";
 
 export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   // マジックリンクトークン検証: トークン先頭8文字をキーに
@@ -81,5 +81,73 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     rate: 1,
     period: MINUTE_MS,
     capacity: 1,
+  },
+
+  // ログイン後の要望送信: userId 単位
+  // 1回/分 — 連打と意図しない二重投稿を抑止
+  featureRequestShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
+  // ログイン後の要望送信: userId 単位
+  // 10回/日 — 自由記述欄の乱用を抑止
+  featureRequestDaily: {
+    kind: "token bucket",
+    rate: 10,
+    period: DAY_MS,
+    capacity: 10,
+  },
+
+  // スタッフの要望送信: staffId 単位
+  // 1回/分 — 提出画面ヘッダーの連打を抑止
+  staffFeatureRequestShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
+  // スタッフの要望送信: staffId 単位
+  // 10回/日 — 自由記述欄の乱用を抑止
+  staffFeatureRequestDaily: {
+    kind: "token bucket",
+    rate: 10,
+    period: DAY_MS,
+    capacity: 10,
+  },
+
+  // 公開問い合わせ: 正規化メールのhash単位
+  contactEmailShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
+  // 公開問い合わせ: 正規化メールのhash単位
+  contactEmailHourly: {
+    kind: "token bucket",
+    rate: 5,
+    period: HOUR_MS,
+    capacity: 5,
+  },
+
+  // 公開問い合わせ: 送信元IPのhash単位
+  contactIpShort: {
+    kind: "token bucket",
+    rate: 3,
+    period: MINUTE_MS,
+    capacity: 3,
+  },
+
+  // 公開問い合わせ: 全体の暴発防止
+  contactGlobal: {
+    kind: "token bucket",
+    rate: 100,
+    period: MINUTE_MS,
+    capacity: 100,
   },
 });

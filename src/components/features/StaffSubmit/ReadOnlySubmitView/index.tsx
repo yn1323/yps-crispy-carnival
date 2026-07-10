@@ -1,5 +1,5 @@
 import { Box, Flex, Icon, Text, VStack } from "@chakra-ui/react";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { LuInfo } from "react-icons/lu";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { formatDatePeriodWithWeekday, getDateRange } from "@/src/domains/shift/date";
@@ -11,9 +11,10 @@ import { buildEntries } from "../utils/timeOptions";
 
 type Props = {
   data: SubmissionData;
+  headerAction?: ReactNode;
 };
 
-export const ReadOnlySubmitView = ({ data }: Props) => {
+export const ReadOnlySubmitView = ({ data, headerAction }: Props) => {
   const dates = useMemo(() => getDateRange(data.periodStart, data.periodEnd), [data.periodStart, data.periodEnd]);
 
   const entries = useMemo(() => {
@@ -58,7 +59,7 @@ export const ReadOnlySubmitView = ({ data }: Props) => {
 
   return (
     <SubmitPageLayout>
-      <SubmitPageHeader shopName={data.shopName} />
+      <SubmitPageHeader shopName={data.shopName} actions={headerAction} />
 
       {/* Info Banner (full-width bg) */}
       <Box bg="blue.50" w="full">
