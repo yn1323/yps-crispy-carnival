@@ -64,7 +64,7 @@ export function StaffRegistrationPage({
       <RegistrationShell centerContent>
         <PanelFrame tone="neutral" icon={<LuClock />} title="登録リンクを確認できません" headingAs="h1">
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            リンクが無効になっている可能性があります。シフト担当者に新しい登録リンクを確認してください。
+            リンクが無効になっている可能性があります。シフト作成担当者に新しい登録リンクを発行してもらってください。
           </Text>
         </PanelFrame>
       </RegistrationShell>
@@ -74,7 +74,7 @@ export function StaffRegistrationPage({
   if (isSubmitted) {
     return (
       <RegistrationGuideShell>
-        <PanelFrame tone="success" icon={<LuCheck />} title="申請を送りました">
+        <PanelFrame tone="success" icon={<LuCheck />} title="スタッフ登録申請を送りました">
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
             承認されると、シフト提出の案内がメールで届きます。しばらくお待ちください。
           </Text>
@@ -89,7 +89,7 @@ export function StaffRegistrationPage({
         <PanelFrame tone="action" icon={<LuUserPlus />} title="申請内容を確認してください">
           <VStack align="stretch" gap={5}>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              シフト担当者が承認すると、このメールアドレスにシフト提出の案内が届きます。
+              シフト作成担当者が承認すると、このメールアドレスにシフト提出の案内が届きます。
             </Text>
 
             <Stack gap={4} bg="white" borderWidth="1px" borderColor="teal.100" borderRadius="lg" p={4}>
@@ -140,7 +140,7 @@ export function StaffRegistrationPage({
       <PanelFrame tone="action" icon={<LuUserPlus />} title="スタッフ登録">
         <VStack align="stretch" gap={5}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            名前とメールアドレスを登録すると、シフト担当者の確認後にシフト提出の案内が届きます。
+            名前とメールアドレスを登録すると、シフト作成担当者の確認後にシフト提出の案内が届きます。
           </Text>
           <form id="staff-registration-form" onSubmit={handleSubmit((values) => setConfirmData(values))} noValidate>
             <Stack gap={5}>

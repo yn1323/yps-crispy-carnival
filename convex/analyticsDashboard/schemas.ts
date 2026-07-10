@@ -1,6 +1,6 @@
 import { dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
 import { ANALYTICS_METRICS, allNotificationEventMetrics } from "../analytics/metrics";
-import { ANALYTICS_QUERY_RANGE_LIMIT } from "../constants";
+import { ANALYTICS_QUERY_RANGE_LIMIT, FEATURE_REQUEST_LIST_LIMIT } from "../constants";
 import type { AnalyticsDashboardRequest, ShopRankingSort } from "./dto";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,17 +62,31 @@ function readRange(input: Record<string, unknown>): ParseResult<{ from: string; 
   return validateDateRange(from.value, to.value);
 }
 
+function readFeatureRequestPagination(
+  input: Record<string, unknown>,
+): ParseResult<{ cursor: string | null; limit: number }> {
+  const cursor = input.cursor;
+  if (cursor !== null && typeof cursor !== "string") {
+    return { ok: false, message: "cursorが正しくありません" };
+  }
+  const limit = input.limit;
+  if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > FEATURE_REQUEST_LIST_LIMIT) {
+    return { ok: false, message: `limitは1から${FEATURE_REQUEST_LIST_LIMIT}で指定してください` };
+  }
+  return { ok: true, value: { cursor, limit } };
+}
+
 function readMetrics(input: Record<string, unknown>): ParseResult<string[]> {
   const metrics = input.metrics;
   if (!Array.isArray(metrics) || metrics.length === 0) {
-    return { ok: false, message: "metricsを1件以上指定してください" };
+    return { ok: false, message: "集計項目を1件以上指定してください" };
   }
   if (metrics.length > MAX_EVENT_TREND_METRICS) {
-    return { ok: false, message: `metricsは${MAX_EVENT_TREND_METRICS}件以内にしてください` };
+    return { ok: false, message: `集計項目は${MAX_EVENT_TREND_METRICS}件以内にしてください` };
   }
   const uniqueMetrics = [...new Set(metrics)];
   if (!uniqueMetrics.every((metric): metric is string => typeof metric === "string" && allowedMetrics.has(metric))) {
-    return { ok: false, message: "未対応のmetricが含まれています" };
+    return { ok: false, message: "対応していない集計項目が含まれています" };
   }
   return { ok: true, value: uniqueMetrics };
 }
@@ -111,7 +125,7 @@ export function parseAnalyticsDashboardRequest(input: unknown): ParseResult<Anal
     if (!parsedDate.ok) return parsedDate;
     const sort = input.sort;
     if (typeof sort !== "string" || !shopRankingSorts.includes(sort as ShopRankingSort)) {
-      return { ok: false, message: "sortが正しくありません" };
+      return { ok: false, message: "並び順が正しくありません" };
     }
     const limit = input.limit;
     if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > MAX_SHOP_RANKING_LIMIT) {
@@ -124,6 +138,11 @@ export function parseAnalyticsDashboardRequest(input: unknown): ParseResult<Anal
     if (!shopId.ok) return shopId;
     return { ok: true, value: { kind, shopId: shopId.value } };
   }
+  if (kind === "featureRequests") {
+    const pagination = readFeatureRequestPagination(input);
+    if (!pagination.ok) return pagination;
+    return { ok: true, value: { kind, ...pagination.value } };
+  }
   if (kind === "shopDetail") {
     const range = readRange(input);
     if (!range.ok) return range;
@@ -131,5 +150,5 @@ export function parseAnalyticsDashboardRequest(input: unknown): ParseResult<Anal
     if (!shopId.ok) return shopId;
     return { ok: true, value: { kind, ...range.value, shopId: shopId.value } };
   }
-  return { ok: false, message: "kindが正しくありません" };
+  return { ok: false, message: "取得種別が正しくありません" };
 }

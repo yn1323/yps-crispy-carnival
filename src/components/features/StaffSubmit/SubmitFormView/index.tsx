@@ -1,6 +1,6 @@
 import { Box, Checkbox, Flex, HStack, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuPointer, LuRefreshCw, LuX } from "react-icons/lu";
 import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
@@ -64,6 +64,7 @@ export type SubmissionData = {
 type Props = {
   data: SubmissionData;
   onSubmit: (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => Promise<void>;
+  headerAction?: ReactNode;
 };
 
 const getInstructionText = (pattern: ShiftSubmissionPattern): string => {
@@ -116,7 +117,7 @@ const getSelectedShiftTypeOptionIds = (entry: DayEntry): string[] => {
   return entry.optionId ? [entry.optionId] : [];
 };
 
-export const SubmitFormView = ({ data, onSubmit }: Props) => {
+export const SubmitFormView = ({ data, onSubmit, headerAction }: Props) => {
   const latestWorkingTimeRef = useRef<WorkingTime | undefined>(undefined);
   const latestShiftTypeOptionIdsRef = useRef<string[] | undefined>(undefined);
   const pendingLateSubmissionRef = useRef<{ submission: SubmitShiftSelectionInput; acceptedLegal?: boolean } | null>(
@@ -326,7 +327,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
 
   return (
     <SubmitPageLayout>
-      <SubmitPageHeader shopName={data.shopName} />
+      <SubmitPageHeader shopName={data.shopName} actions={headerAction} />
 
       <Box bg="white" w="full" borderBottomWidth={1} borderColor="border.default">
         <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center">
@@ -335,7 +336,7 @@ export const SubmitFormView = ({ data, onSubmit }: Props) => {
               {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
             </Text>
             <Text fontSize="xs" color="fg.muted">
-              提出締切: {formatDateWithWeekday(data.deadline)} 23:59
+              提出締切：{formatDateWithWeekday(data.deadline)} 23:59
             </Text>
           </Box>
         </Flex>

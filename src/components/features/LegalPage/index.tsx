@@ -51,7 +51,7 @@ export function LegalDocumentPage({ content, info }: LegalDocumentPageProps): Re
       {content.sections.map((section, index) => (
         <LegalSectionView key={section.title ?? index} section={section} />
       ))}
-      <Body>文書バージョン: {info.documentVersion}</Body>
+      <Body>文書バージョン：{info.documentVersion}</Body>
     </LegalPage>
   );
 }

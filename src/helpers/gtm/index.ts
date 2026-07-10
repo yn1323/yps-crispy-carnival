@@ -8,6 +8,11 @@ declare global {
 
 let initialized = false;
 
+// GTM の読み込みは初期描画後（requestIdleCallback）まで遅延するため、それより前に
+// 発生した page_view / カスタムイベントを取りこぼさないよう一時バッファに退避し、
+// initGTM 時に dataLayer へ順序どおり流し込む。
+let pendingEvents: Record<string, unknown>[] = [];
+
 const getScriptSrc = (gtmId: string): string => `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
 const getNoscriptSrc = (gtmId: string): string => `https://www.googletagmanager.com/ns.html?id=${gtmId}`;
 
@@ -34,6 +39,12 @@ export const initGTM = (gtmId: string): void => {
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
 
+  // 遅延読み込み前にバッファした page_view / イベントを順序どおり流し込む
+  for (const event of pendingEvents) {
+    window.dataLayer.push(event);
+  }
+  pendingEvents = [];
+
   const scriptSrc = getScriptSrc(gtmId);
   if (!hasScript(gtmId)) {
     const script = document.createElement("script");
@@ -56,15 +67,24 @@ export const initGTM = (gtmId: string): void => {
 };
 
 export const sendPageView = (path: string): void => {
-  if (!initialized) return;
-  window.dataLayer?.push({ event: "page_view", page_path: path });
+  const payload = { event: "page_view", page_path: path };
+  if (!initialized) {
+    pendingEvents.push(payload);
+    return;
+  }
+  window.dataLayer?.push(payload);
 };
 
 export const sendEvent = (event: string, params?: Record<string, unknown>): void => {
-  if (!initialized) return;
-  window.dataLayer?.push({ event, ...params });
+  const payload = { event, ...params };
+  if (!initialized) {
+    pendingEvents.push(payload);
+    return;
+  }
+  window.dataLayer?.push(payload);
 };
 
 export const resetGTM = (): void => {
   initialized = false;
+  pendingEvents = [];
 };

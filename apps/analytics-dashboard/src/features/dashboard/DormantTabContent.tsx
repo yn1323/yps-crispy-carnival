@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import type { ShopStageRowDto, ShopStagesResponse } from "@/api/analyticsTypes";
 import {
@@ -189,7 +189,7 @@ function DormantTable({
             <Skeleton h="40px" w="full" />
           </Stack>
         ) : (
-          <Table.Root minW="1120px" size="sm" variant="outline">
+          <Table.Root minW="1120px" size="sm" variant="outline" whiteSpace="nowrap">
             <Table.Header>
               <Table.Row bg="gray.50">
                 <SortableColumnHeader
@@ -247,15 +247,12 @@ function DormantTable({
                   sortKey="daysSinceLastShiftCreated"
                   textAlign="right"
                 />
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  詳細
-                </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={9}>
+                  <Table.Cell colSpan={8}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
                         休眠の店舗はありません
@@ -265,7 +262,12 @@ function DormantTable({
                 </Table.Row>
               ) : (
                 sortedRows.map((row) => (
-                  <Table.Row key={row.shopId}>
+                  <Table.Row
+                    key={row.shopId}
+                    _hover={{ bg: "gray.50" }}
+                    cursor="pointer"
+                    onClick={() => onOpenShopRecruitments(row.shopId)}
+                  >
                     <Table.Cell color="gray.950" fontWeight="bold">
                       {row.shopName}
                     </Table.Cell>
@@ -289,16 +291,6 @@ function DormantTable({
                     </Table.Cell>
                     <Table.Cell color="gray.700" textAlign="right">
                       {formatWithUnit(getDaysSinceLastShiftCreated(row), "日")}
-                    </Table.Cell>
-                    <Table.Cell textAlign="right">
-                      <Button
-                        colorPalette="blue"
-                        onClick={() => onOpenShopRecruitments(row.shopId)}
-                        size="xs"
-                        variant="outline"
-                      >
-                        詳細
-                      </Button>
                     </Table.Cell>
                   </Table.Row>
                 ))
@@ -335,7 +327,7 @@ export function DormantTabContent({
         <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
           休眠のサマリー
         </Text>
-        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(3, 1fr)" }}>
+        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(3, 1fr)" }}>
           <MetricCard
             delta={numberDelta(rows.length, previousRows.length)}
             deltaUnit="店舗"

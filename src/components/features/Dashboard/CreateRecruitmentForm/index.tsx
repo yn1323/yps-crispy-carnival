@@ -47,7 +47,7 @@ const steps: StepperDialogStep<Step>[] = [
   },
   {
     value: "deadline",
-    label: "提出期限",
+    label: "提出締切",
     icon: LuTimer,
     title: "提出締切日を選択",
     description: "シフト提出の締切日を選んでください。",

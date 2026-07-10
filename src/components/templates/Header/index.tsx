@@ -1,9 +1,14 @@
 import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from "@chakra-ui/react";
 import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 import { Button } from "@/src/components/ui/Button";
-import { UserMenu, type UserMenuDeleteShopAction } from "./UserMenu";
+import type { UserMenuDeleteShopAction } from "./UserMenu";
+
+// UserMenu は @clerk/clerk-react（SignOutButton）に依存する。静的 import すると
+// variant="public" の LP など Clerk を使わない公開ページのチャンクにも Clerk が
+// 巻き込まれるため、user variant でだけ読み込む遅延 import にしている。
+const UserMenu = lazy(() => import("./UserMenu").then((m) => ({ default: m.UserMenu })));
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
 export const STAFF_CONTENT_MAX_W = "1024px";
@@ -36,11 +41,13 @@ type UserHeaderVariantProps = {
   showUserMenu?: boolean;
   position?: HeaderPosition;
   deleteShopAction?: UserMenuDeleteShopAction;
+  userActions?: ReactNode;
 };
 
 type StaffHeaderVariantProps = {
   variant: "staff";
   shopName: string;
+  actions?: ReactNode;
   fixed?: boolean;
   maxW?: ContainerProps["maxW"];
   px?: ContainerProps["px"];
@@ -72,7 +79,7 @@ export const Header = (props: HeaderProps = {}) => {
   if (props.variant === "staff") {
     return (
       <HeaderShell position={props.fixed === false ? "static" : "fixed"} maxW={props.maxW ?? "1024px"} px={props.px}>
-        <StaffHeaderContent shopName={props.shopName} />
+        <StaffHeaderContent shopName={props.shopName} actions={props.actions} />
       </HeaderShell>
     );
   }
@@ -80,7 +87,14 @@ export const Header = (props: HeaderProps = {}) => {
   return (
     <HeaderShell position={props.position ?? "fixed"}>
       <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
-      {props.showUserMenu !== false && <UserMenu tone="light" deleteShopAction={props.deleteShopAction} />}
+      <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
+        {props.userActions}
+        {props.showUserMenu !== false && (
+          <Suspense fallback={null}>
+            <UserMenu tone="light" deleteShopAction={props.deleteShopAction} />
+          </Suspense>
+        )}
+      </Flex>
     </HeaderShell>
   );
 };
@@ -248,7 +262,7 @@ const PublicSignupButton = () => (
   </Button>
 );
 
-const StaffHeaderContent = ({ shopName }: { shopName: string }) => (
+const StaffHeaderContent = ({ shopName, actions }: { shopName: string; actions?: ReactNode }) => (
   <Flex align="center" justify="space-between" gap={4} minW={0} w="full">
     <Text
       color="gray.950"
@@ -263,6 +277,7 @@ const StaffHeaderContent = ({ shopName }: { shopName: string }) => (
       {shopName}
     </Text>
     <Flex align="center" gap={{ base: 1.5, lg: 2 }} flexShrink={0}>
+      {actions}
       <Text color="gray.700" fontSize={{ base: "2xs", lg: "xs" }} fontWeight="semibold" whiteSpace="nowrap">
         Powered by
       </Text>

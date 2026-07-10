@@ -86,10 +86,21 @@ describe("GTM ヘルパー", () => {
       );
     });
 
-    it("未初期化ならpushされない", () => {
+    it("未初期化ならdataLayerへ直接pushされない（バッファに退避）", () => {
       window.dataLayer = [];
       sendPageView("/dashboard");
       expect(window.dataLayer).toEqual([]);
+    });
+
+    it("遅延読み込み前にバッファしたpage_viewはinitGTM時に流し込まれる", () => {
+      window.dataLayer = [];
+      sendPageView("/before-init");
+      expect(window.dataLayer).toEqual([]);
+
+      initGTM("GTM-TEST123");
+      expect(window.dataLayer).toEqual(
+        expect.arrayContaining([expect.objectContaining({ event: "page_view", page_path: "/before-init" })]),
+      );
     });
   });
 
@@ -110,10 +121,24 @@ describe("GTM ヘルパー", () => {
       );
     });
 
-    it("未初期化ならpushされない", () => {
+    it("未初期化ならdataLayerへ直接pushされない（バッファに退避）", () => {
       window.dataLayer = [];
       sendEvent("click_button");
       expect(window.dataLayer).toEqual([]);
+    });
+
+    it("バッファしたイベントは登録順にinitGTM時へ流し込まれる", () => {
+      window.dataLayer = [];
+      sendPageView("/first");
+      sendEvent("second_event", { foo: "bar" });
+
+      initGTM("GTM-TEST123");
+
+      const events = window.dataLayer.filter((e) => e.event === "page_view" || e.event === "second_event");
+      expect(events).toEqual([
+        { event: "page_view", page_path: "/first" },
+        { event: "second_event", foo: "bar" },
+      ]);
     });
   });
 });

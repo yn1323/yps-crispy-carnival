@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { StaffFeatureRequestAction } from "@/src/components/features/FeatureRequestDialog";
 import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
 import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
 import { SubmitUnavailableView } from "@/src/components/features/StaffSubmit/SubmitUnavailableView";
@@ -98,5 +99,11 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
     return <SubmitUnavailableView reason={data.reason} />;
   }
 
-  return <ShiftSubmitPage data={data.data} onSubmit={handleSubmit} />;
+  return (
+    <ShiftSubmitPage
+      data={data.data}
+      onSubmit={handleSubmit}
+      headerAction={<StaffFeatureRequestAction sessionToken={session.sessionToken} />}
+    />
+  );
 }

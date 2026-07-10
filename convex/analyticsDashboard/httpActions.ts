@@ -2,6 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import { httpAction } from "../_generated/server";
 import {
   getEventTrendsRef,
+  getFeatureRequestsRef,
   getNotificationBreakdownRef,
   getOverviewRef,
   getShopDetailRef,
@@ -77,6 +78,9 @@ export const query = httpAction(async (ctx, request) => {
   }
   if (input.kind === "shopRecruitments") {
     return jsonResponse(await ctx.runQuery(getShopRecruitmentsRef, { shopId: input.shopId as Id<"shops"> }));
+  }
+  if (input.kind === "featureRequests") {
+    return jsonResponse(await ctx.runQuery(getFeatureRequestsRef, { cursor: input.cursor, limit: input.limit }));
   }
   return jsonResponse(
     await ctx.runQuery(getShopDetailRef, {

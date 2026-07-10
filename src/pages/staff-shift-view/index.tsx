@@ -60,14 +60,14 @@ export function StaffShiftViewRoutePage({ token }: Props) {
         <StaffCenteredContent>
           <Empty
             icon={LuTriangleAlert}
-            title={"このリンクの有効期限が\n切れています"}
-            description={"下のボタンから新しいリンクを\n発行してください"}
+            title="このリンクではシフトを確認できません"
+            description="下のボタンから新しい閲覧リンクを受け取ってください"
             tone="warning"
             action={
               state.recruitmentId ? (
                 <Link to="/shifts/reissue" search={{ recruitmentId: state.recruitmentId }}>
                   <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                    リンクを再発行する
+                    新しい閲覧リンクを受け取る
                   </Button>
                 </Link>
               ) : undefined
@@ -85,13 +85,13 @@ export function StaffShiftViewRoutePage({ token }: Props) {
           <StaffCenteredContent>
             <Empty
               icon={LuTriangleAlert}
-              title={"このリンクの有効期限が\n切れています"}
-              description={"下のボタンから新しいリンクを\n発行してください"}
+              title="このリンクではシフトを確認できません"
+              description="下のボタンから新しい閲覧リンクを受け取ってください"
               tone="warning"
               action={
                 <Link to="/shifts/reissue" search={{ recruitmentId: state.session.recruitmentId }}>
                   <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                    リンクを再発行する
+                    新しい閲覧リンクを受け取る
                   </Button>
                 </Link>
               }
@@ -125,13 +125,13 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
         <StaffCenteredContent>
           <Empty
             icon={LuTriangleAlert}
-            title={"このリンクの有効期限が\n切れています"}
-            description={"下のボタンから新しいリンクを\n発行してください"}
+            title="このリンクではシフトを確認できません"
+            description="下のボタンから新しい閲覧リンクを受け取ってください"
             tone="warning"
             action={
               <Link to="/shifts/reissue" search={{ recruitmentId: session.recruitmentId }}>
                 <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                  リンクを再発行する
+                  新しい閲覧リンクを受け取る
                 </Button>
               </Link>
             }

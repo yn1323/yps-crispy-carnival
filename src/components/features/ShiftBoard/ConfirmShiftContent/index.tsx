@@ -24,8 +24,8 @@ export const ConfirmShiftContent = ({ staffCount, periodLabel, warnings = [], is
         {"LINE連携済みのスタッフにはLINE、それ以外にはメールで届きます。"}
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
-        <Text fontSize="sm">対象: {isResend ? "前回通知から変更があるスタッフ" : `${staffCount}名`}</Text>
-        <Text fontSize="sm">期間: {periodLabel}</Text>
+        <Text fontSize="sm">対象：{isResend ? "前回通知から変更があるスタッフ" : `${staffCount}名`}</Text>
+        <Text fontSize="sm">期間：{periodLabel}</Text>
       </Box>
       {warningSummary.length > 0 && (
         <Box mt={5}>

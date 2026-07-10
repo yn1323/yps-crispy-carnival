@@ -268,7 +268,7 @@ describe("shopStageAlerts", () => {
       openNotificationFailureCount: 0,
       nowMs: NOW,
     });
-    expect(alerts).toContain("次シフト未設定");
+    expect(alerts).toContain("次回シフト未作成");
     expect(alerts).not.toContain("現在/未来シフトなし");
   });
 });

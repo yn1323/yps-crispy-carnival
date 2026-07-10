@@ -60,7 +60,7 @@
 
 - `manager-terms-doc-2026-05-09`
 - `manager-terms-consent-2026-05-09`
-- `staff-privacy-doc-2026-05-09`
+- `staff-privacy-doc-2026-07-10`
 - `staff-privacy-consent-2026-05-09`
 
 同じ日に複数回上げる場合は末尾に `-2` などを付けます。

@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { ArticleListPage } from "@/src/components/features/ArticleSite";
-import { sitePage } from "@/src/components/features/ArticleSite/articleContent";
+import { sitePage } from "@/src/components/features/ArticleSite/articleMeta";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 
 export const Route = createFileRoute("/articles")({

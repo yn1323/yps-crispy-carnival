@@ -53,7 +53,7 @@ export const Behavior: Story = {
     await waitFor(() =>
       expect(dialogScope.getByText("店舗情報、スタッフ、これまでのシフトをすべて削除します。")).toBeVisible(),
     );
-    await waitFor(() => expect(dialogScope.getByText("「居酒屋さくら」を削除してよろしいですか？")).toBeVisible());
+    await waitFor(() => expect(dialogScope.getByText("「居酒屋さくら」を削除すると元に戻せません。")).toBeVisible());
 
     await userEvent.click(dialogScope.getByRole("button", { name: "この店舗を削除" }));
     await waitFor(() => expect(dialog).not.toBeVisible());

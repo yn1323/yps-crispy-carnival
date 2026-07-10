@@ -209,7 +209,7 @@ describe("ArticleSite markdown content", () => {
   it("structured data 用の値を作れる", () => {
     const article = parseArticleMarkdown(articleMarkdown, "line-shift-collection-guide");
 
-    expect(createArticleJsonLd(article)).toMatchObject({
+    expect(createArticleJsonLd(article.meta)).toMatchObject({
       "@type": "BlogPosting",
       headline: "LINEでシフト希望を集めるときに起きやすい困りごと",
       dateModified: "2026-05-21",
@@ -230,7 +230,7 @@ describe("ArticleSite markdown content", () => {
   it("記事ページのパンくず structured data を作れる", () => {
     const article = parseArticleMarkdown(articleMarkdown, "line-shift-collection-guide");
 
-    expect(createArticleBreadcrumbJsonLd(article)).toEqual({
+    expect(createArticleBreadcrumbJsonLd(article.meta)).toEqual({
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [
@@ -249,7 +249,7 @@ describe("ArticleSite markdown content", () => {
   it("カテゴリページのパンくず structured data を作れる", () => {
     const category = parseCategoryMarkdown(categoryMarkdown, "shift-request");
 
-    expect(createCategoryBreadcrumbJsonLd(category)).toEqual({
+    expect(createCategoryBreadcrumbJsonLd(category.meta)).toEqual({
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [

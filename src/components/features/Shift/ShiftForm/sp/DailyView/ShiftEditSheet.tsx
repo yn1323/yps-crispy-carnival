@@ -99,8 +99,8 @@ export const ShiftEditSheet = ({
   const requestTimes = shift?.requestedTimes ?? (shift?.requestedTime ? [shift.requestedTime] : []);
   const requestLabel =
     requestTimes.length > 0
-      ? `希望: ${requestTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
-      : "希望: なし";
+      ? `希望：${requestTimes.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
+      : "希望：なし";
 
   const currentShift: ShiftData = shift ?? {
     id: `shift-${staff.id}-${selectedDate}`,

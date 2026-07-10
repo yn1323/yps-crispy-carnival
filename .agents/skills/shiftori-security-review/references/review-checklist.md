@@ -56,7 +56,7 @@ Use this checklist for both pre-implementation plans and code review. Focus on t
 - [ ] External API errors are sanitized before returning to clients or manager UI.
 - [ ] Logs avoid raw email addresses, tokens, authorization headers, and webhook bodies.
 - [ ] Notification target queries exclude deleted staff, other-store staff, and wrong-channel targets.
-- [ ] UI text distinguishes accepted/scheduled/retrying from delivered.
+- [ ] Internal state distinguishes accepted/scheduled/retrying from delivered. Manager UI may say `送りました` / `再送しました` after a successful send action, but does not claim `届きました` without delivery confirmation.
 
 ## HTTP Actions / CORS
 

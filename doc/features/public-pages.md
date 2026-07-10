@@ -8,8 +8,8 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 - `src/routes/features.tsx` / `src/pages/features/index.tsx` — できることページ
 - `src/routes/faq.tsx` / `src/pages/faq/index.tsx` — よくある質問ページ
 - `src/routes/articles.tsx` / `src/routes/articles.$slug.tsx` / `src/routes/articles.categories.$categorySlug.tsx` — 記事一覧・記事詳細・カテゴリページ
-- `src/routes/_unregistered/demo.flow.tsx` / `src/pages/demo-flow/index.tsx` — 募集から確定通知までのフローデモ
-- `src/routes/_unregistered/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長・シフト担当者向けシフト表デモ
+- `src/routes/demo.flow.tsx` / `src/pages/demo-flow/index.tsx` — 募集から確定通知までのフローデモ（`_unregistered` 外に置き、Clerk/Convexバンドルを載せない）
+- `src/routes/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長・シフト担当者向けシフト表デモ（同上）
 - `src/components/features/Demo/` — 公開デモ用コンポーネント
 - `src/components/features/LandingPage/` — TOPのLP本体、FAQデータ、公開ページ共通フッター
 - `src/components/features/LandingPage/FeatureSection.tsx` / `BenefitsSection.tsx` / `FaqSection.tsx` — `/features`・`/faq`で流用している既存LPセクション

@@ -21,7 +21,7 @@ type GuideItem = {
 
 const shiftreeDescription = "勤務先のお店がシフト希望の回収や確定シフトの共有に使うシフト管理サービスです。";
 const registrationDescription =
-  "名前・メールアドレスを登録し、シフト提出ができるようにしましょう。\nシフト担当者が承認後、メールでシフト提出の案内が届きます。";
+  "名前・メールアドレスを登録し、シフト提出ができるようにしましょう。\nシフト作成担当者が承認後、メールでシフト提出の案内が届きます。";
 
 const quickPoints: QuickPoint[] = [
   { icon: LuTabletSmartphone, label: "専用アプリ不要" },

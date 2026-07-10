@@ -197,11 +197,11 @@ export const WithNotificationFailures: Story = {
     assertText(document.body, "送れなかった通知", "通知エラーモーダルのタイトル");
     assertText(document.body, "佐藤 真由美", "モーダル内のスタッフ名");
     assertText(document.body, "シフト募集通知", "モーダル内の通知種別");
-    assertText(document.body, "すべて再通知", "モーダル内の一斉再通知ボタン");
+    assertText(document.body, "すべて再送", "モーダル内の一斉再送ボタン");
     requireElement<HTMLButtonElement>(document.body, 'button[aria-label="メール通知について"]').click();
     await waitUntil(
       () =>
-        document.body.textContent?.includes("メールが届かない場合は、メールアドレスに誤りがないか確認ください。") ??
+        document.body.textContent?.includes("メールが届かない場合は、メールアドレスに誤りがないか確認してください。") ??
         false,
       "メール補足Popoverが表示されませんでした",
     );

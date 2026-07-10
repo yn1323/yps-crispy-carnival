@@ -12,11 +12,12 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuChartColumnIncreasing, LuFlag, LuMoonStar, LuRocket } from "react-icons/lu";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type {
+  FeatureRequestRowDto,
   ServiceSnapshotDto,
   ShopRecruitmentsResponse,
   ShopStageCounts,
@@ -28,13 +29,23 @@ import { formatDateTime, formatNumber, formatPercent } from "@/domains/analytics
 import { ActivationTabContent } from "./ActivationTabContent";
 import { BeforeStartTabContent } from "./BeforeStartTabContent";
 import { DormantTabContent } from "./DormantTabContent";
+import { FeatureRequestsTabContent } from "./FeatureRequestsTabContent";
 import { RetainedTabContent } from "./RetainedTabContent";
 import { ShopListTabContent } from "./ShopListTabContent";
 import { ShopRecruitmentsDialog } from "./ShopRecruitmentsDialog";
 
-type DashboardView = "summary" | "beforeStart" | "activation" | "retention" | "dormant" | "shops";
+export type DashboardView =
+  | "summary"
+  | "beforeStart"
+  | "activation"
+  | "retention"
+  | "dormant"
+  | "shops"
+  | "featureRequests";
 
 type DashboardTopProps = {
+  activeView: DashboardView;
+  onActiveViewChange: (view: DashboardView) => void;
   env?: {
     label: string;
     convexHost: string | null;
@@ -55,6 +66,12 @@ type DashboardTopProps = {
   isLoading: boolean;
   errorMessage: string | null;
   stagesErrorMessage: string | null;
+  featureRequests: FeatureRequestRowDto[];
+  featureRequestsErrorMessage: string | null;
+  featureRequestsLoading: boolean;
+  featureRequestsLoadingMore: boolean;
+  featureRequestsHasMore: boolean;
+  onLoadMoreFeatureRequests: () => void;
 };
 
 const VIEW_TABS: { value: DashboardView; label: string }[] = [
@@ -64,6 +81,7 @@ const VIEW_TABS: { value: DashboardView; label: string }[] = [
   { value: "retention", label: "運用中" },
   { value: "dormant", label: "休眠" },
   { value: "shops", label: "店舗一覧" },
+  { value: "featureRequests", label: "要望" },
 ];
 
 const CARD_TONES = {
@@ -210,7 +228,7 @@ const STAGE_ICONS: Record<StageIconName, IconType> = {
 };
 
 function StageIcon({ name }: { name: StageIconName }) {
-  return <Icon aria-hidden as={STAGE_ICONS[name]} boxSize={7} strokeWidth={2} />;
+  return <Icon aria-hidden as={STAGE_ICONS[name]} boxSize={{ base: 5, md: 7 }} strokeWidth={2} />;
 }
 
 function StageKpiCard({
@@ -242,18 +260,18 @@ function StageKpiCard({
       minW={0}
       p={{ base: 4, md: 5 }}
     >
-      <Flex align="start" gap={4}>
+      <Flex align="start" gap={{ base: 3, md: 4 }}>
         <Flex
           align="center"
           bg={colors.soft}
           borderRadius="full"
           color={colors.fg}
           flexShrink={0}
-          fontSize="2xl"
+          fontSize={{ base: "lg", md: "2xl" }}
           fontWeight="bold"
-          h="56px"
+          h={{ base: "40px", md: "56px" }}
           justify="center"
-          w="56px"
+          w={{ base: "40px", md: "56px" }}
         >
           <StageIcon name={icon} />
         </Flex>
@@ -305,7 +323,7 @@ function StageCards({
     retained: activeView === "retention",
   };
   return (
-    <Grid gap={{ base: 3, xl: 5 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
+    <Grid gap={{ base: 3, xl: 5 }} templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
       <StageKpiCard
         delta={numberDelta(counts?.beforeStart, previousCounts?.beforeStart)}
         icon="flag"
@@ -550,7 +568,7 @@ function FocusPanel({
               transitions?.beforeStartToActiveTrial,
               previousTransitions?.beforeStartToActiveTrial,
             ),
-            label: "開始移動",
+            label: "立ち上げへ移動",
             value: metricMovementCount(transitions?.beforeStartToActiveTrial),
           },
           {
@@ -571,7 +589,7 @@ function FocusPanel({
                 transitions?.beforeStartToActiveTrial,
                 previousTransitions?.beforeStartToActiveTrial,
               ),
-              label: "開始移動",
+              label: "立ち上げへ移動",
               value: metricMovementCount(transitions?.beforeStartToActiveTrial),
             },
             {
@@ -579,7 +597,7 @@ function FocusPanel({
                 transitions?.activeTrialToRetained,
                 previousTransitions?.activeTrialToRetained,
               ),
-              label: "運用中移行",
+              label: "運用中へ移動",
               value: metricMovementCount(transitions?.activeTrialToRetained),
             },
           ]
@@ -597,7 +615,7 @@ function FocusPanel({
               },
               {
                 delta: metricMovementDelta(transitions?.retainedToDormant, previousTransitions?.retainedToDormant),
-                label: "休眠移動",
+                label: "休眠へ移動",
                 value: metricMovementCount(transitions?.retainedToDormant),
               },
             ]
@@ -610,12 +628,12 @@ function FocusPanel({
                 },
                 {
                   delta: metricMovementDelta(transitions?.dormantToRecovered, previousTransitions?.dormantToRecovered),
-                  label: "復帰移動",
+                  label: "運用中へ復帰",
                   value: metricMovementCount(transitions?.dormantToRecovered),
                 },
                 {
                   delta: metricMovementDelta(transitions?.retainedToDormant, previousTransitions?.retainedToDormant),
-                  label: "休眠移動",
+                  label: "休眠へ移動",
                   value: metricMovementCount(transitions?.retainedToDormant),
                 },
                 {
@@ -788,6 +806,8 @@ function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapsho
 }
 
 export const DashboardTop = ({
+  activeView,
+  onActiveViewChange,
   env,
   latest,
   previousLatest,
@@ -805,8 +825,13 @@ export const DashboardTop = ({
   isLoading,
   errorMessage,
   stagesErrorMessage,
+  featureRequests,
+  featureRequestsErrorMessage,
+  featureRequestsLoading,
+  featureRequestsLoadingMore,
+  featureRequestsHasMore,
+  onLoadMoreFeatureRequests,
 }: DashboardTopProps) => {
-  const [activeView, setActiveView] = useState<DashboardView>("summary");
   const counts = stages?.stageCounts ?? latest?.shopStageCounts ?? null;
   const previousCounts = previousStages?.stageCounts ?? previousLatest?.shopStageCounts ?? null;
   const latestComputedAt = stages?.rows[0]?.computedAt ?? latest?.computedAt ?? null;
@@ -851,20 +876,23 @@ export const DashboardTop = ({
             </Box>
           </Flex>
 
-          <ViewTabs activeView={activeView} onChange={setActiveView} />
+          <ViewTabs activeView={activeView} onChange={onActiveViewChange} />
 
           <Stack gap={{ base: 5, md: 6 }} p={{ base: 4, md: 6 }}>
-            {errorMessage ? <ErrorPanel message={errorMessage} /> : null}
-            {stagesErrorMessage ? <ErrorPanel message={stagesErrorMessage} /> : null}
+            {activeView !== "featureRequests" && errorMessage ? <ErrorPanel message={errorMessage} /> : null}
+            {activeView !== "featureRequests" && stagesErrorMessage ? (
+              <ErrorPanel message={stagesErrorMessage} />
+            ) : null}
 
             {activeView === "beforeStart" ||
             activeView === "activation" ||
             activeView === "retention" ||
             activeView === "dormant" ||
-            activeView === "shops" ? null : (
+            activeView === "shops" ||
+            activeView === "featureRequests" ? null : (
               <Box>
                 <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
-                  店舗ステージ別の店舗数
+                  ステージ別店舗数
                 </Text>
                 <StageCards
                   activeView={activeView}
@@ -908,6 +936,15 @@ export const DashboardTop = ({
                 isLoading={isLoading}
                 onOpenShopRecruitments={onOpenShopRecruitments}
                 stages={stages}
+              />
+            ) : activeView === "featureRequests" ? (
+              <FeatureRequestsTabContent
+                errorMessage={featureRequestsErrorMessage}
+                hasMore={featureRequestsHasMore}
+                isLoading={featureRequestsLoading}
+                isLoadingMore={featureRequestsLoadingMore}
+                onLoadMore={onLoadMoreFeatureRequests}
+                rows={featureRequests}
               />
             ) : (
               <>

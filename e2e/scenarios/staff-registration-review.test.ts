@@ -28,7 +28,7 @@ const PENDING_STAFF = {
   email: "pending-registration-e2e@example.com",
 };
 
-test.describe("スタッフ参加申請の承認/却下", () => {
+test.describe("スタッフ登録申請の承認/却下", () => {
   test.setTimeout(45_000);
 
   test("スタッフ登録→承認", async ({ page }) => {
@@ -38,7 +38,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     const registrationPage = new StaffRegistrationPage(page);
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: スタッフが登録ページから参加申請する", async () => {
+    await test.step("Step 1: スタッフが登録ページからスタッフ登録申請を送る", async () => {
       await registrationPage.goto(seed.registrationToken);
       await registrationPage.submitRequest(APPROVED_STAFF);
     });
@@ -60,7 +60,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     const registrationPage = new StaffRegistrationPage(page);
     const dashboard = new DashboardPage(page);
 
-    await test.step("Step 1: スタッフが登録ページから参加申請する", async () => {
+    await test.step("Step 1: スタッフが登録ページからスタッフ登録申請を送る", async () => {
       await registrationPage.goto(seed.registrationToken);
       await registrationPage.submitRequest(REJECTED_STAFF);
     });
@@ -75,7 +75,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     });
   });
 
-  test("登録済みのメールアドレスでは参加申請できない", async ({ page }) => {
+  test("登録済みのメールアドレスではスタッフ登録申請を送れない", async ({ page }) => {
     const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: "スタッフ登録済み重複E2E店舗",
       existingStaff: EXISTING_STAFF,
@@ -89,7 +89,7 @@ test.describe("スタッフ参加申請の承認/却下", () => {
     );
   });
 
-  test("承認待ちのメールアドレスでは参加申請できない", async ({ page }) => {
+  test("承認待ちのメールアドレスではスタッフ登録申請を送れない", async ({ page }) => {
     const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: "スタッフ承認待ち重複E2E店舗",
       pendingRequest: PENDING_STAFF,

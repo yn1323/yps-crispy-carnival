@@ -14,7 +14,8 @@ const DASHBOARD_DATA_TIMEOUT = 20_000;
 const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
 const STAFF_ADDED_TOAST_TITLE = /スタッフを追加しました|スタッフを追加し、案内通知を送りました/;
 const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
-const STAFF_REGISTRATION_APPROVED_TOAST_TITLE = /スタッフ申請を承認しました|スタッフ申請を承認し、案内通知を送りました/;
+const STAFF_REGISTRATION_APPROVED_TOAST_TITLE =
+  /スタッフ登録申請を承認しました|スタッフ登録申請を承認し、案内通知を送りました/;
 const LINE_INVITE_SENT_TOAST_TITLE =
   /LINE連携URLをメールで送信しました|LINE連携リンクをメールで送信しました|LINE連携リンクをメールで送りました/;
 const SHOP_DELETED_TOAST_TITLE = "店舗を削除しました";
@@ -196,7 +197,7 @@ export class DashboardPage {
     await this.openStaffDetail(staffName);
     const dialog = this.staffDetailDialog();
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "基本" }).click();
+    await dialog.getByRole("tab", { name: "情報" }).click();
     const form = this.page.locator("[id='edit-staff-form']");
     const nameInput = form.getByPlaceholder("例：田中 花子");
     const emailInput = form.getByPlaceholder("例：hanako@example.com");
@@ -263,7 +264,7 @@ export class DashboardPage {
     const dialog = this.shopDeleteDialog();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("店舗情報、スタッフ、これまでのシフトをすべて削除します。")).toBeVisible();
-    await expect(dialog.getByText(`「${shopName}」を削除してよろしいですか？`)).toBeVisible();
+    await expect(dialog.getByText(`「${shopName}」を削除すると元に戻せません。`)).toBeVisible();
   }
 
   async cancelShopDeletion(shopName: string) {
@@ -335,13 +336,11 @@ export class DashboardPage {
   }
 
   async expectStaffRegistrationRequestBanner(count: number) {
-    await expect(
-      this.page.getByText(new RegExp(`スタッフ(?:参加申請|登録申請)が\\s*${count}\\s*件あります`)),
-    ).toBeVisible();
+    await expect(this.page.getByText(new RegExp(`スタッフ登録申請が\\s*${count}\\s*件あります`))).toBeVisible();
   }
 
   async expectStaffRegistrationRequestBannerHidden() {
-    await expect(this.page.getByText(/スタッフ(?:参加申請|登録申請)が\s*\d+\s*件あります/)).not.toBeVisible();
+    await expect(this.page.getByText(/スタッフ登録申請が\s*\d+\s*件あります/)).not.toBeVisible();
   }
 
   async openStaffRegistrationRequests() {
@@ -360,11 +359,11 @@ export class DashboardPage {
     const dialog = this.staffRegistrationRequestDialog();
     await dialog.getByRole("button", { name: `${name}を却下` }).click();
 
-    const alertDialog = this.page.getByRole("alertdialog", { name: "スタッフ申請を却下" });
+    const alertDialog = this.page.getByRole("alertdialog", { name: "スタッフ登録申請を却下" });
     await expect(alertDialog).toBeVisible();
     await alertDialog.getByRole("button", { name: "この申請を却下" }).click();
 
-    await expect(this.page.getByText("スタッフ申請を却下しました")).toBeVisible();
+    await expect(this.page.getByText("スタッフ登録申請を却下しました")).toBeVisible();
     await expect(dialog).not.toBeVisible();
   }
 
@@ -497,7 +496,7 @@ export class DashboardPage {
   }
 
   private staffRegistrationRequestDialog() {
-    return this.page.getByRole("dialog", { name: /スタッフ参加申請|スタッフ登録申請/ });
+    return this.page.getByRole("dialog", { name: "スタッフ登録申請" });
   }
 
   private shopDeleteDialog() {

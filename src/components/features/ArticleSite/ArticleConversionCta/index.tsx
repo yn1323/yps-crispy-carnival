@@ -112,7 +112,7 @@ function ArticleConversionVisual({ compact }: { compact: boolean }): ReactNode {
         textAlign="center"
         transform="rotate(-2deg)"
       >
-        LINEでカンタン
+        LINEでかんたん
         <Box as="span" display="block">
           シフト作成！
         </Box>

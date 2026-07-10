@@ -27,9 +27,9 @@ const TONE_CONFIG: Record<
     hover: "red.100",
     focus: "red.400",
     icon: LuCircleAlert,
-    title: (count) => `確定できません（エラー${count}件）`,
-    hint: (verb) => `エラーを${verb}と該当の日付に移動します`,
-    dismissLabel: "エラー一覧を閉じる",
+    title: (count) => `確定する前に${count}件修正してください`,
+    hint: (verb) => `修正する項目を${verb}と該当の日付に移動します`,
+    dismissLabel: "修正項目を閉じる",
   },
   warning: {
     bg: "orange.50",

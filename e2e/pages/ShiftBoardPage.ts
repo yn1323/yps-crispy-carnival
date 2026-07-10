@@ -38,11 +38,11 @@ export class ShiftBoardPage {
     const dialog = this.page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     // 実配送はdry-run/クライアント単体テスト側に寄せ、E2Eでは確認対象人数と成功トーストまでを見る。
-    await expect(dialog.getByText(`対象: ${staffCount}名`)).toBeVisible();
+    await expect(dialog.getByText(`対象：${staffCount}名`)).toBeVisible();
 
     await dialog.getByRole("button", { name: /確定して通知する|シフトを確定して通知/ }).click();
 
-    await expect(this.page.getByText("確定しました")).toBeVisible();
+    await expect(this.page.getByText("シフトを確定しました")).toBeVisible();
   }
 
   async expectConfirmedStatus() {
@@ -50,7 +50,7 @@ export class ShiftBoardPage {
   }
 
   async expectResendButton() {
-    await expect(this.page.getByRole("button", { name: /再通知する|もう一度通知/ })).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /再送|もう一度通知/ })).toBeVisible();
   }
 
   async expectAutomaticReminderInfo() {

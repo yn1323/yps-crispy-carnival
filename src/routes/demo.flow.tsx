@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { buildLinks, buildMeta } from "@/src/helpers/seo";
 import { DemoFlowRoutePage } from "@/src/pages/demo-flow";
 
-export const Route = createFileRoute("/_unregistered/demo/flow")({
+export const Route = createFileRoute("/demo/flow")({
   head: () => ({
     links: buildLinks({ canonical: "/demo/flow" }),
     meta: buildMeta({

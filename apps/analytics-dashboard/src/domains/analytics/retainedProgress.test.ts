@@ -132,7 +132,7 @@ describe("retainedProgress", () => {
     expect(getAverageDeadlineToConfirmationDays(rows)).toBe(3);
   });
 
-  it("未来の募集または確定がない運用中店舗を次シフト未設定として数える", () => {
+  it("未来の募集または確定がない運用中店舗を次回シフト未作成として数える", () => {
     const rows = [
       shopStageRow({ hasFutureConfirmedShift: false, hasFutureOpenRecruitment: false }),
       shopStageRow({ hasFutureConfirmedShift: true, hasFutureOpenRecruitment: false }),

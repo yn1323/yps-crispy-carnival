@@ -165,7 +165,10 @@ const HeroVisual = () => (
         src={heroPcImage}
         alt="シフトリのPCシフト表画面"
         w="full"
+        aspectRatio={2048 / 1365}
         objectFit="contain"
+        fetchPriority="high"
+        decoding="async"
         filter="drop-shadow(0 24px 32px rgba(15, 23, 42, 0.18))"
       />
     </Box>
@@ -174,7 +177,10 @@ const HeroVisual = () => (
         src={heroSpImage}
         alt="スマホで希望シフトを提出する画面"
         w="full"
+        aspectRatio={720 / 1280}
         objectFit="contain"
+        fetchPriority="high"
+        decoding="async"
         filter="drop-shadow(0 22px 30px rgba(15, 23, 42, 0.22))"
       />
     </Box>

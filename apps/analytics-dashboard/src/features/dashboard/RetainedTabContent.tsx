@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, HStack, Skeleton, Stack, Table, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import type { ShopStageRowDto, ShopStagesResponse } from "@/api/analyticsTypes";
 import { formatNumber, formatPercent } from "@/domains/analytics/format";
@@ -187,7 +187,7 @@ function RetainedTable({
             <Skeleton h="40px" w="full" />
           </Stack>
         ) : (
-          <Table.Root minW="1160px" size="sm" variant="outline">
+          <Table.Root minW="1160px" size="sm" variant="outline" whiteSpace="nowrap">
             <Table.Header>
               <Table.Row bg="gray.50">
                 <SortableColumnHeader
@@ -233,14 +233,14 @@ function RetainedTable({
                   textAlign="right"
                 />
                 <SortableColumnHeader
-                  label="催促送信スタッフ率"
+                  label="催促を送ったスタッフの割合"
                   onSortChange={setSort}
                   sort={sort}
                   sortKey="reminderSentStaffRate"
                   textAlign="right"
                 />
                 <SortableColumnHeader
-                  label="確定シフト未提出率"
+                  label="確定時の未提出率"
                   onSortChange={setSort}
                   sort={sort}
                   sortKey="missingSubmissionRate"
@@ -259,15 +259,12 @@ function RetainedTable({
                   sort={sort}
                   sortKey="lastRecruitmentConfirmedAt"
                 />
-                <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="right">
-                  詳細
-                </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={11}>
+                  <Table.Cell colSpan={10}>
                     <Flex align="center" h="80px" justify="center">
                       <Text color="gray.500" fontSize="sm">
                         運用中の店舗はありません
@@ -277,7 +274,12 @@ function RetainedTable({
                 </Table.Row>
               ) : (
                 sortedRows.map((row) => (
-                  <Table.Row key={row.shopId}>
+                  <Table.Row
+                    key={row.shopId}
+                    _hover={{ bg: "gray.50" }}
+                    cursor="pointer"
+                    onClick={() => onOpenShopRecruitments(row.shopId)}
+                  >
                     <Table.Cell color="gray.950" fontWeight="bold">
                       {row.shopName}
                     </Table.Cell>
@@ -306,16 +308,6 @@ function RetainedTable({
                       {formatWithUnit(row.averageDeadlineToConfirmationDays, "日", 1)}
                     </Table.Cell>
                     <Table.Cell color="gray.700">{formatDate(row.lastRecruitmentConfirmedAt)}</Table.Cell>
-                    <Table.Cell textAlign="right">
-                      <Button
-                        colorPalette="blue"
-                        onClick={() => onOpenShopRecruitments(row.shopId)}
-                        size="xs"
-                        variant="outline"
-                      >
-                        詳細
-                      </Button>
-                    </Table.Cell>
                   </Table.Row>
                 ))
               )}
@@ -359,7 +351,7 @@ export function RetainedTabContent({
         <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
           運用中のサマリー
         </Text>
-        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
+        <Grid gap={{ base: 3, xl: 4 }} templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}>
           <MetricCard
             delta={numberDelta(rows.length, previousRows.length)}
             deltaUnit="店舗"
@@ -373,7 +365,7 @@ export function RetainedTabContent({
             deltaUnit="店舗"
             goodDirection="down"
             isLoading={isLoading}
-            label="次シフト未設定"
+            label="次回シフト未作成"
             unit="店舗"
             value={formatNumber(nextShiftMissingCount)}
           />
@@ -390,7 +382,7 @@ export function RetainedTabContent({
             deltaKind="point"
             goodDirection="down"
             isLoading={isLoading}
-            label="催促送信スタッフ率"
+            label="催促を送ったスタッフの割合"
             unit={reminderSentStaffRate === null ? undefined : "%"}
             value={formatPercentNumber(reminderSentStaffRate)}
           />
@@ -399,7 +391,7 @@ export function RetainedTabContent({
             deltaKind="point"
             goodDirection="down"
             isLoading={isLoading}
-            label="確定シフト未提出率"
+            label="確定時の未提出率"
             unit={missingSubmissionRate === null ? undefined : "%"}
             value={formatPercentNumber(missingSubmissionRate)}
           />
