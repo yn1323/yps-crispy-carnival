@@ -48,7 +48,7 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
       await onSubmit({ comment: values.comment, requestId: crypto.randomUUID() });
       reset();
       dialog.close();
-      showSuccessToast({ title: "要望を受け付けました" });
+      showSuccessToast({ title: "要望を送信しました。ご協力ありがとうございます！" });
     } catch (error) {
       showErrorToast(error);
     }
