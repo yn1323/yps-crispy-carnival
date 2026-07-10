@@ -165,8 +165,8 @@ describe("notification/templates", () => {
 
     expect(recruitment.startsWith("📩 提出依頼\n")).toBe(true);
     expect(reminder.startsWith("🔔 提出リマインド\n")).toBe(true);
-    expect(confirmationReminder.startsWith("⏰ 締切超過\n")).toBe(true);
-    expect(failure.startsWith("⚠️ 通知失敗\n")).toBe(true);
+    expect(confirmationReminder.startsWith("⏰ 提出締切を過ぎています\n")).toBe(true);
+    expect(failure.startsWith("⚠️ 送れなかった通知\n")).toBe(true);
     expect(shopActivation.startsWith("📅 シフト作成の続き\n")).toBe(true);
     // ⚠️ は対応必須の通知失敗のみ。他の種別には使わない
     expect(recruitment).not.toContain("⚠️");
@@ -188,7 +188,7 @@ describe("notification/templates", () => {
           magicLinkUrl: submitUrl,
         }),
         title: "テスト店舗\n📩 提出依頼",
-        text: "提出締切: 6/25(金) 23:59",
+        text: "提出締切：6/25(金) 23:59",
         label: "提出はこちら",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
@@ -201,7 +201,7 @@ describe("notification/templates", () => {
           magicLinkUrl: submitUrl,
         }),
         title: "テスト店舗\n🔔 提出リマインド",
-        text: "まだ提出されていないようです。できるだけお早めに提出してください。",
+        text: "まだ提出されていないようです。早めに提出してください。",
         label: "提出はこちら",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
@@ -224,15 +224,15 @@ describe("notification/templates", () => {
           deadlineLabel: "6/30(火) 23:59",
           dashboardUrl,
         }),
-        title: "テスト店舗\n⏰ 締切超過",
+        title: "テスト店舗\n⏰ 提出締切を過ぎています",
         text: "提出締切（6/30(火) 23:59）を過ぎています。",
         label: "シフトの確定はこちら",
         uri: `${dashboardUrl}?openExternalBrowser=1`,
       },
       {
         message: buildNotificationFailureReminderLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
-        title: "テスト店舗\n⚠️ 通知失敗",
-        text: "通知の送信に失敗したスタッフがいます。",
+        title: "テスト店舗\n⚠️ 送れなかった通知",
+        text: "通知を送れなかったスタッフがいます。",
         label: "ダッシュボードを確認",
         uri: `${dashboardUrl}?openExternalBrowser=1`,
       },
@@ -240,13 +240,13 @@ describe("notification/templates", () => {
         message: buildShopActivationReminderLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
         title: "テスト店舗\n📅 シフト作成の続き",
         text: "スタッフを追加して実際にシフトを回収してみましょう！",
-        label: "シフト募集作成はこちら",
+        label: "シフト募集をつくる",
         uri: `${dashboardUrl}?openExternalBrowser=1`,
       },
       {
         message: buildStaffRegistrationOwnerDigestLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
-        title: "テスト店舗\n📝 承認依頼",
-        text: "スタッフの承認依頼が届いています。",
+        title: "テスト店舗\n📝 スタッフ登録申請",
+        text: "スタッフ登録申請が届いています。",
         label: "ダッシュボードを確認",
         uri: `${dashboardUrl}?openExternalBrowser=1`,
       },
@@ -275,7 +275,7 @@ describe("notification/templates", () => {
     }
   });
 
-  it("スタッフ参加申請のオーナー通知はダッシュボードリンクのみを案内し、申請者情報を含めない", () => {
+  it("スタッフ登録申請のオーナー通知はダッシュボードリンクのみを案内し、申請者情報を含めない", () => {
     const dashboardUrl = "https://shiftori.app/dashboard";
     const lineText = buildStaffRegistrationOwnerDigestLineText({ dashboardUrl });
     const emailHtml = buildStaffRegistrationOwnerDigestEmailHtml({
@@ -284,13 +284,13 @@ describe("notification/templates", () => {
     });
 
     expect(formatResendSubject("テスト店舗", STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT)).toBe(
-      "【シフトリ：テスト店舗】スタッフの承認依頼が届いています",
+      "【シフトリ：テスト店舗】スタッフ登録申請が届いています",
     );
-    expect(lineText.startsWith("📝 承認依頼\n")).toBe(true);
-    expect(lineText).toContain("スタッフの承認依頼が届いています。");
+    expect(lineText.startsWith("📝 スタッフ登録申請\n")).toBe(true);
+    expect(lineText).toContain("スタッフ登録申請が届いています。");
     expect(lineText).toContain("シフトリのダッシュボードで確認してください。");
     expect(lineText).toContain(`${dashboardUrl}?openExternalBrowser=1`);
-    expect(emailHtml).toContain("スタッフの承認依頼が届いています。");
+    expect(emailHtml).toContain("スタッフ登録申請が届いています。");
     expect(emailHtml).toContain("シフトリのダッシュボードで確認してください。");
     expect(emailHtml).toContain("ダッシュボードを確認する");
     expect(emailHtml).toContain(dashboardUrl);
@@ -307,7 +307,7 @@ describe("notification/templates", () => {
     });
 
     expect(formatResendSubject("テスト店舗", SHOP_ACTIVATION_REMINDER_SUBJECT)).toBe(
-      "【シフトリ：テスト店舗】本番のシフト募集を作れます",
+      "【シフトリ：テスト店舗】最初のシフト募集をつくりましょう",
     );
     expect(lineText).toBe(
       [
@@ -317,7 +317,7 @@ describe("notification/templates", () => {
         "",
         "スタッフを追加して実際にシフトを回収してみましょう！",
         "",
-        "シフト募集作成はこちら↓↓",
+        "シフト募集をつくる",
         `${dashboardUrl}?openExternalBrowser=1`,
       ].join("\n"),
     );
@@ -325,7 +325,7 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain("📅 シフト作成の続き");
     expect(emailHtml).toContain("シフトリで店舗登録が完了してから1週間経過しました。");
     expect(emailHtml).toContain("スタッフを追加して実際にシフトを回収してみましょう！");
-    expect(emailHtml).toContain("シフト募集作成はこちら↓↓");
+    expect(emailHtml).toContain("シフト募集をつくる");
     expect(emailHtml).toContain(dashboardUrl);
     expect(emailHtml).not.toContain("openExternalBrowser=1");
   });
@@ -334,7 +334,7 @@ describe("notification/templates", () => {
     const text = buildLineDefaultReplyText();
 
     expect(text).toContain("シフトリの通知用アカウントです。");
-    expect(text).toContain("メール／LINEのリンクからお願いします。");
+    expect(text).toContain("メールまたはLINEのリンクからお願いします。");
   });
 });
 

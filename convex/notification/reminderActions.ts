@@ -65,7 +65,7 @@ export const sendReminderEmails = internalAction({
                   to: staff.email,
                   subject: formatResendSubject(
                     data.shopName,
-                    `${data.periodLabel} シフト希望の提出期限が近づいています`,
+                    `${data.periodLabel} シフト希望の提出締切が近づいています`,
                   ),
                   html: buildReminderEmailHtml({
                     staffName: staff.name,
@@ -118,7 +118,7 @@ export const sendReminderEmails = internalAction({
           payload: emailPayload({
             from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
             to: staff.email,
-            subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
+            subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`),
             html: buildReminderEmailHtml({
               staffName: staff.name,
               periodLabel: data.periodLabel,
@@ -214,7 +214,7 @@ export const sendReminderEmailForStaff = internalAction({
               payload: emailPayload({
                 from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
                 to: data.staff.email,
-                subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
+                subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`),
                 html: buildReminderEmailHtml({
                   staffName: data.staff.name,
                   periodLabel: data.periodLabel,
@@ -264,7 +264,7 @@ export const sendReminderEmailForStaff = internalAction({
         payload: emailPayload({
           from: formatResendFrom(data.shopName, RESEND_FROM_EMAIL),
           to: data.staff.email,
-          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出期限が近づいています`),
+          subject: formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`),
           html: buildReminderEmailHtml({
             staffName: data.staff.name,
             periodLabel: data.periodLabel,

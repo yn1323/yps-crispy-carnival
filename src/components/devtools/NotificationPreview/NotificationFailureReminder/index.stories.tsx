@@ -13,7 +13,7 @@ import {
 } from "../shared";
 
 const meta = {
-  title: "devtools/NotificationPreview/通知失敗ダイジェスト",
+  title: "devtools/NotificationPreview/送れなかった通知",
   component: NotificationPreviewStoryFrame,
   parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof NotificationPreviewStoryFrame>;
@@ -24,7 +24,7 @@ export const Email: Story = {
   render: () => (
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
-        label="通知失敗ダイジェスト"
+        label="送れなかった通知"
         subject={subject(NOTIFICATION_FAILURE_REMINDER_SUBJECT)}
         html={buildNotificationFailureReminderEmailHtml({
           managerName: fixtures.managerName,
@@ -39,7 +39,7 @@ export const LINE: Story = {
   render: () => (
     <NotificationPreviewStoryFrame>
       <FlexLineNotificationPreview
-        label="通知失敗ダイジェスト"
+        label="送れなかった通知"
         message={buildNotificationFailureReminderLineFlexMessage({
           shopName: fixtures.shopName,
           dashboardUrl: fixtures.dashboardUrl,
