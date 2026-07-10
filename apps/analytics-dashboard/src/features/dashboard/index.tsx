@@ -550,7 +550,7 @@ function FocusPanel({
               transitions?.beforeStartToActiveTrial,
               previousTransitions?.beforeStartToActiveTrial,
             ),
-            label: "開始移動",
+            label: "立ち上げへ移動",
             value: metricMovementCount(transitions?.beforeStartToActiveTrial),
           },
           {
@@ -571,7 +571,7 @@ function FocusPanel({
                 transitions?.beforeStartToActiveTrial,
                 previousTransitions?.beforeStartToActiveTrial,
               ),
-              label: "開始移動",
+              label: "立ち上げへ移動",
               value: metricMovementCount(transitions?.beforeStartToActiveTrial),
             },
             {
@@ -579,7 +579,7 @@ function FocusPanel({
                 transitions?.activeTrialToRetained,
                 previousTransitions?.activeTrialToRetained,
               ),
-              label: "運用中移行",
+              label: "運用中へ移動",
               value: metricMovementCount(transitions?.activeTrialToRetained),
             },
           ]
@@ -597,7 +597,7 @@ function FocusPanel({
               },
               {
                 delta: metricMovementDelta(transitions?.retainedToDormant, previousTransitions?.retainedToDormant),
-                label: "休眠移動",
+                label: "休眠へ移動",
                 value: metricMovementCount(transitions?.retainedToDormant),
               },
             ]
@@ -610,12 +610,12 @@ function FocusPanel({
                 },
                 {
                   delta: metricMovementDelta(transitions?.dormantToRecovered, previousTransitions?.dormantToRecovered),
-                  label: "復帰移動",
+                  label: "運用中へ復帰",
                   value: metricMovementCount(transitions?.dormantToRecovered),
                 },
                 {
                   delta: metricMovementDelta(transitions?.retainedToDormant, previousTransitions?.retainedToDormant),
-                  label: "休眠移動",
+                  label: "休眠へ移動",
                   value: metricMovementCount(transitions?.retainedToDormant),
                 },
                 {
@@ -864,7 +864,7 @@ export const DashboardTop = ({
             activeView === "shops" ? null : (
               <Box>
                 <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold" mb={4}>
-                  店舗ステージ別の店舗数
+                  ステージ別店舗数
                 </Text>
                 <StageCards
                   activeView={activeView}

@@ -188,7 +188,7 @@ export function shopStageAlerts(context: ShopStageAlertContext): string[] {
     alerts.push("現在/未来シフトなし");
   }
   if (stage === "retained" && !hasFutureShift(inputs)) {
-    alerts.push("次シフト未設定");
+    alerts.push("次回シフト未作成");
   }
   if (stalledDays > STAGE_DORMANT_AFTER_DAYS) {
     alerts.push(`${STAGE_DORMANT_AFTER_DAYS}日以上活動なし`);

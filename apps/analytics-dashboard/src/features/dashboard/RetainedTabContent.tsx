@@ -233,14 +233,14 @@ function RetainedTable({
                   textAlign="right"
                 />
                 <SortableColumnHeader
-                  label="催促送信スタッフ率"
+                  label="催促を送ったスタッフの割合"
                   onSortChange={setSort}
                   sort={sort}
                   sortKey="reminderSentStaffRate"
                   textAlign="right"
                 />
                 <SortableColumnHeader
-                  label="確定シフト未提出率"
+                  label="確定時の未提出率"
                   onSortChange={setSort}
                   sort={sort}
                   sortKey="missingSubmissionRate"
@@ -365,7 +365,7 @@ export function RetainedTabContent({
             deltaUnit="店舗"
             goodDirection="down"
             isLoading={isLoading}
-            label="次シフト未設定"
+            label="次回シフト未作成"
             unit="店舗"
             value={formatNumber(nextShiftMissingCount)}
           />
@@ -382,7 +382,7 @@ export function RetainedTabContent({
             deltaKind="point"
             goodDirection="down"
             isLoading={isLoading}
-            label="催促送信スタッフ率"
+            label="催促を送ったスタッフの割合"
             unit={reminderSentStaffRate === null ? undefined : "%"}
             value={formatPercentNumber(reminderSentStaffRate)}
           />
@@ -391,7 +391,7 @@ export function RetainedTabContent({
             deltaKind="point"
             goodDirection="down"
             isLoading={isLoading}
-            label="確定シフト未提出率"
+            label="確定時の未提出率"
             unit={missingSubmissionRate === null ? undefined : "%"}
             value={formatPercentNumber(missingSubmissionRate)}
           />

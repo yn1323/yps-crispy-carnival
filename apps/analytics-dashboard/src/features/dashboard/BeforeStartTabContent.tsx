@@ -172,7 +172,7 @@ function DropoffPanel({
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" p={{ base: 4, md: 5 }}>
       <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
-        ドロップアウト起点別の店舗数
+        開始前で止まった段階別の店舗数
       </Text>
       <Stack gap={3.5} mt={5}>
         {isLoading
