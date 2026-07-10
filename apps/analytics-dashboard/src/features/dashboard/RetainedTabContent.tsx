@@ -187,7 +187,7 @@ function RetainedTable({
             <Skeleton h="40px" w="full" />
           </Stack>
         ) : (
-          <Table.Root minW="1160px" size="sm" variant="outline">
+          <Table.Root minW="1160px" size="sm" variant="outline" whiteSpace="nowrap">
             <Table.Header>
               <Table.Row bg="gray.50">
                 <SortableColumnHeader

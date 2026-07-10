@@ -257,7 +257,7 @@ function BeforeStartTable({
             <Skeleton h="40px" w="full" />
           </Stack>
         ) : (
-          <Table.Root minW="520px" size="sm" variant="outline">
+          <Table.Root minW="520px" size="sm" variant="outline" whiteSpace="nowrap">
             <Table.Header>
               <Table.Row bg="gray.50">
                 <SortableColumnHeader

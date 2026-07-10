@@ -121,7 +121,7 @@ export function ShopListTabContent({
               <Skeleton h="40px" w="full" />
             </Stack>
           ) : (
-            <Table.Root minW="1040px" size="sm" variant="outline">
+            <Table.Root minW="1040px" size="sm" variant="outline" whiteSpace="nowrap">
               <Table.Header>
                 <Table.Row bg="gray.50">
                   <SortableColumnHeader label="登録日時" onSortChange={setSort} sort={sort} sortKey="registeredAt" />
