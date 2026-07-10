@@ -54,6 +54,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `CONVEX_MANAGEMENT_TOKEN` | PRマージ時のConvex preview削除に使うManagement APIトークン |
 | `VITE_CONVEX_URL` | dev Convexの永続URL |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
+| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
 | `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
@@ -66,6 +67,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `CONVEX_DEPLOY_KEY` | dev Convexプロジェクトのデプロイキー |
 | `VITE_CONVEX_URL` | dev Convexの永続URL |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk開発用Publishableキー |
+| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
 | `CLERK_SECRET_KEY` | Clerk開発用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
@@ -78,6 +80,7 @@ CI/CDパイプラインの構成と運用ルール。
 | `CONVEX_DEPLOY_KEY` | prod Convexプロジェクトのデプロイキー |
 | `VITE_CONVEX_URL` | prod Convexの永続URL |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk本番用Publishableキー |
+| `VITE_TURNSTILE_SITE_KEY` | 問い合わせフォームのCloudflare Turnstile Site Key |
 | `CLERK_SECRET_KEY` | Clerk本番用シークレットキー |
 | `CLOUDFLARE_API_TOKEN` | CloudFlare APIトークン |
 | `CLOUDFLARE_ACCOUNT_ID` | CloudFlareアカウントID |
