@@ -241,7 +241,7 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
         if (emailCodeFactor) {
           await prepareClientTrustEmailCode(result, emailCodeFactor.emailAddressId);
           setLoginEmailAddressId(emailCodeFactor.emailAddressId);
-          setLoginSafeIdentifier(emailCodeFactor.safeIdentifier ?? maskEmailAddress(values.email));
+          setLoginSafeIdentifier(maskEmailAddress(emailCodeFactor.safeIdentifier ?? values.email));
           setVerificationInfoMessage(undefined);
           setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
           setLoginStep("verify-email-code");
@@ -649,6 +649,7 @@ export function LoginVerificationForm({
   onSubmit,
 }: LoginVerificationFormProps) {
   const resendLabel = resendCooldownSeconds > 0 ? `${resendCooldownSeconds}秒後に再送できます` : "確認コードを再送";
+  const maskedIdentifier = maskEmailAddress(safeIdentifier);
 
   return (
     <EmailCodeVerificationForm
@@ -659,7 +660,7 @@ export function LoginVerificationForm({
         <>
           新しい端末からのログインを確認します。
           <br />
-          {safeIdentifier} に確認コードを送りました。
+          {maskedIdentifier} に確認コードを送りました。
         </>
       }
       submitLabel="確認してログイン"

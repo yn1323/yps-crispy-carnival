@@ -72,7 +72,9 @@ describe("Client Trustのメール確認", () => {
 
   it("画面表示用のメールアドレスを部分的に伏せる", () => {
     expect(maskEmailAddress("manager@example.com")).toBe("ma***@example.com");
+    expect(maskEmailAddress("yn1323+07112@gmail.com")).toBe("yn***@gmail.com");
     expect(maskEmailAddress("a@example.com")).toBe("a***@example.com");
+    expect(maskEmailAddress("ma***@example.com")).toBe("ma***@example.com");
     expect(maskEmailAddress("invalid-email")).toBe("登録メールアドレス");
   });
 });

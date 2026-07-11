@@ -150,8 +150,14 @@ export const LoginVerification: Story = {
   args: {
     mode: "login",
     loginStep: "verify-email-code",
-    loginSafeIdentifier: "ma***@example.com",
+    loginSafeIdentifier: "yn1323+07112@gmail.com",
     resendCooldownSeconds: 30,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByText("yn***@gmail.com", { exact: false })).toBeInTheDocument();
+    await expect(canvas.queryByText("yn1323+07112@gmail.com", { exact: false })).not.toBeInTheDocument();
   },
 };
 
