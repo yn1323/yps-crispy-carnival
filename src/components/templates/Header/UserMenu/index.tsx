@@ -1,7 +1,7 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { useAtomValue } from "jotai";
-import { LuBookOpen, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
+import { LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
 import { userAtom } from "@/src/stores/user";
 
 export type UserMenuDeleteShopAction = {
