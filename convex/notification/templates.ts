@@ -179,7 +179,6 @@ function buildFlexMessage(params: {
         ? {
             footer: flexBox("vertical", [flexUriButton(params.cta.label, params.cta.uri)], {
               paddingAll: "20px",
-              paddingTop: "0px",
             }),
             styles: { footer: { separator: true, separatorColor: FLEX_BORDER_COLOR } },
           }
