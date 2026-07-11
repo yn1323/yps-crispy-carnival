@@ -298,7 +298,7 @@ export class DashboardPage {
   async openLineQr(staffName: string) {
     await this.openStaffDetail(staffName);
     const dialog = this.staffDetailDialog();
-    await dialog.getByRole("tab", { name: "LINE連携" }).click();
+    await dialog.getByRole("tab", { name: "LINE" }).click();
     await dialog.getByRole("button", { name: "LINE連携リンクを表示" }).click();
     await expect(dialog.getByText(`${staffName}さんにLINE連携リンクを共有してください。`)).toBeVisible();
   }
@@ -307,7 +307,7 @@ export class DashboardPage {
     await this.openStaffDetail(staffName);
     const dialog = this.staffDetailDialog();
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "LINE連携" }).click();
+    await dialog.getByRole("tab", { name: "LINE" }).click();
     await dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
     await expect(dialog.getByText("LINE連携リンクをメールで送る")).toBeVisible();
     await dialog.getByRole("button", { name: "送信" }).click();

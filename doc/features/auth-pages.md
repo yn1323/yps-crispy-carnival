@@ -4,6 +4,8 @@
 
 管理ユーザー向けのログイン、新規登録、パスワード再設定をシフトリ独自UIで提供する。認証基盤はClerkのまま維持し、Google認証とメールアドレス/パスワード認証を扱う。
 
+別の端末やブラウザからパスワードでログインし、ClerkのClient Trustが追加確認を要求した場合は、登録メールアドレスへ確認コードを送り、シフトリ内で本人確認を完了する。
+
 ## 関連ファイルパス
 
 - `src/routes/login.tsx`
@@ -12,12 +14,30 @@
 - `src/routes/sso-callback.tsx`
 - `src/pages/auth/index.tsx`
 - `src/components/features/AuthPage/index.tsx`
+- `src/components/features/AuthPage/loginVerification.ts`：Client Trustの判定、メール確認factorの選択、表示用メールアドレスのマスク
+- `src/components/features/AuthPage/loginVerification.test.ts`
 - `src/utils/inAppBrowser.ts` — LINEアプリ内ブラウザ判定
 - `convex/_lib/lineUrl.ts` — `openExternalBrowser=1` 付与（フロントと共有）
 
 ## LINEアプリ内ブラウザ対応
 
 LINEアプリ内ブラウザ（WebView）ではGoogle OAuthがGoogle側でブロックされる（403: disallowed_useragent）。ログイン/新規登録画面ではUAでLINE内ブラウザを検出し、注意バナーを表示したうえで、Googleボタン押下時に `openExternalBrowser=1` 付きURLへ遷移して外部ブラウザで開き直す。メール/パスワード認証はLINE内ブラウザでもそのまま利用できる。
+
+## 別端末ログインの本人確認
+
+パスワードログインの結果がClient Trustの追加確認を示し、Clerkが`email_code`を提供した場合は、`prepareSecondFactor()`で確認コードを送る。
+
+利用者がコードを入力したら、`attemptSecondFactor()`で照合する。
+
+Clerkが`complete`とセッションIDを返した場合だけセッションを有効化する。
+
+現在のClerk SDKでは、Client Trustが旧形式の`needs_second_factor`として返る場合がある。
+
+Clerk側の更新状態によって`needs_client_trust`が返る場合もあるため、両方のステータスと`email_code`の組み合わせを同じ本人確認フローとして扱う。
+
+信頼済み端末の状態はシフトリのDBやlocalStorageへ保存せず、Clerkの判定を正とする。
+
+Cookieの削除、シークレットブラウザ、別ブラウザ、信頼期間の終了などでClerkが新しい端末相当と判断した場合は、同じ端末でも本人確認を再度要求する。
 
 ## 画面一覧
 
@@ -29,5 +49,7 @@ LINEアプリ内ブラウザ（WebView）ではGoogle OAuthがGoogle側でブロ
 ## API一覧
 
 - Clerk `useSignIn()` — メール/パスワードログイン、Googleログイン、パスワード再設定
+- Clerk `SignIn.prepareSecondFactor()` — 別端末ログイン用のメール確認コード送信
+- Clerk `SignIn.attemptSecondFactor()` — 別端末ログイン用のメール確認コード照合
 - Clerk `useSignUp()` — メール/パスワード登録、Google登録、メール確認
 - Clerk `useClerk().handleRedirectCallback()` — OAuthコールバック処理
