@@ -20,7 +20,6 @@ import {
   LuCalendarDays,
   LuCheck,
   LuChevronRight,
-  LuCircleHelp,
   LuClock3,
   LuFileSpreadsheet,
   LuMessageCircle,
@@ -147,7 +146,7 @@ function ArticleSiteShell({ children }: { children: ReactNode }): ReactNode {
         variant="public"
         showLinks={false}
         showLogin={false}
-        bgImage="linear-gradient(to bottom, rgba(230, 247, 245, 0.98) 0%, rgba(246, 252, 251, 0.98) 100%)"
+        bg="white"
         boxShadow={{ base: "0 8px 20px rgba(15, 23, 42, 0.04)", md: "none" }}
       />
       <Box as="main" pt={HEADER_HEIGHT.base}>
@@ -790,20 +789,16 @@ function ArticleNotFound({ title = "記事が見つかりません" }: { title?:
 
 function getCategoryIcon(slug: string): IconType {
   switch (slug) {
-    case "excel-recording":
-      return LuFileSpreadsheet;
-    case "shift-planning":
-      return LuTable2;
-    case "submit-status":
-      return LuPenLine;
-    case "staff-sharing":
-      return LuCalendarCheck;
-    case "tool-choice":
-      return LuBookOpen;
     case "shift-request":
       return LuMessageCircle;
+    case "shift-building":
+      return LuTable2;
+    case "shift-operation":
+      return LuCalendarCheck;
+    case "tool-review":
+      return LuFileSpreadsheet;
     default:
-      return LuCircleHelp;
+      return LuBookOpen;
   }
 }
 

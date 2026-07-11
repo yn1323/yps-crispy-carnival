@@ -68,7 +68,7 @@ export const FaqArticlesSection = () => (
             </Link>
           </Flex>
 
-          <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+          <SimpleGrid columns={{ base: 2, md: 4 }} gap={4}>
             {previewArticles.map((article, index) => (
               <ArticleCard key={article.slug} article={article} icon={articleIcons[index % articleIcons.length]} />
             ))}
@@ -122,16 +122,16 @@ const ArticleThumbnail = ({ article, icon }: { article: ArticleMetadata; icon: I
       <Image
         src={article.heroImage.src}
         alt={article.heroImage.alt}
-        h="112px"
+        aspectRatio={3 / 2}
         w="full"
-        objectFit="cover"
-        bg="teal.50"
+        objectFit="contain"
+        bg="white"
       />
     );
   }
 
   return (
-    <Flex align="center" justify="center" h="112px" bg="teal.50" color="teal.600">
+    <Flex align="center" justify="center" aspectRatio={3 / 2} w="full" bg="white" color="teal.600">
       <Icon as={icon} boxSize={12} strokeWidth={1.7} />
     </Flex>
   );
