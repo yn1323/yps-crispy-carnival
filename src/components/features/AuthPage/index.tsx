@@ -32,10 +32,20 @@ import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { isLineInAppBrowser } from "@/src/utils/inAppBrowser";
 import loginIllustration from "./login.webp";
+import {
+  findClientTrustEmailCodeFactor,
+  isCompletedSignIn,
+  maskEmailAddress,
+  prepareClientTrustEmailCode,
+  verifyClientTrustEmailCode,
+} from "./loginVerification";
 import { normalizeAuthRedirect } from "./redirect";
 
 type AuthMode = "login" | "signup" | "forgot-password";
 type ForgotStep = "request" | "reset";
+type LoginStep = "credentials" | "verify-email-code";
+
+const RESEND_COOLDOWN_SECONDS = 30;
 
 type AuthPageProps = {
   mode: AuthMode;
@@ -80,6 +90,17 @@ type LoginFormProps = {
   onSubmit: (values: LoginValues) => void | Promise<void>;
 };
 
+type LoginVerificationFormProps = {
+  errorMessage?: string;
+  infoMessage?: string;
+  isSubmitting?: boolean;
+  resendCooldownSeconds?: number;
+  safeIdentifier?: string;
+  onBack: () => void | Promise<void>;
+  onResend: () => void | Promise<void>;
+  onSubmit: (values: EmailVerificationValues) => void | Promise<void>;
+};
+
 type SignupFormProps = {
   errorMessage?: string;
   isSubmitting?: boolean;
@@ -110,6 +131,11 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
   const { isLoaded: signUpLoaded, signUp, setActive: setSignUpActive } = useSignUp();
   const redirectTo = useMemo(() => normalizeAuthRedirect(redirect), [redirect]);
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [loginStep, setLoginStep] = useState<LoginStep>("credentials");
+  const [loginEmailAddressId, setLoginEmailAddressId] = useState<string>();
+  const [loginSafeIdentifier, setLoginSafeIdentifier] = useState<string>();
+  const [verificationInfoMessage, setVerificationInfoMessage] = useState<string>();
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
   const [isVerificationStep, setIsVerificationStep] = useState(false);
   const [forgotStep, setForgotStep] = useState<ForgotStep>("request");
   const [forgotEmail, setForgotEmail] = useState("");
@@ -131,6 +157,16 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
     await action();
   });
 
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setResendCooldownSeconds((current) => Math.max(0, current - 1));
+    }, 1_000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [resendCooldownSeconds]);
+
   if (!authLoaded) {
     return (
       <AuthContent
@@ -139,6 +175,9 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
         redirectTo={redirectTo}
         onGoogle={() => {}}
         onLogin={() => {}}
+        onVerifyLogin={() => {}}
+        onResendLoginCode={() => {}}
+        onRestartLogin={() => {}}
         onSignup={() => {}}
         onVerifyEmail={() => {}}
         onRestartSignup={() => {}}
@@ -190,16 +229,83 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
           password: values.password,
         });
 
-        if (result.status === "complete") {
+        if (isCompletedSignIn(result)) {
           await completeWithSession(result.createdSessionId);
           return;
         }
 
-        setErrorMessage("追加の確認が必要です。Googleログインを使うか、時間をおいてもう一度お試しください。");
+        const emailCodeFactor = findClientTrustEmailCodeFactor({
+          status: result.status,
+          supportedSecondFactors: result.supportedSecondFactors,
+        });
+        if (emailCodeFactor) {
+          await prepareClientTrustEmailCode(result, emailCodeFactor.emailAddressId);
+          setLoginEmailAddressId(emailCodeFactor.emailAddressId);
+          setLoginSafeIdentifier(emailCodeFactor.safeIdentifier ?? maskEmailAddress(values.email));
+          setVerificationInfoMessage(undefined);
+          setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
+          setLoginStep("verify-email-code");
+          return;
+        }
+
+        const status = result.status as string | null;
+        setErrorMessage(
+          status === "needs_client_trust" || status === "needs_second_factor"
+            ? "この方法では本人確認を続けられません。お問い合わせください。"
+            : "ログインを完了できませんでした。時間をおいてもう一度お試しください。",
+        );
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
       }
     });
+
+  const handleVerifyLogin = (values: EmailVerificationValues) =>
+    runAuthAction(async () => {
+      if (!signInLoaded) return;
+
+      setErrorMessage(undefined);
+      setVerificationInfoMessage(undefined);
+      try {
+        const result = await verifyClientTrustEmailCode(signIn, values.code);
+        if (isCompletedSignIn(result)) {
+          await completeWithSession(result.createdSessionId);
+          return;
+        }
+
+        setErrorMessage("本人確認が完了しませんでした。コードを確認してもう一度お試しください。");
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
+      }
+    });
+
+  const handleResendLoginCode = () =>
+    runAuthAction(async () => {
+      if (!signInLoaded || resendCooldownSeconds > 0) return;
+
+      setErrorMessage(undefined);
+      setVerificationInfoMessage(undefined);
+      if (!loginEmailAddressId) {
+        setErrorMessage("確認コードを再送できませんでした。ログイン画面に戻ってもう一度お試しください。");
+        return;
+      }
+
+      try {
+        await prepareClientTrustEmailCode(signIn, loginEmailAddressId);
+        setVerificationInfoMessage("新しい確認コードを送りました。");
+        setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
+      } catch (error) {
+        setErrorMessage(getClerkErrorMessage(error));
+      }
+    });
+
+  const handleRestartLogin = () => {
+    setErrorMessage(undefined);
+    setVerificationInfoMessage(undefined);
+    setResendCooldownSeconds(0);
+    setLoginEmailAddressId(undefined);
+    setLoginSafeIdentifier(undefined);
+    setLoginStep("credentials");
+  };
 
   const handleSignup = (values: SignupValues) =>
     runAuthAction(async () => {
@@ -300,6 +406,10 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
       mode={mode}
       errorMessage={errorMessage}
       isSubmitting={isSubmitting}
+      loginStep={loginStep}
+      loginSafeIdentifier={loginSafeIdentifier}
+      verificationInfoMessage={verificationInfoMessage}
+      resendCooldownSeconds={resendCooldownSeconds}
       isVerificationStep={isVerificationStep}
       forgotStep={forgotStep}
       forgotEmail={forgotEmail}
@@ -307,6 +417,9 @@ export function AuthPage({ mode, redirect }: AuthPageProps) {
       isLineBrowser={isLineBrowser}
       onGoogle={handleGoogle}
       onLogin={handleLogin}
+      onVerifyLogin={handleVerifyLogin}
+      onResendLoginCode={handleResendLoginCode}
+      onRestartLogin={handleRestartLogin}
       onSignup={handleSignup}
       onVerifyEmail={handleVerifyEmail}
       onRestartSignup={handleRestartSignup}
@@ -321,6 +434,10 @@ type AuthContentProps = {
   errorMessage?: string;
   isInitialLoading?: boolean;
   isSubmitting?: boolean;
+  loginStep?: LoginStep;
+  loginSafeIdentifier?: string;
+  verificationInfoMessage?: string;
+  resendCooldownSeconds?: number;
   isVerificationStep?: boolean;
   forgotStep?: ForgotStep;
   forgotEmail?: string;
@@ -328,6 +445,9 @@ type AuthContentProps = {
   isLineBrowser?: boolean;
   onGoogle: () => void | Promise<void>;
   onLogin: (values: LoginValues) => void | Promise<void>;
+  onVerifyLogin: (values: EmailVerificationValues) => void | Promise<void>;
+  onResendLoginCode: () => void | Promise<void>;
+  onRestartLogin: () => void | Promise<void>;
   onSignup: (values: SignupValues) => void | Promise<void>;
   onVerifyEmail: (values: EmailVerificationValues) => void | Promise<void>;
   onRestartSignup: () => void | Promise<void>;
@@ -340,6 +460,10 @@ export function AuthContent({
   errorMessage,
   isInitialLoading,
   isSubmitting,
+  loginStep = "credentials",
+  loginSafeIdentifier,
+  verificationInfoMessage,
+  resendCooldownSeconds,
   isVerificationStep,
   forgotStep,
   forgotEmail,
@@ -347,6 +471,9 @@ export function AuthContent({
   isLineBrowser,
   onGoogle,
   onLogin,
+  onVerifyLogin,
+  onResendLoginCode,
+  onRestartLogin,
   onSignup,
   onVerifyEmail,
   onRestartSignup,
@@ -354,7 +481,13 @@ export function AuthContent({
   onResetPassword,
 }: AuthContentProps) {
   const title =
-    mode === "login" ? "シフトリにログイン" : mode === "signup" ? "シフトリをはじめる" : "パスワードを再設定";
+    mode === "login"
+      ? loginStep === "verify-email-code"
+        ? "本人確認"
+        : "シフトリにログイン"
+      : mode === "signup"
+        ? "シフトリをはじめる"
+        : "パスワードを再設定";
   const description = mode === "forgot-password" ? "登録済みメールアドレスに再設定コードを送信します。" : undefined;
 
   return (
@@ -402,7 +535,7 @@ export function AuthContent({
 
                 {isInitialLoading && <AuthInitialLoading />}
 
-                {!isInitialLoading && mode === "login" && (
+                {!isInitialLoading && mode === "login" && loginStep === "credentials" && (
                   <LoginForm
                     errorMessage={errorMessage}
                     isSubmitting={isSubmitting}
@@ -410,6 +543,18 @@ export function AuthContent({
                     redirectTo={redirectTo}
                     onGoogle={onGoogle}
                     onSubmit={onLogin}
+                  />
+                )}
+                {!isInitialLoading && mode === "login" && loginStep === "verify-email-code" && (
+                  <LoginVerificationForm
+                    errorMessage={errorMessage}
+                    infoMessage={verificationInfoMessage}
+                    isSubmitting={isSubmitting}
+                    resendCooldownSeconds={resendCooldownSeconds}
+                    safeIdentifier={loginSafeIdentifier}
+                    onBack={onRestartLogin}
+                    onResend={onResendLoginCode}
+                    onSubmit={onVerifyLogin}
                   />
                 )}
                 {!isInitialLoading && mode === "signup" && (
@@ -493,6 +638,53 @@ export function LoginForm({
   );
 }
 
+export function LoginVerificationForm({
+  errorMessage,
+  infoMessage,
+  isSubmitting,
+  resendCooldownSeconds = 0,
+  safeIdentifier = "登録メールアドレス",
+  onBack,
+  onResend,
+  onSubmit,
+}: LoginVerificationFormProps) {
+  const resendLabel = resendCooldownSeconds > 0 ? `${resendCooldownSeconds}秒後に再送できます` : "確認コードを再送";
+
+  return (
+    <EmailCodeVerificationForm
+      errorMessage={errorMessage}
+      infoMessage={infoMessage}
+      isSubmitting={isSubmitting}
+      description={
+        <>
+          新しい端末からのログインを確認します。
+          <br />
+          {safeIdentifier} に確認コードを送りました。
+        </>
+      }
+      submitLabel="確認してログイン"
+      submittingLabel="確認中"
+      onSubmit={onSubmit}
+      secondaryActions={
+        <Stack gap={1}>
+          <Button
+            type="button"
+            variant="ghost"
+            colorPalette="teal"
+            disabled={isSubmitting || resendCooldownSeconds > 0}
+            onClick={onResend}
+          >
+            {resendLabel}
+          </Button>
+          <Button type="button" variant="ghost" color="gray.700" disabled={isSubmitting} onClick={onBack}>
+            ログイン画面に戻る
+          </Button>
+        </Stack>
+      }
+    />
+  );
+}
+
 export function SignupForm({
   errorMessage,
   isSubmitting,
@@ -509,43 +701,33 @@ export function SignupForm({
     handleSubmit,
     formState: { errors },
   } = useForm<SignupValues>({ resolver: zodResolver(signupSchema) });
-  const {
-    register: registerCode,
-    handleSubmit: handleCodeSubmit,
-    formState: { errors: codeErrors },
-  } = useForm<EmailVerificationValues>({ resolver: zodResolver(emailVerificationSchema) });
 
   if (isVerificationStep) {
     return (
-      <Stack as="form" gap={5} onSubmit={handleCodeSubmit(onVerifyEmail)}>
-        <AuthError message={errorMessage} />
-        <Alert.Root status="info" borderRadius="lg">
-          <Alert.Indicator />
-          <Alert.Description>メールに届いた確認コードを入力してください。</Alert.Description>
-        </Alert.Root>
-        <Field.Root invalid={!!codeErrors.code}>
-          <Field.Label>確認コード</Field.Label>
-          <Input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" {...registerCode("code")} />
-          <Field.ErrorText>{codeErrors.code?.message}</Field.ErrorText>
-        </Field.Root>
-        <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText="確認中">
-          登録を完了する
-        </Button>
-        <Text color="gray.700" textAlign="center" textStyle="sm">
-          登録方法を変える場合は{" "}
-          <Link
-            asChild
-            color="teal.700"
-            fontWeight="bold"
-            cursor="pointer"
-            _hover={{ color: "teal.800", textDecoration: "underline" }}
-          >
-            <button type="button" onClick={onRestartSignup}>
-              最初からやり直す
-            </button>
-          </Link>
-        </Text>
-      </Stack>
+      <EmailCodeVerificationForm
+        errorMessage={errorMessage}
+        isSubmitting={isSubmitting}
+        description="メールに届いた確認コードを入力してください。"
+        submitLabel="登録を完了する"
+        submittingLabel="確認中"
+        onSubmit={onVerifyEmail}
+        secondaryActions={
+          <Text color="gray.700" textAlign="center" textStyle="sm">
+            登録方法を変える場合は{" "}
+            <Link
+              asChild
+              color="teal.700"
+              fontWeight="bold"
+              cursor="pointer"
+              _hover={{ color: "teal.800", textDecoration: "underline" }}
+            >
+              <button type="button" onClick={onRestartSignup}>
+                最初からやり直す
+              </button>
+            </Link>
+          </Text>
+        }
+      />
     );
   }
 
@@ -578,6 +760,59 @@ export function SignupForm({
     </Stack>
   );
 }
+
+type EmailCodeVerificationFormProps = {
+  description: ReactNode;
+  errorMessage?: string;
+  infoMessage?: string;
+  isSubmitting?: boolean;
+  secondaryActions?: ReactNode;
+  submitLabel: string;
+  submittingLabel: string;
+  onSubmit: (values: EmailVerificationValues) => void | Promise<void>;
+};
+
+const EmailCodeVerificationForm = ({
+  description,
+  errorMessage,
+  infoMessage,
+  isSubmitting,
+  secondaryActions,
+  submitLabel,
+  submittingLabel,
+  onSubmit,
+}: EmailCodeVerificationFormProps) => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<EmailVerificationValues>({ resolver: zodResolver(emailVerificationSchema) });
+
+  return (
+    <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
+      <AuthError message={errorMessage} />
+      <Alert.Root status="info" borderRadius="lg">
+        <Alert.Indicator />
+        <Alert.Description>{description}</Alert.Description>
+      </Alert.Root>
+      {infoMessage && (
+        <Alert.Root status="success" borderRadius="lg">
+          <Alert.Indicator />
+          <Alert.Description>{infoMessage}</Alert.Description>
+        </Alert.Root>
+      )}
+      <Field.Root invalid={!!errors.code}>
+        <Field.Label>確認コード</Field.Label>
+        <Input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" {...register("code")} />
+        <Field.ErrorText>{errors.code?.message}</Field.ErrorText>
+      </Field.Root>
+      <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText={submittingLabel}>
+        {submitLabel}
+      </Button>
+      {secondaryActions}
+    </Stack>
+  );
+};
 
 export function ForgotPasswordForm({
   errorMessage,
@@ -683,6 +918,9 @@ export function SsoCallbackPage() {
       isSubmitting={false}
       onGoogle={() => {}}
       onLogin={() => {}}
+      onVerifyLogin={() => {}}
+      onResendLoginCode={() => {}}
+      onRestartLogin={() => {}}
       onSignup={() => {}}
       onVerifyEmail={() => {}}
       onRestartSignup={() => {}}
