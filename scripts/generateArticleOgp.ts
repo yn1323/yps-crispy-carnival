@@ -1,7 +1,7 @@
 /**
  * 記事別OGP画像の生成スクリプト
  *
- * ArticleSite の各記事 (content/articles/<slug>/index.md) の frontmatter から
+ * ArticleSite の各記事 (content/articles/<slug>/index.mdx) の frontmatter から
  * タイトル・カテゴリを読み取り、1200x630 の PNG を public/ogp/articles/<slug>.png に
  * 書き出す。SNS共有時に全ページ共通ロゴではなく記事タイトル入りの画像を出すための資産。
  *
@@ -11,14 +11,15 @@
  * - ビルドパイプラインには組み込まない（CI に日本語フォントがない環境でも壊れないよう、
  *   生成物を public/ にコミットして配信する方式）。
  * - 日本語フォント (Noto Sans CJK / Noto Sans JP / ヒラギノ等) がある環境で実行すること。
- * - 参照側のパス規約は src/components/features/ArticleSite/articleContent.ts の
+ * - 参照側のパス規約は src/components/features/ArticleSite/articleMeta.ts の
  *   getArticleOgpImagePath と一致させる。
  */
 
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
-import { parseMarkdownDocument } from "../src/helpers/markdown";
+import { parse } from "yaml";
+import { extractFrontmatterSource } from "../src/helpers/mdx";
 
 const ARTICLES_DIR = join("src", "components", "features", "ArticleSite", "content", "articles");
 const OUTPUT_DIR = join("public", "ogp", "articles");
@@ -37,6 +38,19 @@ type ArticleOgpSource = {
   categoryLabel: string;
 };
 
+function isArticleOgpFrontmatter(value: unknown): value is { title: string; categoryLabel: string } {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.title === "string" &&
+    !!record.title &&
+    typeof record.categoryLabel === "string" &&
+    !!record.categoryLabel
+  );
+}
+
 function escapeHtml(text: string): string {
   return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
@@ -47,9 +61,10 @@ async function listArticleSources(): Promise<ArticleOgpSource[]> {
     entries
       .filter((entry) => entry.isDirectory())
       .map(async (entry) => {
-        const markdown = await readFile(join(ARTICLES_DIR, entry.name, "index.md"), "utf-8");
-        const { frontmatter } = parseMarkdownDocument(markdown, entry.name);
-        if (!frontmatter.title || !frontmatter.categoryLabel) {
+        const mdx = await readFile(join(ARTICLES_DIR, entry.name, "index.mdx"), "utf-8");
+        const frontmatterSource = extractFrontmatterSource(mdx);
+        const frontmatter: unknown = frontmatterSource ? parse(frontmatterSource) : undefined;
+        if (!isArticleOgpFrontmatter(frontmatter)) {
           throw new Error(`[ogp] ${entry.name} の frontmatter に title / categoryLabel がありません`);
         }
         return { slug: entry.name, title: frontmatter.title, categoryLabel: frontmatter.categoryLabel };

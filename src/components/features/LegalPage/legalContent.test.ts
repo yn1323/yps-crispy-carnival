@@ -1,83 +1,81 @@
 import { describe, expect, it } from "vitest";
-import { parseLegalDocuments, parseLegalMarkdown } from "./legalContent";
+import { buildLegalDocuments, type LegalMdxComponent } from "./legalContent";
 
-const termsModules = import.meta.glob<string>("../Terms/content/*.md", {
+const termsFrontmatterModules = import.meta.glob<unknown>("../Terms/content/*.mdx", {
   eager: true,
-  query: "?raw",
+  query: "?mdx-frontmatter",
   import: "default",
 });
 
-const privacyModules = import.meta.glob<string>("../PrivacyPolicy/content/*.md", {
+const privacyFrontmatterModules = import.meta.glob<unknown>("../PrivacyPolicy/content/*.mdx", {
   eager: true,
-  query: "?raw",
+  query: "?mdx-frontmatter",
   import: "default",
 });
 
-const legalMarkdown = `---
-title: スタッフ向け利用規約
-lastUpdated: 2026年5月9日
----
+const DummyContent: LegalMdxComponent = () => null;
 
-前文の段落です。
+function toComponentModules(frontmatterModules: Record<string, unknown>): Record<string, LegalMdxComponent> {
+  return Object.fromEntries(Object.keys(frontmatterModules).map((path) => [path, DummyContent]));
+}
 
-## 1. サービス内容
+const validFrontmatter = { title: "スタッフ向け利用規約", lastUpdated: "2026年5月9日" };
 
-サービスの説明です。
+describe("buildLegalDocuments", () => {
+  it("frontmatter と Content を audience 別に読み取れる", () => {
+    const documents = buildLegalDocuments(
+      { "./content/manager.mdx": DummyContent, "./content/staff.mdx": DummyContent },
+      { "./content/manager.mdx": validFrontmatter, "./content/staff.mdx": validFrontmatter },
+    );
 
-### 補足
+    expect(documents.manager.title).toBe("スタッフ向け利用規約");
+    expect(documents.staff.lastUpdated).toBe("2026年5月9日");
+    expect(documents.staff.Content).toBe(DummyContent);
+  });
 
-- 注意点A
-- 注意点B
-
-## 2. 関連文書
-
-[プライバシーポリシー](/privacy/staff)をご確認ください。
-`;
-
-describe("parseLegalMarkdown", () => {
-  it("frontmatter と h2 区切りのセクションを読み取れる", () => {
-    const content = parseLegalMarkdown(legalMarkdown, "staff.md");
-
-    expect(content.title).toBe("スタッフ向け利用規約");
-    expect(content.lastUpdated).toBe("2026年5月9日");
-    expect(content.sections.map((section) => section.title)).toEqual([undefined, "1. サービス内容", "2. 関連文書"]);
-    expect(content.sections[0]?.blocks).toEqual([{ type: "paragraph", text: "前文の段落です。" }]);
-    expect(content.sections[1]?.blocks.map((block) => block.type)).toEqual(["paragraph", "heading", "unorderedList"]);
+  it("audience 分のファイルが揃っていない場合はエラーにする", () => {
+    expect(() =>
+      buildLegalDocuments({ "./content/manager.mdx": DummyContent }, { "./content/manager.mdx": validFrontmatter }),
+    ).toThrow("staff.mdx");
   });
 
   it("title がない場合はエラーにする", () => {
-    const markdown = legalMarkdown.replace("title: スタッフ向け利用規約\n", "");
-
-    expect(() => parseLegalMarkdown(markdown, "staff.md")).toThrow("title");
+    expect(() =>
+      buildLegalDocuments(
+        { "./content/manager.mdx": DummyContent, "./content/staff.mdx": DummyContent },
+        {
+          "./content/manager.mdx": { lastUpdated: "2026年5月9日" },
+          "./content/staff.mdx": validFrontmatter,
+        },
+      ),
+    ).toThrow("frontmatter");
   });
 
   it("lastUpdated がない場合はエラーにする", () => {
-    const markdown = legalMarkdown.replace("lastUpdated: 2026年5月9日\n", "");
-
-    expect(() => parseLegalMarkdown(markdown, "staff.md")).toThrow("lastUpdated");
+    expect(() =>
+      buildLegalDocuments(
+        { "./content/manager.mdx": DummyContent, "./content/staff.mdx": DummyContent },
+        {
+          "./content/manager.mdx": validFrontmatter,
+          "./content/staff.mdx": { title: "スタッフ向け利用規約" },
+        },
+      ),
+    ).toThrow("frontmatter");
   });
-});
 
-describe("parseLegalDocuments", () => {
-  it("audience 分のファイルが揃っていない場合はエラーにする", () => {
-    expect(() => parseLegalDocuments({ "./content/manager.md": legalMarkdown })).toThrow("staff.md");
-  });
-
-  it("利用規約の実ファイルを manager / staff ともに読み込める", () => {
-    const documents = parseLegalDocuments(termsModules);
+  it("利用規約の実ファイルの frontmatter を manager / staff ともに読み込める", () => {
+    const documents = buildLegalDocuments(toComponentModules(termsFrontmatterModules), termsFrontmatterModules);
 
     expect(documents.manager.title).toBe("管理ユーザー向け利用規約");
     expect(documents.staff.title).toBe("スタッフ向け利用規約");
-    expect(documents.manager.sections.length).toBeGreaterThanOrEqual(5);
-    expect(documents.staff.sections.length).toBeGreaterThanOrEqual(5);
+    expect(documents.manager.lastUpdated).not.toBe("");
+    expect(documents.staff.lastUpdated).not.toBe("");
   });
 
-  it("プライバシーポリシーの実ファイルを manager / staff ともに読み込める", () => {
-    const documents = parseLegalDocuments(privacyModules);
+  it("プライバシーポリシーの実ファイルの frontmatter を manager / staff ともに読み込める", () => {
+    const documents = buildLegalDocuments(toComponentModules(privacyFrontmatterModules), privacyFrontmatterModules);
 
     expect(documents.manager.title).toBe("管理ユーザー向けプライバシーポリシー");
     expect(documents.staff.title).toBe("スタッフ向けプライバシーポリシー");
-    expect(documents.manager.sections.length).toBeGreaterThanOrEqual(5);
-    expect(documents.staff.sections.length).toBeGreaterThanOrEqual(5);
   });
 });

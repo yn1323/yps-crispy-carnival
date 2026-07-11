@@ -1,6 +1,6 @@
 ---
 name: seo-article-writer
-description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼び出し専用で作成・改稿するスキル。src/components/features/ArticleSite/content/articles 配下の記事Markdown、カテゴリ、関連記事、内部リンク、検索意図に沿った日本語SEOライティング、読みやすい改行、public/sample-touch.png のタッチに合わせた記事画像生成を扱う。ユーザーが $seo-article-writer を明示したときだけ使い、通常のSEO・記事・ブログ依頼では暗黙起動しない。
+description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼び出し専用で作成・改稿するスキル。src/components/features/ArticleSite/content/articles 配下の記事MDX、カテゴリ、関連記事、内部リンク、検索意図に沿った日本語SEOライティング、読みやすい改行、public/sample-touch.png のタッチに合わせた記事画像生成を扱う。ユーザーが $seo-article-writer を明示したときだけ使い、通常のSEO・記事・ブログ依頼では暗黙起動しない。
 ---
 
 # SEO Article Writer
@@ -23,7 +23,7 @@ description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼�
 - `references/seo-writing-guide.md`
 - `references/image-generation.md`（画像を作る場合）
 
-frontmatter、画像パース、Markdownレンダリングが不明なときは `src/components/features/ArticleSite/articleContent.ts` も読む。
+frontmatter、画像解決、MDXレンダリングが不明なときは `src/components/features/ArticleSite/articleMeta.ts`・`articleContent.ts`・`mdxComponents.tsx` も読む。
 Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む。
 
 ## 作業手順
@@ -56,8 +56,8 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
    - 文字数を目的にしない。検索者の用事が済む量だけ書く。
 
 5. ArticleSiteファイルを作成・更新する。
-   - 記事：`src/components/features/ArticleSite/content/articles/{slug}/index.md`
-   - カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.md`
+   - 記事：`src/components/features/ArticleSite/content/articles/{slug}/index.mdx`
+   - カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.mdx`
    - 画像：基本は記事ディレクトリに同梱する。
    - Sitemap：`public/sitemap.xml`
    - `canonicalPath` は `/articles/{slug}` にする。
@@ -75,7 +75,7 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
    - 画像の近くの本文、alt、キャプションの意味をそろえる。
 
 7. 検証する。
-   - Markdownやschemaに関わる変更後は `pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts` を実行する。
+   - MDXやschemaに関わる変更後は `pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts` を実行する。
    - 完了前に `pnpm lint` と `pnpm type-check` を実行する。
    - index対象にしたい記事は、`robots.txt`、`noindex`、canonical、`public/sitemap.xml`、内部リンク導線を確認する。
    - Google検索結果でサイトリンクを狙う場合は、直接指定できない前提で、トップページ・ヘッダー・フッター・記事一覧・関連記事から重要ページへ自然にリンクされているか確認する。

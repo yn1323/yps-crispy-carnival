@@ -9,12 +9,10 @@ import {
   HStack,
   Image,
   Link,
-  Separator,
-  Table,
   Text,
   VStack,
 } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import type { IconType } from "react-icons";
 import {
   LuBookOpen,
@@ -32,25 +30,17 @@ import {
 import { FooterSection as Footer } from "@/src/components/features/LandingPage/FooterSection";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { ArticleConversionCta } from "./ArticleConversionCta";
-import type {
-  ArticleContent,
-  ArticleHeroImage,
-  CategoryContent,
-  ConcernContent,
-  MarkdownBlock,
-  MarkdownImage,
-} from "./articleContent";
+import type { ArticleContent } from "./articleContent";
 import {
   articles,
-  categories,
-  concerns,
   getArticle,
   getArticlesByCategory,
-  getCategory,
   getRelatedArticles,
   getRepresentativeArticle,
-  sitePage,
 } from "./articleContent";
+import type { ArticleHeroImage, CategoryMetadata, ConcernContent } from "./articleMeta";
+import { concerns, getCategoryMeta, sitePage } from "./articleMeta";
+import { createArticleMdxComponents } from "./mdxComponents";
 
 type ArticleSitePageProps = {
   slug?: string;
@@ -108,11 +98,7 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
             maxW="820px"
           >
             {shouldShowToc && <MobileArticleToc article={article} />}
-            <VStack as="article" align="stretch" gap={{ base: 6, lg: 7 }}>
-              {article.blocks.map((block, index) => (
-                <ArticleBlock key={`${block.type}-${index}`} block={block} />
-              ))}
-            </VStack>
+            <ArticleBody article={article} />
             <ArticleConversionCta compact />
             <RelatedArticles articles={relatedArticles} />
           </VStack>
@@ -123,18 +109,18 @@ export function ArticlePage({ slug }: ArticleSitePageProps): ReactNode {
 }
 
 export function ArticleCategoryPage({ categorySlug }: ArticleSitePageProps): ReactNode {
-  const category = getCategory(categorySlug);
+  const category = getCategoryMeta(categorySlug);
 
   if (!category) {
     return <ArticleNotFound title="カテゴリが見つかりません" />;
   }
 
   const representativeArticle = getRepresentativeArticle(category);
-  const categoryArticles = getArticlesByCategory(category.meta.slug);
+  const categoryArticles = getArticlesByCategory(category.slug);
   const relatedArticles = representativeArticle
     ? categoryArticles.filter((article) => article.meta.slug !== representativeArticle.meta.slug)
     : categoryArticles;
-  const relatedConcerns = category.meta.relatedConcernSlugs
+  const relatedConcerns = category.relatedConcernSlugs
     .map((slug) => concerns.find((concern) => concern.slug === slug))
     .filter((concern): concern is ConcernContent => Boolean(concern));
 
@@ -253,7 +239,17 @@ function ArticleHero({ article }: { article: ArticleContent }): ReactNode {
   );
 }
 
-function CategoryHero({ category }: { category: CategoryContent }): ReactNode {
+function ArticleBody({ article }: { article: ArticleContent }): ReactNode {
+  const components = useMemo(() => createArticleMdxComponents(article.resolveImageSrc), [article]);
+
+  return (
+    <VStack as="article" align="stretch" gap={{ base: 6, lg: 7 }}>
+      <article.Content components={components} />
+    </VStack>
+  );
+}
+
+function CategoryHero({ category }: { category: CategoryMetadata }): ReactNode {
   return (
     <Box borderBottomWidth="1px" borderColor="gray.200" bg="white">
       <Container maxW={{ base: "820px", lg: "6xl" }} px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 10 }}>
@@ -271,15 +267,15 @@ function CategoryHero({ category }: { category: CategoryContent }): ReactNode {
           </Link>
           <Box display={{ base: "none", md: "block" }}>
             <Breadcrumbs
-              items={[{ label: sitePage.breadcrumbLabel, href: "/articles" }, { label: category.meta.breadcrumbLabel }]}
+              items={[{ label: sitePage.breadcrumbLabel, href: "/articles" }, { label: category.breadcrumbLabel }]}
             />
           </Box>
           <VStack align="stretch" gap={{ base: 3, md: 4 }}>
             <Heading as="h1" color="gray.950" textStyle="pageTitle" letterSpacing="0">
-              {category.meta.title}
+              {category.title}
             </Heading>
             <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8" maxW="680px">
-              {category.meta.description}
+              {category.description}
             </Text>
           </VStack>
         </VStack>
@@ -429,7 +425,7 @@ function ArticleRow({ article, hideOnMobile = false }: { article: ArticleContent
   );
 }
 
-function PointBox({ category }: { category: CategoryContent }): ReactNode {
+function PointBox({ category }: { category: CategoryMetadata }): ReactNode {
   return (
     <Box bg="teal.50" borderWidth="1px" borderColor="gray.200" borderRadius="lg" px={{ base: 4, lg: 6 }} py={5}>
       <VStack align="stretch" gap={4}>
@@ -437,10 +433,10 @@ function PointBox({ category }: { category: CategoryContent }): ReactNode {
           このカテゴリで扱う悩み
         </Text>
         <Text color="gray.700" textStyle={{ base: "bodySm", md: "body" }} lineHeight="1.8">
-          {category.meta.pointDescription}
+          {category.pointDescription}
         </Text>
         <Grid as="ul" templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3} listStyleType="none">
-          {category.meta.concerns.map((concern) => (
+          {category.concerns.map((concern) => (
             <HStack as="li" key={concern} align="start" gap={2} color="gray.700" textStyle="sm" lineHeight="1.7">
               <Box as="span" color="teal.700" mt={1}>
                 <LuCheck size={14} />
@@ -702,122 +698,6 @@ function SmallArticleCard({ article }: { article: ArticleContent }): ReactNode {
   );
 }
 
-function ArticleBlock({ block }: { block: MarkdownBlock }): ReactNode {
-  switch (block.type) {
-    case "heading":
-      return (
-        <Heading
-          id={block.id}
-          as={block.level === 2 ? "h2" : "h3"}
-          color="gray.950"
-          textStyle={block.level === 2 ? "sectionTitle" : { base: "lg", md: "xl" }}
-          letterSpacing="0"
-          pt={block.level === 2 ? 3 : 1}
-          scrollMarginTop={`calc(${HEADER_HEIGHT.md} + 24px)`}
-        >
-          {block.text}
-        </Heading>
-      );
-    case "paragraph":
-      return <ArticleText preserveLineBreaks>{renderInlineText(block.text)}</ArticleText>;
-    case "unorderedList":
-      return (
-        <VStack as="ul" align="stretch" gap={3} pl={6} listStyleType="disc">
-          {block.items.map((item) => (
-            <ArticleText as="li" key={item}>
-              {renderInlineText(item)}
-            </ArticleText>
-          ))}
-        </VStack>
-      );
-    case "orderedList":
-      return (
-        <VStack as="ol" align="stretch" gap={3} pl={6} listStyleType="decimal">
-          {block.items.map((item) => (
-            <ArticleText as="li" key={item}>
-              {renderInlineText(item)}
-            </ArticleText>
-          ))}
-        </VStack>
-      );
-    case "blockquote":
-      return (
-        <Box
-          borderLeftWidth="4px"
-          borderColor="orange.300"
-          bg="orange.50"
-          px={{ base: 4, lg: 5 }}
-          py={4}
-          borderRadius="md"
-        >
-          <Text
-            color="gray.800"
-            textStyle={{ base: "bodySm", md: "body" }}
-            lineHeight="1.8"
-            fontWeight="medium"
-            whiteSpace="pre-line"
-          >
-            {renderInlineText(block.text)}
-          </Text>
-        </Box>
-      );
-    case "table":
-      return (
-        <Box overflowX="auto" borderWidth="1px" borderColor="gray.200" borderRadius="lg">
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row bg="green.50">
-                {block.headers.map((header) => (
-                  <Table.ColumnHeader key={header} color="gray.800" fontWeight="bold">
-                    {header}
-                  </Table.ColumnHeader>
-                ))}
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {block.rows.map((row) => (
-                <Table.Row key={row.join("-")}>
-                  {row.map((cell) => (
-                    <Table.Cell key={cell} color="gray.700" lineHeight="1.7">
-                      {renderInlineText(cell)}
-                    </Table.Cell>
-                  ))}
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-        </Box>
-      );
-    case "image":
-      return <ArticleImageFigure image={block.image} />;
-    case "media":
-      return (
-        <Grid
-          as="section"
-          templateColumns={{
-            base: "1fr",
-            md: block.image.width
-              ? block.align === "right"
-                ? `minmax(0, 1fr) ${block.image.width}px`
-                : `${block.image.width}px minmax(0, 1fr)`
-              : "1fr 1fr",
-          }}
-          gap={{ base: 4, md: 6 }}
-          alignItems="start"
-        >
-          <Box order={{ base: block.align === "right" ? 1 : 2, md: block.align === "right" ? 1 : 2 }}>
-            <ArticleText preserveLineBreaks>{renderInlineText(block.text)}</ArticleText>
-          </Box>
-          <Box order={{ base: block.align === "right" ? 2 : 1, md: block.align === "right" ? 2 : 1 }} minW={0}>
-            <ArticleImageFigure image={{ ...block.image, align: "center" }} compact />
-          </Box>
-        </Grid>
-      );
-    case "horizontalRule":
-      return <Separator />;
-  }
-}
-
 function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }): ReactNode {
   return (
     <HStack as="nav" gap={2} color="gray.600" textStyle="sm" wrap="wrap">
@@ -873,64 +753,6 @@ function MetaItem({ icon, children }: { icon: IconType; children: ReactNode }): 
   );
 }
 
-function ArticleText({
-  children,
-  as,
-  preserveLineBreaks = false,
-}: {
-  children: ReactNode;
-  as?: "p" | "li";
-  preserveLineBreaks?: boolean;
-}): ReactNode {
-  return (
-    <Text
-      as={as}
-      color="gray.700"
-      textStyle={{ base: "bodySm", md: "body" }}
-      lineHeight="1.8"
-      whiteSpace={preserveLineBreaks ? "pre-line" : undefined}
-    >
-      {children}
-    </Text>
-  );
-}
-
-function ArticleImageFigure({ image, compact = false }: { image: MarkdownImage; compact?: boolean }): ReactNode {
-  return (
-    <Box
-      as="figure"
-      my={compact ? 0 : { base: 1, lg: 2 }}
-      display="flex"
-      flexDirection="column"
-      alignItems={{ base: "stretch", md: getFigureAlignItems(image.align) }}
-    >
-      <Box
-        overflow="hidden"
-        w={{ base: "full", md: image.width ? `${image.width}px` : "full" }}
-        maxW="full"
-        borderRadius="lg"
-        bg="transparent"
-      >
-        <Image src={image.src} alt={image.alt} w="full" maxH={{ base: "320px", lg: "440px" }} objectFit="contain" />
-      </Box>
-      {image.caption && (
-        <Text
-          as="figcaption"
-          w={{ base: "full", md: image.width ? `${image.width}px` : "full" }}
-          maxW="full"
-          mt={2}
-          color="gray.500"
-          textStyle="sm"
-          lineHeight="1.7"
-          textAlign="center"
-        >
-          {renderInlineText(image.caption)}
-        </Text>
-      )}
-    </Box>
-  );
-}
-
 function ArticleHeroImageFigure({ image }: { image: ArticleHeroImage }): ReactNode {
   return (
     <Box
@@ -944,17 +766,6 @@ function ArticleHeroImageFigure({ image }: { image: ArticleHeroImage }): ReactNo
       </Box>
     </Box>
   );
-}
-
-function getFigureAlignItems(align: MarkdownImage["align"]): "flex-start" | "center" | "flex-end" {
-  switch (align) {
-    case "left":
-      return "flex-start";
-    case "right":
-      return "flex-end";
-    case "center":
-      return "center";
-  }
 }
 
 function ArticleNotFound({ title = "記事が見つかりません" }: { title?: string }): ReactNode {
@@ -996,49 +807,6 @@ function getCategoryIcon(slug: string): IconType {
   }
 }
 
-function renderInlineText(text: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const pattern = /(\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`)/g;
-  let lastIndex = 0;
-
-  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-
-    const [token, , linkLabel, linkHref, boldText, codeText] = match;
-    const key = `${token}-${match.index}`;
-
-    if (linkLabel && linkHref) {
-      nodes.push(
-        <Link key={key} href={linkHref} color="teal.700" fontWeight="bold" textDecoration="underline">
-          {linkLabel}
-        </Link>,
-      );
-    } else if (boldText) {
-      nodes.push(
-        <Box as="strong" key={key} color="gray.950" fontWeight="bold">
-          {boldText}
-        </Box>,
-      );
-    } else if (codeText) {
-      nodes.push(
-        <Box as="code" key={key} bg="gray.100" color="gray.800" px={1.5} py={0.5} borderRadius="sm" fontSize="0.9em">
-          {codeText}
-        </Box>,
-      );
-    }
-
-    lastIndex = match.index + token.length;
-  }
-
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-
-  return nodes;
-}
-
 function formatJapaneseDate(date: string): string {
   const [year, month, day] = date.split("-");
   if (!year || !month || !day) {
@@ -1047,5 +815,3 @@ function formatJapaneseDate(date: string): string {
 
   return `${Number(year)}.${month}.${day}`;
 }
-
-export { articles, categories, concerns };

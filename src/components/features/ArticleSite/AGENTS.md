@@ -1,20 +1,26 @@
 # ArticleSite 編集ガイド
 
-このディレクトリは、シフトリのSEO向け記事サイトです。記事・カテゴリ・一覧トップの文言は主にMarkdownで管理し、レイアウトやSP/PCの見せ方は `index.tsx` で管理します。
+このディレクトリは、シフトリのSEO向け記事サイトです。記事・カテゴリ・一覧トップの文言は主にMDXで管理し、レイアウトやSP/PCの見せ方は `index.tsx` で管理します。
 
 ## ファイル構成
 
 ```text
 src/components/features/ArticleSite/
-  content/pages/articles.md              # 記事一覧トップの文言・CTA・カテゴリ表示順
-  content/categories/{categorySlug}/index.md
+  content/pages/articles.mdx              # 記事一覧トップの文言・CTA・カテゴリ表示順
+  content/categories/{categorySlug}/index.mdx
                                           # カテゴリページと困りごとカードの文言
-  content/articles/{articleSlug}/index.md # 記事詳細ページのメタ情報・本文
-  articleContent.ts                       # Markdownの読み込み・frontmatter定義
+  content/articles/{articleSlug}/index.mdx # 記事詳細ページのメタ情報・本文
+  articleMeta.ts                          # frontmatterのzodスキーマ・SEOメタ（本文を含まない軽量な入口）
+  articleContent.ts                       # MDX本文コンポーネントの読み込み・目次抽出
+  mdxComponents.tsx                       # MDX本文のタグマッピングと記事用コンポーネント（ArticleImage / Media）
   index.tsx                               # 表示レイアウト・カード・SP/PC出し分け
 ```
 
-## 記事一覧トップ: `content/pages/articles.md`
+MDXの変換は共有Viteプラグイン `vite/mdxPlugin.ts` が行います（`?mdx-component` / `?mdx-source` / `?mdx-frontmatter` / `?mdx-toc`）。
+frontmatterはYAMLとしてパースされ、`articleMeta.ts` のzodスキーマで検証されます。
+目次（`?mdx-toc`）や見出しidの共通ロジックは `src/helpers/mdx/` にあります。
+
+## 記事一覧トップ: `content/pages/articles.mdx`
 
 記事一覧トップのヒーロー文言、セクション見出し、共通CTA、よくある困りごとの表示順を管理します。
 
@@ -42,11 +48,11 @@ landingPreviewLinkLabel: "記事一覧を見る"
 ```
 
 - `concernSlugs` は一覧トップの「よくある困りごと」に出すカテゴリslugと表示順です。
-- ここにslugを追加しても、対応する `content/categories/{slug}/index.md` がないと表示できません。
+- ここにslugを追加しても、対応する `content/categories/{slug}/index.mdx` がないと表示できません。
 - 一覧トップの新着記事は `publishedAt` の降順で表示されます。
 - `landingPreviewTitle` / `landingPreviewDescription` / `landingPreviewLimit` / `landingPreviewLinkLabel` はLPのFAQ前に出す記事ミニ導線を制御します。記事そのものは `publishedAt` 降順の最新順です。
 
-## カテゴリ: `content/categories/{categorySlug}/index.md`
+## カテゴリ: `content/categories/{categorySlug}/index.mdx`
 
 カテゴリページのヒーロー、一覧トップの困りごとカード、カテゴリ別CTAを管理します。
 
@@ -75,7 +81,7 @@ ctaDescription: "カテゴリ別CTA説明"
 - `relatedConcernSlugs` はカテゴリページ下部の「ほかの困りごともチェック」に出すカテゴリslugです。
 - `ctaTitle` / `ctaDescription` は、そのカテゴリの記事詳細下部CTAに使われます。
 
-## 記事: `content/articles/{articleSlug}/index.md`
+## 記事: `content/articles/{articleSlug}/index.mdx`
 
 記事詳細ページの記事メタ情報、関連記事、本文を管理します。
 
@@ -111,9 +117,10 @@ ogDescription: "OG説明"
 - `relatedSlugs` は記事詳細下部の関連記事候補です。指定が足りない場合は同カテゴリの記事が補完されます。
 - `featured: true` は一覧トップなどでデフォルト表示する代表記事用です。基本は1記事だけにしてください。
 - `readingMinutes` は数値で書いてください。
-- `publishedAt` / `updatedAt` は `YYYY-MM-DD` 形式で書いてください。
-- 個別記事（`content/articles/{articleSlug}/index.md`）を追加・編集するだけなら、記事ごとの Story は作成不要です。
-- 個別記事の本文・frontmatterだけを変更する場合は、個別記事専用の自動テストも不要です。共通parser、frontmatter schema、記事一覧・カテゴリ・詳細レイアウトの挙動を変える場合だけ、既存のStoryやテストを更新してください。
+- `publishedAt` / `updatedAt` は `YYYY-MM-DD` 形式で、**必ず引用符つき**（`"2026-05-20"`）で書いてください。引用符がないとYAMLが日付型として解釈しビルドエラーになります。
+- `keywords` / `relatedSlugs` などのリストは `"a, b"` 形式のカンマ区切り文字列、またはYAML配列のどちらでも書けます。
+- 個別記事（`content/articles/{articleSlug}/index.mdx`）を追加・編集するだけなら、記事ごとの Story は作成不要です。
+- 個別記事の本文・frontmatterだけを変更する場合は、個別記事専用の自動テストも不要です。MDXタグマッピング、frontmatter schema、記事一覧・カテゴリ・詳細レイアウトの挙動を変える場合だけ、既存のStoryやテストを更新してください。
 
 任意frontmatter:
 
@@ -128,12 +135,12 @@ heroImageWidth: 340
 - PCでは記事メタ情報の右側、タブレット/SPではタイトル・説明の下に小さめの画像として表示されます。
 - `heroImageSrc` を指定した場合、アクセシビリティ用の `heroImageAlt` は必須です。画面には表示されません。
 - `heroImageWidth` はPC表示の横幅です。240〜360pxの範囲で指定してください。未指定時は320pxです。
-- 画像パスは本文画像と同じく、`/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMarkdownファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
+- 画像パスは本文画像と同じく、`/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMDXファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
 - SEO記事用画像は枠線や外枠を入れず、画像内の線がキャンバス端に触れないようにしてください。
 
-## 本文Markdownで使える表現
+## 本文MDXで使える表現
 
-`articleContent.ts` の簡易parserで次を表示できます。
+MDX（remark-gfm有効）＋ `mdxComponents.tsx` のタグマッピングで次を表示できます。
 
 - `## 見出し` / `### 小見出し`
 - 段落
@@ -142,47 +149,45 @@ heroImageWidth: 340
 - 引用 `> text`
 - 表
 - 水平線 `---`
-- 画像 `![alt](src "caption")`
-- ArticleSite独自拡張の画像属性 `![alt](src "caption"){width=360 align=right}`
-- ArticleSite独自拡張の横並びブロック `::: media align=right width=360`
+- 画像 `![alt](src "caption")`（キャプション・中央寄せ・本文幅いっぱい）
 - インラインリンク `[label](href)`
 - 太字 `**text**`
 - インラインコード `` `code` ``
+- 記事用コンポーネント `<ArticleImage />`（サイズ・配置指定つき画像）
+- 記事用コンポーネント `<Media>`（画像と短い文章の横並びブロック）
 
 注意:
 
-- `# 見出し` は本文レンダリングではスキップされます。記事タイトルはfrontmatterの `title` が主です。
-- H2が3つ以上ある記事だけ、記事詳細の目次UIが表示されます。
-- 画像は `/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMarkdownファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
+- `# 見出し` は本文レンダリングでは表示されません（`h1` は `null` にマッピング）。記事タイトルはfrontmatterの `title` が主です。
+- H2が3つ以上ある記事だけ、記事詳細の目次UIが表示されます。目次はMDXソースのH2行から生成されます。
+- 画像は `/lp/shiftForm.webp` のような `public/` 配下の絶対パス、またはMDXファイルと同階層に置いた `./image.webp` のような相対パスで参照できます。
 - 画像の `"caption"` は任意です。指定すると画像下にキャプションとして表示されます。
-- `{width=360 align=right}` と `::: media ...` は標準Markdownではなく、ArticleSite用の独自拡張です。ほかのMarkdownレンダラで同じ表示になるとは限りません。
+- MDXでは `<` と `{` がJSX/式の開始として解釈されます。本文中に文字として書きたい場合は `\<` / `\{` とエスケープしてください。
 - 本文は現時点では仮文章です。作り込みすぎず、SEO記事の構造が伝わる程度にしてください。
 
-### 画像レイアウト拡張
+### 画像レイアウト用コンポーネント
 
-画像単体のサイズと配置を指定できます。
+画像単体のサイズと配置を指定するには `<ArticleImage />` を使います。
 
-```md
-![シフト希望フォーム](/lp/shiftForm.webp "希望提出の例"){width=360 align=right}
+```mdx
+<ArticleImage src="/lp/shiftForm.webp" alt="シフト希望フォーム" caption="希望提出の例" width={360} align="right" />
 ```
 
 - `width` はpx数値で指定します。未指定なら本文幅いっぱいです。
-- `align` は `left` / `center` / `right` を指定できます。未指定なら `center` です。
+- `align` は `"left"` / `"center"` / `"right"` を指定できます。未指定なら `center` です。
 - スマホでは本文幅に収まるように表示されます。
 
-画像の横に短い説明文を置きたい場合は、mediaブロックを使います。
+画像の横に短い説明文を置きたい場合は、`<Media>` を使います。
 
-```md
-::: media align=right width=360
-![シフト希望フォーム](/lp/shiftForm.webp "希望提出の例")
-
+```mdx
+<Media align="right" width={360} image="/lp/shiftForm.webp" alt="シフト希望フォーム" caption="希望提出の例">
 LINEのトークに希望が流れてしまう場合は、入力場所を1つにまとめると確認しやすくなります。
-:::
+</Media>
 ```
 
-- `align=right` はPCで画像を右、文章を左に置きます。スマホでは文章、画像の順に縦積みします。
-- `align=left` はPCで画像を左、文章を右に置きます。スマホでは画像、文章の順に縦積みします。
-- mediaブロック内の文章は、短い段落向けです。見出し、表、リストなどの複雑な入れ子Markdownは使わないでください。
+- `align="right"` はPCで画像を右、文章を左に置きます。スマホでは文章、画像の順に縦積みします。
+- `align="left"` はPCで画像を左、文章を右に置きます。スマホでは画像、文章の順に縦積みします。
+- `<Media>` 内の文章は、短い段落向けです。見出し、表、リストなどの複雑な入れ子は使わないでください。
 
 ## 書き方の方針
 
@@ -191,11 +196,11 @@ LINEのトークに希望が流れてしまう場合は、入力場所を1つに
 - タイトル・descriptionは具体的にします。例: `LINEでシフト希望を集める方法`、`Excelでシフト表を作るのが大変になる理由`。
 - 本文よりも、タイトル・カテゴリ・description・関連記事の自然さを優先してください。
 - 記事上部の補助画像は `heroImageSrc` などのfrontmatterで指定してください。
-- 記事本文に必要な画像はMarkdown本文へ追加してください。記事カードやOG画像を制御するfrontmatterはまだ追加しません。
+- 記事本文に必要な画像はMDX本文へ追加してください。記事カードやOG画像を制御するfrontmatterはまだ追加しません。
 
-## mdで変えられること / React側で変えること
+## MDXで変えられること / React側で変えること
 
-mdで変えられること:
+MDXで変えられること:
 
 - 記事一覧トップの文言・CTA・困りごとの表示順
 - LPの記事ミニ導線の見出し・説明文・表示件数・一覧リンク文言
@@ -220,11 +225,11 @@ pnpm ogp:articles
 
 - 日本語フォントのある環境（macOS / Windows、またはNoto Sans CJK導入済みLinux）で実行すること
 - 実行を忘れると `pnpm prerender` が「Missing article OGP image(s)」エラーでビルドを失敗させます（CIには日本語フォントがないため、ビルド時生成ではなく生成物のコミットで運用しています）
-- 生成ロジックは `scripts/generateArticleOgp.ts`。参照側のパス規約は `articleContent.ts` の `getArticleOgpImagePath` と一致させること
+- 生成ロジックは `scripts/generateArticleOgp.ts`。参照側のパス規約は `articleMeta.ts` の `getArticleOgpImagePath` と一致させること
 
 ## 追加・編集後の確認
 
-ArticleSiteの共通parser、frontmatter schema、一覧・カテゴリ・詳細レイアウトを変更したら、最低限次を実行してください。
+ArticleSiteのMDXタグマッピング、frontmatter schema、一覧・カテゴリ・詳細レイアウトを変更したら、最低限次を実行してください。
 
 ```bash
 pnpm vitest --project=logic src/components/features/ArticleSite/articleContent.test.ts
@@ -233,7 +238,7 @@ pnpm type-check
 pnpm build
 ```
 
-個別記事のMarkdownだけを追加・編集した場合は、個別記事専用テストの追加やStory追加は不要です。既存の `Features/ArticleSite` Story やローカル画面で、記事ページが崩れていないか必要に応じて確認してください。
+個別記事のMDXだけを追加・編集した場合は、個別記事専用テストの追加やStory追加は不要です。既存の `Features/ArticleSite` Story やローカル画面で、記事ページが崩れていないか必要に応じて確認してください。
 
 Storybookで確認する場合は `Features/ArticleSite` の List / Category / Article / Mobile 系Storyを見てください。SP確認は 390x844 程度の幅を目安にします。
 
