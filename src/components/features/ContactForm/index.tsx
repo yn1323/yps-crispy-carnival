@@ -153,7 +153,7 @@ export function ContactFormView({ onSubmit, verification }: ContactFormViewProps
         </Field.Root>
 
         <Field.Root invalid={!!errors.organization}>
-          <Field.Label>店舗名または会社名（任意）</Field.Label>
+          <Field.Label>店舗名（任意）</Field.Label>
           <Input
             {...register("organization")}
             bg="white"

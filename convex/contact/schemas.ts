@@ -19,12 +19,9 @@ export const contactTypeSchema = z.enum(CONTACT_TYPE_OPTIONS.map((option) => opt
 const optionalOrganizationSchema = z
   .string()
   .trim()
-  .max(
-    CONTACT_ORGANIZATION_MAX_LENGTH,
-    `店舗名または会社名は${CONTACT_ORGANIZATION_MAX_LENGTH}文字以内で入力してください`,
-  )
+  .max(CONTACT_ORGANIZATION_MAX_LENGTH, `店舗名は${CONTACT_ORGANIZATION_MAX_LENGTH}文字以内で入力してください`)
   .refine((value) => !hasControlCharacter(value), {
-    message: "店舗名または会社名に使用できない文字が含まれています",
+    message: "店舗名に使用できない文字が含まれています",
   });
 
 function hasUnsupportedContactControlCharacter(value: string): boolean {
