@@ -22,6 +22,33 @@ export const Default: Story = {
     await expect(canvas.getByRole("option", { name: "機能や使い方" })).toBeVisible();
     await expect(canvas.getByRole("option", { name: "不具合・トラブル" })).toBeVisible();
     await expect(canvas.getByRole("option", { name: "その他" })).toBeVisible();
+    await expect(canvas.getByRole("textbox", { name: "氏名" })).toHaveAttribute("placeholder", "例：山田 太郎");
+    await expect(canvas.getByRole("textbox", { name: "メールアドレス" })).toHaveAttribute(
+      "placeholder",
+      "例：yamada@example.com",
+    );
+    await expect(canvas.getByRole("textbox", { name: "店舗名または会社名（任意）" })).toHaveAttribute(
+      "placeholder",
+      "例：シフトリ渋谷店",
+    );
+    await expect(canvas.getByRole("textbox", { name: "問い合わせ内容" })).toHaveAttribute(
+      "placeholder",
+      "例：10名ほどでの利用を検討しています。料金や開始方法を教えてください。",
+    );
+  },
+};
+
+export const TroubleGuidance: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.selectOptions(canvas.getByRole("combobox", { name: "問い合わせ種別" }), "trouble");
+    await expect(canvas.getByRole("textbox", { name: "問い合わせ内容" })).toHaveAttribute(
+      "placeholder",
+      "例：シフトを確定しようとすると「○○」と表示されます。再読み込みしても同じ状態です。",
+    );
+    await expect(
+      canvas.getByText("エラーメッセージや直前の操作もご記載いただくと、解決時間が早くなります。"),
+    ).toBeVisible();
   },
 };
 

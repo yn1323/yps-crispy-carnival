@@ -1,4 +1,4 @@
-import { Badge, Box, Flex, Link, List, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Image, Link, List, Stack, Text } from "@chakra-ui/react";
 import type { ComponentProps, PropsWithChildren } from "react";
 import { LuArrowRight, LuMail, LuMessageCircle } from "react-icons/lu";
 import type { HelpMdxComponents } from "./helpContent";
@@ -69,6 +69,7 @@ export const helpMdxComponents = {
   a: (props: ComponentProps<"a">) => (
     <Link color="teal.700" fontWeight="semibold" textDecoration="underline" textUnderlineOffset="3px" {...props} />
   ),
+  img: (props: ComponentProps<"img">) => <Image display="block" w="full" h="auto" borderRadius="md" {...props} />,
   strong: (props: ComponentProps<"strong">) => <Box as="strong" fontWeight="bold" color="gray.900" {...props} />,
   HelpNote,
   NotificationChannelExample,

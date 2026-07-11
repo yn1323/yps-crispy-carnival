@@ -3,13 +3,11 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import pkg from "./package.json" with { type: "json" };
-import { helpMdxPlugin } from "./vite/helpMdxPlugin";
-import { markdownFrontmatterPlugin } from "./vite/markdownFrontmatterPlugin";
+import { mdxPlugin } from "./vite/mdxPlugin";
 
 export default defineConfig({
   plugins: [
-    helpMdxPlugin(),
-    markdownFrontmatterPlugin(),
+    mdxPlugin(),
     tanstackRouter({ autoCodeSplitting: true }),
     viteReact({ include: /\.(js|jsx|mdx|ts|tsx)$/ }),
     tsconfigPaths(),

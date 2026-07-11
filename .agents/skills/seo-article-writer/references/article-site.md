@@ -4,11 +4,13 @@
 
 ## パス
 
-- 記事一覧ページ：`src/components/features/ArticleSite/content/pages/articles.md`
-- カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.md`
-- 記事：`src/components/features/ArticleSite/content/articles/{articleSlug}/index.md`
+- 記事一覧ページ：`src/components/features/ArticleSite/content/pages/articles.mdx`
+- カテゴリ：`src/components/features/ArticleSite/content/categories/{categorySlug}/index.mdx`
+- 記事：`src/components/features/ArticleSite/content/articles/{articleSlug}/index.mdx`
 - Sitemap：`public/sitemap.xml`
-- Markdownローダー：`src/components/features/ArticleSite/articleContent.ts`
+- frontmatterスキーマ・SEOメタ：`src/components/features/ArticleSite/articleMeta.ts`
+- MDX本文ローダー：`src/components/features/ArticleSite/articleContent.ts`
+- MDXタグマッピング：`src/components/features/ArticleSite/mdxComponents.tsx`
 - 表示UI：`src/components/features/ArticleSite/index.tsx`
 
 ## 記事frontmatter
@@ -161,9 +163,9 @@ ctaDescription: "カテゴリ別CTA説明"
 - カテゴリは読者の悩み単位にする。
 - `concerns` は3〜4個を目安にする。
 - `representativeSlug` は初めて読む人に最も役立つ記事にする。
-- `/articles` の困りごと一覧に出す場合は `content/pages/articles.md` の `concernSlugs` に追加する。
+- `/articles` の困りごと一覧に出す場合は `content/pages/articles.mdx` の `concernSlugs` に追加する。
 
-## Markdownで使える表現
+## MDX本文で使える表現
 
 - `##` と `###`
 - 段落
@@ -172,27 +174,32 @@ ctaDescription: "カテゴリ別CTA説明"
 - 引用
 - 表
 - 水平線
-- 画像：`![alt](src "caption")`
-- 画像属性：`![alt](src "caption"){width=360 align=right}`
-- mediaブロック
+- 画像：`![alt](src "caption")`（中央寄せ・本文幅いっぱい）
+- サイズ・配置指定つき画像：`<ArticleImage src alt caption? width? align? />`
+- 横並びブロック：`<Media>`
 
-mediaブロック：
+`<ArticleImage />`：
 
-```md
-::: media align=right width=360
-![シフト希望フォーム](./form.webp "希望提出の例")
+```mdx
+<ArticleImage src="./form.webp" alt="シフト希望フォーム" caption="希望提出の例" width={360} align="right" />
+```
 
+`<Media>`：
+
+```mdx
+<Media align="right" width={360} image="./form.webp" alt="シフト希望フォーム" caption="希望提出の例">
 希望を1か所に集めると、未提出の確認がしやすくなります。
-:::
+</Media>
 ```
 
 注意：
 
-- `#` 見出しは本文レンダリングでスキップされる。記事タイトルはfrontmatterの `title`。
+- `#` 見出しは本文レンダリングでは表示されない。記事タイトルはfrontmatterの `title`。
 - H2が3つ以上あると目次が出る。
-- `align` は `left`、`center`、`right`。
+- `align` は `"left"`、`"center"`、`"right"`。
 - 画像は記事ディレクトリからの相対パスを基本にする。
-- 独自Markdown拡張を、ArticleSite以外で同じ見た目になる前提にしない。
+- MDXでは `<` と `{` がJSXとして解釈されるため、文字として書く場合は `\<` / `\{` とエスケープする。
+- `ArticleImage` / `Media` はArticleSite専用コンポーネント。ほかの場所で同じ見た目になる前提にしない。
 
 ## 確認コマンド
 

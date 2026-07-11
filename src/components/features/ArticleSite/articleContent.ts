@@ -1,78 +1,60 @@
-import { type MarkdownBlock, parseMarkdownBlocks, parseMarkdownDocument } from "@/src/helpers/markdown";
+import type { MdxComponent, MdxTocItem } from "@/src/helpers/mdx";
 import {
   type ArticleMetadata,
+  articleMetas,
   type CategoryMetadata,
   createImageSrcResolver,
-  parseArticleMetadata,
-  parseCategoryMetadata,
   resolveArticleSlug,
 } from "./articleMeta";
 
 /**
- * 記事サイトの「本文」層。`?raw` で Markdown 本文まで eager import するため、記事詳細・カテゴリ詳細を
- * 描画するコード分割済みコンポーネント（`ArticleSite/index.tsx`）からのみ import すること。
+ * 記事サイトの「本文」層。`?mdx-component` で MDX 本文コンポーネントまで eager import するため、
+ * 記事詳細を描画するコード分割済みコンポーネント（`ArticleSite/index.tsx`）からのみ import すること。
  * ルートの `head()` や LP など公開ページの入口からは、本文を含まない `articleMeta.ts` を使う。
  */
 
-export type {
-  MarkdownBlock,
-  MarkdownImage,
-  MarkdownImageAlign,
-  MarkdownMediaAlign,
-} from "@/src/helpers/markdown";
-export type {
-  ArticleHeroImage,
-  ArticleJsonLd,
-  ArticleMetadata,
-  BreadcrumbJsonLd,
-  CategoryMetadata,
-  ConcernContent,
-  SitePageMetadata,
-} from "./articleMeta";
-export {
-  concerns,
-  createArticleBreadcrumbJsonLd,
-  createArticleJsonLd,
-  createCategoryBreadcrumbJsonLd,
-  getArticleOgpImagePath,
-  parseSitePageMarkdown,
-  sitePage,
-} from "./articleMeta";
-
 export type ArticleContent = {
   meta: ArticleMetadata;
-  blocks: MarkdownBlock[];
-  toc: { id: string; text: string }[];
+  Content: MdxComponent;
+  toc: MdxTocItem[];
+  /** 本文・heroImageの相対画像パスをバンドル済みURLへ解決する */
+  resolveImageSrc: (src: string) => string;
 };
 
-export type CategoryContent = {
-  meta: CategoryMetadata;
-  blocks: MarkdownBlock[];
-};
-
-const categoryModules = import.meta.glob<string>("./content/categories/*/index.md", {
+const articleComponentModules = import.meta.glob<MdxComponent>("./content/articles/*/index.mdx", {
   eager: true,
-  query: "?raw",
+  query: "?mdx-component",
   import: "default",
 });
 
-const articleModules = import.meta.glob<string>("./content/articles/*/index.md", {
+// 目次はビルド時に抽出済み（vite/mdxPlugin.ts の `?mdx-toc`）。生ソースはバンドルに含めない。
+const articleTocModules = import.meta.glob<MdxTocItem[]>("./content/articles/*/index.mdx", {
   eager: true,
-  query: "?raw",
+  query: "?mdx-toc",
   import: "default",
 });
 
-export const categories = Object.entries(categoryModules)
-  .map(([path, source]) => {
-    const slug = path.match(/\.\/content\/categories\/([^/]+)\/index\.md$/)?.[1] ?? path;
-    return parseCategoryMarkdown(source, slug, path);
-  })
-  .sort((a, b) => a.meta.title.localeCompare(b.meta.title, "ja"));
+export const articles = Object.entries(articleComponentModules)
+  .map(([path, Content]) => {
+    const slug = path.match(/\.\/content\/articles\/([^/]+)\/index\.mdx$/)?.[1] ?? path;
 
-export const articles = Object.entries(articleModules)
-  .map(([path, source]) => {
-    const slug = path.match(/\.\/content\/articles\/([^/]+)\/index\.md$/)?.[1] ?? path;
-    return parseArticleMarkdown(source, slug, path);
+    // frontmatterのパースはメタデータ層（articleMeta.ts）に一本化し、slugで突き合わせる
+    const meta = articleMetas.find((candidate) => candidate.slug === slug);
+    if (!meta) {
+      throw new Error(`記事 "${slug}" のメタデータが見つかりません`);
+    }
+
+    const toc = articleTocModules[path];
+    if (toc === undefined) {
+      throw new Error(`記事 "${slug}" の目次が見つかりません`);
+    }
+
+    return {
+      meta,
+      Content,
+      toc,
+      resolveImageSrc: createImageSrcResolver(path),
+    };
   })
   .sort((a, b) => b.meta.publishedAt.localeCompare(a.meta.publishedAt));
 
@@ -83,10 +65,6 @@ export function getArticle(slug?: string): ArticleContent | undefined {
 
   const resolvedSlug = resolveArticleSlug(slug);
   return articles.find((article) => article.meta.slug === resolvedSlug);
-}
-
-export function getCategory(categorySlug?: string): CategoryContent | undefined {
-  return categorySlug ? categories.find((category) => category.meta.slug === categorySlug) : categories[0];
 }
 
 export function getArticlesByCategory(categorySlug: string): ArticleContent[] {
@@ -109,34 +87,10 @@ export function getRelatedArticles(article: ArticleContent, limit = 3): ArticleC
   return [...selected, ...fallback.filter((candidate) => !selected.includes(candidate))].slice(0, limit);
 }
 
-export function getRepresentativeArticle(category: CategoryContent | undefined): ArticleContent | undefined {
+export function getRepresentativeArticle(category: CategoryMetadata | undefined): ArticleContent | undefined {
   if (!category) {
     return undefined;
   }
 
-  return getArticle(category.meta.representativeSlug) ?? getArticlesByCategory(category.meta.slug)[0];
-}
-
-export function parseCategoryMarkdown(source: string, slug: string, documentPath?: string): CategoryContent {
-  const meta = parseCategoryMetadata(source, slug);
-  const { bodySource } = parseMarkdownDocument(source, slug);
-
-  return {
-    meta,
-    blocks: parseMarkdownBlocks(bodySource, { resolveImageSrc: createImageSrcResolver(documentPath) }),
-  };
-}
-
-export function parseArticleMarkdown(source: string, slug: string, documentPath?: string): ArticleContent {
-  const meta = parseArticleMetadata(source, slug, documentPath);
-  const { bodySource } = parseMarkdownDocument(source, slug);
-
-  const blocks = parseMarkdownBlocks(bodySource, { resolveImageSrc: createImageSrcResolver(documentPath) });
-  const toc = blocks
-    .filter(
-      (block): block is Extract<MarkdownBlock, { type: "heading" }> => block.type === "heading" && block.level === 2,
-    )
-    .map((block) => ({ id: block.id, text: block.text }));
-
-  return { meta, blocks, toc };
+  return getArticle(category.representativeSlug) ?? getArticlesByCategory(category.slug)[0];
 }

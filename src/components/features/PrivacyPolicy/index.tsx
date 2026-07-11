@@ -1,15 +1,21 @@
 import type { ReactNode } from "react";
 import { getLegalDocumentsForAudience, type LegalAudience } from "@/convex/legal/documents";
 import { LegalDocumentPage } from "@/src/components/features/LegalPage";
-import { parseLegalDocuments } from "@/src/components/features/LegalPage/legalContent";
+import { buildLegalDocuments, type LegalMdxComponent } from "@/src/components/features/LegalPage/legalContent";
 
-const contentModules = import.meta.glob<string>("./content/*.md", {
+const componentModules = import.meta.glob<LegalMdxComponent>("./content/*.mdx", {
   eager: true,
-  query: "?raw",
+  query: "?mdx-component",
   import: "default",
 });
 
-const contents = parseLegalDocuments(contentModules);
+const frontmatterModules = import.meta.glob<unknown>("./content/*.mdx", {
+  eager: true,
+  query: "?mdx-frontmatter",
+  import: "default",
+});
+
+const contents = buildLegalDocuments(componentModules, frontmatterModules);
 
 type Props = {
   audience?: LegalAudience;

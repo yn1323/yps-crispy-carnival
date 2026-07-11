@@ -1,52 +1,94 @@
-import {
-  parseBoundedPositiveInteger,
-  parseMarkdownDocument,
-  parsePositiveInteger,
-  splitList,
-} from "@/src/helpers/markdown";
+import { z } from "zod";
 import { SITE_URL } from "@/src/helpers/seo";
 
 /**
  * 記事サイトの「メタデータ」層。
  *
- * ここは frontmatter だけを `?frontmatter` で eager import するため、記事本文（Markdown body）を
- * バンドルに含めない。ルートの `head()` や LP の記事プレビューなど、エントリー/公開ページ側から
- * 参照される軽量な入口として使う。本文（blocks/toc）が必要な描画は `articleContent.ts`（コード分割
- * されたページコンポーネントからのみ import）で扱う。
+ * ここは frontmatter だけを `?mdx-frontmatter`（vite/mdxPlugin.ts）で eager import するため、
+ * 記事本文（MDX body）をバンドルに含めない。ルートの `head()` や LP の記事プレビューなど、
+ * エントリー/公開ページ側から参照される軽量な入口として使う。本文（Content/toc）が必要な描画は
+ * `articleContent.ts`（コード分割されたページコンポーネントからのみ import）で扱う。
  */
 
-export type SitePageMetadata = {
-  title: string;
-  description: string;
-  breadcrumbLabel: string;
-  concernTitle: string;
-  latestTitle: string;
-  ctaTitle: string;
-  ctaDescription: string;
-  ctaPrimaryLabel: string;
-  ctaPrimaryHref: string;
-  ctaSecondaryLabel: string;
-  ctaSecondaryHref: string;
-  concernSlugs: string[];
-  landingPreviewTitle: string;
-  landingPreviewDescription: string;
-  landingPreviewLimit: number;
-  landingPreviewLinkLabel: string;
-};
+/** カンマ区切り文字列（"a, b" 形式）またはYAML配列をリストとして受け取る */
+const listSchema = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform(splitList);
 
-export type CategoryMetadata = {
-  slug: string;
-  title: string;
-  description: string;
-  breadcrumbLabel: string;
-  pointTitle: string;
-  pointDescription: string;
-  concerns: string[];
-  representativeSlug: string;
-  relatedConcernSlugs: string[];
-  ctaTitle: string;
-  ctaDescription: string;
-};
+/** 必須リスト。空はエラーにする（旧実装の必須フィールド検証を維持） */
+const requiredListSchema = z
+  .union([z.string(), z.array(z.string())])
+  .transform(splitList)
+  .refine((items) => items.length > 0, "1つ以上指定してください");
+
+/** "YYYY-MM-DD"。frontmatterで引用符を忘れるとYAMLがDate型に変換しISO文字列化されるため、形式で弾く */
+const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD形式（引用符つき）で指定してください");
+
+const sitePageSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  breadcrumbLabel: z.string().min(1),
+  concernTitle: z.string().min(1),
+  latestTitle: z.string().min(1),
+  ctaTitle: z.string().min(1),
+  ctaDescription: z.string().min(1),
+  ctaPrimaryLabel: z.string().min(1),
+  ctaPrimaryHref: z.string().min(1),
+  ctaSecondaryLabel: z.string().min(1),
+  ctaSecondaryHref: z.string().min(1),
+  concernSlugs: listSchema,
+  landingPreviewTitle: z.string().min(1).catch("シフト作成のヒント"),
+  landingPreviewDescription: z
+    .string()
+    .min(1)
+    .catch("LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。"),
+  landingPreviewLimit: z.coerce.number().int().positive().catch(3),
+  landingPreviewLinkLabel: z.string().min(1).catch("記事一覧を見る"),
+});
+
+const categorySchema = z.object({
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().min(1),
+  breadcrumbLabel: z.string().min(1),
+  pointTitle: z.string().min(1),
+  pointDescription: z.string().min(1),
+  concerns: requiredListSchema,
+  representativeSlug: z.string().min(1),
+  relatedConcernSlugs: listSchema,
+  ctaTitle: z.string().min(1),
+  ctaDescription: z.string().min(1),
+});
+
+const articleSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  heroImageSrc: z.string().min(1).optional(),
+  heroImageAlt: z.string().min(1).optional(),
+  heroImageWidth: z.coerce.number().optional(),
+  publishedAt: dateStringSchema,
+  updatedAt: z
+    .union([z.literal(""), dateStringSchema])
+    .optional()
+    .transform((value) => value || undefined),
+  categorySlug: z.string().min(1),
+  categoryLabel: z.string().min(1),
+  author: z.string().min(1),
+  readingMinutes: z.coerce.number().int().positive(),
+  keywords: listSchema,
+  relatedSlugs: listSchema,
+  featured: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => value === true || value === "true"),
+  canonicalPath: z.string().min(1),
+  ogTitle: z.string().min(1),
+  ogDescription: z.string().min(1),
+});
+
+export type SitePageMetadata = z.infer<typeof sitePageSchema>;
+export type CategoryMetadata = z.infer<typeof categorySchema>;
 
 export type ArticleHeroImage = {
   src: string;
@@ -54,23 +96,12 @@ export type ArticleHeroImage = {
   width: number;
 };
 
-export type ArticleMetadata = {
+export type ArticleMetadata = Omit<
+  z.infer<typeof articleSchema>,
+  "heroImageSrc" | "heroImageAlt" | "heroImageWidth"
+> & {
   slug: string;
-  title: string;
-  description: string;
   heroImage?: ArticleHeroImage;
-  publishedAt: string;
-  updatedAt?: string;
-  categorySlug: string;
-  categoryLabel: string;
-  author: string;
-  readingMinutes: number;
-  keywords: string[];
-  relatedSlugs: string[];
-  featured: boolean;
-  canonicalPath: string;
-  ogTitle: string;
-  ogDescription: string;
 };
 
 export type ConcernContent = {
@@ -115,22 +146,22 @@ export type BreadcrumbJsonLd = {
   }[];
 };
 
-// frontmatter だけを含む擬似 md ソース（vite/markdownFrontmatterPlugin.ts が生成）。本文は含まれない。
-const pageFrontmatterModules = import.meta.glob<string>("./content/pages/*.md", {
+// frontmatter だけをYAMLパース済みオブジェクトとして受け取る（vite/mdxPlugin.ts）。本文は含まれない。
+const pageFrontmatterModules = import.meta.glob<unknown>("./content/pages/*.mdx", {
   eager: true,
-  query: "?frontmatter",
+  query: "?mdx-frontmatter",
   import: "default",
 });
 
-const categoryFrontmatterModules = import.meta.glob<string>("./content/categories/*/index.md", {
+const categoryFrontmatterModules = import.meta.glob<unknown>("./content/categories/*/index.mdx", {
   eager: true,
-  query: "?frontmatter",
+  query: "?mdx-frontmatter",
   import: "default",
 });
 
-const articleFrontmatterModules = import.meta.glob<string>("./content/articles/*/index.md", {
+const articleFrontmatterModules = import.meta.glob<unknown>("./content/articles/*/index.mdx", {
   eager: true,
-  query: "?frontmatter",
+  query: "?mdx-frontmatter",
   import: "default",
 });
 
@@ -141,63 +172,23 @@ const imageModules = import.meta.glob<string>("./content/**/*.{avif,gif,jpeg,jpg
   import: "default",
 });
 
-const pageRequiredFields = [
-  "title",
-  "description",
-  "breadcrumbLabel",
-  "concernTitle",
-  "latestTitle",
-  "ctaTitle",
-  "ctaDescription",
-  "ctaPrimaryLabel",
-  "ctaPrimaryHref",
-  "ctaSecondaryLabel",
-  "ctaSecondaryHref",
-] as const;
-
-const categoryRequiredFields = [
-  "slug",
-  "title",
-  "description",
-  "breadcrumbLabel",
-  "pointTitle",
-  "pointDescription",
-  "concerns",
-  "representativeSlug",
-  "ctaTitle",
-  "ctaDescription",
-] as const;
-
-const articleRequiredFields = [
-  "title",
-  "description",
-  "publishedAt",
-  "categorySlug",
-  "categoryLabel",
-  "author",
-  "readingMinutes",
-  "canonicalPath",
-  "ogTitle",
-  "ogDescription",
-] as const;
-
 const ARTICLE_HERO_IMAGE_DEFAULT_WIDTH = 320;
 const ARTICLE_HERO_IMAGE_MIN_WIDTH = 240;
 const ARTICLE_HERO_IMAGE_MAX_WIDTH = 360;
 
-export const sitePage = parseSitePageMarkdown(pageFrontmatterModules["./content/pages/articles.md"] ?? "", "articles");
+export const sitePage = parseSitePageFrontmatter(pageFrontmatterModules["./content/pages/articles.mdx"], "articles");
 
 export const categoryMetas = Object.entries(categoryFrontmatterModules)
-  .map(([path, source]) => {
-    const slug = path.match(/\.\/content\/categories\/([^/]+)\/index\.md$/)?.[1] ?? path;
-    return parseCategoryMetadata(source, slug);
+  .map(([path, frontmatter]) => {
+    const slug = path.match(/\.\/content\/categories\/([^/]+)\/index\.mdx$/)?.[1] ?? path;
+    return parseCategoryMetadata(frontmatter, slug);
   })
   .sort((a, b) => a.title.localeCompare(b.title, "ja"));
 
 export const articleMetas = Object.entries(articleFrontmatterModules)
-  .map(([path, source]) => {
-    const slug = path.match(/\.\/content\/articles\/([^/]+)\/index\.md$/)?.[1] ?? path;
-    return parseArticleMetadata(source, slug, path);
+  .map(([path, frontmatter]) => {
+    const slug = path.match(/\.\/content\/articles\/([^/]+)\/index\.mdx$/)?.[1] ?? path;
+    return parseArticleMetadata(frontmatter, slug, path);
   })
   .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
@@ -297,93 +288,54 @@ export function createCategoryBreadcrumbJsonLd(meta: CategoryMetadata): Breadcru
   };
 }
 
-export function parseSitePageMarkdown(source: string, slug: string): SitePageMetadata {
-  const { frontmatter } = parseMarkdownDocument(source, slug);
-  ensureFields(frontmatter, pageRequiredFields, slug);
-
-  return {
-    title: frontmatter.title,
-    description: frontmatter.description,
-    breadcrumbLabel: frontmatter.breadcrumbLabel,
-    concernTitle: frontmatter.concernTitle,
-    latestTitle: frontmatter.latestTitle,
-    ctaTitle: frontmatter.ctaTitle,
-    ctaDescription: frontmatter.ctaDescription,
-    ctaPrimaryLabel: frontmatter.ctaPrimaryLabel,
-    ctaPrimaryHref: frontmatter.ctaPrimaryHref,
-    ctaSecondaryLabel: frontmatter.ctaSecondaryLabel,
-    ctaSecondaryHref: frontmatter.ctaSecondaryHref,
-    concernSlugs: splitList(frontmatter.concernSlugs),
-    landingPreviewTitle: frontmatter.landingPreviewTitle ?? "シフト作成のヒント",
-    landingPreviewDescription:
-      frontmatter.landingPreviewDescription ??
-      "LINE回収やExcel転記など、シフト作成でつまずきやすいポイントを整理しています。",
-    landingPreviewLimit: parsePositiveInteger(frontmatter.landingPreviewLimit, 3),
-    landingPreviewLinkLabel: frontmatter.landingPreviewLinkLabel ?? "記事一覧を見る",
-  };
+export function parseSitePageFrontmatter(frontmatter: unknown, slug: string): SitePageMetadata {
+  const parsed = sitePageSchema.safeParse(frontmatter);
+  if (!parsed.success) {
+    throw new Error(`記事一覧トップ "${slug}" の frontmatter が正しくありません: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
-export function parseCategoryMetadata(source: string, slug: string): CategoryMetadata {
-  const { frontmatter } = parseMarkdownDocument(source, slug);
-  ensureFields(frontmatter, categoryRequiredFields, slug);
-
-  return {
-    slug: frontmatter.slug,
-    title: frontmatter.title,
-    description: frontmatter.description,
-    breadcrumbLabel: frontmatter.breadcrumbLabel,
-    pointTitle: frontmatter.pointTitle,
-    pointDescription: frontmatter.pointDescription,
-    concerns: splitList(frontmatter.concerns),
-    representativeSlug: frontmatter.representativeSlug,
-    relatedConcernSlugs: splitList(frontmatter.relatedConcernSlugs),
-    ctaTitle: frontmatter.ctaTitle,
-    ctaDescription: frontmatter.ctaDescription,
-  };
+export function parseCategoryMetadata(frontmatter: unknown, slug: string): CategoryMetadata {
+  const parsed = categorySchema.safeParse(frontmatter);
+  if (!parsed.success) {
+    throw new Error(`カテゴリ "${slug}" の frontmatter が正しくありません: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
-export function parseArticleMetadata(source: string, slug: string, documentPath?: string): ArticleMetadata {
-  const { frontmatter } = parseMarkdownDocument(source, slug);
-  ensureFields(frontmatter, articleRequiredFields, slug);
+export function parseArticleMetadata(frontmatter: unknown, slug: string, documentPath?: string): ArticleMetadata {
+  const parsed = articleSchema.safeParse(frontmatter);
+  if (!parsed.success) {
+    throw new Error(`記事 "${slug}" の frontmatter が正しくありません: ${parsed.error.message}`);
+  }
 
+  const { heroImageSrc, heroImageAlt, heroImageWidth, ...meta } = parsed.data;
   return {
+    ...meta,
     slug,
-    title: frontmatter.title,
-    description: frontmatter.description,
-    heroImage: parseArticleHeroImage(frontmatter, documentPath, slug),
-    publishedAt: frontmatter.publishedAt,
-    updatedAt: frontmatter.updatedAt || undefined,
-    categorySlug: frontmatter.categorySlug,
-    categoryLabel: frontmatter.categoryLabel,
-    author: frontmatter.author,
-    readingMinutes: Number(frontmatter.readingMinutes),
-    keywords: splitList(frontmatter.keywords),
-    relatedSlugs: splitList(frontmatter.relatedSlugs),
-    featured: frontmatter.featured === "true",
-    canonicalPath: frontmatter.canonicalPath,
-    ogTitle: frontmatter.ogTitle,
-    ogDescription: frontmatter.ogDescription,
+    heroImage: parseArticleHeroImage({ heroImageSrc, heroImageAlt, heroImageWidth }, documentPath, slug),
   };
 }
 
 function parseArticleHeroImage(
-  frontmatter: Record<string, string>,
+  fields: { heroImageSrc?: string; heroImageAlt?: string; heroImageWidth?: number },
   documentPath: string | undefined,
   slug: string,
 ): ArticleHeroImage | undefined {
-  if (!frontmatter.heroImageSrc) {
+  if (!fields.heroImageSrc) {
     return undefined;
   }
 
-  if (!frontmatter.heroImageAlt) {
+  if (!fields.heroImageAlt) {
     throw new Error(`記事 "${slug}" の heroImageSrc には heroImageAlt が必要です`);
   }
 
   return {
-    src: resolveMarkdownImageSrc(frontmatter.heroImageSrc, documentPath),
-    alt: frontmatter.heroImageAlt,
-    width: parseBoundedPositiveInteger(
-      frontmatter.heroImageWidth,
+    src: resolveMarkdownImageSrc(fields.heroImageSrc, documentPath),
+    alt: fields.heroImageAlt,
+    width: boundPositiveInteger(
+      fields.heroImageWidth,
       ARTICLE_HERO_IMAGE_DEFAULT_WIDTH,
       ARTICLE_HERO_IMAGE_MIN_WIDTH,
       ARTICLE_HERO_IMAGE_MAX_WIDTH,
@@ -391,16 +343,23 @@ function parseArticleHeroImage(
   };
 }
 
-function ensureFields<const T extends readonly string[]>(
-  frontmatter: Record<string, string>,
-  fields: T,
-  slug: string,
-): void {
-  for (const field of fields) {
-    if (!frontmatter[field]) {
-      throw new Error(`記事 "${slug}" の frontmatter に ${field} がありません`);
-    }
+function splitList(value: string | string[] | undefined): string[] {
+  if (!value) {
+    return [];
   }
+  if (Array.isArray(value)) {
+    return value.map((item) => item.trim()).filter(Boolean);
+  }
+
+  return value
+    .split(/[,、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function boundPositiveInteger(value: number | undefined, fallback: number, min: number, max: number): number {
+  const base = value !== undefined && Number.isInteger(value) && value > 0 ? value : fallback;
+  return Math.min(Math.max(base, min), max);
 }
 
 export function createImageSrcResolver(documentPath?: string): (src: string) => string {

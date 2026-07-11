@@ -1,8 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "@storybook/react-vite";
-import { helpMdxPlugin } from "../vite/helpMdxPlugin.ts";
-import { markdownFrontmatterPlugin } from "../vite/markdownFrontmatterPlugin.ts";
+import { mdxPlugin } from "../vite/mdxPlugin.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
@@ -45,9 +44,8 @@ const config: StorybookConfig = {
     // resolve.alias は Storybook の dep optimizer より後に評価されるため、
     // convex/react 等のモック差し替えには resolveId フックを使う
     config.plugins = [
-      helpMdxPlugin(),
+      mdxPlugin(),
       ...(config.plugins ?? []),
-      markdownFrontmatterPlugin(),
       {
         name: "storybook-mock-modules",
         enforce: "pre" as const,
