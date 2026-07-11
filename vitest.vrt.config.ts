@@ -6,7 +6,7 @@ import storycap from "@storycap-testrun/browser/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig, defineProject } from "vitest/config";
-import { helpMdxPlugin } from "./vite/helpMdxPlugin";
+import { mdxPlugin } from "./vite/mdxPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
@@ -37,7 +37,7 @@ const createVrtProject = (
 ) =>
   defineConfig({
     plugins: [
-      helpMdxPlugin(),
+      mdxPlugin(),
       // biome-ignore lint/suspicious/noExplicitAny: temp
       tsconfigPaths() as any,
       storybookTest({

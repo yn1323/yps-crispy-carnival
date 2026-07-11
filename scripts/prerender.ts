@@ -179,7 +179,7 @@ async function listContentSlugs(kind: "articles" | "categories"): Promise<string
       .filter((entry) => entry.isDirectory())
       .map(async (entry) => {
         try {
-          await readFile(join(contentDir, entry.name, "index.md"));
+          await readFile(join(contentDir, entry.name, "index.mdx"));
           return entry.name;
         } catch {
           return undefined;

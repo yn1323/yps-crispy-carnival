@@ -1,5 +1,5 @@
-import type { ComponentType, ElementType } from "react";
 import { z } from "zod";
+import type { MdxComponent, MdxComponents } from "@/src/helpers/mdx";
 
 export const HELP_NAVIGATION_GROUPS = [
   { id: "task", label: "やりたいことから探す" },
@@ -27,8 +27,8 @@ export const HELP_CATEGORIES = [
 }>;
 
 export type HelpCategory = (typeof HELP_CATEGORIES)[number];
-export type HelpMdxComponents = Record<string, ElementType>;
-export type HelpMdxComponent = ComponentType<{ components?: HelpMdxComponents }>;
+export type HelpMdxComponents = MdxComponents;
+export type HelpMdxComponent = MdxComponent;
 
 const helpFrontmatterSchema = z.object({
   title: z.string().min(1),
@@ -52,17 +52,17 @@ export type HelpArticle = {
 
 const helpModules = import.meta.glob<HelpMdxComponent>("./content/*.mdx", {
   eager: true,
-  query: "?help-component",
+  query: "?mdx-component",
   import: "default",
 });
 const helpFrontmatterModules = import.meta.glob<unknown>("./content/*.mdx", {
   eager: true,
-  query: "?help-frontmatter",
+  query: "?mdx-frontmatter",
   import: "default",
 });
 const helpSourceModules = import.meta.glob<string>("./content/*.mdx", {
   eager: true,
-  query: "?help-source",
+  query: "?mdx-source",
   import: "default",
 });
 
