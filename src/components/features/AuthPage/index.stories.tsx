@@ -17,6 +17,9 @@ const meta = {
     mode: "login",
     onGoogle: noop,
     onLogin: noop,
+    onVerifyLogin: noop,
+    onResendLoginCode: noop,
+    onRestartLogin: noop,
     onSignup: noop,
     onVerifyEmail: noop,
     onRestartSignup: noop,
@@ -49,6 +52,44 @@ const SignupVerificationRestartContent = (args: AuthContentArgs) => {
       isVerificationStep={isVerificationStep}
       onRestartSignup={() => setIsVerificationStep(false)}
     />
+  );
+};
+
+const LoginVerificationBackContent = (args: AuthContentArgs) => {
+  const [loginStep, setLoginStep] = useState<AuthContentArgs["loginStep"]>("verify-email-code");
+
+  return (
+    <AuthContent {...args} mode="login" loginStep={loginStep} onRestartLogin={() => setLoginStep("credentials")} />
+  );
+};
+
+const LoginVerificationResendContent = (args: AuthContentArgs) => {
+  const [infoMessage, setInfoMessage] = useState<string>();
+
+  return (
+    <AuthContent
+      {...args}
+      mode="login"
+      loginStep="verify-email-code"
+      verificationInfoMessage={infoMessage}
+      onResendLoginCode={() => setInfoMessage("新しい確認コードを送りました。")}
+    />
+  );
+};
+
+const LoginVerificationSubmitContent = (args: AuthContentArgs) => {
+  const [submittedCode, setSubmittedCode] = useState<string>();
+
+  return (
+    <>
+      <AuthContent
+        {...args}
+        mode="login"
+        loginStep="verify-email-code"
+        onVerifyLogin={({ code }) => setSubmittedCode(code)}
+      />
+      {submittedCode && <output>確認コードを送信しました: {submittedCode}</output>}
+    </>
   );
 };
 
@@ -102,6 +143,90 @@ export const SignupVerification: Story = {
   args: {
     mode: "signup",
     isVerificationStep: true,
+  },
+};
+
+export const LoginVerification: Story = {
+  args: {
+    mode: "login",
+    loginStep: "verify-email-code",
+    loginSafeIdentifier: "yn1323+07112@gmail.com",
+    resendCooldownSeconds: 30,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByText("yn***@gmail.com", { exact: false })).toBeInTheDocument();
+    await expect(canvas.queryByText("yn1323+07112@gmail.com", { exact: false })).not.toBeInTheDocument();
+  },
+};
+
+export const LoginVerificationMobile: Story = {
+  tags: ["vrt-mobile2"],
+  args: {
+    mode: "login",
+    loginStep: "verify-email-code",
+    loginSafeIdentifier: "ma***@example.com",
+    resendCooldownSeconds: 30,
+  },
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+};
+
+export const LoginVerificationError: Story = {
+  args: {
+    mode: "login",
+    loginStep: "verify-email-code",
+    loginSafeIdentifier: "ma***@example.com",
+    errorMessage: "確認コードが正しくありません。",
+  },
+};
+
+export const LoginVerificationResend: Story = {
+  parameters: { chromatic: { disableSnapshot: true } },
+  args: {
+    mode: "login",
+    loginSafeIdentifier: "ma***@example.com",
+  },
+  render: (args) => <LoginVerificationResendContent {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送" }));
+    await expect(await canvas.findByText("新しい確認コードを送りました。")).toBeInTheDocument();
+  },
+};
+
+export const LoginVerificationBack: Story = {
+  parameters: { chromatic: { disableSnapshot: true } },
+  args: {
+    mode: "login",
+    loginSafeIdentifier: "ma***@example.com",
+  },
+  render: (args) => <LoginVerificationBackContent {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByRole("heading", { name: "本人確認" })).toBeInTheDocument();
+    await userEvent.click(await canvas.findByRole("button", { name: "ログイン画面に戻る" }));
+    await expect(await canvas.findByRole("heading", { name: "シフトリにログイン" })).toBeInTheDocument();
+  },
+};
+
+export const LoginVerificationSubmit: Story = {
+  parameters: { chromatic: { disableSnapshot: true } },
+  args: {
+    mode: "login",
+    loginSafeIdentifier: "ma***@example.com",
+  },
+  render: (args) => <LoginVerificationSubmitContent {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(await canvas.findByLabelText("確認コード"), "123456");
+    await userEvent.click(await canvas.findByRole("button", { name: "確認してログイン" }));
+    await expect(await canvas.findByText("確認コードを送信しました: 123456")).toBeInTheDocument();
   },
 };
 

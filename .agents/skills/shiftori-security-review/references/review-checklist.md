@@ -72,6 +72,7 @@ Use this checklist for both pre-implementation plans and code review. Focus on t
 - [ ] Logs include safe who/what/where/when context when useful.
 - [ ] Logs exclude secrets, raw tokens, full email addresses, full webhook payloads, and sensitive third-party response bodies.
 - [ ] Client-facing errors do not reveal internal configuration, provider secrets, or object existence.
+- [ ] Auth UI masks email addresses and phone numbers at the rendering boundary, even when an identity provider labels a returned value as safe or masked.
 
 ## Test Mapping
 
