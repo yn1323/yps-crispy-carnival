@@ -74,12 +74,12 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </Text>
             </Box>
             <Menu.Separator />
-            <Menu.Item asChild value="howto">
+            {/*<Menu.Item asChild value="howto">
               <a href="/howto" target="_blank" rel="noreferrer">
                 <LuBookOpen />
                 使い方・ヘルプ
               </a>
-            </Menu.Item>
+            </Menu.Item>*/}
             <Menu.Item asChild value="contact">
               <a href="/contact" target="_blank" rel="noreferrer">
                 <LuMailQuestion />
