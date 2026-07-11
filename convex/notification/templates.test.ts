@@ -92,6 +92,8 @@ describe("notification/templates", () => {
     expect(flex.altText).not.toContain("24時間有効");
     expect(flexButtonLabels(flex)).toContain("全員分の確認はこちら");
     expect(flexUris(flex)).toContain("https://example.com/shifts/view?token=test&openExternalBrowser=1");
+    expect(flex.contents.footer).toMatchObject({ paddingAll: "20px" });
+    expect(flex.contents.footer?.paddingTop).toBeUndefined();
   });
 
   it("Flex altTextはLINE上限の1500文字に収める", () => {

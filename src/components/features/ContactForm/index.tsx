@@ -25,6 +25,13 @@ type ContactSubmitData = Omit<SubmitContactInput, "turnstileToken" | "requestId"
   requestId: string;
 };
 
+const messagePlaceholders: Record<ContactFormData["type"], string> = {
+  introduction: "例：10名ほどでの利用を検討しています。料金や開始方法を教えてください。",
+  usage: "例：確定したシフトを変更する方法を教えてください。",
+  trouble: "例：シフトを確定しようとすると「○○」と表示されます。再読み込みしても同じ状態です。",
+  other: "お問い合わせ内容をご記載ください。",
+};
+
 async function submitContactRequest(data: ContactSubmitData): Promise<void> {
   const response = await fetch(`${CONVEX_SITE_URL}/contact/submit`, {
     method: "POST",
@@ -66,6 +73,7 @@ export function ContactFormView({ onSubmit, verification }: ContactFormViewProps
     },
   });
   const acceptedPrivacy = watch("acceptedPrivacy");
+  const contactType = watch("type");
   const messageLength = watch("message").length;
   const handleVerified = useCallback((token: string) => {
     setTurnstileToken(token);
@@ -142,13 +150,25 @@ export function ContactFormView({ onSubmit, verification }: ContactFormViewProps
 
         <Field.Root invalid={!!errors.name}>
           <Field.Label>氏名</Field.Label>
-          <Input {...register("name")} bg="white" maxLength={CONTACT_NAME_MAX_LENGTH} autoComplete="name" />
+          <Input
+            {...register("name")}
+            bg="white"
+            maxLength={CONTACT_NAME_MAX_LENGTH}
+            autoComplete="name"
+            placeholder="例：山田 太郎"
+          />
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input {...register("email")} bg="white" type="email" autoComplete="email" />
+          <Input
+            {...register("email")}
+            bg="white"
+            type="email"
+            autoComplete="email"
+            placeholder="例：yamada@example.com"
+          />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
 
@@ -159,6 +179,7 @@ export function ContactFormView({ onSubmit, verification }: ContactFormViewProps
             bg="white"
             maxLength={CONTACT_ORGANIZATION_MAX_LENGTH}
             autoComplete="organization"
+            placeholder="例：シフトリ渋谷店"
           />
           {errors.organization && <Field.ErrorText>{errors.organization.message}</Field.ErrorText>}
         </Field.Root>
@@ -170,8 +191,14 @@ export function ContactFormView({ onSubmit, verification }: ContactFormViewProps
             bg="white"
             maxLength={CONTACT_MESSAGE_MAX_LENGTH}
             minH="180px"
+            placeholder={messagePlaceholders[contactType]}
             resize="vertical"
           />
+          {contactType === "trouble" ? (
+            <Text color="fg.muted" fontSize="xs" lineHeight="tall">
+              エラーメッセージや直前の操作もご記載いただくと、解決時間が早くなります。
+            </Text>
+          ) : null}
           <Text alignSelf="flex-end" color="fg.muted" fontSize="xs">
             {messageLength}/{CONTACT_MESSAGE_MAX_LENGTH}
           </Text>
