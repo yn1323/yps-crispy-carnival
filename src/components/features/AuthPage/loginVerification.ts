@@ -65,7 +65,7 @@ export function maskEmailAddress(email: string): string {
 
   const localPart = email.slice(0, atIndex);
   const domain = email.slice(atIndex + 1);
-  const visiblePrefix = localPart.slice(0, Math.min(2, localPart.length));
+  const visiblePrefix = localPart.replaceAll("*", "").slice(0, 2);
 
   return `${visiblePrefix}***@${domain}`;
 }
