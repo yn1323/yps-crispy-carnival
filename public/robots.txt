@@ -8,6 +8,7 @@ Disallow: /legal/staff/consent
 Disallow: /sso-callback
 Disallow: /welcome
 
+Allow: /howto
 Allow: /
 
 Sitemap: https://shiftori.app/sitemap.xml

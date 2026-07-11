@@ -24,6 +24,7 @@
 | [シフト対象外スタッフ](features/shift-exclusion.md) | 店舗共通アドレス等シフトを出さないスタッフを表示・シフト関連通知の対象から外す | 実装済 |
 | [シフト確定催促リマインダー](features/shift-confirmation-reminder.md) | 締切翌日17時に未確定の募集があれば店舗マネージャー全員へ確定を催促（失敗は要対応Inbox対象外） | 実装済 |
 | [公開サブページ](features/public-pages.md) | LPコンテンツを流用した、できること・FAQ・デモへの公開導線 | 実装済 |
+| [使い方・ヘルプ](features/howto.md) | 操作方法、通知の仕組み、困ったときの対処方法をMDXで管理する公開ヘルプ | 実装済 |
 | [問い合わせ](features/contact.md) | 公開フォームから問い合わせメールを送り、成功後にSlackへ社内通知 | 実装済 |
 | [要望受付](features/feature-requests.md) | ログイン後の要望DialogでDBへ保存し、分析画面で新しい順に確認 | 実装済 |
 | [分析KPI蓄積基盤](features/analytics.md) | サービス利用状況KPIを日次cronで蓄積し時系列分析できるようにするinternal専用基盤 | 実装済 |

@@ -14,6 +14,7 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 - `src/components/features/LandingPage/` — TOPのLP本体、FAQデータ、公開ページ共通フッター
 - `src/components/features/LandingPage/FeatureSection.tsx` / `BenefitsSection.tsx` / `FaqSection.tsx` — `/features`・`/faq`で流用している既存LPセクション
 - `src/components/features/ArticleSite/` — Markdown管理の記事サイトとLP記事ミニ導線のソース
+- `src/components/features/HowToSite/` — MDX管理の使い方・ヘルプとページ内検索のソース
 - `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧。記事詳細・カテゴリ詳細はMarkdownディレクトリから自動収集する
 - `scripts/generateArticleOgp.ts` / `public/ogp/articles/` — 記事別OGP画像の生成スクリプトと生成物（`pnpm ogp:articles`。記事の追加・タイトル変更時に再生成してコミットする）
 - `src/helpers/seo/index.ts` — メタタグ・JSON-LDヘルパー（`ogType` / `ogImage` で記事別OGPを上書き）
@@ -32,6 +33,7 @@ LPの既存コンテンツを流用し、検索結果に法務ページ以外の
 |---|---|
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知の紹介 |
 | `/faq` | 導入前によくある質問 |
+| `/howto` | 利用中の管理者・スタッフ向けの使い方とトラブル対応 |
 | `/articles` | シフト作成ガイド記事一覧 |
 | `/articles/:slug` | 記事詳細 |
 | `/articles/categories/:categorySlug` | 困りごとカテゴリ別の記事一覧 |

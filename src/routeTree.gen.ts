@@ -14,6 +14,7 @@ import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as HowtoRouteImport } from './routes/howto'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as FaqRouteImport } from './routes/faq'
@@ -63,6 +64,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HowtoRoute = HowtoRouteImport.update({
+  id: '/howto',
+  path: '/howto',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/features'
     | '/forgot-password'
+    | '/howto'
     | '/login'
     | '/privacy'
     | '/signup'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/features'
     | '/forgot-password'
+    | '/howto'
     | '/login'
     | '/privacy'
     | '/signup'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/features'
     | '/forgot-password'
+    | '/howto'
     | '/login'
     | '/privacy'
     | '/signup'
@@ -394,6 +406,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   FeaturesRoute: typeof FeaturesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  HowtoRoute: typeof HowtoRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
@@ -442,6 +455,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/howto': {
+      id: '/howto'
+      path: '/howto'
+      fullPath: '/howto'
+      preLoaderRoute: typeof HowtoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -682,6 +702,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   FeaturesRoute: FeaturesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  HowtoRoute: HowtoRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
