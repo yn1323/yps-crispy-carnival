@@ -1,5 +1,6 @@
-import { Badge, Box, Container, Flex, Table, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Container, Flex, Image, Text, VStack } from "@chakra-ui/react";
 import { SectionHeading } from "../SectionHeading";
+import comparisonImage from "./comparison.webp";
 
 const comparisonRows = [
   {
@@ -32,45 +33,21 @@ export const ComparisonSection = () => (
       <VStack gap={7}>
         <SectionHeading phrases={["紙・Excel・LINEグループの", "シフト管理を、ひとつに。"]} textAlign="center" />
 
-        <ComparisonTable />
+        <ComparisonImage />
         <ComparisonCards />
       </VStack>
     </Container>
   </Box>
 );
 
-const ComparisonTable = () => (
-  <Box hideBelow="md" w="full" overflowX="auto" borderWidth="1px" borderColor="gray.200" borderRadius="lg">
-    <Table.Root size="md">
-      <Table.Header>
-        <Table.Row bg="teal.500">
-          <Table.ColumnHeader color="white" fontWeight="bold" textAlign="center" w="28%">
-            シフト作成タスク
-          </Table.ColumnHeader>
-          <Table.ColumnHeader color="white" fontWeight="bold" textAlign="center">
-            紙・Excel・LINEグループ
-          </Table.ColumnHeader>
-          <Table.ColumnHeader color="white" fontWeight="bold" textAlign="center">
-            シフトリ
-          </Table.ColumnHeader>
-        </Table.Row>
-      </Table.Header>
-      <Table.Body>
-        {comparisonRows.map((row) => (
-          <Table.Row key={row.item}>
-            <Table.Cell color="gray.950" fontWeight="bold" textAlign="center" verticalAlign="middle">
-              {row.item}
-            </Table.Cell>
-            <Table.Cell color="gray.700" fontWeight="semibold" textAlign="center" verticalAlign="middle">
-              {row.old}
-            </Table.Cell>
-            <Table.Cell color={shiftoriBodyTextColor} fontWeight="black" textAlign="center" verticalAlign="middle">
-              {row.shiftori}
-            </Table.Cell>
-          </Table.Row>
-        ))}
-      </Table.Body>
-    </Table.Root>
+const ComparisonImage = () => (
+  <Box hideBelow="md" w="full">
+    <Image
+      src={comparisonImage}
+      alt="紙・口頭・LINEで行う従来のシフト管理と、シフトリによる希望回収・自動リマインド・調整・共有の比較"
+      display="block"
+      w="full"
+    />
   </Box>
 );
 
