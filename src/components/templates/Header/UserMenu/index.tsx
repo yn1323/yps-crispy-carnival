@@ -1,7 +1,7 @@
 import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/clerk-react";
 import { useAtomValue } from "jotai";
-import { LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
+import { LuBookOpen, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
 import { userAtom } from "@/src/stores/user";
 
 export type UserMenuDeleteShopAction = {
@@ -74,12 +74,12 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
               </Text>
             </Box>
             <Menu.Separator />
-            {/*<Menu.Item asChild value="howto">
+            <Menu.Item asChild value="howto" cursor="pointer">
               <a href="/howto" target="_blank" rel="noreferrer">
                 <LuBookOpen />
                 使い方・ヘルプ
               </a>
-            </Menu.Item>*/}
+            </Menu.Item>
             <Menu.Item asChild value="contact" cursor="pointer">
               <a href="/contact" target="_blank" rel="noreferrer">
                 <LuMailQuestion />
