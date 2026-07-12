@@ -172,7 +172,61 @@ const describeElement = (element: Element | null) => {
   return `${tag}${id}${classes}${attrs ? ` ${attrs}` : ""}`;
 };
 
-export const PC: Story = {};
+export const PC: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const demoLink = await canvas.findByRole("link", { name: "勤務時間の入力方法（別タブで開きます）" });
+
+    await expect(demoLink).toHaveAttribute("href", "/demo/shiftboard");
+    await expect(demoLink).toHaveAttribute("target", "_blank");
+    await expect(demoLink).toHaveAttribute("rel", "noopener noreferrer");
+  },
+};
+
+export const PCDateOnly: Story = {
+  name: "PC Date Only",
+  args: {
+    data: {
+      ...mockData,
+      submissionPattern: { kind: "dateOnly" },
+      requestedSlots: [],
+    },
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.queryByRole("link", { name: "勤務時間の入力方法（別タブで開きます）" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
+export const PCShiftType: Story = {
+  name: "PC Shift Type",
+  args: {
+    data: {
+      ...mockData,
+      submissionPattern: {
+        kind: "shiftType",
+        options: [{ id: "early", name: "早番", startTime: "09:00", endTime: "17:00", sortOrder: 0 }],
+      },
+      requestedSlots: [],
+    },
+  },
+  parameters: {
+    chromatic: { disableSnapshot: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.queryByRole("link", { name: "勤務時間の入力方法（別タブで開きます）" }),
+    ).not.toBeInTheDocument();
+  },
+};
 
 export const PCWithInitialWarnings: Story = {
   name: "PC With Initial Warnings",
@@ -213,6 +267,11 @@ export const SP: Story = {
     viewport: { value: "mobile2", isRotated: false },
   },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("link", { name: "勤務時間の入力方法（別タブで開きます）" }),
+    ).not.toBeInTheDocument();
+
     await clickButtonByText(canvasElement, "鈴木太郎");
 
     await waitForElement(() => document.querySelector('[role="dialog"]'), "スタッフのシフトDialogが開きませんでした");
