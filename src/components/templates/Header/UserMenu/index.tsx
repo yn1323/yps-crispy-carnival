@@ -80,7 +80,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
                 使い方・ヘルプ
               </a>
             </Menu.Item>*/}
-            <Menu.Item asChild value="contact">
+            <Menu.Item asChild value="contact" cursor="pointer">
               <a href="/contact" target="_blank" rel="noreferrer">
                 <LuMailQuestion />
                 お問い合わせ
