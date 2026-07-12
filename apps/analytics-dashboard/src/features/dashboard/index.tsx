@@ -749,70 +749,25 @@ function stageTrendData(snapshots: ServiceSnapshotDto[]) {
   });
 }
 
-function totalShopTrendData(snapshots: ServiceSnapshotDto[]) {
-  return snapshots.map((snapshot) => ({
-    date: formatChartDate(snapshot.date),
-    shopCount: snapshot.shopCount,
-  }));
-}
-
-function TotalShopTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
-  const data = totalShopTrendData(snapshots);
+function TrendChartPanel({
+  children,
+  data,
+  height,
+  isLoading,
+  title,
+}: {
+  children: ReactNode;
+  data: object[];
+  height: { base: string; md: string };
+  isLoading: boolean;
+  title: string;
+}) {
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" minW={0} p={{ base: 4, md: 6 }}>
       <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
-        全店舗数の推移（日次）
+        {title}
       </Text>
-      <Box h={{ base: "220px", md: "280px" }} mt={5}>
-        {isLoading ? (
-          <Skeleton h="full" w="full" />
-        ) : data.length === 0 ? (
-          <Flex align="center" bg="gray.50" borderRadius="md" h="full" justify="center">
-            <Text color="gray.500" fontSize="sm">
-              推移データがありません
-            </Text>
-          </Flex>
-        ) : (
-          <ResponsiveContainer height="100%" width="100%">
-            <LineChart data={data} margin={{ bottom: 8, left: 0, right: 12, top: 8 }}>
-              <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4" vertical={false} />
-              <XAxis axisLine={{ stroke: "#d1d5db" }} dataKey="date" tick={{ fill: "#6b7280", fontSize: 10 }} />
-              <YAxis
-                allowDecimals={false}
-                axisLine={false}
-                tick={{ fill: "#6b7280", fontSize: 10 }}
-                tickLine={false}
-                width={36}
-              />
-              <Tooltip
-                contentStyle={{ fontSize: 12 }}
-                formatter={(value) => [`${formatNumber(Number(value))}店舗`, "全店舗数"]}
-              />
-              <Line
-                activeDot={{ r: 5 }}
-                dataKey="shopCount"
-                dot={{ r: 3 }}
-                name="全店舗数"
-                stroke="#0f766e"
-                strokeWidth={3}
-                type="monotone"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </Box>
-    </Box>
-  );
-}
-
-function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
-  const data = stageTrendData(snapshots);
-  return (
-    <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="md" minW={0} p={{ base: 4, md: 6 }}>
-      <Text color="gray.950" fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
-        ステージ別店舗数の推移（日次）
-      </Text>
-      <Box h={{ base: "260px", md: "340px" }} mt={5}>
+      <Box h={height} mt={5}>
         {isLoading ? (
           <Skeleton h="full" w="full" />
         ) : data.length === 0 ? (
@@ -837,30 +792,63 @@ function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapsho
                 contentStyle={{ fontSize: 12 }}
                 formatter={(value, name) => [`${formatNumber(Number(value))}店舗`, name]}
               />
-              <Legend
-                align="center"
-                height={32}
-                iconType="circle"
-                verticalAlign="top"
-                wrapperStyle={{ fontSize: 12 }}
-              />
-              {STAGE_CHART_SERIES.map((series) => (
-                <Line
-                  key={series.key}
-                  activeDot={{ r: 5 }}
-                  dataKey={series.key}
-                  dot={{ r: 3 }}
-                  name={series.label}
-                  stroke={series.color}
-                  strokeWidth={3}
-                  type="monotone"
-                />
-              ))}
+              {children}
             </LineChart>
           </ResponsiveContainer>
         )}
       </Box>
     </Box>
+  );
+}
+
+function TotalShopTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
+  const data = snapshots.map((snapshot) => ({
+    date: formatChartDate(snapshot.date),
+    shopCount: snapshot.shopCount,
+  }));
+  return (
+    <TrendChartPanel
+      data={data}
+      height={{ base: "220px", md: "280px" }}
+      isLoading={isLoading}
+      title="全店舗数の推移（日次）"
+    >
+      <Line
+        activeDot={{ r: 5 }}
+        dataKey="shopCount"
+        dot={{ r: 3 }}
+        name="全店舗数"
+        stroke="#0f766e"
+        strokeWidth={3}
+        type="monotone"
+      />
+    </TrendChartPanel>
+  );
+}
+
+function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapshots: ServiceSnapshotDto[] }) {
+  const data = stageTrendData(snapshots);
+  return (
+    <TrendChartPanel
+      data={data}
+      height={{ base: "260px", md: "340px" }}
+      isLoading={isLoading}
+      title="ステージ別店舗数の推移（日次）"
+    >
+      <Legend align="center" height={32} iconType="circle" verticalAlign="top" wrapperStyle={{ fontSize: 12 }} />
+      {STAGE_CHART_SERIES.map((series) => (
+        <Line
+          key={series.key}
+          activeDot={{ r: 5 }}
+          dataKey={series.key}
+          dot={{ r: 3 }}
+          name={series.label}
+          stroke={series.color}
+          strokeWidth={3}
+          type="monotone"
+        />
+      ))}
+    </TrendChartPanel>
   );
 }
 
