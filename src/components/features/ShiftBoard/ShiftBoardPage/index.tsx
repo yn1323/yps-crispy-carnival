@@ -1,7 +1,7 @@
-import { Box, Flex, Icon, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, Icon, Text } from "@chakra-ui/react";
 import { Link, useBlocker } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { LuChevronLeft, LuCircleCheck } from "react-icons/lu";
+import { LuChevronLeft, LuCircleCheck, LuExternalLink } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -12,6 +12,7 @@ import {
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm/components";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { Button } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { showErrorToast, showSuccessToast, toaster } from "@/src/components/ui/toaster";
 import { toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
@@ -520,34 +521,63 @@ export const ShiftBoardPage = ({ data, recruitmentId }: Props) => {
       }}
       minH={0}
     >
-      <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
-        <Link to="/dashboard">
-          <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
-            <Icon boxSize={4}>
-              <LuChevronLeft />
-            </Icon>
-            <Text fontSize="sm">戻る</Text>
-          </Flex>
-        </Link>
-        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
+      <Grid
+        templateColumns={{ base: "40px minmax(0, 1fr) 40px", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
+        alignItems="center"
+        bg="white"
+        px={{ base: 4, lg: 6 }}
+        py={2}
+        flexShrink={0}
+      >
+        <Box justifySelf="start">
+          <Link to="/dashboard">
+            <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
+              <Icon boxSize={4}>
+                <LuChevronLeft />
+              </Icon>
+              <Text fontSize="sm">戻る</Text>
+            </Flex>
+          </Link>
+        </Box>
+        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900" textAlign="center">
           {periodLabel}
         </Text>
-        {isConfirmed && confirmedAt ? (
-          <Flex align="center" gap={1}>
-            <Icon color="green.600" boxSize={3.5}>
-              <LuCircleCheck />
-            </Icon>
-            <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
-              確定済み（{formatDateTime(confirmedAt)}）
-            </Text>
-            <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
-              確定済み
-            </Text>
-          </Flex>
-        ) : (
-          <Box w={{ base: "40px", lg: "80px" }} />
-        )}
-      </Flex>
+        <Flex justifySelf="end" align="center" gap={3} minW={0}>
+          {isConfirmed && confirmedAt && (
+            <Flex align="center" gap={1} flexShrink={0}>
+              <Icon color="green.600" boxSize={3.5}>
+                <LuCircleCheck />
+              </Icon>
+              <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
+                確定済み（{formatDateTime(confirmedAt)}）
+              </Text>
+              <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
+                確定済み
+              </Text>
+            </Flex>
+          )}
+          {data.submissionPattern.kind === "time" && (
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              colorPalette="teal"
+              display={{ base: "none", lg: "inline-flex" }}
+              flexShrink={0}
+            >
+              <a
+                href="/demo/shiftboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="勤務時間の入力方法（別タブで開きます）"
+              >
+                勤務時間の入力方法
+                <LuExternalLink aria-hidden="true" focusable="false" />
+              </a>
+            </Button>
+          )}
+        </Flex>
+      </Grid>
 
       <Box flex={1} minH={0}>
         <ShiftForm

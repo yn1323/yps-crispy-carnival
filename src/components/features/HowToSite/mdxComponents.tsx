@@ -1,6 +1,7 @@
 import { Badge, Box, Flex, Image, Link, List, Stack, Text } from "@chakra-ui/react";
 import type { ComponentProps, PropsWithChildren } from "react";
-import { LuArrowRight, LuMail, LuMessageCircle } from "react-icons/lu";
+import { LuArrowRight, LuExternalLink, LuMail, LuMessageCircle } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 import type { HelpMdxComponents } from "./helpContent";
 
 function HelpNote({ children }: PropsWithChildren) {
@@ -61,6 +62,22 @@ function NotificationChannelExample() {
   );
 }
 
+function ShiftBoardDemoLink() {
+  return (
+    <Button asChild size="sm" variant="outline" colorPalette="teal">
+      <a
+        href="/demo/shiftboard"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="デモで操作を確認する（別タブで開きます）"
+      >
+        デモで操作を確認する
+        <LuExternalLink aria-hidden="true" focusable="false" />
+      </a>
+    </Button>
+  );
+}
+
 export const helpMdxComponents = {
   p: (props: ComponentProps<"p">) => <Text as="p" color="gray.800" lineHeight="1.9" {...props} />,
   ul: (props: ComponentProps<"ul">) => <List.Root as="ul" gap={2} ps={5} color="gray.800" {...props} />,
@@ -73,4 +90,5 @@ export const helpMdxComponents = {
   strong: (props: ComponentProps<"strong">) => <Box as="strong" fontWeight="bold" color="gray.900" {...props} />,
   HelpNote,
   NotificationChannelExample,
+  ShiftBoardDemoLink,
 } satisfies HelpMdxComponents;

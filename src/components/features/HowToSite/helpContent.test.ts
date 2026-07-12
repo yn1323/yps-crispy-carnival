@@ -23,6 +23,7 @@ describe("HowToヘルプ記事", () => {
       "confirm-shift-effects",
       "edit-confirmed-shift",
       "notify-confirmed-shift-changes",
+      "input-work-time",
       "fix-recruitment-mistake",
       "delete-recruitment",
       "edit-past-shift",
@@ -43,6 +44,9 @@ describe("HowToヘルプ記事", () => {
     ]);
     expect(searchHelpArticles(helpArticles, "メッセージ 来ない").map((article) => article.slug)).toEqual([
       "line-notification-not-delivered",
+    ]);
+    expect(searchHelpArticles(helpArticles, "未提出 ドラッグ").map((article) => article.slug)).toEqual([
+      "input-work-time",
     ]);
   });
 

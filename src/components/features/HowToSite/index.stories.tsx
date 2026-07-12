@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { HowToSite } from ".";
 import { helpArticles } from "./helpContent";
 
@@ -8,6 +9,7 @@ const layoutArticleSlugs = new Set([
   "add-staff",
   "automatic-reminder",
   "assignment-warnings-and-errors",
+  "input-work-time",
   "delete-recruitment",
   "submission-link-unavailable",
   "resend-failed-notifications",
@@ -56,7 +58,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Desktop: Story = {};
+export const Desktop: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const demoLink = await canvas.findByRole("link", { name: "デモで操作を確認する（別タブで開きます）" });
+
+    await expect(demoLink).toHaveAttribute("href", "/demo/shiftboard");
+    await expect(demoLink).toHaveAttribute("target", "_blank");
+    await expect(demoLink).toHaveAttribute("rel", "noopener noreferrer");
+  },
+};
 
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],
