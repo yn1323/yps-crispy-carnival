@@ -1,5 +1,6 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { DemoLauncherFab } from "./DemoLauncherFab";
 
 const meta = {
@@ -22,4 +23,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Default: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByRole("button", { name: "操作デモを開始" })).toBeInTheDocument();
+    await expect(canvas.queryByText("はじめての方はこちら")).not.toBeInTheDocument();
+  },
+};

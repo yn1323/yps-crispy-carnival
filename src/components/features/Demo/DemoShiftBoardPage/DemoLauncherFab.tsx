@@ -46,7 +46,7 @@ export const DemoLauncherFab = ({ onStart, onDismiss }: Props) => {
         <Icon boxSize={4}>
           <LuPlay />
         </Icon>
-        <Text>はじめての方はこちら</Text>
+        <Text>操作デモを開始</Text>
       </Flex>
       <Box w="1px" bg="teal.400" opacity={0.6} />
       <Flex
