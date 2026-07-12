@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, Icon, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, Heading, Icon, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
@@ -110,31 +110,57 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
 
   return (
     <Flex direction="column" h={height} minH={0}>
-      <Flex align="center" justify="space-between" bg="white" px={{ base: 4, lg: 6 }} py={2} flexShrink={0}>
-        {headerStart ?? (
-          <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={600} color="gray.700" whiteSpace="nowrap">
-            シフトリ デモ
+      <Grid
+        templateColumns="minmax(0, 1fr) auto minmax(0, 1fr)"
+        alignItems="center"
+        bg="white"
+        px={{ base: 4, lg: 6 }}
+        py={2}
+        gap={4}
+        flexShrink={0}
+      >
+        <Flex align="center" gap={4} minW={0}>
+          {headerStart}
+          <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={700} color="gray.800" whiteSpace="nowrap">
+            勤務時間入力デモ
           </Heading>
-        )}
-        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900">
+        </Flex>
+        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900" textAlign="center">
           {periodLabel}
         </Text>
-        {isConfirmed ? (
-          <Flex align="center" gap={1}>
-            <Icon color="green.600" boxSize={3.5}>
-              <LuCircleCheck />
-            </Icon>
-            <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
-              確定済み（{formatDateTime(new Date(confirmedAt))}）
+        <Flex align="center" justify="flex-end" gap={3} minW={0}>
+          {isConfirmed && (
+            <Flex align="center" gap={1} flexShrink={0}>
+              <Icon color="green.600" boxSize={3.5}>
+                <LuCircleCheck />
+              </Icon>
+              <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
+                確定済み（{formatDateTime(new Date(confirmedAt))}）
+              </Text>
+              <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
+                確定済み
+              </Text>
+            </Flex>
+          )}
+          <Box
+            role="note"
+            w="420px"
+            maxW="100%"
+            px={3}
+            py={1.5}
+            bg="orange.50"
+            borderWidth="1px"
+            borderColor="orange.300"
+            borderRadius="md"
+          >
+            <Text color="orange.900" fontSize="xs" fontWeight={700} lineHeight="1.5">
+              このページはデモ画面です。
+              <br />
+              変更が反映されたり、シフトが送信されることはありません。
             </Text>
-            <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
-              確定済み
-            </Text>
-          </Flex>
-        ) : (
-          <Box w={{ base: "40px", lg: "80px" }} />
-        )}
-      </Flex>
+          </Box>
+        </Flex>
+      </Grid>
 
       <Box flex={1} minH={0}>
         <ShiftForm

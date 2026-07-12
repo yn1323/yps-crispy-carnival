@@ -2,6 +2,11 @@
 
 This file provides guidance to Codex and other coding agents when working with code in this repository.
 
+# Review language
+
+All pull request review comments must be written in Japanese.
+Keep explanations concise.
+
 ## プロジェクト概要
 
 店舗スタッフのシフト管理SaaSアプリケーション。

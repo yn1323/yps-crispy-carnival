@@ -777,7 +777,10 @@ function StageTrendPanel({ isLoading, snapshots }: { isLoading: boolean; snapsho
                 tickLine={false}
                 width={36}
               />
-              <Tooltip formatter={(value, name) => [`${formatNumber(Number(value))}店舗`, name]} />
+              <Tooltip
+                contentStyle={{ fontSize: 12 }}
+                formatter={(value, name) => [`${formatNumber(Number(value))}店舗`, name]}
+              />
               <Legend
                 align="center"
                 height={32}

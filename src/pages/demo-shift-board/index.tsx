@@ -20,7 +20,7 @@ export function DemoShiftBoardRoutePage() {
         <Box display={{ base: "block", lg: "none" }} px={6} pb={10} maxW="640px" mx="auto">
           <VStack align="stretch" gap={6}>
             <Heading as="h1" size="xl">
-              シフトリの無料デモ
+              勤務時間入力デモ
             </Heading>
 
             <Alert.Root status="warning" borderRadius="md">
