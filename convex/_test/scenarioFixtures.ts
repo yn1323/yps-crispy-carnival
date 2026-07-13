@@ -112,6 +112,9 @@ export function createScenario(t: ScenarioTest) {
         deleteStaff(staffId: Id<"staffs">) {
           return asManager.mutation(api.staff.mutations.deleteStaff, { staffId });
         },
+        setShiftExclusion(staffId: Id<"staffs">, excluded: boolean) {
+          return asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded });
+        },
         saveShiftAssignments(args: { recruitmentId: Id<"recruitments">; assignments: ShiftAssignment[] }) {
           return asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, args);
         },
@@ -148,16 +151,6 @@ export function createScenario(t: ScenarioTest) {
         },
         getSubmissionPageData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
           return t.query(api.shiftSubmission.queries.getSubmissionPageData, { ...args, accessKind: "submit" });
-        },
-        async getOkSubmissionPageData(args: { sessionToken: string; recruitmentId: Id<"recruitments"> }) {
-          const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
-            ...args,
-            accessKind: "submit",
-          });
-          if (result.status !== "ok") {
-            throw new Error(`expected submission page data, got ${result.status}`);
-          }
-          return result.data;
         },
         getRecruitmentInfo(recruitmentId: Id<"recruitments">) {
           return t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId });

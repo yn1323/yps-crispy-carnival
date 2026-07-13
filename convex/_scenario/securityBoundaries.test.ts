@@ -60,6 +60,12 @@ describe("セキュリティ境界シナリオ", () => {
         email: "deleted-staff@example.com",
         isDeleted: true,
       });
+      const excludedStaffId = await seedStaff(ctx, {
+        shopId,
+        name: "シフト対象外スタッフ",
+        email: "excluded-staff@example.com",
+        excludedFromShift: true,
+      });
       const otherShopStaffId = await seedStaff(ctx, {
         shopId: otherShopId,
         name: "別店舗スタッフ",
@@ -123,7 +129,16 @@ describe("セキュリティ境界シナリオ", () => {
         positionId,
       });
 
-      return { shopId, recruitmentId, emailStaffId, lineStaffId, unfollowStaffId, deletedStaffId, otherShopStaffId };
+      return {
+        shopId,
+        recruitmentId,
+        emailStaffId,
+        lineStaffId,
+        unfollowStaffId,
+        deletedStaffId,
+        excludedStaffId,
+        otherShopStaffId,
+      };
     });
 
     await asManager.confirmRecruitment(ids.recruitmentId);
@@ -138,11 +153,8 @@ describe("セキュリティ境界シナリオ", () => {
       recruitmentId: ids.recruitmentId,
     });
     expect(confirmationData?.shopId).toBe(ids.shopId);
-    expect(confirmationData?.staffEntries.map((staff) => staff.staffId)).toEqual(
-      expect.arrayContaining([ids.emailStaffId, ids.lineStaffId, ids.unfollowStaffId]),
-    );
-    expect(confirmationData?.staffEntries.map((staff) => staff.staffId)).not.toEqual(
-      expect.arrayContaining([ids.deletedStaffId, ids.otherShopStaffId]),
+    expect(confirmationData?.staffEntries.map((staff) => staff.staffId).sort()).toEqual(
+      [ids.emailStaffId, ids.lineStaffId, ids.unfollowStaffId].sort(),
     );
 
     const lineEntry = confirmationData?.staffEntries.find((staff) => staff.staffId === ids.lineStaffId);
@@ -169,12 +181,12 @@ describe("セキュリティ境界シナリオ", () => {
     }
 
     const magicLinks = await t.run(async (ctx) => ctx.db.query("magicLinks").collect());
-    expect(magicLinks.map((link) => link.staffId)).toEqual(
-      expect.arrayContaining([ids.emailStaffId, ids.lineStaffId, ids.unfollowStaffId]),
+    expect(magicLinks.map((link) => link.staffId).sort()).toEqual(
+      [ids.emailStaffId, ids.lineStaffId, ids.unfollowStaffId].sort(),
     );
-    expect(magicLinks.map((link) => link.staffId)).not.toEqual(
-      expect.arrayContaining([ids.deletedStaffId, ids.otherShopStaffId]),
-    );
+    expect(magicLinks.map((link) => link.staffId)).not.toContain(ids.deletedStaffId);
+    expect(magicLinks.map((link) => link.staffId)).not.toContain(ids.excludedStaffId);
+    expect(magicLinks.map((link) => link.staffId)).not.toContain(ids.otherShopStaffId);
     expect(magicLinks.every((link) => link.shopId === ids.shopId && link.recruitmentId === ids.recruitmentId)).toBe(
       true,
     );
@@ -207,6 +219,12 @@ describe("セキュリティ境界シナリオ", () => {
         email: "deleted@example.com",
         isDeleted: true,
       });
+      const excludedStaffId = await seedStaff(ctx, {
+        shopId,
+        name: "シフト対象外スタッフ",
+        email: "excluded@example.com",
+        excludedFromShift: true,
+      });
       const otherShopStaffId = await seedStaff(ctx, {
         shopId: otherShopId,
         name: "別店舗スタッフ",
@@ -231,27 +249,29 @@ describe("セキュリティ境界シナリオ", () => {
         firstSubmittedAt: Date.now(),
         submittedAt: Date.now(),
       });
-      return { recruitmentId, unsubmittedStaffId, submittedStaffId, lineStaffId, deletedStaffId, otherShopStaffId };
+      return {
+        recruitmentId,
+        unsubmittedStaffId,
+        submittedStaffId,
+        lineStaffId,
+        deletedStaffId,
+        excludedStaffId,
+        otherShopStaffId,
+      };
     });
 
     const recruitmentData = await t.query(internal.notification.queries.getRecruitmentEmailData, {
       recruitmentId: ids.recruitmentId,
     });
-    expect(recruitmentData?.staffEntries.map((staff) => staff.staffId)).toEqual(
-      expect.arrayContaining([ids.unsubmittedStaffId, ids.submittedStaffId, ids.lineStaffId]),
-    );
-    expect(recruitmentData?.staffEntries.map((staff) => staff.staffId)).not.toEqual(
-      expect.arrayContaining([ids.deletedStaffId, ids.otherShopStaffId]),
+    expect(recruitmentData?.staffEntries.map((staff) => staff.staffId).sort()).toEqual(
+      [ids.unsubmittedStaffId, ids.submittedStaffId, ids.lineStaffId].sort(),
     );
 
     const reminderData = await t.query(internal.notification.reminderQueries.getReminderEmailData, {
       recruitmentId: ids.recruitmentId,
     });
-    expect(reminderData?.staffEntries.map((staff) => staff.staffId)).toEqual(
-      expect.arrayContaining([ids.unsubmittedStaffId, ids.lineStaffId]),
-    );
-    expect(reminderData?.staffEntries.map((staff) => staff.staffId)).not.toEqual(
-      expect.arrayContaining([ids.submittedStaffId, ids.deletedStaffId, ids.otherShopStaffId]),
+    expect(reminderData?.staffEntries.map((staff) => staff.staffId).sort()).toEqual(
+      [ids.unsubmittedStaffId, ids.lineStaffId].sort(),
     );
   });
 
