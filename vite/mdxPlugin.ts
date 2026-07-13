@@ -5,7 +5,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import type { Plugin } from "vite";
 import { parse } from "yaml";
-import { extractFrontmatterSource, extractMdxToc } from "../src/helpers/mdx/index.ts";
+import { extractFrontmatterSource, extractMdxToc } from "../src/lib/mdx/index.ts";
 
 /**
  * `*.mdx` をクエリ付きインポートで変換する共有 Vite プラグイン。

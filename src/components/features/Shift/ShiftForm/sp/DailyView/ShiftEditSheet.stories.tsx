@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockPositions, mockShifts, mockShiftsAllPatterns, mockStaffs, mockTimeRange } from "../../__mocks__/storyData";
+import { mockPositions, mockShifts, mockShiftsAllPatterns, mockStaffs, mockTimeRange } from "../../stories/fixtures";
 import { ShiftEditSheet } from "./ShiftEditSheet";
 
 const meta = {

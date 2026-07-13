@@ -63,16 +63,8 @@ export type TimeRange = {
 // ビューモード
 export type ViewMode = "daily" | "overview";
 
-export const VIEW_OPTIONS = [
-  { value: "daily", label: "日別" },
-  { value: "overview", label: "一覧" },
-];
-
 // ドラッグモード（希望シフトバーは編集不可のため、ポジション関連のみ）
 export type DragMode = "position-resize-start" | "position-resize-end" | "paint" | null;
-
-// サマリー行の表示モード
-export type SummaryDisplayMode = "color" | "number";
 
 // スタッフソートモード
 export type SortMode = "default" | "request" | "startTime";
@@ -112,72 +104,4 @@ export type RequiredStaffingData = {
   }[];
   peakBands?: PeakBand[];
   minimumStaff?: number;
-};
-
-// スタッフ行表示用データ
-export type StaffRowData = {
-  staffId: string;
-  staffName: string;
-  isSubmitted: boolean;
-  dailyShifts: Map<string, DailyShift | null>; // key: "2026-01-27"
-  monthlyTotals: Map<string, number>; // key: "2026-01"
-  totalMinutes: number;
-  alerts: StaffAlert[];
-};
-
-// 1日のシフト情報
-export type DailyShift = {
-  start: string; // "09:00"
-  end: string; // "17:00"
-};
-
-// アラート情報
-export type StaffAlert = {
-  type: "week40h" | "consecutive" | "monthLimit";
-  targetDate?: string;
-  message: string;
-  actualValue: number;
-  threshold: number;
-};
-
-// ==========================================
-// 一覧ビュー コンポーネントProps
-// ==========================================
-
-// 日付ヘッダー Props
-export type DayStatus = "none" | "warning" | "ok";
-
-export type OverviewHeaderProps = {
-  dates: string[];
-  months: string[]; // ["2026-01", "2026-02"]
-  holidays: string[];
-  sortMode: SortMode | null;
-  onSortModeChange: (mode: SortMode) => void;
-  dateStatuses?: Map<string, DayStatus>;
-};
-
-// スタッフ行 Props
-export type StaffRowProps = {
-  data: StaffRowData;
-  dates: string[];
-  months: string[];
-  holidays: string[];
-  onStaffClick?: () => void;
-  onDateClick?: (date: string) => void;
-  isHighlighted?: boolean;
-};
-
-// 月別合計セル Props
-export type MonthSummaryCellProps = {
-  totalMinutes: number;
-  alerts: StaffAlert[];
-  month: string;
-};
-
-// 充足度サマリー行 Props
-export type SummaryFooterRowProps = {
-  shifts: ShiftData[];
-  dates: string[];
-  months: string[];
-  requiredStaffing?: RequiredStaffingData[];
 };

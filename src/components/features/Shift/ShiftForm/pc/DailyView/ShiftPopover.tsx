@@ -2,9 +2,8 @@ import { Badge, Box, Flex, Portal, Text } from "@chakra-ui/react";
 import { useEffect } from "react";
 import { LuTrash2, LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
-import { formatShiftClockTimeRange, timeToMinutes } from "@/src/domains/shift/time";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { BREAK_POSITION } from "../../constants";
+import { buildShiftPopoverViewModel } from "./script";
 
 type ShiftPopoverProps = {
   shift: ShiftData | null;
@@ -65,10 +64,7 @@ export const ShiftPopover = ({
 
   const top = showBelow ? anchorRect.bottom + 8 : anchorRect.top - 8;
   const transform = showBelow ? adjustedTransform : `${adjustedTransform} translateY(-100%)`;
-
-  const visibleSegments = [...shift.positions]
-    .filter((p) => p.positionName !== BREAK_POSITION.name && p.positionId !== BREAK_POSITION.id)
-    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+  const viewModel = buildShiftPopoverViewModel({ shift, isStaffSubmitted, isReadOnly });
 
   return (
     <Portal>
@@ -89,17 +85,13 @@ export const ShiftPopover = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* 希望時間（readonly時は非表示） */}
-        {!isReadOnly && (
+        {viewModel.requestLabel && (
           <Box p={3} borderBottom="1px solid" borderColor="gray.100">
             <Flex align="center" gap={2} pr={8}>
               <Text fontWeight="bold" fontSize="sm" color="gray.700">
-                {(shift.requestedTimes?.length ?? 0) > 0
-                  ? `希望：${shift.requestedTimes?.map((request) => formatShiftClockTimeRange(request.start, request.end)).join(" / ")}`
-                  : shift.requestedTime
-                    ? `希望：${formatShiftClockTimeRange(shift.requestedTime.start, shift.requestedTime.end)}`
-                    : "希望：なし"}
+                {viewModel.requestLabel}
               </Text>
-              {!isStaffSubmitted && (
+              {viewModel.showUnsubmittedBadge && (
                 <Badge colorPalette="orange" size="sm">
                   未提出
                 </Badge>
@@ -109,20 +101,20 @@ export const ShiftPopover = ({
         )}
 
         {/* ポジション一覧 */}
-        {visibleSegments.length > 0 && (
+        {viewModel.segments.length > 0 && (
           <Box p={3} maxH="200px" overflowY="auto">
-            {visibleSegments.map((pos) => (
-              <Flex key={pos.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
+            {viewModel.segments.map((segment) => (
+              <Flex key={segment.id} align="center" justify="space-between" mb={2} _last={{ mb: 0 }}>
                 <Text fontSize="sm" color="gray.700">
-                  {formatShiftClockTimeRange(pos.start, pos.end)}
+                  {segment.timeLabel}
                 </Text>
-                {!isReadOnly && (
+                {viewModel.showDeleteActions && (
                   <IconButton
                     size="xs"
                     variant="ghost"
                     colorPalette="gray"
                     aria-label="時間帯を削除"
-                    onClick={() => onDeletePosition(pos.id)}
+                    onClick={() => onDeletePosition(segment.id)}
                     _hover={{ color: "red.500" }}
                   >
                     <LuTrash2 />

@@ -1,7 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster } from "@/src/components/ui/toaster";
-import { sendPageView } from "@/src/helpers/gtm";
+import { sendPageView } from "@/src/lib/gtm";
 
 const PageViewTracker = () => {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

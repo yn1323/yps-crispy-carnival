@@ -1,39 +1,6 @@
 import { Toaster as ChakraToaster, createToaster, Portal, Spinner, Stack, Toast } from "@chakra-ui/react";
-import { ConvexError } from "convex/values";
-import { getUserFacingErrorMessage } from "@/src/domains/errors";
 
 export const TOASTER_LAYER_SELECTOR = "[data-shiftori-toaster-layer]";
-
-function hasStringData(error: unknown): error is { data: string } {
-  return typeof error === "object" && error !== null && "data" in error && typeof error.data === "string";
-}
-
-export function showErrorToast(error: unknown): void {
-  let message: string | undefined;
-  if (hasStringData(error)) {
-    message = error.data;
-  } else if (error instanceof ConvexError && typeof error.data === "string") {
-    message = error.data;
-  } else if (error instanceof Error) {
-    message = error.message;
-  }
-  const title = getUserFacingErrorMessage(message);
-  toaster.create({ title, type: "error", duration: Number.POSITIVE_INFINITY });
-}
-
-// 読了に必要な時間を文字数から概算する。短文は2秒、長文は最大8秒でクランプする
-function calcReadingDuration(title: string, description?: string): number {
-  const charCount = title.length + (description?.length ?? 0);
-  return Math.min(8000, Math.max(2000, charCount * 120));
-}
-
-export function showSuccessToast(args: { title: string; description?: string }): void {
-  toaster.create({
-    ...args,
-    type: "success",
-    duration: calcReadingDuration(args.title, args.description),
-  });
-}
 
 export const toaster = createToaster({
   placement: "top",

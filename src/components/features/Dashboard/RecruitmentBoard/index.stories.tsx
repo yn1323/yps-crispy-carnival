@@ -1,7 +1,8 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { buildDashboardRecruitmentGroups, type Recruitment } from "@/src/components/features/Dashboard/types";
+import { buildDashboardRecruitmentGroups } from "@/src/components/features/Dashboard/script";
+import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { RecruitmentBoard, RecruitmentBoardSkeleton } from ".";
 
 const noop = () => {};

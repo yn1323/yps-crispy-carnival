@@ -2,8 +2,10 @@ import { Checkbox, Field, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
-import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
-import { type Step2Data, step2Schema } from "./index";
+import { type ManagerProfileInput, managerProfileSchema } from "@/convex/setup/schemas";
+import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
+
+export type Step2Data = ManagerProfileInput;
 
 type Props = {
   onSubmit: (data: Step2Data) => void | Promise<void>;
@@ -19,7 +21,7 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
     handleSubmit,
     formState: { errors },
   } = useForm<Step2Data>({
-    resolver: zodResolver(step2Schema),
+    resolver: zodResolver(managerProfileSchema),
     defaultValues: {
       name: defaultValues?.name ?? "",
       email: defaultValues?.email ?? "",

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ReadOnlySubmitView } from "../ReadOnlySubmitView";
-import { type SubmissionData, SubmitFormView, type SubmitShiftSelectionInput } from "../SubmitFormView";
+import { SubmitForm, type SubmitShiftSelectionInput } from "../SubmitForm";
+import type { SubmissionData } from "../types";
 
 type Props = {
   data: SubmissionData;
@@ -15,5 +16,5 @@ export const ShiftSubmitPage = ({ data, onSubmit, headerAction }: Props) => {
   }
 
   // 状態A/B: 締切前（編集可能） / 状態D: 締切後未提出（初回提出のみ可能）
-  return <SubmitFormView data={data} onSubmit={onSubmit} headerAction={headerAction} />;
+  return <SubmitForm data={data} onSubmit={onSubmit} headerAction={headerAction} />;
 };

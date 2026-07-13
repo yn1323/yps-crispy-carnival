@@ -3,12 +3,12 @@ import { type ReactNode, StrictMode } from "react";
 import { flushSync } from "react-dom";
 import ReactDOM from "react-dom/client";
 import z from "zod";
-import { ChakraProvider } from "@/src/components/config/ChakraProvider.tsx";
 import { RouteErrorFallback } from "@/src/components/ui/ErrorBoundary";
+import { GTM_ID } from "@/src/configs/env";
 import { customErrorMap } from "@/src/configs/zod/zop-setup.ts";
-import { GTM_ID } from "@/src/constants/env";
-import { initGTM } from "@/src/helpers/gtm";
-import { isPrerendering } from "@/src/helpers/seo";
+import { initGTM } from "@/src/lib/gtm";
+import { isPrerendering } from "@/src/lib/seo";
+import { ChakraProvider } from "@/src/providers/ChakraProvider";
 import reportWebVitals from "./reportWebVitals.ts";
 import { routeTree } from "./routeTree.gen.ts";
 

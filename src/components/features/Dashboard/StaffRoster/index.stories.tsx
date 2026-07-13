@@ -1,6 +1,10 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { mockStaffs, mockStaffsMany, mockStaffsWithExcluded } from "@/src/components/features/Dashboard/storyMocks";
+import {
+  mockStaffs,
+  mockStaffsMany,
+  mockStaffsWithExcluded,
+} from "@/src/components/features/Dashboard/stories/fixtures";
 import { StaffRoster, StaffRosterSkeleton } from ".";
 
 const noop = () => {};

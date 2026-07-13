@@ -1,15 +1,14 @@
 import { Box, Flex, Grid, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useState } from "react";
-import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
 import type { ShiftData } from "@/src/domains/shift/types";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import {
+  deleteShiftPositionAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
   shiftConfigAtom,
-  shiftsAtom,
   shiftsForSelectedDateAtom,
   warningCountByDateAtom,
 } from "../../stores";
@@ -21,7 +20,7 @@ import { ShiftPopover } from "./ShiftPopover";
 export const DailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shiftsForSelectedDate = useAtomValue(shiftsForSelectedDateAtom);
-  const setShifts = useSetAtom(shiftsAtom);
+  const deleteShiftPosition = useSetAtom(deleteShiftPositionAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const issueCounts = useAtomValue(issueCountByDateAtom);
@@ -53,16 +52,15 @@ export const DailyView = () => {
   const handleDeletePosition = useCallback(
     (positionId: string) => {
       if (!popoverShift) return;
-      const filteredPositions = popoverShift.positions.filter((p) => p.id !== positionId);
-      const updatedShift = { ...popoverShift, positions: mergeAdjacentPositions(filteredPositions) };
-      setShifts((current) => current.map((s) => (s.id === popoverShift.id ? updatedShift : s)));
+      const updatedShift = deleteShiftPosition({ shiftId: popoverShift.id, positionId });
+      if (!updatedShift) return;
       if (updatedShift.positions.length === 0) {
         handlePopoverClose();
         return;
       }
       setPopoverShift(updatedShift);
     },
-    [popoverShift, setShifts, handlePopoverClose],
+    [deleteShiftPosition, popoverShift, handlePopoverClose],
   );
 
   const handlePaintClickPopover = useCallback((shift: ShiftData, anchorRect: DOMRect) => {

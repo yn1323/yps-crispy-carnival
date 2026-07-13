@@ -2,11 +2,8 @@ import { Badge, Box, Flex, HStack, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import type { ReactNode } from "react";
 import { LuCalendarClock } from "react-icons/lu";
-import {
-  getDisplayStatus,
-  type Recruitment,
-  type RecruitmentDisplayStatus,
-} from "@/src/components/features/Dashboard/types";
+import { getDisplayStatus } from "@/src/components/features/Dashboard/script";
+import type { Recruitment, RecruitmentDisplayStatus } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/domains/shift/date";
 
 type Props = {

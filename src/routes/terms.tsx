@@ -1,16 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Terms } from "@/src/components/features/Terms";
-import { buildLinks, buildMeta } from "@/src/helpers/seo";
+import { TermsPage } from "@/src/pages/terms";
+import { buildGeneralTermsPageHead } from "@/src/pages/terms/meta";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({
-    links: buildLinks({ canonical: "/terms" }),
-    meta: buildMeta({
-      title: "利用規約",
-      description: "シフトリの利用規約",
-      canonical: "/terms",
-      noindex: true,
-    }),
-  }),
-  component: Terms,
+  head: buildGeneralTermsPageHead,
+  component: TermsPage,
 });

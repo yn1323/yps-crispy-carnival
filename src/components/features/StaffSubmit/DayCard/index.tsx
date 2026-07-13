@@ -4,16 +4,8 @@ import { IconButton } from "@/src/components/ui/Button";
 import { Select, type SelectItemType } from "@/src/components/ui/Select";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
 import { formatShiftClockTime } from "@/src/domains/shift/time";
-import { getDateColor } from "../utils/timeOptions";
-
-export type DayEntry = {
-  date: string;
-  isWorking: boolean;
-  startTime: string;
-  endTime: string;
-  optionId?: string;
-  optionIds?: string[];
-};
+import { getDateColor } from "../timeOptions";
+import type { DayEntry } from "../types";
 
 type Props = {
   entry: DayEntry;
@@ -25,6 +17,8 @@ type Props = {
   isShopClosed?: boolean;
   error?: string;
 };
+
+export type { DayEntry } from "../types";
 
 export const DayCard = ({
   entry,

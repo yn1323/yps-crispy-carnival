@@ -3,14 +3,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
-import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../storyMocks";
-import {
-  buildDashboardRecruitmentGroups,
-  type DashboardAnnouncement,
-  type Recruitment,
-  type Staff,
-  type StaffRegistrationRequest,
-} from "../types";
+import { buildDashboardRecruitmentGroups } from "../script";
+import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
+import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { DashboardContent, DashboardContentSkeleton } from "./index";
 
 const noop = () => {};
@@ -170,6 +165,27 @@ export const Normal: Story = {
     staffStatus: "CanLoadMore",
     canLoadMoreStaffs: true,
     loadMoreStaffs: noop,
+  },
+};
+
+export const ManagementDialogsBehavior: Story = {
+  args: Normal.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "店舗設定を編集" }));
+    const shopSettingsDialog = await body.findByRole("dialog", { name: "店舗設定" });
+    await userEvent.click(within(shopSettingsDialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
+
+    await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
+    const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(staffDetailDialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ詳細" })).not.toBeInTheDocument());
   },
 };
 
@@ -428,5 +444,21 @@ export const SetupWithAnnouncement: Story = {
   args: {
     ...Setup.args,
     announcement: dashboardAnnouncement,
+  },
+};
+
+export const SetupDialogBehavior: Story = {
+  args: Setup.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "お店を登録する" }));
+    const setupDialog = await body.findByRole("dialog", { name: "初回登録" });
+    await userEvent.click(within(setupDialog).getAllByRole("button", { name: "閉じる" })[0]);
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "初回登録" })).not.toBeInTheDocument());
   },
 };

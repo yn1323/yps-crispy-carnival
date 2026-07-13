@@ -3,16 +3,16 @@ import dayjs from "dayjs";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
+import { showSuccessToast } from "@/src/components/shared/feedback";
+import { ConfirmShiftContent } from "@/src/components/shared/ShiftConfirmationContent";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import type { TourHandle } from "@/src/components/ui/Tour";
-import { showSuccessToast } from "@/src/components/ui/toaster";
 import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateShort, formatDateTime, getWeekdayLabel } from "@/src/domains/shift/date";
 import type { ShiftData, ViewMode } from "@/src/domains/shift/types";
-import { ConfirmShiftContent } from "../../ShiftBoard/ConfirmShiftContent";
-import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "../../ShiftBoard/mocks";
 import { DemoIntroTour } from "./DemoIntroTour";
 import { DemoLauncherFab } from "./DemoLauncherFab";
+import { mockDates, mockShifts, mockStaffs, mockTimeRange } from "./demoData";
 
 type TourPhase = "idle" | "running" | "done";
 

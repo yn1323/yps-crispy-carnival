@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildMeta } from "@/src/helpers/seo";
 import { SignupPage } from "@/src/pages/auth";
+import { buildSignupPageHead } from "@/src/pages/auth/meta";
 
 export const Route = createFileRoute("/signup")({
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: (search.redirect as string) || undefined,
   }),
-  head: () => ({
-    meta: buildMeta({ title: "新規登録", noindex: true }),
-  }),
+  head: buildSignupPageHead,
   component: SignupRoute,
 });
 

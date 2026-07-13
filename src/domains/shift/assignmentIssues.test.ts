@@ -1,20 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { buildAssignmentIssue } from "@/convex/shiftBoard/validation";
-import { issueCountByDate, toDisplayIssues } from "./assignmentIssues";
+import { type IssueLike, issueCountByDate, toDisplayIssues } from "./assignmentIssues";
 
 const staffs = [
   { id: "staff1", name: "鈴木太郎" },
   { id: "staff2", name: "佐藤花子" },
 ];
 
+const issue = (code: string, date: string, staffId: string, message = code): IssueLike => ({
+  code,
+  date,
+  staffId,
+  message,
+});
+
 describe("toDisplayIssues", () => {
   it("日付＋曜日とスタッフ名つきのラベルに整形する", () => {
-    const issues = [
-      {
-        ...buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1"),
-        message: "validation-message",
-      },
-    ];
+    const issues = [issue("CLOSED_DAY", "2026-01-21", "staff1", "validation-message")];
     expect(toDisplayIssues(issues, staffs)).toEqual([
       {
         key: "staff1-2026-01-21-CLOSED_DAY",
@@ -28,9 +29,9 @@ describe("toDisplayIssues", () => {
 
   it("日付昇順 → スタッフ名順にソートする", () => {
     const issues = [
-      buildAssignmentIssue("OVERLAP", "2026-01-22", "staff1"),
-      buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1"),
-      buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff2"),
+      issue("OVERLAP", "2026-01-22", "staff1"),
+      issue("CLOSED_DAY", "2026-01-21", "staff1"),
+      issue("CLOSED_DAY", "2026-01-21", "staff2"),
     ];
     const orderedIssueKeys = toDisplayIssues(issues, staffs).map(({ date, staffId, code }) => ({
       date,
@@ -46,14 +47,14 @@ describe("toDisplayIssues", () => {
 
   it("同じセル×同じ違反コードは1件に畳む", () => {
     const issues = [
-      buildAssignmentIssue("OUT_OF_BOARD_RANGE", "2026-01-20", "staff1"),
-      buildAssignmentIssue("OUT_OF_BOARD_RANGE", "2026-01-20", "staff1"),
+      issue("OUT_OF_BOARD_RANGE", "2026-01-20", "staff1"),
+      issue("OUT_OF_BOARD_RANGE", "2026-01-20", "staff1"),
     ];
     expect(toDisplayIssues(issues, staffs)).toHaveLength(1);
   });
 
   it("スタッフが見つからない場合は「不明なスタッフ」と表示する", () => {
-    const issues = [buildAssignmentIssue("OVERLAP", "2026-01-20", "ghost")];
+    const issues = [issue("OVERLAP", "2026-01-20", "ghost")];
     expect(toDisplayIssues(issues, staffs)[0].label).toContain("不明なスタッフ");
   });
 
@@ -65,10 +66,10 @@ describe("toDisplayIssues", () => {
 describe("issueCountByDate", () => {
   it("日付ごとのエラー件数を数える（重複は畳む）", () => {
     const issues = [
-      buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1"),
-      buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1"),
-      buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff2"),
-      buildAssignmentIssue("OVERLAP", "2026-01-22", "staff1"),
+      issue("CLOSED_DAY", "2026-01-21", "staff1"),
+      issue("CLOSED_DAY", "2026-01-21", "staff1"),
+      issue("CLOSED_DAY", "2026-01-21", "staff2"),
+      issue("OVERLAP", "2026-01-22", "staff1"),
     ];
     const counts = issueCountByDate(issues);
     expect(counts.get("2026-01-21")).toBe(2);

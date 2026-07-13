@@ -2,16 +2,6 @@ import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import {
-  buildWeeklyGrid,
-  formatDateShort,
-  formatDateWithWeekday,
-  getWeekdayLabel,
-  isSaturday,
-  isSunday,
-} from "@/src/domains/shift/date";
-import { hasDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { IssueCountBadge } from "../../components";
 import {
   selectDateWithDailyStaffOrderAtom,
@@ -20,34 +10,19 @@ import {
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
+import {
+  buildDateOnlyOverviewViewModel,
+  type DateOnlyOverviewDayRowViewModel,
+  type DateOnlyOverviewWeekdayTone,
+  type DateOnlyOverviewWeekViewModel,
+} from "./script";
 
-type WeekDate = {
-  iso: string;
-  inRange: boolean;
+const weekdayColor: Record<DateOnlyOverviewWeekdayTone, string> = {
+  weekday: "gray.700",
+  saturday: "blue.500",
+  sunday: "red.500",
+  muted: "gray.400",
 };
-
-type WeekItem = {
-  key: string;
-  label: string;
-  dates: WeekDate[];
-};
-
-const dayColor = (iso: string): string => {
-  if (isSunday(iso)) return "red.500";
-  if (isSaturday(iso)) return "blue.500";
-  return "gray.700";
-};
-
-const buildWeeks = (dates: string[]): WeekItem[] =>
-  buildWeeklyGrid(dates).map((week) => {
-    const start = week[0]?.iso ?? "";
-    const end = week[week.length - 1]?.iso ?? start;
-    return {
-      key: `${start}-${end}`,
-      label: start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`,
-      dates: week,
-    };
-  });
 
 export const SPDateOnlyOverviewView = () => {
   const config = useAtomValue(shiftConfigAtom);
@@ -56,20 +31,22 @@ export const SPDateOnlyOverviewView = () => {
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, staffs, isReadOnly } = config;
-
-  const weeks = useMemo(() => buildWeeks(dates), [dates]);
+  const viewModel = useMemo(
+    () =>
+      buildDateOnlyOverviewViewModel({
+        dates,
+        holidays,
+        staffs,
+        shifts,
+        warningCounts,
+        isReadOnly,
+      }),
+    [dates, holidays, staffs, shifts, warningCounts, isReadOnly],
+  );
   const [openWeeks, setOpenWeeks] = useState<Record<string, boolean>>(() => {
-    const firstKey = buildWeeks(dates)[0]?.key;
+    const firstKey = viewModel.weeks[0]?.key;
     return firstKey ? { [firstKey]: true } : {};
   });
-
-  const shiftByStaffDate = useMemo(() => {
-    const map = new Map<string, ShiftData>();
-    for (const shift of shifts) {
-      map.set(`${shift.staffId}-${shift.date}`, shift);
-    }
-    return map;
-  }, [shifts]);
 
   const handleDateTap = useCallback(
     (iso: string) => {
@@ -83,18 +60,13 @@ export const SPDateOnlyOverviewView = () => {
   return (
     <Box flex={1} minH={0} overflow="auto" bg="gray.50" px={3} py={3}>
       <Stack gap={3}>
-        {weeks.map((week, index) => {
+        {viewModel.weeks.map((week, index) => {
           const isOpen = openWeeks[week.key] ?? index === 0;
           return (
             <WeekCard
               key={week.key}
               week={week}
               isOpen={isOpen}
-              holidays={holidays}
-              staffs={staffs}
-              isReadOnly={isReadOnly}
-              shiftByStaffDate={shiftByStaffDate}
-              warningCounts={warningCounts}
               onToggle={() => setOpenWeeks((current) => ({ ...current, [week.key]: !isOpen }))}
               onDateTap={handleDateTap}
             />
@@ -108,21 +80,11 @@ export const SPDateOnlyOverviewView = () => {
 const WeekCard = ({
   week,
   isOpen,
-  holidays,
-  staffs,
-  isReadOnly,
-  shiftByStaffDate,
-  warningCounts,
   onToggle,
   onDateTap,
 }: {
-  week: WeekItem;
+  week: DateOnlyOverviewWeekViewModel;
   isOpen: boolean;
-  holidays: string[];
-  staffs: StaffType[];
-  isReadOnly: boolean;
-  shiftByStaffDate: Map<string, ShiftData>;
-  warningCounts: ReadonlyMap<string, number>;
   onToggle: () => void;
   onDateTap: (iso: string) => void;
 }) => (
@@ -159,112 +121,62 @@ const WeekCard = ({
 
     {isOpen && (
       <Box>
-        {week.dates.map((date, index) => {
-          const isClosed = date.inRange && holidays.includes(date.iso);
-          const warningCount = warningCounts.get(date.iso) ?? 0;
-          const assignedStaffs =
-            date.inRange && !isClosed
-              ? staffs.filter((staff) => hasDateOnlyAssignment(shiftByStaffDate.get(`${staff.id}-${date.iso}`)))
-              : [];
-          return (
-            <DayRow
-              key={date.iso}
-              date={date}
-              isClosed={isClosed}
-              assignedStaffs={assignedStaffs}
-              hasTopBorder={index > 0}
-              isReadOnly={isReadOnly}
-              warningCount={warningCount}
-              onDateTap={() => onDateTap(date.iso)}
-            />
-          );
-        })}
+        {week.rows.map((row) => (
+          <DayRow key={row.key} row={row} onDateTap={() => onDateTap(row.iso)} />
+        ))}
       </Box>
     )}
   </Box>
 );
 
-const DayRow = ({
-  date,
-  isClosed,
-  assignedStaffs,
-  hasTopBorder,
-  isReadOnly,
-  warningCount,
-  onDateTap,
-}: {
-  date: WeekDate;
-  isClosed: boolean;
-  assignedStaffs: StaffType[];
-  hasTopBorder: boolean;
-  isReadOnly: boolean;
-  warningCount: number;
-  onDateTap: () => void;
-}) => {
-  const canOpenDaily = !isReadOnly && date.inRange && !isClosed;
-
-  return (
-    <Flex
-      as={canOpenDaily ? "button" : "div"}
-      aria-label={canOpenDaily ? `${formatDateWithWeekday(date.iso)}の日別を表示` : undefined}
-      onClick={canOpenDaily ? onDateTap : undefined}
-      w="100%"
-      gap={3}
-      px={3}
-      py={3}
-      textAlign="left"
-      borderTopWidth={hasTopBorder ? "1px" : "0"}
-      borderColor="gray.100"
-      bg="white"
-      cursor={canOpenDaily ? "pointer" : "default"}
-      _active={canOpenDaily ? { bg: "gray.50" } : undefined}
-      _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
-    >
-      <Box w="68px" flexShrink={0} position="relative">
-        {warningCount > 0 && <IssueCountBadge count={warningCount} tone="warning" />}
-        <Flex align="baseline" gap="4px" whiteSpace="nowrap">
-          <Text
-            textStyle="md"
-            fontWeight={700}
-            color={date.inRange ? "gray.800" : "gray.400"}
-            lineHeight="1.1"
-            fontVariantNumeric="tabular-nums"
-          >
-            {formatDateShort(date.iso)}
-          </Text>
-          <Text textStyle="2xs" fontWeight={700} flexShrink={0} color={date.inRange ? dayColor(date.iso) : "gray.400"}>
-            {getWeekdayLabel(date.iso)}
-          </Text>
-        </Flex>
-      </Box>
-      <Box flex={1} minW={0} pt="1px">
-        {!date.inRange ? (
-          <Text
-            textStyle="caption"
-            color="gray.400"
-            fontWeight={500}
-            aria-label={`${formatDateWithWeekday(date.iso)} 期間外`}
-          >
-            期間外
-          </Text>
-        ) : isClosed ? (
-          <Text textStyle="caption" color="gray.400" fontWeight={500}>
-            定休日
-          </Text>
-        ) : assignedStaffs.length > 0 ? (
-          <Stack gap="5px">
-            {assignedStaffs.map((staff) => (
-              <Text key={staff.id} textStyle="caption" fontWeight={600} color="gray.800">
-                {staff.name}
-              </Text>
-            ))}
-          </Stack>
-        ) : (
-          <Text textStyle="caption" color="gray.400" fontWeight={500}>
-            勤務なし
-          </Text>
-        )}
-      </Box>
-    </Flex>
-  );
-};
+const DayRow = ({ row, onDateTap }: { row: DateOnlyOverviewDayRowViewModel; onDateTap: () => void }) => (
+  <Flex
+    as={row.canOpenDaily ? "button" : "div"}
+    aria-label={row.actionAriaLabel}
+    onClick={row.canOpenDaily ? onDateTap : undefined}
+    w="100%"
+    gap={3}
+    px={3}
+    py={3}
+    textAlign="left"
+    borderTopWidth={row.hasTopBorder ? "1px" : "0"}
+    borderColor="gray.100"
+    bg="white"
+    cursor={row.canOpenDaily ? "pointer" : "default"}
+    _active={row.canOpenDaily ? { bg: "gray.50" } : undefined}
+    _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
+  >
+    <Box w="68px" flexShrink={0} position="relative">
+      {row.warningCount > 0 && <IssueCountBadge count={row.warningCount} tone="warning" />}
+      <Flex align="baseline" gap="4px" whiteSpace="nowrap">
+        <Text
+          textStyle="md"
+          fontWeight={700}
+          color={row.dateTone === "default" ? "gray.800" : "gray.400"}
+          lineHeight="1.1"
+          fontVariantNumeric="tabular-nums"
+        >
+          {row.dateLabel}
+        </Text>
+        <Text textStyle="2xs" fontWeight={700} flexShrink={0} color={weekdayColor[row.weekdayTone]}>
+          {row.weekdayLabel}
+        </Text>
+      </Flex>
+    </Box>
+    <Box flex={1} minW={0} pt="1px">
+      {row.staffRows.length > 0 ? (
+        <Stack gap="5px">
+          {row.staffRows.map((staff) => (
+            <Text key={staff.key} textStyle="caption" fontWeight={600} color="gray.800">
+              {staff.name}
+            </Text>
+          ))}
+        </Stack>
+      ) : (
+        <Text textStyle="caption" color="gray.400" fontWeight={500} aria-label={row.statusAriaLabel}>
+          {row.statusLabel}
+        </Text>
+      )}
+    </Box>
+  </Flex>
+);

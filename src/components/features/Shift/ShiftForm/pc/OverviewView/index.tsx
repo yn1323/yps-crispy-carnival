@@ -1,11 +1,8 @@
 import { Box, Flex, Stack } from "@chakra-ui/react";
-import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
-import { buildWeeklyGrid, formatDateShort, getWeekdayLabel, type WeekStart } from "@/src/domains/shift/date";
-import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { WeekStart } from "@/src/domains/shift/date";
 import { IssueCountBadge } from "../../components";
 import {
   selectDateWithDailyStaffOrderAtom,
@@ -14,42 +11,7 @@ import {
   viewModeAtom,
   warningCountByDateAtom,
 } from "../../stores";
-
-type DateInfo = {
-  iso: string;
-  label: string;
-  wk: string;
-  inRange: boolean;
-};
-
-const toDateInfo = (cell: { iso: string; inRange: boolean }): DateInfo => {
-  const d = dayjs(cell.iso);
-  return {
-    iso: cell.iso,
-    label: `${d.month() + 1}/${d.date()}`,
-    wk: getWeekdayLabel(cell.iso),
-    inRange: cell.inRange,
-  };
-};
-
-const dayColor = (iso: string): string => {
-  const day = dayjs(iso).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
-};
-
-const shiftAssigned = (shift: ShiftData): [string, string] | null => {
-  if (shift.positions.length === 0) return null;
-  const sorted = [...shift.positions].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-  return [sorted[0].start, sorted[sorted.length - 1].end];
-};
-
-const shiftHours = (range: [string, string] | null): number => {
-  if (!range) return 0;
-  const minutes = timeToMinutes(range[1]) - timeToMinutes(range[0]);
-  return minutes / 60;
-};
+import { buildOverviewWeeks, type OverviewWeekViewModel } from "./script";
 
 type OverviewViewProps = {
   weekStart?: WeekStart;
@@ -63,21 +25,12 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   const setViewMode = useSetAtom(viewModeAtom);
   const { dates, holidays, isReadOnly, staffs } = config;
 
-  const weeks = useMemo<DateInfo[][]>(
-    () => buildWeeklyGrid(dates, weekStart).map((week) => week.map(toDateInfo)),
-    [dates, weekStart],
+  const weeks = useMemo(
+    () => buildOverviewWeeks({ dates, weekStart, holidays, isReadOnly, staffs, shifts, warningCounts }),
+    [dates, holidays, isReadOnly, shifts, staffs, warningCounts, weekStart],
   );
 
   const [open, setOpen] = useState<Record<number, boolean>>({});
-
-  const lookup = useMemo(() => {
-    const map = new Map<string, [string, string]>();
-    for (const s of shifts) {
-      const asn = shiftAssigned(s);
-      if (asn) map.set(`${s.staffId}-${s.date}`, asn);
-    }
-    return map;
-  }, [shifts]);
 
   const handleDateClick = useCallback(
     (iso: string) => {
@@ -91,21 +44,16 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
   return (
     <Box bg="gray.50" h="100%" overflow="auto" px={5} py={5}>
       <Stack gap={3}>
-        {weeks.map((wkDates, wi) => {
-          if (wkDates.length === 0) return null;
+        {weeks.map((week, wi) => {
+          if (week.dates.length === 0) return null;
           const isOpen = open[wi] !== false;
           return (
             <WeekCard
-              key={wkDates[0].iso}
-              wkDates={wkDates}
-              staffs={staffs}
-              lookup={lookup}
-              holidays={holidays}
+              key={week.key}
+              week={week}
               isOpen={isOpen}
               onToggle={() => setOpen({ ...open, [wi]: !isOpen })}
               onDateClick={handleDateClick}
-              isReadOnly={isReadOnly}
-              warningCounts={warningCounts}
             />
           );
         })}
@@ -115,31 +63,13 @@ export const OverviewView = ({ weekStart = "mon" }: OverviewViewProps) => {
 };
 
 type WeekCardProps = {
-  wkDates: DateInfo[];
-  staffs: StaffType[];
-  lookup: Map<string, [string, string]>;
-  holidays: string[];
+  week: OverviewWeekViewModel;
   isOpen: boolean;
   onToggle: () => void;
   onDateClick: (iso: string) => void;
-  isReadOnly: boolean;
-  warningCounts: ReadonlyMap<string, number>;
 };
 
-const WeekCard = ({
-  wkDates,
-  staffs,
-  lookup,
-  holidays,
-  isOpen,
-  onToggle,
-  onDateClick,
-  isReadOnly,
-  warningCounts,
-}: WeekCardProps) => {
-  const start = wkDates[0]?.iso ?? "";
-  const end = wkDates[wkDates.length - 1]?.iso ?? start;
-  const rangeLabel = start === end ? formatDateShort(start) : `${formatDateShort(start)} – ${formatDateShort(end)}`;
+const WeekCard = ({ week, isOpen, onToggle, onDateClick }: WeekCardProps) => {
   return (
     <Box
       bg="white"
@@ -173,42 +103,27 @@ const WeekCard = ({
           {isOpen ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
         </Flex>
         <Box textStyle="numeric" fontWeight={700} color="gray.800">
-          {rangeLabel}
+          {week.rangeLabel}
         </Box>
       </Flex>
 
-      {isOpen && (
-        <WeekTable
-          staffs={staffs}
-          wkDates={wkDates}
-          lookup={lookup}
-          holidays={holidays}
-          onDateClick={onDateClick}
-          isReadOnly={isReadOnly}
-          warningCounts={warningCounts}
-        />
-      )}
+      {isOpen && <WeekTable week={week} onDateClick={onDateClick} />}
     </Box>
   );
 };
 
 type WeekTableProps = {
-  staffs: StaffType[];
-  wkDates: DateInfo[];
-  lookup: Map<string, [string, string]>;
-  holidays: string[];
+  week: OverviewWeekViewModel;
   onDateClick: (iso: string) => void;
-  isReadOnly: boolean;
-  warningCounts: ReadonlyMap<string, number>;
 };
 
-const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly, warningCounts }: WeekTableProps) => (
+const WeekTable = ({ week, onDateClick }: WeekTableProps) => (
   <Box>
     <Box as="table" w="100%" textStyle="tableDense" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
       <Box as="colgroup">
         <Box as="col" style={{ width: 200 }} />
-        {wkDates.map((d) => (
-          <Box as="col" key={d.iso} />
+        {week.dates.map((date) => (
+          <Box as="col" key={date.iso} />
         ))}
         <Box as="col" style={{ width: 72 }} />
       </Box>
@@ -226,41 +141,38 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly,
           >
             スタッフ
           </Box>
-          {wkDates.map((d) => {
-            const isClickable = !isReadOnly && d.inRange;
-            const isClosed = d.inRange && holidays.includes(d.iso);
-            const warningCount = warningCounts.get(d.iso) ?? 0;
+          {week.dates.map((date) => {
             return (
               <Box
                 as="th"
-                key={d.iso}
-                onClick={isClickable ? () => onDateClick(d.iso) : undefined}
+                key={date.iso}
+                onClick={date.isClickable ? () => onDateClick(date.iso) : undefined}
                 style={{
                   padding: "10px 4px",
                   fontWeight: 600,
                   textAlign: "center",
-                  cursor: isClickable ? "pointer" : "default",
-                  opacity: d.inRange ? 1 : 0.35,
-                  background: isClosed ? "#f4f4f5" : undefined,
+                  cursor: date.isClickable ? "pointer" : "default",
+                  opacity: date.inRange ? 1 : 0.35,
+                  background: date.isClosed ? "#f4f4f5" : undefined,
                 }}
               >
-                <Box display="inline-block" position="relative" px={warningCount > 0 ? 1 : 0}>
-                  {warningCount > 0 && (
-                    <IssueCountBadge count={warningCount} tone="warning" top="-10px" right="-14px" />
+                <Box display="inline-block" position="relative" px={date.warningCount > 0 ? 1 : 0}>
+                  {date.warningCount > 0 && (
+                    <IssueCountBadge count={date.warningCount} tone="warning" top="-10px" right="-14px" />
                   )}
                   <Box textStyle="numeric" color="gray.700" fontWeight={600}>
-                    {d.label}
+                    {date.label}
                   </Box>
                 </Box>
-                <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: dayColor(d.iso) }}>
-                  {d.wk}
+                <Box textStyle="2xs" fontWeight={600} mt="2px" style={{ color: date.weekdayColor }}>
+                  {date.weekdayLabel}
                 </Box>
-                {isClosed && (
+                {date.isClosed && (
                   <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
                     定休日
                   </Box>
                 )}
-                {!d.inRange && (
+                {!date.inRange && (
                   <Box textStyle="2xs" fontWeight={700} mt="2px" color="gray.500">
                     期間外
                   </Box>
@@ -283,76 +195,67 @@ const WeekTable = ({ staffs, wkDates, lookup, holidays, onDateClick, isReadOnly,
         </Box>
       </Box>
       <Box as="tbody">
-        {staffs.map((s) => {
-          let total = 0;
-          const isUnsub = !s.isSubmitted;
-          return (
-            <Box as="tr" key={s.id} borderBottomWidth="1px" borderColor="gray.100">
-              <Box as="td" style={{ padding: "10px 18px" }}>
-                <Flex align="center" gap="10px">
-                  <Box textStyle="sm" fontWeight={600} color={isUnsub ? "gray.500" : "gray.800"}>
-                    {s.name}
+        {week.rows.map((row) => (
+          <Box as="tr" key={row.key} borderBottomWidth="1px" borderColor="gray.100">
+            <Box as="td" style={{ padding: "10px 18px" }}>
+              <Flex align="center" gap="10px">
+                <Box textStyle="sm" fontWeight={600} color={row.isUnsubmitted ? "gray.500" : "gray.800"}>
+                  {row.name}
+                </Box>
+                {row.isUnsubmitted && (
+                  <Box textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
+                    未提出
                   </Box>
-                  {isUnsub && (
-                    <Box textStyle="2xs" fontWeight={600} flexShrink={0} style={{ color: "#b45309" }}>
-                      未提出
-                    </Box>
-                  )}
-                </Flex>
-              </Box>
-              {wkDates.map((d) => {
-                const isClosed = d.inRange && holidays.includes(d.iso);
-                const asn = d.inRange && !isClosed ? (lookup.get(`${s.id}-${d.iso}`) ?? null) : null;
-                if (asn) total += shiftHours(asn);
-                return (
-                  <Box
-                    as="td"
-                    key={d.iso}
-                    style={{
-                      padding: "8px 4px",
-                      textAlign: "center",
-                      verticalAlign: "middle",
-                      background: isClosed ? "#f4f4f5" : undefined,
-                    }}
-                  >
-                    {isClosed ? (
-                      <Box as="span" color="gray.500" textStyle="caption" fontWeight={700}>
-                        定休日
-                      </Box>
-                    ) : asn ? (
-                      <Box
-                        as="span"
-                        textStyle="numeric"
-                        fontWeight={600}
-                        color="teal.700"
-                        style={{ fontVariantNumeric: "tabular-nums" }}
-                      >
-                        {formatShiftClockTime(asn[0])}–{formatShiftClockTime(asn[1])}
-                      </Box>
-                    ) : (
-                      <Box as="span" color={d.inRange ? "gray.300" : "gray.200"} textStyle="caption">
-                        —
-                      </Box>
-                    )}
-                  </Box>
-                );
-              })}
+                )}
+              </Flex>
+            </Box>
+            {row.cells.map((cell) => (
               <Box
                 as="td"
-                textStyle="sm"
+                key={cell.key}
                 style={{
-                  padding: "10px 18px",
-                  textAlign: "right",
-                  fontWeight: 700,
-                  color: total ? "#27272a" : "#d4d4d8",
-                  fontVariantNumeric: "tabular-nums",
+                  padding: "8px 4px",
+                  textAlign: "center",
+                  verticalAlign: "middle",
+                  background: cell.tone === "closed" ? "#f4f4f5" : undefined,
                 }}
               >
-                {total ? `${total}h` : "—"}
+                {cell.tone === "closed" ? (
+                  <Box as="span" color="gray.500" textStyle="caption" fontWeight={700}>
+                    {cell.text}
+                  </Box>
+                ) : cell.tone === "assigned" ? (
+                  <Box
+                    as="span"
+                    textStyle="numeric"
+                    fontWeight={600}
+                    color="teal.700"
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {cell.text}
+                  </Box>
+                ) : (
+                  <Box as="span" color={cell.tone === "empty" ? "gray.300" : "gray.200"} textStyle="caption">
+                    {cell.text}
+                  </Box>
+                )}
               </Box>
+            ))}
+            <Box
+              as="td"
+              textStyle="sm"
+              style={{
+                padding: "10px 18px",
+                textAlign: "right",
+                fontWeight: 700,
+                color: row.hasTotal ? "#27272a" : "#d4d4d8",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {row.totalLabel}
             </Box>
-          );
-        })}
+          </Box>
+        ))}
       </Box>
     </Box>
   </Box>

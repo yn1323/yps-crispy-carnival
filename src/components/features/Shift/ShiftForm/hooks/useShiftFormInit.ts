@@ -17,9 +17,9 @@ import type {
 } from "@/src/domains/shift/types";
 import {
   lockedDailyStaffOrderAtom,
+  replaceShiftDraftsAtom,
   selectedDateAtom,
   shiftConfigAtom,
-  shiftsAtom,
   sortModeAtom,
   validationIssuesAtom,
   validationWarningsAtom,
@@ -68,7 +68,7 @@ export const useShiftFormInit = ({
   validationWarnings,
 }: UseShiftFormInitParams) => {
   const setConfig = useSetAtom(shiftConfigAtom);
-  const setShifts = useSetAtom(shiftsAtom);
+  const setShifts = useSetAtom(replaceShiftDraftsAtom);
   const setSelectedDate = useSetAtom(selectedDateAtom);
   const setLockedDailyStaffOrder = useSetAtom(lockedDailyStaffOrderAtom);
   const setViewMode = useSetAtom(viewModeAtom);

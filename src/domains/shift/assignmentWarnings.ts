@@ -1,4 +1,3 @@
-import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { BREAK_POSITION } from "./constants";
 import { formatShiftClockTime, timeToMinutes } from "./time";
 import type { ShiftData } from "./types";
@@ -21,10 +20,14 @@ export type AssignmentWarning = {
 
 const isBreakSegment = (positionId: string) => positionId === BREAK_POSITION.id;
 
+export type AssignmentWarningPattern =
+  | { kind: "time" | "dateOnly" }
+  | { kind: "shiftType"; options: ReadonlyArray<{ id: string; name: string }> };
+
 export type AssignmentWarningInput = {
   shifts: ShiftData[];
   staffs: Array<{ id: string; isSubmitted: boolean }>;
-  pattern?: ShiftSubmissionPattern;
+  pattern?: AssignmentWarningPattern;
 };
 
 // 各セル（スタッフ×日付）の「割当」と「希望」を比べ、食い違いを1セルあたり最大1件で収集する。

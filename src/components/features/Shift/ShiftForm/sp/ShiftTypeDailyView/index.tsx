@@ -3,37 +3,29 @@ import dayjs from "dayjs";
 import { useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useMemo, useRef } from "react";
-import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
-import {
-  countShiftTypeAssignments,
-  getRequestedShiftTypeOptionIds,
-  hasShiftTypeAssignment,
-  type ShiftTypeOptionLike,
-  toggleShiftTypeAssignment,
-} from "@/src/domains/shift/shiftTypeAssignments";
-import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import type { ShiftTypeOptionLike } from "@/src/domains/shift/shiftTypeAssignments";
+import type { StaffType } from "@/src/domains/shift/types";
 import { Avatar, DateIssueBadge, dateIssueBorderColor, StaffWarningIcon } from "../../components";
 import { useLockedDailyStaffOrder } from "../../hooks/useLockedDailyStaffOrder";
 import { useScrollDateIntoView } from "../../hooks/useScrollDateIntoView";
-import {
-  getShiftTypeOptionColor,
-  SHIFT_TYPE_REQUEST_STATUS_COLORS,
-  type ShiftTypeOptionColor,
-} from "../../pc/shiftTypeOptionStyles";
 import {
   dailySortedStaffsAtom,
   issueCountByDateAtom,
   selectDateWithDailyStaffOrderAtom,
   selectedDateAtom,
-  shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
-  shiftsAtom,
   shiftsForSelectedDateAtom,
+  toggleShiftTypeAssignmentAtom,
   warningCountByDateAtom,
   warningMessagesByStaffIdForSelectedDateAtom,
 } from "../../stores";
-import { formatShiftTypeTimeRange } from "../../utils/shiftTypeDisplay";
+import {
+  buildSPShiftTypeDailyViewModel,
+  type SPShiftTypeCountViewModel,
+  type SPShiftTypeOptionViewModel,
+  type SPShiftTypeStaffCardViewModel,
+} from "./script";
 
 const dayColor = (iso: string): string => {
   const day = dayjs(iso).day();
@@ -45,8 +37,7 @@ const dayColor = (iso: string): string => {
 export const SPShiftTypeDailyView = () => {
   const config = useAtomValue(shiftConfigAtom);
   const shiftsForDate = useAtomValue(shiftsForSelectedDateAtom);
-  const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
-  const setShifts = useSetAtom(shiftsAtom);
+  const toggleAssignment = useSetAtom(toggleShiftTypeAssignmentAtom);
   const sortedStaffs = useAtomValue(dailySortedStaffsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const selectDate = useSetAtom(selectDateWithDailyStaffOrderAtom);
@@ -56,35 +47,24 @@ export const SPShiftTypeDailyView = () => {
 
   const { dates, holidays, isReadOnly, submissionPattern } = config;
   const isConfirmedDisplay = config.displayMode === "confirmed";
-  const pattern = submissionPattern?.kind === "shiftType" ? submissionPattern : null;
-  const options = useMemo(() => [...(pattern?.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder), [pattern]);
-  const fallbackPosition = config.positions[0] ?? DEFAULT_POSITION;
+  const viewModel = useMemo(
+    () =>
+      buildSPShiftTypeDailyViewModel({
+        submissionPattern,
+        shifts: shiftsForDate,
+        staffs: sortedStaffs,
+        isConfirmedDisplay,
+      }),
+    [isConfirmedDisplay, shiftsForDate, sortedStaffs, submissionPattern],
+  );
   const isShopClosedDate = holidays.includes(selectedDate);
   const selectedDay = selectedDate ? dayjs(selectedDate) : null;
   const dateStripRef = useRef<HTMLDivElement>(null);
   useScrollDateIntoView(dateStripRef, selectedDate, "horizontal");
   useLockedDailyStaffOrder(selectedDate);
 
-  const counts = useMemo(
-    () =>
-      countShiftTypeAssignments(
-        shiftsForDate,
-        options.map((option) => option.id),
-      ),
-    [shiftsForDate, options],
-  );
-
   const handleToggle = (staff: StaffType, option: ShiftTypeOptionLike) => {
-    if (isReadOnly) return;
-    setShifts((current) =>
-      toggleShiftTypeAssignment({
-        shifts: current,
-        staff,
-        date: selectedDate,
-        option,
-        position: fallbackPosition,
-      }),
-    );
+    toggleAssignment({ staff, date: selectedDate, option });
   };
 
   return (
@@ -174,17 +154,14 @@ export const SPShiftTypeDailyView = () => {
           </Flex>
         ) : (
           <Stack gap={2}>
-            <ShiftTypeCountSummary options={options} counts={counts} />
-            {sortedStaffs.map((staff) => (
+            <ShiftTypeCountSummary items={viewModel.counts} />
+            {viewModel.staffCards.map((card) => (
               <StaffShiftTypeCard
-                key={staff.id}
-                staff={staff}
-                shift={shiftByStaffId.get(staff.id)}
-                options={options}
-                isConfirmedDisplay={isConfirmedDisplay}
+                key={card.staff.id}
+                card={card}
                 isReadOnly={isReadOnly}
-                warningMessages={warningMessagesByStaffId.get(staff.id) ?? []}
-                onToggle={(option) => handleToggle(staff, option)}
+                warningMessages={warningMessagesByStaffId.get(card.staff.id) ?? []}
+                onToggle={(option) => handleToggle(card.staff, option)}
               />
             ))}
           </Stack>
@@ -194,135 +171,77 @@ export const SPShiftTypeDailyView = () => {
   );
 };
 
-const ShiftTypeCountSummary = ({
-  options,
-  counts,
-}: {
-  options: ShiftTypeOptionLike[];
-  counts: Map<string, number>;
-}) => (
+const ShiftTypeCountSummary = ({ items }: { items: SPShiftTypeCountViewModel[] }) => (
   <Box mb={1}>
     <SimpleGrid columns={4} gap={1.5}>
-      {options.map((option, index) => {
-        const optionColor = getShiftTypeOptionColor(index);
-        return (
-          <Flex
-            key={option.id}
-            direction="column"
-            align="center"
-            justify="center"
-            px={3}
-            py={2}
-            borderWidth="1px"
-            borderColor="gray.200"
-            borderRadius="md"
-            bg={optionColor.countBg}
-            minH="64px"
-          >
-            <Text textStyle="xs" fontWeight={700} color="gray.800" textAlign="center">
-              {option.name}
-            </Text>
-            <Text fontSize="xl" lineHeight={1.1} fontWeight={800} color={optionColor.accent} mt={1}>
-              {counts.get(option.id) ?? 0}人
-            </Text>
-          </Flex>
-        );
-      })}
+      {items.map((item) => (
+        <Flex
+          key={item.key}
+          direction="column"
+          align="center"
+          justify="center"
+          px={3}
+          py={2}
+          borderWidth="1px"
+          borderColor="gray.200"
+          borderRadius="md"
+          bg={item.color.countBg}
+          minH="64px"
+        >
+          <Text textStyle="xs" fontWeight={700} color="gray.800" textAlign="center">
+            {item.name}
+          </Text>
+          <Text fontSize="xl" lineHeight={1.1} fontWeight={800} color={item.color.accent} mt={1}>
+            {item.countLabel}
+          </Text>
+        </Flex>
+      ))}
     </SimpleGrid>
   </Box>
 );
 
 const StaffShiftTypeCard = ({
-  staff,
-  shift,
-  options,
-  isConfirmedDisplay,
+  card,
   isReadOnly,
   warningMessages,
   onToggle,
 }: {
-  staff: StaffType;
-  shift: ShiftData | undefined;
-  options: ShiftTypeOptionLike[];
-  isConfirmedDisplay: boolean;
+  card: SPShiftTypeStaffCardViewModel;
   isReadOnly: boolean;
   warningMessages: string[];
   onToggle: (option: ShiftTypeOptionLike) => void;
-}) => {
-  const requestedIds = getRequestedShiftTypeOptionIds(shift);
-  return (
-    <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
-      <Flex align="center" gap={2}>
-        <Avatar staff={staff} size={26} />
-        <Text textStyle="sm" fontWeight={600} color={staff.isSubmitted ? "gray.800" : "gray.500"} flex={1} truncate>
-          {staff.name}
+}) => (
+  <Box bg="white" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={3} py={3}>
+    <Flex align="center" gap={2}>
+      <Avatar staff={card.staff} size={26} />
+      <Text textStyle="sm" fontWeight={600} color={card.isNameMuted ? "gray.500" : "gray.800"} flex={1} truncate>
+        {card.staff.name}
+      </Text>
+      <StaffWarningIcon messages={warningMessages} />
+      <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
+        <Text textStyle="2xs" color="gray.500" fontWeight={600}>
+          {card.requestSectionLabel}
         </Text>
-        <StaffWarningIcon messages={warningMessages} />
-        <Flex gap={1} wrap="wrap" justify="flex-end" align="center">
-          <Text textStyle="2xs" color="gray.500" fontWeight={600}>
-            {isConfirmedDisplay ? "確定" : "希望"}
-          </Text>
-          <RequestBadges staff={staff} requestedIds={requestedIds} options={options} />
-        </Flex>
+        {card.requestBadges.map((badge) => (
+          <RequestBadge key={badge.key} bg={badge.bg} color={badge.color}>
+            {badge.label}
+          </RequestBadge>
+        ))}
       </Flex>
-      <SimpleGrid columns={2} gap={2} mt={3}>
-        {options.map((option, index) => {
-          const assigned = hasShiftTypeAssignment(shift, option.id);
-          return (
-            <ShiftTypeOptionButton
-              key={option.id}
-              staff={staff}
-              option={option}
-              optionColor={getShiftTypeOptionColor(index)}
-              assigned={assigned}
-              isReadOnly={isReadOnly}
-              onToggle={() => onToggle(option)}
-            />
-          );
-        })}
-      </SimpleGrid>
-    </Box>
-  );
-};
-
-const RequestBadges = ({
-  staff,
-  requestedIds,
-  options,
-}: {
-  staff: StaffType;
-  requestedIds: string[];
-  options: ShiftTypeOptionLike[];
-}) => {
-  if (!staff.isSubmitted) {
-    return (
-      <RequestBadge
-        bg={SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.bg}
-        color={SHIFT_TYPE_REQUEST_STATUS_COLORS.unsubmitted.color}
-      >
-        未提出
-      </RequestBadge>
-    );
-  }
-  if (requestedIds.length === 0) {
-    return (
-      <RequestBadge bg={SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.bg} color={SHIFT_TYPE_REQUEST_STATUS_COLORS.rest.color}>
-        休み
-      </RequestBadge>
-    );
-  }
-  const optionById = new Map(
-    options.map((option, index) => [option.id, { option, color: getShiftTypeOptionColor(index) }]),
-  );
-  return requestedIds.map((optionId) => {
-    const item = optionById.get(optionId);
-    return (
-      <RequestBadge key={optionId} bg={item?.color.requestedBg ?? "gray.100"} color={item?.color.accent ?? "gray.700"}>
-        {item?.option.name ?? "勤務区分"}
-      </RequestBadge>
-    );
-  });
-};
+    </Flex>
+    <SimpleGrid columns={2} gap={2} mt={3}>
+      {card.options.map((option) => (
+        <ShiftTypeOptionButton
+          key={option.option.id}
+          staffName={card.staff.name}
+          viewModel={option}
+          isReadOnly={isReadOnly}
+          onToggle={() => onToggle(option.option)}
+        />
+      ))}
+    </SimpleGrid>
+  </Box>
+);
 
 const RequestBadge = ({ bg, color, children }: { bg: string; color: string; children: ReactNode }) => (
   <Box px={2} py="2px" borderRadius="full" textStyle="2xs" fontWeight={600} style={{ color, background: bg }}>
@@ -331,23 +250,19 @@ const RequestBadge = ({ bg, color, children }: { bg: string; color: string; chil
 );
 
 const ShiftTypeOptionButton = ({
-  staff,
-  option,
-  optionColor,
-  assigned,
+  staffName,
+  viewModel,
   isReadOnly,
   onToggle,
 }: {
-  staff: StaffType;
-  option: ShiftTypeOptionLike;
-  optionColor: ShiftTypeOptionColor;
-  assigned: boolean;
+  staffName: string;
+  viewModel: SPShiftTypeOptionViewModel;
   isReadOnly: boolean;
   onToggle: () => void;
 }) => (
   <Box
     as="button"
-    aria-label={`${staff.name} ${option.name} ${assigned ? "勤務あり" : "勤務なし"}`}
+    aria-label={`${staffName} ${viewModel.name} ${viewModel.assigned ? "勤務あり" : "勤務なし"}`}
     aria-disabled={isReadOnly}
     onClick={isReadOnly ? undefined : onToggle}
     textAlign="left"
@@ -355,22 +270,26 @@ const ShiftTypeOptionButton = ({
     py={2}
     borderWidth="1px"
     borderRadius="md"
-    borderColor={assigned ? optionColor.accent : "gray.200"}
-    bg={assigned ? optionColor.assignedBg : "white"}
-    color={assigned ? optionColor.accent : "gray.600"}
+    borderColor={viewModel.assigned ? viewModel.color.accent : "gray.200"}
+    bg={viewModel.assigned ? viewModel.color.assignedBg : "white"}
+    color={viewModel.assigned ? viewModel.color.accent : "gray.600"}
     cursor={isReadOnly ? "default" : "pointer"}
-    _active={isReadOnly ? undefined : { bg: assigned ? optionColor.headerBg : "gray.50" }}
+    _active={isReadOnly ? undefined : { bg: viewModel.assigned ? viewModel.color.headerBg : "gray.50" }}
   >
     <Flex align="center" gap={2}>
-      <Text as="span" fontSize="lg" lineHeight={1} color={assigned ? optionColor.accent : "gray.400"}>
-        {assigned ? "○" : "×"}
+      <Text as="span" fontSize="lg" lineHeight={1} color={viewModel.assigned ? viewModel.color.accent : "gray.400"}>
+        {viewModel.assigned ? "○" : "×"}
       </Text>
       <Box minW={0}>
         <Text textStyle="xs" fontWeight={700} truncate>
-          {option.name}
+          {viewModel.name}
         </Text>
-        <Text textStyle="2xs" color={assigned ? optionColor.accent : "gray.500"} fontVariantNumeric="tabular-nums">
-          {formatShiftTypeTimeRange(option)}
+        <Text
+          textStyle="2xs"
+          color={viewModel.assigned ? viewModel.color.accent : "gray.500"}
+          fontVariantNumeric="tabular-nums"
+        >
+          {viewModel.timeLabel}
         </Text>
       </Box>
     </Flex>

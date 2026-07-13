@@ -1,6 +1,5 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { LineInviteConfirmContent } from "../LineInviteConfirmContent";
 import { LineLinkQrDialog } from ".";
 
 const meta = {
@@ -22,10 +21,6 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-export const InviteConfirm: Story = {
-  render: () => <LineInviteConfirmContent staffName="田中太郎" staffEmail="tanaka@example.com" />,
-};
 
 export const QrDisplay: Story = {
   args: {

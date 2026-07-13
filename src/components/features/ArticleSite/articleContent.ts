@@ -1,4 +1,4 @@
-import type { MdxComponent, MdxTocItem } from "@/src/helpers/mdx";
+import type { MdxComponent, MdxTocItem } from "@/src/lib/mdx";
 import {
   type ArticleMetadata,
   articleMetas,

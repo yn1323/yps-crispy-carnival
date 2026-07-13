@@ -24,7 +24,7 @@ import {
   mockShiftTypeStaffs,
   mockStaffs,
   mockTimeRange,
-} from "../__mocks__/storyData";
+} from "./fixtures";
 
 type ShiftFormArgs = ComponentProps<typeof ShiftForm>;
 

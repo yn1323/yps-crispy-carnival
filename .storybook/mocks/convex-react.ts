@@ -1,7 +1,12 @@
 // Storybook用のconvex/reactモック
-// useMutation/useQuery/useActionを何もしないスタブに差し替える
+// query/mutation/actionを通信しないスタブに差し替える
 
 export const useQuery = () => undefined;
+export const usePaginatedQuery = () => ({
+  results: [],
+  status: "Exhausted" as const,
+  loadMore: () => {},
+});
 export const useMutation = () => async () => {};
 export const useAction = () => async () => {};
 export const useConvex = () => ({});

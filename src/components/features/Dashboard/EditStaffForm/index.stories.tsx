@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { mockStaffs } from "../storyMocks";
+import { mockStaffs } from "../stories/fixtures";
 import { EditStaffForm } from "./index.tsx";
 
 const meta = {

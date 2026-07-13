@@ -1,15 +1,8 @@
 import { useQuery } from "convex/react";
-import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import {
-  StaffLegalConsentPage,
-  type StaffLegalConsentPageData,
-} from "@/src/components/features/StaffLegalConsent/ConsentPage";
-import { useAcceptStaffLegalConsent } from "@/src/components/features/StaffLegalConsent/useAcceptStaffLegalConsent";
+import { StaffLegalConsent, type StaffLegalConsentPageData } from "@/src/components/features/StaffLegalConsent";
+import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
-import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
-import { showErrorToast, showSuccessToast, toaster } from "@/src/components/ui/toaster";
-import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 
 type Props = {
   token: string | undefined;
@@ -35,47 +28,25 @@ const expiredConsentData: StaffLegalConsentPageData = {
 
 export function StaffLegalConsentRoutePage({ token }: Props) {
   const data = useQuery(api.legal.queries.getStaffConsentPageData, token ? { token } : "skip");
-  const accept = useAcceptStaffLegalConsent(token ?? "");
-  const [acceptedData, setAcceptedData] = useState<StaffLegalConsentPageData | null>(null);
-  const pageData = acceptedData ?? (data as StaffLegalConsentPageData | undefined);
-  const { run: handleAccept, isRunning: isSubmitting } = useSingleFlight(async () => {
-    if (!pageData) return;
-
-    try {
-      const result = await accept();
-      if (result.status === "ok" && pageData.status === "ok") {
-        setAcceptedData({
-          status: "accepted",
-          staffName: pageData.staffName,
-          shopName: pageData.shopName,
-          documents: pageData.documents,
-        });
-        showSuccessToast({ title: "同意を記録しました" });
-      } else {
-        toaster.create({ title: "リンクの有効期限が切れています", type: "error" });
-      }
-    } catch (error) {
-      showErrorToast(error);
-    }
-  });
 
   if (!token) {
     return (
       <StaffLayout shopName="規約の確認">
-        <StaffLegalConsentPage data={expiredConsentData} />
+        <StaffLegalConsent token={token} data={expiredConsentData} />
       </StaffLayout>
     );
   }
 
   if (data === undefined) return <FullPageSpinner />;
+  if (!data) return <FullPageSpinner />;
 
-  if (!pageData) return <FullPageSpinner />;
+  const pageData = data as StaffLegalConsentPageData;
 
   const shopName = pageData.status === "expired" ? "規約の確認" : pageData.shopName;
 
   return (
     <StaffLayout shopName={shopName}>
-      <StaffLegalConsentPage data={pageData} isSubmitting={isSubmitting} onAccept={handleAccept} />
+      <StaffLegalConsent token={token} data={pageData} />
     </StaffLayout>
   );
 }

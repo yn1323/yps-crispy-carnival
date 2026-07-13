@@ -1,20 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createFaqPageJsonLd } from "@/src/components/features/LandingPage/faqs";
-import { buildLinks, buildMeta, jsonLdMeta } from "@/src/helpers/seo";
 import { HomePage } from "@/src/pages/home";
+import { buildHomePageHead } from "@/src/pages/home/meta";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    links: buildLinks({ canonical: "/" }),
-    meta: [
-      ...buildMeta({
-        title: "LINEでシフト希望を集める無料シフト管理｜シフトリ",
-        description:
-          "LINEやメールのリンクからスタッフはアプリ登録なしでシフト希望を提出。自動集計・未提出リマインド・確定シフトの共有まで無料で使えます。",
-        canonical: "/",
-      }),
-      ...jsonLdMeta(createFaqPageJsonLd()),
-    ],
-  }),
+  head: buildHomePageHead,
   component: HomePage,
 });

@@ -1,6 +1,6 @@
 import { Box, Flex, Icon, Text } from "@chakra-ui/react";
 import { LuPlay, LuX } from "react-icons/lu";
-import { isPrerendering } from "@/src/helpers/seo";
+import { isPrerendering } from "@/src/lib/seo";
 
 type Props = {
   onStart: () => void;

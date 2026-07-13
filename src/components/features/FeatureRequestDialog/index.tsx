@@ -8,9 +8,9 @@ import { z } from "zod";
 import type { Id } from "@/convex/_generated/dataModel";
 import { FEATURE_REQUEST_COMMENT_MAX_LENGTH } from "@/convex/constants";
 import { featureRequestCommentSchema } from "@/convex/featureRequest/schemas";
+import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { showErrorToast, showSuccessToast } from "@/src/components/ui/toaster";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 

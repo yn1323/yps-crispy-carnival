@@ -1,7 +1,7 @@
 import { Box, Grid, Heading, Image, Link, List, Separator, Table, Text } from "@chakra-ui/react";
 import { Children, type ComponentProps, isValidElement, type ReactNode } from "react";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
-import { type MdxComponents, toHeadingId } from "@/src/helpers/mdx";
+import { type MdxComponents, toHeadingId } from "@/src/lib/mdx";
 
 type ResolveImageSrc = (src: string) => string;
 

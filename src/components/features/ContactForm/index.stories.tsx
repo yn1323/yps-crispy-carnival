@@ -1,16 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { ContactFormView } from "./index";
+import { ContactFormController } from "./ContactFormController";
 
 const meta = {
   title: "features/ContactForm",
-  component: ContactFormView,
+  component: ContactFormController,
   args: {
     onSubmit: async () => {},
     verification: { token: "storybook-token" },
   },
   parameters: { layout: "padded" },
-} satisfies Meta<typeof ContactFormView>;
+} satisfies Meta<typeof ContactFormController>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

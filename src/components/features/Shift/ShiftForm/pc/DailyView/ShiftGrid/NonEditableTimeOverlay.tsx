@@ -8,7 +8,7 @@ import {
   getEditableEndMinutes,
   getEditableStartMinutes,
   minutesToPixel,
-} from "../../../utils/timelineGeometry";
+} from "../../../timelineGeometry";
 
 type NonEditableTimeOverlayProps = {
   timeRange: TimeRange;

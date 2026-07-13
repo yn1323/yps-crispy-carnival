@@ -1,14 +1,8 @@
 import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from "@chakra-ui/react";
 import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { lazy, type ReactNode, Suspense } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/Button";
-import type { UserMenuDeleteShopAction } from "./UserMenu";
-
-// UserMenu は @clerk/clerk-react（SignOutButton）に依存する。静的 import すると
-// variant="public" の LP など Clerk を使わない公開ページのチャンクにも Clerk が
-// 巻き込まれるため、user variant でだけ読み込む遅延 import にしている。
-const UserMenu = lazy(() => import("./UserMenu").then((m) => ({ default: m.UserMenu })));
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
 export const STAFF_CONTENT_MAX_W = "1024px";
@@ -38,9 +32,7 @@ type PublicHeaderVariantProps = {
 
 type UserHeaderVariantProps = {
   variant?: "user";
-  showUserMenu?: boolean;
   position?: HeaderPosition;
-  deleteShopAction?: UserMenuDeleteShopAction;
   userActions?: ReactNode;
 };
 
@@ -89,11 +81,6 @@ export const Header = (props: HeaderProps = {}) => {
       <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
       <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
         {props.userActions}
-        {props.showUserMenu !== false && (
-          <Suspense fallback={null}>
-            <UserMenu tone="light" deleteShopAction={props.deleteShopAction} />
-          </Suspense>
-        )}
       </Flex>
     </HeaderShell>
   );

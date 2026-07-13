@@ -5,7 +5,9 @@ import { LuPlus, LuX } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
-import { type AddStaffFormData, addStaffSchema } from "./index";
+import { type AddStaffFormData, addStaffSchema } from "./script";
+
+export type { AddStaffFormData } from "./script";
 
 const EMPTY_ENTRY = { name: "", email: "" } as const;
 

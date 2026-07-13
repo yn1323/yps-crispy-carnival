@@ -3,21 +3,27 @@ import { useQuery } from "convex/react";
 import { LuTriangleAlert, LuWifiOff } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ShiftViewPage } from "@/src/components/features/StaffView/ShiftViewPage";
+import { StaffAccessBoundary, type StaffAccessState } from "@/src/components/features/StaffAccess";
+import { ShiftViewPage } from "@/src/components/features/StaffView";
+import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { StaffCenteredContent, StaffLayout } from "@/src/components/templates/StaffLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
-import { FullPageSpinner } from "@/src/components/ui/FullPageSpinner";
-import { useStaffSession } from "@/src/hooks/useStaffSession";
 
 type Props = {
   token: string | undefined;
 };
 
 export function StaffShiftViewRoutePage({ token }: Props) {
-  const state = useStaffSession(token, "view");
+  return (
+    <StaffAccessBoundary token={token} accessKind="view">
+      {(state) => <StaffShiftViewState state={state} />}
+    </StaffAccessBoundary>
+  );
+}
 
+function StaffShiftViewState({ state }: { state: StaffAccessState }) {
   if (state.status === "loading") return <FullPageSpinner />;
   if (state.status === "rateLimited") {
     return (
