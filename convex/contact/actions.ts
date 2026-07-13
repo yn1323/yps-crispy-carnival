@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { getContactRecipientEmail, getContactSlackWebhookUrl, RESEND_FROM_EMAIL } from "../_lib/config";
+import { isNotificationDeliverySuppressed, logSuppressedNotification } from "../_lib/notificationDelivery";
 import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { type ContactDeliveryInput, getContactTypeLabel } from "./schemas";
 
@@ -51,7 +52,11 @@ export function buildContactSlackPayload(input: ContactDeliveryInput) {
   };
 }
 
-async function notifySlack(input: ContactDeliveryInput): Promise<void> {
+async function notifySlack(input: ContactDeliveryInput, suppressDelivery: boolean): Promise<void> {
+  if (isNotificationDeliverySuppressed({ suppressDelivery })) {
+    logSuppressedNotification("contact.slack", { requestIdPresent: input.requestId.length > 0 });
+    return;
+  }
   const webhookUrl = getContactSlackWebhookUrl();
   if (!webhookUrl) {
     console.error("Contact Slack webhook is not configured", { requestId: input.requestId });
@@ -83,12 +88,14 @@ export const deliver = internalAction({
     }),
   },
   handler: async (_ctx, { input }) => {
-    const recipient = getContactRecipientEmail();
-    if (!recipient) return { status: "not_configured" as const };
+    const suppressDelivery = isNotificationDeliverySuppressed();
+    const configuredRecipient = getContactRecipientEmail();
+    if (!configuredRecipient && !suppressDelivery) return { status: "not_configured" as const };
+    const recipient = configuredRecipient || "e2e-contact@shiftori.invalid";
 
     try {
       await sendResendEmail(
-        getResendClient(),
+        getResendClient({ suppressDelivery }),
         {
           from: `シフトリ <${RESEND_FROM_EMAIL}>`,
           to: recipient,
@@ -103,7 +110,7 @@ export const deliver = internalAction({
       return { status: "delivery_failed" as const };
     }
 
-    await notifySlack(input);
+    await notifySlack(input, suppressDelivery);
     return { status: "accepted" as const };
   },
 });
