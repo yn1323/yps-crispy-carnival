@@ -73,6 +73,51 @@ describe("shiftSubmission/mutations", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("submitShiftRequests", () => {
+    it("スタッフ所属店舗と異なる店舗を指すsessionでは提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken } = await setupTestData(t);
+      const otherRecruitmentId = await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "別店舗");
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: otherShopId,
+          periodStart: "2026-04-07",
+          periodEnd: "2026-04-13",
+          deadline: "2026-12-31",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .first();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { shopId: otherShopId, recruitmentId });
+        return recruitmentId;
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId: otherRecruitmentId,
+          requests: [],
+        }),
+      ).rejects.toThrowError(ConvexError);
+
+      expect(
+        await t.run(async (ctx) =>
+          ctx.db
+            .query("shiftSubmissions")
+            .withIndex("by_recruitmentId_staffId", (q) =>
+              q.eq("recruitmentId", otherRecruitmentId).eq("staffId", staffId),
+            )
+            .first(),
+        ),
+      ).toBeNull();
+    });
+
     it("セッション期限切れでエラー", async () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);

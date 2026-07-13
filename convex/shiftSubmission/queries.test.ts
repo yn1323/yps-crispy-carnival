@@ -132,6 +132,49 @@ describe("shiftSubmission/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getSubmissionPageData", () => {
+    it("スタッフ所属店舗と異なる店舗を指すsessionは無効として扱う", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken } = await setupSubmissionPageData(t);
+      const otherRecruitmentId = await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "別店舗");
+        const recruitmentId = await ctx.db.insert("recruitments", {
+          shopId: otherShopId,
+          periodStart: "2026-04-21",
+          periodEnd: "2026-04-27",
+          deadline: "2026-12-31",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        const session = await ctx.db
+          .query("sessions")
+          .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+          .first();
+        if (!session) throw new Error("テスト用sessionが見つかりません");
+        await ctx.db.patch(session._id, { shopId: otherShopId, recruitmentId });
+        return recruitmentId;
+      });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId: otherRecruitmentId,
+      });
+
+      expect(result).toEqual({ status: "unavailable", reason: "invalid_link" });
+      expect(
+        await t.run(async (ctx) =>
+          ctx.db
+            .query("shiftSubmissions")
+            .withIndex("by_recruitmentId_staffId", (q) =>
+              q.eq("recruitmentId", otherRecruitmentId).eq("staffId", staffId),
+            )
+            .first(),
+        ),
+      ).toBeNull();
+    });
+
     it("直近のシフトあり週を previousWeeklyPattern として返す", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);

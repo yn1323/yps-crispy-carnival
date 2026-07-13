@@ -83,6 +83,10 @@ export const validateLinkToken = internalMutation({
     if (!link || link.revokedAt || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
+    const [staff, shop] = await Promise.all([ctx.db.get(link.staffId), ctx.db.get(link.shopId)]);
+    if (!staff || staff.isDeleted || staff.shopId !== link.shopId || !shop || shop.isDeleted) {
+      return { status: "expired" as const };
+    }
     return {
       status: "ok" as const,
       staffId: link.staffId,
@@ -107,8 +111,10 @@ export const finalizeLinking = internalMutation({
     if (!link || link.revokedAt || link.staffId !== args.staffId || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.isDeleted) return { status: "expired" as const };
+    const [staff, shop] = await Promise.all([ctx.db.get(args.staffId), ctx.db.get(link.shopId)]);
+    if (!staff || staff.isDeleted || staff.shopId !== link.shopId || !shop || shop.isDeleted) {
+      return { status: "expired" as const };
+    }
     const currentAccount = await getStaffLineAccount(ctx, args.staffId);
 
     // 同一店舗で別スタッフに同じ lineUserId が紐づいていた場合だけ付け替える

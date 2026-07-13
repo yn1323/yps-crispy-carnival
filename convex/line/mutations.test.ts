@@ -207,6 +207,66 @@ describe("line/mutations", () => {
       const r = await t.mutation(internal.line.mutations.validateLinkToken, { state: "nonexistent" });
       expect(r.status).toBe("expired");
     });
+
+    it("tokenの店舗とスタッフ所属店舗が一致しない場合は expired を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupShop(t);
+      const otherShopId = await t.run(async (ctx) => seedShop(ctx, "別店舗"));
+      const { token } = await seedLineLinkToken(t, {
+        staffId,
+        shopId: otherShopId,
+        token: "cross-shop-line-token",
+      });
+
+      const result = await t.mutation(internal.line.mutations.validateLinkToken, { state: token });
+
+      expect(result).toEqual({ status: "expired" });
+    });
+
+    it("削除済みスタッフのtokenは expired を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "deleted-staff-line-token",
+      });
+      await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
+        status: "expired",
+      });
+    });
+
+    it("削除済み店舗のtokenは expired を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { token } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "deleted-shop-line-token",
+      });
+      await t.run(async (ctx) => await ctx.db.patch(shopId, { isDeleted: true }));
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
+        status: "expired",
+      });
+    });
+
+    it("同じstate先頭8文字で6回検証するとrate limitする", async () => {
+      const t = convexTest(schema, modules);
+      const results = [];
+      for (let index = 0; index < 6; index++) {
+        results.push(
+          await t.mutation(internal.line.mutations.validateLinkToken, {
+            state: `same-key-${index}`,
+          }),
+        );
+      }
+
+      expect(results.slice(0, 5)).toEqual(Array.from({ length: 5 }, () => ({ status: "expired" })));
+      expect(results[5]).toEqual({ status: "rate_limited" });
+    });
   });
 
   describe("finalizeLinking", () => {
@@ -277,6 +337,62 @@ describe("line/mutations", () => {
       );
       expect(retry.status).toBe("expired");
       expect(account?.lineUserId).toBe("U_first");
+    });
+
+    it("tokenの店舗とスタッフ所属店舗が一致しない場合は連携しない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupShop(t);
+      const otherShopId = await t.run(async (ctx) => seedShop(ctx, "別店舗"));
+      const { tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId: otherShopId,
+        token: "cross-shop-finalize-token",
+      });
+
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId,
+          lineUserId: "U_cross_shop",
+          lineFollowing: true,
+        }),
+      ).resolves.toEqual({ status: "expired" });
+      await expect(
+        t.run(async (ctx) =>
+          ctx.db
+            .query("staffLineAccounts")
+            .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+            .first(),
+        ),
+      ).resolves.toBeNull();
+    });
+
+    it("token検証後に店舗が削除された場合は連携しない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupShop(t);
+      const { tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "deleted-shop-finalize-token",
+      });
+      await t.run(async (ctx) => await ctx.db.patch(shopId, { isDeleted: true }));
+
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId,
+          lineUserId: "U_deleted_shop",
+          lineFollowing: true,
+        }),
+      ).resolves.toEqual({ status: "expired" });
+      await expect(
+        t.run(async (ctx) =>
+          ctx.db
+            .query("staffLineAccounts")
+            .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+            .first(),
+        ),
+      ).resolves.toBeNull();
     });
 
     it("既に他スタッフに紐づく lineUserId は奪う", async () => {

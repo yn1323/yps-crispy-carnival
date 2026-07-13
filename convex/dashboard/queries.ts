@@ -23,7 +23,7 @@ async function getManagerShop(ctx: {
   identity: { subject: string } | null;
   user: Doc<"users"> | null;
 }) {
-  if (!ctx.identity || !ctx.user) return null;
+  if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return null;
   const user = ctx.user;
   const memberships = ctx.db
     .query("shopMembers")
@@ -157,7 +157,7 @@ export const getDashboardShop = authenticatedQuery({
 export const getMyShops = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    if (!ctx.identity || !ctx.user) return [];
+    if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return [];
     const user = ctx.user;
     const memberships = await ctx.db
       .query("shopMembers")

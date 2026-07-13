@@ -81,6 +81,21 @@ describe("dashboard/queries", () => {
       expect(result).toBeNull();
     });
 
+    it("論理削除済みユーザーには所属店舗情報を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { userId } = await seedManagerShop(ctx, {
+          subject: "deleted_dashboard_user",
+          shopName: "削除ユーザー所属店舗",
+        });
+        await ctx.db.patch(userId, { isDeleted: true });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "deleted_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, {}),
+      ).resolves.toBeNull();
+    });
+
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
@@ -89,6 +104,68 @@ describe("dashboard/queries", () => {
 
       const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardShop, {});
       expect(Object.keys(result ?? {}).sort()).toEqual(["name", "regularClosedDays", "submissionPattern"]);
+    });
+  });
+
+  describe("getMyShops", () => {
+    it("未認証またはユーザー未登録の場合は空配列を返す", async () => {
+      const unauthenticated = convexTest(schema, modules);
+      const unregistered = convexTest(schema, modules);
+
+      await expect(unauthenticated.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([]);
+      await expect(
+        unregistered.withIdentity({ subject: "unregistered_user" }).query(api.dashboard.queries.getMyShops, {}),
+      ).resolves.toEqual([]);
+    });
+
+    it("本人の有効な所属店舗だけを最小DTOで返す", async () => {
+      const t = convexTest(schema, modules);
+      const { activeShopIds } = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "multi_shop_user");
+        const firstShopId = await seedShop(ctx, "有効店舗A");
+        const secondShopId = await seedShop(ctx, "有効店舗B");
+        await seedShopMembership(ctx, { userId, shopId: firstShopId });
+        await seedShopMembership(ctx, { userId, shopId: secondShopId });
+
+        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        await ctx.db.patch(deletedShopId, { isDeleted: true });
+        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+
+        const deletedMembershipShopId = await seedShop(ctx, "所属解除済み店舗");
+        await seedShopMembership(ctx, {
+          userId,
+          shopId: deletedMembershipShopId,
+          isDeleted: true,
+        });
+
+        const otherUserId = await seedUser(ctx, "other_shop_user");
+        const otherShopId = await seedShop(ctx, "他ユーザーの店舗");
+        await seedShopMembership(ctx, { userId: otherUserId, shopId: otherShopId });
+
+        return { activeShopIds: [firstShopId, secondShopId] };
+      });
+
+      const result = await t.withIdentity({ subject: "multi_shop_user" }).query(api.dashboard.queries.getMyShops, {});
+
+      expect([...result].sort((a, b) => a.shopName.localeCompare(b.shopName, "ja"))).toEqual([
+        { shopId: activeShopIds[0], shopName: "有効店舗A" },
+        { shopId: activeShopIds[1], shopName: "有効店舗B" },
+      ]);
+    });
+
+    it("論理削除済みユーザーの場合は所属店舗を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { userId } = await seedManagerShop(ctx, {
+          subject: "deleted_user",
+          shopName: "所属店舗",
+        });
+        await ctx.db.patch(userId, { isDeleted: true });
+      });
+
+      const result = await t.withIdentity({ subject: "deleted_user" }).query(api.dashboard.queries.getMyShops, {});
+
+      expect(result).toEqual([]);
     });
   });
 
