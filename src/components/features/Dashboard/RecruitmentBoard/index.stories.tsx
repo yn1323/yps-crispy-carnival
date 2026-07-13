@@ -84,6 +84,16 @@ const olderPastRecruitment = makeRecruitment({
   responseCount: 10,
   totalStaffCount: 10,
 });
+const unconfirmedPastRecruitment = makeRecruitment({
+  _id: "rec-past-unconfirmed" as Recruitment["_id"],
+  periodStart: dateInDays(-15),
+  periodEnd: dateInDays(-1),
+  deadline: dateInDays(-20),
+  status: "open",
+  confirmedAt: null,
+  responseCount: 6,
+  totalStaffCount: 10,
+});
 const dashboardRecruitments = [
   currentRecruitment,
   actionRequiredRecruitment,
@@ -201,7 +211,12 @@ export const MultipleGroupsMobile: Story = {
 export const PastLoadedCanLoadMore: Story = {
   tags: ["vrt-mobile1"],
   args: {
-    groups: groupsFor([...dashboardRecruitments, recentPastRecruitment, olderPastRecruitment]),
+    groups: groupsFor([
+      ...dashboardRecruitments,
+      unconfirmedPastRecruitment,
+      recentPastRecruitment,
+      olderPastRecruitment,
+    ]),
     hasPastRecruitments: true,
     isPastRecruitmentsVisible: true,
     pastStatus: "CanLoadMore",
@@ -214,7 +229,12 @@ export const PastLoadedCanLoadMore: Story = {
 
 export const PastLoadedExhausted: Story = {
   args: {
-    groups: groupsFor([...dashboardRecruitments, recentPastRecruitment, olderPastRecruitment]),
+    groups: groupsFor([
+      ...dashboardRecruitments,
+      unconfirmedPastRecruitment,
+      recentPastRecruitment,
+      olderPastRecruitment,
+    ]),
     hasPastRecruitments: true,
     isPastRecruitmentsVisible: true,
     pastStatus: "Exhausted",

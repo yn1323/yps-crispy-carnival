@@ -13,7 +13,13 @@ export type Recruitment = {
   totalStaffCount: number;
 };
 
-export type RecruitmentDisplayStatus = "collecting" | "action-required" | "current" | "confirmed" | "ended";
+export type RecruitmentDisplayStatus =
+  | "collecting"
+  | "action-required"
+  | "current"
+  | "confirmed"
+  | "ended"
+  | "ended-unconfirmed";
 export type DashboardRecruitmentGroupKey = "current" | "actionRequired" | "collecting" | "confirmed" | "past";
 
 export type DashboardRecruitmentGroup = {

@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -277,6 +277,15 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardRecruitments", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-03-20T00:00:00+09:00"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
       const result = await t.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
@@ -452,6 +461,68 @@ describe("dashboard/queries", () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it("未確定シフトは終了日当日まで返し、翌日から初期取得ではなく過去取得で返す", async () => {
+      vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_open_ended",
+          email: "open-ended@example.com",
+          shopName: "店舗",
+        });
+        return await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-07",
+          deadline: "2026-06-30",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+      });
+      const asManager = t.withIdentity({ subject: "user_open_ended" });
+
+      const onPeriodEnd = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      expect(onPeriodEnd.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
+
+      vi.setSystemTime(new Date("2026-07-08T00:00:00+09:00"));
+      const nextDay = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, PAGINATION_FIRST_PAGE);
+
+      expect(nextDay.page).toEqual([]);
+      expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
+    });
+
+    it("終了済みの未確定シフトは締切日が未来でも初期取得で返さない", async () => {
+      vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_ended_before_deadline",
+          email: "ended-before-deadline@example.com",
+          shopName: "店舗",
+        });
+        return await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-06",
+          deadline: "2026-07-10",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+      });
+      const asManager = t.withIdentity({ subject: "user_ended_before_deadline" });
+
+      const active = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, PAGINATION_FIRST_PAGE);
+
+      expect(active.page).toEqual([]);
+      expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
     });
 
     it("現在のシフトだけを終了日が近い順に返す", async () => {
@@ -656,7 +727,7 @@ describe("dashboard/queries", () => {
   });
 
   describe("hasDashboardPastRecruitments", () => {
-    it("過去の確定済みシフトが存在する場合だけ true を返す", async () => {
+    it("終了済みシフトが未確定でも true を返す", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -671,8 +742,6 @@ describe("dashboard/queries", () => {
             shopId,
             deadline: "2026-04-20",
             shopClosedDates: [],
-            status: "confirmed" as const,
-            confirmedAt: Date.now(),
             isDeleted: false,
             submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
           };
@@ -680,16 +749,21 @@ describe("dashboard/queries", () => {
             ...base,
             periodStart: "2026-07-01",
             periodEnd: "2026-07-15",
+            status: "confirmed",
+            confirmedAt: Date.now(),
           });
           await ctx.db.insert("recruitments", {
             ...base,
             periodStart: "2026-05-01",
             periodEnd: "2026-05-15",
+            status: "open",
           });
           await ctx.db.insert("recruitments", {
             ...base,
             periodStart: "2026-04-01",
             periodEnd: "2026-04-15",
+            status: "confirmed",
+            confirmedAt: Date.now(),
             isDeleted: true,
           });
         });
@@ -704,7 +778,7 @@ describe("dashboard/queries", () => {
       }
     });
 
-    it("過去の確定済みシフトがない場合は false を返す", async () => {
+    it("終了済みシフトがない場合は false を返す", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -740,7 +814,7 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardPastRecruitments", () => {
-    it("過去の確定済みシフトを終了日が新しい順にページング取得する", async () => {
+    it("未確定と確定済みの過去シフトを終了日が新しい順にページング取得する", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -755,22 +829,28 @@ describe("dashboard/queries", () => {
             shopId,
             deadline: "2026-04-20",
             shopClosedDates: [],
-            status: "confirmed" as const,
-            confirmedAt: Date.now(),
             isDeleted: false,
             submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
           };
-          for (const [periodStart, periodEnd] of [
-            ["2026-05-16", "2026-05-31"],
-            ["2026-05-01", "2026-05-15"],
-            ["2026-04-16", "2026-04-30"],
+          for (const [periodStart, periodEnd, status] of [
+            ["2026-05-16", "2026-05-31", "open"],
+            ["2026-05-01", "2026-05-15", "confirmed"],
+            ["2026-04-16", "2026-04-30", "open"],
           ] as const) {
-            await ctx.db.insert("recruitments", { ...base, periodStart, periodEnd });
+            await ctx.db.insert("recruitments", {
+              ...base,
+              periodStart,
+              periodEnd,
+              status,
+              ...(status === "confirmed" ? { confirmedAt: Date.now() } : {}),
+            });
           }
           await ctx.db.insert("recruitments", {
             ...base,
             periodStart: "2026-07-01",
             periodEnd: "2026-07-15",
+            status: "confirmed",
+            confirmedAt: Date.now(),
           });
         });
 

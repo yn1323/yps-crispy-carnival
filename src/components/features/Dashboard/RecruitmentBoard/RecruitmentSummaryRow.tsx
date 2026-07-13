@@ -41,6 +41,7 @@ const statusConfig: Record<
   },
   confirmed: { label: "確定済み", colorPalette: "blue", accent: "blue.300" },
   ended: { label: "確定済み", colorPalette: "gray", accent: "gray.300" },
+  "ended-unconfirmed": { label: "未確定", colorPalette: "gray", accent: "gray.300" },
 };
 
 export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabel, endSlot }: Props) {
@@ -52,7 +53,7 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
   const isCurrent = displayStatus === "current";
   const isActionRequired = displayStatus === "action-required";
-  const textColor = displayStatus === "ended" ? "gray.700" : "gray.900";
+  const textColor = displayStatus === "ended" || displayStatus === "ended-unconfirmed" ? "gray.700" : "gray.900";
 
   return (
     <Flex
@@ -171,6 +172,9 @@ function relativeDeadline({
   confirmedAt: number | null;
   displayStatus: RecruitmentDisplayStatus;
 }): string {
+  if (displayStatus === "ended-unconfirmed") {
+    return `${formatDateShort(periodEnd)} 期間終了`;
+  }
   if (displayStatus === "current" || displayStatus === "confirmed" || displayStatus === "ended") {
     return confirmedAt ? `確定 ${formatDateShort(dayjs(confirmedAt).format("YYYY-MM-DD"))}` : "確定済み";
   }

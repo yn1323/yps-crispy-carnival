@@ -37,14 +37,25 @@ describe("Dashboard recruitment display helpers", () => {
     expect(getDashboardRecruitmentGroupKey(overdue, now)).toBe("actionRequired");
   });
 
-  it("未確定のまま期間終了した募集も要シフト調整として扱う", () => {
+  it("未確定のまま期間終了した募集は過去シフトとして扱う", () => {
     const endedOpen = recruitment({
       periodStart: "2026-06-01",
       periodEnd: "2026-06-10",
       deadline: "2026-06-25",
     });
-    expect(getDisplayStatus(endedOpen, now)).toBe("action-required");
-    expect(getDashboardRecruitmentGroupKey(endedOpen, now)).toBe("actionRequired");
+    expect(getDisplayStatus(endedOpen, now)).toBe("ended-unconfirmed");
+    expect(getDashboardRecruitmentGroupKey(endedOpen, now)).toBe("past");
+  });
+
+  it("未確定シフトは終了日当日まで要シフト調整に残し、翌日から過去シフトにする", () => {
+    const endingToday = recruitment({
+      periodStart: "2026-06-10",
+      periodEnd: "2026-06-16",
+      deadline: "2026-06-09",
+    });
+
+    expect(getDashboardRecruitmentGroupKey(endingToday, dayjs("2026-06-16"))).toBe("actionRequired");
+    expect(getDashboardRecruitmentGroupKey(endingToday, dayjs("2026-06-17"))).toBe("past");
   });
 
   it("確定済みで今日が期間内なら現在のシフトとして扱う", () => {
@@ -191,10 +202,9 @@ describe("Dashboard recruitment display helpers", () => {
     expect(result.groups[0].recruitments.map((r) => r._id)).toEqual(["sooner", "later"]);
   });
 
-  it("過去の確定済みシフトは過去グループに入る", () => {
+  it("過去シフトは確定状態に関係なく終了日の新しい順で過去グループに入る", () => {
     const recentPast = recruitment({
       _id: "recent-past" as Recruitment["_id"],
-      status: "confirmed",
       periodStart: "2026-06-01",
       periodEnd: "2026-06-15",
     });

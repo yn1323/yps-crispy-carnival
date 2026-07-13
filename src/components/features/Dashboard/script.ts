@@ -19,10 +19,12 @@ export function isCurrentRecruitment(
 
 export function getDisplayStatus(recruitment: RecruitmentDateStatusFields, now = dayjs()): RecruitmentDisplayStatus {
   const today = now.format("YYYY-MM-DD");
-  if (recruitment.status === "open" && (recruitment.deadline < today || recruitment.periodEnd < today)) {
+  if (recruitment.periodEnd < today) {
+    return recruitment.status === "confirmed" ? "ended" : "ended-unconfirmed";
+  }
+  if (recruitment.status === "open" && recruitment.deadline < today) {
     return "action-required";
   }
-  if (recruitment.periodEnd < today) return "ended";
   if (isCurrentRecruitment(recruitment, now)) return "current";
   if (recruitment.status === "confirmed") return "confirmed";
   return "collecting";
@@ -78,12 +80,12 @@ export function getDashboardRecruitmentGroupKey(
   now = dayjs(),
 ): DashboardRecruitmentGroupKey | null {
   const today = now.format("YYYY-MM-DD");
+  if (recruitment.periodEnd < today) return "past";
   if (recruitment.status === "confirmed") {
-    if (recruitment.periodStart <= today && today <= recruitment.periodEnd) return "current";
-    if (today < recruitment.periodStart) return "confirmed";
-    return "past";
+    if (recruitment.periodStart <= today) return "current";
+    return "confirmed";
   }
-  if (recruitment.deadline < today || recruitment.periodEnd < today) return "actionRequired";
+  if (recruitment.deadline < today) return "actionRequired";
   return "collecting";
 }
 
