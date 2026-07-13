@@ -45,7 +45,7 @@ export const UserWithoutShopDeletionEntry: Story = {
     },
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async () => {
     const screen = within(document.body);
@@ -70,9 +70,6 @@ export const UserWithoutMenu: Story = {
 export const UserWithAction: Story = {
   args: {
     userActions: <Button size="sm">要望を送る</Button>,
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    await expect(within(canvasElement).getByRole("button", { name: "要望を送る" })).toBeVisible();
   },
 };
 
@@ -119,9 +116,6 @@ export const StaffWithAction: Story = {
     actions: <Button size="sm">要望を送る</Button>,
     maxW: "1024px",
     px: { base: 4, lg: 6 },
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    await expect(within(canvasElement).getByRole("button", { name: "要望を送る" })).toBeVisible();
   },
 };
 

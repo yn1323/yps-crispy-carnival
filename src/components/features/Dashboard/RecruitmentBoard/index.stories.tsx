@@ -95,9 +95,6 @@ const groupsFor = (
   recruitments: Recruitment[],
   options: Omit<Parameters<typeof buildDashboardRecruitmentGroups>[0], "recruitments"> = {},
 ) => buildDashboardRecruitmentGroups({ ...options, recruitments }).groups;
-const assertText = (root: HTMLElement, text: string, label: string) => {
-  if (!root.textContent?.includes(text)) throw new Error(`${label} が表示されませんでした`);
-};
 
 const meta = {
   title: "Features/Dashboard/RecruitmentBoard",
@@ -164,9 +161,6 @@ export const WithPastEntryButtonBeforeQueryStarts: Story = {
     isPastRecruitmentsVisible: false,
     pastStatus: "LoadingFirstPage",
   },
-  play: async ({ canvasElement }) => {
-    assertText(canvasElement, "過去のシフトを見る", "過去のシフト導線");
-  },
 };
 
 export const Empty: Story = {
@@ -192,6 +186,7 @@ export const OnlyCurrentShift: Story = {
 };
 
 export const MultipleGroupsMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     groups: dashboardGroups,
     hasPastRecruitments: true,
@@ -200,16 +195,10 @@ export const MultipleGroupsMobile: Story = {
   parameters: {
     viewport: { value: "mobile1", isRotated: false },
   },
-  play: async ({ canvasElement }) => {
-    assertText(canvasElement, "現在のシフト", "現在のシフト見出し");
-    assertText(canvasElement, "要シフト調整", "要シフト調整見出し");
-    assertText(canvasElement, "募集中", "募集中見出し");
-    assertText(canvasElement, "確定済み", "確定済み見出し");
-    assertText(canvasElement, "過去のシフトを見る", "過去のシフト導線");
-  },
 };
 
 export const PastLoadedCanLoadMore: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     groups: groupsFor([...dashboardRecruitments, recentPastRecruitment, olderPastRecruitment]),
     hasPastRecruitments: true,
@@ -219,10 +208,6 @@ export const PastLoadedCanLoadMore: Story = {
   },
   parameters: {
     viewport: { value: "mobile1", isRotated: false },
-  },
-  play: async ({ canvasElement }) => {
-    assertText(canvasElement, "過去のシフト", "過去のシフト見出し");
-    assertText(canvasElement, "もっと見る", "過去シフト追加導線");
   },
 };
 

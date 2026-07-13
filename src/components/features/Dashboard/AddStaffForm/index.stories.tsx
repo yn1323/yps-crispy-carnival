@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { LuUserPlus } from "react-icons/lu";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
@@ -78,7 +78,7 @@ function StaffAdditionDialogFixture() {
 
 export const BackToQrFromManual: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => <StaffAdditionDialogFixture />,
   play: async ({ canvasElement }) => {
@@ -99,7 +99,7 @@ export const BackToQrFromManual: Story = {
 
 export const EmptySubmitShowsError: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => (
     <Dialog
@@ -120,5 +120,48 @@ export const EmptySubmitShowsError: Story = {
     await userEvent.click(await page.findByRole("button", { name: "スタッフを追加する" }));
 
     await expect(await page.findByText("少なくとも1人のスタッフ名を入力してください")).toBeInTheDocument();
+  },
+};
+
+export const ValidSubmitPassesNormalizedPayload: Story = {
+  args: {
+    onSubmit: fn(),
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: (args) => (
+    <Dialog
+      title="スタッフを招待"
+      isOpen={true}
+      onOpenChange={() => {}}
+      formId="add-staff-form"
+      submitLabel="スタッフを追加する"
+      onClose={() => {}}
+      closeLabel="戻る"
+    >
+      <AddStaffForm onSubmit={args.onSubmit} />
+    </Dialog>
+  ),
+  play: async ({ args, canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    const [emailInput] = await page.findAllByPlaceholderText("例：hanako@example.com");
+
+    await userEvent.type(nameInput, " 田中 花子 ");
+    await userEvent.type(emailInput, " hanako@example.com ");
+    await userEvent.click(await page.findByRole("button", { name: "スタッフを追加する" }));
+
+    await expect(args.onSubmit).toHaveBeenCalledTimes(1);
+    await expect(args.onSubmit).toHaveBeenCalledWith(
+      {
+        entries: [
+          { name: "田中 花子", email: "hanako@example.com" },
+          { name: "", email: "" },
+          { name: "", email: "" },
+        ],
+      },
+      expect.anything(),
+    );
   },
 };

@@ -111,6 +111,7 @@ export const AllTasksDesktop: Story = {
 };
 
 export const AllTasksMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: allTasksArgs,
   decorators: [
     (Story) => (
@@ -144,6 +145,7 @@ export const Loading: Story = {
 };
 
 export const MetaItemsMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     ...baseArgs,
     recruitments: [dueSoon, confirmed],
@@ -166,6 +168,7 @@ export const WelcomeDesktop: Story = {
 };
 
 export const WelcomeMobile: Story = {
+  tags: ["vrt-mobile1"],
   args: {
     ...baseArgs,
     recruitments: [],

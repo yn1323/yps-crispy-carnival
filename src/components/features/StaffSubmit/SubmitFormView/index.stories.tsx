@@ -59,7 +59,7 @@ export const LateInitialInteractive: Story = {
     },
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     lateInitialSubmitCount = 0;
@@ -132,7 +132,7 @@ export const ShiftTypeDefaultRest: Story = {
 export const ShiftTypeInteractive: Story = {
   args: ShiftTypeDefaultRest.args,
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

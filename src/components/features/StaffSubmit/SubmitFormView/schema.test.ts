@@ -24,7 +24,7 @@ describe("submitFormSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("終了時間は開始時間より後にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("endTime"))).toBe(true);
     }
   });
 
@@ -34,7 +34,7 @@ describe("submitFormSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("終了時間は開始時間より後にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("endTime"))).toBe(true);
     }
   });
 

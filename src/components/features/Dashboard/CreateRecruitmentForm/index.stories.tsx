@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { findByText, getAllByText, getByRole, getByText } from "@testing-library/dom";
 import dayjs from "dayjs";
-import { expect } from "storybook/test";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { CreateRecruitmentForm } from "./index.tsx";
 
@@ -22,7 +22,26 @@ type Story = StoryObj<typeof meta>;
 const STORY_TODAY = "2026-05-01";
 const LONG_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const storyToday = () => dayjs(STORY_TODAY);
-let doubleSubmitCount = 0;
+
+const DoubleSubmitGuardHarness = () => {
+  const [submitCount, setSubmitCount] = useState(0);
+
+  return (
+    <>
+      <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
+        <CreateRecruitmentForm
+          today={STORY_TODAY}
+          onSubmit={async () => {
+            setSubmitCount((current) => current + 1);
+            await delay(100);
+          }}
+          onCancel={() => {}}
+        />
+      </StepperDialog>
+      <output data-testid="submit-call-count">{submitCount}</output>
+    </>
+  );
+};
 
 export const InDialog: Story = {
   render: () => (
@@ -46,11 +65,12 @@ export const MobileFullScreen: Story = {
 
 export const InteractiveBasicFlow: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: InDialog.render,
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
     const today = storyToday();
     const periodStart = today.add(3, "day");
     const periodEnd = today.add(5, "day");
@@ -59,31 +79,32 @@ export const InteractiveBasicFlow: Story = {
     expectDateDisabled(root, today, "期間カレンダーで今日以前は選択不可");
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
-    clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     await clickDate(root, deadline);
-    clickButton(root, "確認へ");
+    await clickButton(root, "確認へ");
 
-    await findByText(root, "内容を確認");
-    expect(getByText(root, "お店のお休み")).toBeTruthy();
-    expect(getByText(root, "なし")).toBeTruthy();
-    expect(getAllByText(root, "提出締切").length).toBeGreaterThan(0);
-    expect(getByText(root, "通知")).toBeTruthy();
-    expect(await findByText(root, "スタッフにシフト提出案内を送ります")).toBeTruthy();
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("お店のお休み")).toBeTruthy();
+    expect(canvas.getByText("なし")).toBeTruthy();
+    expect(canvas.getAllByText("提出締切").length).toBeGreaterThan(0);
+    expect(canvas.getByText("通知")).toBeTruthy();
+    expect(await canvas.findByText("スタッフにシフト提出案内を送ります")).toBeTruthy();
   },
 };
 
 export const InteractiveHolidayEdgeCases: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: InDialog.render,
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
     const periodStart = storyToday().add(3, "day");
     const holidays = [0, 1, 2, 3, 4].map((offset) => periodStart.add(offset, "day"));
     const periodEnd = holidays.at(-1);
@@ -91,31 +112,31 @@ export const InteractiveHolidayEdgeCases: Story = {
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
+    await canvas.findByText("お店のお休みを選択");
     for (const holiday of holidays) {
       await clickDate(root, holiday);
     }
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "シフト期間のすべてをお休みにはできません");
-    await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await canvas.findByText("シフト期間のすべてをお休みにはできません");
+    await clickDate(root, periodEnd, false);
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
-    clickButton(root, "確認へ");
+    await clickButton(root, "確認へ");
 
-    await findByText(root, "内容を確認");
-    expect(getByText(root, "4日")).toBeTruthy();
-    expect(await findByText(root, /ほか1日/)).toBeTruthy();
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("4日")).toBeTruthy();
+    expect(await canvas.findByText(/ほか1日/)).toBeTruthy();
   },
 };
 
 export const InteractiveDefaultRegularClosedDays: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
@@ -123,63 +144,66 @@ export const InteractiveDefaultRegularClosedDays: Story = {
     </StepperDialog>
   ),
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
     const periodStart = nextWeekday(storyToday().add(3, "day"), 1);
     const periodEnd = periodStart.add(2, "day");
     const deadline = periodStart.subtract(1, "day");
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
-    clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     await clickDate(root, deadline);
-    clickButton(root, "確認へ");
+    await clickButton(root, "確認へ");
 
-    await findByText(root, "内容を確認");
-    expect(getByText(root, "1日")).toBeTruthy();
-    expect(await findByText(root, formatDatePreview(periodStart))).toBeTruthy();
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("1日")).toBeTruthy();
+    expect(await canvas.findByText(formatDatePreview(periodStart))).toBeTruthy();
   },
 };
 
 export const InteractiveDeadlineRestriction: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: InDialog.render,
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
     const periodStart = storyToday().add(5, "day");
     const periodEnd = storyToday().add(7, "day");
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
-    clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     expectDateDisabled(root, periodStart, "提出期限カレンダーで開始日当日は選択不可");
-    clickButton(root, "確認へ");
-    await findByText(root, "提出締切日を選択してください");
+    await clickButton(root, "確認へ");
+    await canvas.findByText("提出締切日を選択してください");
 
     await clickDate(root, periodStart.subtract(1, "day"));
-    clickButton(root, "確認へ");
-    await findByText(root, "内容を確認");
+    await clickButton(root, "確認へ");
+    await canvas.findByText("内容を確認");
   },
 };
 
 export const InteractiveNextMonthOnlyFlow: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: InDialog.render,
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
     const nextMonth = storyToday().add(1, "month").startOf("month");
     const followingMonth = nextMonth.add(1, "month");
     const periodStart = nextMonth.add(14, "day");
@@ -188,21 +212,21 @@ export const InteractiveNextMonthOnlyFlow: Story = {
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
+    await canvas.findByText("お店のお休みを選択");
     expect(root.textContent).toContain(nextMonth.format("YYYY年M月"));
     expect(root.textContent).not.toContain(followingMonth.format("YYYY年M月"));
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     await clickDate(root, deadline);
-    clickButton(root, "確認へ");
+    await clickButton(root, "確認へ");
 
-    await findByText(root, "内容を確認");
-    expect(getByText(root, "なし")).toBeTruthy();
-    expect(await findByText(root, formatDateRangePreview(periodStart, periodEnd))).toBeTruthy();
-    expect(await findByText(root, formatDeadlinePreview(deadline))).toBeTruthy();
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("なし")).toBeTruthy();
+    expect(await canvas.findByText(formatDateRangePreview(periodStart, periodEnd))).toBeTruthy();
+    expect(await canvas.findByText(formatDeadlinePreview(deadline))).toBeTruthy();
   },
 };
 
@@ -212,75 +236,64 @@ export const InteractiveMobileBasicFlow: Story = {
     viewport: { value: "mobile1", isRotated: false },
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: MobileFullScreen.render,
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
     const periodStart = storyToday().add(2, "day");
     const periodEnd = storyToday().add(4, "day");
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
-    clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
-    clickButton(root, "確認へ");
+    await clickButton(root, "確認へ");
 
-    await findByText(root, "内容を確認");
-    expect(getByText(root, "なし")).toBeTruthy();
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("なし")).toBeTruthy();
   },
 };
 
 export const InteractiveDoubleSubmitGuard: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
-  render: () => (
-    <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm
-        today={STORY_TODAY}
-        onSubmit={async () => {
-          doubleSubmitCount += 1;
-          await delay(100);
-        }}
-        onCancel={() => {}}
-      />
-    </StepperDialog>
-  ),
+  render: () => <DoubleSubmitGuardHarness />,
   play: async ({ canvasElement }) => {
-    doubleSubmitCount = 0;
-    const root = getTestRoot(canvasElement);
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const story = within(canvasElement);
     const periodStart = storyToday().add(2, "day");
     const periodEnd = storyToday().add(4, "day");
 
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
-    clickButton(root, "次へ");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "お店のお休みを選択");
-    clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "提出締切日を選択");
+    await canvas.findByText("提出締切日を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
-    clickButton(root, "確認へ");
+    await clickButton(root, "確認へ");
 
-    await findByText(root, "内容を確認");
-    const submitButton = getByRole(root, "button", { name: "募集をつくる" });
-    submitButton.click();
-    submitButton.click();
-    await nextFrame();
+    await canvas.findByText("内容を確認");
+    const submitButton = canvas.getByRole("button", { name: "募集をつくる" });
+    await userEvent.dblClick(submitButton);
 
-    expect(doubleSubmitCount).toBe(1);
+    await waitFor(() => expect(story.getByTestId("submit-call-count")).toHaveTextContent("1"));
   },
 };
 
-function getTestRoot(canvasElement: HTMLElement): HTMLElement {
-  return (document.querySelector('[role="dialog"]') as HTMLElement | null) ?? canvasElement;
+async function getTestRoot(canvasElement: HTMLElement): Promise<HTMLElement> {
+  return within(canvasElement.ownerDocument.body).findByRole("dialog");
 }
 
 function getDateButton(root: HTMLElement, date: dayjs.Dayjs): HTMLButtonElement {
@@ -309,12 +322,12 @@ function getDateButton(root: HTMLElement, date: dayjs.Dayjs): HTMLButtonElement 
   throw new Error(`${iso} の日付ボタンが見つかりませんでした`);
 }
 
-async function clickDate(root: HTMLElement, date: dayjs.Dayjs) {
+async function clickDate(root: HTMLElement, date: dayjs.Dayjs, selected = true) {
   await ensureMonthVisible(root, date);
   const button = getDateButton(root, date);
   expect(isDateDisabled(button), `${date.format("YYYY-MM-DD")} は選択可能であること`).toBe(false);
-  button.click();
-  await nextFrame();
+  await userEvent.click(button);
+  await waitFor(() => expect(button.hasAttribute("data-selected")).toBe(selected));
 }
 
 function expectDateDisabled(root: HTMLElement, date: dayjs.Dayjs, context: string) {
@@ -337,16 +350,17 @@ async function ensureMonthVisible(root: HTMLElement, date: dayjs.Dayjs) {
     if (root.textContent?.includes(monthLabel)) return;
     const nextButton = root.querySelector<HTMLButtonElement>('[data-part="next-trigger"]');
     if (!nextButton || isDateDisabled(nextButton)) break;
-    nextButton.click();
-    await nextFrame();
+    const previousCalendarText = root.textContent;
+    await userEvent.click(nextButton);
+    await waitFor(() => expect(root.textContent).not.toBe(previousCalendarText));
   }
   throw new Error(`${monthLabel} がカレンダーに表示されませんでした`);
 }
 
-function clickButton(root: HTMLElement, text: string) {
-  const button = getByRole(root, "button", { name: text });
+async function clickButton(root: HTMLElement, text: string) {
+  const button = within(root).getByRole("button", { name: text });
   expect(button).toBeTruthy();
-  button.click();
+  await userEvent.click(button);
 }
 
 function formatDateRangePreview(start: dayjs.Dayjs, end: dayjs.Dayjs): string {
@@ -374,5 +388,4 @@ function nextWeekday(from: dayjs.Dayjs, weekday: number): dayjs.Dayjs {
   return from.add(offset, "day");
 }
 
-const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getByRole } from "@testing-library/dom";
-import { expect } from "storybook/test";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { StaffRegistrationPage } from "./index";
@@ -25,7 +25,6 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-let doubleSubmitCount = 0;
 
 export const Form: Story = {
   args: {
@@ -39,7 +38,6 @@ export const Form: Story = {
 };
 
 export const Confirm: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
   args: {
     ...Form.args,
     initialConfirmData: {
@@ -51,7 +49,6 @@ export const Confirm: Story = {
 };
 
 export const Submitted: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
   args: {
     ...Form.args,
     isSubmitted: true,
@@ -59,7 +56,6 @@ export const Submitted: Story = {
 };
 
 export const Expired: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
   args: {
     data: {
       status: "expired",
@@ -70,40 +66,43 @@ export const Expired: Story = {
 };
 
 export const InteractiveDoubleSubmitGuard: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: Form.args,
   render: () => <GuardedConfirmStory />,
   play: async ({ canvasElement }) => {
-    doubleSubmitCount = 0;
-    const submitButton = getByRole(canvasElement, "button", { name: "申請する" });
-    submitButton.click();
-    submitButton.click();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const canvas = within(canvasElement);
+    await userEvent.dblClick(canvas.getByRole("button", { name: "申請する" }));
 
-    expect(doubleSubmitCount).toBe(1);
+    await waitFor(() => expect(canvas.getByTestId("registration-submit-count")).toHaveTextContent("1"));
   },
 };
 
 function GuardedConfirmStory() {
+  const [submitCount, setSubmitCount] = useState(0);
   const { run: handleSubmit, isRunning: isSubmitting } = useSingleFlight(async () => {
-    doubleSubmitCount += 1;
+    setSubmitCount((count) => count + 1);
     await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   return (
-    <StaffRegistrationPage
-      data={{
-        status: "ok",
-        shopName: "居酒屋たなか",
-        documents,
-      }}
-      isSubmitting={isSubmitting}
-      initialConfirmData={{
-        name: "田中 花子",
-        email: "hanako@example.com",
-        acceptedLegal: true,
-      }}
-      onSubmit={handleSubmit}
-    />
+    <>
+      <StaffRegistrationPage
+        data={{
+          status: "ok",
+          shopName: "居酒屋たなか",
+          documents,
+        }}
+        isSubmitting={isSubmitting}
+        initialConfirmData={{
+          name: "田中 花子",
+          email: "hanako@example.com",
+          acceptedLegal: true,
+        }}
+        onSubmit={handleSubmit}
+      />
+      <output data-testid="registration-submit-count" hidden>
+        {submitCount}
+      </output>
+    </>
   );
 }

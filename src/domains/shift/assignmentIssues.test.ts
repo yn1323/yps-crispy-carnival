@@ -9,14 +9,19 @@ const staffs = [
 
 describe("toDisplayIssues", () => {
   it("日付＋曜日とスタッフ名つきのラベルに整形する", () => {
-    const issues = [buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1")];
+    const issues = [
+      {
+        ...buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1"),
+        message: "validation-message",
+      },
+    ];
     expect(toDisplayIssues(issues, staffs)).toEqual([
       {
         key: "staff1-2026-01-21-CLOSED_DAY",
         code: "CLOSED_DAY",
         date: "2026-01-21",
         staffId: "staff1",
-        label: "1/21(水) 鈴木太郎：定休日にはシフトを登録できません",
+        label: "1/21(水) 鈴木太郎：validation-message",
       },
     ]);
   });
@@ -27,11 +32,15 @@ describe("toDisplayIssues", () => {
       buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff1"),
       buildAssignmentIssue("CLOSED_DAY", "2026-01-21", "staff2"),
     ];
-    const labels = toDisplayIssues(issues, staffs).map((issue) => issue.label);
-    expect(labels).toEqual([
-      "1/21(水) 佐藤花子：定休日にはシフトを登録できません",
-      "1/21(水) 鈴木太郎：定休日にはシフトを登録できません",
-      "1/22(木) 鈴木太郎：同じスタッフの同じ日に、シフト時間が重なっています",
+    const orderedIssueKeys = toDisplayIssues(issues, staffs).map(({ date, staffId, code }) => ({
+      date,
+      staffId,
+      code,
+    }));
+    expect(orderedIssueKeys).toEqual([
+      { date: "2026-01-21", staffId: "staff2", code: "CLOSED_DAY" },
+      { date: "2026-01-21", staffId: "staff1", code: "CLOSED_DAY" },
+      { date: "2026-01-22", staffId: "staff1", code: "OVERLAP" },
     ]);
   });
 

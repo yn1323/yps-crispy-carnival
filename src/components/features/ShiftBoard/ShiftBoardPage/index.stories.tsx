@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import type { ShiftBoardData } from "../types";
@@ -121,57 +121,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const waitForElement = async <T extends Element>(find: () => T | null, message: string, timeout = 2000): Promise<T> => {
-  const startedAt = performance.now();
-  while (performance.now() - startedAt < timeout) {
-    const element = find();
-    if (element) return element;
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  }
-  throw new Error(message);
-};
-
-const clickButtonByText = async (root: ParentNode, text: string) => {
-  const button = await waitForElement(
-    () =>
-      Array.from(root.querySelectorAll<HTMLElement>('button, [role="button"]')).find(
-        (candidate) => candidate.textContent?.includes(text) && isElementVisible(candidate),
-      ) ?? null,
-    `${text} ボタンが見つかりませんでした`,
-  );
-  button.click();
-  return button;
-};
-
-const isElementVisible = (element: Element) => {
-  const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
-};
-
-const getPointBlockingElement = (element: Element) => {
-  const rect = element.getBoundingClientRect();
-  const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-  return !target || (!element.contains(target) && !target.contains(element)) ? target : null;
-};
-
-const waitForPointToHitElement = async (element: Element, label: string) => {
-  await waitForElement(
-    () => (getPointBlockingElement(element) ? null : element),
-    `${label} が別のレイヤーに覆われています: ${describeElement(getPointBlockingElement(element))}`,
-  );
-};
-
-const describeElement = (element: Element | null) => {
-  if (!element) return "elementFromPoint=null";
-  const tag = element.tagName.toLowerCase();
-  const id = element.id ? `#${element.id}` : "";
-  const classes = element.className ? `.${String(element.className).replace(/\s+/g, ".")}` : "";
-  const scope = element.getAttribute("data-scope");
-  const part = element.getAttribute("data-part");
-  const attrs = [scope ? `data-scope=${scope}` : "", part ? `data-part=${part}` : ""].filter(Boolean).join(" ");
-  return `${tag}${id}${classes}${attrs ? ` ${attrs}` : ""}`;
-};
-
 export const PC: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -193,7 +142,7 @@ export const PCDateOnly: Story = {
     },
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -217,7 +166,7 @@ export const PCShiftType: Story = {
     },
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -266,43 +215,33 @@ export const SP: Story = {
   globals: {
     viewport: { value: "mobile2", isRotated: false },
   },
+};
+
+export const SPDialogInteraction: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
     await expect(
       canvas.queryByRole("link", { name: "勤務時間の入力方法（別タブで開きます）" }),
     ).not.toBeInTheDocument();
 
-    await clickButtonByText(canvasElement, "鈴木太郎");
+    await userEvent.click(await canvas.findByRole("button", { name: /鈴木太郎/ }));
 
-    await waitForElement(() => document.querySelector('[role="dialog"]'), "スタッフのシフトDialogが開きませんでした");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(canvasElement.ownerDocument.body).not.toHaveStyle({ pointerEvents: "none" });
 
-    const closeButton = await waitForElement(
-      () => document.querySelector<HTMLButtonElement>('button[aria-label="閉じる"]'),
-      "Dialogの閉じるボタンが見つかりませんでした",
-    );
-    closeButton.click();
-
-    const overviewTab = await waitForElement(
-      () =>
-        Array.from(canvasElement.querySelectorAll<HTMLElement>('[role="tab"]')).find(
-          (candidate) => candidate.textContent?.includes("一覧") && isElementVisible(candidate),
-        ) ?? null,
-      "一覧タブが見つかりませんでした",
-    );
-    await waitForElement(
-      () => (document.querySelector('[role="dialog"]') ? null : overviewTab),
-      "Dialogが閉じませんでした",
-    );
-    if (document.body.style.pointerEvents === "none") {
-      throw new Error("Dialogを閉じた後も body に pointer-events: none が残っています");
-    }
-
-    await waitForPointToHitElement(overviewTab, "Dialogを閉じた後の一覧タブ");
-    overviewTab.click();
-    await waitForElement(
-      () => (overviewTab.getAttribute("aria-selected") === "true" ? overviewTab : null),
-      "Dialogを閉じた後に一覧タブを選択できませんでした",
-    );
+    const overviewTab = await canvas.findByRole("tab", { name: /一覧/ });
+    await userEvent.click(overviewTab);
+    await expect(overviewTab).toHaveAttribute("aria-selected", "true");
   },
 };
 
@@ -322,7 +261,7 @@ export const Confirmed: Story = {
 export const PastDraftSaveBlocked: Story = {
   name: "Past Draft Save Blocked",
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     toaster.dismiss();
@@ -348,7 +287,7 @@ export const PastResendBlocked: Story = {
     },
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     toaster.dismiss();

@@ -184,7 +184,7 @@ export const LoginVerificationError: Story = {
 };
 
 export const LoginVerificationResend: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     loginSafeIdentifier: "ma***@example.com",
@@ -199,7 +199,7 @@ export const LoginVerificationResend: Story = {
 };
 
 export const LoginVerificationBack: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     loginSafeIdentifier: "ma***@example.com",
@@ -215,7 +215,7 @@ export const LoginVerificationBack: Story = {
 };
 
 export const LoginVerificationSubmit: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     loginSafeIdentifier: "ma***@example.com",
@@ -231,7 +231,7 @@ export const LoginVerificationSubmit: Story = {
 };
 
 export const SignupVerificationRestart: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "signup",
   },
@@ -246,7 +246,7 @@ export const SignupVerificationRestart: Story = {
 };
 
 export const LoginRouteNavigation: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     redirectTo: "/dashboard?tab=staff",

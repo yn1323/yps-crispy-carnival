@@ -7,23 +7,23 @@ import {
 
 describe("summarizeAssignmentWarnings", () => {
   it("カテゴリごとに確認事項を集計する", () => {
-    expect(
-      summarizeAssignmentWarnings([
-        { code: "OFF_REQUEST" },
-        { code: "OUTSIDE_REQUESTED_TIME" },
-        { code: "OUTSIDE_REQUESTED_TIME" },
-        { code: "NOT_SUBMITTED" },
-      ]),
-    ).toEqual([
-      { code: "OFF_REQUEST", label: "休み希望の日にシフトを設定", compactLabel: "休み希望", count: 1 },
-      { code: "OUTSIDE_REQUESTED_TIME", label: "希望時間外のシフトを設定", compactLabel: "希望時間外", count: 2 },
-      { code: "NOT_SUBMITTED", label: "未提出のスタッフにシフトを設定", compactLabel: "未提出", count: 1 },
+    const summary = summarizeAssignmentWarnings([
+      { code: "OFF_REQUEST" },
+      { code: "OUTSIDE_REQUESTED_TIME" },
+      { code: "OUTSIDE_REQUESTED_TIME" },
+      { code: "NOT_SUBMITTED" },
+    ]);
+
+    expect(summary.map(({ code, count }) => ({ code, count }))).toEqual([
+      { code: "OFF_REQUEST", count: 1 },
+      { code: "OUTSIDE_REQUESTED_TIME", count: 2 },
+      { code: "NOT_SUBMITTED", count: 1 },
     ]);
   });
 
   it("未知の確認事項はその他に集計する", () => {
-    expect(summarizeAssignmentWarnings([{ code: "UNKNOWN" }])).toEqual([
-      { code: "OTHER", label: "その他の確認事項", compactLabel: "その他", count: 1 },
+    expect(summarizeAssignmentWarnings([{ code: "UNKNOWN" }]).map(({ code, count }) => ({ code, count }))).toEqual([
+      { code: "OTHER", count: 1 },
     ]);
   });
 

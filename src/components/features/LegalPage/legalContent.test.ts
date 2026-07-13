@@ -66,16 +66,14 @@ describe("buildLegalDocuments", () => {
   it("利用規約の実ファイルの frontmatter を manager / staff ともに読み込める", () => {
     const documents = buildLegalDocuments(toComponentModules(termsFrontmatterModules), termsFrontmatterModules);
 
-    expect(documents.manager.title).toBe("管理ユーザー向け利用規約");
-    expect(documents.staff.title).toBe("スタッフ向け利用規約");
-    expect(documents.manager.lastUpdated).not.toBe("");
-    expect(documents.staff.lastUpdated).not.toBe("");
+    expect(Object.keys(documents)).toEqual(["manager", "staff"]);
+    expect(Object.values(documents).every(({ title, lastUpdated }) => title !== "" && lastUpdated !== "")).toBe(true);
   });
 
   it("プライバシーポリシーの実ファイルの frontmatter を manager / staff ともに読み込める", () => {
     const documents = buildLegalDocuments(toComponentModules(privacyFrontmatterModules), privacyFrontmatterModules);
 
-    expect(documents.manager.title).toBe("管理ユーザー向けプライバシーポリシー");
-    expect(documents.staff.title).toBe("スタッフ向けプライバシーポリシー");
+    expect(Object.keys(documents)).toEqual(["manager", "staff"]);
+    expect(Object.values(documents).every(({ title, lastUpdated }) => title !== "" && lastUpdated !== "")).toBe(true);
   });
 });

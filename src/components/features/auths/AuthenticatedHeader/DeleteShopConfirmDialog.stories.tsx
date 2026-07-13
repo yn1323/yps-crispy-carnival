@@ -40,7 +40,7 @@ const DeleteShopDialogHarness = () => {
 export const Behavior: Story = {
   render: () => <DeleteShopDialogHarness />,
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

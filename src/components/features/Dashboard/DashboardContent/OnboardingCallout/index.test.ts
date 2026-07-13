@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DASHBOARD_TOUR_TARGET } from "../../dashboardTourTargets";
 import type { Recruitment, Staff } from "../../types";
 import { deriveDashboardOnboardingState } from "./deriveDashboardOnboardingState";
 
@@ -31,9 +32,10 @@ describe("deriveDashboardOnboardingState", () => {
     expect(state).toMatchObject({
       kind: "visible",
       stage: "create_recruitment",
-      progressLabel: "1/4",
-      title: "シフト作成から提出までの流れを体験しましょう",
-      description: "期間を決めてシフトを募集してみましょう。（作成したシフトはあとで削除可能です）",
+      tour: {
+        target: DASHBOARD_TOUR_TARGET.createRecruitment,
+        placement: "bottom",
+      },
     });
   });
 
@@ -42,9 +44,6 @@ describe("deriveDashboardOnboardingState", () => {
     expect(state).toMatchObject({
       kind: "visible",
       stage: "submit_self",
-      progressLabel: "2/4",
-      title: "希望シフトを提出してみましょう",
-      description: "登録したメールに届いたリンクからシフトを提出してみましょう。",
     });
     expect(state.kind === "visible" ? state.tour : undefined).toBeUndefined();
   });
@@ -57,9 +56,10 @@ describe("deriveDashboardOnboardingState", () => {
     expect(state).toMatchObject({
       kind: "visible",
       stage: "review_submission",
-      progressLabel: "3/4",
-      title: "提出されたシフトを確認しましょう",
-      description: "シフト表が更新されていることを確認しましょう。",
+      tour: {
+        target: DASHBOARD_TOUR_TARGET.latestRecruitment,
+        placement: "top",
+      },
     });
   });
 
@@ -72,9 +72,10 @@ describe("deriveDashboardOnboardingState", () => {
     expect(state).toMatchObject({
       kind: "visible",
       stage: "add_staff",
-      progressLabel: "4/4",
-      title: "スタッフを追加してシフト提出をお願いしましょう",
-      description: "スタッフ追加時にシフト提出依頼のメール・LINE連携案内を送ります。",
+      tour: {
+        target: DASHBOARD_TOUR_TARGET.addStaff,
+        placement: "top",
+      },
     });
   });
 
@@ -84,11 +85,7 @@ describe("deriveDashboardOnboardingState", () => {
       staffs: managerOnly,
       reviewedRecruitmentIds: ["rec-1"],
     });
-    expect(state).toMatchObject({
-      kind: "visible",
-      stage: "submit_self",
-      progressLabel: "2/4",
-    });
+    expect(state).toMatchObject({ kind: "visible", stage: "submit_self" });
   });
 
   it("確定済みの募集はスタッフ追加を案内する", () => {
@@ -96,11 +93,7 @@ describe("deriveDashboardOnboardingState", () => {
       recruitments: [recruitment({ status: "confirmed", responseCount: 1 })],
       staffs: managerOnly,
     });
-    expect(state).toMatchObject({
-      kind: "visible",
-      stage: "add_staff",
-      progressLabel: "4/4",
-    });
+    expect(state).toMatchObject({ kind: "visible", stage: "add_staff" });
   });
 
   it("スタッフ数が増えても自動では非表示にしない", () => {
@@ -118,7 +111,7 @@ describe("deriveDashboardOnboardingState", () => {
         },
       ] as unknown as Staff[],
     });
-    expect(state).toMatchObject({ kind: "visible", stage: "add_staff", progressLabel: "4/4" });
+    expect(state).toMatchObject({ kind: "visible", stage: "add_staff" });
   });
 
   it("現在のステージがdismiss済みなら非表示にする", () => {

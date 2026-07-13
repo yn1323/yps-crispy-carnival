@@ -46,7 +46,7 @@ export const Interactive: Story = {
   args: dateOnlyArgs,
   globals: mobileGlobals,
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

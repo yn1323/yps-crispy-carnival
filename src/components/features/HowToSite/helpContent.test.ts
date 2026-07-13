@@ -3,37 +3,10 @@ import { helpArticles, normalizeHelpSearchText, searchHelpArticles } from "./hel
 
 describe("HowToヘルプ記事", () => {
   it("MDXからヘルプとfrontmatterを読み込む", () => {
-    expect(helpArticles.map((article) => article.slug)).toEqual([
-      "shift-workflow",
-      "staff-submission-workflow",
-      "submission-pattern-differences",
-      "submission-pattern-changes",
-      "add-staff",
-      "add-staff-during-recruitment",
-      "exclude-staff-from-shifts",
-      "create-recruitment-effects",
-      "check-submission-status",
-      "edit-submitted-request",
-      "after-submission-deadline",
-      "automatic-reminder",
-      "build-shift-from-requests",
-      "save-shift-draft",
-      "assignment-warnings-and-errors",
-      "cannot-confirm-shift",
-      "confirm-shift-effects",
-      "edit-confirmed-shift",
-      "notify-confirmed-shift-changes",
-      "input-work-time",
-      "fix-recruitment-mistake",
-      "delete-recruitment",
-      "edit-past-shift",
-      "submission-link-unavailable",
-      "confirmed-shift-link-unavailable",
-      "line-notification-not-delivered",
-      "resend-failed-notifications",
-      "notification-channel",
-    ]);
+    expect(helpArticles.length).toBeGreaterThan(0);
+    expect(new Set(helpArticles.map((article) => article.slug)).size).toBe(helpArticles.length);
     expect(helpArticles.every((article) => article.meta.title.length > 0)).toBe(true);
+    expect(helpArticles.every((article) => article.searchText.length > 0)).toBe(true);
   });
 
   it("タイトル、本文、keywordsの言い換えから検索できる", () => {

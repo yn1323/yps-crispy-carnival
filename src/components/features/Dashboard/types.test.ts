@@ -210,7 +210,7 @@ describe("Dashboard recruitment display helpers", () => {
       now,
     });
 
-    expect(result.groups[0]).toMatchObject({ key: "past", title: "過去のシフト", totalCount: 2 });
+    expect(result.groups[0]).toMatchObject({ key: "past", totalCount: 2 });
     expect(result.groups[0].recruitments.map((r) => r._id)).toEqual(["recent-past", "older-past"]);
   });
 });

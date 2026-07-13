@@ -1,7 +1,8 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import type { ComponentProps } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { type DashboardNotificationFailure, NotificationFailureDialogContent } from "./index";
 
@@ -70,12 +71,6 @@ export const Normal: Story = {
     onResend: () => {},
     onResendAll: () => {},
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "すべて再送" })).toBeInTheDocument();
-    await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
-    await expect(await canvas.findByText(/メールが届かない場合は/)).toBeInTheDocument();
-  },
 };
 
 export const Accepted: Story = {
@@ -93,6 +88,7 @@ export const Empty: Story = {
 };
 
 export const Mobile: Story = {
+  tags: ["vrt-mobile1"],
   args: Normal.args,
   decorators: [
     (Story) => (
@@ -101,18 +97,33 @@ export const Mobile: Story = {
       </Box>
     ),
   ],
+};
+
+export const MobileEmailHelpOpen: Story = {
+  tags: ["vrt-mobile1"],
+  args: Normal.args,
+  decorators: Mobile.decorators,
+  render: (args) => <OpenEmailHelpStory {...args} />,
+};
+
+export const EmailHelpBehavior: Story = {
+  args: Normal.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+
     await userEvent.click(canvas.getAllByRole("button", { name: "メール通知について" })[0]);
-    await expect(await canvas.findByText(/メールが届かない場合は/)).toBeInTheDocument();
-    await expect(canvas.getAllByText(/エラー日時：/)[0]).toBeInTheDocument();
+    const helpText = await canvas.findByText(/メールが届かない場合は/);
+    await waitFor(() => expect(helpText).toBeVisible());
   },
 };
 
 export const Interactive: Story = {
   args: Normal.args,
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => <InteractiveNotificationFailureDialog />,
   play: async ({ canvasElement }) => {
@@ -138,3 +149,23 @@ const InteractiveNotificationFailureDialog = () => {
     />
   );
 };
+
+function OpenEmailHelpStory(props: ComponentProps<typeof NotificationFailureDialogContent>) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hasOpened = useRef(false);
+
+  useLayoutEffect(() => {
+    if (hasOpened.current) return;
+    const trigger = rootRef.current?.querySelector<HTMLButtonElement>('button[aria-label="メール通知について"]');
+    if (!trigger) return;
+
+    hasOpened.current = true;
+    trigger.click();
+  }, []);
+
+  return (
+    <div ref={rootRef}>
+      <NotificationFailureDialogContent {...props} />
+    </div>
+  );
+}

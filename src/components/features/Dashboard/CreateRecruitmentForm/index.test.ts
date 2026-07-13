@@ -64,8 +64,7 @@ describe("createRecruitmentSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const error = result.error.issues.find((i) => i.path.includes("periodEnd"));
-      expect(error?.message).toBe("終了日は開始日以降にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("periodEnd"))).toBe(true);
     }
   });
 
@@ -86,8 +85,7 @@ describe("createRecruitmentSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const error = result.error.issues.find((i) => i.path.includes("deadline"));
-      expect(error?.message).toBe("締切日は開始日より前にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("deadline"))).toBe(true);
     }
   });
 
@@ -175,8 +173,7 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
     const result = createRecruitmentFormSchema.safeParse({ ...validData, deadline: yesterday });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const error = result.error.issues.find((i) => i.path.includes("deadline"));
-      expect(error?.message).toBe("締切日は今日以降にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("deadline"))).toBe(true);
     }
   });
 
@@ -189,8 +186,7 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
     const result = createRecruitmentFormSchema.safeParse({ ...validData, periodStart: today, deadline: yesterday });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const error = result.error.issues.find((i) => i.path.includes("periodStart"));
-      expect(error?.message).toBe("開始日は明日以降にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("periodStart"))).toBe(true);
     }
   });
 

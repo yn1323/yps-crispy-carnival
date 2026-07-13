@@ -7,7 +7,6 @@ const meta = {
   component: StaffGuideContent,
   parameters: {
     layout: "fullscreen",
-    chromatic: { disableSnapshot: true },
   },
   decorators: [
     (Story) => (
@@ -24,3 +23,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+};

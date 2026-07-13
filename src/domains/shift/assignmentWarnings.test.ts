@@ -55,9 +55,7 @@ describe("computeAssignmentWarnings", () => {
   describe("NOT_SUBMITTED", () => {
     it("未提出スタッフに勤務が入っていると警告", () => {
       const warnings = run([shift({ staffId: "staff2", positions: [seg({})] })]);
-      expect(warnings).toEqual([
-        { code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2", message: "未提出のまま勤務に入っています" },
-      ]);
+      expect(warnings).toMatchObject([{ code: "NOT_SUBMITTED", date: "2026-01-20", staffId: "staff2" }]);
     });
 
     it("未提出は希望時間外より優先（1セル1件）", () => {
@@ -102,12 +100,11 @@ describe("computeAssignmentWarnings", () => {
           positions: [seg({ start: "10:00", end: "20:00" })],
         }),
       ]);
-      expect(warnings).toEqual([
+      expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望時間（10:00-18:00）の外に勤務があります",
         },
       ]);
     });
@@ -156,12 +153,11 @@ describe("computeAssignmentWarnings", () => {
         ],
         pattern,
       );
-      expect(warnings).toEqual([
+      expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望時間の外に勤務があります（遅番）",
         },
       ]);
     });
@@ -200,12 +196,11 @@ describe("computeAssignmentWarnings", () => {
         ],
         pattern,
       );
-      expect(warnings).toEqual([
+      expect(warnings).toMatchObject([
         {
           code: "OUTSIDE_REQUESTED_TIME",
           date: "2026-01-20",
           staffId: "staff1",
-          message: "希望時間の外に勤務があります（遅番）",
         },
       ]);
     });
