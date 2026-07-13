@@ -3,11 +3,14 @@ name: Playwright Tests
 on:
   pull_request:
     branches: [develop]
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: playwright-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 jobs:
   test:
@@ -15,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: Preview
     env:
-      REPORT_DIR: yps-crispy-carnival
       CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
     steps:
       - uses: actions/checkout@v6
@@ -31,6 +33,18 @@ jobs:
             --cmd-url-env-var-name CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      - name: Configure E2E Preview safety
+        run: |
+          npx convex env set E2E_TESTING_ENABLED true --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      - name: Verify Preview E2E Safety
+        run: |
+          SAFETY_STATE=$(npx convex run testing:getE2ESafetyState --deployment "preview/${CONVEX_PREVIEW_NAME}")
+          node -e 'const state = JSON.parse(process.argv[1]); if (!state.helpersEnabled || !state.notificationDeliverySuppressed) process.exit(1)' "$SAFETY_STATE"
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
       # E2E scenarios seed their own data via convex/testing.ts helpers.
       # - name: Seed Database
@@ -41,7 +55,7 @@ jobs:
       #     CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Run Playwright tests
         id: playwright
-        run: pnpm e2e
+        run: pnpm e2e:release
         env:
           TZ: Asia/Tokyo
           VITE_CONVEX_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
@@ -52,118 +66,26 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          E2E_TESTING_ENABLED: "true"
+          NOTIFICATION_DELIVERY_MODE: dry-run
+      - name: Verify Full Regression result gate
+        id: result-gate
+        run: pnpm e2e:assert-release-results
+      - name: Verify Full Regression backend audit
+        id: backend-audit
+        run: |
+          BACKEND_AUDIT_ARGS=$(node -e 'const emails = (process.env.E2E_CLERK_USERS || "").split(",").map((email) => email.trim()).filter(Boolean); process.stdout.write(JSON.stringify({ managerEmails: emails }));')
+          BACKEND_AUDIT=$(npx convex run testing:getE2EBackendAudit "$BACKEND_AUDIT_ARGS" --deployment "preview/${CONVEX_PREVIEW_NAME}")
+          node -e 'const audit = JSON.parse(process.argv[1]); if (audit.requestedManagerEmailCount === 0 || audit.missingManagerEmailCount !== 0 || audit.managerEmailWithoutShopCount !== 0 || audit.auditedShopCount === 0 || audit.unexpectedUnresolvedFailureInboxCount !== 0 || audit.duplicateActiveDedupeKeyCount !== 0) { console.error(audit); process.exit(1); }' "$BACKEND_AUDIT"
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
       - uses: actions/upload-artifact@v6
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-      - name: Deploy Report to GitHub Pages
-        if: ${{ !cancelled() }}
-        run: |
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          REPORT_KEY="${PR_NUMBER}"
-          LOCAL_REPORT_DIR="playwright-report"
-          REPORT_COMMIT_MESSAGE="Playwright report for PR #${PR_NUMBER}"
-
-          git clone --depth 1 --single-branch https://x-access-token:${{ secrets.HOSTING_PAGES_TOKEN }}@github.com/yn1323/hosting-pages.git hosting-pages
-          rm -rf "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
-          mkdir -p "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
-          cp -R "${LOCAL_REPORT_DIR}/." "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/"
-          cd hosting-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "${REPORT_COMMIT_MESSAGE}" || exit 0
-          git pull --rebase
-          git push origin HEAD:main
-      - name: Comment PR with Report Link
-        if: ${{ !cancelled() }}
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
-            const reportUrl = `https://yn1323.github.io/hosting-pages/${{ env.REPORT_DIR }}/${{ github.event.pull_request.number }}/`;
-            const testResult = '${{ steps.playwright.outcome }}';
-            const statusText = testResult === 'success' ? 'Passed' : 'Failed';
-
-            let passedCount = 'unknown';
-            let failedCount = 'unknown';
-            let skippedCount = 'unknown';
-            let testDetails = '';
-            try {
-              const json = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
-              const suites = json.suites || [];
-              let passed = 0, failed = 0, skipped = 0;
-              const allRows = [];
-              const failedRows = [];
-
-              function collectTests(suites) {
-                for (const suite of suites) {
-                  for (const spec of (suite.specs || [])) {
-                    for (const test of (spec.tests || [])) {
-                      const status = test.status;
-                      if (status === 'expected') passed++;
-                      else if (status === 'unexpected') failed++;
-                      else if (status === 'skipped') skipped++;
-                      const icon = status === 'expected' ? '✅' : status === 'unexpected' ? '❌' : '⏭';
-                      const row = `| ${icon} | ${spec.title} |`;
-                      allRows.push(row);
-                      if (status === 'unexpected') failedRows.push(row);
-                    }
-                  }
-                  if (suite.suites) collectTests(suite.suites);
-                }
-              }
-              collectTests(suites);
-
-              passedCount = String(passed);
-              failedCount = String(failed);
-              skippedCount = String(skipped);
-              if (failedRows.length > 0) {
-                testDetails += `\n\n### 失敗したテスト\n\n| Status | Test |\n|--------|------|\n${failedRows.join('\n')}`;
-              }
-              if (allRows.length > 0) {
-                testDetails += `\n\n<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test |\n|--------|------|\n${allRows.join('\n')}\n\n</details>`;
-              }
-            } catch (e) {
-              testDetails = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
-            }
-
-            const body = [
-              '## Playwright Test Report',
-              '',
-              `Status: ${statusText}`,
-              `Results: Passed ${passedCount} / Failed ${failedCount} / Skipped ${skippedCount}`,
-              '',
-              '| Action | Link |',
-              '|---|---|',
-              `| レポート確認 | [Playwrightレポートを見る](${reportUrl}) |`,
-              '',
-              'Details:',
-              'デプロイ先: [yn1323/hosting-pages:main](https://github.com/yn1323/hosting-pages/commits/main/)',
-            ].join('\n') + testDetails;
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes('## Playwright Test Report')) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
+          path: |
+            playwright-report/
+            test-results.json
+            test-results/
+          retention-days: 7
