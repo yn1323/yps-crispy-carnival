@@ -13,18 +13,17 @@ src/
 ├── pages/            # route全体のquery、metadata、エラー/ローディング処理、画面構成
 ├── components/
 │   ├── features/     # 機能コンポーネント（feature-local query、useMutation、操作イベント）
-│   ├── shared/       # 複数featureで使う業務UI（移行時に作成）
-│   ├── templates/    # レイアウト（Header、StaffLayout等）
+│   ├── shared/       # 複数featureで使う業務UI
+│   ├── templates/    # レイアウト（Header、StaffLayout、PublicPageLayout等）
 │   └── ui/           # 汎用UIコンポーネント
 ├── domains/          # ドメイン型・純粋ロジック・画面横断で安定した業務値の表記
-├── providers/        # React Provider・SDK初期化（移行時に作成）
+├── providers/        # React Provider・SDK初期化
 ├── stores/           # Jotai状態管理
 ├── hooks/            # 横断的なReact hook
-├── lib/              # 技術的な共通処理（移行時に作成）
-├── constants/        # 定数定義
+├── lib/              # 技術的な共通処理
 ├── configs/          # 設定ファイル
-├── assets/           # 複数featureで共有するimport asset（必要時）
-└── devtools/         # 本番から参照しない開発用UI（移行時に作成）
+├── assets/           # 複数featureで共有するimport asset
+└── devtools/         # 本番から参照しない開発用UI
 
 convex/
 ├── schema.ts         # DBスキーマ（Single Source of Truth）
@@ -37,7 +36,7 @@ convex/
 
 ## 機能→ファイルマッピング
 
-> 現在、各機能の実装は再構築中です。以下は実装済みのコンポーネントのみ記載しています。
+> 以下は現在の主要な画面境界とfeatureの対応です。配置判断の詳細はフロントエンド方針を参照してください。
 
 | 機能 | Pages | Features | Convex |
 |------|-------|----------|--------|
@@ -80,7 +79,8 @@ convex/
           純粋な判定と変換           [Database]
 ```
 
-`domains/` と `script.ts` はConvexへ依存しない。
+`domains/` はConvexへ依存しない。
+`script.ts` は共有された純粋schemaを参照できるが、Convex client hookは使わない。
 pageまたはfeatureがConvexとの接続と純粋処理の呼び出し順を所有する。
 
 ---

@@ -8,8 +8,8 @@
 - `convex/_lib/functions.ts` — manager向けAPIの認証と現在店舗解決
 - `convex/dashboard/queries.ts` — dashboard表示用の現在店舗解決
 - `convex/setup/mutations.ts` — 初回店舗登録とmanager所属作成
-- `src/components/features/auths/AuthGuard.tsx` — フロントの選択中店舗を所属一覧と整合
-- `src/components/features/auths/AuthenticatedHeader/` — 店舗削除確認UI（入口は一時停止中）
+- `src/components/features/AuthenticatedApp/AuthGuard.tsx` — フロントの選択中店舗を所属一覧と整合
+- `src/components/features/AuthenticatedApp/AuthenticatedHeader/` — 店舗削除確認UI（入口は一時停止中）
 - `convex/staffRegistration/notificationQueries.ts` — 店舗のmanager usersを通知対象として取得
 
 ## 画面一覧

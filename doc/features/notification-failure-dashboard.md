@@ -8,9 +8,8 @@
 
 ### フロントエンド（`src/`）
 
-- `src/pages/dashboard/index.tsx` — 店舗選択後に open 不達通知を取得し、Dashboardへ渡す
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 「TODO」に不達通知カードを表示する
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — 不達通知Dialogの開閉、個別/一斉再通知mutation、受付済み状態を管理する
+- `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、Dialogの開閉、個別/一斉再通知mutation、受付済み状態を所有する
 - `src/components/features/Dashboard/NotificationFailureDialog/` — 不達通知一覧、PCテーブル、SPリスト、Storybook
 
 ### バックエンド（`convex/`）

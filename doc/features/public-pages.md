@@ -1,23 +1,26 @@
 # 公開サブページ
 
-LPの既存コンテンツを流用し、検索結果に法務ページ以外の自然な導線を出すための公開ページ群。
-新規説明文は最小限にし、詳細な訴求はLPセクションをSingle Source of Truthとして扱う。
+公開用コンテンツを共通利用し、検索結果に法務ページ以外の自然な導線を出すためのページ群。
+新規説明文は最小限にし、詳細な訴求は各公開sectionをSingle Source of Truthとして扱う。
 
 ## 関連ファイル
 
 - `src/routes/features.tsx` / `src/pages/features/index.tsx` — できることページ
 - `src/routes/faq.tsx` / `src/pages/faq/index.tsx` — よくある質問ページ
-- `src/routes/articles.tsx` / `src/routes/articles.$slug.tsx` / `src/routes/articles.categories.$categorySlug.tsx` — 記事一覧・記事詳細・カテゴリページ
+- `src/routes/articles.tsx` / `src/routes/articles.index.tsx` / `src/routes/articles.$slug.tsx` / `src/routes/articles.categories.$categorySlug.tsx` — 記事レイアウト・記事一覧・記事詳細・カテゴリページ
 - `src/routes/demo.flow.tsx` / `src/pages/demo-flow/index.tsx` — 募集から確定通知までのフローデモ（`_unregistered` 外に置き、Clerk/Convexバンドルを載せない）
 - `src/routes/demo.shiftboard.tsx` / `src/pages/demo-shift-board/index.tsx` — 店長・シフト担当者向けシフト表デモ（同上）
 - `src/components/features/Demo/` — 公開デモ用コンポーネント
-- `src/components/features/LandingPage/` — TOPのLP本体、FAQデータ、公開ページ共通フッター
-- `src/components/features/LandingPage/FeatureSection.tsx` / `BenefitsSection.tsx` / `FaqSection.tsx` — `/features`・`/faq`で流用している既存LPセクション
+- `src/components/features/LandingPage/` — TOPのLP本体とFAQデータ
+- `src/components/features/LandingPage/faqs.ts` — LPとpage metadataから参照する純粋なsecondary public entry
+- `src/components/templates/PublicPageLayout/` / `PublicFooter/` — Header・main・Footerを揃える公開ページ共通レイアウト
+- `src/components/features/FeatureSection/` / `BenefitsSection/` / `FaqSection/` — `/features`・`/faq`が所有する公開section
 - `src/components/features/ArticleSite/` — MDX管理の記事サイトとLP記事ミニ導線のソース
 - `src/components/features/HowToSite/` — MDX管理の使い方・ヘルプとページ内検索のソース
 - `scripts/prerender.ts` / `public/sitemap.xml` — 静的HTML生成と検索エンジン向けURL一覧。記事詳細・カテゴリ詳細はMDXディレクトリから自動収集する
 - `scripts/generateArticleOgp.ts` / `public/ogp/articles/` — 記事別OGP画像の生成スクリプトと生成物（`pnpm ogp:articles`。記事の追加・タイトル変更時に再生成してコミットする）
-- `src/helpers/seo/index.ts` — メタタグ・JSON-LDヘルパー（`ogType` / `ogImage` で記事別OGPを上書き）
+- `src/pages/*/meta.ts` — routeごとのメタデータ組み立て
+- `src/lib/seo/index.ts` — メタタグ・JSON-LDヘルパー（`ogType` / `ogImage` で記事別OGPを上書き）
 
 ## OGP・構造化データ
 

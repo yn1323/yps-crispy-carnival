@@ -11,8 +11,8 @@
 - `convex/line/actions.ts` / `convex/notification/templates.ts` — 承認後LINE連携メール文脈、承認待ち通知文面
 - `src/pages/staff-registration/` — スタッフ登録ページ
 - `src/components/features/StaffRegistration/` — 登録フォーム、メールtypo警告、確認表示
-- `src/components/features/Dashboard/StaffRegistrationLinkPanel/` — シフト担当者向けQR/URL表示
-- `src/components/features/Dashboard/StaffRegistrationRequests/` — スタッフ参加申請カード、モーダル、承認/却下リスト
+- `src/components/features/Dashboard/StaffManagement/useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 店舗専用登録リンクの取得とQR/URL表示
+- `src/components/features/Dashboard/StaffRegistrationRequestManagement/` — スタッフ参加申請の取得、モーダル、承認/却下
 
 ## 画面一覧
 

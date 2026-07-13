@@ -20,7 +20,7 @@
 - `biome.json`
 - `tsconfig.json`
 - `vite.config.ts`
-- 実例: `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/index.tsx`, `src/components/features/Dashboard/CreateRecruitmentForm/*`, `src/hooks/useSingleFlight.ts`, `src/hooks/useShopMutation.ts`, `src/domains/shift/date.ts`, `convex/_lib/functions.ts`, `convex/dashboard/queries.ts`, `convex/recruitment/*`
+- 実例: `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/index.tsx`, `src/components/features/CreateRecruitmentForm/*`, `src/hooks/useSingleFlight.ts`, `src/hooks/useShopMutation.ts`, `src/domains/shift/date.ts`, `convex/_lib/functions.ts`, `convex/dashboard/queries.ts`, `convex/recruitment/*`
 
 ## 技術スタック
 

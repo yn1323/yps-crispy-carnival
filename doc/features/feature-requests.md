@@ -6,7 +6,7 @@
 
 ## 関連ファイル
 
-- `src/components/features/auths/AuthenticatedHeader/index.tsx`
+- `src/components/features/AuthenticatedApp/AuthenticatedHeader/index.tsx`
 - `src/components/features/FeatureRequestDialog/`
 - `src/components/templates/Header/index.tsx`
 - `convex/featureRequest/schemas.ts`

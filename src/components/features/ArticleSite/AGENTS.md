@@ -1,6 +1,6 @@
 # ArticleSite 編集ガイド
 
-このディレクトリは、シフトリのSEO向け記事サイトです。記事・カテゴリ・一覧トップの文言は主にMDXで管理し、レイアウトやSP/PCの見せ方は `index.tsx` で管理します。
+このディレクトリは、シフトリのSEO向け記事サイトです。記事・カテゴリ・一覧トップの文言は主にMDXで管理し、レイアウトやSP/PCの見せ方は各Page componentとArticleSite内の共通componentで管理します。
 
 ## ファイル構成
 
@@ -13,12 +13,17 @@ src/components/features/ArticleSite/
   articleMeta.ts                          # frontmatterのzodスキーマ・SEOメタ（本文を含まない軽量な入口）
   articleContent.ts                       # MDX本文コンポーネントの読み込み・目次抽出
   mdxComponents.tsx                       # MDX本文のタグマッピングと記事用コンポーネント（ArticleImage / Media）
-  index.tsx                               # 表示レイアウト・カード・SP/PC出し分け
+  index.tsx                               # ArticleListPage / ArticlePage / ArticleCategoryPage の公開entry
+  ArticleListPage.tsx                     # 記事一覧トップと困りごとカード
+  ArticlePage.tsx                         # 記事詳細、本文、目次
+  ArticleCategoryPage.tsx                 # カテゴリ概要、代表記事、関連記事
+  ArticleSiteShell.tsx                    # Header / Footer / breadcrumb / not-found
+  ArticleSummary.tsx                      # 複数Pageで使う記事行・関連記事カード・メタ表示
 ```
 
 MDXの変換は共有Viteプラグイン `vite/mdxPlugin.ts` が行います（`?mdx-component` / `?mdx-source` / `?mdx-frontmatter` / `?mdx-toc`）。
 frontmatterはYAMLとしてパースされ、`articleMeta.ts` のzodスキーマで検証されます。
-目次（`?mdx-toc`）や見出しidの共通ロジックは `src/helpers/mdx/` にあります。
+目次（`?mdx-toc`）や見出しidの共通ロジックは `src/lib/mdx/` にあります。
 
 ## 記事一覧トップ: `content/pages/articles.mdx`
 
@@ -142,7 +147,7 @@ heroImageWidth: 340
 
 ### Hero画像の生成・採用手順
 
-- Hero画像は `public/sample-touch.png` のタッチに合わせて生成してください。
+- Hero画像は `doc/assets/article-hero-style-reference.png` のタッチに合わせて生成してください。
 - Hero画像は記事内容を補助する小さなイラストとして扱い、完成サイズを **640×480px（4:3）** に統一してください。生成元が別サイズの場合も、ユーザー確認用のPNGを書き出す前にこのサイズへ調整してください。
 - LPの記事カードではHero画像をトリミングせず、白い余白で元の縦横比を保って表示します。小さいカードでも内容が伝わるよう、表、道具、アイコンなどの主要要素は画像中央へ配置してください。
 - 小さなイラストを中央に置いて周囲を大きく空ける構図は避けてください。複数の要素を適度に広げ、640×480pxの表示領域を有効に使ってください。

@@ -7,7 +7,7 @@
 | 種別 | パス |
 |---|---|
 | 画面 | `src/pages/dashboard/index.tsx`, `src/pages/shift-board/index.tsx` |
-| UI | `src/components/features/Dashboard/RecruitmentBoard/`, `src/components/features/Dashboard/DashboardContent/index.tsx`, `src/components/features/Shift/ShiftForm/`, `src/components/features/Shift/ShiftForm/ValidationErrorPanel/` |
+| UI | `src/components/features/Dashboard/RecruitmentManagement/`, `src/components/features/Dashboard/RecruitmentBoard/`, `src/components/features/Shift/ShiftForm/`, `src/components/features/Shift/ShiftForm/ValidationErrorPanel/` |
 | API | `convex/recruitment/mutations.ts`, `convex/dashboard/queries.ts`, `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts` |
 | バリデーション | `convex/shiftBoard/validation.ts`（サーバー/フロント共有の純粋関数）, `src/domains/shift/buildAssignments.ts`, `src/domains/shift/assignmentIssues.ts`, `src/domains/shift/assignmentWarnings.ts`（確認事項＝クライアントのみの助言） |
 | テスト | `convex/recruitment/mutations.test.ts`, `convex/shiftBoard/validation.test.ts`, `convex/shiftBoard/mutations.test.ts`, `convex/_scenario/recruitmentDeletion.test.ts`, `e2e/scenarios/recruitment-deletion.test.ts` |
@@ -36,7 +36,7 @@
 
 - 募集削除は `recruitments.isDeleted` による論理削除。提出・割当・統計・リンク・セッションの関連データは物理削除しない。
 - 削除済み募集はダッシュボード一覧に表示しない。
-- ダッシュボードのシフト一覧は、SPでもスタッフ一覧へ到達しやすいように、運用中/未来の候補を初期表示し、増え続ける過去シフトだけを遅延取得する。参考実装: `src/components/features/Dashboard/types.ts`, `src/components/features/Dashboard/RecruitmentBoard/`, `src/pages/dashboard/index.tsx`, `convex/dashboard/queries.ts`。
+- ダッシュボードのシフト一覧は、SPでもスタッフ一覧へ到達しやすいように、運用中/未来の候補を初期表示し、増え続ける過去シフトだけを遅延取得する。参考実装: `src/components/features/Dashboard/types.ts`, `src/components/features/Dashboard/RecruitmentManagement/`, `src/components/features/Dashboard/RecruitmentBoard/`, `convex/dashboard/queries.ts`。
 - グループは `現在のシフト` → `要シフト調整` → `募集中` → `確定済み` → `過去のシフト` の順に表示し、空グループは見せない。`現在のシフト` は確定済みかつ今日がシフト期間内、`要シフト調整` は未確定で締切済みまたは未確定のまま期間終了、`募集中` は未確定で締切前、`確定済み` は未来の確定済みシフト、`過去のシフト` は終了済みの確定済みシフトを指す。
 - 初期表示では `現在のシフト`、`要シフト調整`、`募集中`、`確定済み` をすべて表示する。過去シフトは一覧を初期取得せず、存在する場合だけ `過去のシフトを見る` ボタンを表示する。押下後は `過去のシフト` グループをページング表示し、まだ残りがある場合だけ `もっと見る` を表示する。
 - グループ内の並び順は、`現在のシフト` は終了日が近い順、`要シフト調整` は締切が古い順、`募集中` は締切が近い順、`確定済み` は開始日が近い順、`過去のシフト` は終了日が新しい順にする。

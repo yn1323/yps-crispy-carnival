@@ -59,10 +59,10 @@ route
 二つの画面で使うという理由だけでdomainへ移さない。
 画面を取り除いても同じ業務用語と入出力で説明できる場合にdomainとする。
 
-## 目標ディレクトリ構成
+## 標準ディレクトリ構成
 
-次の構成をメインアプリの目標とする。
-現行コードに存在しないディレクトリは、該当する責務を移す段階で作成する。
+メインアプリの `src/` は次の責務で構成する。
+責務が存在しないディレクトリを、構成を揃える目的だけで作成しない。
 
 ```text
 src/
@@ -84,11 +84,10 @@ src/
   devtools/               本番から参照しない開発用UI
 ```
 
-`src/utils/` と `src/helpers/` には新しいコードを追加しない。
-既存コードは、所有feature、`domains/`、`lib/` のいずれかへ段階的に移す。
+`src/utils/` と `src/helpers/` は使用しない。
+コードは、所有feature、`domains/`、`lib/` のいずれかへ配置する。
 
-`src/components/config/` のReact Providerは `src/providers/` へ移す。
-`src/components/devtools/` のStorybook用previewは `src/devtools/` へ移す。
+React Providerは `src/providers/`、Storybook用previewは `src/devtools/` へ置く。
 `src/components/mock/` のような用途横断のmock置き場は作らず、Story fixtureは所有feature、開発専用UIは `src/devtools/` へ置く。
 
 ## 命名規則
@@ -324,8 +323,8 @@ devtools内の純粋parserにはLogic UTを置いてよい。
 | `__root.tsx`、route group | providers、templates、ui、lib、route境界専用のguard featureの公開entry |
 | pages | featureの公開entry、templates、shared、ui、providers、domains、root hooks、stores、lib、configs、Convexのroute-wide query |
 | features | 自身の子featureの公開entry、compositionからtop-level再利用leaf featureの公開entry、shared、ui、domains、root hooks、stores、lib、configs、Convex client hooks |
-| shared | ui、domains、root hooks、lib、configs |
-| templates | ui、root hooks、lib、configs |
+| shared | 同じshared層、templates、ui、domains、root hooks、lib、configs |
+| templates | 同じtemplate層、ui、root hooks、lib、configs |
 | ui | 同じui層、ドメイン非依存hook、lib、configs、React、Chakra UI |
 | providers | configs、lib、外部SDK |
 | root hooks | domains、stores、lib、configs、必要な外部client |
@@ -548,15 +547,15 @@ Story fixtureを `__mocks__` に置かない。
 ### Dashboard
 
 `src/pages/dashboard/index.tsx` は店舗や初期表示などroute全体を成立させるqueryとloading状態を所有するpageとして扱う。
-特定の一覧、tab、Dialogだけで使うpaginationまたはlazy queryは、対応するDashboard子featureへ移す対象とする。
+特定の一覧、tab、Dialogだけで使うpaginationまたはlazy queryは、対応するDashboard子featureが所有する。
 
 `DashboardContent` は各Dashboard子featureのcompositionに限定する。
-スタッフ管理、募集管理、店舗設定、通知復旧のmutation、Dialog、Toastは、それぞれのfeatureへ移す対象とする。
+スタッフ管理、募集管理、店舗設定、通知復旧のmutation、Dialog、Toastは、それぞれ `StaffManagement`、`RecruitmentManagement`、`ShopSettings`、`NotificationFailureRecovery` が所有する。
 
 Dashboardだけが組み立てる子ユースケースは `Dashboard/{ChildFeature}/` に置く。
 独立したrouteまたは別compositionからも使うユースケースはtop-level featureへ置き、pageまたは明示的なcomposition featureから公開entryを使う。
 
-`Dashboard/types.ts` のうち型は型の所有者へ移す。
+Dashboardの複数子featureを接続するcontract型は `Dashboard/types.ts`、一つの子featureだけで使う型はその所有者へ置く。
 募集状態、期間判定、ソートのうち画面を超えて同じ意味を持つ処理はdomainへ置く。
 日本語見出しを含むDashboard固有group生成はDashboardの `script.ts` に置く。
 
@@ -572,14 +571,15 @@ Auth guardはroute group境界の例外としてqueryを利用できる。
 
 ### StaffSubmit
 
-現行の `SubmitFormView` はRHF controllerと締切後確認flowを持つため、目標構成ではViewではなくSubmitForm rootの責務として扱う。
+`SubmitForm` rootはRHF controllerと締切後確認flowを所有し、`SubmitFormView` は準備済みの値の描画とintent callbackに限定する。
 
 ```text
 SubmitForm/
   index.tsx                    controllerとViewの接続
   useSubmitFormController.ts   RHF、送信、確認flow、single-flight
   SubmitFormView.tsx           描画とintent callback
-  script.ts                    初期値、selection変換、payload生成
+  script.ts                    初期値とselection変換
+  buildSubmissionInput.ts      submit payload生成
 ```
 
 初期entry生成、selection変換、submit payload生成は `script.ts` または意味名を持つ純粋ファイルへ置く。
@@ -601,7 +601,7 @@ leaf Viewはraw shift DTOを再解釈せず、業務上の割当や保存payload
 
 ### 公開ページ
 
-公開ページ共通Header、main、Footerのshellはtemplateが所有する。
+公開ページ共通Header、main、Footerのshellは `components/templates/PublicPageLayout/` が所有する。
 
 LandingPage、ArticleSite、HowToSiteが互いの内部componentやassetをimportしない。
 複数featureで共有するassetは `assets/` へ置く。

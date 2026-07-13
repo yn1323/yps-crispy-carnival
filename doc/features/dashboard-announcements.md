@@ -6,9 +6,8 @@
 
 ### フロントエンド（`src/`）
 
-- `src/pages/dashboard/index.tsx` — お知らせqueryを取得し、初期Skeletonには含めずDashboardへ渡す
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — 店舗登録済み/未登録のDashboardにお知らせを差し込む
-- `src/components/features/Dashboard/DashboardAnnouncement/` — 行表示、詳細Dialog、HTML sanitizer、Storybook
+- `src/components/features/Dashboard/DashboardContent/index.tsx` — 店舗登録済み/未登録のDashboardへお知らせ機能を合成する
+- `src/components/features/Dashboard/DashboardAnnouncement/` — お知らせquery、行表示、詳細Dialog、HTML sanitizer、Storybookを所有する
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 店舗ヘッダー直下のお知らせ表示枠
 
 ### バックエンド（`convex/`）

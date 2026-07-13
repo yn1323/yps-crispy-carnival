@@ -9,7 +9,7 @@
 - `src/routes/contact.tsx`
 - `src/pages/contact/index.tsx`
 - `src/components/features/ContactForm/`
-- `src/components/features/LandingPage/FooterSection/index.tsx`
+- `src/components/templates/PublicPageLayout/`
 - `convex/contact/schemas.ts`
 - `convex/contact/mutations.ts`
 - `convex/contact/httpActions.ts`

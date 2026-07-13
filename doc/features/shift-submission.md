@@ -8,12 +8,12 @@
 |---|---|
 | 画面 | `src/pages/staff-shift-submit/index.tsx` |
 | 確定シフト閲覧画面 | `src/pages/staff-shift-view/index.tsx`, `src/components/features/StaffView/ShiftViewPage/` |
-| UI | `src/components/features/StaffSubmit/` |
-| リンク認証 | `convex/staffAuth/mutations.ts`, `src/hooks/useStaffSession.ts`, `src/utils/staffSession.ts` |
+| UI | `src/components/features/StaffSubmit/`, `src/components/features/StaffSubmit/SubmitForm/` |
+| リンク認証 | `convex/staffAuth/mutations.ts`, `src/components/features/StaffAccess/` |
 | API | `convex/shiftSubmission/queries.ts`, `convex/shiftSubmission/mutations.ts`, `convex/shiftView/queries.ts` |
 | 通知 | `convex/notification/queries.ts`, `convex/notification/templates.ts` |
 | 提出方法 | `convex/_lib/submissionPattern.ts`, `convex/shop/schemas.ts` |
-| 履歴パターン | `convex/_lib/previousWeeklyPattern.ts`, `src/components/features/StaffSubmit/utils/previousWeeklyPattern.ts` |
+| 履歴パターン | `convex/_lib/previousWeeklyPattern.ts`, `src/components/features/StaffSubmit/previousWeeklyPattern.ts` |
 
 ## 画面一覧
 
