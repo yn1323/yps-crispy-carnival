@@ -33,4 +33,5 @@
 ## 関連ドキュメント
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 全体構造、機能マッピング、データフロー
+- [rules/frontend-architecture.md](rules/frontend-architecture.md) - フロントエンドのディレクトリ、依存方向、ファイル責務
 - [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針

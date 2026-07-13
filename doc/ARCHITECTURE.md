@@ -2,28 +2,35 @@
 
 このドキュメントは、コードベース全体の構造とナビゲーションガイドを提供します。
 
+フロントエンドのディレクトリ、依存方向、ファイル内部の責務は `doc/rules/frontend-architecture.md` を Source of Truth とします。
+このドキュメントでは、現在の機能配置とシステム全体のデータフローを扱います。
+
 ## ディレクトリ構造
 
 ```
 src/
 ├── routes/           # TanStack Router（ルーティング定義・head・検索/パラメータ受け渡しのみ）
-├── pages/            # ページコンポーネント（useQuery、エラー/ローディング処理）
+├── pages/            # route全体のquery、metadata、エラー/ローディング処理、画面構成
 ├── components/
-│   ├── features/     # 機能コンポーネント（UI組成、useMutation、ユーザー操作イベント）
+│   ├── features/     # 機能コンポーネント（feature-local query、useMutation、操作イベント）
+│   ├── shared/       # 複数featureで使う業務UI（移行時に作成）
 │   ├── templates/    # レイアウト（Header、StaffLayout等）
 │   └── ui/           # 汎用UIコンポーネント
-├── domains/          # ドメイン型・純粋ロジック・表示変換
+├── domains/          # ドメイン型・純粋ロジック・画面横断で安定した業務値の表記
+├── providers/        # React Provider・SDK初期化（移行時に作成）
 ├── stores/           # Jotai状態管理
-├── helpers/          # ユーティリティ関数
+├── hooks/            # 横断的なReact hook
+├── lib/              # 技術的な共通処理（移行時に作成）
 ├── constants/        # 定数定義
 ├── configs/          # 設定ファイル
-└── hooks/            # カスタムフック
+├── assets/           # 複数featureで共有するimport asset（必要時）
+└── devtools/         # 本番から参照しない開発用UI（移行時に作成）
 
 convex/
 ├── schema.ts         # DBスキーマ（Single Source of Truth）
 ├── constants.ts      # DB定数
 ├── _lib/             # 共通ユーティリティ
-└── {useCase}/        # ユースケース別ディレクトリ（queries.ts, mutations.ts, actions.ts）※現在未作成
+└── {useCase}/        # ユースケース別ディレクトリ（schemas.ts, queries.ts, mutations.ts, actions.ts）
 ```
 
 ---
@@ -58,84 +65,39 @@ convex/
 [ユーザー操作]
       │
       ▼
-┌─────────────────────────────────────┐
-│ [TanStack Router] src/routes/       │
-│   - ファイルベースルーティング       │
-│   - head/search/params の受け渡し    │
-│   - ページコンポーネント呼び出しのみ │
-└─────────────────────────────────────┘
+[routes: URL、head、params/search]
       │
       ▼
-┌─────────────────────────────────────┐
-│ [Pages] src/pages/                  │
-│   - useQuery() でデータ取得          │
-│   - エラー/ローディング判定          │
-│   - 正常系のみ Features 呼び出し     │
-└─────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────┐
-│ [Features] src/components/features/ │
-│   - レイアウト、UI組成               │
-│   - useMutation() 定義               │
-│   - ユーザー操作イベント             │
-└─────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────┐
-│ [Domains] src/domains/              │
-│   - 型・純粋関数・表示変換           │
-│   - React/Convex 依存なし            │
-└─────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────┐
-│ [Convex] convex/{useCase}/          │
-│   - queries.ts → 読み取り           │
-│   - mutations.ts → 書き込み         │
-│   - actions.ts → 外部API呼び出し    │
-└─────────────────────────────────────┘
-      │
-      ▼
-┌─────────────────────────────────────┐
-│ [Database] convex/schema.ts         │
-│   - Single Source of Truth          │
-└─────────────────────────────────────┘
+[pages: route全体のqueryと状態分岐]
+      ├── route-wide query ───────────────┐
+      │                                  │
+      ▼                                  ▼
+[features: ユースケースと操作状態]   [Convex API]
+      ├── feature-local query ────────────┤
+      ├── mutation / action ──────────────┤
+      │                                  │
+      └── domains / script.ts            ▼
+          純粋な判定と変換           [Database]
 ```
+
+`domains/` と `script.ts` はConvexへ依存しない。
+pageまたはfeatureがConvexとの接続と純粋処理の呼び出し順を所有する。
 
 ---
 
 ## コンポーネント責務の詳細
 
-### routes/ （ルーティング層）
-- ページコンポーネントの呼び出し**のみ**
-- 状態管理は禁止
-- ビジネスロジックは禁止
-- `head`、`validateSearch`、URLパラメータの受け渡しはここに置く
+責務の詳細は `doc/rules/frontend-architecture.md` に集約します。
 
-### pages/ （ページ層）
-- `useQuery`の呼び出し
-- APIに応じたエラー、ローディング、正常ケースの振り分け
-- `useMutation`の定義は禁止
-- 正常系コンポーネント呼び出し時は判定完了状態
-
-### features/ （機能層）
-- レイアウト、ドメインロジックを持つ
-- `useMutation`の定義
-- 正常系、エラー、ローディングのコンポーネントを内包
-
-### domains/ （ドメイン層）
-- React/Convex に依存しない型・定数・純粋関数を置く
-- 画面間で共有される変換ロジックは `features/` から切り出す
-- UI固有の座標計算やドラッグ判定は `components/features/` 側に残す
-
-### templates/ （レイアウト層）
-- `BottomMenu`, `SideMenu`等のレイアウトコンポーネント
-- `TitleTemplate`等の共通レイアウト
-
-### ui/ （UI基盤層）
-- `Select`, `FormCard`, `Title`, `Dialog`等
-- 再利用可能な汎用コンポーネント
+| 層 | 主な責務 |
+|---|---|
+| routes | URL、head、search/params、route group |
+| pages | route全体のqueryと画面状態分岐、featureの組み立て |
+| features | ユースケース、feature-local query、mutation/action、操作状態 |
+| shared | 複数featureで使う業務UI |
+| templates | ページとアプリのレイアウト |
+| ui | ドメイン非依存のUI基盤 |
+| domains | 画面非依存の業務型と純粋ロジック |
 
 ---
 

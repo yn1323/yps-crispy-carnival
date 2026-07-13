@@ -11,10 +11,11 @@ description: シフトリ / yps-crispy-carnival 固有の実装規約、コー�
 ## 最初に読む
 
 1. 必ず `doc/rules/testing-strategy.md` を読む。
-2. 対象ディレクトリに近い `AGENTS.md` を読む。`src/` は `src/AGENTS.md`、Convex は `convex/AGENTS.md`、E2E は `e2e/AGENTS.md`、CI/CD は `.github/AGENTS.md` を優先する。
-3. Convex コードを扱う場合は `convex/_generated/ai/guidelines.md` も読む。
-4. 近い既存実装、Story、テスト、Feature Doc を探してから編集する。
-5. UI/UXなら `ui-architect`、テスト設計なら `test-strategy`、Convex migrationなら `convex-migration-helper` も併用する。
+2. `src/` を扱う場合は `doc/rules/frontend-architecture.md` を読み、配置とファイル責務の Source of Truth とする。
+3. 対象ディレクトリに近い `AGENTS.md` を読む。`src/` は `src/AGENTS.md`、Convex は `convex/AGENTS.md`、E2E は `e2e/AGENTS.md`、CI/CD は `.github/AGENTS.md` を優先する。
+4. Convex コードを扱う場合は `convex/_generated/ai/guidelines.md` も読む。
+5. 新しいフロントエンド方針に適合する近い既存実装、Story、テスト、Feature Doc を探してから編集する。
+6. UI/UXなら `ui-architect`、テスト設計なら `test-strategy`、Convex migrationなら `convex-migration-helper` も併用する。
 
 このリポジトリでは Vite / Storybook / Convex dev server はユーザーが起動する。
 新規で起動しない。
@@ -39,8 +40,10 @@ description: シフトリ / yps-crispy-carnival 固有の実装規約、コー�
 
 ## 基本ルール
 
-- 既存の境界を優先する。新しい抽象やフォルダを作る前に、近い実装へ寄せる。
-- `routes/` はURL定義だけ、`pages/` は読み取りと状態分岐、`components/features/` は操作と機能UI、`domains/` は純粋ロジックにする。
+- `doc/rules/frontend-architecture.md` に適合する既存境界を優先する。方針と競合する既存実装は参考パターンとして踏襲しない。
+- フロントエンドの配置とファイル責務は `doc/rules/frontend-architecture.md` に従う。
+- `routes/` はURL定義、`pages/` はroute-wide query、metadata、状態分岐、`components/features/` はfeature-local queryと操作、`domains/` は画面非依存の純粋な業務ロジックにする。
+- `index.tsx` と対になる非UIコードは `script.ts` に置き、実装を持つ `index.ts` と共存させない。
 - `useMutation` / `useAction` は page に置かず、feature hook または feature component に置く。
 - mutation 共有 Zod schema は `convex/{useCase}/schemas.ts` に置き、UI固有の refinement だけ `src/` 側で重ねる。
 - Submit 系は `loading/disabled` だけに頼らず、`useSingleFlight` などの同期ガードと必要な backend idempotency を考える。
