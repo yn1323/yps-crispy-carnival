@@ -14,7 +14,11 @@
 
 - テストは「速く細かいもの」と「遅いが実環境に近いもの」を分ける。
 - 複雑な DB 状態遷移は E2E に寄せすぎず、Convex Scenario Test で厚く見る。
-- E2E は画面・認証・フロントエンドと実 Convex backend の接続確認に絞る。
+- E2E は画面・認証・フロントエンドと実 Convex backend の接続確認を中心にする。
+- develop向けPRの `@release` Full Regressionで、壊れた時の運用影響が大きい通知受付、再送、モバイル、公開導線、アクセシビリティを実ブラウザで確認する。developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない。
+- E2EのブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を確認する。
+- スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
+- magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
 - すべての分岐を同じ層で網羅しない。境界値は Logic UT / Function Test、業務状態遷移は Scenario Test、画面の完了確認は E2E に分担する。
 
 ## テスト種別
@@ -27,7 +31,7 @@
 | VRT | Storycap testrun + RegSuit / Storybook | 見た目差分検知 | 代表パターン、variants、状態別Story | ロジック検証、業務状態遷移 |
 | Convex Function Test | `pnpm test:convex`, `convex/{useCase}/*.test.ts` | query/mutation 単体の契約確認 | 認証、認可、IDOR、論理削除、返り値制限、副作用、空データ | 複数ドメインをまたぐ長い業務フロー |
 | Convex Scenario Test | `pnpm test:convex`, `convex/_scenario/*.test.ts` | 複雑な業務状態遷移の検証 | 複数 mutation/query の連続実行、集計、スナップショット、最終DB状態、エッジケース | ブラウザ操作、見た目、実 Convex deployment 接続 |
-| E2E | `pnpm e2e`, `e2e/scenarios/*.test.ts` | 実 frontend + 実 Convex backend の最終結合確認 | 主要ハッピーパス、認証、画面遷移、ユーザーに見える成功状態 | DB細部の網羅、全分岐、ピクセルパーフェクト |
+| E2E | `pnpm e2e`, `e2e/scenarios/*.test.ts` | 実 frontend + 実 Convex backend の最終結合確認 | 主要ハッピーパス、認証、画面遷移、ユーザーに見える成功状態、重要通知の受付・CTA、リリース前の復旧導線 | DB細部の総当たり、全validation分岐、ピクセルパーフェクト、外部サービスの実配送 |
 
 ## Convex Scenario Test
 
@@ -177,10 +181,31 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 
 ### E2E
 
-- 主要なハッピーパスだけに絞る。
+- `@smoke` はdevelop向けPRのFull Regressionに含める主要ハッピーパスとして扱う。
+- develop向けPRでは `@release` Full Regressionを実行し、売上・店舗運用・スタッフ通知に直結する状態遷移を広く確認する。developからmainへのPRと`release.yml`ではE2Eを実行しない。
 - ユーザーが画面から完了できること、実 frontend と実 Convex backend がつながっていることを確認する。
 - mutation 成功は、ユーザーに見えるトーストや表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
+- 通知は外部の実到着ではなく、画面操作から本物の action が呼ばれ、`notificationOutbox` の目的・channel・対象・dedupeとmagic link/CTAが整合するところまでを、E2E限定のredacted probeで確認してよい。
+- `notificationFailureInbox` は失敗専用として扱い、正常通知の証跡に使わない。不達Dashboardでは `open -> retrying -> resolved/open` のユーザー可視な復旧導線を確認する。
+- 実Resend/LINE到着は `@provider-canary` として通常E2Eから分離する。
+
+### E2E スイート
+
+| Suite | 実行タイミング | 主な対象 |
+|---|---|---|
+| `@smoke` | develop向けPRのFull Regression内 | ログイン、募集、提出、下書き、確定、閲覧の最小主導線 |
+| `@release` | develop向けPR | 機能全体の主要状態遷移、復旧、削除、永続化 |
+| `@notification` | `@release` 内で必須 | 製品が生成する通知目的ごとのoutbox・channel・CTA |
+| `@security` | `@release` 内で必須 | 保護ページ、失効token、対象外、削除済み、代表IDOR |
+| `@mobile` | `@release` 内で必須 | スタッフ提出・閲覧・同意・登録の代表導線 |
+| `@a11y` | `@release` 内で必須 | 主要ページのaxe自動検査 |
+| `@deployed` | デプロイ後 | Cloudflareへデプロイ済みURLの最小Smoke |
+| `@provider-canary` | RC / 手動 | 隔離したメール・LINEアカウントへの最小実配送 |
+
+develop向けPRのFull Regression判定では、必須projectとscenario suite、skip 0件、想定外のflaky 0件、通知dry-run preflight成功、想定外のopen FailureInbox 0件、active outboxの重複dedupe 0件を必須とする。
+
+RCの本番リリースでは、隔離受信先によるprovider canary完了後、権限ある確認者がexact head SHA、時刻、環境、証跡URL、Turnstile・募集/確定のemail/LINE・LINE reply・問い合わせemail/Slackの全PASSを構造化attestationとして記録する。その検証後だけ`release:provider-canary-passed`ラベルを有効とし、追加push後は再実施する。
 
 ## 判断基準
 

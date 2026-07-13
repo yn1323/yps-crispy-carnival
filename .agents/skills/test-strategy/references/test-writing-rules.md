@@ -163,8 +163,9 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 
 ## E2E
 
-E2E は「実 frontend + 実 Convex backend + 認証済みブラウザ」の接続確認に絞る。
-網羅ではなく、主要ハッピーパスがユーザーに見える形で完了することを保証する。
+E2E は「実 frontend + 実 Convex backend + 認証済みブラウザ」の接続確認を中心にする。
+develop向けPRの `@release` Full Regressionは主要ハッピーパスに加え、通知・復旧・モバイル・公開面・axe検査まで含める。developからmainへのPRと`release.yml`ではFull Regressionを再実行しない。
+ブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を分けて確認する。
 
 書き方:
 
@@ -175,10 +176,18 @@ E2E は「実 frontend + 実 Convex backend + 認証済みブラウザ」の接�
 - `page.waitForTimeout()` は禁止。`expect(locator).toBeVisible()` など web-first assertion で待つ。
 - mutation 成功はトーストや画面の表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
+- 複数のシフト提出方式を提供する場合は、方式ごとにスタッフの初回提出と再提出、管理者の割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧までを一気通貫で確認する。提出画面だけの短いハッピーパスを、その方式のE2E完了扱いにしない。
+- magic linkを使うスタッフ提出と閲覧は、管理者のstorageStateを持たない別々のbrowser contextで確認する。管理者ログイン状態でtoken画面を開いて匿名導線の代替にしない。
+- 再提出は成功画面だけで終えず、追加した希望と取り消した希望の両方を管理者画面と確定後のスタッフ画面で確認し、置換更新の退行を検出する。
+- 通知E2Eでは、検証対象のmagic link、LINE link token、outbox、FailureInboxをテストhelperで人工生成しない。本番と同じUI操作・mutation・scheduled actionから生成された証跡を待つ。
+- 通知のDB確認が必要な場合は、E2E環境だけで動くinternal testing APIから、目的、channel、対象ID、status、dedupe、CTA整合だけを返す。redacted通知probeは生メールアドレス、LINE userId、token、本文、provider error全文を返さない。画面遷移にtokenが必要な場合だけ、同じE2Eゲートを持つ専用token helperを分離して使う。
+- 正常通知は `notificationOutbox`、retry/fallbackは `notificationDeliveryEvents`、最終失敗だけ `notificationFailureInbox` を見る。
+- Full Regressionの結果ゲートは最終失敗、skip、retry成功、非passing expected status、許可外project、必須scenario fileの完全一致を拒否する。backend auditは設定された全E2E管理者の一致と店舗所属を確認し、一部だけ取得できた状態を成功扱いしない。
+- axe検査は主要ランドマークの表示を待ってから実行し、既知違反を理由なく一括除外しない。
 
 避けること:
 
-- 外部サービスの実配送、Clerk の認証画面そのもの、ピクセルパーフェクトな UI を E2E で検証しない。
+- 外部サービスの実配送、Clerk の認証画面そのもの、ピクセルパーフェクトな UI を通常E2Eで検証しない。実配送は隔離した `@provider-canary` に分離する。
 - CSS クラスや Chakra の内部構造に依存しない。
 - ガントチャートの精密なドラッグ座標や時間計算を E2E に寄せない。必要なら Logic UT に切り出す。
 
