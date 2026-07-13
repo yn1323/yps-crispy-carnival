@@ -30,8 +30,24 @@ export class NotificationFailureDialogPage {
     await expect(this.page.getByText(/送れなかった通知を再送しました|一部の通知を再送しました/)).toBeVisible();
   }
 
-  async expectAllAccepted() {
-    await expect(this.dialog().getByRole("button", { name: "再送済み" })).toHaveCount(2);
+  async markAsNoActionRequired(staffName: string) {
+    const row = this.dialog().getByRole("row").filter({ hasText: staffName });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: "対応不要" }).click();
+
+    const confirmation = this.page.getByRole("alertdialog", {
+      name: "送れなかった通知を対応不要にする",
+    });
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation.getByText("対応不要にすると一覧から削除され、再送されません。")).toBeVisible();
+    await confirmation.getByRole("button", { name: "対応不要にする" }).click();
+
+    await expect(this.page.getByText("送れなかった通知を対応不要にしました")).toBeVisible();
+    await expect(row).not.toBeVisible();
+  }
+
+  async expectAcceptedCount(count: number) {
+    await expect(this.dialog().getByRole("button", { name: "再送済み" })).toHaveCount(count);
     await expect(this.dialog().getByRole("button", { name: "すべて再送" })).toBeDisabled();
   }
 }

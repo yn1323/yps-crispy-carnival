@@ -1484,6 +1484,12 @@ export const seedNotificationFailureRecoveryScenario = internalMutation({
       name: "通知不達スタッフ",
       email: secondStaffEmail,
     });
+    const thirdStaffEmail = "notification-failure-third-staff@example.com";
+    const thirdStaffId = await createStaff(ctx, {
+      shopId,
+      name: "通知不達スタッフ2",
+      email: thirdStaffEmail,
+    });
     const recruitmentId = await createRecruitment(ctx, { shopId, dates: args.dates, status: "open" });
 
     await createFailedRecruitmentNotification(ctx, {
@@ -1497,6 +1503,12 @@ export const seedNotificationFailureRecoveryScenario = internalMutation({
       recruitmentId,
       staffId: secondStaffId,
       email: secondStaffEmail,
+    });
+    await createFailedRecruitmentNotification(ctx, {
+      shopId,
+      recruitmentId,
+      staffId: thirdStaffId,
+      email: thirdStaffEmail,
     });
 
     return { shopId, recruitmentId };

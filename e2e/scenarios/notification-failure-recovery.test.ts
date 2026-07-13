@@ -7,6 +7,7 @@ import { NotificationFailureDialogPage } from "../pages/NotificationFailureDialo
 
 const MANAGER_NAME = "田中太郎";
 const SECOND_STAFF_NAME = "通知不達スタッフ";
+const THIRD_STAFF_NAME = "通知不達スタッフ2";
 const NOTIFICATION_CONTEXT = "notification.sendRecruitmentNotificationEmails";
 
 type FailureRecoverySeed = {
@@ -14,10 +15,10 @@ type FailureRecoverySeed = {
   recruitmentId: string;
 };
 
-test.describe("通知不達Dashboardからの再通知", { tag: ["@release", "@notification"] }, () => {
+test.describe("送れなかった通知のDashboard対応", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(45_000);
 
-  test("個別再通知後に残りを一斉再通知し、受付状態へ戻せる", async ({ page }) => {
+  test("対応不要・個別再通知・一斉再通知を使い分けられる", async ({ page }) => {
     const seed = seedManagerScenario<FailureRecoverySeed>("testing:seedNotificationFailureRecoveryScenario", {
       dates: getNextWeekDates(),
     });
@@ -30,18 +31,23 @@ test.describe("通知不達Dashboardからの再通知", { tag: ["@release", "@n
       await failures.open();
       await failures.expectFailureVisible(MANAGER_NAME);
       await failures.expectFailureVisible(SECOND_STAFF_NAME);
+      await failures.expectFailureVisible(THIRD_STAFF_NAME);
     });
 
-    await test.step("Step 2: 1件を個別に再通知する", async () => {
-      await failures.resend(MANAGER_NAME);
+    await test.step("Step 2: 1件を対応不要にして一覧から外す", async () => {
+      await failures.markAsNoActionRequired(MANAGER_NAME);
     });
 
-    await test.step("Step 3: 残りを一斉再通知する", async () => {
+    await test.step("Step 3: 1件を個別に再通知する", async () => {
+      await failures.resend(SECOND_STAFF_NAME);
+    });
+
+    await test.step("Step 4: 残りを一斉再通知する", async () => {
       await failures.resendAll();
-      await failures.expectAllAccepted();
+      await failures.expectAcceptedCount(2);
     });
 
-    await test.step("Step 4: outboxとFailureInboxが再通知受付状態になっている", async () => {
+    await test.step("Step 5: 対応不要にした通知は再送せず、残りだけ再通知受付状態になっている", async () => {
       const probe = getNotificationProbe({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
@@ -51,7 +57,7 @@ test.describe("通知不達Dashboardからの再通知", { tag: ["@release", "@n
       expect(probe.outbox).toHaveLength(2);
       expect(probe.outbox.every((job) => ["pending", "processing", "sent"].includes(job.status))).toBe(true);
       expect(probe.outbox.every((job) => job.deliverySuppressed)).toBe(true);
-      expect(probe.failureInbox).toHaveLength(2);
+      expect(probe.failureInbox).toHaveLength(3);
       expect(probe.failureInbox.every((failure) => ["retrying", "resolved"].includes(failure.status))).toBe(true);
     });
   });

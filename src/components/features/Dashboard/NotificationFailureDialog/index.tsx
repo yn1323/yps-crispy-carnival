@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, HStack, Popover, Stack, Table, Text } from "@chakra-ui/react";
-import { LuCheck, LuInfo, LuRefreshCw } from "react-icons/lu";
+import { LuCheck, LuCircleX, LuInfo, LuRefreshCw } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { formatDateTime } from "@/src/domains/shift/date";
@@ -22,6 +22,7 @@ type Props = {
   isResendingAll: boolean;
   onResend: (failureId: Id<"notificationFailureInbox">) => void;
   onResendAll: () => void;
+  onDismiss: (failure: DashboardNotificationFailure) => void;
 };
 
 const EMAIL_FAILURE_HELP_LINES = [
@@ -36,6 +37,7 @@ export const NotificationFailureDialogContent = ({
   isResendingAll,
   onResend,
   onResendAll,
+  onDismiss,
 }: Props) => {
   const hasPendingRetryable = failures.some((failure) => failure.canRetry && !acceptedFailureIds.has(failure._id));
 
@@ -61,7 +63,7 @@ export const NotificationFailureDialogContent = ({
         direction={{ base: "column", md: "row" }}
       >
         <Text fontSize="sm" color="fg.muted">
-          送れなかった相手を確認して、もう一度送れます。
+          送れなかった相手を確認して、再送または対応不要にできます。
         </Text>
         <Button
           size="sm"
@@ -103,7 +105,7 @@ export const NotificationFailureDialogContent = ({
               <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="center">
                 検知日時
               </Table.ColumnHeader>
-              <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="center" w="128px">
+              <Table.ColumnHeader color="gray.600" fontWeight="bold" textAlign="center" w="216px">
                 操作
               </Table.ColumnHeader>
             </Table.Row>
@@ -128,12 +130,13 @@ export const NotificationFailureDialogContent = ({
                 <Table.Cell color="gray.700" textAlign="center" verticalAlign="middle">
                   {formatDateTime(new Date(failure.lastFailedAt))}
                 </Table.Cell>
-                <Table.Cell textAlign="center" verticalAlign="middle" w="128px">
-                  <ResendButton
+                <Table.Cell textAlign="center" verticalAlign="middle" w="216px">
+                  <FailureActionButtons
                     failure={failure}
                     isAccepted={acceptedFailureIds.has(failure._id)}
                     isLoading={isResendingAll || resendingFailureIds.has(failure._id)}
                     onResend={onResend}
+                    onDismiss={onDismiss}
                   />
                 </Table.Cell>
               </Table.Row>
@@ -164,12 +167,14 @@ export const NotificationFailureDialogContent = ({
                 <ErrorDateBadge lastFailedAt={failure.lastFailedAt} />
               </HStack>
 
-              <Flex justify="flex-end">
-                <ResendButton
+              <Flex>
+                <FailureActionButtons
                   failure={failure}
                   isAccepted={acceptedFailureIds.has(failure._id)}
                   isLoading={isResendingAll || resendingFailureIds.has(failure._id)}
                   onResend={onResend}
+                  onDismiss={onDismiss}
+                  fullWidth
                 />
               </Flex>
             </Stack>
@@ -237,6 +242,52 @@ const ErrorDateBadge = ({ lastFailedAt }: { lastFailedAt: number }) => (
   </Badge>
 );
 
+const FailureActionButtons = ({
+  failure,
+  isAccepted,
+  isLoading,
+  onResend,
+  onDismiss,
+  fullWidth = false,
+}: {
+  failure: DashboardNotificationFailure;
+  isAccepted: boolean;
+  isLoading: boolean;
+  onResend: (failureId: Id<"notificationFailureInbox">) => void;
+  onDismiss: (failure: DashboardNotificationFailure) => void;
+  fullWidth?: boolean;
+}) => {
+  if (isAccepted) {
+    return (
+      <ResendButton failure={failure} isAccepted isLoading={isLoading} onResend={onResend} fullWidth={fullWidth} />
+    );
+  }
+
+  return (
+    <HStack gap={2} flexShrink={0} justify="center" w={fullWidth ? "100%" : undefined}>
+      <ResendButton
+        failure={failure}
+        isAccepted={false}
+        isLoading={isLoading}
+        onResend={onResend}
+        fullWidth={fullWidth}
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        colorPalette="red"
+        disabled={isLoading}
+        onClick={() => onDismiss(failure)}
+        flex={fullWidth ? 1 : undefined}
+        gap={1.5}
+      >
+        <LuCircleX />
+        対応不要
+      </Button>
+    </HStack>
+  );
+};
+
 const ResendButton = ({
   failure,
   isAccepted,
@@ -252,7 +303,7 @@ const ResendButton = ({
 }) => {
   if (isAccepted) {
     return (
-      <Button size="sm" variant="outline" colorPalette="gray" disabled gap={1.5} w={fullWidth ? "100%" : undefined}>
+      <Button size="sm" variant="outline" colorPalette="gray" disabled gap={1.5} flex={fullWidth ? 1 : undefined}>
         <LuCheck />
         再送済み
       </Button>
@@ -266,7 +317,7 @@ const ResendButton = ({
       loading={isLoading}
       disabled={isLoading || !failure.canRetry}
       onClick={() => onResend(failure._id)}
-      w={fullWidth ? "100%" : undefined}
+      flex={fullWidth ? 1 : undefined}
       gap={1.5}
     >
       <LuRefreshCw />

@@ -1,5 +1,5 @@
 import { usePaginatedQuery } from "convex/react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
@@ -32,34 +32,50 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
     { initialNumItems: NOTIFICATION_FAILURE_PAGE_SIZE },
   );
   const failures = failureOverrides ?? failureQuery.results;
-  const [dialogRows, setDialogRows] = useState<DashboardNotificationFailure[]>(failures);
+  const [dismissedFailureIds, setDismissedFailureIds] = useState<Set<Id<"notificationFailureInbox">>>(() => new Set());
+  const visibleFailures = useMemo(
+    () => failures.filter((failure) => !dismissedFailureIds.has(failure._id)),
+    [dismissedFailureIds, failures],
+  );
+  const [dialogRows, setDialogRows] = useState<DashboardNotificationFailure[]>(visibleFailures);
   const [acceptedFailureIds, setAcceptedFailureIds] = useState<Set<Id<"notificationFailureInbox">>>(() => new Set());
   const [resendingFailureIds, setResendingFailureIds] = useState<Set<Id<"notificationFailureInbox">>>(() => new Set());
+  const [dismissTarget, setDismissTarget] = useState<DashboardNotificationFailure | null>(null);
   const resendFailure = useShopMutation(api.notificationOutbox.mutations.resendFailure);
   const resendOpenFailures = useShopMutation(api.notificationOutbox.mutations.resendOpenFailures);
+  const resolveFailure = useShopMutation(api.notificationOutbox.mutations.resolveFailure);
+
+  useEffect(() => {
+    const openFailureIds = new Set(failures.map((failure) => failure._id));
+    setDismissedFailureIds((current) => {
+      const next = new Set(Array.from(current).filter((failureId) => openFailureIds.has(failureId)));
+      return next.size === current.size ? current : next;
+    });
+  }, [failures]);
 
   useEffect(() => {
     if (!dialog.isOpen) {
-      setDialogRows(failures);
+      setDialogRows(visibleFailures);
       return;
     }
 
     setDialogRows((currentRows) => {
       const nextRowsById = new Map(currentRows.map((failure) => [failure._id, failure]));
-      for (const failure of failures) {
+      for (const failure of visibleFailures) {
         nextRowsById.set(failure._id, failure);
       }
       return Array.from(nextRowsById.values()).filter(
         (failure) =>
-          acceptedFailureIds.has(failure._id) || failures.some((openFailure) => openFailure._id === failure._id),
+          acceptedFailureIds.has(failure._id) || visibleFailures.some((openFailure) => openFailure._id === failure._id),
       );
     });
-  }, [acceptedFailureIds, dialog.isOpen, failures]);
+  }, [acceptedFailureIds, dialog.isOpen, visibleFailures]);
 
   const resetDialogState = () => {
-    setDialogRows(failures);
+    setDialogRows(visibleFailures);
     setAcceptedFailureIds(new Set());
     setResendingFailureIds(new Set());
+    setDismissTarget(null);
   };
 
   const handleOpenChange = (details: { open: boolean }) => {
@@ -127,6 +143,20 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
     }
   });
 
+  const { run: handleDismiss, isRunning: isDismissing } = useSingleFlight(async () => {
+    if (!dismissTarget) return;
+
+    try {
+      await resolveFailure({ failureId: dismissTarget._id });
+      setDismissedFailureIds((current) => new Set(current).add(dismissTarget._id));
+      setDialogRows((current) => current.filter((failure) => failure._id !== dismissTarget._id));
+      setDismissTarget(null);
+      showSuccessToast({ title: "送れなかった通知を対応不要にしました" });
+    } catch (error) {
+      showErrorToast(error);
+    }
+  });
+
   const content = (
     <NotificationFailureRecoveryView
       isOpen={dialog.isOpen}
@@ -136,10 +166,15 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
       acceptedFailureIds={acceptedFailureIds}
       resendingFailureIds={resendingFailureIds}
       isResendingAll={isResendingAll}
+      dismissTarget={dismissTarget}
+      isDismissing={isDismissing}
       onResend={handleResend}
       onResendAll={handleResendAll}
+      onDismiss={setDismissTarget}
+      onCancelDismiss={() => setDismissTarget(null)}
+      onConfirmDismiss={handleDismiss}
     />
   );
 
-  return children({ failures, openNotificationFailures: dialog.open, content });
+  return children({ failures: visibleFailures, openNotificationFailures: dialog.open, content });
 }

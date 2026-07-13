@@ -1202,7 +1202,7 @@ describe("notificationOutbox", () => {
       staffId,
       channel: "email",
       dedupeKey,
-      notificationContext: "test.preparation",
+      notificationContext: "line.sendInviteEmail",
       errorMessage: "first",
     });
     const failureId = (await collectFailureInbox(t))[0]._id;
@@ -1217,7 +1217,7 @@ describe("notificationOutbox", () => {
       staffId,
       channel: "email",
       dedupeKey,
-      notificationContext: "test.preparation",
+      notificationContext: "line.sendInviteEmail",
       errorMessage: "second",
     });
 
@@ -1976,7 +1976,7 @@ describe("notificationOutbox", () => {
         dedupeKey: "email:test:manual-resolve",
         shopId,
         staffId,
-        payload: emailPayload,
+        payload: { ...emailPayload, context: "line.sendInviteEmail" },
         attemptCount: 1,
         nextRunAt: now,
         processingStartedAt: now,
@@ -2012,6 +2012,78 @@ describe("notificationOutbox", () => {
       resolvedByUserId: expect.any(String),
     });
     expect(failure?.resolvedAt).toBeTypeOf("number");
+  });
+
+  it("resolveFailureはopenかつDashboard表示対象でない失敗を拒否する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const failureIds = await t.run(async (ctx) => {
+      const now = Date.now();
+      const closedRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const common = {
+        sourceType: "outbox" as const,
+        shopId,
+        staffId,
+        channel: "email" as const,
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "failed",
+        createdAt: now,
+        updatedAt: now,
+      };
+      const retryingId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-retrying",
+        status: "retrying",
+        dedupeKey: "email:test:resolve-retrying",
+        notificationContext: "line.sendInviteEmail",
+        retryRequestedAt: now,
+      });
+      const resolvedId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-resolved",
+        status: "resolved",
+        dedupeKey: "email:test:resolve-resolved",
+        notificationContext: "line.sendInviteEmail",
+        resolvedAt: now,
+        resolutionKind: "sent",
+      });
+      const notActionableId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-not-actionable",
+        status: "open",
+        dedupeKey: "email:test:resolve-not-actionable",
+        notificationContext: "test.email",
+      });
+      const closedRecruitmentFailureId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-closed-recruitment",
+        status: "open",
+        recruitmentId: closedRecruitmentId,
+        dedupeKey: "email:test:resolve-closed-recruitment",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      return [retryingId, resolvedId, notActionableId, closedRecruitmentFailureId];
+    });
+
+    for (const failureId of failureIds) {
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.notificationOutbox.mutations.resolveFailure, {
+          failureId,
+        }),
+      ).rejects.toThrow("Not found");
+    }
+
+    const failures = await t.run(async (ctx) => await Promise.all(failureIds.map(async (id) => await ctx.db.get(id))));
+    expect(failures.map((failure) => failure?.status)).toEqual(["retrying", "resolved", "open", "open"]);
   });
 
   it("初回失敗から30日を過ぎたopen/retryingのFailureInboxをresolved/expiredにする", async () => {

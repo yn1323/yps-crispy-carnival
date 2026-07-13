@@ -629,7 +629,12 @@ export const resolveFailure = managerMutation({
   args: { failureId: v.id("notificationFailureInbox") },
   handler: async (ctx, { failureId }) => {
     const failure = await ctx.db.get(failureId);
-    if (!failure || failure.shopId !== ctx.shop._id) {
+    if (
+      !failure ||
+      failure.shopId !== ctx.shop._id ||
+      failure.status !== "open" ||
+      !(await isManagerVisibleNotificationFailure(ctx, failure))
+    ) {
       throw new ConvexError("Not found");
     }
 

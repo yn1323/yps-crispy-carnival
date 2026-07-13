@@ -70,6 +70,7 @@ export const Normal: Story = {
     isResendingAll: false,
     onResend: () => {},
     onResendAll: () => {},
+    onDismiss: () => {},
   },
 };
 
@@ -146,6 +147,7 @@ const InteractiveNotificationFailureDialog = () => {
       isResendingAll={false}
       onResend={(failureId) => setAcceptedFailureIds((current) => new Set(current).add(failureId))}
       onResendAll={() => setAcceptedFailureIds(new Set(failures.map((failure) => failure._id)))}
+      onDismiss={() => {}}
     />
   );
 };
