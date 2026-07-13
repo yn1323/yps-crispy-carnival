@@ -27,6 +27,7 @@ crons.cron(
   "staff-registration-owner-daily-digest",
   "0 8 * * *",
   internal.staffRegistration.actions.sendOwnerDailyDigest,
+  {},
 );
 
 // 通知失敗の再通知リマインダー（JST 17:00 = UTC 08:00）
@@ -34,6 +35,7 @@ crons.cron(
   "notification-failure-reminder-digest",
   "0 8 * * *",
   internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest,
+  {},
 );
 
 export default crons;
