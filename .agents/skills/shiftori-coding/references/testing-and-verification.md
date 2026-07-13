@@ -7,7 +7,8 @@
 
 | 変更内容 | 主な場所 |
 |---|---|
-| 日付、時刻、ソート、正規化、schema、表示変換 | Logic UT: `src/**/*.test.ts` |
+| 日付、時刻、ソート、正規化、schema、表示変換 | Logic UT: `src/**/*.test.ts`、`src/**/*.test.tsx` |
+| React hook、jsdom、DOM API、Visual Viewport、同期ガード | Frontend Unit: `*.test.ts`または`*.test.tsx`の先頭でjsdom環境を指定 |
 | UIの代表状態、空/エラー/長文/SP差分 | Storybook Story / VRT |
 | 押せる、進める、エラーが出る、確認文言が出る | Storybook play function |
 | query/mutation 単体の認証、認可、IDOR、副作用 | Convex Function Test |
@@ -35,7 +36,7 @@ pnpm build
 ## Sandbox 注意点
 
 - `pnpm lint` は `tsx scripts/check-convex-timezone.ts` が IPC pipe を作るため、Codex sandbox で `EPERM` になることがある。Biome が通っていて IPC だけが原因なら、権限付き再実行を検討する。
-- `pnpm e2e`、Playwright、ブラウザ起動、ローカルサーバー接続は sandbox で失敗しやすい。実行環境由来の `EPERM`、browser launch failure、listen failure はコード失敗と分ける。
+- `pnpm test:ui`、`pnpm vrt`、`pnpm e2e`、Playwright、ブラウザ起動、ローカルサーバー接続は sandbox で失敗しやすい。実行環境由来の `EPERM`、browser launch failure、listen failure はコード失敗と分ける。
 - Vite / Storybook / Convex dev server はユーザーが起動する。新規起動しない。
 
 ## セルフレビュー
@@ -48,4 +49,6 @@ pnpm build
 - index / take / paginate / 上限定数なしに大きな table を読んでいないか。
 - 永続 shape 変更に migration plan があるか。
 - Story / test / Feature Doc が変更後の仕様を表しているか。
+- Behavior専用Storyへ`parameters.screenshot.skip`があり、モバイルStoryへviewportとVRT tagの両方があるか。
+- テストファイル名が`*.test.ts`または`*.test.tsx`で、DOM依存テストにjsdom環境指定があるか。
 - 薄い wrapper、重複、過剰なコメントが残っていないか。

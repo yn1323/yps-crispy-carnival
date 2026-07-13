@@ -37,7 +37,7 @@
 | 壊したもの | 失敗させる層 |
 |---|---|
 | 日付、時刻、割当、並び順、入力と保存値の変換 | Logic UT |
-| hook、DOM API、Visual Viewport、同期ガード | frontend-unit（jsdom） |
+| hook、DOM API、Visual Viewport、同期ガード | Frontend Unit（jsdom、`pnpm test:logic`） |
 | 入力、step、tab、dialog、callback、二重送信 | Storybook Behavior Test |
 | 静的文言、空状態、エラー状態、長文、PCとモバイルのレイアウト | VRT |
 | public query/mutationの認証、認可、token、冪等性 | Convex Function Test |
@@ -48,7 +48,7 @@
 
 URL、status、error code、JSON-LD、検索対象データ、法務version、sanitize結果、個人情報の非露出とマスキングは、文字列自体が機械契約またはセキュリティ契約なのでVRTだけに委ねない。
 
-## P0：テストprojectを分離する
+## P0：テスト実行環境を整理する
 
 ### analytics-dashboardを除外する
 
@@ -59,20 +59,22 @@ URL、status、error code、JSON-LD、検索対象データ、法務version、sa
 3. `pnpm test`とCIの対象に同アプリが含まれないことを確認する。
 4. 本体側の`convex/analytics/**/*.test.ts`は削除しない。
 
-### frontend-unitを追加する
+### Frontend Unitの実行環境を明示する
 
-Logic projectはNode上の純粋関数だけに限定する。
+Logic projectで、純粋ロジックとFrontend Unitを実行する。
 
-`vitest.config.ts`へ`frontend-unit` projectを追加し、`*.frontend.test.ts`と`*.frontend.test.tsx`をjsdomで実行する。
+テストファイル名は`*.test.ts`または`*.test.tsx`に統一する。
 
-次の4ファイルをfrontend-unitへ移す。
+jsdomが必要なテストは、ファイル先頭の`// @vitest-environment jsdom`で実行環境を指定する。
+
+次の4ファイルにjsdom環境を指定する。
 
 - `src/hooks/useSingleFlight.test.ts`
 - `src/hooks/useStaffSession.test.ts`
 - `src/helpers/gtm/index.test.ts`
 - `src/components/features/Dashboard/DashboardAnnouncement/sanitizeAnnouncementHtml.test.ts`
 
-`package.json`へ`test:frontend`を追加し、`.github/workflows/test-logic.yml`ではLogicとfrontend-unitを両方必須実行する。
+`.github/workflows/test-logic.yml`では、`pnpm test:logic`によって純粋ロジックとFrontend Unitをまとめて必須実行する。
 
 次の純粋関数はReact componentから切り離し、NodeのLogic UTへ残す。
 
@@ -185,23 +187,23 @@ Logic projectはNode上の純粋関数だけに限定する。
 
 `timeOptions.ts`の`buildEntries`と`previousWeeklyPattern.ts`のdateOnly復元も同じ不変条件で補う。
 
-## P0：frontend-unitの不足を追加する
+## P0：Frontend Unitの不足を追加する
 
 ### useShopMutation
 
-`src/hooks/useShopMutation.frontend.test.ts`を追加し、shopId注入、店舗変更、未選択、入力非破壊を確認する。
+`src/hooks/useShopMutation.test.ts`を追加し、shopId注入、店舗変更、未選択、入力非破壊を確認する。
 
-認可とIDOR防止はConvex Function Testで保証し、frontend-unitでは引数生成だけを保証する。
+認可とIDOR防止はConvex Function Testで保証し、Frontend Unitでは引数生成だけを保証する。
 
 ### Visual Viewport
 
 `useDialogVisualViewportStyle.ts`に対して、listener登録、初期値、`innerHeight` fallback、resize、scroll、丸め、cleanup、enabled切り替えを確認する。
 
-モバイルキーボードによるVisual Viewport変化は通常VRTで再現しにくいため、frontend-unitで扱う。
+モバイルキーボードによるVisual Viewport変化は通常VRTで再現しにくいため、Frontend Unitで扱う。
 
 ### useStaffSession
 
-既存テストをfrontend-unitへ移し、`recruitment_deleted`、`submission_closed`、検証中のtoken削除、malformed JSON、access kind別の`clearSession`を追加する。
+既存テストへjsdom環境を指定し、`recruitment_deleted`、`submission_closed`、検証中のtoken削除、malformed JSON、access kind別の`clearSession`を追加する。
 
 statusとreasonは認証とセキュリティの機械契約なので、文言テストとして削除しない。
 
@@ -334,7 +336,7 @@ desktopとmobileの必須Story IDをmanifest化し、Story削除やtag外れを�
 
 PRでは高速層とSmokeを実行する。
 
-develop統合後またはRC exact SHAでは、lint、type-check、production build、Logic、frontend-unit、UI、Convex Function、Convex Scenario、VRT、E2Eを同じSHAで実行する。
+develop統合後またはRC exact SHAでは、lint、type-check、production build、Logic（Frontend Unitを含む）、UI、Convex Function、Convex Scenario、VRT、E2Eを同じSHAで実行する。
 
 Full Regressionは`pnpm dev`だけを対象にせず、最低でも`pnpm build`後のpreviewを検査する。
 
@@ -390,7 +392,7 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 
 1. analytics-dashboard projectとテストを除外する。
 2. mobile tag、VRT baseline、必須Story manifestを直し、見た目の保護を先に成立させる。
-3. frontend-unit projectを追加し、DOM依存4テストを移す。
+3. DOM依存テストを標準のテストファイル名へ統一し、ファイル単位でjsdom環境を指定する。
 4. 静的StoryとBehavior Storyを分離する。
 5. 固定文言だけのplayとschema再テストを削る。
 6. paint、resize、buildShiftData、提出往復契約を追加する。
@@ -401,15 +403,15 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 ## 完了条件
 
 - `apps/analytics-dashboard/`の自動テストとVitest projectが0件である。
-- Logic projectがReact、jsdom、DOM APIを読み込まない。
-- frontend-unit projectがhookとDOM APIの契約を必須実行する。
+- Logic projectが純粋ロジックとFrontend Unitを必須実行する。
+- テストファイル名が`*.test.ts`または`*.test.tsx`に統一され、DOM依存テストにjsdom環境指定がある。
 - VRT対象の初期静的文言だけを確認するplayが0件である。
 - viewport指定だけでmobile VRTから漏れるStoryが0件である。
 - PRのVRT baseline欠落、capture 0件、必須Story欠落が失敗する。
 - Full Regressionがproduction buildとexact SHAを検査する。
 - `pageerror`、allowlist外`console.error`、同一origin 5xxがE2Eを失敗させる。
 - 同期ガード削除、シフト変換破壊、token権限交換、mobile tag削除、baseline削除、必須契約削除を意図的に行うと、それぞれ対応する層が失敗する。
-- `pnpm lint`、`pnpm type-check`、`pnpm test:logic`、`pnpm test:frontend`、`pnpm test:ui`、`pnpm test:convex`、`pnpm vrt`、`pnpm e2e:release`が成功する。
+- `pnpm lint`、`pnpm type-check`、`pnpm test:logic`、`pnpm test:ui`、`pnpm test:convex`、`pnpm vrt`、`pnpm e2e:release`が成功する。
 
 ## 参考ファイル
 

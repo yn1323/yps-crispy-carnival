@@ -13,6 +13,7 @@
 ## 基本方針
 
 - テストは「速く細かいもの」と「遅いが実環境に近いもの」を分ける。
+- TypeScriptのテストファイル名は`*.test.ts`または`*.test.tsx`に統一する。jsdomやDOM APIを使う場合は、ファイル単位で実行環境を指定する。
 - 複雑な DB 状態遷移は E2E に寄せすぎず、Convex Scenario Test で厚く見る。
 - E2E は画面・認証・フロントエンドと実 Convex backend の接続確認を中心にする。
 - develop向けPRの `@release` Full Regressionで、壊れた時の運用影響が大きい通知受付、再送、モバイル、公開導線、アクセシビリティを実ブラウザで確認する。developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない。
@@ -24,13 +25,15 @@
 - E2Eの主要シナリオはScenario Testの発見元として使うが、同じ手順を複製しない。実ブラウザ接続はE2E、単一API境界はFunction Test、業務状態遷移はScenario Testへ契約を分解する。
 - 不在、一意性、対象集合、旧capabilityの失効が契約なら、対象範囲を絞った完全一致と件数で保証する。部分一致や存在確認だけで完了扱いにしない。
 - VRT対象Storyに最初から表示される静的な見出しや文言はVRTへ委ね、存在確認だけのBehavior Testを重複させない。Behavior Testは操作後に生じる表示・非表示・状態・件数の変化を保証する。
+- 共有schemaの境界値は定義元で一度だけ検証し、フォーム側ではresolver接続、submit抑止、payload、状態遷移を保証する。
 - `apps/analytics-dashboard/` は本人だけが使う内部BIのため、自動テストとFull Regressionの対象外とする。新しいテストを追加・維持せず、`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認する。
 
 ## テスト種別
 
 | 種類 | コマンド/場所 | 目的 | 書くこと | 書かないこと |
 |---|---|---|---|---|
-| Logic UT | `pnpm test:logic`, `src/**/*.test.ts` | 純粋ロジックの退行検知 | 日付、時刻、配列加工、schema、表示変換、フォーム固有の純粋validation | DB、React表示、Convex接続 |
+| Logic UT | `pnpm test:logic`, `src/**/*.test.ts`, `src/**/*.test.tsx` | 純粋ロジックの退行検知 | 日付、時刻、配列加工、schema、表示変換、フォーム固有の純粋validation | DB、React表示、Convex接続 |
+| Frontend Unit | `pnpm test:logic`, `*.test.ts`または`*.test.tsx`の先頭でjsdom環境を指定 | jsdom上のフロントエンド契約確認 | React hook、DOM API、Visual Viewport、listenerとcleanup、同期ガード、mutation引数生成 | component全体の表示、実認証、backend認可、DB永続化 |
 | UI Component Test | `pnpm test:ui`, `*.stories.tsx` | Storybook 上の表示・軽い操作確認 | 代表状態、空/エラー/長文状態、重要な操作の play test | 業務フロー全体、DB状態検証 |
 | Behavior Test（振る舞いテスト） | `pnpm test:ui`, `*.stories.tsx` の play function | Storybook 上でユーザー操作後の状態遷移を保証する | 押せる、進める、操作後にエラーや確認状態が出る、表示・件数が変わる、SP/PC固有操作、日付・入力の重要エッジケース | 初期表示の静的文言だけの確認、DB状態検証、API副作用、実認証、ピクセルパーフェクトな見た目差分 |
 | VRT | Storycap testrun + RegSuit / Storybook | 見た目差分検知 | 代表パターン、variants、状態別Story、静的文言、長文、レイアウト | ロジック検証、業務状態遷移 |
@@ -165,6 +168,15 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - 日付・時刻・タイムゾーンずれ・丸め・ソートは厚めに書く。
 - React / Convex に依存しないコードを優先して切り出し、ここで検証する。
 
+### Frontend Unit
+
+- テストファイル名は`*.test.ts`または`*.test.tsx`に統一する。
+- React hook、jsdom、DOM API、Visual Viewport、`localStorage`に依存するテストは、ファイル先頭に`// @vitest-environment jsdom`を記述する。
+- Logic UTと同じく`pnpm test:logic`で実行する。
+- listener登録とcleanup、状態変更、入力非破壊、access kindの分離を検証する。
+- mutation引数の生成はここで確認してよいが、認証、認可、IDOR、永続化はConvex Function TestまたはScenario Testへ分ける。
+- Submit系の同期ガードはhook単体に加え、代表componentのBehavior Testで実際に接続されていることも確認する。
+
 ### UI Component Test / Behavior Test / VRT
 
 - UI の代表状態を Storybook に置く。
@@ -175,8 +187,11 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - VRT対象Storyに最初から表示される見出し、説明、ラベル、件数などは、存在確認だけのplay functionを付けない。操作対象をrole/nameで取得することは許可するが、同じ静的文言を別assertで重複確認しない。
 - 操作後に初めて表示されるvalidation error、確認画面、成功・失敗状態、表示・非表示、件数変化はBehavior Testに残す。
 - URL、status、error code、JSON-LD、検索対象データ、法務version、sanitize結果、個人情報のマスキングは、文字列自体が機械契約またはセキュリティ契約なのでVRTだけに委ねない。
-- Behavior Test を追加・変更するときは、その Story を VRT 撮影対象にするかを最後に必ず判断する。振る舞いだけを見たい場合は `parameters: { chromatic: { disableSnapshot: true } }` を付ける。見た目の退行も守りたい場合は、VRT対象として残すか、別の静的Storyに代表状態を切り出す。
-- Storycap testrun + RegSuit では `pnpm vrt:capture` で全StorybookファイルのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。既存Storyの `chromatic.disableSnapshot` は互換ヘルパーで `screenshot.skip` として扱う。
+- Behavior Test を追加・変更するときは、その Story を VRT 撮影対象にするかを最後に必ず判断する。振る舞いだけを見たい場合は `parameters: { screenshot: { skip: true } }` を付ける。見た目の退行も守りたい場合は、VRT対象として残すか、別の静的Storyに代表状態を切り出す。
+- モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagを同時に付ける。viewport指定だけではモバイルVRT projectへ選択されない。
+- Storycap testrun + RegSuit では `pnpm vrt:capture` でVRT対象StoryのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。
+- capture後はPNGが0件でないこと、PCとモバイルの必須Storyが存在すること、Behavior専用Storyが撮影されていないことを成果物ゲートで検査する。
+- PRではbaseline欠落を成功扱いにせず、初回baseline作成は明示的なbootstrap操作に限定する。
 - DB や業務フロー全体は検証しない。
 
 ### Convex Function Test
@@ -248,6 +263,7 @@ RCの本番リリースでは、隔離受信先によるprovider canary完了後
 迷ったら次の基準で置き場所を決める。
 
 - 純粋関数だけで検証できる: Logic UT
+- React hook、jsdom、DOM APIだけで検証できる: Frontend Unit
 - UI の見た目や単体操作を確認したい: UI Component Test / VRT
 - Storybook 上でユーザー操作後の振る舞い、エラー、確認状態、表示・件数変化を確認したい: Behavior Test
 - 初期表示の静的文言、長文、改行、レイアウトを確認したい: VRT

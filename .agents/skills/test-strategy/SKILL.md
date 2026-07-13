@@ -26,6 +26,10 @@ description: シフトリ / yps-crispy-carnival のテスト方針・テスト�
 - テストが実装詳細に寄りすぎている場合は、ユーザーから見える振る舞いか、公開 API の契約に寄せて書き直す。
 - Full Regressionの機能一覧を既存テストから逆算しない。画面、業務ユースケース、public API、通知目的から棚卸しし、まだテストがない機能も候補に含める。
 - VRT対象Storyに最初から表示される静的な見出しや文言は、存在確認だけのplay functionで重複検証しない。操作後に生じる状態遷移だけをBehavior Testで保証する。
+- TypeScriptのテストファイル名は`*.test.ts`または`*.test.tsx`に統一する。React hook、jsdom、DOM APIに依存する場合は、ファイル先頭でjsdom環境を指定する。
+- 共有schemaの境界値は定義元で一度だけ検証し、フロントエンドではresolver接続、submit抑止、payload、状態遷移だけを保証する。
+- Behavior専用Storyは`parameters: { screenshot: { skip: true } }`でVRTから外し、見た目も守る状態は静的Storyへ分ける。
+- モバイルVRTはviewport指定だけで済ませず、対応する`vrt-mobile1`または`vrt-mobile2` tagも付ける。
 - URL、status、error code、検索・SEO用データ、法務version、sanitize結果、個人情報のマスキングなど、文字列自体が機械契約またはセキュリティ契約である場合はVRTへ委ねない。
 - `apps/analytics-dashboard/` は本人用の内部BIとして自動テストとFull Regressionの対象外にする。新しいテストを追加・維持せず、`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認する。
 - Full Regressionでは、主要導線、状態遷移、認証境界、通知、永続化、モバイル、アクセシビリティを契約として守り、静的文言や実装詳細の総当たりを避ける。
@@ -62,6 +66,7 @@ description: シフトリ / yps-crispy-carnival のテスト方針・テスト�
 | 変更内容 | 主に書く場所 |
 |---|---|
 | 日付、時刻、ソート、正規化、schema、表示変換 | Logic UT |
+| React hook、jsdom、DOM API、Visual Viewport、同期ガード | Frontend Unit |
 | UI の代表状態、静的文言、空/エラー/長文/モバイル差分 | Storybook Story / VRT |
 | クリック後に進む、操作後にエラーや確認状態へ変わる | Storybook play function |
 | query/mutation 単体の認証、認可、IDOR、副作用 | Convex Function Test |

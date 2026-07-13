@@ -8,6 +8,7 @@
 - 変更時のテスト判断
 - Full Regression の契約マップ
 - Logic UT
+- Frontend Unit
 - Storybook / Behavior Test
 - VRT
 - Convex Function Test
@@ -24,6 +25,7 @@
 テスト層はファイルの場所ではなく、保証したい契約で選ぶ。
 
 - 純粋関数、schema、表示変換、日付/時刻、ソートなら Logic UT。
+- React hook、jsdom、DOM API、Visual Viewport、同期ガードなら Frontend Unit。
 - UI の状態一覧や見た目の退行なら Storybook Story / VRT。
 - UI 上の操作後の振る舞いなら Storybook play function。
 - Convex query/mutation 単体の契約なら Convex Function Test。
@@ -36,6 +38,8 @@
 - 既存契約が変わったなら、テスト期待値を新仕様へ更新する。
 - 新しい契約、過去に壊れた挙動、レビューで不安が出た観点ならテストを追加する。
 - 仕様から消えた契約、別層へ移した契約、実装詳細だけを守るテストは削除または縮小する。
+- 共有schemaの境界値は定義元で一度だけ検証し、利用側で同じ入力表を複製しない。
+- 本番コードから参照されないhelperは、将来利用の可能性だけを理由に実装とテストを維持しない。
 - 失敗しているテストを、理由なく期待値だけ緩めない。先に仕様変更、テストドリフト、実装バグ、環境問題を切り分ける。
 
 ## Full Regression の契約マップ
@@ -70,6 +74,34 @@
 
 - DOM、React hook、Convex 接続を Logic UT に持ち込まない。
 - ただの型定義、定数、追加ロジックのない schema 定義だけを過剰にテストしない。
+
+共有schemaは、定義元のLogic UTまたはConvex Function Testで境界値を一度だけ検証する。
+フロントエンド固有の追加制約がある場合だけ、その純粋validationをLogic UTへ置く。
+
+## Frontend Unit
+
+対象:
+
+- React hook、jsdom、`window`、`document`、`localStorage`に依存する契約。
+- Visual Viewport、event listener、cleanup、同期ガード、mutation引数生成。
+- DOMを使うsanitizeやtracking helper。
+
+書き方:
+
+- テストファイル名は`*.test.ts`または`*.test.tsx`に統一する。
+- jsdomが必要なファイルは、先頭に`// @vitest-environment jsdom`を記述する。
+- Logic UTと同じく`pnpm test:logic`で実行する。
+- frontendとbackendの責務を分け、引数生成やsession cacheだけを検証する。
+- 認証、認可、IDOR、永続化は対応するConvex Function TestまたはScenario Testで保証する。
+- listener登録とcleanup、enabled切り替え、malformed storage、access kindの分離を必要に応じて確認する。
+- Submit系の同期ガードは、hook単体だけでなく代表componentのBehavior Testでも接続を確認する。
+
+避けること:
+
+- ファイル名に`.frontend`など、実行環境を表す独自suffixを追加しない。
+- jsdomが必要なテストで、ファイル単位の環境指定を省略しない。
+- component全体の表示やユーザー操作をFrontend Unitへ寄せない。
+- backendの権限境界をmock mutationの引数確認だけで保証したことにしない。
 
 ## Storybook / Behavior Test
 
@@ -113,9 +145,11 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 判断:
 
 - 見た目も守りたい Story は VRT 対象に残す。
-- 振る舞いだけを見たい Story は `parameters: { chromatic: { disableSnapshot: true } }` を付ける。
+- 振る舞いだけを見たい Story は `parameters: { screenshot: { skip: true } }` を付ける。
 - play function の途中状態を撮りたい場合は、静的 Story に代表状態を切り出す。
 - `position: fixed` の Header を含む縦長ページを full-page VRT で撮る場合は `parameters.vrt.releaseFixedHeader = true` を付ける。
+- モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagをセットで付ける。
+- viewport指定だけではモバイルVRT projectの対象にならないため、tagなしを見逃さない。
 
 確認:
 
@@ -123,6 +157,8 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 - 差分が意図したものなら理由を説明できる状態にする。
 - VRT 差分だけでロジックの正しさを判断しない。
 - 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
+- capture後はPNGが0件でないこと、PCとモバイルの必須Storyが存在すること、Behavior専用Storyが撮影されていないことを成果物ゲートで確認する。
+- PRではbaseline欠落を成功扱いにせず、意図した差分だけを承認する。
 
 ## Convex Function Test
 
@@ -282,6 +318,10 @@ Codex sandbox では IPC、ブラウザ起動、ローカルサーバー接続�
 - `findBy...` / web-first assertion で待てるところを、手動 polling や timeout にしていないか。
 - 不要になったテストを残して、新仕様と矛盾させていないか。
 - VRT対象Storyの静的文言をplay functionでも重複確認していないか。
+- Behavior専用Storyへ`screenshot.skip`があり、同じ代表状態を必要に応じて静的Storyで撮影しているか。
+- モバイルStoryへviewportとVRT tagの両方があるか。
+- テストファイル名が`*.test.ts`または`*.test.tsx`で、DOM依存テストにjsdom環境指定があるか。
+- 共有schemaの同じ境界値を定義元とフォーム側で重複検証していないか。
 - `apps/analytics-dashboard/` に自動テストを追加・維持していないか。
 - 実行できなかった検証があれば、理由が環境問題かコード問題かを明確に報告できるか。
 
