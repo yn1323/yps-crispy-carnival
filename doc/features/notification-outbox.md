@@ -44,7 +44,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 | `notificationOutbox.queries.listOpenFailures` | managerQuery | 現在 `open` の要対応通知失敗をpayload抜きDTOでページング取得する |
 | `notificationOutbox.queries.hasOpenFailures` | managerQuery | バッジ/通知向けに `open` な要対応通知失敗の有無だけを返す |
 | `notificationOutbox.mutations.retryFailure` | managerMutation | 要対応Inboxのoutbox失敗を手動再送し、ジョブを `pending`、Inboxを `retrying` にする |
-| `notificationOutbox.mutations.resolveFailure` | managerMutation | 要対応Inboxの失敗を手動で `resolved/dismissed` にする |
+| `notificationOutbox.mutations.resolveFailure` | managerMutation | 同一店舗の open かつDashboard表示対象の失敗を手動で `resolved/dismissed` にする |
 | `internal.notificationOutbox.actions.processPending` | internalAction | claim 済みジョブを配送し、成功・再試行・失敗へ分類する |
 | `POST /resend/webhook` | HTTP action | Resend の `email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed` を受信する |
 
@@ -86,7 +86,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `enqueue_preparation_failed` は magic link 作成、LINE CTA 作成、メール/LINE payload 構築など、Outbox ジョブ作成前に落ちた失敗を表す。募集作成通知、現在募集中シフト通知、催促通知、確定シフト通知で staff ごとに記録する。
 - `markSent` は同じ outbox のInbox行を `resolved/sent` にする。
 - `retryFailure` は manager mutation として同一店舗の `open` な outbox 失敗だけを `retrying` にし、配送ジョブを `pending` に戻す。再失敗すれば `markFailed` が `open` に戻す。
-- `resolveFailure` は manager mutation として同一店舗の失敗を `resolved/dismissed` にする。
+- `resolveFailure` は manager mutation として同一店舗の `open` かつDashboard表示対象の失敗だけを `resolved/dismissed` にする。行は削除せず、解決した担当者と日時を保持する。
 - 初回失敗 `firstFailedAt` から30日を過ぎた `open` / `retrying` は、日次cronで `resolved/expired` にする。行は削除せず、Dashboard表示と再通知対象から外す。
 - メールHTML、LINE本文、LINE Flex JSON、payload全文は複製しない。Inboxは `recruitmentId` / `staffId` / `channel` / `dedupeKey` / `notificationContext` / 最終エラーなどの要約だけを持つ。
 - `sourceType: "outbox"` は既存 outbox job を `retryFailure` で再実行できる。`sourceType: "enqueue"` / `"enqueue_preparation"` は outbox job が存在しないため、UIからの個別再送では通知種別ごとの再送処理で新しく Outbox に投入する。

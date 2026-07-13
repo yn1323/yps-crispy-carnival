@@ -1,6 +1,6 @@
 # 通知不達Dashboard
 
-送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
+送信できなかった通知を `notificationFailureInbox` から店舗単位で読み取り、Dashboard の「TODO」から再通知または「対応不要」を受け付ける機能。再通知は配送完了ではなく、Outbox または再通知 action に載った時点で受付済みとして扱う。
 
 マネージャーがDashboardを開かないと不達に気づけないため、open 不達通知がある店舗のmanager usersへ、毎日 JST 17:00 に「Dashboardから再通知してください」というリマインダー（日次ダイジェスト）を送る。
 
@@ -9,13 +9,13 @@
 ### フロントエンド（`src/`）
 
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 「TODO」に不達通知カードを表示する
-- `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、Dialogの開閉、個別/一斉再通知mutation、受付済み状態を所有する
+- `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、Dialogの開閉、個別/一斉再通知・対応不要mutation、受付済み状態を所有する
 - `src/components/features/Dashboard/NotificationFailureDialog/` — 不達通知一覧、PCテーブル、SPリスト、Storybook
 
 ### バックエンド（`convex/`）
 
 - `convex/notificationOutbox/queries.ts` — `notificationFailureInbox` の open 件をUI向けDTOで返す
-- `convex/notificationOutbox/mutations.ts` — 個別/一斉再通知を受け付け、対象 failure を `retrying` にする
+- `convex/notificationOutbox/mutations.ts` — 個別/一斉再通知を受け付けて対象 failure を `retrying` にするほか、対応不要を `resolved/dismissed` として記録する
 - `convex/notificationOutbox/resendWebhook.ts` — Resend provider の配送遅延・失敗を `notificationFailureInbox` に反映する
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — enqueue/preparation 失敗の再通知を1スタッフ・1募集単位でOutboxに載せる
 - `convex/notificationOutbox/failureReminderActions.ts` / `failureReminderQueries.ts` — open 不達通知がある店舗のmanagerへ日次リマインダーを送る（cron `notification-failure-reminder-digest`）
@@ -33,7 +33,7 @@
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード | open 不達通知がある場合に `不達通知があります` カードを表示する |
-| 不達通知Dialog | スタッフ名、通知種別、募集期間、チャネル、検知日時を表示し、個別/一斉に再通知を受け付ける |
+| 送れなかった通知Dialog | スタッフ名、通知種別、募集期間、チャネル、検知日時を表示し、個別/一斉の再通知または対応不要を受け付ける |
 
 ## API 一覧
 
@@ -42,6 +42,7 @@
 | `api.notificationOutbox.queries.listOpenFailures` | query | 現在店舗の open 不達通知をUI表示用に返す |
 | `api.notificationOutbox.mutations.resendFailure` | mutation | 1件の不達通知を再通知受付し、`retrying` にする |
 | `api.notificationOutbox.mutations.resendOpenFailures` | mutation | 現在店舗の open 不達通知をまとめて再通知受付する |
+| `api.notificationOutbox.mutations.resolveFailure` | mutation | 現在店舗の open かつDashboard表示対象の通知を `resolved/dismissed` にする |
 | `POST /resend/webhook` | HTTP action | Resend の `delivery_delayed` / `failed` / `bounced` / `suppressed` を受信し、open 不達通知に反映する |
 | `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` | internalAction | 毎日17:00 JSTに open 不達通知がある店舗のmanagerへリマインダーを送る |
 | `internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage` | internalQuery | 直近24時間以内に失敗した open 不達通知がある店舗IDをページングで返す |
@@ -55,8 +56,11 @@
 - メール channel の不達が含まれる場合は「メールが届かない場合は、メールアドレスに誤りがないか確認ください。それでも失敗する場合は、スタッフ詳細のLINE連携から連携リンクを案内できます。」と補足する。
 - Resend provider 由来の遅延・失敗・拒否・抑止は、既存行と同じ `送れなかった通知` として表示する。細かい provider 状態ラベルは出さない。
 - 再通知受付に成功した行は、開いているDialog内では `再通知済み` として押せなくする。
+- 「対応不要」は確認Dialogを経て実行し、成功後は対象行を一覧から即時に外す。確認文は「対応不要にすると一覧から削除され、再送されません。」とする。
+- 対応不要にした行は物理削除せず、`resolved/dismissed` と解決した担当者・日時を記録する。一覧・要対応有無・日次リマインダー・再通知対象からは外す。
+- `resolveFailure` は現在店舗の `status = open` かつDashboard表示対象の行だけを受け付ける。再通知直後の `retrying`、解決済み、募集終了後、再通知不能な通知種別は `Not found` として扱う。
 - Dialogを開き直すと `status = open` の不達通知だけを表示するため、`retrying` の行は表示されない。
-- 非同期配送で再度失敗した場合は failure 記録により `open` として再表示される。
+- 対応不要または再通知のあとに同じ通知が再度失敗した場合は、同じ failure 記録が `open` に戻り再表示される。
 - 初回失敗から30日を過ぎた不達通知は日次cronで `resolved/expired` になり、行は残したままDashboard表示と再通知対象から外れる。
 - 同じ通知種別・募集・スタッフの不達は最新1件だけを `open` として扱う。古い重複行は `resolved/superseded` になり、一覧や一斉再通知の対象にはしない。
 - `LINE連携案内`（context `line.sendInviteEmail`）の不達は募集に紐づかないため、PCテーブルの募集期間セルは `-`（ダッシュ）を表示し、SPカードでは募集期間行自体を出さない。
