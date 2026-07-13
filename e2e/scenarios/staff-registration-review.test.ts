@@ -1,4 +1,7 @@
-import { test } from "../fixtures/e2eTest";
+import { expect, test } from "../fixtures/e2eTest";
+import { getNextWeekDates } from "../helpers/date";
+import { assertNotificationDeliverySuppressed, waitForNotificationOutbox } from "../helpers/notificationProbe";
+import { waitForLineLinkToken, waitForMagicLinkToken } from "../helpers/notificationTokens";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { StaffRegistrationPage } from "../pages/StaffRegistrationPage";
@@ -6,6 +9,7 @@ import { StaffRegistrationPage } from "../pages/StaffRegistrationPage";
 type StaffRegistrationReviewSeed = {
   shopId: string;
   registrationToken: string;
+  recruitmentId?: string;
 };
 
 const APPROVED_STAFF = {
@@ -28,13 +32,16 @@ const PENDING_STAFF = {
   email: "pending-registration-e2e@example.com",
 };
 
-test.describe("スタッフ登録申請の承認/却下", () => {
-  test.setTimeout(45_000);
+test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] }, () => {
+  test.setTimeout(60_000);
 
-  test("スタッフ登録→承認", async ({ page }) => {
+  test("スタッフ登録→承認", { tag: ["@notification"] }, async ({ page }) => {
+    const dates = getNextWeekDates();
     const seed = seedManagerScenario<StaffRegistrationReviewSeed>("testing:seedStaffRegistrationReviewScenario", {
       shopName: "スタッフ参加承認E2E店舗",
+      openRecruitmentDates: dates,
     });
+    if (!seed.recruitmentId) throw new Error("Open recruitment was not seeded");
     const registrationPage = new StaffRegistrationPage(page);
     const dashboard = new DashboardPage(page);
 
@@ -44,12 +51,57 @@ test.describe("スタッフ登録申請の承認/却下", () => {
     });
 
     await test.step("Step 2: シフト担当者がDashboardで申請を承認する", async () => {
+      assertNotificationDeliverySuppressed(seed.shopId);
       await dashboard.goto();
       await dashboard.expectStaffRegistrationRequestBanner(1);
       await dashboard.openStaffRegistrationRequests();
       await dashboard.approveStaffRegistrationRequest(APPROVED_STAFF.name);
       await dashboard.expectStaffRegistrationRequestBannerHidden();
       await dashboard.expectStaffVisible(APPROVED_STAFF.name);
+    });
+
+    await test.step("Step 3: 承認スタッフ向けLINE連携案内と募集中シフト案内を確認する", async () => {
+      const probe = await waitForNotificationOutbox({
+        shopId: seed.shopId,
+        staffEmail: APPROVED_STAFF.email,
+        notificationContext: "line.sendInviteEmail",
+        channel: "email",
+      });
+      expect(probe.outbox[0]).toMatchObject({
+        channel: "email",
+        notificationContext: "line.sendInviteEmail",
+        deliverySuppressed: true,
+        hasStaffTarget: true,
+      });
+      expect(["pending", "processing", "sent"]).toContain(probe.outbox[0].status);
+      expect(probe.failureInbox).toHaveLength(0);
+
+      const token = await waitForLineLinkToken({ shopId: seed.shopId, staffEmail: APPROVED_STAFF.email });
+      expect(token.token).toMatch(/^[0-9a-f-]{36}$/);
+
+      const recruitmentProbe = await waitForNotificationOutbox({
+        shopId: seed.shopId,
+        recruitmentId: seed.recruitmentId,
+        staffEmail: APPROVED_STAFF.email,
+        notificationContext: "notification.sendOpenRecruitmentNotificationEmailsForStaff",
+        channel: "email",
+      });
+      expect(recruitmentProbe.outbox[0]).toMatchObject({
+        channel: "email",
+        notificationContext: "notification.sendOpenRecruitmentNotificationEmailsForStaff",
+        deliverySuppressed: true,
+        hasRecruitmentTarget: true,
+        hasStaffTarget: true,
+      });
+      expect(recruitmentProbe.failureInbox).toHaveLength(0);
+
+      const submitToken = await waitForMagicLinkToken({
+        shopId: seed.shopId,
+        recruitmentId: seed.recruitmentId,
+        staffEmail: APPROVED_STAFF.email,
+        purpose: "submit",
+      });
+      expect(submitToken.token).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 
@@ -104,7 +156,7 @@ test.describe("スタッフ登録申請の承認/却下", () => {
   });
 });
 
-test.describe("シフト担当者によるスタッフ招待", () => {
+test.describe("シフト担当者によるスタッフ招待", { tag: ["@release"] }, () => {
   test.setTimeout(45_000);
 
   test("登録済みのメールアドレスではスタッフを追加できない", async ({ page }) => {

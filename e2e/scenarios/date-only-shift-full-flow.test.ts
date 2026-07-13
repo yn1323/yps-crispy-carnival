@@ -13,42 +13,29 @@ const MANAGER = {
   email: "tanaka@example.com",
 };
 
-type ShopSettingsSeed = {
+type DateOnlyFlowSeed = {
   shopId: string;
 };
 
-test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@notification"] }, () => {
+test.describe("日付のみ方式のシフト確定", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(90_000);
 
   test("再提出から管理者編集、下書き、確定通知、スタッフ閲覧までつながる", async ({ browser, page }) => {
     const dates = getNextWeekDates();
-    const closedDateLabel = formatDateWithWeekday(dates.dates[0]);
-    const firstWorkingDateLabel = formatDateWithWeekday(dates.dates[1]);
-    const seed = seedManagerScenario<ShopSettingsSeed>("testing:seedLegalManagerConsentScenario", {
+    const dateLabels = dates.dates.map(formatDateWithWeekday);
+    const seed = seedManagerScenario<DateOnlyFlowSeed>("testing:seedLegalManagerConsentScenario", {
       legalConsentState: "current",
     });
     const dashboard = new DashboardPage(page);
     const shiftBoard = new ShiftBoardPage(page);
 
-    await test.step("店舗設定で勤務区分と定休日を保存し、募集を作成する", async () => {
+    await test.step("店舗を日付のみ方式にして募集を作成する", async () => {
       await dashboard.goto();
-      await dashboard.editShopSettings({
-        submissionPattern: {
-          kind: "shiftType",
-          options: [
-            { name: "早番", startTime: "09:00", endTime: "15:00" },
-            { name: "遅番", startTime: "15:00", endTime: "21:00" },
-          ],
-        },
-        regularClosedDays: ["mon"],
-      });
-      await dashboard.createRecruitment(dates, {
-        expectedHolidaySummary: "1日",
-        expectedHolidayDetail: closedDateLabel,
-      });
+      await dashboard.editShopSettings({ submissionPattern: { kind: "dateOnly" } });
+      await dashboard.createRecruitment(dates);
     });
 
-    const submitToken = await test.step("スタッフが勤務区分を提出し、内容を修正して再提出する", async () => {
+    const submitToken = await test.step("スタッフが希望日を提出し、内容を修正して再提出する", async () => {
       const recruitmentProbe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         staffEmail: MANAGER.email,
@@ -74,19 +61,19 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
       try {
         await submitPage.goto(token.token);
         await submitPage.expectFormVisible();
-        await submitPage.expectShopClosed(closedDateLabel);
-        await submitPage.selectShiftTypeDay(firstWorkingDateLabel);
+        await submitPage.toggleDay(dateLabels[0]);
+        await submitPage.toggleDay(dateLabels[1]);
         await submitPage.submit();
         await submitPage.expectCompletionVisible();
 
         await submitPage.goto(token.token);
         await submitPage.expectSubmittedBadge();
-        await submitPage.expectShiftTypeOptionSelected(firstWorkingDateLabel, "早番");
-        await submitPage.expectShiftTypeOptionNotSelected(firstWorkingDateLabel, "遅番");
-        await submitPage.toggleShiftTypeOption(firstWorkingDateLabel, "遅番");
-        await submitPage.deselectShiftTypeOption(firstWorkingDateLabel, "早番");
-        await submitPage.expectShiftTypeOptionNotSelected(firstWorkingDateLabel, "早番");
-        await submitPage.expectShiftTypeOptionSelected(firstWorkingDateLabel, "遅番");
+        await submitPage.expectDateWorking(dateLabels[0]);
+        await submitPage.expectDateWorking(dateLabels[1]);
+        await submitPage.toggleDay(dateLabels[0]);
+        await submitPage.toggleDay(dateLabels[2]);
+        await submitPage.expectDayOff(dateLabels[0]);
+        await submitPage.expectDateWorking(dateLabels[2]);
         await submitPage.submit();
         await submitPage.expectCompletionVisible();
       } finally {
@@ -95,21 +82,18 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
       return token;
     });
 
-    await test.step("管理者が勤務区分を編集し、下書きがreload後も残る", async () => {
+    await test.step("管理者が希望日の割当を編集し、下書きがreload後も残る", async () => {
       await dashboard.goto();
       await dashboard.openShiftBoard();
-      await shiftBoard.expectOnShiftBoard();
-      await shiftBoard.switchDateTab(1);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "早番", false);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "遅番", true);
-      await shiftBoard.toggleShiftTypeAssignment(MANAGER.name, "早番", false);
-      await shiftBoard.toggleShiftTypeAssignment(MANAGER.name, "遅番", true);
+      await shiftBoard.expectDateOnlyAssignment(MANAGER.name, dateLabels[0], false);
+      await shiftBoard.expectDateOnlyAssignment(MANAGER.name, dateLabels[1], true);
+      await shiftBoard.expectDateOnlyAssignment(MANAGER.name, dateLabels[2], true);
+      await shiftBoard.toggleDateOnlyAssignment(MANAGER.name, dateLabels[1], true);
       await shiftBoard.saveDraft();
 
       await shiftBoard.reload();
-      await shiftBoard.switchDateTab(1);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "早番", true);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "遅番", false);
+      await shiftBoard.expectDateOnlyAssignment(MANAGER.name, dateLabels[1], false);
+      await shiftBoard.expectDateOnlyAssignment(MANAGER.name, dateLabels[2], true);
     });
 
     const viewToken = await test.step("確定通知が受け付けられ、閲覧URLが発行される", async () => {
@@ -139,15 +123,15 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
       });
     });
 
-    await test.step("スタッフが管理者編集後の勤務区分シフトを閲覧する", async () => {
+    await test.step("スタッフが管理者編集後の日付のみシフトを閲覧する", async () => {
       const context = await browser.newContext({ baseURL: "http://localhost:3000" });
       const staffView = new StaffViewPage(await context.newPage());
       try {
         await staffView.goto(viewToken.token);
         await staffView.expectShiftViewVisible();
-        await staffView.switchDateTab(1);
-        await staffView.expectShiftTypeAssignment(MANAGER.name, "早番", true);
-        await staffView.expectShiftTypeAssignment(MANAGER.name, "遅番", false);
+        await staffView.expectDateOnlyAssignment(MANAGER.name, dateLabels[0], false);
+        await staffView.expectDateOnlyAssignment(MANAGER.name, dateLabels[1], false);
+        await staffView.expectDateOnlyAssignment(MANAGER.name, dateLabels[2], true);
       } finally {
         await context.close();
       }

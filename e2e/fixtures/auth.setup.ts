@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { clerk, clerkSetup } from "@clerk/testing/playwright";
 import { test as setup } from "@playwright/test";
 import { getE2EClerkUsers } from "../helpers/e2eUsers";
+import { forceResetManagerScenarioData } from "../helpers/scenarioSeeds";
 
 const E2E_CLERK_USERS = getE2EClerkUsers();
 
@@ -31,6 +32,9 @@ for (const user of E2E_CLERK_USERS) {
 
     mkdirSync(dirname(user.storageStatePath), { recursive: true });
     await page.context().storageState({ path: user.storageStatePath });
+    // 前回runが通知異常で停止していても再実行できるよう、setup時にこの管理者のデータだけ回収する。
+    // 同一run内の各seedはstrict resetを使い、通知異常を削除前に必ず検出する。
+    forceResetManagerScenarioData(user.index);
     writeFileSync(
       user.metaPath,
       `${JSON.stringify({ email: user.email, index: user.index, storageStatePath: user.storageStatePath }, null, 2)}\n`,
