@@ -24,6 +24,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 1 : 0,
+  /* A retry-pass is still a release risk and must fail the CI gate. */
+  failOnFlakyTests: !!process.env.CI,
   /* E2E_CLERK_USERS のユーザー数に合わせて、別ユーザーで並列実行する。 */
   workers: getE2EWorkerCount(),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
@@ -49,7 +51,7 @@ export default defineConfig({
     video: "retain-on-failure",
   },
 
-  /* Configure projects for major browsers */
+  /* E2EはChrome系だけを対象にし、DesktopとMobileの代表viewportを分ける。 */
   projects: [
     // Step 1: 認証セットアップ（全プロジェクトの前提条件）
     {
@@ -59,10 +61,19 @@ export default defineConfig({
 
     // Step 2: メインユーザー（管理者）のテスト
     {
-      name: "シナリオテスト",
+      name: "desktop-chromium",
       testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
+      testIgnore: [/\.mobile\.test\.ts$/, /deployed-smoke\.test\.ts$/],
       use: {
         ...devices["Desktop Chrome"],
+      },
+      dependencies: ["setup"],
+    },
+    {
+      name: "mobile-chrome",
+      testMatch: /scenarios\/.*\.mobile\.test\.ts/,
+      use: {
+        ...devices["Pixel 7"],
       },
       dependencies: ["setup"],
     },

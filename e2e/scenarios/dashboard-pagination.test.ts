@@ -2,7 +2,7 @@ import { test } from "../fixtures/e2eTest";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
-test.describe("ダッシュボードの一覧表示", () => {
+test.describe("ダッシュボードの一覧表示", { tag: ["@release"] }, () => {
   test.setTimeout(30_000);
 
   let dashboard: DashboardPage;

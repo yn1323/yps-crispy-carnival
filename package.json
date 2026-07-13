@@ -35,6 +35,14 @@
     "test:convex:logic": "vitest --project='convex(logic)'",
     "test:convex:scenario": "vitest --project='convex(scenario)'",
     "e2e": "playwright test",
+    "e2e:smoke": "playwright test --grep @smoke",
+    "e2e:release": "playwright test --grep @release",
+    "e2e:notification": "playwright test --grep @notification",
+    "e2e:security": "playwright test --grep @security",
+    "e2e:mobile": "playwright test --project=mobile-chrome",
+    "e2e:a11y": "playwright test --grep @a11y",
+    "e2e:deployed": "playwright test --config=playwright.deployed.config.ts",
+    "e2e:assert-release-results": "node scripts/assertPlaywrightReleaseResults.mjs",
     "e2e:ui": "playwright test --ui",
     "e2e:no-report": "playwright test --reporter=line",
     "e2e:debug": "playwright test --debug",
@@ -93,6 +101,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "catalog:",
     "@clerk/testing": "1.14.8",
     "@edge-runtime/vm": "^5.0.0",
