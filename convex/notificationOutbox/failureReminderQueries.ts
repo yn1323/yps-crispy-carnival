@@ -14,7 +14,7 @@ const VISIBLE_FAILURE_PAGINATION_SCAN_LIMIT = 20;
 export const listShopIdsWithRecentOpenFailuresPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
-    // 最新の失敗から3日間だけ通知する。3日以内に失敗した open レコードがある店舗が対象。
+    // 最新の失敗から24時間だけ通知する。直近24時間以内に失敗した open レコードがある店舗だけが対象。
     const windowStart = Date.now() - NOTIFICATION_FAILURE_REMINDER_WINDOW_MS;
     // Dashboard に出ない失敗しかない店舗にはリマインダーを送らない（対応しようがない）。
     // 終了済み募集の判定は recruitment 参照が必要なので、非表示レコードでページが埋まらないように走査する。

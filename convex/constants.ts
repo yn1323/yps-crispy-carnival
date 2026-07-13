@@ -49,8 +49,8 @@ export const CONTACT_ORGANIZATION_MAX_LENGTH = 100;
 export const CONTACT_MESSAGE_MAX_LENGTH = 2000;
 export const CONTACT_TURNSTILE_TOKEN_MAX_LENGTH = 2048;
 export const CONTACT_HTTP_BODY_MAX_BYTES = 16 * 1024;
-// 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronで最大3回）
-export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = 3 * DAY_MS;
+// 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronでは通常1回）
+export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = DAY_MS;
 
 // シフト確定催促リマインダーで一度に通知するマネージャーの上限
 export const SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT = 20;
@@ -58,8 +58,8 @@ export const SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT = 20;
 // 初回店舗登録後の本番募集リマインダーで一度に通知するマネージャーの上限
 export const SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT = 20;
 
-// 失敗通知リマインダーの通知期間。最新の失敗からこの期間を過ぎたら通知しない（日次cronで最大3回）
-export const NOTIFICATION_FAILURE_REMINDER_WINDOW_MS = 3 * DAY_MS;
+// 失敗通知リマインダーの通知期間。最新の失敗からこの期間を過ぎたら通知しない（日次cronでは通常1回）
+export const NOTIFICATION_FAILURE_REMINDER_WINDOW_MS = DAY_MS;
 export const NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE = 100;
 export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
 

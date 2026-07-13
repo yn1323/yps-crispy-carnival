@@ -24,7 +24,7 @@
 ## リマインダー（日次ダイジェスト）
 
 - cron `notification-failure-reminder-digest`（JST 17:00 = UTC 08:00）が `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` を起動する。
-- `status = open` かつ最新失敗（`lastFailedAt`）が直近3日以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに窓がリセットされ、無ければ最大3回で打ち切られる。
+- `status = open` かつ最新失敗（`lastFailedAt`）が直近24時間以内（`NOTIFICATION_FAILURE_REMINDER_WINDOW_MS`）の不達通知がある店舗だけを対象にする。失敗が再発するたびに対象期間を再計算し、日次cronでは通常1回だけ送る。
 - 配信先は店舗のmanager users全員。LINE連携済みなら LINE（Quota超過時のemailフォールバック付き）、それ以外はメール。
 - このリマインダー通知自体の配送が失敗しても `notificationFailureInbox` には記録しない（payloadの `suppressFailureInbox` で抑止。メタ失敗でInboxを汚さないため）。
 
@@ -44,7 +44,7 @@
 | `api.notificationOutbox.mutations.resendOpenFailures` | mutation | 現在店舗の open 不達通知をまとめて再通知受付する |
 | `POST /resend/webhook` | HTTP action | Resend の `delivery_delayed` / `failed` / `bounced` / `suppressed` を受信し、open 不達通知に反映する |
 | `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` | internalAction | 毎日17:00 JSTに open 不達通知がある店舗のmanagerへリマインダーを送る |
-| `internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage` | internalQuery | 直近3日以内に失敗した open 不達通知がある店舗IDをページングで返す |
+| `internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage` | internalQuery | 直近24時間以内に失敗した open 不達通知がある店舗IDをページングで返す |
 | `internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、通知対象manager users、LINE連携状態を返す |
 
 ## 表示ルール
