@@ -20,6 +20,9 @@
 - スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
 - magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
 - すべての分岐を同じ層で網羅しない。境界値は Logic UT / Function Test、業務状態遷移は Scenario Test、画面の完了確認は E2E に分担する。
+- Full Regressionでは、利用中のpublic APIをFunction Testで直接守り、複数API後の状態・永続化・通知・capability遷移をScenario Testで守る。E2Eの本数だけを増やして代替しない。
+- E2Eの主要シナリオはScenario Testの発見元として使うが、同じ手順を複製しない。実ブラウザ接続はE2E、単一API境界はFunction Test、業務状態遷移はScenario Testへ契約を分解する。
+- 不在、一意性、対象集合、旧capabilityの失効が契約なら、対象範囲を絞った完全一致と件数で保証する。部分一致や存在確認だけで完了扱いにしない。
 
 ## テスト種別
 
@@ -32,6 +35,19 @@
 | Convex Function Test | `pnpm test:convex`, `convex/{useCase}/*.test.ts` | query/mutation 単体の契約確認 | 認証、認可、IDOR、論理削除、返り値制限、副作用、空データ | 複数ドメインをまたぐ長い業務フロー |
 | Convex Scenario Test | `pnpm test:convex`, `convex/_scenario/*.test.ts` | 複雑な業務状態遷移の検証 | 複数 mutation/query の連続実行、集計、スナップショット、最終DB状態、エッジケース | ブラウザ操作、見た目、実 Convex deployment 接続 |
 | E2E | `pnpm e2e`, `e2e/scenarios/*.test.ts` | 実 frontend + 実 Convex backend の最終結合確認 | 主要ハッピーパス、認証、画面遷移、ユーザーに見える成功状態、重要通知の受付・CTA、リリース前の復旧導線 | DB細部の総当たり、全validation分岐、ピクセルパーフェクト、外部サービスの実配送 |
+
+## Full Regression の契約マップ
+
+大規模リファクタ前のFull Regressionは、テスト件数ではなく次の対応関係を作って監査する。
+
+1. frontend、E2E、他のConvex関数から利用中のpublic query / mutation / actionを列挙する。
+2. 各public APIについて、認証、認可、店舗境界、論理削除、token状態、正常DTO、副作用を直接見るFunction Testを対応付ける。
+3. `@smoke` / `@release` E2Eから、複数API後のDB状態、通知、snapshot、旧新link/sessionの契約を抽出し、Scenario Testを対応付ける。
+4. 実ブラウザ、認証provider、frontend/backend接続だけをE2E固有の保証として残す。
+5. 利用箇所がないpublic APIは、既存形状をテストで固定する前に削除またはinternal化を検討する。
+
+各契約は、最も速く安定して検証できる1つの層を主担当にする。
+異なる層で同じ業務導線を扱う場合も、Function Testは単一API境界、Scenario Testは状態遷移と永続化、E2Eは実接続という別の失敗を検知する。
 
 ## Convex Scenario Test
 
@@ -91,6 +107,10 @@ convex/
 - 1つの `it` は `seed -> 複数 mutation/query -> assert` まで一気通貫で検証する。
 - 細かい validation 分岐や境界値は Function Test / Logic UT に任せる。
 - ハッピーパスだけで終わらせず、後続の query / dashboard / 通知 / 集計に影響するエッジケースを同じ業務単位に含める。
+- テスト名が提出、再送、閲覧、復旧を約束する場合は、その最終操作を実行し、公開queryまたはDBで最終永続化まで確認する。
+- 通知では対象ID、outbox、dedupe、link、snapshotを対象範囲で完全一致させ、余計な対象や重複がないことを確認する。
+- schedulerを含む一気通貫シナリオでは、手書き引数でinternal actionを直呼びせず、実際に予約されたqueueを進めて最終状態を確認する。
+- capabilityを再発行するフローでは、古いlink/session/tokenが使えず、新しいものだけが動くことを確認する。
 
 例:
 
@@ -161,11 +181,15 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - 未認証
 - 権限不足
 - 他店舗データ参照(IDOR)
+- staff、session、shop、recruitment、tokenなど、関連レコード間の店舗整合性
 - 論理削除済みデータの除外
 - 空データ
-- query の返り値に不要フィールドが含まれないこと
+- query の返り値が最小DTOと完全一致し、tokenや内部管理用fieldを含まないこと
 - mutation 後の DB 副作用
 - Magic Link の期限切れ・使用済みトークン
+- 異常系でDB、event、scheduler、外部API呼び出しが増えないこと
+- 通知、再送、短時間連打でschedulerやoutboxが重複しないこと
+- schedulerへ予約するAPIのscheduled function名、args、対象範囲の件数
 
 ### Convex Scenario Test
 
@@ -178,6 +202,13 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 3. 集計・スナップショット・論理削除が絡む処理
 4. E2E で検証すると遅すぎる処理
 5. 過去に壊れた、または変更頻度が高い処理
+
+### Assertion の完全性
+
+- 「含まれる」だけが契約なら部分一致を使ってよい。
+- 不在、一意性、対象集合、通知先、旧新capabilityが契約なら、対象範囲を絞り、安定fieldへ射影・sortして完全一致と件数を確認する。
+- `arrayContaining`、`toContain`、`.some()`、`.find()`だけでは余計な対象や重複を見逃すため、完全性が必要なassertionの代わりにしない。
+- テスト名の最も深い動詞まで実行してassertする。「提出できる」なら提出mutationと保存結果、「再送される」なら対象者と通知証跡まで確認する。
 
 ### E2E
 

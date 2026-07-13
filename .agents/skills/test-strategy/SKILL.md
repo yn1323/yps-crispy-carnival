@@ -1,6 +1,6 @@
 ---
 name: test-strategy
-description: シフトリ / yps-crispy-carnival のテスト方針・テストケース設計・テストコードの書き方を扱う。Use when Codex edits or reviews `*.test.ts`, `*.stories.tsx`, Storybook play function / Behavior Test, VRT, Convex Function Test, Convex Scenario Test, E2E / Playwright, or when implementing code changes that require adding, updating, deleting, or choosing tests. Also use when the user points out missing test cases, weak test perspectives, flaky tests, or preferred testing style so the skill and `doc/rules/testing-strategy.md` can be updated.
+description: シフトリ / yps-crispy-carnival のテスト方針・テストケース設計・テストコードの書き方を扱う。Use when Codex edits or reviews `*.test.ts`, `*.stories.tsx`, Storybook play function / Behavior Test, VRT, Convex Function Test, Convex Scenario Test, E2E / Playwright, prepares Full Regression or a large refactor, audits missing or excessive coverage, or implements changes that require adding, updating, deleting, or choosing tests. Also use when the user points out missing cases, weak perspectives, flaky tests, false positives, or preferred testing style so the skill and `doc/rules/testing-strategy.md` can be updated.
 ---
 
 # Test Strategy
@@ -22,15 +22,28 @@ description: シフトリ / yps-crispy-carnival のテスト方針・テスト�
 - 速く細かい層と、遅いが本番に近い層を混ぜない。
 - E2E に寄せすぎない。業務状態遷移は Convex Scenario Test、画面の振る舞いは Storybook Behavior Test、見た目は VRT に分担する。
 - テストが実装詳細に寄りすぎている場合は、ユーザーから見える振る舞いか、公開 API の契約に寄せて書き直す。
+- E2E のシナリオ名をそのまま別層へ複製せず、ブラウザ接続は E2E、単一 public API 境界は Function Test、複数 API 後の状態と永続化は Scenario Test へ契約を分解する。
+- 「含まれる」だけでなく「余計な対象がない」「1件だけ」「古い capability が使えない」が契約なら、対象を絞った完全一致と件数で保証する。
 
 ## 実装変更時の手順
 
 1. 変更内容を「純粋ロジック」「UI状態/操作」「Convex API契約」「複数APIの業務フロー」「実ブラウザ接続」に分ける。
-2. `doc/rules/testing-strategy.md` の判断基準でテスト層を選ぶ。
-3. 既存のテストが同じ契約を持っているなら更新する。新しい契約や過去に壊れた観点なら追加する。仕様から消えた契約を守るテストは削除する。
-4. UI 変更では同階層の Story を更新し、操作が重要なら play function を追加または更新する。
-5. Convex 変更では Function Test と Scenario Test のどちらで見るべきかを分ける。
-6. 最後に `references/test-writing-rules.md` のレビュー観点でセルフレビューする。
+2. Full Regressionまたは大規模リファクタ前なら、利用中のpublic APIとE2E主要シナリオを棚卸しし、保証層を対応付ける。未使用public APIはテスト追加前に削除・internal化を検討する。
+3. `doc/rules/testing-strategy.md` の判断基準でテスト層を選ぶ。
+4. 既存のテストが同じ契約を持っているなら更新する。新しい契約や過去に壊れた観点なら追加する。仕様から消えた契約を守るテストは削除する。
+5. UI 変更では同階層の Story を更新し、操作が重要なら play function を追加または更新する。
+6. Convex 変更では、認証・店舗境界・token・単一副作用を Function Test、最終永続化・通知・capability遷移を Scenario Test に分ける。
+7. シナリオ名が提出・再送・閲覧・復旧までを約束するなら、その最終操作を実行し、DBまたは公開queryの最終状態まで検証する。
+8. 最後に `references/test-writing-rules.md` のレビュー観点でセルフレビューする。
+
+## Full Regression の監査手順
+
+1. 現行suiteを変更前に実行し、失敗とテスト件数を基準値として記録する。
+2. 利用中のpublic query / mutation / actionを列挙し、正常系だけでなく認証、IDOR、論理削除、token状態、副作用なしを直接見るFunction Testがあるか確認する。
+3. `@smoke` / `@release` E2Eから、複数API後のDB状態・通知・snapshot・旧新linkの契約をScenario Testへ落とせるか確認する。
+4. `arrayContaining`、`toContain`、`.some()`、`.find()`、fixture内throwを検索し、完全性・一意性・禁止対象を見逃す偽陽性がないか確認する。
+5. 重複する狭いテスト、実行基盤の存在確認だけのテスト、未使用APIを固定するテストを削除候補にする。
+6. 対象テストから始め、最後に変更層の全suite、型、lintを実行する。
 
 ## テスト層の短い選び方
 

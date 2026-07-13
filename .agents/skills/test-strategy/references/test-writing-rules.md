@@ -6,11 +6,13 @@
 ## 目次
 
 - 変更時のテスト判断
+- Full Regression の契約マップ
 - Logic UT
 - Storybook / Behavior Test
 - VRT
 - Convex Function Test
 - Convex Scenario Test
+- Assertion の完全性
 - E2E
 - 高リスク観点
 - テストレビュー
@@ -34,6 +36,19 @@
 - 新しい契約、過去に壊れた挙動、レビューで不安が出た観点ならテストを追加する。
 - 仕様から消えた契約、別層へ移した契約、実装詳細だけを守るテストは削除または縮小する。
 - 失敗しているテストを、理由なく期待値だけ緩めない。先に仕様変更、テストドリフト、実装バグ、環境問題を切り分ける。
+
+## Full Regression の契約マップ
+
+大規模リファクタ前は、既存テストの本数ではなく、利用中の public API と主要ユーザーストーリーから守る契約を逆算する。
+
+1. frontend、E2E、他の Convex 関数から利用中の public query / mutation / action を列挙する。
+2. 各 public API に、認証、店舗境界、論理削除、token状態、正常DTO、副作用なしを直接検証する Function Test があるか対応付ける。
+3. `@smoke` / `@release` E2E から、複数API後の状態、通知、snapshot、旧新capabilityを抽出し、Scenario Testへ対応付ける。
+4. 実ブラウザ、認証provider、frontend/backend接続だけをE2Eに残す。
+5. 利用箇所がない public API は、テストで固定する前に削除またはinternal化を検討する。
+
+同じユーザーストーリーを各層へ丸ごと複製しない。
+たとえば「スタッフを復帰させて新しいlinkから希望提出できる」は、link発行APIの境界をFunction Test、対象外から復帰後の旧link失効・新link発行・提出永続化をScenario Test、匿名ブラウザで画面完了できることをE2Eへ分ける。
 
 ## Logic UT
 
@@ -116,12 +131,20 @@ Convex query/mutation 単体の契約を細かく見る。
 - mutation 後の DB 副作用。
 - Magic Link、招待トークン、使用済み/期限切れ。
 - 短時間連打や重複実行が問題になる mutation の冪等性。
+- 関連レコード間の所属整合性。対象レコードだけでなく、staff、session、shop、recruitment、tokenの店舗が一致すること。
+- 異常系でDB、event、scheduler、外部API呼び出しが増えないこと。
 
 書き方:
 
 - 各テストで独立した `convexTest` インスタンスを使う。
 - 認証は `t.withIdentity()` を使う。
 - 正常系と異常系をセットで考える。
+- 所属境界は、関連レコードの一部だけ別店舗にした不整合fixtureを意図的に作り、各組み合わせを拒否できることを確認する。
+- tokenやcapabilityは、未発行、期限切れ、使用済み、失効済み、削除済みstaff/shop、用途違いを必要な範囲で確認する。検証と確定が別APIなら、その間に状態が変わる競合も候補にする。
+- queryの正常系は、公開契約に必要な最小DTOへ射影して完全一致させる。token、秘密情報、内部管理用fieldが露出していないことも確認する。
+- public actionが外部APIを呼ぶ場合、拒否ケースではmock fetchが0回であることを確認する。正常系ではfollow状態、再利用、scheduled function完了まで必要に応じて検証する。
+- 通知や再送は、対象者なし、対象者あり、rate limitを分け、schedulerやoutboxの件数が期待どおりで重複しないことを確認する。
+- schedulerへ予約するAPIは、scheduled functionのname、args、対象範囲の件数を完全一致させる。予約された事実だけの存在確認で終えない。
 - テストデータは既存の `_test` helper または internal mutation 経由で作る。
 - エラー assertion は `.rejects.toThrowError(...)` を使う。
 - 実DB、dev、preview、prod に接続しない。
@@ -153,13 +176,34 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 - 繰り返し出るユーザー操作相当の API 呼び出しは `convex/_test/scenarioFixtures.ts` に寄せる。
 - Scenario Fixture は public/internal Convex API を呼ぶ薄い operation wrapper にする。
 - Fixture には検証パターン、期待値、`expect(...)` を入れない。
+- Fixtureはpublic/internal APIの生の結果を返す。statusのunwrap、期待外resultでの`throw`、暗黙の成功判定を隠さず、シナリオ本体でdiscriminated unionをassertする。
 - DB 直 seed は前提状態作成だけに使い、通常のユーザー操作は Fixture 経由で表現する。
+- シナリオ名が提出、再送、閲覧、復旧を約束する場合は、その最終操作を実行し、公開queryまたはDBで最終永続化まで確認する。途中画面用queryが成功しただけで完了扱いにしない。
+- 状態遷移は `初期 -> 中間 -> 最終` の各契約を確認する。対象外化と復帰なら、対象一覧、旧session/linkの失効、通知なし、新linkの一意な発行、復帰後の実提出までをつなげる。
+- 通知シナリオはscheduled/internal actionを完了させ、対象ID、outbox、dedupe、link、snapshotを対象範囲で完全一致させる。古いcapabilityが失敗し、新しいcapabilityが動くことも必要に応じて確認する。
+- schedulerを含む一気通貫シナリオでは、手書き引数でinternal actionを直呼びせず、実際に予約されたqueueを進めて最終状態を確認する。予約境界だけをFunction Testで保証する場合とは分ける。
+- fake timerを使う各テストは独立した`convexTest`で実行する。時刻固定はseed前、予約時刻の変更はAct直前に行い、非同期timer APIはawaitする。timer、env、global mockは`afterEach`または`try/finally`で必ず復元する。
+- zero-delay jobだけを実行する場合は、jobを確認してから`vi.advanceTimersByTime(0)`と`await t.finishInProgressScheduledFunctions()`で完了を待つ。未来の催促や期限切れjobまで進めない。
+- queue全体を将来時刻までdrainする契約だけ`finishAllScheduledFunctions(vi.runAllTimers)`を使い、実行後の失敗jobと未処理例外を放置しない。
 
 避けること:
 
 - 入力 validation の全分岐を Scenario Test に持ち込まない。
 - ブラウザ操作、見た目、実配送、実認証を Scenario Test で検証しない。
 - 同じ操作 wrapper が既にあるのに API 直呼びを増やさない。
+
+## Assertion の完全性
+
+「存在する」だけで十分か、「余計なものがない」「一意である」「禁止対象がない」まで契約かを先に決める。
+
+- 完全性、対象集合、不在、一意性を守る場合、`arrayContaining`、`toContain`、`.some()`、`.find()`だけで終えない。
+- `not.toEqual(expect.arrayContaining([A, B]))` は、AかBの片方が漏れていても通るため、不在確認には使わない。
+- 先に対象範囲をfilterし、契約fieldへ射影してsortし、`toEqual`と`toHaveLength`で完全一致させる。
+- scheduler、outbox、link、sessionは`.find()`や`hasScheduledJob()`だけだと重複を見逃す。対象をfilterして0件または1件を明示する。
+- public DTOは原則`toEqual`で固定する。DB documentのmetadataが不安定な場合は、安定fieldへ射影してから比較し、必要な箇所だけ`toMatchObject`を使う。
+- `record?.field`を`toBeUndefined`、否定matcher、既定値へ流れる関数で検証する前に、親recordの存在を別にassertしてnarrowする。親ごと消えても通る偽陽性を作らない。
+- テスト名の最も深い動詞までassertする。「提出できる」ならmutationを実行して保存結果を確認し、「再送される」なら対象と通知証跡を確認する。
+- 完全一致ですでに集合の完全性と一意性を保証した場合、同じ集合への`not.toContain`や個別件数assertionを重ねない。
 
 ## E2E
 
