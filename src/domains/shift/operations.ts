@@ -127,6 +127,8 @@ export const resizePosition = (params: {
     newPosEnd = Math.max(newMinutes, currentPosStart + minDuration);
   }
 
+  if (newPosStart === currentPosStart && newPosEnd === currentPosEnd) return shift;
+
   // 他のポジションとの重複処理（上書き）
   const adjustedPositions = shift.positions
     .flatMap((pos) => {
@@ -239,6 +241,8 @@ export const paintPosition = (params: {
   const { shift, positionId, positionName, positionColor, startMinutes, endMinutes, segmentId } = params;
 
   const [paintStart, paintEnd] = startMinutes < endMinutes ? [startMinutes, endMinutes] : [endMinutes, startMinutes];
+
+  if (paintStart === paintEnd) return shift;
 
   // 既存ポジションとの重複処理（上書き）
   const adjustedPositions = shift.positions

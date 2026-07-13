@@ -33,4 +33,33 @@ describe("resendAllOpenNotificationFailuresBatches", () => {
       hasRemainingFailures: true,
     });
   });
+
+  it("上限まで進捗してもhasMoreが続く場合は残件ありとして止める", async () => {
+    let callCount = 0;
+    const resendBatch = async () => {
+      callCount += 1;
+      return {
+        scheduledFailureIds: [failureId(`failure-${callCount}`)],
+        hasMore: true,
+      };
+    };
+
+    const result = await resendAllOpenNotificationFailuresBatches(resendBatch);
+
+    expect(callCount).toBe(20);
+    expect(result).toEqual({
+      scheduledFailureIds: Array.from({ length: 20 }, (_, index) => failureId(`failure-${index + 1}`)),
+      hasRemainingFailures: true,
+    });
+  });
+
+  it("バッチAPIの失敗を成功扱いにせず呼び出し元へ返す", async () => {
+    const failure = new Error("temporary failure");
+
+    await expect(
+      resendAllOpenNotificationFailuresBatches(async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+  });
 });

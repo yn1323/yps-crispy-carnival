@@ -54,6 +54,9 @@ export function useStaffSession(token: string | undefined, accessKind: StaffAcce
           setRateLimited(true);
         } else {
           const reason = result.reason ?? DEFAULT_EXPIRED_REASON;
+          if (result.recruitmentId && (reason === "recruitment_deleted" || reason === "submission_closed")) {
+            clearSession(result.recruitmentId, accessKind);
+          }
           if (result.recruitmentId && accessKind === "view" && reason === "invalid_link") {
             const storedSession = getStoredSession(result.recruitmentId, accessKind);
             if (storedSession) {

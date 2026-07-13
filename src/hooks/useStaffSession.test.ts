@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -214,6 +215,7 @@ describe("useStaffSession", () => {
 
   it("does not authenticate an expired view token from a deleted recruitment even when a view session is stored", async () => {
     writeStoredAccessSession("rec-1", "sess-1", "view");
+    writeStoredAccessSession("rec-1", "sess-submit", "submit");
     verifyTokenMock.mockResolvedValueOnce({
       status: "expired",
       recruitmentId: "rec-1",
@@ -229,6 +231,46 @@ describe("useStaffSession", () => {
     if (result.current.status !== "expired") throw new Error("type guard");
     expect(result.current.recruitmentId).toBe("rec-1");
     expect(result.current.reason).toBe("recruitment_deleted");
+    expect(localStorage.getItem("yps_session_view_rec-1")).toBeNull();
+    expect(localStorage.getItem("yps_session_submit_rec-1")).toBe(
+      JSON.stringify({ sessionToken: "sess-submit", recruitmentId: "rec-1", accessKind: "submit" }),
+    );
+  });
+
+  it("clears only the submit session when submission is closed", async () => {
+    writeStoredAccessSession("rec-1", "sess-submit", "submit");
+    writeStoredAccessSession("rec-1", "sess-view", "view");
+    verifyTokenMock.mockResolvedValueOnce({
+      status: "expired",
+      recruitmentId: "rec-1",
+      reason: "submission_closed",
+    });
+
+    const { result } = renderHook(() => useStaffSession("closed-submission-token", "submit"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("expired");
+    });
+    if (result.current.status !== "expired") throw new Error("type guard");
+    expect(result.current.reason).toBe("submission_closed");
+    expect(localStorage.getItem("yps_session_submit_rec-1")).toBeNull();
+    expect(localStorage.getItem("yps_session_view_rec-1")).toBe(
+      JSON.stringify({ sessionToken: "sess-view", recruitmentId: "rec-1", accessKind: "view" }),
+    );
+  });
+
+  it("treats malformed stored view session as unavailable", async () => {
+    localStorage.setItem("yps_session_view_rec-1", "{invalid-json");
+    verifyTokenMock.mockResolvedValueOnce({ status: "expired", recruitmentId: "rec-1" });
+
+    const { result } = renderHook(() => useStaffSession("used-token", "view"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("expired");
+    });
+    if (result.current.status !== "expired") throw new Error("type guard");
+    expect(result.current.recruitmentId).toBe("rec-1");
+    expect(result.current.reason).toBe("invalid_link");
   });
 
   it("does not use a legacy submit session for view access", async () => {
@@ -282,6 +324,54 @@ describe("useStaffSession", () => {
     await waitFor(() => {
       expect(result.current.status).toBe("rateLimited");
     });
+  });
+
+  it("ignores a verification result after the token is removed", async () => {
+    const verification = deferred<{ status: "ok"; sessionToken: string; recruitmentId: string }>();
+    verifyTokenMock.mockReturnValueOnce(verification.promise);
+    const { rerender, result } = renderHook(
+      ({ token }: { token: string | undefined }) => useStaffSession(token, "submit"),
+      { initialProps: { token: "token-1" as string | undefined } },
+    );
+
+    rerender({ token: undefined });
+    expect(result.current.status).toBe("expired");
+
+    await act(async () => {
+      verification.resolve({ status: "ok", sessionToken: "sess-1", recruitmentId: "rec-1" });
+      await verification.promise;
+    });
+
+    expect(result.current.status).toBe("expired");
+    expect(localStorage.getItem("yps_session_submit_rec-1")).toBeNull();
+  });
+
+  it.each([
+    { accessKind: "submit" as const, otherAccessKind: "view" as const },
+    { accessKind: "view" as const, otherAccessKind: "submit" as const },
+  ])("clearSession removes only the $accessKind session", async ({ accessKind, otherAccessKind }) => {
+    writeStoredAccessSession("rec-1", `sess-${otherAccessKind}`, otherAccessKind);
+    verifyTokenMock.mockResolvedValueOnce({ status: "ok", sessionToken: `sess-${accessKind}`, recruitmentId: "rec-1" });
+    const { result } = renderHook(() => useStaffSession("token-1", accessKind));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("authenticated");
+    });
+    const authenticatedState = result.current;
+    if (authenticatedState.status !== "authenticated") throw new Error("type guard");
+
+    act(() => {
+      authenticatedState.clearSession();
+    });
+
+    expect(localStorage.getItem(`yps_session_${accessKind}_rec-1`)).toBeNull();
+    expect(localStorage.getItem(`yps_session_${otherAccessKind}_rec-1`)).toBe(
+      JSON.stringify({
+        sessionToken: `sess-${otherAccessKind}`,
+        recruitmentId: "rec-1",
+        accessKind: otherAccessKind,
+      }),
+    );
   });
 
   it("returns expired without reading arbitrary stored sessions when token is missing", () => {
