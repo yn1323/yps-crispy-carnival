@@ -1,11 +1,11 @@
 # 記事画像生成ガイド
 
 ArticleSiteの記事画像を作るときに使います。
-先に `public/sample-touch.png` を目で確認します。
+先に `doc/assets/article-hero-style-reference.png` を目で確認します。
 
 ## 目指すタッチ
 
-`sample-touch.png` の方向性に合わせます。
+`article-hero-style-reference.png` の方向性に合わせます。
 
 - 白背景。
 - やわらかい薄いミント色の背景形状。
