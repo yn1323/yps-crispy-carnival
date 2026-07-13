@@ -45,6 +45,8 @@ describe("シフト対象スタッフの状態遷移シナリオ", () => {
       periodEnd: scenarioDate(13),
       deadline: scenarioDate(3),
     });
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
     await asManager.saveShiftAssignments({
       recruitmentId,
       assignments: [
@@ -57,13 +59,19 @@ describe("シフト対象スタッフの状態遷移シナリオ", () => {
         },
       ],
     });
-    const { token: oldToken } = await t.mutation(internal.notification.mutations.createMagicLink, {
-      staffId,
-      shopId,
-      recruitmentId,
-      accessKind: "submit",
-      expiresAt: new Date(`${scenarioDate(4)}T00:00:00.000Z`).getTime(),
+    const initialNotificationState = await t.run(async (ctx) => {
+      const links = await ctx.db
+        .query("magicLinks")
+        .withIndex("by_staffId_recruitmentId_accessKind", (q) =>
+          q.eq("staffId", staffId).eq("recruitmentId", recruitmentId).eq("accessKind", "submit"),
+        )
+        .collect();
+      const outbox = (await ctx.db.query("notificationOutbox").collect()).filter((entry) => entry.staffId === staffId);
+      return { links, outbox };
     });
+    expect(initialNotificationState.links).toHaveLength(1);
+    expect(initialNotificationState.outbox).toHaveLength(1);
+    const oldToken = initialNotificationState.links[0].token;
     const oldAuthentication = await staff.verifyMagicLink(oldToken);
     expect(oldAuthentication.status).toBe("ok");
     if (oldAuthentication.status !== "ok") throw new Error("提出linkで認証できませんでした");
@@ -99,7 +107,8 @@ describe("シフト対象スタッフの状態遷移シナリオ", () => {
     expect(boardAfterRestore?.staffs.map((entry) => entry._id)).toEqual([staffId]);
     expect(boardAfterRestore?.shiftAssignments).toEqual(boardWhileExcluded?.shiftAssignments);
     await expect(asManager.sendOpenRecruitmentNotifications(staffId)).resolves.toEqual({ scheduled: true });
-    await t.action(internal.notification.actions.sendOpenRecruitmentNotificationsForStaff, { staffId });
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
 
     const restoredState = await t.run(async (ctx) => {
       const links = await ctx.db
@@ -112,10 +121,14 @@ describe("シフト対象スタッフの状態遷移シナリオ", () => {
       return { links, outbox };
     });
     const activeLinks = restoredState.links.filter((link) => !link.revokedAt);
+    const newOutbox = restoredState.outbox.filter(
+      (entry) => !initialNotificationState.outbox.some((initialEntry) => initialEntry._id === entry._id),
+    );
     expect(activeLinks).toHaveLength(1);
     expect(activeLinks[0].token).not.toBe(oldToken);
-    expect(restoredState.outbox).toHaveLength(1);
-    expect(restoredState.outbox[0]).toMatchObject({
+    expect(restoredState.outbox).toHaveLength(2);
+    expect(newOutbox).toHaveLength(1);
+    expect(newOutbox[0]).toMatchObject({
       shopId,
       recruitmentId,
       staffId,

@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, internal } from "../_generated/api";
+import { api } from "../_generated/api";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
@@ -44,10 +44,8 @@ describe("確定後スタッフ追加シナリオ", () => {
       assignments: [{ staffId: existingStaffId, date: periodStart, startTime: "10:00", endTime: "18:00" }],
     });
     await asManager.confirmRecruitment(recruitmentId);
-    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
-      recruitmentId,
-      isResend: false,
-    });
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
 
     const initialState = await t.run(async (ctx) => {
       const outbox = (await ctx.db.query("notificationOutbox").collect()).filter(
@@ -108,12 +106,8 @@ describe("確定後スタッフ追加シナリオ", () => {
     expect(resendJob?.args[0]?.targetStaffIds).toEqual([addedStaffId]);
     expect(resendJob?.args[0]?.notificationRunId).toBe(SCENARIO_NOW + 1_000);
 
-    await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
-      recruitmentId,
-      isResend: true,
-      targetStaffIds: [addedStaffId],
-      notificationRunId: SCENARIO_NOW + 1_000,
-    });
+    vi.advanceTimersByTime(0);
+    await t.finishInProgressScheduledFunctions();
 
     // Assert: 既存スタッフには重複発行せず、新規スタッフの閲覧導線だけが増える。
     const finalState = await t.run(async (ctx) => {
