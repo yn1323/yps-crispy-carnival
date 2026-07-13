@@ -142,6 +142,22 @@ jobs:
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Assert VRT prerequisites
+        run: |
+          pnpm vrt:assert-artifacts
+
+          if [ "${{ needs.prepare.outputs.should_fail_on_diff }}" = "true" ]; then
+            if [ "${{ steps.baseline.outputs.found }}" != "true" ]; then
+              echo "::error::VRT baseline is required for pull requests targeting ${{ needs.prepare.outputs.baseline_ref }}."
+              exit 1
+            fi
+
+            BASELINE_COUNT=$(find vrt-work/baseline -type f -name '*.png' | wc -l | tr -d ' ')
+            if [ "$BASELINE_COUNT" -eq 0 ]; then
+              echo "::error::VRT baseline contains no PNG artifacts."
+              exit 1
+            fi
+          fi
       - name: Build VRT report
         run: pnpm vrt:report
       - name: Assert VRT result
