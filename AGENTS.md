@@ -75,6 +75,9 @@ pnpm e2e e2e/path/to/file.spec.ts
 
 - Submit系ボタンは二重送信に注意すること。UIのloading/disabledだけに依存せず、短時間の連続クリックでも同じ処理が複数回走らないよう、フロントの同期ガードやバックエンドの冪等性を必要に応じて設計すること。
 - 実装変更に合わせた自動テストの追加・更新・削除は、`doc/rules/testing-strategy.md` と `test-strategy` に従うこと。
+- `apps/analytics-dashboard/` は本人だけが使う内部BIのため、自動テストとFull Regressionの対象外とする。新しいLogic/UI/Storybook/VRT/E2Eテストを追加・維持せず、変更時は`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認すること。
+- VRT対象Storyの初期表示に含まれる静的な見出しや文言は、存在確認だけを目的としたplay functionで重複検証しないこと。操作後に初めて現れるエラー、確認状態、送信結果など、状態遷移の契約だけをBehavior Testで検証すること。
+- Full Regressionは、実装詳細や静的文言の総当たりではなく、大規模リファクタ後も主要導線、状態遷移、認証境界、通知、永続化、モバイル、アクセシビリティの退行を検知できる契約を守ること。
 - ブラウザをAI Agentが動かしてやるテストは不要。必要な確認は自動テストとして設計すること。
 - Convex起動、Storybook起動、Vite起動はユーザーが実施しています。新規でコマンドを叩かないでください。
 - `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク。環境変数同期は `pnpm convex:env:setup` を使う。

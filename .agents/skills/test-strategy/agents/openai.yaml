@@ -1,4 +1,4 @@
 interface:
   display_name: "Test Strategy"
-  short_description: "シフトリのテスト方針と実装時の細かい書き方を整理する"
-  default_prompt: "Use $test-strategy to choose and update the right tests for this Shiftori change."
+  short_description: "シフトリのテスト層とFull Regressionを設計する"
+  default_prompt: "Use $test-strategy to inventory Shiftori features, map contracts to test layers, and design or update tests including E2E Full Regression."

@@ -22,6 +22,7 @@
 - Resend、LINE、Slack、Clerkの外部サービス内部の動作を、通常E2Eだけで保証しない。
 - すべての入力validation、認可分岐、DB状態の組み合わせをE2Eで総当たりしない。
 - ピクセル単位の見た目差分をE2E assertionで保証しない。
+- 本人だけが使う`apps/analytics-dashboard/`の内部BIを自動テストまたはFull Regressionの対象にしない。
 - 準備中で画面公開されていない複数店舗切り替え、課金プラン、billingManagerを現行リリースのE2Eゲートへ含めない。
 
 ## テストスイートの定義
@@ -116,7 +117,7 @@ provider canaryはRC作成時または手動承認後に実行し、通常PRで�
 | ID | リリース条件 | 現状 | 判定 | 優先度 |
 |---|---|---|---|---|
 | G01 | develop向けPRで`@smoke`を必須実行する | Full Regressionの部分集合として実行する | 実装済み | P1 |
-| G02 | develop向けPR専用Previewで`@release`を完了する | main向けPRとrelease workflowではE2Eを実行しない。2026-07-13確認時点でmainのlegacy protectionはなく、active rulesetにもPlaywright required checkはない | 実装済み | P0 |
+| G02 | develop向けPR専用Previewで`@release`を完了する | workflowは存在するが、2026-07-13確認時点でactive rulesetにPlaywright required checkがない | 一部実装 | P0 |
 | G03 | skipped testを0件にする | JSON結果ゲートでskipを失敗させる | 実装済み | P0 |
 | G04 | retryで成功したflaky testも失敗扱いにする | `failOnFlakyTests`とJSON結果ゲートを実装済み | 実装済み | P0 |
 | G05 | `E2E_TESTING_ENABLED=true`を確認する | Previewのpreflightを実装済み | 実装済み | P0 |
@@ -131,8 +132,14 @@ provider canaryはRC作成時または手動承認後に実行し、通常PRで�
 | G14 | Playwright HTML、JSON、trace、動画を保存する | PR workflowで実装済み | 実装済み | P1 |
 | G15 | P0機能のトレーサビリティに未分類行を残さない | 本文の表を初版とし、自動検査はない | 一部実装 | P1 |
 | G16 | P0通知目的をE2Eまたは安全な外部境界contract testへ分類する | N01-N21、N24、N27はE2E。N22は代表UIと目的別再通知contract、N23はoutbox Action/Scenario、N25はWebhook Functionで確認する。Playwright workflowにはE2E以外のテスト層を混在させない | 実装済み | P0 |
+| G17 | develop統合後またはRCのexact SHAでFull Regressionを完了する | develop向けPRのhead SHAだけを実行し、統合後SHAとRC SHAは未実行 | 未実装 | P0 |
+| G18 | production buildを対象に認証済み主要導線を確認する | 通常E2EはVite dev server、deployed Smokeは公開ページだけ | 未実装 | P0 |
+| G19 | browser runtime errorと同一origin 5xxを失敗にする | 共通fixtureはClerk token設定だけで、pageerror、console.error、5xxを監視しない | 未実装 | P0 |
+| G20 | 必須契約IDでFull Regressionの欠落を検知する | project件数下限と必須scenario file名だけを検査する | 未実装 | P0 |
 
-必須project/scenario file、最終失敗、非passing expected status、skip、flaky、許可外project、通知dry-run、全E2E管理者のbackend audit、FailureInbox、active dedupe、デプロイ済みURLを確認する自動ゲート初版は実装済みである。
+必須project/scenario file、最終失敗、非passing expected status、skip、flaky、許可外project、通知dry-run、全E2E管理者のbackend audit、FailureInbox、active dedupe、デプロイ済みURLを確認する自動ゲート初版は存在する。
+
+ただし、件数とfile名は契約内容を保証せず、統合後SHA、production build、runtime errorも検査しないため、現状を本番リリースのFull Regressionゲートとは扱わない。
 
 自動Full Regression成功だけでは本番リリースを許可しない。
 
@@ -181,7 +188,6 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 | 問い合わせ | ✅ | ✅ | ✅ | — | ✅ | △ | △ | □ | 公開route smokeは自動、実フォーム送信とprovider実到着はRC手動canary |
 | 要望送信、分析一覧 | ✅ | ✅ | ✅ | ✅ | ✅ | △ | — | — | スタッフ提出画面からの要望E2Eが未実装 |
 | 店舗削除 | △ | △ | ✅ | ✅ | □ | △ | △ | E2Eファイル全体がコメントアウトされている |
-| 分析KPI、分析Dashboard | ✅ | △ | ✅ | △ | □ | △ | △ | 別アプリのリリースSmokeが未実装 |
 | 複数店舗、課金、billingManager | △ | △ | △ | △ | □ | △ | △ | □ | 準備中機能のため現行リリースゲート対象外 |
 
 この表は「機能名にテストがあるか」だけを示す表ではない。
@@ -211,7 +217,7 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 | STAFF-02 | 確定後追加、割当、変更者限定再通知、閲覧 | `e2e/scenarios/staff-after-confirmed-shift.test.ts` | 既存割当保持、open募集通知なし、新規スタッフだけisResend、view CTA | provider実到着 |
 | AUTH-01 | logout後の保護ページ再アクセス | `e2e/scenarios/release-support-auth-onboarding.test.ts` | Clerk logoutとAuthGuard redirect | Clerk管理画面内部 |
 | ONBOARD-01 | オンボーディング終了状態のreload永続化 | `e2e/scenarios/release-support-auth-onboarding.test.ts` | 1/4の手動終了とDB反映 | 2/4から4/4の全遷移 |
-| REQUEST-01 | 管理ユーザーの要望送信 | `e2e/scenarios/release-support-feature-request.test.ts` | Dialog、mutation、成功Toast | 分析Dashboardへの表示 |
+| REQUEST-01 | 管理ユーザーの要望送信 | `e2e/scenarios/release-support-feature-request.test.ts` | Dialog、mutation、成功Toast | 本人用内部BIへの表示はFull Regression対象外 |
 | CONTACT-01 | 公開問い合わせ | `e2e/scenarios/release-support-public-contact.test.ts` | 問い合わせページのroute smoke | 実フォーム送信、production challenge、provider実到着はRC手動canary |
 | PUBLIC-01 | 公開10ルートと主要CTA | `e2e/scenarios/release-support-public-contact.test.ts` | 管理者/スタッフ向け法務ページを含むローカルrouteとCTA | Cloudflare配信状態 |
 | DEPLOY-01 | デプロイ済み公開URL Smoke | `e2e/scenarios/deployed-smoke.test.ts` | develop向けPreview／DevelopでHTTP成功とTOP、機能、FAQ、ヘルプ、問い合わせ固有h1 | 本番releaseでは実行しない |
@@ -293,11 +299,16 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 
 ### P0
 
-1. 各RCで隔離provider canaryを実行し、証跡を残して`release:provider-canary-passed`を付ける。
-2. スタッフemail変更時に、旧メールへ送付済みのlinkを失効させるかを決定し、E2Eへ追加する。
-3. シフト対象外スタッフが募集、催促、確定通知の全triggerから除外されることをE2Eへ拡張する。
-4. develop向けPreview／Developのdeployed Smoke失敗時の通知と停止判断を決定する。
-5. 200スタッフ、2000件、50募集、20申請のsilent truncationを仕様化し、境界テストを追加する。
+1. Playwright、VRT、Logic、frontend-unit、UI、Convex、lint、type-check、buildを同一SHAのrequired checkにする。
+2. develop統合後またはRC exact SHAでFull Regressionを再実行する。
+3. E2Eをproduction build後のpreviewへ接続し、`pageerror`、allowlist外`console.error`、同一origin 5xxを失敗にする。
+4. VRT baseline欠落、capture 0件、必須Story ID欠落を失敗にする。
+5. project件数とscenario file名のゲートを、必須契約ID manifestへ置き換える。
+6. 各RCで隔離provider canaryを実行し、証跡を残して`release:provider-canary-passed`を付ける。
+7. スタッフemail変更時に、旧メールへ送付済みのlinkを失効させるかを決定し、E2Eへ追加する。
+8. シフト対象外スタッフが募集、催促、確定通知の全triggerから除外されることをE2Eへ拡張する。
+9. develop向けPreview／Developのdeployed Smoke失敗時の通知と停止判断を決定する。
+10. 200スタッフ、2000件、50募集、20申請のsilent truncationを仕様化し、境界テストを追加する。
 
 ### P1
 
@@ -305,30 +316,32 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 2. 200スタッフ、2000割当、50件追加、62日募集の容量ジョブをFull Regressionとは別の`@capacity`として追加する。
 3. TOP、Dashboard、スタッフ提出画面の既知の`color-contrast`違反を修正し、axe除外を削除する。
 4. 店舗削除E2Eを復帰させるか、機能非公開を仕様として確定する。
-5. スタッフ提出画面からの要望送信と、分析Dashboardへの反映をScenarioまたは別アプリE2Eで確認する。
+5. スタッフ提出画面からの要望送信と、保存された要望が管理用queryの対象になることをE2EとScenarioで確認する。
 6. 法務文書の文書版だけ更新、同意要求版更新、期限切れ、用途違いを代表E2Eへ追加する。
 7. PR workflowを`@smoke`中心へ分離し、Full Regressionの実行時間と責務を分ける。
 
 ### P2
 
-1. 分析Dashboard別アプリの認証、主要タブ、要望一覧を専用Smokeへ追加する。
-2. Dashboardお知らせの公開期間、sanitize、最新1件表示をE2Eへ追加する。
-3. 複数店舗、課金、billingManagerの画面公開時に、新しいP0トレーサビリティ行を追加する。
+1. Dashboardお知らせの公開期間、sanitize、最新1件表示をE2Eへ追加する。
+2. 複数店舗、課金、billingManagerの画面公開時に、新しいP0トレーサビリティ行を追加する。
 
 ## 実装順序
 
-1. 既存作業差分を安定させ、`@smoke`と`@release`の実行結果を基準値として保存する。
-2. P0通知不足を目的別かつchannel別に追加する。
-3. スタッフ追加、email変更、対象外復帰の仕様を確定し、状態遷移E2Eを追加する。
-4. Mobile Chrome、容量、法務、アクセシビリティの不足を解消する。
-5. provider canaryを隔離環境で実行し、RCの承認ラベルへ証跡を残す。
-6. 各リリースでこのトレーサビリティ表を更新し、未分類の新機能を残さない。
+1. required check、exact SHA、production build、runtime error、VRT baselineのゲートを成立させる。
+2. 件数ゲートを契約ID manifestへ置き換える。
+3. 既存作業差分を安定させ、`@smoke`と`@release`の実行結果を基準値として保存する。
+4. P0通知不足を目的別かつchannel別に追加する。
+5. スタッフ追加、email変更、対象外復帰の仕様を確定し、状態遷移E2Eを追加する。
+6. Mobile Chrome、容量、法務、アクセシビリティの不足を解消する。
+7. provider canaryを隔離環境で実行し、RCの承認ラベルへ証跡を残す。
+8. 各リリースでこのトレーサビリティ表を更新し、未分類の新機能を残さない。
 
 ## 参考ファイル
 
 - `doc/INDEX.md`
 - `doc/rules/testing-strategy.md`
 - `doc/rules/security-strategy.md`
+- `doc/plans/2026-07-13-frontend-test-vrt-refactor.md`
 - `e2e/AGENTS.md`
 - `playwright.config.ts`
 - `playwright.deployed.config.ts`

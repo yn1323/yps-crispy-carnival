@@ -29,6 +29,7 @@
 - Convex query/mutation 単体の契約なら Convex Function Test。
 - 複数 API をまたいだ業務状態遷移なら Convex Scenario Test。
 - 実ブラウザ、認証、frontend と backend の接続なら E2E。
+- `apps/analytics-dashboard/` は本人用の内部BIなので自動テストとFull Regressionの対象外。新しいテストを追加せず、既存テストの維持も要求しない。
 
 既存テストの扱い:
 
@@ -39,12 +40,12 @@
 
 ## Full Regression の契約マップ
 
-大規模リファクタ前は、既存テストの本数ではなく、利用中の public API と主要ユーザーストーリーから守る契約を逆算する。
+大規模リファクタ前は、既存テストの本数ではなく、製品機能から守る契約を逆算する。詳細な棚卸し手順と表の雛形は `e2e-full-regression-rules.md` を正とする。
 
-1. frontend、E2E、他の Convex 関数から利用中の public query / mutation / action を列挙する。
-2. 各 public API に、認証、店舗境界、論理削除、token状態、正常DTO、副作用なしを直接検証する Function Test があるか対応付ける。
-3. `@smoke` / `@release` E2E から、複数API後の状態、通知、snapshot、旧新capabilityを抽出し、Scenario Testへ対応付ける。
-4. 実ブラウザ、認証provider、frontend/backend接続だけをE2Eに残す。
+1. 機能ドキュメント、route、管理者・スタッフ・公開画面、通知目的から業務契約を列挙する。
+2. 機能×テスト層のトレーサビリティ表を作り、P0契約の未分類をなくす。
+3. 利用中の public query / mutation / actionへFunction Testを対応付け、認証、店舗境界、論理削除、token状態、正常DTO、副作用なしを直接保証する。
+4. 複数API後の状態、通知、snapshot、旧新capabilityはScenario Test、実ブラウザとfrontend/backend接続はE2Eへ分ける。
 5. 利用箇所がない public API は、テストで固定する前に削除またはinternal化を検討する。
 
 同じユーザーストーリーを各層へ丸ごと複製しない。
@@ -80,6 +81,7 @@ Story の作り方:
 - 代表状態、空状態、エラー状態、長文、権限差、モバイル差分を Story として置く。
 - VRT はキャプチャ数の制限がない前提なので、状態ごとに個別 Story を基本にする。
 - 小さい UI 部品だけは Variants Story にまとめてよい。
+- VRT対象Storyに最初から表示される見出し、説明、ラベル、件数などは、静的な見た目と文言としてVRTへ委ねる。
 
 play function の書き方:
 
@@ -90,11 +92,17 @@ play function の書き方:
 - `waitFor` は消滅、transition、件数変化など `findBy...` では意図が読みにくい時に限定する。
 - 「押せる」「進める」「エラーが見える」「確認文言が出る」など、ユーザー操作後の見える結果を `expect(...)` で書く。
 - カスタム helper が手動で throw するより、Testing Library の query と `expect` で意図を見せる。
+- 初期表示の静的文言があることだけを確認するplay functionは書かない。`assertText`、`textContent.includes`、`getByText`だけで終わるplayは原則削除する。
+- 操作によって初めて表示・非表示・更新されるvalidation error、確認画面、成功・失敗状態、件数変化はBehavior Testで検証する。
+- 操作対象を取得するためのrole/name指定はテスト手段として使ってよいが、同じ静的文言を別assertで重複確認しない。
+- URL、status、error code、JSON-LD、検索対象データ、法務version、sanitize結果、個人情報のマスキングは、文字列自体が機械契約またはセキュリティ契約なのでVRTだけに委ねない。
 
 避けること:
 
 - DB状態や API 副作用を Storybook で保証しない。
 - ピクセル差分を Behavior Test の assertion で代用しない。
+- VRTで守れる初期表示の静的文言をBehavior Testで重複保証しない。
+- 個人情報の非露出や機械可読データまで「静的文言」として削除しない。
 - 表示される文言を無意味に曖昧な正規表現へ寄せすぎない。ユーザーに見える重要文言は明示する。
 
 ## VRT
@@ -114,6 +122,7 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 - `pnpm vrt` は `storybook:build`、capture、RegSuit compare を通す。
 - 差分が意図したものなら理由を説明できる状態にする。
 - VRT 差分だけでロジックの正しさを判断しない。
+- 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
 
 ## Convex Function Test
 
@@ -210,6 +219,7 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 E2E は「実 frontend + 実 Convex backend + 認証済みブラウザ」の接続確認を中心にする。
 develop向けPRの `@release` Full Regressionは主要ハッピーパスに加え、通知・復旧・モバイル・公開面・axe検査まで含める。developからmainへのPRと`release.yml`ではFull Regressionを再実行しない。
 ブラウザprojectはChrome系に限定し、Desktop ChromeとMobile Chromeの代表導線を分けて確認する。
+機能棚卸し、機能×テスト層のトレーサビリティ、通知目的の分類、方式別ライフサイクル、CI結果ゲートは `e2e-full-regression-rules.md` に従う。この節ではE2Eコードの実装規約を扱う。
 
 書き方:
 
@@ -220,14 +230,9 @@ develop向けPRの `@release` Full Regressionは主要ハッピーパスに加�
 - `page.waitForTimeout()` は禁止。`expect(locator).toBeVisible()` など web-first assertion で待つ。
 - mutation 成功はトーストや画面の表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
-- 複数のシフト提出方式を提供する場合は、方式ごとにスタッフの初回提出と再提出、管理者の割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧までを一気通貫で確認する。提出画面だけの短いハッピーパスを、その方式のE2E完了扱いにしない。
-- magic linkを使うスタッフ提出と閲覧は、管理者のstorageStateを持たない別々のbrowser contextで確認する。管理者ログイン状態でtoken画面を開いて匿名導線の代替にしない。
-- 再提出は成功画面だけで終えず、追加した希望と取り消した希望の両方を管理者画面と確定後のスタッフ画面で確認し、置換更新の退行を検出する。
 - 通知E2Eでは、検証対象のmagic link、LINE link token、outbox、FailureInboxをテストhelperで人工生成しない。本番と同じUI操作・mutation・scheduled actionから生成された証跡を待つ。
 - 通知のDB確認が必要な場合は、E2E環境だけで動くinternal testing APIから、目的、channel、対象ID、status、dedupe、CTA整合だけを返す。redacted通知probeは生メールアドレス、LINE userId、token、本文、provider error全文を返さない。画面遷移にtokenが必要な場合だけ、同じE2Eゲートを持つ専用token helperを分離して使う。
 - 正常通知は `notificationOutbox`、retry/fallbackは `notificationDeliveryEvents`、最終失敗だけ `notificationFailureInbox` を見る。
-- Full Regressionの結果ゲートは最終失敗、skip、retry成功、非passing expected status、許可外project、必須scenario fileの完全一致を拒否する。backend auditは設定された全E2E管理者の一致と店舗所属を確認し、一部だけ取得できた状態を成功扱いしない。
-- axe検査は主要ランドマークの表示を待ってから実行し、既知違反を理由なく一括除外しない。
 
 避けること:
 
@@ -276,6 +281,8 @@ Codex sandbox では IPC、ブラウザ起動、ローカルサーバー接続�
 - fixture や helper に期待値や検証ロジックを隠していないか。
 - `findBy...` / web-first assertion で待てるところを、手動 polling や timeout にしていないか。
 - 不要になったテストを残して、新仕様と矛盾させていないか。
+- VRT対象Storyの静的文言をplay functionでも重複確認していないか。
+- `apps/analytics-dashboard/` に自動テストを追加・維持していないか。
 - 実行できなかった検証があれば、理由が環境問題かコード問題かを明確に報告できるか。
 
 ## ユーザー指摘の反映
