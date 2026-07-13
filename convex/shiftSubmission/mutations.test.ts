@@ -6,11 +6,17 @@ import { api } from "../_generated/api";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { SHIFT_REQUESTS_PER_SUBMISSION_LIMIT } from "../constants";
 
 /** テスト用にshop + staff + recruitment + sessionをセットアップ */
 async function setupTestData(
   t: TestConvex<typeof schema>,
-  options?: { deadlinePassed?: boolean; shopClosedDates?: string[]; submissionPattern?: ShiftSubmissionPattern },
+  options?: {
+    deadlinePassed?: boolean;
+    periodEnd?: string;
+    shopClosedDates?: string[];
+    submissionPattern?: ShiftSubmissionPattern;
+  },
 ) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
@@ -34,7 +40,7 @@ async function setupTestData(
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,
       periodStart: "2026-04-07",
-      periodEnd: "2026-04-13",
+      periodEnd: options?.periodEnd ?? "2026-04-13",
       deadline: options?.deadlinePassed ? "2026-01-01" : "2026-12-31",
       shopClosedDates: options?.shopClosedDates ?? [],
       status: "open",
@@ -193,6 +199,41 @@ describe("shiftSubmission/mutations", () => {
       expect(submission).not.toBeNull();
       expect(submission?.firstSubmittedAt).toBeTypeOf("number");
       expect(submission?.submittedAt).toBeTypeOf("number");
+    });
+
+    it("希望枠は上限31件を受理し、32件目を拒否して既存提出を保持する", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t, { periodEnd: "2026-05-08" });
+      const requests = Array.from({ length: SHIFT_REQUESTS_PER_SUBMISSION_LIMIT + 1 }, (_, index) => {
+        const date = new Date(Date.UTC(2026, 3, 7 + index));
+        return { date: date.toISOString().slice(0, 10), startTime: "09:00", endTime: "18:00" };
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: requests.slice(0, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
+        }),
+      ).resolves.toBeNull();
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests,
+        }),
+      ).rejects.toThrow("Invalid request data");
+
+      const slots = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissionSlots")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .collect(),
+      );
+      expect(slots).toHaveLength(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT);
     });
 
     it("不正な日付・時刻形式の希望提出は保存前に拒否する", async () => {

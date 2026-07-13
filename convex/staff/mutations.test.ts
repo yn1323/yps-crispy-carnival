@@ -112,6 +112,33 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("スタッフは一度に50件まで追加できます");
     });
 
+    it("上限ちょうど50件のスタッフを一括追加できる", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return seeded.shopId;
+      });
+      const entries = Array.from({ length: STAFF_ADD_ENTRIES_MAX }, (_, index) => ({
+        name: `スタッフ${index + 1}`,
+        email: `staff-${index + 1}@example.com`,
+      }));
+
+      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, { entries });
+
+      expect(ids).toHaveLength(STAFF_ADD_ENTRIES_MAX);
+      const staffs = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffs")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .collect(),
+      );
+      expect(staffs).toHaveLength(STAFF_ADD_ENTRIES_MAX);
+    });
+
     it("過長名・制御文字入り名・不正メールはスタッフ追加で拒否する", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
