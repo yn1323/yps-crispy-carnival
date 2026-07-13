@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: read
   pull-requests: read
 
 jobs:
@@ -26,6 +27,15 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+
+      - name: Verify provider canary approval
+        env:
+          PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --paginate --slurp > provider-canary-comments.json
+          node -e 'const fs = require("fs"); const labels = JSON.parse(process.env.PR_LABELS_JSON || "[]"); const required = "release:provider-canary-passed"; const marker = `<!-- shiftori-provider-canary:${process.env.EXPECTED_HEAD_SHA} -->`; const verified = "<!-- shiftori-provider-canary-verified:v1 -->"; const comments = JSON.parse(fs.readFileSync("provider-canary-comments.json", "utf8")).flat(); const recordedByWorkflow = comments.some((comment) => comment.user?.login === "github-actions[bot]" && comment.body.includes(marker) && comment.body.includes(verified)); if (!labels.includes(required) || !recordedByWorkflow) { console.error(`Missing verified provider canary approval for head ${process.env.EXPECTED_HEAD_SHA}`); process.exit(1); }'
 
       - name: Determine release type
         id: release-type
@@ -75,7 +85,8 @@ jobs:
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
 
-      - name: Setup Playwright
+      # prerender.ts launches Chromium; this is not an E2E test step.
+      - name: Setup prerender browser
         uses: ./.github/actions/playwright
 
       - name: Prerender static routes
