@@ -2,6 +2,12 @@
 
 このドキュメントは、各機能の概要ドキュメントへのインデックスです。詳細な仕様はコードを参照します。
 
+## 業務仕様
+
+| 仕様 | 概要 | 状況 |
+|---|---|---|
+| [事業者課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | 事業者単位の契約、利用人数、無料体験、Free移行、支払い失敗、通知、管理者招待の業務基準 | 業務方針確定、料金未定 |
+
 ## 機能一覧
 
 | 機能 | 概要 | 実装状況 |
@@ -13,8 +19,8 @@
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
 | [Dashboardお知らせ](features/dashboard-announcements.md) | 有事の全店舗共通お知らせをDashboard上部に1件だけ表示 | 実装済 |
 | [管理ユーザーと店舗所属](features/manager-shop-membership.md) | 管理ユーザーと店舗を `shopMembers` で結ぶ所属モデル。複数店舗対応のDB土台 | 準備中 |
-| [課金プラン管理](features/billing-plans.md) | 店舗単位で課金プラン状態を持ち、有料機能guardを通して機能出し分けするDB土台 | 準備中 |
-| [管理者と請求管理者の権限方針](features/manager-billing-roles.md) | 既存スタッフのmanager化、billingManager、Stripe Portal操作、複数店舗切り替えの仕様方針 | 準備中 |
+| [課金プラン管理](features/billing-plans.md) | 店舗単位で課金状態を持つ初期検討資料。新規実装は事業者課金の業務仕様を優先 | 旧検討 |
+| [管理者と請求管理者の権限方針](features/manager-billing-roles.md) | BillingManagerを含む初期検討資料。新規実装は事業者課金の業務仕様を優先 | 旧検討 |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
 | [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
 | [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |
