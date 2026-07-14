@@ -34,4 +34,6 @@
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 全体構造、機能マッピング、データフロー
 - [rules/frontend-architecture.md](rules/frontend-architecture.md) - フロントエンドのディレクトリ、依存方向、ファイル責務
+- [rules/convex-design-strategy.md](rules/convex-design-strategy.md) - Convexの認証境界、公開API、Capability、durable workflow、データ保持、運用契約
 - [rules/security-strategy.md](rules/security-strategy.md) - セキュリティ設計、認証/認可境界、token/通知/billingレビュー方針
+- [rules/testing-strategy.md](rules/testing-strategy.md) - テスト種別、テスト層の分担、Convex Function TestとScenario Testの方針

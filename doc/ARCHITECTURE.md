@@ -3,6 +3,7 @@
 このドキュメントは、コードベース全体の構造とナビゲーションガイドを提供します。
 
 フロントエンドのディレクトリ、依存方向、ファイル内部の責務は `doc/rules/frontend-architecture.md` を Source of Truth とします。
+Convexの認証境界、公開API、非同期workflow、データ寿命、運用契約は `doc/rules/convex-design-strategy.md` を Source of Truth とします。
 このドキュメントでは、現在の機能配置とシステム全体のデータフローを扱います。
 
 ## ディレクトリ構造
@@ -43,7 +44,7 @@ convex/
 | ダッシュボード | `src/pages/dashboard/` | `Dashboard/*` | `dashboard`, `staff`, `recruitment`, `shop`, `line`, `legal`, `setup` |
 | シフト表 | `src/pages/shift-board/` | `ShiftBoard/*`, `Shift/ShiftForm` | `shiftBoard`, `notification` |
 | スタッフ希望提出 | `src/pages/staff-shift-submit/` | `StaffSubmit/*` | `shiftSubmission`, `staffAuth` |
-| スタッフシフト閲覧 | `src/pages/staff-shift-view/` | `StaffView/*`, `Shift/ShiftForm` | `staffAuth` |
+| スタッフシフト閲覧 | `src/pages/staff-shift-view/` | `StaffView/*`, `Shift/ShiftForm` | `staffAuth`, `shiftView` |
 | シフトフォーム | - | `Shift/ShiftForm` | - |
 
 ---
@@ -82,6 +83,10 @@ convex/
 `domains/` はConvexへ依存しない。
 `script.ts` は共有された純粋schemaを参照できるが、Convex client hookは使わない。
 pageまたはfeatureがConvexとの接続と純粋処理の呼び出し順を所有する。
+
+Convex側で新規実装または見直しを行う場合の標準フローは、public APIまたはHTTP routeが分類済みの信頼境界を検証し、mutationが永続的な処理意図を保存する形とする。
+中断復旧が必要な外部副作用と多数対象へのfanoutはinternal workerへ渡し、再開に必要な状態をDBへ保持する。
+これは目標設計であり、既存フローが適合済みであることを示す記述ではない。
 
 ---
 

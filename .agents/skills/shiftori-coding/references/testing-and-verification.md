@@ -11,7 +11,7 @@
 | React hook、jsdom、DOM API、Visual Viewport、同期ガード | Frontend Unit: `*.test.ts`または`*.test.tsx`の先頭でjsdom環境を指定 |
 | UIの代表状態、空/エラー/長文/SP差分 | Storybook Story / VRT |
 | 押せる、進める、エラーが出る、確認文言が出る | Storybook play function |
-| query/mutation 単体の認証、認可、IDOR、副作用 | Convex Function Test |
+| query/mutation/action/HTTP Action単体の認証、認可、IDOR、request/response、副作用 | Convex Function Test |
 | 複数API後の dashboard、通知、集計、スナップショット | Convex Scenario Test |
 | 実 frontend + 実 Convex backend + 認証の主要導線 | E2E |
 

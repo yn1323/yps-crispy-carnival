@@ -7,6 +7,7 @@
 ## 運用
 
 - このドキュメントはテスト方針の Source of Truth として扱う。
+- ConvexのCapability、durable workflow、データ寿命の設計契約は `doc/rules/convex-design-strategy.md` を参照し、このドキュメントで検証層へ対応付ける。
 - 実装時の細かいテストコードの書き方、Storybook play function、VRT、Convex Scenario Fixture、E2E Page Object の具体ルールは `.agents/skills/test-strategy/` を参照する。
 - テスト観点、テストケース、テストコードの書き方についてユーザーから指摘を受けた場合は、実装修正だけで終わらせず、このドキュメントと `.agents/skills/test-strategy/` の両方を更新対象にする。
 
@@ -21,7 +22,7 @@
 - スタッフの提出方式を追加・変更した場合は、対応する全方式について「初回提出、再編集・再提出、管理者による割当編集、下書き保存、reload後の永続化、確定通知、スタッフ閲覧」までを `@release` の一気通貫シナリオで保証する。
 - magic link経由のスタッフ提出と閲覧は管理者のstorageStateを持たない別contextで確認し、再提出で追加・取り消した内容の両方を管理者画面と確定後のスタッフ画面で検証する。
 - すべての分岐を同じ層で網羅しない。境界値は Logic UT / Function Test、業務状態遷移は Scenario Test、画面の完了確認は E2E に分担する。
-- Full Regressionでは、利用中のpublic APIをFunction Testで直接守り、複数API後の状態・永続化・通知・capability遷移をScenario Testで守る。E2Eの本数だけを増やして代替しない。
+- Full Regressionでは、利用中のpublic functionとHTTP routeをFunction Testで直接守り、複数API後の状態・永続化・通知・capability遷移をScenario Testで守る。E2Eの本数だけを増やして代替しない。
 - E2Eの主要シナリオはScenario Testの発見元として使うが、同じ手順を複製しない。実ブラウザ接続はE2E、単一API境界はFunction Test、業務状態遷移はScenario Testへ契約を分解する。
 - 不在、一意性、対象集合、旧capabilityの失効が契約なら、対象範囲を絞った完全一致と件数で保証する。部分一致や存在確認だけで完了扱いにしない。
 - VRT対象Storyに最初から表示される静的な見出しや文言はVRTへ委ね、存在確認だけのBehavior Testを重複させない。Behavior Testは操作後に生じる表示・非表示・状態・件数の変化を保証する。
@@ -37,7 +38,7 @@
 | UI Component Test | `pnpm test:ui`, `*.stories.tsx` | Storybook 上の表示・軽い操作確認 | 代表状態、空/エラー/長文状態、重要な操作の play test | 業務フロー全体、DB状態検証 |
 | Behavior Test（振る舞いテスト） | `pnpm test:ui`, `*.stories.tsx` の play function | Storybook 上でユーザー操作後の状態遷移を保証する | 押せる、進める、操作後にエラーや確認状態が出る、表示・件数が変わる、SP/PC固有操作、日付・入力の重要エッジケース | 初期表示の静的文言だけの確認、DB状態検証、API副作用、実認証、ピクセルパーフェクトな見た目差分 |
 | VRT | Storycap testrun + RegSuit / Storybook | 見た目差分検知 | 代表パターン、variants、状態別Story、静的文言、長文、レイアウト | ロジック検証、業務状態遷移 |
-| Convex Function Test | `pnpm test:convex`, `convex/{useCase}/*.test.ts` | query/mutation 単体の契約確認 | 認証、認可、IDOR、論理削除、返り値制限、副作用、空データ | 複数ドメインをまたぐ長い業務フロー |
+| Convex Function Test | `pnpm test:convex`, `convex/{useCase}/*.test.ts` | query/mutation/action/HTTP Action単体の契約確認 | 認証、認可、IDOR、論理削除、返り値制限、HTTP method・body・CORS・署名・replay、副作用、空データ | 複数ドメインをまたぐ長い業務フロー |
 | Convex Scenario Test | `pnpm test:convex`, `convex/_scenario/*.test.ts` | 複雑な業務状態遷移の検証 | 複数 mutation/query の連続実行、集計、スナップショット、最終DB状態、エッジケース | ブラウザ操作、見た目、実 Convex deployment 接続 |
 | E2E | `pnpm e2e`, `e2e/scenarios/*.test.ts` | 実 frontend + 実 Convex backend の最終結合確認 | 主要ハッピーパス、認証、画面遷移、ユーザーに見える成功状態、重要通知の受付・CTA、リリース前の復旧導線 | DB細部の総当たり、全validation分岐、ピクセルパーフェクト、外部サービスの実配送 |
 
@@ -45,11 +46,11 @@
 
 大規模リファクタ前のFull Regressionは、テスト件数ではなく次の対応関係を作って監査する。
 
-1. frontend、E2E、他のConvex関数から利用中のpublic query / mutation / actionを列挙する。
-2. 各public APIについて、認証、認可、店舗境界、論理削除、token状態、正常DTO、副作用を直接見るFunction Testを対応付ける。
+1. frontend、E2E、他のConvex関数から利用中のpublic query / mutation / actionと、`convex/http.ts`へ登録したHTTP routeを列挙する。
+2. 各public APIとHTTP routeについて、認証、認可、店舗境界、論理削除、token状態、正常DTOまたはresponse、副作用を直接見るFunction Testを対応付ける。
 3. `@smoke` / `@release` E2Eから、複数API後のDB状態、通知、snapshot、旧新link/sessionの契約を抽出し、Scenario Testを対応付ける。
 4. 実ブラウザ、認証provider、frontend/backend接続だけをE2E固有の保証として残す。
-5. 利用箇所がないpublic APIは、既存形状をテストで固定する前に削除またはinternal化を検討する。
+5. 利用箇所がないpublic APIまたはHTTP routeは、既存形状をテストで固定する前に削除またはinternal化を検討する。
 
 各契約は、最も速く安定して検証できる1つの層を主担当にする。
 異なる層で同じ業務導線を扱う場合も、Function Testは単一API境界、Scenario Testは状態遷移と永続化、E2Eは実接続という別の失敗を検知する。
@@ -116,6 +117,9 @@ convex/
 - 通知では対象ID、outbox、dedupe、link、snapshotを対象範囲で完全一致させ、余計な対象や重複がないことを確認する。
 - schedulerを含む一気通貫シナリオでは、手書き引数でinternal actionを直呼びせず、実際に予約されたqueueを進めて最終状態を確認する。
 - capabilityを再発行するフローでは、古いlink/session/tokenが使えず、新しいものだけが動くことを確認する。
+- 中断復旧を保証するシナリオでは、永続化された中間状態で処理を止め、通常のscheduler、worker、reaperから再開して最終状態を確認する。
+- job、Outbox、capabilityの復旧では、最終状態だけでなく、重複、取りこぼし、古いleaseやtokenの拒否を完全一致で確認する。
+- 削除と通知が競合するシナリオでは、enqueue後、claim後、外部送信直前から代表境界を選び、削除後に新しい配送が始まらないことを確認する。
 
 例:
 
@@ -207,8 +211,13 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - query の返り値が最小DTOと完全一致し、tokenや内部管理用fieldを含まないこと
 - mutation 後の DB 副作用
 - Magic Link の期限切れ・使用済みトークン
+- capabilityのdigest保存、失効、用途違い、newest-only再発行
+- 公開登録のgeneric response、bot proof、多層rate limit、拒否時の副作用ゼロ
+- HTTP Actionのmethod、content type、body上限、CORS、署名またはservice credential、timestamp・event IDのreplay拒否
 - 異常系でDB、event、scheduler、外部API呼び出しが増えないこと
 - 通知、再送、短時間連打でschedulerやoutboxが重複しないこと
+- Outbox claimのlease期限、再回収、古いclaim identityによる完了拒否
+- retention境界時刻、pendingデータの除外、redact後に残す監査field
 - schedulerへ予約するAPIのscheduled function名、args、対象範囲の件数
 
 ### Convex Scenario Test
@@ -222,6 +231,13 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 3. 集計・スナップショット・論理削除が絡む処理
 4. E2E で検証すると遅すぎる処理
 5. 過去に壊れた、または変更頻度が高い処理
+
+durable workflowを変更する場合は、次の契約を優先する。
+
+- fanoutを途中で中断して再開しても、対象集合とdedupeKeyが完全一致すること
+- worker停止後に期限切れleaseを回収し、provider idempotency keyが再試行でも変わらないこと
+- 店舗またはスタッフ削除後に配送されず、`cancelled`を古いworkerが上書きしないこと
+- retentionまたは店舗消去を複数batchで完走し、再実行しても結果が変わらないこと
 
 ### Assertion の完全性
 
@@ -238,6 +254,7 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - mutation 成功は、ユーザーに見えるトーストや表示状態で判定する。
 - DB の細かい最終状態確認は Convex Scenario Test に寄せる。
 - 通知は外部の実到着ではなく、画面操作から本物の action が呼ばれ、`notificationOutbox` の目的・channel・対象・dedupeとmagic link/CTAが整合するところまでを、E2E限定のredacted probeで確認してよい。
+- 破壊的なE2E helperはE2E専用deploymentだけで有効化し、production deploymentでは設定ミスがあっても実行できないことをCIまたはFunction Testで確認する。
 - `notificationFailureInbox` は失敗専用として扱い、正常通知の証跡に使わない。不達Dashboardでは `open -> retrying -> resolved/open` のユーザー可視な復旧導線を確認する。
 - 実Resend/LINE到着は `@provider-canary` として通常E2Eから分離する。
 
@@ -267,7 +284,7 @@ RCの本番リリースでは、隔離受信先によるprovider canary完了後
 - UI の見た目や単体操作を確認したい: UI Component Test / VRT
 - Storybook 上でユーザー操作後の振る舞い、エラー、確認状態、表示・件数変化を確認したい: Behavior Test
 - 初期表示の静的文言、長文、改行、レイアウトを確認したい: VRT
-- query/mutation 単体の契約を確認したい: Convex Function Test
+- query/mutation/action/HTTP Action単体の契約を確認したい: Convex Function Test
 - 複数の Convex 関数をまたいだ業務状態遷移を確認したい: Convex Scenario Test
 - 実ブラウザ・認証・実 Convex backend との接続を確認したい: E2E
 

@@ -28,7 +28,7 @@
 - React hook、jsdom、DOM API、Visual Viewport、同期ガードなら Frontend Unit。
 - UI の状態一覧や見た目の退行なら Storybook Story / VRT。
 - UI 上の操作後の振る舞いなら Storybook play function。
-- Convex query/mutation 単体の契約なら Convex Function Test。
+- Convex query/mutation/action/HTTP Action単体の契約なら Convex Function Test。
 - 複数 API をまたいだ業務状態遷移なら Convex Scenario Test。
 - 実ブラウザ、認証、frontend と backend の接続なら E2E。
 - `apps/analytics-dashboard/` は本人用の内部BIなので自動テストとFull Regressionの対象外。新しいテストを追加せず、既存テストの維持も要求しない。
@@ -48,9 +48,9 @@
 
 1. 機能ドキュメント、route、管理者・スタッフ・公開画面、通知目的から業務契約を列挙する。
 2. 機能×テスト層のトレーサビリティ表を作り、P0契約の未分類をなくす。
-3. 利用中の public query / mutation / actionへFunction Testを対応付け、認証、店舗境界、論理削除、token状態、正常DTO、副作用なしを直接保証する。
+3. 利用中のpublic query / mutation / actionとHTTP routeへFunction Testを対応付け、認証、店舗境界、論理削除、token状態、正常DTOまたはresponse、request制約、副作用なしを直接保証する。
 4. 複数API後の状態、通知、snapshot、旧新capabilityはScenario Test、実ブラウザとfrontend/backend接続はE2Eへ分ける。
-5. 利用箇所がない public API は、テストで固定する前に削除またはinternal化を検討する。
+5. 利用箇所がないpublic functionまたはHTTP routeは、テストで固定する前に削除またはinternal化を検討する。
 
 同じユーザーストーリーを各層へ丸ごと複製しない。
 たとえば「スタッフを復帰させて新しいlinkから希望提出できる」は、link発行APIの境界をFunction Test、対象外から復帰後の旧link失効・新link発行・提出永続化をScenario Test、匿名ブラウザで画面完了できることをE2Eへ分ける。
@@ -162,7 +162,7 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 
 ## Convex Function Test
 
-Convex query/mutation 単体の契約を細かく見る。
+Convex query/mutation/action/HTTP Action単体の契約を細かく見る。
 `convex-test` の mock backend で高速に回す層。
 
 優先観点:
@@ -190,6 +190,11 @@ Convex query/mutation 単体の契約を細かく見る。
 - public actionが外部APIを呼ぶ場合、拒否ケースではmock fetchが0回であることを確認する。正常系ではfollow状態、再利用、scheduled function完了まで必要に応じて検証する。
 - 通知や再送は、対象者なし、対象者あり、rate limitを分け、schedulerやoutboxの件数が期待どおりで重複しないことを確認する。
 - schedulerへ予約するAPIは、scheduled functionのname、args、対象範囲の件数を完全一致させる。予約された事実だけの存在確認で終えない。
+- capabilityを発行するmutationでは、返したraw tokenと保存されたdigestを区別し、永続化不要なraw tokenがDBへ残らないことを確認する。
+- 匿名登録では、存在状態ごとの外部DTOが同一であることと、bot proofまたはrate limit拒否時にrequest、event、schedulerが増えないことを確認する。
+- HTTP Actionは`t.fetch()`でmethod、content type、body上限、CORS、署名またはservice credentialを検証し、timestamp・nonce・event IDがある場合はreplayと重複副作用を拒否することを確認する。
+- leaseを使うworkerでは、未期限切れclaimの二重取得、期限切れclaimの再取得、古いclaim identityによる完了更新を別々に検証する。
+- retention処理では、期限の直前と直後、pending行の除外、redact対象、保持する監査field、再実行時の冪等性を確認する。
 - テストデータは既存の `_test` helper または internal mutation 経由で作る。
 - エラー assertion は `.rejects.toThrowError(...)` を使う。
 - 実DB、dev、preview、prod に接続しない。
@@ -230,6 +235,10 @@ E2E で見ると遅すぎる DB 状態遷移、通知、集計、dashboard 表�
 - fake timerを使う各テストは独立した`convexTest`で実行する。時刻固定はseed前、予約時刻の変更はAct直前に行い、非同期timer APIはawaitする。timer、env、global mockは`afterEach`または`try/finally`で必ず復元する。
 - zero-delay jobだけを実行する場合は、jobを確認してから`vi.advanceTimersByTime(0)`と`await t.finishInProgressScheduledFunctions()`で完了を待つ。未来の催促や期限切れjobまで進めない。
 - queue全体を将来時刻までdrainする契約だけ`finishAllScheduledFunctions(vi.runAllTimers)`を使い、実行後の失敗jobと未処理例外を放置しない。
+- 中断復旧はinternal actionを都合よく直呼びせず、永続jobのcursor、lease期限、通常のschedulerまたはreaperを通して再開する。
+- fanoutでは対象ID、outbox、dedupeKeyを完全一致させ、中断前後の重複と取りこぼしがないことを確認する。
+- 外部送信後に状態更新だけ失敗するケースではexactly-onceを仮定せず、provider idempotency keyが再試行でも変わらないことを確認する。
+- 削除競合ではterminalな`cancelled`状態と、削除後に新しく始まる外部API呼び出しが0件であることを確認する。
 
 避けること:
 
@@ -297,10 +306,12 @@ Codex sandbox では IPC、ブラウザ起動、ローカルサーバー接続�
 - 日付、時刻、タイムゾーン、`YYYY-MM-DD`、深夜時間、丸め。
 - Submit 系の二重送信、短時間連打、再送、冪等性。
 - 認証、認可、IDOR、所属店舗の検証。
-- Magic Link、招待トークン、期限切れ、使用済み、再発行。
+- Magic Link、招待、公開登録linkのdigest保存、期限、使用済み、失効、rotate、newest-only。
+- HTTP Action、Webhook、service credentialのmethod、body上限、署名、CORS、replay、event dedupe。
 - 論理削除済みデータの除外。
 - 既存データ互換、スナップショット、schema / persisted shape の変更。
-- 通知 outbox、retrying、final failure、FailureInbox、実配送ではなく受付状態。
+- 通知outbox、fanout cursor、lease再回収、stale worker、削除競合、retrying、final failure。
+- 個人情報を含むpayloadのretention、redaction、prune、店舗消去。
 - Dashboard の `今やること`、通知失敗、スタッフ申請、シフト一覧のグルーピング。
 - Storybook と E2E の UI 文言ドリフト。
 - ArticleSite は個別記事 Markdown だけなら個別テスト不要。parser、frontmatter schema、一覧/カテゴリ/詳細レイアウトを変えた場合だけ既存 Story や `articleContent.test.ts` を更新する。

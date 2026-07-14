@@ -1,5 +1,15 @@
 # Convex アーキテクチャ規約
 
+## 必読ドキュメント
+
+1. `convex/_generated/ai/guidelines.md`
+2. `doc/rules/convex-design-strategy.md`
+3. `doc/rules/testing-strategy.md`
+4. セキュリティに触れる場合は `doc/rules/security-strategy.md`
+
+このファイルは配置と実装規約を扱う。
+認証境界、公開API、Capability、durable workflow、データ寿命、運用契約のSource of Truthは `doc/rules/convex-design-strategy.md` とする。
+
 ## 設計方針
 
 **Use-Case Slices + CQRS** — ユースケース（画面/機能）単位でディレクトリを分割し、読み取り（queries）と書き込み（mutations）を分離する。
@@ -12,7 +22,7 @@ convex/
 │   ├── schemas.ts          # Zodバリデーションスキーマ（フロント共有）
 │   ├── queries.ts          # 読み取り（query）
 │   ├── mutations.ts        # 書き込み（mutation）
-│   └── actions.ts          # 外部API呼び出し（internalAction）
+│   └── actions.ts          # 外部API呼び出し（原則internalAction。公開Capabilityはallowlist）
 │
 ├── _lib/                   # 共通ユーティリティ
 │   ├── config.ts           # 環境変数由来の共通設定（APP_URL等）
@@ -30,7 +40,7 @@ convex/
 |------------|--------|
 | mutation引数のZodスキーマ | そのユースケースの `schemas.ts` |
 | 特定画面/機能のAPI | そのユースケースの `queries.ts` / `mutations.ts` |
-| 外部APIを呼ぶ処理 | そのユースケースの `actions.ts`（`internalAction`） |
+| 外部APIを呼ぶ処理 | そのユースケースの `actions.ts`（原則`internalAction`。allowlist化した公開Capabilityだけpublic `action`を許可） |
 | 共通バリデーションヘルパー | `_lib/validation.ts` |
 | 複数ユースケースの共通処理 | `_lib/` |
 | 環境変数由来の設定 | `_lib/config.ts` |
@@ -59,6 +69,8 @@ convex/
 - 募集期間の提出方法は `recruitments.submissionPattern` のスナップショットを正とする。時間指定の開始/終了時刻や勤務区分の時間は提出方法の中に持つ
 - 既存データ互換のフォールバックは残さない。DB再作成前提のリファクタでは新スキーマだけを読む
 - 一覧系 query では必ず上限定数を使う。`.collect()` で無制限に読む前に、index と `take()` / `paginate()` にできないか検討する
+- 上限で打ち切る集計は、正確値、下限値、truncatedのどれかをAPIと永続データで明示する
+- actorやsubjectによって必須fieldが変わる場合は、複数のoptional fieldではなくdiscriminated unionで不変条件を表す
 
 ### 日付・時刻・タイムゾーン
 
@@ -74,7 +86,8 @@ convex/
 
 - `_` プレフィクスのディレクトリ（`_lib/` 等）はConvexがAPIとして公開しない
 - `_generated/` は Convex CLI が自動生成するため手動編集禁止
-- `actions.ts` は `internalAction` で定義し、`mutations` から `ctx.scheduler` 経由で呼び出す
+- `actions.ts` は原則`internalAction`で定義し、`mutations`から`ctx.scheduler`経由で呼び出す。allowlist化した公開Capabilityだけpublic `action`を許可する
+- scheduled actionの一回実行だけにfanoutやworkflowの完了を依存させない。中断後の再開が必要なら永続job、cursor、lease、attemptを持たせる
 - queries のエラーは `null` or `{ error }` を返す（throwしない）。mutations のエラーは `ConvexError` をthrow
 - 論理削除は `isDeleted` フラグを使用。クエリでは常にフィルタリングする
 
@@ -82,37 +95,21 @@ convex/
 
 ### 大前提：Convex はパブリック API
 
-mutation / query はクライアントから直接呼べる。**関数名が分かれば誰でも叩ける**前提で全関数を設計する。
+public query / mutation / actionとHTTP routeは外部から呼べる。**関数名やpathが分かれば攻撃面になる**前提で設計する。
 
 ### 認証ラッパー（必須）
 
-`convex-helpers` の `customMutation` / `customQuery` でラッパーを作り、**生の `mutation` / `query` を直接使わない**。
+`convex-helpers` の `customMutation` / `customQuery` で認証ラッパーを作り、manager、authenticated、staff sessionのpublic APIでは生の `mutation` / `query` を直接使わない。
+外部副作用はmutationから`internalAction`へ渡し、public `action`を増やさない。
 
-```ts
-// convex/_lib/functions.ts
-export const managerMutation = customMutation(mutation, {
-  args: {},
-  input: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Unauthenticated");
-    const user = await ctx.db.get(userId);
-    if (!user || user.role !== "manager") throw new Error("Forbidden");
-    return { ctx: { user }, args: {} };
-  },
-});
+匿名登録、magic link、法務同意、LINE OAuthのような公開Capabilityで生の`query`、`mutation`、`action`が必要な場合だけ例外とする。
+例外はファイルをallowlist化し、scope、TTL、使用回数、再発行、revoke、rate limit、外部応答を共通policyで検証する。
 
-export const staffMutation = customMutation(mutation, {
-  args: { token: v.string() },
-  input: async (ctx, args) => {
-    const staff = await verifyMagicLinkToken(ctx, args.token);
-    if (!staff) throw new Error("Invalid or expired token");
-    return { ctx: { staff }, args: {} };
-  },
-});
-// managerQuery, staffQuery も同様に作成
-```
+認証wrapperの実装は`convex/_lib/functions.ts`を正とする。
+manager境界はClerk identity、active `shopMembers`、非削除`shops`を検証し、店舗スコープAPIでは選択中`shopId`を必須にする。
+staff session境界はsession、staff、shop、recruitment、access kindの整合を検証する。
 
-Biome / ESLint で `_generated/server` からの生 `mutation` / `query` インポートを禁止する。
+Biome / ESLintまたはCI検査で、allowlist外からの生`query`、`mutation`、`action`インポートを禁止する。
 
 ### IDOR 対策
 
@@ -124,7 +121,7 @@ const recruitment = await ctx.db.get(args.recruitmentId);
 
 // ✅ 取得後に所属を検証
 const recruitment = await ctx.db.get(args.recruitmentId);
-if (!recruitment || recruitment.shopId !== ctx.user.shopId) {
+if (!recruitment || recruitment.shopId !== ctx.shop._id) {
   throw new Error("Not found");
 }
 ```
@@ -148,6 +145,9 @@ if (!recruitment || recruitment.shopId !== shopId) {
 
 query の返り値はドキュメントをそのまま返さず、必要なフィールドだけに絞る。
 
+public functionは `args` と `returns` のruntime validatorを持たせる。
+paginated queryはConvex標準のpagination result validatorを使い、独自に似たshapeを作らない。
+
 - スタッフ向け API でマネージャーのメールアドレスを返さない
 - スタッフ同士のメールアドレスも返さない（名前のみ）
 - シフト希望の詳細は本人 + マネージャーのみ
@@ -162,6 +162,10 @@ query の返り値はドキュメントをそのまま返さず、必要なフ�
 | ブルートフォース | レートリミット必須（`convex-helpers` Rate Limiter） |
 | URL 漏洩 | `rel="noreferrer"` でリファラー漏洩を防止 |
 
+再発行で古い権限を失効させる用途はnewest-onlyとし、同じscopeの未使用tokenを発行transaction内でrevokeする。
+DB照合にだけ使うtokenは、raw tokenを再表示する理由がない限りdigestを保存する。
+期限切れ、使用済み、失効済みtokenには保持期限とboundedなprune処理を設ける。
+
 ### LINE 通知の URL
 
 **LINEメッセージ本文に載せるURLは必ず `withOpenExternalBrowser()`（`convex/_lib/lineUrl.ts`）を通すこと。**
@@ -173,8 +177,18 @@ query の返り値はドキュメントをそのまま返さず、必要なフ�
 ### 入力バリデーション
 
 - 全 mutation の `args` に `v.` バリデータを必ず定義
+- public query / mutation / action の返り値に `returns` validatorを定義
 - 文字列の最大長、配列の最大件数などビジネスロジック制約も加える
 - 必要に応じて `withZod` で高度なバリデーションを追加
+
+### HTTP Action
+
+- `convex/http.ts`へ登録するrouteをallowlistとして扱い、公開理由を明示する
+- method、content type、body上限、event件数上限、CORS、外部応答をrouteごとに定義する
+- provider Webhookは公式の署名検証を行い、timestamp、nonce、event IDがあればreplayと重複を拒否する
+- service credentialはserver側の環境変数に置き、URL queryへ含めず、rotationと失効手順を持たせる
+- 認証、bot proof、署名、request制約を検証した後だけinternal mutationへ状態変更を渡す
+- `t.fetch()`を使うFunction Testで拒否時の副作用ゼロを確認する
 
 ## スキーマ共有ルール
 
@@ -190,18 +204,32 @@ query の返り値はドキュメントをそのまま返さず、必要なフ�
 
 - Magic Link トークン検証
 - シフト希望提出
+- 公開登録、再発行、外部配送など、状態変更、列挙、コスト増加につながる匿名導線
 
-### 実装チェックリスト
+攻撃者が毎回変えられるtoken prefixだけをrate limit keyにしない。
+必要に応じてIP、店舗、subject、global bucketを組み合わせる。
 
-- [ ] `convex-helpers` をインストール
-- [ ] `managerMutation` / `managerQuery` ラッパーを作成
-- [ ] `staffMutation` / `staffQuery` ラッパーを作成
-- [ ] 生の `mutation` / `query` インポートをリンターで禁止
-- [ ] 全 public 関数で shop 所属チェックを実装
-- [ ] query の返り値を必要最低限のフィールドに制限
-- [ ] Magic Link のワンタイム・有効期限を実装
-- [ ] エラーメッセージから内部情報が漏れないことを確認
-- [x] レートリミットを Magic Link 検証に適用
+### API追加時のチェックリスト
+
+- [ ] actorとauthenticated / staff session / Capability / anonymous HTTP / provider・service HTTP境界を分類した
+- [ ] 店舗スコープAPIで選択中`shopId`とactive membershipを検証した
+- [ ] `args`、`returns`、最小DTO、入力上限、返却量とread budgetの契約を定義した
+- [ ] raw public functionの例外理由とallowlistを確認した
+- [ ] tokenのTTL、再利用、newest-only、revoke、rate limitを定義した
+- [ ] scheduler、Outbox、外部APIの副作用と再実行時の契約を定義した
+- [ ] HTTP routeではmethod、body、CORS、署名またはcredential、replay、rate limitを定義した
+- [ ] Function TestまたはScenario Testへ契約を対応付けた
+
+## Durable workflowとデータ寿命
+
+- 多数対象へのfanoutは永続jobとbounded batchで進め、cursorと完了状態を保存する
+- `processing`には期限付きleaseを持たせ、stale jobを再回収する
+- 完了、再試行、失敗、cancelは期待status、lease、epochが一致する場合だけ更新する
+- 店舗削除後は新規enqueueを拒否し、外部送信直前にも対象の有効性を再確認する
+- 通知payload、宛先、token URL、provider errorにはretentionとredaction方針を持たせる
+- 論理削除、契約終了、個人情報消去を同じ状態として扱わない
+
+詳細は `doc/rules/convex-design-strategy.md` と `doc/rules/security-strategy.md` を参照する。
 
 ## スキーマ変更とマイグレーション
 
@@ -215,7 +243,7 @@ query の返り値はドキュメントをそのまま返さず、必要なフ�
   2. Migrate: internal mutation で既存ドキュメントを新形式に書き換え
   3. Narrow: 新形式のみのスキーマにデプロイ
 - **フィールド削除・リネーム・型変更は一発でやらない** — 必ず上記3ステップに分解
-- **論理削除（`isDeleted`）の方針は維持** — 物理削除はしない
+- **論理削除（`isDeleted`）をアクセス停止の基本とする** — 保持期限後のredact、anonymize、物理削除はテーブルごとのデータ寿命方針に従う
 
 ### バッチ書き換えが必要なとき
 

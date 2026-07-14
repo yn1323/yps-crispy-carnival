@@ -7,6 +7,7 @@
 - `AGENTS.md`
 - `src/AGENTS.md`
 - `doc/rules/frontend-architecture.md`
+- `doc/rules/convex-design-strategy.md`
 - `convex/AGENTS.md`
 - `convex/_generated/ai/guidelines.md`
 - `e2e/AGENTS.md`
@@ -76,6 +77,7 @@ e2e/
 - `test-strategy`: テスト層、Storybook play、VRT、Scenario Test、E2E。
 - `convex-migration-helper`: schema/data migration、Widen → Migrate → Narrow。
 - `convex-performance-audit`: Convex read amplification、subscription、OCC、function limit。
+- `convex-design-review`: Convexの認証境界、公開API、Capability、durable workflow、データ寿命、運用契約。
 - `seo-article-writer`: ArticleSite の記事・SEOコンテンツ。
 
 ## 変更時のドキュメント

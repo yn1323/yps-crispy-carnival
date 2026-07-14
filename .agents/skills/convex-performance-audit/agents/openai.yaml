@@ -1,12 +1,12 @@
 interface:
   display_name: "Convex Performance Audit"
   short_description:
-    "Audit slow Convex reads, subscriptions, OCC conflicts, and limits."
+    "Audit Convex reads, OCC conflicts, limits, and capped-data correctness."
   icon_small: "./assets/icon.svg"
   icon_large: "./assets/icon.svg"
   brand_color: "#EF4444"
   default_prompt:
-    "Audit this Convex app for performance issues. Start with the strongest
+    "Use $convex-performance-audit to audit this Convex app. Start with the strongest
     signal available, identify the problem class, and suggest the smallest
     high-impact fix before proposing bigger structural changes."
 

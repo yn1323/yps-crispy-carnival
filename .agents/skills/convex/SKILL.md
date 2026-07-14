@@ -41,6 +41,7 @@ After that, use the most specific Convex skill for the task:
 - New project or adding Convex to an app: `convex-quickstart`
 - Authentication setup: `convex-setup-auth`
 - Building a reusable Convex component: `convex-create-component`
+- Reviewing Shiftori Convex architecture, public API contracts, workflows, or data lifecycle: `convex-design-review`
 - Planning or running a migration: `convex-migration-helper`
 - Investigating performance issues: `convex-performance-audit`
 

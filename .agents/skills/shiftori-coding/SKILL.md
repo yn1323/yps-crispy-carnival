@@ -13,9 +13,9 @@ description: シフトリ / yps-crispy-carnival 固有の実装規約、コー�
 1. 必ず `doc/rules/testing-strategy.md` を読む。
 2. `src/` を扱う場合は `doc/rules/frontend-architecture.md` を読み、配置とファイル責務の Source of Truth とする。
 3. 対象ディレクトリに近い `AGENTS.md` を読む。`src/` は `src/AGENTS.md`、Convex は `convex/AGENTS.md`、E2E は `e2e/AGENTS.md`、CI/CD は `.github/AGENTS.md` を優先する。
-4. Convex コードを扱う場合は `convex/_generated/ai/guidelines.md` も読む。
+4. Convexコードを扱う場合は `convex/_generated/ai/guidelines.md` と `doc/rules/convex-design-strategy.md` も読む。
 5. 新しいフロントエンド方針に適合する近い既存実装、Story、テスト、Feature Doc を探してから編集する。
-6. UI/UXなら `ui-architect`、テスト設計なら `test-strategy`、Convex migrationなら `convex-migration-helper` も併用する。
+6. UI/UXなら `ui-architect`、テスト設計なら `test-strategy`、Convex全体の設計判断なら `convex-design-review`、Convex migrationなら `convex-migration-helper` も併用する。
 
 このリポジトリでは Vite / Storybook / Convex dev server はユーザーが起動する。
 新規で起動しない。
@@ -66,6 +66,6 @@ description: シフトリ / yps-crispy-carnival 固有の実装規約、コー�
 
 1. 指摘が一回限りの仕様か、今後も使う repo 規約かを判定する。
 2. 今後も使うなら、このスキルの `SKILL.md` または該当 `references/*.md` を更新する。
-3. テスト規約なら `test-strategy` と `doc/rules/testing-strategy.md`、UI/文言なら `ui-architect`、Convex migrationなら `convex-migration-helper` も更新対象にする。
+3. テスト規約なら `test-strategy` と `doc/rules/testing-strategy.md`、UI/文言なら `ui-architect`、Convex設計方針なら `convex-design-review` と `doc/rules/convex-design-strategy.md`、Convex migrationなら `convex-migration-helper` も更新対象にする。
 4. 既存記述と矛盾する場合は、ユーザー指摘を優先し、古い記述を残さず整理する。
 5. 更新後は `agents/openai.yaml` の説明が古くないか確認し、`quick_validate.py` を実行する。
