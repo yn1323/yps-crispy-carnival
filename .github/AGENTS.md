@@ -162,4 +162,4 @@ Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行
 - E2E Full Regressionはdevelop向けPRのPreview環境でのみ実施し、developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない
 - E2E専用Convex Previewは自動失効に任せ、cleanup workflowを作らない
 - PR専用Convex previewは`preview/pr-{N}-e2e`参照で指定し、bare preview名を`--deployment`へ渡さない
-- PRのコードをcheckoutして実行するjobの`GITHUB_TOKEN`はread-onlyにする。PR workflowからコメントする場合は、checkoutとartifact内容の実行を行わないコメント専用jobだけに`issues: write`を付与し、実行時と現在のPR head SHAが一致する場合だけ更新する
+- PRのコードをcheckoutして実行するjobの`GITHUB_TOKEN`はread-onlyにする。PR workflowからコメントする場合は、checkoutとartifact内容の実行を行わないコメント専用jobだけに`issues: write`と`pull-requests: write`を付与し、実行時と現在のPR head SHAが一致する場合だけ更新する

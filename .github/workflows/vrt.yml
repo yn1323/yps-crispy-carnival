@@ -239,7 +239,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Comment PR with VRT result
         uses: actions/github-script@v8
@@ -272,7 +272,7 @@ jobs:
                 ? 'Passed'
                 : `Failed (${compareResult})`;
             const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            const reportUrl = `${{ needs.prepare.outputs.report_url }}?v=${context.runId}-${context.runAttempt}`;
+            const reportUrl = `${{ needs.prepare.outputs.report_url }}?v=${context.runId}-${{ github.run_attempt }}`;
             const body = [
               marker,
               '',

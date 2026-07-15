@@ -97,7 +97,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Comment PR with Playwright result
         uses: actions/github-script@v8
