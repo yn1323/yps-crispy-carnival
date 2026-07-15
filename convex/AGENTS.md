@@ -3,12 +3,13 @@
 ## 必読ドキュメント
 
 1. `convex/_generated/ai/guidelines.md`
-2. `doc/rules/convex-design-strategy.md`
-3. `doc/rules/testing-strategy.md`
-4. セキュリティに触れる場合は `doc/rules/security-strategy.md`
+2. テスト層や配置を選ぶ、既存のカバレッジ契約を変える、または大規模回帰を扱う場合は `doc/rules/testing-strategy.md`。同じ層の近い既存テストを追従更新するだけなら、その既存パターンを優先する
+3. 複数use caseをまたぐ設計、public API境界、Capability、durable workflow、データ寿命、運用契約を変更する場合は `doc/rules/convex-design-strategy.md`
+4. 公開範囲、認証・認可、tenant境界、入力制約、データ露出、token lifecycle、外部副作用などのセキュリティ契約を変更する場合は `doc/rules/security-strategy.md`
 
 このファイルは配置と実装規約を扱う。
 認証境界、公開API、Capability、durable workflow、データ寿命、運用契約のSource of Truthは `doc/rules/convex-design-strategy.md` とする。
+Source of Truthであることは、局所変更のたびに全文を読む、または全項目を実装するという意味ではない。
 
 ## 設計方針
 
