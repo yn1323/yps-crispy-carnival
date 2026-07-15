@@ -425,25 +425,39 @@ type ReissueEmailParams = {
   magicLinkUrl: string;
 };
 
+function escapeEmailHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function shiftRow(shift: ShiftEntry): string {
   const timeLabel = shiftTimeLabel(shift);
+  const date = escapeEmailHtml(shift.date);
   if (timeLabel) {
     return `<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${shift.date}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${timeLabel}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${date}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#1a202c;">${escapeEmailHtml(timeLabel)}</td>
     </tr>`;
   }
   return `<tr>
-    <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#a0aec0;">${shift.date}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#a0aec0;">${date}</td>
     <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#a0aec0;">休み</td>
   </tr>`;
 }
 
 export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): string {
   const shiftRows = params.shifts.map(shiftRow).join("");
+  const staffName = escapeEmailHtml(params.staffName);
+  const periodLabel = escapeEmailHtml(params.periodLabel);
+  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
+  const reissueUrl = escapeEmailHtml(params.reissueUrl);
   const bodyMessage = params.isResend
-    ? `${params.periodLabel} のシフトに変更がありました。<br/>最新のシフトをご確認ください。`
-    : `${params.periodLabel} のシフトが確定しました。`;
+    ? `${periodLabel} のシフトに変更がありました。<br/>最新のシフトをご確認ください。`
+    : `${periodLabel} のシフトが確定しました。`;
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -458,7 +472,7 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${bodyMessage}</p>
 
           <!-- Shift Table -->
@@ -470,13 +484,13 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
           <!-- CTA Button -->
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">全員のシフトを確認する</a>
+              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">全員のシフトを確認する</a>
             </td></tr>
           </table>
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは24時間有効です。</p>
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">リンクを開くと14日間閲覧できます。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">期限切れの場合は<a href="${params.reissueUrl}" style="color:#319795;">こちら</a>から再発行できます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">期限切れの場合は<a href="${reissueUrl}" style="color:#319795;" rel="noreferrer">こちら</a>から再発行できます。</p>
 
           ${params.lineCtaHtml ?? ""}
 
@@ -501,6 +515,10 @@ type RecruitmentEmailParams = {
 };
 
 export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): string {
+  const staffName = escapeEmailHtml(params.staffName);
+  const periodLabel = escapeEmailHtml(params.periodLabel);
+  const deadline = escapeEmailHtml(params.deadline);
+  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -514,20 +532,20 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト希望を提出してください。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${periodLabel} のシフト希望を提出してください。</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出締切：</strong> ${params.deadline}
+              <strong>提出締切：</strong> ${deadline}
             </td></tr>
           </table>
 
           <!-- CTA Button -->
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフト希望を提出する</a>
+              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフト希望を提出する</a>
             </td></tr>
           </table>
 
@@ -557,6 +575,10 @@ type ReminderEmailParams = {
 };
 
 export function buildReminderEmailHtml(params: ReminderEmailParams): string {
+  const staffName = escapeEmailHtml(params.staffName);
+  const periodLabel = escapeEmailHtml(params.periodLabel);
+  const linkExpiresAtLabel = escapeEmailHtml(params.linkExpiresAtLabel);
+  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -570,21 +592,21 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト希望の提出締切が近づいています。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${periodLabel} のシフト希望の提出締切が近づいています。</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まだ提出されていないようです。早めに提出してください。</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出締切：</strong> ${params.linkExpiresAtLabel}
+              <strong>提出締切：</strong> ${linkExpiresAtLabel}
             </td></tr>
           </table>
 
           <!-- CTA Button -->
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフト希望を提出する</a>
+              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフト希望を提出する</a>
             </td></tr>
           </table>
 
@@ -613,6 +635,9 @@ type LineInviteEmailParams = {
 };
 
 export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string {
+  const staffName = escapeEmailHtml(params.staffName);
+  const shopName = escapeEmailHtml(params.shopName);
+  const authorizeUrl = escapeEmailHtml(params.authorizeUrl);
   const lead =
     params.context === "registration_approved"
       ? "スタッフ登録が承認されました。LINE連携をすると、シフトのお知らせをLINEで受け取れます。"
@@ -632,13 +657,13 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${lead}</p>
           <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">${description}</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINE連携する</a>
+              <a href="${authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINE連携する</a>
             </td></tr>
           </table>
 
@@ -647,7 +672,7 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
           <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINE連携すると次回からメールではなく、LINEで届くようになります。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${params.shopName} のシフト通知システムです。</p>
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${shopName} のシフト通知システムです。</p>
           <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
         </td></tr>
       </table>
@@ -660,8 +685,10 @@ export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string 
 /**
  * 既存通知メール末尾の「LINEで受け取る」CTA セクション
  * - 未連携 / 友達解除済みのスタッフのみに表示する想定（呼び出し側で判定）
+ * - 返却する完成HTMLは、通知テンプレートのlineCtaHtmlへ内部経路からだけ渡す
  */
 export function buildLineCtaSection(params: { authorizeUrl: string; reLink: boolean }): string {
+  const authorizeUrl = escapeEmailHtml(params.authorizeUrl);
   const label = params.reLink ? "LINEを再連携する" : "LINE連携する";
   const note = params.reLink
     ? "シフトリ公式アカウントの友だち追加が解除されています。再連携するとLINEで通知が届きます。"
@@ -671,7 +698,7 @@ export function buildLineCtaSection(params: { authorizeUrl: string; reLink: bool
       <p style="margin:0 0 12px;font-size:13px;color:#4a5568;">${note}</p>
     </td></tr>
     <tr><td align="center">
-      <a href="${params.authorizeUrl}" style="display:inline-block;padding:10px 24px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;" rel="noreferrer">${label}</a>
+      <a href="${authorizeUrl}" style="display:inline-block;padding:10px 24px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;" rel="noreferrer">${label}</a>
     </td></tr>
   </table>`;
 }
@@ -710,6 +737,8 @@ export function buildStaffRegistrationOwnerDigestLineFlexMessage(
 export function buildStaffRegistrationOwnerDigestEmailHtml(
   params: StaffRegistrationOwnerDigestParams & { managerName: string },
 ): string {
+  const managerName = escapeEmailHtml(params.managerName);
+  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -721,12 +750,12 @@ export function buildStaffRegistrationOwnerDigestEmailHtml(
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフ登録申請が届いています。<br/>シフトリのダッシュボードで確認してください。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
+              <a href="${dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
             </td></tr>
           </table>
 
@@ -774,6 +803,8 @@ export function buildNotificationFailureReminderLineFlexMessage(
 export function buildNotificationFailureReminderEmailHtml(
   params: NotificationFailureReminderParams & { managerName: string },
 ): string {
+  const managerName = escapeEmailHtml(params.managerName);
+  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -785,12 +816,12 @@ export function buildNotificationFailureReminderEmailHtml(
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">通知を送れなかったスタッフがいます。<br/>シフトリのダッシュボードを開いて、再送してください。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
+              <a href="${dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
             </td></tr>
           </table>
 
@@ -840,6 +871,8 @@ export function buildShopActivationReminderLineFlexMessage(
 export function buildShopActivationReminderEmailHtml(
   params: ShopActivationReminderParams & { managerName: string },
 ): string {
+  const managerName = escapeEmailHtml(params.managerName);
+  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -851,7 +884,7 @@ export function buildShopActivationReminderEmailHtml(
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
           <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#1a202c;">📅 シフト作成の続き</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトリで店舗登録が完了してから1週間経過しました。</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフを追加して実際にシフトを回収してみましょう！</p>
@@ -859,7 +892,7 @@ export function buildShopActivationReminderEmailHtml(
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
               <p style="margin:0 0 12px;font-size:15px;color:#1a202c;">シフト募集をつくる</p>
-              <a href="${params.dashboardUrl}" style="color:#319795;font-size:14px;font-weight:600;word-break:break-all;" rel="noreferrer">${params.dashboardUrl}</a>
+              <a href="${dashboardUrl}" style="color:#319795;font-size:14px;font-weight:600;word-break:break-all;" rel="noreferrer">${dashboardUrl}</a>
             </td></tr>
           </table>
 
@@ -912,6 +945,10 @@ export function buildShiftConfirmationReminderLineFlexMessage(
 export function buildShiftConfirmationReminderEmailHtml(
   params: ShiftConfirmationReminderParams & { managerName: string },
 ): string {
+  const managerName = escapeEmailHtml(params.managerName);
+  const periodLabel = escapeEmailHtml(params.periodLabel);
+  const deadlineLabel = escapeEmailHtml(params.deadlineLabel);
+  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -923,21 +960,21 @@ export function buildShiftConfirmationReminderEmailHtml(
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.managerName}さん</p>
-          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフトがまだ確定していません。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${periodLabel} のシフトがまだ確定していません。</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフの希望を確認して、シフトを調整・確定してください。</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出締切：</strong> ${params.deadlineLabel}（締切済み）
+              <strong>提出締切：</strong> ${deadlineLabel}（締切済み）
             </td></tr>
           </table>
 
           <!-- CTA Button -->
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトを確定する</a>
+              <a href="${dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトを確定する</a>
             </td></tr>
           </table>
 
@@ -963,7 +1000,10 @@ type StaffLegalConsentEmailParams = {
 };
 
 export function buildStaffLegalConsentEmailHtml(params: StaffLegalConsentEmailParams): string {
-  const expiresAtLabel = formatDateTimeJa(params.expiresAt);
+  const staffName = escapeEmailHtml(params.staffName);
+  const shopName = escapeEmailHtml(params.shopName);
+  const consentUrl = escapeEmailHtml(params.consentUrl);
+  const expiresAtLabel = escapeEmailHtml(formatDateTimeJa(params.expiresAt));
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -975,16 +1015,16 @@ export function buildStaffLegalConsentEmailHtml(params: StaffLegalConsentEmailPa
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 20px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
+          <p style="margin:0 0 20px;font-size:15px;color:#1a202c;">${staffName}さん</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">
-            ${params.shopName} で利用するシフト管理サービス「シフトリ」のご案内です。<br/>
+            ${shopName} で利用するシフト管理サービス「シフトリ」のご案内です。<br/>
             シフトリでは、メール・LINEで届くリンクからシフト希望の提出や確定シフトの確認ができます。
           </p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">下のリンクから、シフトリの使い方と利用規約・プライバシーポリシーをご確認ください。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.consentUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリの案内と規約を確認する</a>
+              <a href="${consentUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリの案内と規約を確認する</a>
             </td></tr>
           </table>
 
@@ -1049,6 +1089,9 @@ export function buildStaffLegalConsentLineFlexMessage(params: {
 }
 
 export function buildReissueEmailHtml(params: ReissueEmailParams): string {
+  const staffName = escapeEmailHtml(params.staffName);
+  const periodLabel = escapeEmailHtml(params.periodLabel);
+  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -1062,13 +1105,13 @@ export function buildReissueEmailHtml(params: ReissueEmailParams): string {
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.staffName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.periodLabel} のシフト閲覧リンクを再発行しました。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${periodLabel} のシフト閲覧リンクを再発行しました。</p>
 
           <!-- CTA Button -->
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${params.magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">シフトを確認する</a>
+              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトを確認する</a>
             </td></tr>
           </table>
 

@@ -1,22 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { formatResendSubject } from "../_lib/emailFormat";
+import { LEGAL_DOCUMENTS } from "../legal/documents";
 import {
   buildConfirmationEmailHtml,
+  buildLineCtaSection,
   buildLineDefaultReplyText,
+  buildLineInviteEmailHtml,
+  buildNotificationFailureReminderEmailHtml,
   buildNotificationFailureReminderLineFlexMessage,
   buildNotificationFailureReminderLineText,
+  buildRecruitmentEmailHtml,
   buildRecruitmentLineFlexMessage,
   buildRecruitmentLineText,
+  buildReissueEmailHtml,
   buildReissueLineFlexMessage,
+  buildReminderEmailHtml,
   buildReminderLineFlexMessage,
   buildReminderLineText,
   buildShiftConfirmationLineFlexMessage,
   buildShiftConfirmationLineText,
+  buildShiftConfirmationReminderEmailHtml,
   buildShiftConfirmationReminderLineFlexMessage,
   buildShiftConfirmationReminderLineText,
   buildShopActivationReminderEmailHtml,
   buildShopActivationReminderLineFlexMessage,
   buildShopActivationReminderLineText,
+  buildStaffLegalConsentEmailHtml,
   buildStaffLegalConsentLineFlexMessage,
   buildStaffRegistrationOwnerDigestEmailHtml,
   buildStaffRegistrationOwnerDigestLineFlexMessage,
@@ -27,6 +36,174 @@ import {
 } from "./templates";
 
 describe("notification/templates", () => {
+  const dangerousText = `店舗 & <script>alert("x")</script> ' 😀`;
+  const escapedText = "店舗 &amp; &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &#39; 😀";
+  const dangerousUrl = `https://example.com/path?q=%E3%81%82&next="/><script>alert(1)</script>#frag`;
+  const escapedUrl =
+    "https://example.com/path?q=%E3%81%82&amp;next=&quot;/&gt;&lt;script&gt;alert(1)&lt;/script&gt;#frag";
+
+  const emailHtmlCases = [
+    {
+      name: "シフト確定",
+      build: () =>
+        buildConfirmationEmailHtml({
+          staffName: dangerousText,
+          periodLabel: dangerousText,
+          shifts: [{ date: dangerousText, timeLabel: dangerousText }],
+          magicLinkUrl: dangerousUrl,
+          reissueUrl: dangerousUrl,
+          isResend: true,
+        }),
+      staticMarkup: ["<br/>", "<tr>"],
+    },
+    {
+      name: "シフト募集",
+      build: () =>
+        buildRecruitmentEmailHtml({
+          staffName: dangerousText,
+          periodLabel: dangerousText,
+          deadline: dangerousText,
+          magicLinkUrl: dangerousUrl,
+        }),
+      staticMarkup: ["<strong>提出締切：</strong>"],
+    },
+    {
+      name: "提出リマインド",
+      build: () =>
+        buildReminderEmailHtml({
+          staffName: dangerousText,
+          periodLabel: dangerousText,
+          linkExpiresAtLabel: dangerousText,
+          magicLinkUrl: dangerousUrl,
+        }),
+      staticMarkup: ["<strong>提出締切：</strong>"],
+    },
+    {
+      name: "LINE連携",
+      build: () =>
+        buildLineInviteEmailHtml({
+          staffName: dangerousText,
+          shopName: dangerousText,
+          authorizeUrl: dangerousUrl,
+        }),
+      staticMarkup: ["LINE連携する"],
+    },
+    {
+      name: "スタッフ登録申請",
+      build: () =>
+        buildStaffRegistrationOwnerDigestEmailHtml({
+          managerName: dangerousText,
+          dashboardUrl: dangerousUrl,
+        }),
+      staticMarkup: ["ダッシュボードを確認する"],
+    },
+    {
+      name: "通知失敗",
+      build: () =>
+        buildNotificationFailureReminderEmailHtml({
+          managerName: dangerousText,
+          dashboardUrl: dangerousUrl,
+        }),
+      staticMarkup: ["通知を送れなかったスタッフがいます。"],
+    },
+    {
+      name: "店舗登録後リマインド",
+      build: () =>
+        buildShopActivationReminderEmailHtml({
+          managerName: dangerousText,
+          dashboardUrl: dangerousUrl,
+        }),
+      staticMarkup: ["シフト募集をつくる"],
+    },
+    {
+      name: "シフト確定リマインド",
+      build: () =>
+        buildShiftConfirmationReminderEmailHtml({
+          managerName: dangerousText,
+          periodLabel: dangerousText,
+          deadlineLabel: dangerousText,
+          dashboardUrl: dangerousUrl,
+        }),
+      staticMarkup: ["<strong>提出締切：</strong>"],
+    },
+    {
+      name: "スタッフ法務同意",
+      build: () =>
+        buildStaffLegalConsentEmailHtml({
+          staffName: dangerousText,
+          shopName: dangerousText,
+          consentUrl: dangerousUrl,
+          expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
+          documents: LEGAL_DOCUMENTS.staff,
+        }),
+      staticMarkup: ["利用規約・プライバシーポリシー"],
+    },
+    {
+      name: "シフト閲覧リンク再発行",
+      build: () =>
+        buildReissueEmailHtml({
+          staffName: dangerousText,
+          periodLabel: dangerousText,
+          magicLinkUrl: dangerousUrl,
+        }),
+      staticMarkup: ["シフトを確認する"],
+    },
+  ];
+
+  it.each(emailHtmlCases)("$nameメールは動的な本文とURLをHTML escapeする", ({ build, staticMarkup }) => {
+    const html = build();
+
+    expect(html).toContain(escapedText);
+    expect(html).toContain(`href="${escapedUrl}"`);
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain(`href="${dangerousUrl}"`);
+    expect(html).not.toContain("&amp;amp;next=");
+    expect(html).toContain("店舗");
+    expect(html).toContain("😀");
+    for (const markup of staticMarkup) {
+      expect(html).toContain(markup);
+    }
+  });
+
+  it("LINE CTAは内部生成したHTMLを維持し、authorizeUrlだけをescapeする", () => {
+    const lineCtaHtml = buildLineCtaSection({ authorizeUrl: dangerousUrl, reLink: false });
+    const emailHtml = buildRecruitmentEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "7/2(木)〜7/30(木)",
+      deadline: "6/25(金) 23:59",
+      magicLinkUrl: "https://example.com/shifts/submit?token=test",
+      lineCtaHtml,
+    });
+
+    expect(lineCtaHtml).toContain("<table");
+    expect(lineCtaHtml).toContain(`href="${escapedUrl}"`);
+    expect(lineCtaHtml).not.toContain("<script>");
+    expect(emailHtml).toContain(lineCtaHtml);
+    expect(emailHtml).not.toContain("&lt;table");
+  });
+
+  it("magic linkを含む対象3リンクにnoreferrerを付ける", () => {
+    const magicLinkUrl = "https://example.com/shifts/view?token=test";
+    const reissueUrl = "https://example.com/shifts/reissue?recruitmentId=test";
+    const confirmationHtml = buildConfirmationEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "1/20(火)〜1/22(木)",
+      shifts: [{ date: "1/20(火)", timeLabel: "出勤" }],
+      magicLinkUrl,
+      reissueUrl,
+      isResend: false,
+    });
+    const reissueHtml = buildReissueEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "1/20(火)〜1/22(木)",
+      magicLinkUrl,
+    });
+
+    expect(anchorOpeningTag(confirmationHtml, magicLinkUrl)).toContain('rel="noreferrer"');
+    expect(anchorOpeningTag(confirmationHtml, reissueUrl)).toContain('rel="noreferrer"');
+    expect(anchorOpeningTag(reissueHtml, magicLinkUrl)).toContain('rel="noreferrer"');
+  });
+
   it("確定通知メールとLINEに日ごと・勤務区分ラベルを表示する", () => {
     const shifts = [
       { date: "1/20(火)", timeLabel: "出勤" },
@@ -396,4 +573,11 @@ function visitFlex(value: unknown, visitor: (value: unknown) => void) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function anchorOpeningTag(html: string, href: string): string {
+  const start = html.indexOf(`<a href="${href}"`);
+  if (start === -1) return "";
+  const end = html.indexOf(">", start);
+  return end === -1 ? "" : html.slice(start, end + 1);
 }
