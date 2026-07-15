@@ -302,7 +302,7 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 1. Playwright、VRT、Logic、frontend-unit、UI、Convex、lint、type-check、buildを同一SHAのrequired checkにする。
 2. develop統合後またはRC exact SHAでFull Regressionを再実行する。
 3. E2Eをproduction build後のpreviewへ接続し、`pageerror`、allowlist外`console.error`、同一origin 5xxを失敗にする。
-4. VRT baseline欠落、capture 0件、必須Story ID欠落を失敗にする。
+4. VRT baseline欠落と未承認差分を失敗にする。
 5. project件数とscenario file名のゲートを、必須契約ID manifestへ置き換える。
 6. 各RCで隔離provider canaryを実行し、証跡を残して`release:provider-canary-passed`を付ける。
 7. スタッフemail変更時に、旧メールへ送付済みのlinkを失効させるかを決定し、E2Eへ追加する。

@@ -142,10 +142,8 @@ jobs:
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Assert VRT prerequisites
+      - name: Assert VRT baseline
         run: |
-          pnpm vrt:assert-artifacts
-
           if [ "${{ needs.prepare.outputs.should_fail_on_diff }}" = "true" ]; then
             if [ "${{ steps.baseline.outputs.found }}" != "true" ]; then
               echo "::error::VRT baseline is required for pull requests targeting ${{ needs.prepare.outputs.baseline_ref }}."

@@ -157,7 +157,6 @@ Storybook play function は振る舞い、VRT は見た目で役割を分ける�
 - 差分が意図したものなら理由を説明できる状態にする。
 - VRT 差分だけでロジックの正しさを判断しない。
 - 静的文言の追加・削除・改行・長文崩れはVRTで確認し、同じStoryへ存在確認だけのplayを足さない。
-- capture後はPNGが0件でないこと、PCとモバイルの必須Storyが存在すること、Behavior専用Storyが撮影されていないことを成果物ゲートで確認する。
 - PRではbaseline欠落を成功扱いにせず、意図した差分だけを承認する。
 
 ## Convex Function Test

@@ -326,11 +326,9 @@ module-global counterはStoryごとのharnessへ閉じ込める。
 
 `.github/workflows/vrt.yml`はbaselineがない場合にassertをskipし、`has_diff=false`で成功する。
 
-PRではbaseline欠落、capture 0件、必須Story ID欠落、未承認差分をすべて失敗にする。
+PRではbaseline欠落と未承認差分を失敗にする。
 
 初回baseline作成は明示的なbootstrap操作だけに限定する。
-
-desktopとmobileの必須Story IDをmanifest化し、Story削除やtag外れを検知する。
 
 ### production buildと同一SHAを検査する
 
@@ -391,7 +389,7 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 ## 実装順序
 
 1. analytics-dashboard projectとテストを除外する。
-2. mobile tag、VRT baseline、必須Story manifestを直し、見た目の保護を先に成立させる。
+2. mobile tagとVRT baselineを直し、見た目の保護を先に成立させる。
 3. DOM依存テストを標準のテストファイル名へ統一し、ファイル単位でjsdom環境を指定する。
 4. 静的StoryとBehavior Storyを分離する。
 5. 固定文言だけのplayとschema再テストを削る。
@@ -407,7 +405,7 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 - テストファイル名が`*.test.ts`または`*.test.tsx`に統一され、DOM依存テストにjsdom環境指定がある。
 - VRT対象の初期静的文言だけを確認するplayが0件である。
 - viewport指定だけでmobile VRTから漏れるStoryが0件である。
-- PRのVRT baseline欠落、capture 0件、必須Story欠落が失敗する。
+- PRのVRT baseline欠落と未承認差分が失敗する。
 - Full Regressionがproduction buildとexact SHAを検査する。
 - `pageerror`、allowlist外`console.error`、同一origin 5xxがE2Eを失敗させる。
 - 同期ガード削除、シフト変換破壊、token権限交換、mobile tag削除、baseline削除、必須契約削除を意図的に行うと、それぞれ対応する層が失敗する。

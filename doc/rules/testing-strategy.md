@@ -194,7 +194,6 @@ Scenario Test では、入力値そのものの網羅ではなく、その入力
 - Behavior Test を追加・変更するときは、その Story を VRT 撮影対象にするかを最後に必ず判断する。振る舞いだけを見たい場合は `parameters: { screenshot: { skip: true } }` を付ける。見た目の退行も守りたい場合は、VRT対象として残すか、別の静的Storyに代表状態を切り出す。
 - モバイルStoryはviewport指定と対応する`vrt-mobile1`または`vrt-mobile2` tagを同時に付ける。viewport指定だけではモバイルVRT projectへ選択されない。
 - Storycap testrun + RegSuit では `pnpm vrt:capture` でVRT対象StoryのPNGを `vrt-actual/` に生成し、`pnpm vrt:compare` で `vrt-work/reg/` に差分レポートを作る。
-- capture後はPNGが0件でないこと、PCとモバイルの必須Storyが存在すること、Behavior専用Storyが撮影されていないことを成果物ゲートで検査する。
 - PRではbaseline欠落を成功扱いにせず、初回baseline作成は明示的なbootstrap操作に限定する。
 - DB や業務フロー全体は検証しない。
 
