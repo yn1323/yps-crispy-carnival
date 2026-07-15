@@ -22,8 +22,10 @@ describe("staff/mutations", () => {
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "テスト店舗"));
       await expect(
         t.mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "テスト", email: "test@example.com" }],
         }),
       ).rejects.toThrow();
@@ -42,6 +44,7 @@ describe("staff/mutations", () => {
       });
 
       const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        shopId,
         entries: [
           { name: "田中太郎", email: "tanaka@example.com" },
           { name: "佐藤花子", email: "sato@example.com" },
@@ -63,11 +66,17 @@ describe("staff/mutations", () => {
     it("追加スタッフ向けの同意依頼メールとLINE連携メールをスケジュールする", async () => {
       const t = convexTest(schema, modules);
 
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return seeded.shopId;
       });
 
       const [staffId] = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        shopId,
         entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
       });
 
@@ -83,11 +92,17 @@ describe("staff/mutations", () => {
     it("空の name のエントリはスキップする", async () => {
       const t = convexTest(schema, modules);
 
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return seeded.shopId;
       });
 
       const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        shopId,
         entries: [
           { name: "田中太郎", email: "tanaka@example.com" },
           { name: "", email: "" },
@@ -100,12 +115,18 @@ describe("staff/mutations", () => {
 
     it("一度に50件を超えるスタッフ追加は拒否する", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: Array.from({ length: STAFF_ADD_ENTRIES_MAX + 1 }, (_, index) => ({
             name: `スタッフ${index + 1}`,
             email: `staff-${index + 1}@example.com`,
@@ -129,7 +150,10 @@ describe("staff/mutations", () => {
         email: `staff-${index + 1}@example.com`,
       }));
 
-      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, { entries });
+      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+        shopId,
+        entries,
+      });
 
       expect(ids).toHaveLength(STAFF_ADD_ENTRIES_MAX);
       const staffs = await t.run(async (ctx) =>
@@ -143,23 +167,31 @@ describe("staff/mutations", () => {
 
     it("過長名・制御文字入り名・不正メールはスタッフ追加で拒否する", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_mgr", email: "mgr@example.com", shopName: "テスト店舗" });
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return seeded.shopId;
       });
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1), email: "too-long@example.com" }],
         }),
       ).rejects.toThrow("名前は80文字以内で入力してください");
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "田中\n太郎", email: "control@example.com" }],
         }),
       ).rejects.toThrow("名前に使用できない文字が含まれています");
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "不正メール", email: "not-email" }],
         }),
       ).rejects.toThrow("メールアドレスの形式で入力してください");
@@ -185,6 +217,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [
             { name: "新規スタッフ", email: "new@example.com" },
             { name: "重複スタッフ", email: "existing@example.com" },
@@ -215,10 +248,12 @@ describe("staff/mutations", () => {
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       const firstIds = await asManager.mutation(api.staff.mutations.addStaffs, {
+        shopId,
         entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
       });
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "田中太郎", email: "Tanaka@Example.com" }],
         }),
       ).rejects.toThrow("このメールアドレスはすでに登録されています");
@@ -245,7 +280,7 @@ describe("staff/mutations", () => {
     it("emailNormalizedがない既存スタッフもメール重複としてエラーにする", async () => {
       const t = convexTest(schema, modules);
 
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
@@ -257,10 +292,12 @@ describe("staff/mutations", () => {
           email: "legacy@example.com",
           isDeleted: false,
         });
+        return shopId;
       });
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "新規スタッフ", email: "legacy@example.com" }],
         }),
       ).rejects.toThrow("このメールアドレスはすでに登録されています");
@@ -269,7 +306,7 @@ describe("staff/mutations", () => {
     it("承認待ち申請と同じメールアドレスはエラーにする", async () => {
       const t = convexTest(schema, modules);
 
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
@@ -287,10 +324,12 @@ describe("staff/mutations", () => {
           consentedAt: now,
           createdAt: now,
         });
+        return shopId;
       });
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          shopId,
           entries: [{ name: "新規スタッフ", email: "Pending@Example.com" }],
         }),
       ).rejects.toThrow("このメールアドレスは承認待ちです");
@@ -364,7 +403,7 @@ describe("staff/mutations", () => {
     it("募集通知の手動再送は対象募集がない場合に予約せず理由を返す", async () => {
       const t = convexTest(schema, modules);
 
-      const staffId = await t.run(async (ctx) => {
+      const { shopId, staffId } = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
@@ -386,12 +425,12 @@ describe("staff/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
-        return staffId;
+        return { shopId, staffId };
       });
 
       const result = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { shopId, staffId });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(result).toEqual({ scheduled: false, reason: "noEligibleRecruitments" });
@@ -403,7 +442,7 @@ describe("staff/mutations", () => {
     it("募集通知の手動再送は対象募集がある場合だけ予約する", async () => {
       const t = convexTest(schema, modules);
 
-      const staffId = await t.run(async (ctx) => {
+      const { shopId, staffId } = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
@@ -425,12 +464,12 @@ describe("staff/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
-        return staffId;
+        return { shopId, staffId };
       });
 
       const result = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { shopId, staffId });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(result).toEqual({ scheduled: true });
@@ -465,19 +504,27 @@ describe("staff/mutations", () => {
 
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
       await expect(
-        t.mutation(api.staff.mutations.editStaff, { staffId, name: "更新後", email: "updated@example.com" }),
+        t.mutation(api.staff.mutations.editStaff, {
+          shopId,
+          staffId,
+          name: "更新後",
+          email: "updated@example.com",
+        }),
       ).rejects.toThrow();
     });
 
     it("スタッフ情報を更新できる", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中花子", email: "tanaka@example.com" });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        shopId,
+        staffId,
+        name: "田中花子",
+        email: "tanaka@example.com",
+      });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
       expect(staff?.name).toBe("田中花子");
@@ -486,11 +533,14 @@ describe("staff/mutations", () => {
 
     it("メールアドレス変更時は募集中シフト通知の追送actionをスケジュールする", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎", email: "updated@example.com" });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        shopId,
+        staffId,
+        name: "田中太郎",
+        email: "updated@example.com",
+      });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
@@ -506,11 +556,14 @@ describe("staff/mutations", () => {
 
     it("名前だけの変更では募集中シフト通知の追送actionをスケジュールしない", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎 更新", email: "tanaka@example.com" });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        shopId,
+        staffId,
+        name: "田中太郎 更新",
+        email: "tanaka@example.com",
+      });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
@@ -522,11 +575,14 @@ describe("staff/mutations", () => {
 
     it("同一メールの大文字小文字・前後空白差分では募集中シフト通知の追送actionをスケジュールしない", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎", email: "  Tanaka@Example.com  " });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        shopId,
+        staffId,
+        name: "田中太郎",
+        email: "  Tanaka@Example.com  ",
+      });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(
@@ -538,10 +594,11 @@ describe("staff/mutations", () => {
 
     it("空メールへの変更は拒否する", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId,
           name: "田中太郎",
           email: "",
@@ -551,11 +608,12 @@ describe("staff/mutations", () => {
 
     it("過長名・制御文字入り名・不正メールはスタッフ編集で拒否する", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       await expect(
         asManager.mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId,
           name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1),
           email: "tanaka@example.com",
@@ -563,6 +621,7 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("名前は80文字以内で入力してください");
       await expect(
         asManager.mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId,
           name: "田中\n太郎",
           email: "tanaka@example.com",
@@ -570,6 +629,7 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("名前に使用できない文字が含まれています");
       await expect(
         asManager.mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId,
           name: "田中太郎",
           email: "not-email",
@@ -578,7 +638,8 @@ describe("staff/mutations", () => {
     });
 
     it("他店舗のスタッフは編集できない（IDOR）", async () => {
-      const { t } = setupShopWithStaff();
+      const { t, data } = setupShopWithStaff();
+      const { shopId } = await data;
 
       const otherStaffId = await t.run(async (ctx) => {
         const otherShopId = await seedShop(ctx, "他店舗");
@@ -592,6 +653,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId: otherStaffId,
           name: "不正更新",
           email: "hack@example.com",
@@ -601,7 +663,7 @@ describe("staff/mutations", () => {
 
     it("削除済みスタッフは編集できない", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
       await t.run(async (ctx) => {
         await ctx.db.patch(staffId, { isDeleted: true });
@@ -609,6 +671,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId,
           name: "更新後",
           email: "updated@example.com",
@@ -631,6 +694,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+          shopId,
           staffId,
           name: "田中太郎",
           email: "sato@example.com",
@@ -640,11 +704,14 @@ describe("staff/mutations", () => {
 
     it("自分自身のメールアドレスはそのまま更新可能", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.editStaff, { staffId, name: "田中太郎（更新）", email: "tanaka@example.com" });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.editStaff, {
+        shopId,
+        staffId,
+        name: "田中太郎（更新）",
+        email: "tanaka@example.com",
+      });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
       expect(staff?.name).toBe("田中太郎（更新）");
@@ -655,108 +722,23 @@ describe("staff/mutations", () => {
   describe("deleteStaff", () => {
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
-      await expect(t.mutation(api.staff.mutations.deleteStaff, { staffId })).rejects.toThrow();
+      const { shopId, staffId } = await data;
+      await expect(t.mutation(api.staff.mutations.deleteStaff, { shopId, staffId })).rejects.toThrow();
     });
 
     it("スタッフを論理削除できる", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
+      const { shopId, staffId } = await data;
 
-      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { staffId });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { shopId, staffId });
 
       const staff = await t.run(async (ctx) => ctx.db.get(staffId));
       expect(staff?.isDeleted).toBe(true);
     });
 
     it("他店舗のスタッフは削除できない（IDOR）", async () => {
-      const { t } = setupShopWithStaff();
-
-      const otherStaffId = await t.run(async (ctx) => {
-        const otherShopId = await seedShop(ctx, "他店舗");
-        return await ctx.db.insert("staffs", {
-          shopId: otherShopId,
-          name: "他店スタッフ",
-          email: "other@example.com",
-          isDeleted: false,
-        });
-      });
-
-      await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { staffId: otherStaffId }),
-      ).rejects.toThrow("Not found");
-    });
-
-    it("管理者自身は削除できない", async () => {
-      const t = convexTest(schema, modules);
-
-      const adminStaffId = await t.run(async (ctx) => {
-        const { userId, shopId } = await seedManagerShop(ctx, {
-          subject: "user_mgr",
-          email: "mgr@example.com",
-          shopName: "テスト店舗",
-        });
-        return await ctx.db.insert("staffs", {
-          shopId,
-          name: "管理者",
-          email: "mgr@example.com",
-          userId,
-          isDeleted: false,
-        });
-      });
-
-      await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.deleteStaff, { staffId: adminStaffId }),
-      ).rejects.toThrow("自分のアカウントは削除できません");
-    });
-  });
-
-  describe("setShiftExclusion", () => {
-    it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
-      await expect(t.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true })).rejects.toThrow();
-    });
-
-    it("シフト対象外フラグをトグルできる", async () => {
-      const { t, data } = setupShopWithStaff();
-      const { staffId } = await data;
-      const asManager = t.withIdentity({ subject: "user_mgr" });
-
-      await asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true });
-      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(true);
-
-      await asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: false });
-      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(false);
-    });
-
-    it("管理者自身もシフト対象外にできる（削除と異なる）", async () => {
-      const t = convexTest(schema, modules);
-
-      const adminStaffId = await t.run(async (ctx) => {
-        const { userId, shopId } = await seedManagerShop(ctx, {
-          subject: "user_mgr",
-          email: "mgr@example.com",
-          shopName: "テスト店舗",
-        });
-        return await ctx.db.insert("staffs", {
-          shopId,
-          name: "店舗共通アドレス",
-          email: "mgr@example.com",
-          userId,
-          isDeleted: false,
-        });
-      });
-
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.setShiftExclusion, { staffId: adminStaffId, excluded: true });
-
-      expect(await t.run(async (ctx) => (await ctx.db.get(adminStaffId))?.excludedFromShift)).toBe(true);
-    });
-
-    it("他店舗のスタッフは変更できない（IDOR）", async () => {
-      const { t } = setupShopWithStaff();
+      const { shopId } = await data;
 
       const otherStaffId = await t.run(async (ctx) => {
         const otherShopId = await seedShop(ctx, "他店舗");
@@ -771,7 +753,102 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "user_mgr" })
-          .mutation(api.staff.mutations.setShiftExclusion, { staffId: otherStaffId, excluded: true }),
+          .mutation(api.staff.mutations.deleteStaff, { shopId, staffId: otherStaffId }),
+      ).rejects.toThrow("Not found");
+    });
+
+    it("管理者自身は削除できない", async () => {
+      const t = convexTest(schema, modules);
+
+      const { adminStaffId, shopId } = await t.run(async (ctx) => {
+        const { userId, shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        const adminStaffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "管理者",
+          email: "mgr@example.com",
+          userId,
+          isDeleted: false,
+        });
+        return { adminStaffId, shopId };
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.staff.mutations.deleteStaff, { shopId, staffId: adminStaffId }),
+      ).rejects.toThrow("自分のアカウントは削除できません");
+    });
+  });
+
+  describe("setShiftExclusion", () => {
+    it("未認証の場合エラーをthrow", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { shopId, staffId } = await data;
+      await expect(
+        t.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true }),
+      ).rejects.toThrow();
+    });
+
+    it("シフト対象外フラグをトグルできる", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { shopId, staffId } = await data;
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true });
+      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(true);
+
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: false });
+      expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(false);
+    });
+
+    it("管理者自身もシフト対象外にできる（削除と異なる）", async () => {
+      const t = convexTest(schema, modules);
+
+      const { adminStaffId, shopId } = await t.run(async (ctx) => {
+        const { userId, shopId } = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        const adminStaffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "店舗共通アドレス",
+          email: "mgr@example.com",
+          userId,
+          isDeleted: false,
+        });
+        return { adminStaffId, shopId };
+      });
+
+      await t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId: adminStaffId, excluded: true });
+
+      expect(await t.run(async (ctx) => (await ctx.db.get(adminStaffId))?.excludedFromShift)).toBe(true);
+    });
+
+    it("他店舗のスタッフは変更できない（IDOR）", async () => {
+      const { t, data } = setupShopWithStaff();
+      const { shopId } = await data;
+
+      const otherStaffId = await t.run(async (ctx) => {
+        const otherShopId = await seedShop(ctx, "他店舗");
+        return await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          name: "他店スタッフ",
+          email: "other@example.com",
+          isDeleted: false,
+        });
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId: otherStaffId, excluded: true }),
       ).rejects.toThrow("Not found");
     });
 
@@ -811,7 +888,7 @@ describe("staff/mutations", () => {
 
       await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded: true });
+        .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true });
 
       const { session, magicLink } = await t.run(async (ctx) => ({
         session: await ctx.db.get(sessionId),
@@ -871,7 +948,7 @@ describe("staff/mutations", () => {
           });
         }
 
-        return { staffId, recruitmentIds };
+        return { shopId: managerShopId, staffId, recruitmentIds };
       });
     }
 
@@ -890,15 +967,17 @@ describe("staff/mutations", () => {
 
     it("未認証では通知を予約できない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t);
+      const { shopId, staffId } = await setupCurrentShiftNotification(t);
 
-      await expect(t.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId })).rejects.toThrowError();
+      await expect(
+        t.mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+      ).rejects.toThrowError();
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
 
     it("現在の確定シフトだけを対象に通知を1件予約する", async () => {
       const t = convexTest(schema, modules);
-      const { staffId, recruitmentIds } = await setupCurrentShiftNotification(t, {
+      const { shopId, staffId, recruitmentIds } = await setupCurrentShiftNotification(t, {
         windows: ["past", "current", "future"],
       });
 
@@ -907,7 +986,7 @@ describe("staff/mutations", () => {
       });
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
       const jobs = await getScheduledCurrentShiftNotifications(t);
 
       expect(notificationData?.recruitments.map((recruitment) => recruitment.recruitmentId)).toEqual([
@@ -920,11 +999,11 @@ describe("staff/mutations", () => {
 
     it("現在の確定シフトがなく過去・未来のシフトだけなら予約しない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t, { windows: ["past", "future"] });
+      const { shopId, staffId } = await setupCurrentShiftNotification(t, { windows: ["past", "future"] });
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
 
       expect(result).toEqual({ scheduled: false, reason: "noCurrentShift" });
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
@@ -932,35 +1011,35 @@ describe("staff/mutations", () => {
 
     it("他店舗のスタッフには通知を予約できない（IDOR）", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t, { otherShop: true });
+      const { shopId, staffId } = await setupCurrentShiftNotification(t, { otherShop: true });
 
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
       ).rejects.toThrowError("Not found");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
 
     it("削除済みスタッフには通知を予約できない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t, { staffDeleted: true });
+      const { shopId, staffId } = await setupCurrentShiftNotification(t, { staffDeleted: true });
 
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
       ).rejects.toThrowError("Not found");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
 
     it("シフト対象外スタッフには通知を予約しない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t, { excludedFromShift: true });
+      const { shopId, staffId } = await setupCurrentShiftNotification(t, { excludedFromShift: true });
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
 
       expect(result).toEqual({ scheduled: false, reason: "noCurrentShift" });
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
@@ -968,23 +1047,26 @@ describe("staff/mutations", () => {
 
     it("メール・LINE連携のないスタッフには通知を予約できない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t, { email: "" });
+      const { shopId, staffId } = await setupCurrentShiftNotification(t, { email: "" });
 
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
       ).rejects.toThrowError("メールアドレスまたはLINE連携が必要です");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
 
     it("短時間の再送はrate limitで拒否し通知予約を重複させない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupCurrentShiftNotification(t);
+      const { shopId, staffId } = await setupCurrentShiftNotification(t);
       const asManager = t.withIdentity({ subject: "current_shift_manager" });
 
-      const first = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
-      const second = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+      const first = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+      const second = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, {
+        shopId,
+        staffId,
+      });
 
       expect(first).toEqual({ scheduled: true });
       expect(second).toEqual({ scheduled: false, reason: "rateLimited" });

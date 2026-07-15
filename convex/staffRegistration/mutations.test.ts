@@ -11,16 +11,17 @@ describe("staffRegistration/mutations", () => {
 
   it("店舗固定の登録リンクを作成し、再取得では同じリンクを返す", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, { subject: "manager_link", email: "manager-link@example.com" });
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "manager_link", email: "manager-link@example.com" });
+      return seeded.shopId;
     });
 
     const first = await t
       .withIdentity({ subject: "manager_link" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
     const second = await t
       .withIdentity({ subject: "manager_link" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     expect(first.token).toBe(second.token);
     expect(first.registrationUrl).toContain(`/staff/register?token=${first.token}`);
@@ -28,12 +29,13 @@ describe("staffRegistration/mutations", () => {
 
   it("スタッフが登録リンクから参加申請できる", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, { subject: "manager_submit", email: "manager-submit@example.com" });
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, { subject: "manager_submit", email: "manager-submit@example.com" });
+      return seeded.shopId;
     });
     const link = await t
       .withIdentity({ subject: "manager_submit" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
@@ -44,18 +46,22 @@ describe("staffRegistration/mutations", () => {
 
     const requests = await t
       .withIdentity({ subject: "manager_submit" })
-      .query(api.staffRegistration.queries.getPendingRequests, {});
+      .query(api.staffRegistration.queries.getPendingRequests, { shopId });
     expect(requests).toMatchObject([{ name: "申請スタッフ", email: "request@example.com" }]);
   });
 
   it("参加申請の入力内容をサーバー側でも検証する", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, { subject: "manager_validation", email: "manager-validation@example.com" });
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: "manager_validation",
+        email: "manager-validation@example.com",
+      });
+      return seeded.shopId;
     });
     const link = await t
       .withIdentity({ subject: "manager_validation" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     await expect(
       t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
@@ -109,12 +115,16 @@ describe("staffRegistration/mutations", () => {
 
   it("同じメールアドレスの承認待ち申請は重複登録できない", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, { subject: "manager_duplicate", email: "manager-duplicate@example.com" });
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: "manager_duplicate",
+        email: "manager-duplicate@example.com",
+      });
+      return seeded.shopId;
     });
     const link = await t
       .withIdentity({ subject: "manager_duplicate" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
@@ -134,7 +144,7 @@ describe("staffRegistration/mutations", () => {
 
   it("既存スタッフと同じメールアドレスでは参加申請できない", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
+    const shopId = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "manager_existing_staff",
         email: "manager-existing-staff@example.com",
@@ -145,10 +155,11 @@ describe("staffRegistration/mutations", () => {
         email: "Existing@Example.com",
         isDeleted: false,
       });
+      return shopId;
     });
     const link = await t
       .withIdentity({ subject: "manager_existing_staff" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     const existingResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
@@ -160,19 +171,23 @@ describe("staffRegistration/mutations", () => {
 
     const requests = await t
       .withIdentity({ subject: "manager_existing_staff" })
-      .query(api.staffRegistration.queries.getPendingRequests, {});
+      .query(api.staffRegistration.queries.getPendingRequests, { shopId });
     expect(requests).toEqual([]);
   });
 
   it("他店舗のシフト担当者は承認待ち申請を閲覧・承認・却下できない", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, { subject: "manager_manager", email: "manager-manager@example.com" });
-      await seedManagerShop(ctx, { subject: "manager_other", email: "manager-other@example.com" });
+    const { managerShopId, otherShopId } = await t.run(async (ctx) => {
+      const manager = await seedManagerShop(ctx, {
+        subject: "manager_manager",
+        email: "manager-manager@example.com",
+      });
+      const other = await seedManagerShop(ctx, { subject: "manager_other", email: "manager-other@example.com" });
+      return { managerShopId: manager.shopId, otherShopId: other.shopId };
     });
     const link = await t
       .withIdentity({ subject: "manager_manager" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: managerShopId });
     const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認待ちスタッフ",
@@ -184,23 +199,25 @@ describe("staffRegistration/mutations", () => {
 
     const otherShopRequests = await t
       .withIdentity({ subject: "manager_other" })
-      .query(api.staffRegistration.queries.getPendingRequests, {});
+      .query(api.staffRegistration.queries.getPendingRequests, { shopId: otherShopId });
     expect(otherShopRequests).toEqual([]);
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.staffRegistration.mutations.rejectRequest, {
         requestId,
+        shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
   });
 
-  it("先頭の所属店舗が削除済みの場合、次の有効店舗の承認待ち申請を返す", async () => {
+  it("削除済み店舗とは別の有効な所属店舗を指定すると、その店舗の承認待ち申請を返す", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
+    const activeShopId = await t.run(async (ctx) => {
       const userId = await seedUser(ctx, "manager_deleted_first", "manager-deleted-first@example.com");
       const deletedShopId = await seedShop(ctx, "削除済み店舗");
       await ctx.db.patch(deletedShopId, { isDeleted: true });
@@ -221,11 +238,12 @@ describe("staffRegistration/mutations", () => {
         consentedAt: Date.now(),
         createdAt: Date.now(),
       });
+      return activeShopId;
     });
 
     const requests = await t
       .withIdentity({ subject: "manager_deleted_first" })
-      .query(api.staffRegistration.queries.getPendingRequests, {});
+      .query(api.staffRegistration.queries.getPendingRequests, { shopId: activeShopId });
 
     expect(requests).toMatchObject([{ name: "承認待ちスタッフ", email: "pending-active@example.com" }]);
   });
@@ -248,7 +266,7 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_approve" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
     const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認スタッフ",
@@ -260,7 +278,7 @@ describe("staffRegistration/mutations", () => {
 
     const { staffId } = await t
       .withIdentity({ subject: "manager_approve" })
-      .mutation(api.staffRegistration.mutations.approveRequest, { requestId });
+      .mutation(api.staffRegistration.mutations.approveRequest, { requestId, shopId });
 
     const state = await t.run(async (ctx) => {
       const staff = await ctx.db.get(staffId);
@@ -306,7 +324,7 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_reject" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
     const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "却下スタッフ",
@@ -318,6 +336,7 @@ describe("staffRegistration/mutations", () => {
 
     await t.withIdentity({ subject: "manager_reject" }).mutation(api.staffRegistration.mutations.rejectRequest, {
       requestId,
+      shopId,
     });
 
     const state = await t.run(async (ctx) => {

@@ -1208,6 +1208,7 @@ describe("notificationOutbox", () => {
     const failureId = (await collectFailureInbox(t))[0]._id;
     await t.withIdentity({ subject: "user_mgr" }).mutation(api.notificationOutbox.mutations.resolveFailure, {
       failureId,
+      shopId,
     });
 
     vi.advanceTimersByTime(1000);
@@ -1252,23 +1253,25 @@ describe("notificationOutbox", () => {
     });
     await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "failed once" });
     const failureId = (await collectFailureInbox(t))[0]._id;
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, {
+    const otherShopId = await t.run(async (ctx) => {
+      const other = await seedManagerShop(ctx, {
         subject: "manager_other",
         email: "other-manager@example.com",
         shopName: "別店舗",
       });
+      return other.shopId;
     });
 
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.notificationOutbox.mutations.retryFailure, {
         failureId,
+        shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.retryFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.retryFailure, { failureId, shopId });
 
     expect(result).toEqual({ scheduled: true });
     const state = await t.run(async (ctx) => ({
@@ -1288,6 +1291,7 @@ describe("notificationOutbox", () => {
     const openPage = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
         paginationOpts: { numItems: 10, cursor: null },
       });
     expect(openPage.page).toHaveLength(0);
@@ -1326,17 +1330,19 @@ describe("notificationOutbox", () => {
         updatedAt: now,
       });
     });
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, {
+    const otherShopId = await t.run(async (ctx) => {
+      const other = await seedManagerShop(ctx, {
         subject: "manager_other",
         email: "other-manager@example.com",
         shopName: "別店舗",
       });
+      return other.shopId;
     });
 
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.notificationOutbox.mutations.resendFailure, {
         failureId,
+        shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
 
@@ -1344,6 +1350,7 @@ describe("notificationOutbox", () => {
       .withIdentity({ subject: "user_mgr" })
       .mutation(api.notificationOutbox.mutations.resendFailure, {
         failureId,
+        shopId,
       });
 
     expect(result).toEqual({ scheduled: true });
@@ -1366,6 +1373,7 @@ describe("notificationOutbox", () => {
     const openPage = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
         paginationOpts: { numItems: 10, cursor: null },
       });
     expect(openPage.page).toHaveLength(0);
@@ -1396,7 +1404,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId, shopId });
 
     expect(result).toEqual({ scheduled: true });
     const state = await t.run(async (ctx) => ({
@@ -1442,7 +1450,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId, shopId });
 
     expect(result).toEqual({ scheduled: true });
     const state = await t.run(async (ctx) => ({
@@ -1493,7 +1501,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId, shopId });
 
     expect(result).toEqual({ scheduled: true });
     const state = await t.run(async (ctx) => ({
@@ -1538,7 +1546,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId, shopId });
 
     expect(result).toEqual({ scheduled: true });
     const state = await t.run(async (ctx) => ({
@@ -1552,6 +1560,7 @@ describe("notificationOutbox", () => {
     const openPage = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
         paginationOpts: { numItems: 10, cursor: null },
       });
     expect(openPage.page).toHaveLength(0);
@@ -1583,7 +1592,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId, shopId });
 
     expect(result).toEqual({ scheduled: false, reason: "notRetryable" });
     const state = await t.run(async (ctx) => ({
@@ -1630,7 +1639,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId: ids.failureId });
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId: ids.failureId, shopId });
 
     expect(result).toEqual({ scheduled: false, reason: "notRetryable" });
     const state = await t.run(async (ctx) => ({
@@ -1666,7 +1675,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, { shopId });
 
     expect(result.scheduledCount).toBe(1);
     expect(result.skippedCount).toBe(1);
@@ -1752,7 +1761,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, { shopId });
 
     expect(result.scheduledFailureIds).toEqual([ids.currentFailureId]);
     const failures = await t.run(async (ctx) => ({
@@ -1844,7 +1853,7 @@ describe("notificationOutbox", () => {
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, { shopId });
 
     expect(result).toMatchObject({
       scheduled: true,
@@ -1986,23 +1995,25 @@ describe("notificationOutbox", () => {
     });
     await t.mutation(internal.notificationOutbox.mutations.markFailed, { outboxId, lastError: "failed once" });
     const failureId = (await collectFailureInbox(t))[0]._id;
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, {
+    const otherShopId = await t.run(async (ctx) => {
+      const other = await seedManagerShop(ctx, {
         subject: "manager_other",
         email: "other-manager@example.com",
         shopName: "別店舗",
       });
+      return other.shopId;
     });
 
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.notificationOutbox.mutations.resolveFailure, {
         failureId,
+        shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
 
     const result = await t
       .withIdentity({ subject: "user_mgr" })
-      .mutation(api.notificationOutbox.mutations.resolveFailure, { failureId });
+      .mutation(api.notificationOutbox.mutations.resolveFailure, { failureId, shopId });
 
     expect(result).toEqual({ resolved: true });
     const failure = await t.run(async (ctx) => await ctx.db.get(failureId));
@@ -2078,6 +2089,7 @@ describe("notificationOutbox", () => {
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.notificationOutbox.mutations.resolveFailure, {
           failureId,
+          shopId,
         }),
       ).rejects.toThrow("Not found");
     }

@@ -1,15 +1,15 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
-import { managerQuery } from "../_lib/functions";
+import { authenticatedQuery } from "../_lib/functions";
 import { getStaffLineAccount } from "../line/service";
 import { getLegalDocumentsForAudience } from "./documents";
 import { hasCurrentStaffLegalConsent, hasCurrentUserLegalConsent } from "./service";
 
-export const getManagerConsentStatus = managerQuery({
+export const getManagerConsentStatus = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
     const documents = getLegalDocumentsForAudience("manager");
-    if (!ctx.user || !ctx.shop) {
+    if (!ctx.identity || !ctx.user || ctx.user.isDeleted) {
       return {
         required: false,
         documents,

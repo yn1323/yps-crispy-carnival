@@ -94,7 +94,9 @@ describe("staffRegistration/queries", () => {
         return { ownShopId: own.shopId, otherShopId: other.shopId };
       });
 
-      await expect(t.query(api.staffRegistration.queries.getActiveRegistrationLink, {})).resolves.toBeNull();
+      await expect(
+        t.query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId: ownShopId }),
+      ).resolves.toBeNull();
       await expect(
         t
           .withIdentity({ subject: "registration_manager" })
@@ -112,7 +114,7 @@ describe("staffRegistration/queries", () => {
 
     it("承認待ち申請は自店舗のpendingだけを最小DTOで返す", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const ownShopId = await t.run(async (ctx) => {
         const own = await seedManagerShop(ctx, {
           subject: "pending_request_manager",
           email: "pending-request-manager@example.com",
@@ -151,11 +153,12 @@ describe("staffRegistration/queries", () => {
           emailNormalized: "other@example.com",
           status: "pending",
         });
+        return own.shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "pending_request_manager" })
-        .query(api.staffRegistration.queries.getPendingRequests, {});
+        .query(api.staffRegistration.queries.getPendingRequests, { shopId: ownShopId });
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({

@@ -1,9 +1,9 @@
-import { useQuery } from "convex/react";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { StaffRegistrationRequest } from "../types";
 import { StaffRegistrationRequestManagementView } from "./StaffRegistrationRequestManagementView";
@@ -23,7 +23,10 @@ type Props = {
 export function StaffRegistrationRequestManagement({ requests: requestOverrides, children }: Props) {
   const dialog = useDialog();
   const [rejectTarget, setRejectTarget] = useState<StaffRegistrationRequest | null>(null);
-  const queriedRequests = useQuery(api.staffRegistration.queries.getPendingRequests, requestOverrides ? "skip" : {});
+  const queriedRequests = useShopQuery(
+    api.staffRegistration.queries.getPendingRequests,
+    requestOverrides ? "skip" : {},
+  );
   const requests = requestOverrides ?? queriedRequests ?? [];
   const approveRequest = useShopMutation(api.staffRegistration.mutations.approveRequest);
   const rejectRequest = useShopMutation(api.staffRegistration.mutations.rejectRequest);

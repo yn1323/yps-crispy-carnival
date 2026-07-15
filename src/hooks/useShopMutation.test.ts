@@ -4,7 +4,7 @@ import { renderHook } from "@testing-library/react";
 import type { FunctionReference } from "convex/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type TestMutation = FunctionReference<"mutation", "public", { label: string; shopId?: string }, { saved: boolean }>;
+type TestMutation = FunctionReference<"mutation", "public", { label: string; shopId: string }, { saved: boolean }>;
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -43,13 +43,12 @@ describe("useShopMutation", () => {
     expect(input).toEqual({ label: "募集A" });
   });
 
-  it("店舗が未選択ならshopIdを追加しない", async () => {
-    mocks.mutate.mockResolvedValueOnce({ saved: true });
+  it("店舗が未選択ならmutationを呼ばずに失敗する", async () => {
     const { result } = renderHook(() => useShopMutation(mutationRef));
 
-    await result.current({ label: "募集A" });
+    await expect(result.current({ label: "募集A" })).rejects.toThrow("店舗が選択されていません");
 
-    expect(mocks.mutate).toHaveBeenCalledWith({ label: "募集A" });
+    expect(mocks.mutate).not.toHaveBeenCalled();
   });
 
   it("店舗選択が変わった後は最新の店舗IDを使う", async () => {

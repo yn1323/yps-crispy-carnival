@@ -8,7 +8,7 @@ import { getFeatureRequestsRef } from "../analyticsDashboard/refs";
 
 const submitFeatureRequest = makeFunctionReference<
   "mutation",
-  { comment: string; requestId: string; shopId?: Id<"shops"> },
+  { comment: string; requestId: string; shopId: Id<"shops"> },
   { status: "accepted" }
 >("featureRequest/mutations:submit");
 
@@ -28,8 +28,16 @@ describe("要望受付シナリオ", () => {
     });
     const asManager = t.withIdentity({ subject });
 
-    await asManager.mutation(submitFeatureRequest, { comment: "スタッフ一覧を絞り込みたい", requestId });
-    await asManager.mutation(submitFeatureRequest, { comment: "再送された要望", requestId });
+    await asManager.mutation(submitFeatureRequest, {
+      comment: "スタッフ一覧を絞り込みたい",
+      requestId,
+      shopId: seeded.shopId,
+    });
+    await asManager.mutation(submitFeatureRequest, {
+      comment: "再送された要望",
+      requestId,
+      shopId: seeded.shopId,
+    });
 
     const result = await t.query(getFeatureRequestsRef, { cursor: null, limit: 50 });
     expect(result.rows).toHaveLength(1);

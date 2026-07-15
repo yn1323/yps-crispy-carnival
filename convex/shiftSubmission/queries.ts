@@ -2,8 +2,7 @@ import { v } from "convex/values";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
-import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
-import { timeToMinutes } from "../_lib/time";
+import { getSubmissionPatternTimeRange, type ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 
@@ -12,18 +11,6 @@ type SubmissionUnavailableReason = "invalid_link" | "recruitment_deleted" | "sub
 
 function unavailable(reason: SubmissionUnavailableReason) {
   return { status: "unavailable" as const, reason };
-}
-
-function getSubmissionTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
-  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
-  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
-    const starts = pattern.options
-      .map((option) => option.startTime)
-      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    return { startTime: starts[0], endTime: ends[ends.length - 1] };
-  }
-  return { startTime: "09:00", endTime: "22:00" };
 }
 
 function buildExistingSelection(pattern: ShiftSubmissionPattern, requests: ExistingRequest[], dates: string[]) {
@@ -107,7 +94,7 @@ export const getSubmissionPageData = staffSessionQuery({
       ...(r.optionId ? { optionId: r.optionId } : {}),
     }));
     const existingDates = dateEntries.map((entry) => entry.date);
-    const timeRange = getSubmissionTimeRange(submissionPattern);
+    const timeRange = getSubmissionPatternTimeRange(submissionPattern);
 
     return {
       status: "ok" as const,

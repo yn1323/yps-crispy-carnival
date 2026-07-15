@@ -5,6 +5,8 @@ import { managerMutation } from "../_lib/functions";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
 import { ensureDefaultPosition } from "../position/service";
+import { getActiveRecruitmentInShop } from "../recruitment/service";
+import { getActiveStaffInShop } from "../staff/service";
 import { buildAssignmentIssue, SHIFT_ASSIGNMENT_VALIDATION, validateShiftAssignments } from "./validation";
 
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
@@ -25,8 +27,8 @@ export const saveShiftAssignments = managerMutation({
     ),
   },
   handler: async (ctx, args) => {
-    const recruitment = await ctx.db.get(args.recruitmentId);
-    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
       throw new ConvexError("Not found");
     }
     if (isPastShiftPeriod(recruitment.periodEnd)) {
@@ -51,8 +53,8 @@ export const saveShiftAssignments = managerMutation({
     await Promise.all(
       [
         uniqueStaffIds.map(async (staffId) => {
-          const staff = await ctx.db.get(staffId);
-          if (!staff || staff.isDeleted || staff.shopId !== ctx.shop._id) {
+          const staff = await getActiveStaffInShop(ctx, ctx.shop._id, staffId);
+          if (!staff) {
             throw new ConvexError("Not found");
           }
         }),
@@ -101,8 +103,8 @@ export const confirmRecruitment = managerMutation({
     intent: v.optional(v.union(v.literal("confirm"), v.literal("resend"))),
   },
   handler: async (ctx, args) => {
-    const recruitment = await ctx.db.get(args.recruitmentId);
-    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
       throw new ConvexError("Not found");
     }
     if (isPastShiftPeriod(recruitment.periodEnd)) {

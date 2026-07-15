@@ -2,7 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
-import { authenticatedQuery } from "../_lib/functions";
+import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import {
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT,
@@ -18,24 +18,6 @@ const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   isDone: boolean;
   continueCursor: string;
 };
-
-async function getManagerShop(ctx: {
-  db: GenericDatabaseReader<DataModel>;
-  identity: { subject: string } | null;
-  user: Doc<"users"> | null;
-}) {
-  if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return null;
-  const user = ctx.user;
-  const memberships = ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
-
-  for await (const membership of memberships) {
-    const shop = await ctx.db.get(membership.shopId);
-    if (shop && !shop.isDeleted) return shop;
-  }
-  return null;
-}
 
 async function getTotalStaffCount(ctx: { db: GenericDatabaseReader<DataModel> }, shopId: Doc<"shops">["_id"]) {
   const activeStaffs = await ctx.db
@@ -148,10 +130,10 @@ async function getDashboardRecruitmentCandidateDocs(
   return Array.from(uniqueRecruitments.values());
 }
 
-export const getDashboardShop = authenticatedQuery({
+export const getDashboardShop = managerQuery({
   args: {},
   handler: async (ctx) => {
-    const shop = await getManagerShop(ctx);
+    const shop = ctx.shop;
     if (!shop) return null;
 
     return {
@@ -205,10 +187,10 @@ export const getActiveDashboardAnnouncement = authenticatedQuery({
   },
 });
 
-export const getDashboardRecruitments = authenticatedQuery({
+export const getDashboardRecruitments = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const shop = await getManagerShop(ctx);
+    const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
 
     const groupLimit = Math.max(args.paginationOpts.numItems, DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT);
@@ -227,10 +209,10 @@ export const getDashboardRecruitments = authenticatedQuery({
   },
 });
 
-export const hasDashboardPastRecruitments = authenticatedQuery({
+export const hasDashboardPastRecruitments = managerQuery({
   args: {},
   handler: async (ctx) => {
-    const shop = await getManagerShop(ctx);
+    const shop = ctx.shop;
     if (!shop) return false;
 
     const today = todayJST();
@@ -245,10 +227,10 @@ export const hasDashboardPastRecruitments = authenticatedQuery({
   },
 });
 
-export const getDashboardPastRecruitments = authenticatedQuery({
+export const getDashboardPastRecruitments = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const shop = await getManagerShop(ctx);
+    const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
 
     const today = todayJST();
@@ -272,10 +254,10 @@ export const getDashboardPastRecruitments = authenticatedQuery({
   },
 });
 
-export const getDashboardCurrentRecruitments = authenticatedQuery({
+export const getDashboardCurrentRecruitments = managerQuery({
   args: {},
   handler: async (ctx) => {
-    const shop = await getManagerShop(ctx);
+    const shop = ctx.shop;
     if (!shop) return [];
 
     const currentRecruitments = await getCurrentRecruitmentDocs(ctx, shop._id);
@@ -287,10 +269,10 @@ export const getDashboardCurrentRecruitments = authenticatedQuery({
   },
 });
 
-export const getDashboardStaffs = authenticatedQuery({
+export const getDashboardStaffs = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const shop = await getManagerShop(ctx);
+    const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
 
     const paginatedResult = await ctx.db

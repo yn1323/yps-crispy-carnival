@@ -108,12 +108,13 @@ describe("notificationOutbox/queries", () => {
         status: "open",
         dedupeKey: "email:test:other",
       });
-      return { oldFailureId, newFailureId };
+      return { oldFailureId, newFailureId, shopId: primary.shopId };
     });
 
     const page = await t
       .withIdentity({ subject: "manager_primary" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId: ids.shopId,
         paginationOpts: { numItems: 10, cursor: null },
       });
 
@@ -136,7 +137,7 @@ describe("notificationOutbox/queries", () => {
 
   it("listOpenFailuresは非表示失敗がページを埋めても対応可能な失敗を初回ページで返す", async () => {
     const t = convexTest(schema, modules);
-    const actionableId = await t.run(async (ctx) => {
+    const { actionableId, shopId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "manager_pagination",
         email: "pagination@example.com",
@@ -204,12 +205,13 @@ describe("notificationOutbox/queries", () => {
           notificationContext: "test.email",
         });
       }
-      return id;
+      return { actionableId: id, shopId };
     });
 
     const page = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
         paginationOpts: { numItems: 1, cursor: null },
       });
 
@@ -218,13 +220,13 @@ describe("notificationOutbox/queries", () => {
 
   it("hasOpenFailuresは現在店舗のopen失敗の有無だけを返す", async () => {
     const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
+    const shopIds = await t.run(async (ctx) => {
       const active = await seedManagerShop(ctx, {
         subject: "manager_active",
         email: "active@example.com",
         shopName: "失敗あり店舗",
       });
-      await seedManagerShop(ctx, {
+      const empty = await seedManagerShop(ctx, {
         subject: "manager_empty",
         email: "empty@example.com",
         shopName: "失敗なし店舗",
@@ -273,19 +275,33 @@ describe("notificationOutbox/queries", () => {
         recruitmentId: closedRecruitmentId,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
+      return {
+        active: active.shopId,
+        empty: empty.shopId,
+        otherKind: otherKindOnly.shopId,
+        closedOnly: closedOnly.shopId,
+      };
     });
 
     await expect(
-      t.withIdentity({ subject: "manager_active" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+      t
+        .withIdentity({ subject: "manager_active" })
+        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.active }),
     ).resolves.toBe(true);
     await expect(
-      t.withIdentity({ subject: "manager_empty" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+      t
+        .withIdentity({ subject: "manager_empty" })
+        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.empty }),
     ).resolves.toBe(false);
     await expect(
-      t.withIdentity({ subject: "manager_other_kind" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+      t
+        .withIdentity({ subject: "manager_other_kind" })
+        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.otherKind }),
     ).resolves.toBe(false);
     await expect(
-      t.withIdentity({ subject: "manager_closed_only" }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+      t
+        .withIdentity({ subject: "manager_closed_only" })
+        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.closedOnly }),
     ).resolves.toBe(false);
   });
 });

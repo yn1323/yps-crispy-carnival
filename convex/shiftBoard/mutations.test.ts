@@ -109,9 +109,11 @@ describe("shiftBoard/mutations", () => {
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
+      const { recruitmentId, shopId } = await setupTestData(t);
       await expect(
         t.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
-          recruitmentId: "invalid" as Id<"recruitments">,
+          recruitmentId,
+          shopId,
           assignments: [],
         }),
       ).rejects.toThrow();
@@ -122,7 +124,7 @@ describe("shiftBoard/mutations", () => {
       const { recruitmentId } = await setupTestData(t);
 
       // 別のshop+userを作成
-      await t.run(async (ctx) => {
+      const otherShopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_other",
           email: "other@example.com",
@@ -134,6 +136,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_other" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
+          shopId: otherShopId,
           assignments: [],
         }),
       ).rejects.toThrow(ConvexError);
@@ -141,10 +144,11 @@ describe("shiftBoard/mutations", () => {
 
     it("正常にシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
@@ -162,7 +166,7 @@ describe("shiftBoard/mutations", () => {
 
     it("勤務区分IDつきのシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: {
@@ -176,6 +180,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           {
@@ -200,11 +205,12 @@ describe("shiftBoard/mutations", () => {
 
     it("不正な日付・時刻形式のシフト割当は構造化エラーで拒否する", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await expectValidationIssues(
         asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-02-31", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -212,6 +218,7 @@ describe("shiftBoard/mutations", () => {
       );
       await expectValidationIssues(
         asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId2, date: "2026-01-20", startTime: "bad", endTime: "18:00" }],
         }),
@@ -221,7 +228,7 @@ describe("shiftBoard/mutations", () => {
 
     it("勤務区分募集では勤務区分IDなしの割当を保存できない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: {
@@ -233,6 +240,7 @@ describe("shiftBoard/mutations", () => {
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [
             {
@@ -249,7 +257,7 @@ describe("shiftBoard/mutations", () => {
 
     it("存在しない勤務区分IDは保存できない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: {
@@ -261,6 +269,7 @@ describe("shiftBoard/mutations", () => {
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [
             {
@@ -278,7 +287,7 @@ describe("shiftBoard/mutations", () => {
 
     it("勤務区分IDと時間が一致しない割当は保存できない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: {
@@ -290,6 +299,7 @@ describe("shiftBoard/mutations", () => {
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [
             {
@@ -307,7 +317,7 @@ describe("shiftBoard/mutations", () => {
 
     it("分つきシフト時間の境界内なら保存できる", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
@@ -316,6 +326,7 @@ describe("shiftBoard/mutations", () => {
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "05:30", endTime: "06:30" },
@@ -334,10 +345,11 @@ describe("shiftBoard/mutations", () => {
 
     it("空のassignmentsで保存できる（全員休み）", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [],
       });
@@ -355,10 +367,11 @@ describe("shiftBoard/mutations", () => {
 
     it("保存時にdraftSavedAtを更新する", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
@@ -369,7 +382,7 @@ describe("shiftBoard/mutations", () => {
 
     it("過去シフトの下書き保存は拒否し、既存割当を置き換えない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await t.run(async (ctx) => {
@@ -400,6 +413,7 @@ describe("shiftBoard/mutations", () => {
 
       await expect(
         asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-10", startTime: "11:00", endTime: "19:00" }],
         }),
@@ -420,7 +434,7 @@ describe("shiftBoard/mutations", () => {
 
     it("既存の割当がある場合は全削除して置き換える", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await t.run(async (ctx) => {
@@ -453,6 +467,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "17:00" }],
       });
@@ -469,9 +484,10 @@ describe("shiftBoard/mutations", () => {
 
     it("同一スタッフ×同一日の時間が重ならない複数割当を保存できる", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "14:00" },
@@ -490,7 +506,7 @@ describe("shiftBoard/mutations", () => {
 
     it("勤務区分募集では同一スタッフ×同一日の隣接する勤務区分を保存できる", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: {
@@ -504,6 +520,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "12:00", optionId: "early" },
@@ -523,7 +540,7 @@ describe("shiftBoard/mutations", () => {
 
     it("勤務区分募集では同一スタッフ×同一日の重なる別勤務区分を保存できる", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: {
@@ -537,6 +554,7 @@ describe("shiftBoard/mutations", () => {
       });
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00", optionId: "early" },
@@ -556,10 +574,11 @@ describe("shiftBoard/mutations", () => {
 
     it("同一スタッフ×同一日の時間が重なる割当でエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [
             { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00" },
@@ -572,10 +591,11 @@ describe("shiftBoard/mutations", () => {
 
     it("募集期間外の日付でエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -585,10 +605,11 @@ describe("shiftBoard/mutations", () => {
 
     it("定休日の日付ではシフト割当を保存できない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-21", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -598,10 +619,11 @@ describe("shiftBoard/mutations", () => {
 
     it("開始時間が終了時間以降でエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "18:00", endTime: "10:00" }],
         }),
@@ -611,10 +633,11 @@ describe("shiftBoard/mutations", () => {
 
     it("開始時間と終了時間が同じでエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "10:00" }],
         }),
@@ -624,10 +647,11 @@ describe("shiftBoard/mutations", () => {
 
     it("店舗のシフト時間外でエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "07:00", endTime: "15:00" }],
         }),
@@ -637,7 +661,7 @@ describe("shiftBoard/mutations", () => {
 
     it("分つきシフト開始時刻より前ならエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
@@ -646,6 +670,7 @@ describe("shiftBoard/mutations", () => {
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "05:00", endTime: "06:30" }],
         }),
@@ -655,7 +680,7 @@ describe("shiftBoard/mutations", () => {
 
     it("分つきシフト終了時刻より後ならエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
           submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
@@ -664,6 +689,7 @@ describe("shiftBoard/mutations", () => {
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "21:30", endTime: "23:00" }],
         }),
@@ -673,10 +699,13 @@ describe("shiftBoard/mutations", () => {
 
     it("複数の違反がある場合は全issuesをまとめて返す", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t, {
+        shopClosedDates: ["2026-01-21"],
+      });
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [
             { staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" },
@@ -694,7 +723,7 @@ describe("shiftBoard/mutations", () => {
 
     it("削除済みスタッフでエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
 
       const deletedStaffId = await t.run(async (ctx) => {
         const user = await ctx.db
@@ -719,6 +748,7 @@ describe("shiftBoard/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId,
           recruitmentId,
           assignments: [{ staffId: deletedStaffId, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -737,20 +767,22 @@ describe("shiftBoard/mutations", () => {
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
+      const { shopId, recruitmentId } = await setupTestData(t);
       await expect(
         t.mutation(api.shiftBoard.mutations.confirmRecruitment, {
-          recruitmentId: "invalid" as Id<"recruitments">,
+          shopId,
+          recruitmentId,
         }),
       ).rejects.toThrow();
     });
 
     it("正常にステータスとconfirmedAtを更新する", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
 
       await t
         .withIdentity({ subject: "user_manager" })
-        .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+        .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.status).toBe("confirmed");
@@ -764,7 +796,7 @@ describe("shiftBoard/mutations", () => {
 
     it("過去シフトの確定通知は拒否し、通知予約しない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
 
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
@@ -776,6 +808,7 @@ describe("shiftBoard/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
           recruitmentId,
         }),
       ).rejects.toThrow(PAST_SHIFT_NOTIFY_ERROR);
@@ -789,11 +822,15 @@ describe("shiftBoard/mutations", () => {
 
     it("確定済み募集へのconfirm intentは通知を増やさない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, intent: "confirm" });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        intent: "confirm",
+      });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(scheduled.filter((job) => job.name === "notification/actions:sendShiftConfirmationEmails")).toHaveLength(
@@ -803,11 +840,15 @@ describe("shiftBoard/mutations", () => {
 
     it("確定済み募集へのresend intentは再通知として予約する", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, intent: "resend" });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        intent: "resend",
+      });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       const confirmationJobs = scheduled.filter(
@@ -819,20 +860,22 @@ describe("shiftBoard/mutations", () => {
 
     it("再通知は前回通知時点から変更されたスタッフだけを対象にする", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
           { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
         ],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" },
@@ -840,6 +883,7 @@ describe("shiftBoard/mutations", () => {
         ],
       });
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId,
         recruitmentId,
         intent: "resend",
       });
@@ -855,17 +899,19 @@ describe("shiftBoard/mutations", () => {
 
     it("再通知で変更対象がいない場合は通知を予約しない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
 
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId,
         recruitmentId,
         intent: "resend",
       });
@@ -880,15 +926,17 @@ describe("shiftBoard/mutations", () => {
 
     it("snapshotがない既存の確定済み募集では初回再通知だけ全員を対象にする", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1, staffId2 } = await setupTestData(t);
+      const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+        shopId,
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        shopId,
         recruitmentId,
         intent: "resend",
       });
@@ -903,7 +951,7 @@ describe("shiftBoard/mutations", () => {
 
     it("再通知の対象スタッフ読み取りはシフトボード上限までにする", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffIds } = await t.run(async (ctx) => {
+      const { shopId, recruitmentId, staffIds } = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_manager",
           email: "manager@example.com",
@@ -931,12 +979,13 @@ describe("shiftBoard/mutations", () => {
             }),
           );
         }
-        return { recruitmentId, staffIds };
+        return { shopId, recruitmentId, staffIds };
       });
 
       const result = await t
         .withIdentity({ subject: "user_manager" })
         .mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
           recruitmentId,
           intent: "resend",
         });
@@ -952,7 +1001,7 @@ describe("shiftBoard/mutations", () => {
 
     it("過去シフトの再通知は拒否し、通知予約しない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
 
       await t.run(async (ctx) => {
         await ctx.db.patch(recruitmentId, {
@@ -966,6 +1015,7 @@ describe("shiftBoard/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
           recruitmentId,
           intent: "resend",
         }),
@@ -980,10 +1030,11 @@ describe("shiftBoard/mutations", () => {
 
     it("未確定募集へのresend intentはエラー", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId } = await setupTestData(t);
+      const { shopId, recruitmentId } = await setupTestData(t);
 
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
           recruitmentId,
           intent: "resend",
         }),
@@ -992,7 +1043,7 @@ describe("shiftBoard/mutations", () => {
 
     it("定休日に既存シフトが残っている場合は確定できない", async () => {
       const t = convexTest(schema, modules);
-      const { recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
+      const { shopId, recruitmentId, staffId1 } = await setupTestData(t, { shopClosedDates: ["2026-01-21"] });
       await t.run(async (ctx) => {
         const recruitment = await ctx.db.get(recruitmentId);
         if (!recruitment) throw new Error("missing recruitment");
@@ -1016,6 +1067,7 @@ describe("shiftBoard/mutations", () => {
 
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId,
           recruitmentId,
         }),
         [{ code: "CLOSED_DAY", date: "2026-01-21", staffId: staffId1 }],
@@ -1026,18 +1078,19 @@ describe("shiftBoard/mutations", () => {
       const t = convexTest(schema, modules);
       const { recruitmentId } = await setupTestData(t);
 
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const otherShopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: "user_other2",
           email: "other2@example.com",
           shopName: "他店舗",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t
           .withIdentity({ subject: "user_other2" })
-          .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId }),
+          .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId: otherShopId }),
       ).rejects.toThrow(ConvexError);
     });
   });
