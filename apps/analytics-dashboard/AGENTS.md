@@ -26,8 +26,10 @@ Cloudflare Workers + Static Assets では `functions/` ディレクトリは使�
 画面やログに、staff email、manager email、token、raw notification payload、provider error bodyを出さないでください。
 返却DTOは画面に必要な集計値と店舗単位の情報に限定します。
 
-Storybook / E2E / VRTは初期スコープ外です。
-必要な場合は、派生KPIの純粋関数やHTTP actionのsecret検証など、セキュリティ境界に絞って最小テストを追加してください。
+このアプリは本人だけが使う内部BIのため、自動テストとFull Regressionの対象外です。
+Logic UT、UI Test、Storybook、VRT、E2Eを新規追加・維持しないでください。
+変更時は`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認してください。
+Cloudflare Worker、Convex HTTP action、認証secretなど本体と共有するセキュリティ境界の保証は、analytics-dashboard固有テストではなく、本体側のConvex Function Testやセキュリティレビューで扱ってください。
 
 Vite、Storybook、Convex dev serverはユーザーが起動する前提です。
 エージェントは勝手に開発サーバーを起動しないでください。

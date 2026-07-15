@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import type { WindowLike } from "dompurify";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";

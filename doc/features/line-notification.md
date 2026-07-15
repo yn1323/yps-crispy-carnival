@@ -25,13 +25,12 @@
 
 - `src/routes/_unregistered/line.callback.tsx` — OAuth コールバックページ
 - `src/components/features/Line/LineLinkQrDialog/` — シフト担当者UI: QR / URL 表示
-- `src/components/features/Line/LineInviteConfirmContent/` — 個別連携依頼確認モーダル中身
-- `src/components/features/Line/LineCallbackPage/` — コールバック完了 / エラー UI
+- `src/components/features/LineCallback/` — OAuth action、状態遷移、コールバック完了 / エラー UI
 - `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — スタッフ詳細モーダル入口
 - `src/components/features/Dashboard/StaffRoster/StaffDetailDialog.tsx` — LINE連携状態表示、連携リンク表示、個別連携依頼、個別通知再送
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — スタッフ詳細モーダル接続
-- `src/components/devtools/NotificationPreview/` — Storybook で目的別にメール文面・LINE Flex previewを VRT 管理
-- `src/components/devtools/FlexMessagePreview/` — シフトリで生成するFlex JSON subsetのReact preview
+- `src/components/features/Dashboard/StaffManagement/` — スタッフ詳細モーダル接続、LINE連携リンク発行、個別連携依頼、個別通知再送
+- `src/devtools/NotificationPreview/` — Storybook で目的別にメール文面・LINE Flex previewを VRT 管理
+- `src/devtools/FlexMessagePreview/` — シフトリで生成するFlex JSON subsetのReact preview
 
 ## 画面一覧
 
@@ -40,7 +39,6 @@
 | シフト担当者ダッシュボード（既存）| スタッフ詳細モーダルのLINE連携タブで連携状態確認 / 連携リンク表示 / 個別連携依頼 |
 | シフト担当者ダッシュボード（既存）| スタッフ詳細モーダルの通知タブで募集通知 / 現在の確定シフト通知を個別再送 |
 | LineLinkQrDialog | QR 表示 + URL コピー |
-| 連携依頼確認ダイアログ（個別） | 送信前の確認 |
 | `/line/callback` | OAuth 完了画面（成功 / 期限切れ / レート超過 / エラー） |
 | LINE 公式アカウントトーク画面 | 受信メッセージへ Reply API で定型応答 |
 
@@ -60,6 +58,12 @@
 | `internal.notificationOutbox.actions.processPending` | internalAction | 通知 outbox の pending ジョブを少量ずつ配送 |
 | `internal.line.mutations.dispatchWebhookEvents` | internalMutation | Webhook follow/unfollow/message ディスパッチ |
 | `POST /line/webhook` | httpAction | LINE Messaging API Webhook 受信（署名検証） |
+
+## Webhook受信制約
+
+- `POST /line/webhook` はparameter付きの `application/json` を受け付け、raw bodyを1 MiB、`events`を100件までに制限する。
+- `Content-Length`は早期拒否にだけ使い、request streamの実byte数も検査する。上限内のraw bodyを変更せずに署名検証し、検証後だけJSON parseとinternal mutationを行う。
+- LINEの疎通確認で送られる`events: []`と未知のevent typeは`200`で受理する。不正なContent-Type、body、署名、最小payload shapeは副作用なしで拒否する。
 
 ## 通知振り分けロジック
 

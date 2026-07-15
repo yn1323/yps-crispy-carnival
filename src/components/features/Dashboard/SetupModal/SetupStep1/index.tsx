@@ -1,25 +1,23 @@
 import { Box, Field, Grid, HStack, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { LuCalendarDays, LuClock3, LuListChecks, LuPlus, LuTrash2 } from "react-icons/lu";
+import { MAX_SHIFT_TYPE_OPTIONS } from "@/convex/_lib/submissionPatternConstants";
 import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
+import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Select } from "@/src/components/ui/Select";
+import { generateShiftTimeOptions, MAX_SHIFT_TIME_MINUTES, timeToMinutes } from "@/src/domains/shift/time";
 import {
-  createDefaultShiftTypeOptions,
   createShiftTypeOption,
+  DEFAULT_TIME_PATTERN,
   DIALOG_SELECT_POSITIONING,
   getNestedErrorMessage,
   getShiftTypeOptionErrorMessages,
   normalizeShiftTypeOptions,
 } from "../../submissionPatternForm";
-import {
-  generateShiftTimeOptions,
-  MAX_SHIFT_TIME_MINUTES,
-  MAX_SHIFT_TYPE_OPTIONS,
-  type ShiftSubmissionPattern,
-  type ShiftTypeOption,
-  timeToMinutes,
-} from "./index";
+import { SUBMISSION_PATTERN_OPTIONS, toSubmissionPattern } from "./script";
+
+export type { Step1Data } from "./types";
 
 type SetupShopInfoStepProps = {
   shopName: string;
@@ -37,39 +35,6 @@ type SetupPatternSettingsStepProps = {
 
 const ALL_START_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES - 30 });
 const ALL_END_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_TIME_MINUTES });
-
-export const DEFAULT_TIME_PATTERN: Extract<ShiftSubmissionPattern, { kind: "time" }> = {
-  kind: "time",
-  startTime: "09:00",
-  endTime: "22:00",
-};
-
-const SUBMISSION_PATTERN_OPTIONS: Array<{
-  kind: ShiftSubmissionPattern["kind"];
-  label: string;
-  description: string;
-}> = [
-  { kind: "dateOnly", label: "日ごと", description: "出勤できる日だけ集めます。" },
-  { kind: "time", label: "時間指定", description: "日ごとに開始・終了時間を選んでもらいます。" },
-  { kind: "shiftType", label: "勤務区分", description: "早番・遅番など、決めた区分から選んでもらいます。" },
-];
-
-const toSubmissionPattern = (
-  kind: ShiftSubmissionPattern["kind"],
-  current: ShiftSubmissionPattern,
-): ShiftSubmissionPattern => {
-  if (kind === "time") {
-    return current.kind === "time" ? current : DEFAULT_TIME_PATTERN;
-  }
-  if (kind === "shiftType") {
-    return {
-      kind: "shiftType",
-      options:
-        current.kind === "shiftType" && current.options.length > 0 ? current.options : createDefaultShiftTypeOptions(),
-    };
-  }
-  return { kind: "dateOnly" };
-};
 
 export const SetupShopInfoStep = ({
   shopName,

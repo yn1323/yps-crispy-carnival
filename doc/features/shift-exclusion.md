@@ -33,7 +33,7 @@
 - `src/components/features/Dashboard/StaffRoster/StaffRow.tsx` — バッジ・スタッフ詳細モーダル入口
 - `src/components/features/Dashboard/StaffRoster/StaffDetailDialog.tsx` — シフト対象トグル・通知項目の無効化
 - `src/components/features/Dashboard/StaffRoster/index.tsx` — 詳細表示コールバック中継
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — `setShiftExclusion` 接続・トースト
+- `src/components/features/Dashboard/StaffManagement/useStaffProfileManagement.ts` — `setShiftExclusion` 接続・トースト
 
 ## API 一覧
 

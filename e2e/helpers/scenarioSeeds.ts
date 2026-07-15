@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { convexRunJson } from "./convex";
 import { getCurrentE2EClerkUser, getE2EStorageStatePath } from "./e2eUsers";
+import { assertNotificationDeliverySuppressed } from "./notificationProbe";
 
 type ClerkStorageState = {
   cookies: Array<{
@@ -57,15 +58,32 @@ export function getE2EManagerAuthTokenIdentifier(userIndex = getCurrentE2EClerkU
 export function seedManagerScenario<T>(fn: string, args: Record<string, unknown> = {}) {
   const user = getCurrentE2EClerkUser();
   // dry-run 判定は managerEmail 経由で行うため、seed でも本番コードと同じ manager 情報を渡す。
-  return convexRunJson<T>(fn, {
+  const result = convexRunJson<T>(fn, {
     managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(user.index),
     managerEmail: user.email,
     ...args,
   });
+  const shopId = result && typeof result === "object" && "shopId" in result ? result.shopId : undefined;
+  if (typeof shopId === "string") assertNotificationDeliverySuppressed(shopId);
+  return result;
 }
 
 export function resetCurrentManagerScenarioData() {
   return convexRunJson("testing:resetManagerScenarioData", {
     managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(),
   });
+}
+
+export function forceResetManagerScenarioData(userIndex: number) {
+  return convexRunJson("testing:forceResetManagerScenarioData", {
+    managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(userIndex),
+  });
+}
+
+export function getCurrentManagerShopId() {
+  const result = convexRunJson<{ shopId: string | null }>("testing:getManagerShopProbe", {
+    managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(),
+  });
+  if (!result.shopId) throw new Error("E2E manager shop was not found");
+  return result.shopId;
 }

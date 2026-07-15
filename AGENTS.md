@@ -14,14 +14,25 @@ React + Vite + TanStack Router + Chakra UI v3 + Convex 構成。
 
 ## 必読ドキュメント / スキル
 
-- 作業開始時に必ず `doc/rules/testing-strategy.md` を読み、テスト種別・粒度・Convex Scenario Test の配置方針に従うこと。
+- `src/` 配下のコードを扱う場合は、作業開始時に `doc/rules/frontend-architecture.md` を読み、ディレクトリ、依存方向、ファイル責務に従うこと。
+- テスト層や配置を選ぶ、既存のカバレッジ契約を変える、または大規模回帰を扱う場合は、作業開始時に `doc/rules/testing-strategy.md` を読み、テスト種別・粒度・Convex Scenario Test の配置方針に従うこと。同じ層の近い既存テストを追従更新するだけなら、その既存パターンを優先する。テスト方針を変えない文書編集では必須にしない。
 - コード実装・修正・レビュー時は `.agents/skills/shiftori-coding/SKILL.md` を読み、配置判断・技術スタック別の書き方・自己修復ルールに従うこと。
-- セキュリティ、認証、認可、IDOR、magic link、token、招待、Webhook、LINE、Resend、billing、個人情報ログに触れる相談・プラン・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使い、`doc/rules/security-strategy.md` を読むこと。
-- Convex public query/mutation/action、staff token/session、manager/billing権限、外部HTTP action、通知配送、登録/招待導線に触る可能性がある場合も同様に扱うこと。
+- セキュリティ、認証、認可、IDOR、magic link、Capability lifecycle、招待、Webhook、LINE、Resend、billing、個人情報ログ、retention/redactionの境界または状態遷移を新設・変更する相談、プラン、設計、実装、レビューでは、プラン確定前に `shiftori-security-review` を使い、`doc/rules/security-strategy.md` を読むこと。
+- Convex public query/mutation/action、staff token/session、manager/billing権限、外部HTTP Action、service credential/replay、通知配送、Outbox lease/fanout recovery、登録/招待導線の公開範囲、認証・認可、tenant境界、入力制約、データ露出、lifecycle、外部副作用を変更する場合も同様に扱うこと。既存wrapperとこれらの安全契約を変えない内部実装、並び順、配置変更だけでは自動的に発動しない。
 - `src/` 配下を扱う場合は `src/AGENTS.md` を読むこと。
 - Convexコードを扱う場合は、`convex/_generated/ai/guidelines.md` と `convex/AGENTS.md` を必ず読むこと。
+- ユーザーがConvexの横断レビューを求めた場合、または複数use caseをまたいでpublic API境界、Capability、非同期workflow、データ保持、運用設計を変更する場合は、`doc/rules/convex-design-strategy.md` を読み、`convex-design-review` を使うこと。既存境界内の局所的なquery / mutation / action実装では発動しない。
 - E2Eを扱う場合は `e2e/AGENTS.md`、CI/CDを扱う場合は `.github/AGENTS.md` を読むこと。
-- UI/UXや文言は `ui-architect`、テスト設計は `test-strategy`、Convex migration は `convex-migration-helper` を併用すること。
+- UI/UXや文言を変更する場合は `ui-architect`、テスト層・配置・新しい検証契約を設計する場合は `test-strategy`、persisted shapeの変更やbackfillが必要な場合は `convex-migration-helper` を併用すること。
+
+## 実装スコープ
+
+- 通常の変更は、近い既存実装と同じ境界に置く最小差分をデフォルトにする。
+- 規約やスキルに並ぶリスク項目は適用判定のチェックリストであり、すべてを実装対象にしない。変更に関係しない設計、監視、運用、テスト層へ広げない。
+- 新しいtable、job、queue、state machine、service、helper、wrapper、registry、runner、監視基盤は、依頼の契約または確認できた現在の問題に必要な場合だけ追加する。将来の可能性や一般論だけを根拠に作らない。
+- 認証、認可、店舗境界、入力検証、migration、外部副作用の冪等性など、変更に直接関係する安全契約は省略しない。既存wrapper、policy、共通基盤を優先して最小限に実装する。
+- テストは変更契約を直接検証する主担当層を一つ選び、別の失敗境界を検知する場合だけ他層を追加する。局所変更へ全テスト層やFull Regressionを一律に要求しない。
+- ユーザーが明示していないrepo全体の監査、汎用基盤化、大規模リファクタへ広げない。必要なら理由と追加範囲を先に説明する。
 
 ## コマンド
 
@@ -58,14 +69,10 @@ pnpm vitest --project=convex convex/path/to/file.test.ts
 pnpm e2e e2e/path/to/file.spec.ts
 ```
 
-## Git Worktree運用
+## Git作業運用
 
-- 同じブランチは複数のworktreeで同時にcheckoutできないため、作業ごとに `codex/...` などの専用ブランチを切ること。
-- worktreeごとに `node_modules` は別管理になるため、新しいworktreeでは必要に応じて `pnpm install` を実行すること。
-- `.env` はGoogle Driveへのシンボリックリンクなので、新しいworktree側でも `ls -l .env` でリンクが正しいか確認すること。
-- `pnpm dev` はport 3000、`pnpm storybook` はport 6006を使う。複数worktreeで同時起動する場合は、片方を `pnpm exec vite --port 3001` や `pnpm exec storybook dev -p 6007` のように明示的にずらすこと。
-- `pnpm convex:dev` は同じConvex deploymentに対して関数を同期するため、複数worktreeで同時起動すると別ブランチのbackend変更が押し合う可能性がある。基本は1つのworktreeだけで起動し、必要な時だけ切り替えること。
-- 不要になったworktreeは `git worktree remove <path>` で削除し、状態確認には `git worktree list` を使うこと。
+- 新しいworktreeは作成せず、現在checkoutしている作業ディレクトリをそのまま使用すること。
+- 現在のブランチに今回の作業とは別のコミットが含まれていても、新しいブランチの作成や切り替えは行わず、現在のブランチで作業すること。
 
 ## ペルソナ
 
@@ -74,7 +81,10 @@ pnpm e2e e2e/path/to/file.spec.ts
 ## 実装の強いルール
 
 - Submit系ボタンは二重送信に注意すること。UIのloading/disabledだけに依存せず、短時間の連続クリックでも同じ処理が複数回走らないよう、フロントの同期ガードやバックエンドの冪等性を必要に応じて設計すること。
-- 実装変更に合わせた自動テストの追加・更新・削除は、`doc/rules/testing-strategy.md` と `test-strategy` に従うこと。
+- 実装変更に合わせてテスト層、配置、新しい検証契約を設計・変更するときは、`doc/rules/testing-strategy.md` と `test-strategy` に従うこと。同じ層の近い既存テストを追従更新するだけなら、その既存パターンを優先すること。
+- `apps/analytics-dashboard/` は本人だけが使う内部BIのため、自動テストとFull Regressionの対象外とする。新しいLogic/UI/Storybook/VRT/E2Eテストを追加・維持せず、変更時は`pnpm analytics:lint`、`pnpm analytics:type-check`、`pnpm analytics:build`で確認すること。
+- VRT対象Storyの初期表示に含まれる静的な見出しや文言は、存在確認だけを目的としたplay functionで重複検証しないこと。操作後に初めて現れるエラー、確認状態、送信結果など、状態遷移の契約だけをBehavior Testで検証すること。
+- Full Regressionは、実装詳細や静的文言の総当たりではなく、大規模リファクタ後も主要導線、状態遷移、認証境界、通知、永続化、モバイル、アクセシビリティの退行を検知できる契約を守ること。
 - ブラウザをAI Agentが動かしてやるテストは不要。必要な確認は自動テストとして設計すること。
 - Convex起動、Storybook起動、Vite起動はユーザーが実施しています。新規でコマンドを叩かないでください。
 - `.env`ファイルはGoogle Drive（`/g/マイドライブ/80_環境変数/yps-crispy-carnival/`）にシンボリックリンク。環境変数同期は `pnpm convex:env:setup` を使う。
@@ -106,8 +116,10 @@ pnpm e2e e2e/path/to/file.spec.ts
 - `doc/INDEX.md`: 機能仕様ドキュメントのインデックス
 - `doc/features/`: 各機能の概要（関連ファイル・画面一覧・API一覧）。詳細な仕様はコードを参照（Single Source of Truth）
 - `doc/plans/`: 実装計画
+- `doc/rules/frontend-architecture.md`: フロントエンドのディレクトリ、依存方向、ファイル責務
 - `doc/rules/testing-strategy.md`: テスト種別、粒度、Convex Scenario Test の設計方針
 - `doc/rules/security-strategy.md`: セキュリティ設計、認証/認可境界、token/通知/billing レビュー方針
+- `doc/rules/convex-design-strategy.md`: Convexの認証境界、公開API、Capability、durable workflow、データ保持、運用契約
 - `doc/claude/soul.md`: 設計判断の指針
 - `convex/AGENTS.md`: Convexアーキテクチャ、実装観点の詳細
 - `e2e/AGENTS.md`: E2Eアーキテクチャ、実装観点の詳細

@@ -2,10 +2,9 @@ import { Box, Flex, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react"
 import { Link as RouterLink } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { LuChevronRight, LuUserPlus } from "react-icons/lu";
-import { CreateRecruitmentForm } from "@/src/components/features/Dashboard/CreateRecruitmentForm/index.tsx";
+import { CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
-import { ShiftSubmitPage } from "@/src/components/features/StaffSubmit/ShiftSubmitPage";
-import type { SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit/SubmitFormView";
+import { ShiftSubmitPage, type SubmitShiftSelectionInput } from "@/src/components/features/StaffSubmit";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { ShiftData } from "@/src/domains/shift/types";

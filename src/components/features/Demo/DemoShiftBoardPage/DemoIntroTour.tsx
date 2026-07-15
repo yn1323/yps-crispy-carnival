@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { type EventData, Tour, type TourHandle, type TourStep } from "@/src/components/ui/Tour";
 import type { ShiftData } from "@/src/domains/shift/types";
-import { isPrerendering } from "@/src/helpers/seo";
+import { isPrerendering } from "@/src/lib/seo";
 
 const PC_BREAKPOINT = 1024;
 

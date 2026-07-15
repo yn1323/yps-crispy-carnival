@@ -21,6 +21,7 @@ vrt-work/
 node_modules/
 /test-results/
 /playwright-report/
+/playwright-report-deployed/
 test-results.json
 /blob-report/
 /playwright/.cache/

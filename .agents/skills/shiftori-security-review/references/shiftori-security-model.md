@@ -7,6 +7,7 @@ This reference records the durable security model for Shiftori. Use it when plan
 Local rules:
 
 - `doc/rules/security-strategy.md`
+- `doc/rules/convex-design-strategy.md`
 - `convex/AGENTS.md`
 - `convex/_generated/ai/guidelines.md`
 - `convex/_lib/functions.ts`
@@ -41,6 +42,7 @@ Rules:
 - Use `identity.tokenIdentifier` for auth-linked lookup.
 - Do not accept `userId` for authorization from clients.
 - Treat `shopId` from clients as a selected target that still needs membership verification.
+- Require the selected `shopId` for store-scoped manager APIs. Limit first-membership fallback to bootstrap flows before a target store is established.
 - Resolve store authority through active `shopMembers` and non-deleted `shops`.
 - Store-scoped roles belong on `shopMembers.role` as the product evolves; avoid global role shortcuts for billing-sensitive paths.
 
@@ -85,10 +87,15 @@ Registration, manager invite, LINE link, and legal consent flows use bearer-styl
 Rules:
 
 - Tokens must be random, scoped to the specific store and subject, expire, and be revocable.
+- Persist a digest instead of the raw token when the server only needs equality lookup and does not need to redisplay the secret.
+- Define each capability as single-use or reusable, and newest-only or multiple-active.
 - Single-use flows must persist `usedAt` and reject reuse.
 - Reissuing a newest-only token should revoke older unused tokens for the same scope.
+- Reusable public links need manager-controlled disable and rotation, plus an explicit expiry or a documented reason for long-lived access.
+- Prune expired, used, and revoked capabilities in bounded batches after their audit-retention window.
 - Manager invite links should be consumed after login and server-side identity/email matching, not as unauthenticated shared admin links.
 - Staff registration links intentionally allow unknown staff to request access, but approval stays manager-controlled and store-scoped.
+- Anonymous registration should use generic responses, bot proof, layered link/email/IP/store/global rate limits, and a bounded pending queue.
 
 ### Notification And Delivery Boundary
 
@@ -99,9 +106,26 @@ Rules:
 - Use dedupe keys and idempotency for scheduling and retrying.
 - Add rate limits for user-triggered send/retry paths.
 - Distinguish accepted/scheduled/retrying from actual delivery success.
+- Persist fanout progress with a cursor when one action cannot safely own the whole operation.
+- Give processing claims expiring leases, reclaim stale claims, and reject completion from stale workers.
+- Re-check shop and recipient state before external delivery, and prevent enqueue after deletion or deactivation starts.
+- Document in-flight semantics because an external request that already started cannot always be canceled.
 - Do not expose raw outbox internals or third-party errors in manager-facing DTOs unless needed and sanitized.
 - LINE URLs that open app auth flows must use the project LINE external-browser helper where required.
 - Webhooks must verify provider signatures before parsing or mutating state.
+
+### HTTP Action And Service Boundary
+
+Every route in `convex/http.ts` is a public surface even when only another service is expected to call it.
+
+Rules:
+
+- Define method, path, content type, request and event limits, CORS, response shape, and rate limits per route.
+- Verify provider signatures over the expected raw payload before DB mutation.
+- Use timestamp tolerance, nonce, or event ID dedupe to reject replay when the provider exposes them.
+- Keep service credentials in server-side environment variables, never query strings, and define comparison, rotation, and revocation behavior.
+- Pass state changes to internal mutations only after authentication and request validation.
+- Never log raw credentials, signatures, request bodies, or credential-bearing URLs.
 
 ### Billing Boundary
 
@@ -125,6 +149,18 @@ Rules:
 - Log authz failures and suspicious business-flow attempts with enough context to debug, without leaking sensitive values.
 - Avoid returning third-party error bodies directly to clients.
 
+### Data Lifecycle Boundary
+
+Logical deletion stops product access but does not by itself complete personal-data erasure.
+
+Rules:
+
+- Define purpose, retention, redaction, audit retention, and deletion behavior for each table containing personal data or capability secrets.
+- Separate notification payloads from the metadata needed for audit, retry, and aggregate reporting.
+- Redact recipients, message bodies, raw capability URLs, and provider errors after the operational retention window.
+- Run bulk cleanup and tenant-erasure work as bounded, idempotent, resumable jobs with persisted progress.
+- Keep only non-PII audit facts after erasure when legal and operational policy permits it.
+
 ## Security Lens Template
 
 Use this in plans and design docs:
@@ -138,6 +174,7 @@ Use this in plans and design docs:
 - Abuse case:
 - Server-side check:
 - Rate limit / idempotency:
+- Lifecycle / recovery:
 - Logs / PII:
 - Regression test:
 ```

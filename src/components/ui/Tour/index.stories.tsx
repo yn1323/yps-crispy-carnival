@@ -1,6 +1,7 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import { Tour, type TourStep } from "./index";
 
@@ -131,25 +132,15 @@ export const Default: Story = {
  */
 export const Interactive: Story = {
   render: () => <DemoLayout />,
+  parameters: {
+    screenshot: { skip: true },
+  },
   play: async ({ canvasElement }) => {
-    const startButton = canvasElement.querySelector<HTMLButtonElement>('[data-testid="start-tour"]');
-    startButton?.click();
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
 
-    const findByText = async <T extends HTMLElement = HTMLElement>(
-      selector: string,
-      text: string,
-      timeout = 2000,
-    ): Promise<T | null> => {
-      const start = performance.now();
-      while (performance.now() - start < timeout) {
-        const match = Array.from(document.querySelectorAll<T>(selector)).find((el) => el.textContent?.trim() === text);
-        if (match) return match;
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      }
-      return null;
-    };
+    await userEvent.click(canvas.getByRole("button", { name: "ツアー開始" }));
 
-    const firstTitle = await findByText("*", "ツアーをはじめます");
-    if (!firstTitle) throw new Error("1ステップ目のタイトルが表示されなかった");
+    await expect(await screen.findByText("ツアーをはじめます")).toBeInTheDocument();
   },
 };

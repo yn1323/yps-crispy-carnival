@@ -1,5 +1,5 @@
 import { expect, test } from "../fixtures/e2eTest";
-import { getOrCreateLineLinkToken } from "../helpers/notificationTokens";
+import { waitForLineLinkToken } from "../helpers/notificationTokens";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
@@ -12,7 +12,7 @@ type LineLinkSeed = {
   shopId: string;
 };
 
-test.describe("LINE連携URL発行", () => {
+test.describe("LINE連携URL発行", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(30_000);
 
   test("シフト担当者操作でLINE連携トークンが発行される", async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe("LINE連携URL発行", () => {
     await test.step("Step 1: LINE連携リンクを発行する", async () => {
       await dashboard.goto();
       await dashboard.openLineQr(MANAGER.name);
-      const lineToken = await getOrCreateLineLinkToken({ staffEmail: MANAGER.email, shopId: seed.shopId });
+      const lineToken = await waitForLineLinkToken({ staffEmail: MANAGER.email, shopId: seed.shopId });
       expect(lineToken.token).toMatch(/^[0-9a-f-]{36}$/);
     });
   });

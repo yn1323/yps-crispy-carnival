@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { assertNotificationRecipientSuppressed } from "../helpers/notificationProbe";
 
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const CLOSED_DAY_LABELS = {
@@ -48,6 +49,7 @@ export class DashboardPage {
     managerName: string;
     managerEmail: string;
   }) {
+    assertNotificationRecipientSuppressed(data.managerEmail);
     await this.page.getByRole("button", { name: /お店を登録する/ }).click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "初回登録" });
     await expect(dialog).toBeVisible();
@@ -110,7 +112,9 @@ export class DashboardPage {
   }
 
   private async fillAddStaffForm(entries: Array<{ name: string; email: string }>) {
-    await this.page.getByRole("button", { name: "スタッフを招待" }).click({ noWaitAfter: true });
+    const inviteButton = this.page.getByRole("button", { name: "スタッフを招待" });
+    await expect(inviteButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await inviteButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "スタッフを招待" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "スタッフ情報を手入力する" }).click();
@@ -194,6 +198,7 @@ export class DashboardPage {
   }
 
   async editStaff(staffName: string, newData: { name: string; email: string }) {
+    assertNotificationRecipientSuppressed(newData.email);
     await this.openStaffDetail(staffName);
     const dialog = this.staffDetailDialog();
     await expect(dialog).toBeVisible();
@@ -237,6 +242,26 @@ export class DashboardPage {
       await expect(shiftTargetSwitch).toBeChecked({ checked: isShiftTarget });
     }
 
+    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await expect(dialog).not.toBeVisible();
+  }
+
+  async sendOpenRecruitmentNotification(staffName: string) {
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
+    await dialog.getByRole("tab", { name: "通知" }).click();
+    await dialog.getByRole("button", { name: "募集中のシフトを送る" }).click();
+    await this.expectToastVisibleThenHidden("シフト募集通知を送りました");
+    await dialog.getByRole("button", { name: "閉じる" }).click();
+    await expect(dialog).not.toBeVisible();
+  }
+
+  async sendCurrentShiftNotification(staffName: string) {
+    await this.openStaffDetail(staffName);
+    const dialog = this.staffDetailDialog();
+    await dialog.getByRole("tab", { name: "通知" }).click();
+    await dialog.getByRole("button", { name: "確定シフトを送る" }).click();
+    await this.expectToastVisibleThenHidden("現在の確定シフトを送りました");
     await dialog.getByRole("button", { name: "閉じる" }).click();
     await expect(dialog).not.toBeVisible();
   }
@@ -309,8 +334,6 @@ export class DashboardPage {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("tab", { name: "LINE" }).click();
     await dialog.getByRole("button", { name: "メールでLINE連携リンクを送る" }).click();
-    await expect(dialog.getByText("LINE連携リンクをメールで送る")).toBeVisible();
-    await dialog.getByRole("button", { name: "送信" }).click();
     await expect(this.page.getByText(LINE_INVITE_SENT_TOAST_TITLE).first()).toBeVisible();
   }
 
@@ -384,7 +407,9 @@ export class DashboardPage {
     submissionPattern?: SubmissionPatternEdit;
     regularClosedDays?: RegularClosedDay[];
   }) {
-    await this.page.getByRole("button", { name: "店舗設定を編集" }).click({ noWaitAfter: true });
+    const editButton = this.page.getByRole("button", { name: "店舗設定を編集" });
+    await expect(editButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await editButton.click({ noWaitAfter: true });
     const dialog = this.page.getByRole("dialog", { name: "店舗設定" });
     await expect(dialog).toBeVisible();
 
@@ -408,10 +433,10 @@ export class DashboardPage {
     if (submissionPattern) {
       const patternLabel =
         submissionPattern.kind === "dateOnly"
-          ? /日ごと|日付のみ/
+          ? /^日ごと/
           : submissionPattern.kind === "shiftType"
-            ? /勤務区分|勤務区分から選ぶ/
-            : /時間指定|時間を自由に設定/;
+            ? /^勤務区分/
+            : /^時間指定/;
       await dialog.getByRole("button", { name: patternLabel }).click();
     }
     await dialog.getByRole("button", { name: "次へ" }).click();
@@ -423,7 +448,10 @@ export class DashboardPage {
       await this.configureShiftTypeOptions(dialog, submissionPattern.options);
     }
 
-    await dialog.getByRole("button", { name: "次へ" }).click();
+    const nextButton = dialog.getByRole("button", { name: "次へ" });
+    if (await nextButton.isVisible()) {
+      await nextButton.click();
+    }
 
     if (data.regularClosedDays) {
       await this.setRegularClosedDays(dialog, data.regularClosedDays);

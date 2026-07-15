@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SITE_URL } from "@/src/helpers/seo";
+import { SITE_URL } from "@/src/lib/seo";
 
 /**
  * 記事サイトの「メタデータ」層。

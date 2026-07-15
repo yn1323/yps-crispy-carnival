@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { buildMeta } from "@/src/helpers/seo";
 import { ForgotPasswordPage } from "@/src/pages/auth";
+import { buildForgotPasswordPageHead } from "@/src/pages/auth/meta";
 
 export const Route = createFileRoute("/forgot-password")({
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: (search.redirect as string) || undefined,
   }),
-  head: () => ({
-    meta: buildMeta({ title: "パスワード再設定", noindex: true }),
-  }),
+  head: buildForgotPasswordPageHead,
   component: ForgotPasswordRoute,
 });
 

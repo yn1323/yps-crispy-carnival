@@ -1,8 +1,9 @@
+import dayjs from "dayjs";
 import { test } from "../fixtures/e2eTest";
 import { seedManagerScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 
-test.describe("ダッシュボードの一覧表示", () => {
+test.describe("ダッシュボードの一覧表示", { tag: ["@release"] }, () => {
   test.setTimeout(30_000);
 
   let dashboard: DashboardPage;
@@ -13,7 +14,8 @@ test.describe("ダッシュボードの一覧表示", () => {
 
   test("シフト一覧とスタッフ一覧が期待件数で表示される", async () => {
     await test.step("Step 0: データ準備", async () => {
-      seedManagerScenario("testing:seedDashboardPaginationScenario");
+      const firstPeriodStart = dayjs().add(1, "month").startOf("month").format("YYYY-MM-DD");
+      seedManagerScenario("testing:seedDashboardPaginationScenario", { firstPeriodStart });
     });
 
     await test.step("Step 1: シフト一覧は作成済みの募集を表示する", async () => {

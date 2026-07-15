@@ -1,13 +1,14 @@
 import { execFileSync } from "node:child_process";
 
+// pnpm が子プロセスへ渡す独自の npm_config_* は npm CLI では未定義のため、
+// npx 起動時の unknown config warning を防ぐ目的で該当キーだけ引き継がない。
 const npmConfigKeysToOmit = new Set([
+  "npm_config_manage_package_manager_versions",
   "npm_config_npm_globalconfig",
   "npm_config_verify_deps_before_run",
   "npm_config__jsr_registry",
 ]);
 
-// pnpm 経由の vitest/playwright から npx convex を呼ぶと、一部の npm_config_* が
-// npm 側の未知設定 warning になる。E2Eログを読める状態に保つため、Convex CLI へ渡す環境だけ削る。
 function getNpxEnv() {
   return Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !npmConfigKeysToOmit.has(key.toLowerCase())),

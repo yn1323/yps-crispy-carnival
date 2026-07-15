@@ -1,6 +1,6 @@
 ---
 name: generate-image
-description: Manually invoked skill for planning and generating Shiftori illustrations and visual explanations. Use only when the user explicitly invokes `$generate-image`; do not invoke implicitly for ordinary UI, image, design, or development requests. Elicit the intended message and placement, recommend suitable formats from the supported catalog, let the user select one, then generate the image using `public/sample-touch.png` as a mandatory visual reference.
+description: Manually invoked skill for planning and generating Shiftori illustrations and visual explanations. Use only when the user explicitly invokes `$generate-image`; do not invoke implicitly for ordinary UI, image, design, or development requests. Elicit the intended message and placement, recommend suitable formats from the supported catalog, let the user select one, then generate the image using `doc/assets/article-hero-style-reference.png` as a mandatory visual reference.
 ---
 
 # Generate Shiftori Image
@@ -9,7 +9,7 @@ Guide the user from an unclear visual need to a selected format and generated im
 
 ## Workflow
 
-1. Confirm that `/Users/natani/work/yps-crispy-carnival/public/sample-touch.png` exists and inspect it with the image-viewing tool.
+1. Confirm that `/Users/natani/work/yps-crispy-carnival/doc/assets/article-hero-style-reference.png` exists and inspect it with the image-viewing tool.
 2. If the image will contain text, read `@src/configs/theme/tokens/fonts.ts` and use the application's current `heading` or `body` font stack. Treat this file as the source of truth instead of copying a font name into this skill.
 3. Ask only for missing information:
    - what the image should communicate;
@@ -18,7 +18,7 @@ Guide the user from an unclear visual need to a selected format and generated im
 4. Recommend two or three suitable formats from the catalog. Put the strongest recommendation first and explain each in one sentence.
 5. Ask the user to select a format or adjust the proposed direction. Do not generate during this turn.
 6. After selection, summarize the final direction briefly only if clarification remains necessary.
-7. Generate with the image-generation tool. Always provide `public/sample-touch.png` through `referenced_image_paths`; mentioning it in the prompt alone is insufficient.
+7. Generate with the image-generation tool. Always provide `doc/assets/article-hero-style-reference.png` through `referenced_image_paths`; mentioning it in the prompt alone is insufficient.
 8. Follow explicit user instructions over defaults. If the output will be added to the web application, convert it with `$convert-images-to-webp` before referencing it in code.
 
 ## Format catalog

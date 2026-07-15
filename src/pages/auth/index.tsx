@@ -1,5 +1,5 @@
-import { AuthProviders } from "@/src/components/config/AuthProviders";
 import { AuthPage, SsoCallbackPage } from "@/src/components/features/AuthPage";
+import { AuthProviders } from "@/src/providers/AuthProviders";
 
 type AuthRoutePageProps = {
   redirect?: string;

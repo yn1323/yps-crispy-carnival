@@ -24,6 +24,7 @@ export const NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE = 100;
 export const SHIFT_BOARD_STAFF_LIMIT = 200;
 export const DASHBOARD_RESPONSE_COUNT_LIMIT = 1000;
 export const DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT = 500;
+export const DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT = 500;
 export const DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT = 100;
 export const SHIFT_BOARD_SHIFT_REQUEST_LIMIT = 2000;
 export const SHIFT_ASSIGNMENT_LIMIT = 2000;
@@ -43,13 +44,16 @@ export const RECRUITMENT_PERIOD_DAYS_MAX = 62;
 export const FEATURE_REQUEST_COMMENT_MAX_LENGTH = 200;
 export const FEATURE_REQUEST_REQUEST_ID_MAX_LENGTH = 64;
 export const FEATURE_REQUEST_LIST_LIMIT = 50;
+export const LINE_WEBHOOK_BODY_MAX_BYTES = 1024 * 1024;
+export const LINE_WEBHOOK_EVENT_MAX_COUNT = 100;
+export const RESEND_WEBHOOK_BODY_MAX_BYTES = 64 * 1024;
 export const CONTACT_NAME_MAX_LENGTH = 100;
 export const CONTACT_ORGANIZATION_MAX_LENGTH = 100;
 export const CONTACT_MESSAGE_MAX_LENGTH = 2000;
 export const CONTACT_TURNSTILE_TOKEN_MAX_LENGTH = 2048;
 export const CONTACT_HTTP_BODY_MAX_BYTES = 16 * 1024;
-// 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronで最大3回）
-export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = 3 * DAY_MS;
+// 承認依頼digestの通知期間。最新依頼からこの期間を過ぎたら通知しない（日次cronでは通常1回）
+export const STAFF_REGISTRATION_DIGEST_WINDOW_MS = DAY_MS;
 
 // シフト確定催促リマインダーで一度に通知するマネージャーの上限
 export const SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT = 20;
@@ -57,8 +61,8 @@ export const SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT = 20;
 // 初回店舗登録後の本番募集リマインダーで一度に通知するマネージャーの上限
 export const SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT = 20;
 
-// 失敗通知リマインダーの通知期間。最新の失敗からこの期間を過ぎたら通知しない（日次cronで最大3回）
-export const NOTIFICATION_FAILURE_REMINDER_WINDOW_MS = 3 * DAY_MS;
+// 失敗通知リマインダーの通知期間。最新の失敗からこの期間を過ぎたら通知しない（日次cronでは通常1回）
+export const NOTIFICATION_FAILURE_REMINDER_WINDOW_MS = DAY_MS;
 export const NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE = 100;
 export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
 

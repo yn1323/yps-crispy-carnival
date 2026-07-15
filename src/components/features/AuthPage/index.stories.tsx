@@ -2,14 +2,127 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRouterState } from "@tanstack/react-router";
 import { type ComponentProps, useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
-import { AuthContent } from ".";
+import { AuthLoadingView } from "./AuthLoadingView";
+import type { EmailVerificationValues } from "./EmailCodeVerificationForm";
+import { ForgotPasswordFlowView } from "./ForgotPasswordFlow/ForgotPasswordFlowView";
+import type { ForgotRequestValues, ForgotResetValues } from "./ForgotPasswordForm";
+import { LoginFlowView } from "./LoginFlow/LoginFlowView";
+import type { LoginValues } from "./LoginForm";
+import { SignupFlowView } from "./SignupFlow/SignupFlowView";
+import type { SignupValues } from "./SignupForm";
+import type { AuthMode, ForgotStep, LoginStep } from "./types";
 
 const noop = () => {};
-type AuthContentArgs = ComponentProps<typeof AuthContent>;
+
+type AuthStoryContentProps = {
+  mode: AuthMode;
+  errorMessage?: string;
+  isInitialLoading?: boolean;
+  isSubmitting?: boolean;
+  loginStep?: LoginStep;
+  loginSafeIdentifier?: string;
+  verificationInfoMessage?: string;
+  resendCooldownSeconds?: number;
+  isVerificationStep?: boolean;
+  forgotStep?: ForgotStep;
+  forgotEmail?: string;
+  redirectTo?: string;
+  isLineBrowser?: boolean;
+  onGoogle: () => void | Promise<void>;
+  onLogin: (values: LoginValues) => void | Promise<void>;
+  onVerifyLogin: (values: EmailVerificationValues) => void | Promise<void>;
+  onResendLoginCode: () => void | Promise<void>;
+  onRestartLogin: () => void | Promise<void>;
+  onSignup: (values: SignupValues) => void | Promise<void>;
+  onVerifyEmail: (values: EmailVerificationValues) => void | Promise<void>;
+  onRestartSignup: () => void | Promise<void>;
+  onRequestReset: (values: ForgotRequestValues) => void | Promise<void>;
+  onResetPassword: (values: ForgotResetValues) => void | Promise<void>;
+};
+
+const AuthStoryContent = ({
+  mode,
+  errorMessage,
+  isInitialLoading,
+  isSubmitting,
+  loginStep,
+  loginSafeIdentifier,
+  verificationInfoMessage,
+  resendCooldownSeconds,
+  isVerificationStep,
+  forgotStep,
+  forgotEmail,
+  redirectTo = "/dashboard",
+  isLineBrowser,
+  onGoogle,
+  onLogin,
+  onVerifyLogin,
+  onResendLoginCode,
+  onRestartLogin,
+  onSignup,
+  onVerifyEmail,
+  onRestartSignup,
+  onRequestReset,
+  onResetPassword,
+}: AuthStoryContentProps) => {
+  if (isInitialLoading) {
+    return <AuthLoadingView mode={mode} />;
+  }
+
+  if (mode === "login") {
+    return (
+      <LoginFlowView
+        errorMessage={errorMessage}
+        isLineBrowser={isLineBrowser}
+        isSubmitting={isSubmitting}
+        loginSafeIdentifier={loginSafeIdentifier}
+        loginStep={loginStep}
+        redirectTo={redirectTo}
+        resendCooldownSeconds={resendCooldownSeconds}
+        verificationInfoMessage={verificationInfoMessage}
+        onGoogle={onGoogle}
+        onLogin={onLogin}
+        onResendLoginCode={onResendLoginCode}
+        onRestartLogin={onRestartLogin}
+        onVerifyLogin={onVerifyLogin}
+      />
+    );
+  }
+
+  if (mode === "signup") {
+    return (
+      <SignupFlowView
+        errorMessage={errorMessage}
+        isLineBrowser={isLineBrowser}
+        isSubmitting={isSubmitting}
+        isVerificationStep={isVerificationStep}
+        redirectTo={redirectTo}
+        onGoogle={onGoogle}
+        onRestartSignup={onRestartSignup}
+        onSignup={onSignup}
+        onVerifyEmail={onVerifyEmail}
+      />
+    );
+  }
+
+  return (
+    <ForgotPasswordFlowView
+      email={forgotEmail}
+      errorMessage={errorMessage}
+      isSubmitting={isSubmitting}
+      redirectTo={redirectTo}
+      step={forgotStep}
+      onRequestReset={onRequestReset}
+      onResetPassword={onResetPassword}
+    />
+  );
+};
+
+type AuthStoryContentArgs = ComponentProps<typeof AuthStoryContent>;
 
 const meta = {
   title: "Features/AuthPage",
-  component: AuthContent,
+  component: AuthStoryContent,
   parameters: {
     layout: "fullscreen",
   },
@@ -26,27 +139,27 @@ const meta = {
     onRequestReset: noop,
     onResetPassword: noop,
   },
-} satisfies Meta<typeof AuthContent>;
+} satisfies Meta<typeof AuthStoryContent>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const modeFromPathname = (pathname: string): AuthContentArgs["mode"] => {
+const modeFromPathname = (pathname: string): AuthStoryContentArgs["mode"] => {
   if (pathname === "/signup") return "signup";
   if (pathname === "/forgot-password") return "forgot-password";
   return "login";
 };
 
-const RoutedAuthContent = (args: AuthContentArgs) => {
+const RoutedAuthStory = (args: AuthStoryContentArgs) => {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  return <AuthContent {...args} mode={modeFromPathname(pathname)} />;
+  return <AuthStoryContent {...args} mode={modeFromPathname(pathname)} />;
 };
 
-const SignupVerificationRestartContent = (args: AuthContentArgs) => {
+const SignupVerificationRestartContent = (args: AuthStoryContentArgs) => {
   const [isVerificationStep, setIsVerificationStep] = useState(true);
 
   return (
-    <AuthContent
+    <AuthStoryContent
       {...args}
       mode="signup"
       isVerificationStep={isVerificationStep}
@@ -55,19 +168,19 @@ const SignupVerificationRestartContent = (args: AuthContentArgs) => {
   );
 };
 
-const LoginVerificationBackContent = (args: AuthContentArgs) => {
-  const [loginStep, setLoginStep] = useState<AuthContentArgs["loginStep"]>("verify-email-code");
+const LoginVerificationBackContent = (args: AuthStoryContentArgs) => {
+  const [loginStep, setLoginStep] = useState<AuthStoryContentArgs["loginStep"]>("verify-email-code");
 
   return (
-    <AuthContent {...args} mode="login" loginStep={loginStep} onRestartLogin={() => setLoginStep("credentials")} />
+    <AuthStoryContent {...args} mode="login" loginStep={loginStep} onRestartLogin={() => setLoginStep("credentials")} />
   );
 };
 
-const LoginVerificationResendContent = (args: AuthContentArgs) => {
+const LoginVerificationResendContent = (args: AuthStoryContentArgs) => {
   const [infoMessage, setInfoMessage] = useState<string>();
 
   return (
-    <AuthContent
+    <AuthStoryContent
       {...args}
       mode="login"
       loginStep="verify-email-code"
@@ -77,12 +190,12 @@ const LoginVerificationResendContent = (args: AuthContentArgs) => {
   );
 };
 
-const LoginVerificationSubmitContent = (args: AuthContentArgs) => {
+const LoginVerificationSubmitContent = (args: AuthStoryContentArgs) => {
   const [submittedCode, setSubmittedCode] = useState<string>();
 
   return (
     <>
-      <AuthContent
+      <AuthStoryContent
         {...args}
         mode="login"
         loginStep="verify-email-code"
@@ -184,7 +297,7 @@ export const LoginVerificationError: Story = {
 };
 
 export const LoginVerificationResend: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     loginSafeIdentifier: "ma***@example.com",
@@ -199,7 +312,7 @@ export const LoginVerificationResend: Story = {
 };
 
 export const LoginVerificationBack: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     loginSafeIdentifier: "ma***@example.com",
@@ -215,7 +328,7 @@ export const LoginVerificationBack: Story = {
 };
 
 export const LoginVerificationSubmit: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     loginSafeIdentifier: "ma***@example.com",
@@ -231,7 +344,7 @@ export const LoginVerificationSubmit: Story = {
 };
 
 export const SignupVerificationRestart: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "signup",
   },
@@ -246,12 +359,12 @@ export const SignupVerificationRestart: Story = {
 };
 
 export const LoginRouteNavigation: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   args: {
     mode: "login",
     redirectTo: "/dashboard?tab=staff",
   },
-  render: (args) => <RoutedAuthContent {...args} />,
+  render: (args) => <RoutedAuthStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 

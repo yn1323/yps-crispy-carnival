@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { MdxComponent, MdxComponents } from "@/src/helpers/mdx";
+import type { MdxComponent, MdxComponents } from "@/src/lib/mdx";
 
 export const HELP_NAVIGATION_GROUPS = [
   { id: "task", label: "やりたいことから探す" },

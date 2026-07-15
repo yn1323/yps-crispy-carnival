@@ -1,67 +1,64 @@
 import { Alert, Box, Container, Heading, Link, List, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { DemoShiftBoardPage } from "@/src/components/features/Demo/DemoShiftBoardPage";
-import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
+import { DemoShiftBoardPage } from "@/src/components/features/Demo";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function DemoShiftBoardRoutePage() {
   return (
-    <Box bg="white" minH="100dvh" color="fg">
-      <Header variant="public" showLinks={false} showLogin={false} />
+    <PublicPageLayout minH="100dvh" showFooter={false} headerProps={{ showLinks: false, showLogin: false }}>
+      <Container display={{ base: "block", lg: "none" }} maxW="640px" pb={4}>
+        <TopLink />
+      </Container>
 
-      <Box as="main" pt={HEADER_HEIGHT}>
-        <Container display={{ base: "block", lg: "none" }} maxW="640px" pb={4}>
-          <TopLink />
-        </Container>
-
-        <Box display={{ base: "none", lg: "block" }} h={`calc(100dvh - ${HEADER_HEIGHT.md})`} minH="560px">
-          <DemoShiftBoardPage headerStart={<TopLink />} height="100%" />
-        </Box>
-
-        <Box display={{ base: "block", lg: "none" }} px={6} pb={10} maxW="640px" mx="auto">
-          <VStack align="stretch" gap={6}>
-            <Heading as="h1" size="xl">
-              勤務時間入力デモ
-            </Heading>
-
-            <Alert.Root status="warning" borderRadius="md">
-              <Alert.Indicator />
-              <Box>
-                <Alert.Title>このデモはPCで操作できます</Alert.Title>
-                <Alert.Description fontSize="sm" mt={1}>
-                  スマホでは閲覧のみで、ガントチャートの操作はできません。PCのブラウザで開いてご確認ください。
-                </Alert.Description>
-              </Box>
-            </Alert.Root>
-
-            <Text color="fg.muted" lineHeight={1.7}>
-              シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
-            </Text>
-
-            <Box>
-              <Heading as="h2" size="md" mb={3}>
-                シフトリでできること
-              </Heading>
-              <List.Root gap={2} color="fg.muted">
-                <List.Item>スタッフへのシフト希望募集をLINEやメールで完結</List.Item>
-                <List.Item>スタッフはアプリのインストールもアカウント登録も不要</List.Item>
-                <List.Item>集まった希望をガントチャートで一覧確認・調整</List.Item>
-                <List.Item>確定したシフトをワンクリックで全員に通知</List.Item>
-                <List.Item>過去のシフトはすべて保存、いつでも参照可能</List.Item>
-              </List.Root>
-            </Box>
-
-            <Box>
-              <Heading as="h2" size="md" mb={3}>
-                どんな場面で使える？
-              </Heading>
-              <Text color="fg.muted" lineHeight={1.7}>
-                飲食店、カフェ、美容室、小売店、クリニックなど、シフトづくりが必要なお店で使えます。希望回収、調整、確定シフトの共有までの流れを試せます。
-              </Text>
-            </Box>
-          </VStack>
-        </Box>
+      <Box display={{ base: "none", lg: "block" }} h={`calc(100dvh - ${HEADER_HEIGHT.md})`} minH="560px">
+        <DemoShiftBoardPage headerStart={<TopLink />} height="100%" />
       </Box>
-    </Box>
+
+      <Box display={{ base: "block", lg: "none" }} px={6} pb={10} maxW="640px" mx="auto">
+        <VStack align="stretch" gap={6}>
+          <Heading as="h1" size="xl">
+            勤務時間入力デモ
+          </Heading>
+
+          <Alert.Root status="warning" borderRadius="md">
+            <Alert.Indicator />
+            <Box>
+              <Alert.Title>このデモはPCで操作できます</Alert.Title>
+              <Alert.Description fontSize="sm" mt={1}>
+                スマホでは閲覧のみで、ガントチャートの操作はできません。PCのブラウザで開いてご確認ください。
+              </Alert.Description>
+            </Box>
+          </Alert.Root>
+
+          <Text color="fg.muted" lineHeight={1.7}>
+            シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
+          </Text>
+
+          <Box>
+            <Heading as="h2" size="md" mb={3}>
+              シフトリでできること
+            </Heading>
+            <List.Root gap={2} color="fg.muted">
+              <List.Item>スタッフへのシフト希望募集をLINEやメールで完結</List.Item>
+              <List.Item>スタッフはアプリのインストールもアカウント登録も不要</List.Item>
+              <List.Item>集まった希望をガントチャートで一覧確認・調整</List.Item>
+              <List.Item>確定したシフトをワンクリックで全員に通知</List.Item>
+              <List.Item>過去のシフトはすべて保存、いつでも参照可能</List.Item>
+            </List.Root>
+          </Box>
+
+          <Box>
+            <Heading as="h2" size="md" mb={3}>
+              どんな場面で使える？
+            </Heading>
+            <Text color="fg.muted" lineHeight={1.7}>
+              飲食店、カフェ、美容室、小売店、クリニックなど、シフトづくりが必要なお店で使えます。希望回収、調整、確定シフトの共有までの流れを試せます。
+            </Text>
+          </Box>
+        </VStack>
+      </Box>
+    </PublicPageLayout>
   );
 }
 

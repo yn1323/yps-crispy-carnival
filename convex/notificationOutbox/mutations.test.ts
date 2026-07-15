@@ -1202,7 +1202,7 @@ describe("notificationOutbox", () => {
       staffId,
       channel: "email",
       dedupeKey,
-      notificationContext: "test.preparation",
+      notificationContext: "line.sendInviteEmail",
       errorMessage: "first",
     });
     const failureId = (await collectFailureInbox(t))[0]._id;
@@ -1217,7 +1217,7 @@ describe("notificationOutbox", () => {
       staffId,
       channel: "email",
       dedupeKey,
-      notificationContext: "test.preparation",
+      notificationContext: "line.sendInviteEmail",
       errorMessage: "second",
     });
 
@@ -1369,6 +1369,150 @@ describe("notificationOutbox", () => {
         paginationOpts: { numItems: 10, cursor: null },
       });
     expect(openPage.page).toHaveLength(0);
+  });
+
+  it("resendFailureは催促不達を個別催促actionに予約してretryingへ移す", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const recruitmentId = await insertRecruitment(t, shopId);
+    const failureId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "enqueue_preparation:test:reminder",
+        sourceType: "enqueue_preparation",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "line",
+        dedupeKey: "line:reminder:retry-target",
+        notificationContext: "notification.sendReminderEmails",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "preparation failed",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+
+    expect(result).toEqual({ scheduled: true });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure).toMatchObject({
+      status: "retrying",
+      retryRequestedByUserId: expect.any(String),
+    });
+    expect(
+      state.scheduled.some(
+        (job) =>
+          job.name === "notification/reminderActions:sendReminderEmailForStaff" &&
+          job.args[0]?.recruitmentId === recruitmentId &&
+          job.args[0]?.staffId === staffId,
+      ),
+    ).toBe(true);
+  });
+
+  it("resendFailureは確定通知の不達を対象スタッフの再通知actionに予約してretryingへ移す", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const recruitmentId = await insertRecruitment(t, shopId);
+    const failureId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "enqueue_preparation:test:confirmation",
+        sourceType: "enqueue_preparation",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:confirmation:retry-target",
+        notificationContext: "notification.sendConfirmationEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "preparation failed",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+
+    expect(result).toEqual({ scheduled: true });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure).toMatchObject({
+      status: "retrying",
+      retryRequestedAt: expect.any(Number),
+      retryRequestedByUserId: expect.any(String),
+    });
+    expect(
+      state.scheduled.some(
+        (job) =>
+          job.name === "notification/actions:sendShiftConfirmationEmails" &&
+          job.args[0]?.recruitmentId === recruitmentId &&
+          job.args[0]?.isResend === true &&
+          Array.isArray(job.args[0]?.targetStaffIds) &&
+          job.args[0]?.targetStaffIds.length === 1 &&
+          job.args[0]?.targetStaffIds[0] === staffId &&
+          typeof job.args[0]?.notificationRunId === "number",
+      ),
+    ).toBe(true);
+  });
+
+  it("resendFailureは確定シフト再発行の不達を個別再発行actionに予約してretryingへ移す", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const recruitmentId = await insertRecruitment(t, shopId);
+    const failureId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "enqueue_preparation:test:reissue",
+        sourceType: "enqueue_preparation",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:reissue:retry-target",
+        notificationContext: "notification.sendReissueEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "preparation failed",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_mgr" })
+      .mutation(api.notificationOutbox.mutations.resendFailure, { failureId });
+
+    expect(result).toEqual({ scheduled: true });
+    const state = await t.run(async (ctx) => ({
+      failure: await ctx.db.get(failureId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.failure).toMatchObject({
+      status: "retrying",
+      retryRequestedAt: expect.any(Number),
+      retryRequestedByUserId: expect.any(String),
+    });
+    expect(
+      state.scheduled.some(
+        (job) =>
+          job.name === "notification/actions:sendReissueEmail" &&
+          job.args[0]?.recruitmentId === recruitmentId &&
+          job.args[0]?.staffId === staffId,
+      ),
+    ).toBe(true);
   });
 
   it("resendFailureはLINE連携案内の不達を連携依頼メール再送に予約する（募集なしでも可）", async () => {
@@ -1832,7 +1976,7 @@ describe("notificationOutbox", () => {
         dedupeKey: "email:test:manual-resolve",
         shopId,
         staffId,
-        payload: emailPayload,
+        payload: { ...emailPayload, context: "line.sendInviteEmail" },
         attemptCount: 1,
         nextRunAt: now,
         processingStartedAt: now,
@@ -1868,6 +2012,78 @@ describe("notificationOutbox", () => {
       resolvedByUserId: expect.any(String),
     });
     expect(failure?.resolvedAt).toBeTypeOf("number");
+  });
+
+  it("resolveFailureはopenかつDashboard表示対象でない失敗を拒否する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const failureIds = await t.run(async (ctx) => {
+      const now = Date.now();
+      const closedRecruitmentId = await ctx.db.insert("recruitments", {
+        shopId,
+        periodStart: "2026-07-01",
+        periodEnd: "2026-07-15",
+        deadline: "2026-06-25",
+        shopClosedDates: [],
+        status: "confirmed",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      const common = {
+        sourceType: "outbox" as const,
+        shopId,
+        staffId,
+        channel: "email" as const,
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "failed",
+        createdAt: now,
+        updatedAt: now,
+      };
+      const retryingId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-retrying",
+        status: "retrying",
+        dedupeKey: "email:test:resolve-retrying",
+        notificationContext: "line.sendInviteEmail",
+        retryRequestedAt: now,
+      });
+      const resolvedId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-resolved",
+        status: "resolved",
+        dedupeKey: "email:test:resolve-resolved",
+        notificationContext: "line.sendInviteEmail",
+        resolvedAt: now,
+        resolutionKind: "sent",
+      });
+      const notActionableId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-not-actionable",
+        status: "open",
+        dedupeKey: "email:test:resolve-not-actionable",
+        notificationContext: "test.email",
+      });
+      const closedRecruitmentFailureId = await ctx.db.insert("notificationFailureInbox", {
+        ...common,
+        failureKey: "outbox:resolve-closed-recruitment",
+        status: "open",
+        recruitmentId: closedRecruitmentId,
+        dedupeKey: "email:test:resolve-closed-recruitment",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      return [retryingId, resolvedId, notActionableId, closedRecruitmentFailureId];
+    });
+
+    for (const failureId of failureIds) {
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.notificationOutbox.mutations.resolveFailure, {
+          failureId,
+        }),
+      ).rejects.toThrow("Not found");
+    }
+
+    const failures = await t.run(async (ctx) => await Promise.all(failureIds.map(async (id) => await ctx.db.get(id))));
+    expect(failures.map((failure) => failure?.status)).toEqual(["retrying", "resolved", "open", "open"]);
   });
 
   it("初回失敗から30日を過ぎたopen/retryingのFailureInboxをresolved/expiredにする", async () => {

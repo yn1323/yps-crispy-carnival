@@ -1,6 +1,8 @@
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -110,6 +112,33 @@ describe("staff/mutations", () => {
           })),
         }),
       ).rejects.toThrow("スタッフは一度に50件まで追加できます");
+    });
+
+    it("上限ちょうど50件のスタッフを一括追加できる", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "user_mgr",
+          email: "mgr@example.com",
+          shopName: "テスト店舗",
+        });
+        return seeded.shopId;
+      });
+      const entries = Array.from({ length: STAFF_ADD_ENTRIES_MAX }, (_, index) => ({
+        name: `スタッフ${index + 1}`,
+        email: `staff-${index + 1}@example.com`,
+      }));
+
+      const ids = await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, { entries });
+
+      expect(ids).toHaveLength(STAFF_ADD_ENTRIES_MAX);
+      const staffs = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffs")
+          .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+          .collect(),
+      );
+      expect(staffs).toHaveLength(STAFF_ADD_ENTRIES_MAX);
     });
 
     it("過長名・制御文字入り名・不正メールはスタッフ追加で拒否する", async () => {
@@ -790,6 +819,176 @@ describe("staff/mutations", () => {
       }));
       expect(session?.revokedAt).toEqual(expect.any(Number));
       expect(magicLink?.revokedAt).toEqual(expect.any(Number));
+    });
+  });
+
+  describe("sendCurrentShiftNotification", () => {
+    type ShiftWindow = "past" | "current" | "future";
+
+    async function setupCurrentShiftNotification(
+      t: TestConvex<typeof schema>,
+      options: {
+        windows?: ShiftWindow[];
+        staffDeleted?: boolean;
+        excludedFromShift?: boolean;
+        email?: string;
+        otherShop?: boolean;
+      } = {},
+    ) {
+      return await t.run(async (ctx) => {
+        const { shopId: managerShopId } = await seedManagerShop(ctx, {
+          subject: "current_shift_manager",
+          email: "current-shift-manager@example.com",
+          shopName: "通知元店舗",
+        });
+        const staffShopId = options.otherShop ? await seedShop(ctx, "他店舗") : managerShopId;
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: staffShopId,
+          name: "通知対象スタッフ",
+          email: options.email ?? "current-shift-staff@example.com",
+          isDeleted: options.staffDeleted ?? false,
+          ...(options.excludedFromShift ? { excludedFromShift: true } : {}),
+        });
+        const periods: Record<ShiftWindow, { periodStart: string; periodEnd: string }> = {
+          past: { periodStart: dateFromToday(-4), periodEnd: dateFromToday(-1) },
+          current: { periodStart: dateFromToday(-1), periodEnd: dateFromToday(1) },
+          future: { periodStart: dateFromToday(1), periodEnd: dateFromToday(3) },
+        };
+        const recruitmentIds: Partial<Record<ShiftWindow, Id<"recruitments">>> = {};
+
+        for (const window of options.windows ?? ["current"]) {
+          const { periodStart, periodEnd } = periods[window];
+          recruitmentIds[window] = await ctx.db.insert("recruitments", {
+            shopId: staffShopId,
+            periodStart,
+            periodEnd,
+            deadline: dateFromToday(-5),
+            shopClosedDates: [],
+            status: "confirmed",
+            confirmedAt: Date.now(),
+            isDeleted: false,
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          });
+        }
+
+        return { staffId, recruitmentIds };
+      });
+    }
+
+    async function getScheduledCurrentShiftNotifications(t: TestConvex<typeof schema>) {
+      return await t.run(async (ctx) => {
+        const jobs = await ctx.db.system.query("_scheduled_functions").collect();
+        return jobs.filter((job) => job.name === "notification/actions:sendCurrentShiftConfirmationForStaff");
+      });
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-13T12:00:00+09:00"));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("未認証では通知を予約できない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t);
+
+      await expect(t.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId })).rejects.toThrowError();
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
+    });
+
+    it("現在の確定シフトだけを対象に通知を1件予約する", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, recruitmentIds } = await setupCurrentShiftNotification(t, {
+        windows: ["past", "current", "future"],
+      });
+
+      const notificationData = await t.query(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
+        staffId,
+      });
+      const result = await t
+        .withIdentity({ subject: "current_shift_manager" })
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+      const jobs = await getScheduledCurrentShiftNotifications(t);
+
+      expect(notificationData?.recruitments.map((recruitment) => recruitment.recruitmentId)).toEqual([
+        recruitmentIds.current,
+      ]);
+      expect(result).toEqual({ scheduled: true });
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]).toMatchObject({ args: [{ staffId }] });
+    });
+
+    it("現在の確定シフトがなく過去・未来のシフトだけなら予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t, { windows: ["past", "future"] });
+
+      const result = await t
+        .withIdentity({ subject: "current_shift_manager" })
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+
+      expect(result).toEqual({ scheduled: false, reason: "noCurrentShift" });
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
+    });
+
+    it("他店舗のスタッフには通知を予約できない（IDOR）", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t, { otherShop: true });
+
+      await expect(
+        t
+          .withIdentity({ subject: "current_shift_manager" })
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId }),
+      ).rejects.toThrowError("Not found");
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
+    });
+
+    it("削除済みスタッフには通知を予約できない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t, { staffDeleted: true });
+
+      await expect(
+        t
+          .withIdentity({ subject: "current_shift_manager" })
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId }),
+      ).rejects.toThrowError("Not found");
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
+    });
+
+    it("シフト対象外スタッフには通知を予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t, { excludedFromShift: true });
+
+      const result = await t
+        .withIdentity({ subject: "current_shift_manager" })
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+
+      expect(result).toEqual({ scheduled: false, reason: "noCurrentShift" });
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
+    });
+
+    it("メール・LINE連携のないスタッフには通知を予約できない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t, { email: "" });
+
+      await expect(
+        t
+          .withIdentity({ subject: "current_shift_manager" })
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId }),
+      ).rejects.toThrowError("メールアドレスまたはLINE連携が必要です");
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
+    });
+
+    it("短時間の再送はrate limitで拒否し通知予約を重複させない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId } = await setupCurrentShiftNotification(t);
+      const asManager = t.withIdentity({ subject: "current_shift_manager" });
+
+      const first = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+      const second = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+
+      expect(first).toEqual({ scheduled: true });
+      expect(second).toEqual({ scheduled: false, reason: "rateLimited" });
+      expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(1);
     });
   });
 });

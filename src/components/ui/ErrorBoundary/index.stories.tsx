@@ -80,7 +80,7 @@ export const RefreshAction: Story = {
     children: <Text>Story args placeholder</Text>,
   },
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: () => (
     <DefaultErrorFallback

@@ -167,11 +167,13 @@ describe("法務同意シナリオ", () => {
       return { recruitmentId };
     });
 
-    const pageData = await staff.getOkSubmissionPageData({
+    const pageResult = await staff.getSubmissionPageData({
       sessionToken: "existing-manager-staff-submit-session",
       recruitmentId: ids.recruitmentId,
     });
+    expect(pageResult.status).toBe("ok");
+    if (pageResult.status !== "ok") throw new Error("提出画面を取得できませんでした");
 
-    expect(pageData.legalConsentRequired).toBe(false);
+    expect(pageResult.data.legalConsentRequired).toBe(false);
   });
 });

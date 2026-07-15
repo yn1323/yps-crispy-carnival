@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures/e2eTest";
 import { AuthPage } from "../pages/AuthPage";
 
-test.describe("ログイン周り", () => {
+test.describe("ログイン周り", { tag: ["@release", "@smoke"] }, () => {
   let authPage: AuthPage;
 
   test.beforeEach(async ({ page }) => {

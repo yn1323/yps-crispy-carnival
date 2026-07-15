@@ -19,7 +19,7 @@ import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
 import { parse } from "yaml";
-import { extractFrontmatterSource } from "../src/helpers/mdx";
+import { extractFrontmatterSource } from "../src/lib/mdx";
 
 const ARTICLES_DIR = join("src", "components", "features", "ArticleSite", "content", "articles");
 const OUTPUT_DIR = join("public", "ogp", "articles");

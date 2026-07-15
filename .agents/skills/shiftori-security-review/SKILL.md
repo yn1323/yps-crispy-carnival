@@ -1,6 +1,6 @@
 ---
 name: shiftori-security-review
-description: シフトリ / yps-crispy-carnival 固有のセキュリティ設計・コードレビュー・修正・自己更新を扱う。Use at the plan/spec/design stage before implementation when a task mentions or touches security, authn/authz, IDOR, magic link, token, invite, Webhook, LINE, Resend, billing, personal-data logs, Convex public query/mutation, staff token/session, manager/billing permissions, external HTTP actions, notification delivery, or registration/invitation flows. Also use during implementation/review of those areas and when the user corrects security perspective so this skill, references, and docs can self-repair.
+description: シフトリ / yps-crispy-carnival 固有のセキュリティ設計・コードレビュー・修正・自己更新を扱う。Use at the plan/spec/design stage before implementation when a task mentions or touches security, authn/authz, IDOR, magic link, token, capability lifecycle, invite, Webhook, LINE, Resend, billing, personal-data logs, data retention/redaction, Convex public query/mutation, staff token/session, manager/billing permissions, external HTTP actions, service credentials/replay, notification delivery, outbox lease/fanout recovery, or registration/invitation flows. Also use during implementation/review of those areas and when the user corrects security perspective so this skill, references, and docs can self-repair.
 ---
 
 # Shiftori Security Review
@@ -13,7 +13,7 @@ This is not a generic SAST skill. Treat it as Shiftori-specific application secu
 
 1. Read `doc/rules/security-strategy.md`.
 2. Read `doc/rules/testing-strategy.md` because security changes need the right test layer.
-3. For Convex code, read `convex/AGENTS.md` and `convex/_generated/ai/guidelines.md`.
+3. For Convex code, read `convex/_generated/ai/guidelines.md`, `doc/rules/convex-design-strategy.md`, and `convex/AGENTS.md`.
 4. Read `references/shiftori-security-model.md` for the local trust boundaries.
 5. Read `references/review-checklist.md` for plan/code review checks.
 6. Inspect nearby public API, schema, helper, policy, tests, and scenario fixture before deciding.
@@ -34,15 +34,21 @@ Run this before implementation plans are finalized for any security-sensitive ta
    - billing or paid-feature guard
    - public Convex query/mutation/action or HTTP action
    - logging or personal-data exposure
+   - capability issuance, rotation, reuse, or pruning
+   - anonymous registration and abuse prevention
+   - durable job lease, fanout recovery, deletion race, or retention
 2. Write a short Security Lens in the plan:
    - Actor: who can call or trigger this?
    - Asset: what data, permission, delivery channel, or cost is protected?
    - Trust boundary: what user-controlled input crosses into server logic?
    - Abuse case: how could another shop, staff member, bot, or stale token misuse it?
    - Server-side check: what exact helper, relationship, token state, or rate limit must enforce the rule?
+   - Lifecycle / recovery: how is the authority or job revoked, resumed, retained, and removed?
 3. Decide the enforcement point before UI details:
    - Do not accept frontend visibility, local state, hidden form fields, long UUIDs, or route guards as authorization.
    - Prefer existing `managerQuery`, `managerMutation`, `staffSessionQuery`, `staffSessionMutation`, `rateLimit`, and internal functions.
+   - Use an HTTP Action before an internal mutation when IP-aware bot protection or request-size control is required.
+   - Persist fanout progress when one action cannot safely own the whole workflow, and require lease/state checks before terminal updates.
 4. Decide tests in the plan:
    - Function Test for single public query/mutation auth, IDOR, return DTO, token states, and rate limits.
    - Scenario Test for cross-use-case flows like notification fanout, staff sessions, dashboard, billing, and multi-shop isolation.
@@ -56,12 +62,18 @@ Check these first:
 - Every public Convex function has runtime argument validators and only exposes needed fields.
 - Every user-supplied ID is checked after fetch against `ctx.shop._id`, session shop, membership, owner relation, and `isDeleted` as applicable.
 - Manager authority is derived from Clerk identity and active `shopMembers`, not client-provided `userId`, `shopId`, or role.
+- Store-scoped manager APIs require the selected `shopId`; first-membership fallback is limited to bootstrap flows before a target store exists.
 - Staff authority is derived from token/session rows plus staff/shop/recruitment consistency, not from staffId alone.
 - Tokens are random, scoped, time-limited, revocable, and single-use when the flow requires it.
+- Capability storage, rotation, reuse policy, and pruning match the documented lifecycle.
 - Registration, invite, LINE linking, and legal consent tokens do not leak or grant cross-shop authority.
+- Anonymous registration uses generic responses, bot protection, layered rate limits, and a bounded pending queue.
 - Notification and external delivery flows have dedupe, rate limits, idempotency, and safe retry semantics.
+- Durable notification jobs can resume after interruption, reclaim stale leases, and reject stale worker completion.
+- Deletion or deactivation cannot race with enqueue or external delivery without an explicit in-flight policy.
 - Logs avoid raw email addresses, tokens, webhook payloads, secrets, and third-party error bodies that may include PII.
-- HTTP actions verify signatures/authentication/CORS intentionally and keep public route surface small.
+- Notification payloads, expired credentials, and provider errors follow an explicit retention and redaction policy.
+- HTTP actions define method/body/CORS limits, verify provider signatures or service credentials, reject replay where metadata permits, and keep the public route surface small.
 - Billing-sensitive paths re-check server-side store membership and billing role/entitlement.
 
 ## Implementation Rules

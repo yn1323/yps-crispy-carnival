@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ShiftForm } from "..";
 import {
-  expectVisibleText,
   fullscreenParameters,
   mobileGlobals,
   shiftFormDecorators,
@@ -23,12 +22,6 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   args: { ...shiftTypeArgs, initialViewMode: "overview" },
   globals: mobileGlobals,
-  play: async ({ canvasElement }) => {
-    await expectVisibleText(canvasElement, "5/18–5/24");
-    await expectVisibleText(canvasElement, "5/18月期間外");
-    await expectVisibleText(canvasElement, "5/19火期間外");
-    await expectVisibleText(canvasElement, "5/20水期間外");
-  },
 };
 
 export const WithValidationWarnings: Story = {

@@ -2,14 +2,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuChevronLeft, LuClock3, LuListChecks, LuStore, LuUserRound } from "react-icons/lu";
+import { createShopSchema as step1Schema } from "@/convex/setup/schemas";
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
-import { normalizeShiftTypeOptions } from "../submissionPatternForm";
-import type { Step1Data } from "./SetupStep1";
-import { step1Schema } from "./SetupStep1";
-import { DEFAULT_TIME_PATTERN, SetupPatternSettingsStep, SetupShopInfoStep } from "./SetupStep1/index.tsx";
-import type { Step2Data } from "./SetupStep2";
-import { SetupStep2 } from "./SetupStep2/index.tsx";
+import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "../submissionPatternForm";
+import { SetupPatternSettingsStep, SetupShopInfoStep, type Step1Data } from "./SetupStep1";
+import { SetupStep2, type Step2Data } from "./SetupStep2";
 
 export type SetupData = Step1Data & Step2Data;
 

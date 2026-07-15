@@ -6,9 +6,9 @@
 
 ### フロントエンド（`src/`）
 
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — はじめの確認セクションの表示、通常の「TODO」セクション非表示、モーダル/画面遷移との接続
+- `src/components/features/Dashboard/DashboardContent/index.tsx` — オンボーディング機能とDashboard各セクションを合成する
 - `src/components/features/Dashboard/HeroSummary/` — オンボーディング中に通常の「TODO」セクションを隠す表示制御
-- `src/components/features/Dashboard/DashboardContent/OnboardingCallout/` — Callout UI、進捗判定、Storybook、ロジックテスト
+- `src/components/features/Dashboard/DashboardOnboarding/` — オンボーディング状態、Callout UI、進捗判定、通常TODOとの表示切り替え、モーダル/画面遷移との接続、Storybook、ロジックテストを所有する
 - `src/components/features/Dashboard/dashboardTourTargets.ts` — Dashboard内Tourターゲットの共有定数
 - `src/components/features/Dashboard/RecruitmentBoard/` — 募集作成ボタンと最新募集カードのTourターゲット
 - `src/components/features/Dashboard/StaffRoster/` — スタッフ追加ボタンのTourターゲット

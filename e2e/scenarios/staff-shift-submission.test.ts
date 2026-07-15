@@ -6,7 +6,7 @@ function seedAndGetToken(args: Record<string, unknown> = {}): string {
   return convexRunJson<{ token: string }>("testing:seedSubmitTestData", args).token;
 }
 
-test.describe("スタッフのシフト希望提出", () => {
+test.describe("スタッフのシフト希望提出", { tag: ["@release"] }, () => {
   test.setTimeout(30_000);
   let submitPage: StaffSubmitPage;
 

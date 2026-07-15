@@ -8,16 +8,16 @@ import {
 } from "@/src/domains/shift/operations";
 import type { DragMode, LinkedResizeTarget, ShiftData } from "@/src/domains/shift/types";
 import { DEFAULT_POSITION, RESIZE_EDGE_THRESHOLD } from "../../../constants";
+import { detectLinkedResizeEdge } from "../../../hitTesting";
 import {
   hourWidthAtom,
   selectedDateAtom,
   selectedPositionAtom,
   shiftByStaffIdForSelectedDateAtom,
   shiftConfigAtom,
-  shiftsAtom,
+  updateShiftDraftsAtom,
 } from "../../../stores";
-import { detectLinkedResizeEdge } from "../../../utils/hitTesting";
-import { isWithinEditableRange, pixelToEditableMinutes, pixelToRawMinutes } from "../../../utils/timelineGeometry";
+import { isWithinEditableRange, pixelToEditableMinutes, pixelToRawMinutes } from "../../../timelineGeometry";
 
 type DragState = {
   mode: DragMode;
@@ -53,7 +53,7 @@ const initialDragState: DragState = {
 };
 
 export const useDrag = (): UseDragReturn => {
-  const setShifts = useSetAtom(shiftsAtom);
+  const setShifts = useSetAtom(updateShiftDraftsAtom);
   const shiftByStaffId = useAtomValue(shiftByStaffIdForSelectedDateAtom);
   const selectedPosition = useAtomValue(selectedPositionAtom);
   const selectedDate = useAtomValue(selectedDateAtom);

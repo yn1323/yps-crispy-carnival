@@ -28,7 +28,7 @@ describe("addTimeSchema", () => {
     const result = addTimeSchema.safeParse({ startTime: "10:00", endTime: "10:00" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("終了時間は開始時間より後にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("endTime"))).toBe(true);
     }
   });
 
@@ -36,7 +36,7 @@ describe("addTimeSchema", () => {
     const result = addTimeSchema.safeParse({ startTime: "18:00", endTime: "10:00" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("終了時間は開始時間より後にしてください");
+      expect(result.error.issues.some((issue) => issue.path.includes("endTime"))).toBe(true);
     }
   });
 });

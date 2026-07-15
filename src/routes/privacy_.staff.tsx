@@ -1,20 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PrivacyPolicy } from "@/src/components/features/PrivacyPolicy";
-import { buildLinks, buildMeta } from "@/src/helpers/seo";
+import { PrivacyPage } from "@/src/pages/privacy";
+import { buildStaffPrivacyPageHead } from "@/src/pages/privacy/meta";
 
 export const Route = createFileRoute("/privacy_/staff")({
-  head: () => ({
-    links: buildLinks({ canonical: "/privacy/staff" }),
-    meta: buildMeta({
-      title: "スタッフ向けプライバシーポリシー",
-      description: "シフトリのスタッフ向けプライバシーポリシー",
-      canonical: "/privacy/staff",
-      noindex: true,
-    }),
-  }),
+  head: buildStaffPrivacyPageHead,
   component: StaffPrivacyRoute,
 });
 
 function StaffPrivacyRoute() {
-  return <PrivacyPolicy audience="staff" />;
+  return <PrivacyPage audience="staff" />;
 }

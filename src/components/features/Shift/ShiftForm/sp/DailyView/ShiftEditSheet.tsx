@@ -17,7 +17,7 @@ import {
 } from "@/src/domains/shift/time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 import { BREAK_POSITION, DEFAULT_POSITION } from "../../constants";
-import { getEditableEndMinutes, getEditableStartMinutes } from "../../utils/timelineGeometry";
+import { getEditableEndMinutes, getEditableStartMinutes } from "../../timelineGeometry";
 import { type AddTimeFormData, addTimeSchema } from "./ShiftEditSheet.schema";
 
 type ShiftEditSheetProps = {

@@ -160,11 +160,11 @@ describe("スタッフ管理シナリオ", () => {
         .collect();
       return { outbox, magicLinks };
     });
-    expect(state.outbox.map((job) => job.dedupeKey)).toEqual(
-      expect.arrayContaining([
+    expect(state.outbox.map((job) => job.dedupeKey).sort()).toEqual(
+      [
         `email:recruitment:${recruitmentId}:${staffId}`,
         `email:openRecruitmentEmailChange:${recruitmentId}:${staffId}:${SCENARIO_NOW + 1}`,
-      ]),
+      ].sort(),
     );
     expect(
       state.outbox.find(
@@ -272,12 +272,17 @@ describe("スタッフ管理シナリオ", () => {
     });
 
     const outbox = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
-    expect(outbox.map((job) => job.dedupeKey)).toEqual(
-      expect.arrayContaining([
+    expect(
+      outbox
+        .map((job) => job.dedupeKey)
+        .filter((dedupeKey) => dedupeKey.startsWith(`email:openRecruitmentEmailChange:${recruitmentId}:`))
+        .sort(),
+    ).toEqual(
+      [
         `email:openRecruitmentEmailChange:${recruitmentId}:${ids.emailStaffId}:${SCENARIO_NOW + 10}`,
         `email:openRecruitmentEmailChange:${recruitmentId}:${ids.unfollowStaffId}:${SCENARIO_NOW + 12}`,
         `email:openRecruitmentEmailChange:${recruitmentId}:${ids.lineStaffId}:${SCENARIO_NOW + 13}`,
-      ]),
+      ].sort(),
     );
     expect(outbox.map((job) => job.dedupeKey)).not.toContain(
       `email:openRecruitmentEmailChange:${recruitmentId}:${ids.lineStaffId}:${SCENARIO_NOW + 11}`,

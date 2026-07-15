@@ -1,0 +1,134 @@
+import dayjs, { type Dayjs } from "dayjs";
+import type {
+  DashboardRecruitmentGroup,
+  DashboardRecruitmentGroupKey,
+  DashboardRecruitmentGroupsResult,
+  Recruitment,
+  RecruitmentDisplayStatus,
+} from "./types";
+
+type RecruitmentDateStatusFields = Pick<Recruitment, "status" | "deadline" | "periodStart" | "periodEnd">;
+
+export function isCurrentRecruitment(
+  recruitment: Pick<Recruitment, "status" | "periodStart" | "periodEnd">,
+  now = dayjs(),
+): boolean {
+  const today = now.format("YYYY-MM-DD");
+  return recruitment.status === "confirmed" && recruitment.periodStart <= today && today <= recruitment.periodEnd;
+}
+
+export function getDisplayStatus(recruitment: RecruitmentDateStatusFields, now = dayjs()): RecruitmentDisplayStatus {
+  const today = now.format("YYYY-MM-DD");
+  if (recruitment.periodEnd < today) {
+    return recruitment.status === "confirmed" ? "ended" : "ended-unconfirmed";
+  }
+  if (recruitment.status === "open" && recruitment.deadline < today) {
+    return "action-required";
+  }
+  if (isCurrentRecruitment(recruitment, now)) return "current";
+  if (recruitment.status === "confirmed") return "confirmed";
+  return "collecting";
+}
+
+export function sortRecruitmentsByPeriodStart(recruitments: Recruitment[]): Recruitment[] {
+  return [...recruitments].sort((a, b) => b.periodStart.localeCompare(a.periodStart) || b.createdAt - a.createdAt);
+}
+
+export function buildDashboardRecruitmentGroups({
+  recruitments,
+  now = dayjs(),
+}: {
+  recruitments: readonly Recruitment[];
+  now?: Dayjs;
+}): DashboardRecruitmentGroupsResult {
+  const uniqueRecruitments = Array.from(
+    new Map(recruitments.map((recruitment) => [recruitment._id, recruitment])).values(),
+  );
+  const grouped: Record<DashboardRecruitmentGroupKey, Recruitment[]> = {
+    current: [],
+    actionRequired: [],
+    collecting: [],
+    confirmed: [],
+    past: [],
+  };
+
+  for (const recruitment of uniqueRecruitments) {
+    const groupKey = getDashboardRecruitmentGroupKey(recruitment, now);
+    if (groupKey) grouped[groupKey].push(recruitment);
+  }
+
+  const groups = createDashboardRecruitmentGroups({
+    current: grouped.current.sort(sortCurrentRecruitments),
+    actionRequired: grouped.actionRequired.sort(sortActionRequiredRecruitments),
+    collecting: grouped.collecting.sort(sortCollectingRecruitments),
+    confirmed: grouped.confirmed.sort(sortFutureConfirmedRecruitments),
+    past: grouped.past.sort(sortPastRecruitments),
+  });
+
+  return {
+    groups,
+    totalCount: groups.reduce((total, group) => total + group.recruitments.length, 0),
+  };
+}
+
+export function sortRecruitmentsByCreatedAt(recruitments: Recruitment[]): Recruitment[] {
+  return [...recruitments].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function getDashboardRecruitmentGroupKey(
+  recruitment: RecruitmentDateStatusFields,
+  now = dayjs(),
+): DashboardRecruitmentGroupKey | null {
+  const today = now.format("YYYY-MM-DD");
+  if (recruitment.periodEnd < today) return "past";
+  if (recruitment.status === "confirmed") {
+    if (recruitment.periodStart <= today) return "current";
+    return "confirmed";
+  }
+  if (recruitment.deadline < today) return "actionRequired";
+  return "collecting";
+}
+
+function createDashboardRecruitmentGroups(
+  groups: Record<DashboardRecruitmentGroupKey, Recruitment[]>,
+): DashboardRecruitmentGroup[] {
+  const orderedGroups: DashboardRecruitmentGroup[] = [
+    { key: "current", title: "現在のシフト", recruitments: groups.current, totalCount: groups.current.length },
+    {
+      key: "actionRequired",
+      title: "要シフト調整",
+      recruitments: groups.actionRequired,
+      totalCount: groups.actionRequired.length,
+    },
+    { key: "collecting", title: "募集中", recruitments: groups.collecting, totalCount: groups.collecting.length },
+    { key: "confirmed", title: "確定済み", recruitments: groups.confirmed, totalCount: groups.confirmed.length },
+    { key: "past", title: "過去のシフト", recruitments: groups.past, totalCount: groups.past.length },
+  ];
+  return orderedGroups.filter((group) => group.recruitments.length > 0);
+}
+
+function sortCurrentRecruitments(a: Recruitment, b: Recruitment): number {
+  return a.periodEnd.localeCompare(b.periodEnd) || b.createdAt - a.createdAt;
+}
+
+function sortActionRequiredRecruitments(a: Recruitment, b: Recruitment): number {
+  return (
+    a.deadline.localeCompare(b.deadline) || a.periodStart.localeCompare(b.periodStart) || b.createdAt - a.createdAt
+  );
+}
+
+function sortCollectingRecruitments(a: Recruitment, b: Recruitment): number {
+  return (
+    a.deadline.localeCompare(b.deadline) || a.periodStart.localeCompare(b.periodStart) || b.createdAt - a.createdAt
+  );
+}
+
+function sortFutureConfirmedRecruitments(a: Recruitment, b: Recruitment): number {
+  return a.periodStart.localeCompare(b.periodStart) || b.createdAt - a.createdAt;
+}
+
+function sortPastRecruitments(a: Recruitment, b: Recruitment): number {
+  return (
+    b.periodEnd.localeCompare(a.periodEnd) || b.periodStart.localeCompare(a.periodStart) || b.createdAt - a.createdAt
+  );
+}

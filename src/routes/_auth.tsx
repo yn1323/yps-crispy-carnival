@@ -1,10 +1,8 @@
 import { Box } from "@chakra-ui/react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { AuthProviders } from "@/src/components/config/AuthProviders";
-import { AuthenticatedHeader } from "@/src/components/features/auths/AuthenticatedHeader";
-import { AuthGuard } from "@/src/components/features/auths/AuthGuard";
-import { UnauthenticatedBoundary } from "@/src/components/features/auths/UnauthenticatedBoundary";
+import { AuthenticatedHeader, AuthGuard, UnauthenticatedBoundary } from "@/src/components/features/AuthenticatedApp";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { AuthProviders } from "@/src/providers/AuthProviders";
 
 export const Route = createFileRoute("/_auth")({
   component: RouteComponent,

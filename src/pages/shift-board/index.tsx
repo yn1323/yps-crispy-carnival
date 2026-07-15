@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ShiftBoardPage } from "@/src/components/features/ShiftBoard/ShiftBoardPage";
+import { ShiftBoardPage } from "@/src/components/features/ShiftBoard";
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Convex Design Review"
+  short_description: "シフトリのConvex設計を横断レビューし不足と完成形を整理する"
+  default_prompt: "Use $convex-design-review to review the Shiftori Convex architecture and prioritize missing design contracts."

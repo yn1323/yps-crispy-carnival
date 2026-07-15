@@ -1,8 +1,8 @@
 import { Box, Grid, Heading, Image, Link, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuBookOpen } from "react-icons/lu";
-import heroPcImage from "@/src/components/features/LandingPage/hero-pc.webp";
-import heroSpImage from "@/src/components/features/LandingPage/hero-sp.webp";
+import heroPcImage from "@/src/assets/hero-pc.webp";
+import heroSpImage from "@/src/assets/hero-sp.webp";
 import { Button } from "@/src/components/ui/Button";
 
 type ArticleConversionCtaProps = {

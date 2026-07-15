@@ -14,10 +14,10 @@ export function pickNextAction(recruitments: Recruitment[], now: Dayjs = dayjs()
   const today = now.startOf("day");
   const todayStr = today.format("YYYY-MM-DD");
 
-  const open = recruitments.filter((r) => r.status === "open");
+  const open = recruitments.filter((r) => r.status === "open" && r.periodEnd >= todayStr);
 
   const past = open
-    .filter((r) => r.deadline < todayStr || r.periodEnd < todayStr)
+    .filter((r) => r.deadline < todayStr)
     .sort((a, b) => a.deadline.localeCompare(b.deadline) || a.periodStart.localeCompare(b.periodStart));
   if (past.length > 0) return { kind: "past-deadline", recruitment: past[0] };
 

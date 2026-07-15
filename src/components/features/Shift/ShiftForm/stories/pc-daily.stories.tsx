@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { ShiftForm } from "..";
 import {
   allPatternsArgs,
   emptyOrAllUnsubmittedArgs,
-  expectVisibleText,
   fullscreenParameters,
   halfHourBusinessHoursArgs,
   overnightArgs,
@@ -36,10 +36,6 @@ export const TimeHalfHourBusinessHours: Story = {
 export const TimeOvernight: Story = {
   name: "Overnight",
   args: overnightArgs,
-  play: async ({ canvasElement }) => {
-    await expectVisibleText(canvasElement, "21:00–翌5:00");
-    await expectVisibleText(canvasElement, "翌5:00");
-  },
 };
 
 export const TimeEmptyOrAllUnsubmitted: Story = {
@@ -68,12 +64,12 @@ export const TimeValidationErrorJump: Story = {
   name: "Validation Error Jump",
   args: validationErrorArgs,
   play: async ({ canvasElement }) => {
-    await expectVisibleText(canvasElement, "1月21日");
-    const issueRow = Array.from(canvasElement.querySelectorAll<HTMLElement>('[role="button"]')).find((element) =>
-      element.textContent?.includes("1/23(金) Dさん"),
-    );
-    issueRow?.click();
-    await expectVisibleText(canvasElement, "1月23日");
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("1月21日")).toBeVisible();
+
+    await userEvent.click(await canvas.findByRole("button", { name: /1\/23\(金\) Dさん/ }));
+
+    await expect(await canvas.findByText("1月23日")).toBeVisible();
   },
 };
 

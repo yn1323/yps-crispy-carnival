@@ -32,8 +32,11 @@ describe("contact/httpActions", () => {
     vi.stubEnv("CONTACT_ALLOWED_ORIGINS", ORIGIN);
     vi.stubEnv("CONTACT_RECIPIENT_EMAIL", "contact@example.com");
     vi.stubEnv("SLACK_CONTACT_WEBHOOK_URL", SLACK_URL);
+    vi.stubEnv("RESEND_API_KEY", "re_test_contact");
     vi.stubEnv("TURNSTILE_SECRET_KEY", "turnstile-secret");
     vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "mock");
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
+    vi.stubEnv("E2E_TESTING_ENABLED", "");
     vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
   });
 
@@ -44,11 +47,13 @@ describe("contact/httpActions", () => {
   });
 
   it("Turnstile検証後に問い合わせを受け付けてSlackへ通知する", async () => {
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("turnstile")) {
         return responseJson({ success: true, action: "contact", hostname: "shiftori.app" });
       }
+      if (url.includes("api.resend.com")) return responseJson({ id: "resend-email-id" });
       if (url === SLACK_URL) return new Response("ok", { status: 200 });
       throw new Error(`unexpected fetch: ${url}`);
     });
@@ -67,12 +72,37 @@ describe("contact/httpActions", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url) === SLACK_URL)).toBe(true);
   });
 
-  it("localhostではCloudflareのalways-passテストキーを検証できる", async () => {
-    vi.stubEnv("APP_URL", LOCAL_ORIGIN);
-    vi.stubEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA");
+  it("通知dry-run環境でもTurnstile検証を通して外部配送だけを抑止する", async () => {
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
+    vi.stubEnv("CONTACT_RECIPIENT_EMAIL", "");
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("turnstile")) {
+        return responseJson({ success: true, action: "contact", hostname: "shiftori.app" });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+
+    const response = await t.fetch("/contact/submit", {
+      method: "POST",
+      headers: { origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify(validBody()),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "accepted" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("localhostではCloudflareのalways-passテストキーを検証できる", async () => {
+    vi.stubEnv("APP_URL", LOCAL_ORIGIN);
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "1x0000000000000000000000000000000AA");
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("turnstile")) {
+        expect((init?.body as FormData).get("secret")).toBe("1x0000000000000000000000000000000AA");
         return responseJson({ success: true, hostname: "example.com", metadata: { result_with_testing_key: true } });
       }
       if (url === SLACK_URL) return new Response("ok", { status: 200 });
@@ -143,12 +173,14 @@ describe("contact/httpActions", () => {
   });
 
   it("Slack通知に失敗してもメール受付成功を維持する", async () => {
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("turnstile")) {
         return responseJson({ success: true, action: "contact", hostname: "shiftori.app" });
       }
+      if (url.includes("api.resend.com")) return responseJson({ id: "resend-email-id" });
       return new Response("failed", { status: 500 });
     });
     vi.stubGlobal("fetch", fetchMock);

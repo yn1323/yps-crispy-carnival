@@ -23,6 +23,7 @@ import { Route as ArticlesRouteImport } from './routes/articles'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as TermsStaffRouteImport } from './routes/terms_.staff'
 import { Route as TermsManagerRouteImport } from './routes/terms_.manager'
 import { Route as PrivacyStaffRouteImport } from './routes/privacy_.staff'
@@ -108,6 +109,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ArticlesIndexRoute = ArticlesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ArticlesRoute,
 } as any)
 const TermsStaffRoute = TermsStaffRouteImport.update({
   id: '/terms_/staff',
@@ -224,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
+  '/articles/': typeof ArticlesIndexRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
@@ -236,7 +243,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/articles': typeof ArticlesRouteWithChildren
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -255,6 +261,7 @@ export interface FileRoutesByTo {
   '/privacy/staff': typeof PrivacyStaffRoute
   '/terms/manager': typeof TermsManagerRoute
   '/terms/staff': typeof TermsStaffRoute
+  '/articles': typeof ArticlesIndexRoute
   '/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
@@ -289,6 +296,7 @@ export interface FileRoutesById {
   '/privacy_/staff': typeof PrivacyStaffRoute
   '/terms_/manager': typeof TermsManagerRoute
   '/terms_/staff': typeof TermsStaffRoute
+  '/articles/': typeof ArticlesIndexRoute
   '/_auth/shiftboard/$recruitmentId': typeof AuthShiftboardRecruitmentIdRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
@@ -322,6 +330,7 @@ export interface FileRouteTypes {
     | '/privacy/staff'
     | '/terms/manager'
     | '/terms/staff'
+    | '/articles/'
     | '/shiftboard/$recruitmentId'
     | '/line/callback'
     | '/shifts/reissue'
@@ -334,7 +343,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/articles'
     | '/contact'
     | '/faq'
     | '/features'
@@ -353,6 +361,7 @@ export interface FileRouteTypes {
     | '/privacy/staff'
     | '/terms/manager'
     | '/terms/staff'
+    | '/articles'
     | '/shiftboard/$recruitmentId'
     | '/line/callback'
     | '/shifts/reissue'
@@ -386,6 +395,7 @@ export interface FileRouteTypes {
     | '/privacy_/staff'
     | '/terms_/manager'
     | '/terms_/staff'
+    | '/articles/'
     | '/_auth/shiftboard/$recruitmentId'
     | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
@@ -519,6 +529,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/articles/': {
+      id: '/articles/'
+      path: '/'
+      fullPath: '/articles/'
+      preLoaderRoute: typeof ArticlesIndexRouteImport
+      parentRoute: typeof ArticlesRoute
     }
     '/terms_/staff': {
       id: '/terms_/staff'
@@ -681,11 +698,13 @@ const UnregisteredRouteWithChildren = UnregisteredRoute._addFileChildren(
 
 interface ArticlesRouteChildren {
   ArticlesSlugRoute: typeof ArticlesSlugRoute
+  ArticlesIndexRoute: typeof ArticlesIndexRoute
   ArticlesCategoriesCategorySlugRoute: typeof ArticlesCategoriesCategorySlugRoute
 }
 
 const ArticlesRouteChildren: ArticlesRouteChildren = {
   ArticlesSlugRoute: ArticlesSlugRoute,
+  ArticlesIndexRoute: ArticlesIndexRoute,
   ArticlesCategoriesCategorySlugRoute: ArticlesCategoriesCategorySlugRoute,
 }
 

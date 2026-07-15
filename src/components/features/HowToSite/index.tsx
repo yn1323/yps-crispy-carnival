@@ -1,8 +1,8 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { LuArrowRight, LuCircleHelp, LuLink, LuSearch } from "react-icons/lu";
-import { FooterSection } from "@/src/components/features/LandingPage/FooterSection";
-import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
+import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Empty } from "@/src/components/ui/Empty";
 import {
   HELP_CATEGORIES,
@@ -38,43 +38,39 @@ export function HowToSite({ articles = helpArticles }: HowToSiteProps) {
   }, []);
 
   return (
-    <Box bg="white" minH="100vh" color="fg">
-      <Header variant="public" showLinks={false} showLogin={false} />
-      <Box as="main" pt={HEADER_HEIGHT}>
-        <HowToHero query={query} onQueryChange={setQuery} />
-        <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 10 }}>
-          {visibleCategories.length > 0 ? (
-            <>
-              <MobileNavigation categories={visibleCategories.map(({ category }) => category)} />
-              {hasQuery && (
-                <Text mb={{ base: 6, lg: 8 }} color="gray.600" fontSize="sm">
-                  {visibleArticles.length}件見つかりました
-                </Text>
-              )}
-              <Grid templateColumns={{ base: "1fr", lg: "240px minmax(0, 720px)" }} gap={{ lg: 12 }} alignItems="start">
-                <DesktopNavigation categories={visibleCategories.map(({ category }) => category)} />
-                <Stack gap={{ base: 12, lg: 16 }} minW={0}>
-                  {visibleCategories.map(({ category, articles }) => (
-                    <HelpCategorySection key={category.id} category={category} articles={articles} />
-                  ))}
-                </Stack>
-              </Grid>
-            </>
-          ) : (
-            <Empty
-              icon={LuSearch}
-              title="該当する使い方が見つかりません"
-              description="言葉を短くするか、別の言い方で検索してください。"
-              variant="section"
-              tone="neutral"
-              minH="280px"
-            />
-          )}
-          <SupportSection />
-        </Container>
-      </Box>
-      <FooterSection />
-    </Box>
+    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+      <HowToHero query={query} onQueryChange={setQuery} />
+      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 10 }}>
+        {visibleCategories.length > 0 ? (
+          <>
+            <MobileNavigation categories={visibleCategories.map(({ category }) => category)} />
+            {hasQuery && (
+              <Text mb={{ base: 6, lg: 8 }} color="gray.600" fontSize="sm">
+                {visibleArticles.length}件見つかりました
+              </Text>
+            )}
+            <Grid templateColumns={{ base: "1fr", lg: "240px minmax(0, 720px)" }} gap={{ lg: 12 }} alignItems="start">
+              <DesktopNavigation categories={visibleCategories.map(({ category }) => category)} />
+              <Stack gap={{ base: 12, lg: 16 }} minW={0}>
+                {visibleCategories.map(({ category, articles }) => (
+                  <HelpCategorySection key={category.id} category={category} articles={articles} />
+                ))}
+              </Stack>
+            </Grid>
+          </>
+        ) : (
+          <Empty
+            icon={LuSearch}
+            title="該当する使い方が見つかりません"
+            description="言葉を短くするか、別の言い方で検索してください。"
+            variant="section"
+            tone="neutral"
+            minH="280px"
+          />
+        )}
+        <SupportSection />
+      </Container>
+    </PublicPageLayout>
   );
 }
 

@@ -98,15 +98,13 @@ describe("通知配送outboxシナリオ", () => {
     expect(
       magicLinks
         .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "submit")
-        .map((link) => ({
-          staffId: link.staffId,
-          shopId: link.shopId,
-        })),
+        .map((link) => ({ staffId: link.staffId, shopId: link.shopId }))
+        .sort((a, b) => a.staffId.localeCompare(b.staffId)),
     ).toEqual(
-      expect.arrayContaining([
+      [
         { staffId: ids.emailStaffId, shopId: ids.shopId },
         { staffId: ids.lineStaffId, shopId: ids.shopId },
-      ]),
+      ].sort((a, b) => a.staffId.localeCompare(b.staffId)),
     );
   });
 
@@ -408,8 +406,9 @@ describe("通知配送outboxシナリオ", () => {
     expect(
       magicLinks
         .filter((link) => link.recruitmentId === recruitmentId && link.accessKind === "view")
-        .map((link) => link.staffId),
-    ).toEqual(expect.arrayContaining([ids.emailStaffId, ids.lineStaffId]));
+        .map((link) => link.staffId)
+        .sort(),
+    ).toEqual([ids.emailStaffId, ids.lineStaffId].sort());
   });
 
   it("手動の現在の確定シフト通知は期間内の確定シフトだけを1スタッフへ送る", async () => {

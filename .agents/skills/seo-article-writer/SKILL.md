@@ -1,6 +1,6 @@
 ---
 name: seo-article-writer
-description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼び出し専用で作成・改稿するスキル。src/components/features/ArticleSite/content/articles 配下の記事MDX、カテゴリ、関連記事、内部リンク、検索意図に沿った日本語SEOライティング、読みやすい改行、public/sample-touch.png のタッチに合わせた記事画像生成を扱う。ユーザーが $seo-article-writer を明示したときだけ使い、通常のSEO・記事・ブログ依頼では暗黙起動しない。
+description: シフトリの日本語SEO記事・ヘルプ記事を、手動呼び出し専用で作成・改稿するスキル。src/components/features/ArticleSite/content/articles 配下の記事MDX、カテゴリ、関連記事、内部リンク、検索意図に沿った日本語SEOライティング、読みやすい改行、doc/assets/article-hero-style-reference.png のタッチに合わせた記事画像生成を扱う。ユーザーが $seo-article-writer を明示したときだけ使い、通常のSEO・記事・ブログ依頼では暗黙起動しない。
 ---
 
 # SEO Article Writer
@@ -67,7 +67,7 @@ Convexコードに触る場合は `convex/_generated/ai/guidelines.md` も読む
    - 記事URLの `lastmod` は記事frontmatterの `updatedAt` に合わせる。記事一覧やカテゴリページを変えた場合は、そのページの `lastmod` も更新する。
 
 6. 画像を作る。
-   - `public/sample-touch.png` を見て、タッチを合わせる。
+   - `doc/assets/article-hero-style-reference.png` を見て、タッチを合わせる。
    - 画像は理解を助けるときだけ入れる。
    - サムネイル専用画像は作らない。記事カード用だけの画像追加やサムネイル管理はしない。
    - SEO記事用画像は枠線や外枠を入れず、画像内の線がキャンバス端に触れないようにする。

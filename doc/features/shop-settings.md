@@ -5,7 +5,7 @@
 ## 関連ファイル
 
 - `src/components/features/Dashboard/EditShopForm/` — 店舗設定フォーム
-- `src/components/features/auths/AuthenticatedHeader/` — 店舗削除確認UI（入口は一時停止中）
+- `src/components/features/AuthenticatedApp/AuthenticatedHeader/` — 店舗削除確認UI（入口は一時停止中）
 - `convex/shop/mutations.ts` — 店舗設定更新
 - `convex/dashboard/queries.ts` — ダッシュボード用の店舗設定取得
 

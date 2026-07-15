@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -81,6 +81,21 @@ describe("dashboard/queries", () => {
       expect(result).toBeNull();
     });
 
+    it("論理削除済みユーザーには所属店舗情報を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { userId } = await seedManagerShop(ctx, {
+          subject: "deleted_dashboard_user",
+          shopName: "削除ユーザー所属店舗",
+        });
+        await ctx.db.patch(userId, { isDeleted: true });
+      });
+
+      await expect(
+        t.withIdentity({ subject: "deleted_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, {}),
+      ).resolves.toBeNull();
+    });
+
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
@@ -89,6 +104,68 @@ describe("dashboard/queries", () => {
 
       const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardShop, {});
       expect(Object.keys(result ?? {}).sort()).toEqual(["name", "regularClosedDays", "submissionPattern"]);
+    });
+  });
+
+  describe("getMyShops", () => {
+    it("未認証またはユーザー未登録の場合は空配列を返す", async () => {
+      const unauthenticated = convexTest(schema, modules);
+      const unregistered = convexTest(schema, modules);
+
+      await expect(unauthenticated.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([]);
+      await expect(
+        unregistered.withIdentity({ subject: "unregistered_user" }).query(api.dashboard.queries.getMyShops, {}),
+      ).resolves.toEqual([]);
+    });
+
+    it("本人の有効な所属店舗だけを最小DTOで返す", async () => {
+      const t = convexTest(schema, modules);
+      const { activeShopIds } = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "multi_shop_user");
+        const firstShopId = await seedShop(ctx, "有効店舗A");
+        const secondShopId = await seedShop(ctx, "有効店舗B");
+        await seedShopMembership(ctx, { userId, shopId: firstShopId });
+        await seedShopMembership(ctx, { userId, shopId: secondShopId });
+
+        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        await ctx.db.patch(deletedShopId, { isDeleted: true });
+        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+
+        const deletedMembershipShopId = await seedShop(ctx, "所属解除済み店舗");
+        await seedShopMembership(ctx, {
+          userId,
+          shopId: deletedMembershipShopId,
+          isDeleted: true,
+        });
+
+        const otherUserId = await seedUser(ctx, "other_shop_user");
+        const otherShopId = await seedShop(ctx, "他ユーザーの店舗");
+        await seedShopMembership(ctx, { userId: otherUserId, shopId: otherShopId });
+
+        return { activeShopIds: [firstShopId, secondShopId] };
+      });
+
+      const result = await t.withIdentity({ subject: "multi_shop_user" }).query(api.dashboard.queries.getMyShops, {});
+
+      expect([...result].sort((a, b) => a.shopName.localeCompare(b.shopName, "ja"))).toEqual([
+        { shopId: activeShopIds[0], shopName: "有効店舗A" },
+        { shopId: activeShopIds[1], shopName: "有効店舗B" },
+      ]);
+    });
+
+    it("論理削除済みユーザーの場合は所属店舗を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const { userId } = await seedManagerShop(ctx, {
+          subject: "deleted_user",
+          shopName: "所属店舗",
+        });
+        await ctx.db.patch(userId, { isDeleted: true });
+      });
+
+      const result = await t.withIdentity({ subject: "deleted_user" }).query(api.dashboard.queries.getMyShops, {});
+
+      expect(result).toEqual([]);
     });
   });
 
@@ -200,6 +277,15 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardRecruitments", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-03-20T00:00:00+09:00"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
       const result = await t.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
@@ -375,6 +461,68 @@ describe("dashboard/queries", () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it("未確定シフトは終了日当日まで返し、翌日から初期取得ではなく過去取得で返す", async () => {
+      vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_open_ended",
+          email: "open-ended@example.com",
+          shopName: "店舗",
+        });
+        return await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-07",
+          deadline: "2026-06-30",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+      });
+      const asManager = t.withIdentity({ subject: "user_open_ended" });
+
+      const onPeriodEnd = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      expect(onPeriodEnd.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
+
+      vi.setSystemTime(new Date("2026-07-08T00:00:00+09:00"));
+      const nextDay = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, PAGINATION_FIRST_PAGE);
+
+      expect(nextDay.page).toEqual([]);
+      expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
+    });
+
+    it("終了済みの未確定シフトは締切日が未来でも初期取得で返さない", async () => {
+      vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "user_ended_before_deadline",
+          email: "ended-before-deadline@example.com",
+          shopName: "店舗",
+        });
+        return await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-07-01",
+          periodEnd: "2026-07-06",
+          deadline: "2026-07-10",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+      });
+      const asManager = t.withIdentity({ subject: "user_ended_before_deadline" });
+
+      const active = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, PAGINATION_FIRST_PAGE);
+
+      expect(active.page).toEqual([]);
+      expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
     });
 
     it("現在のシフトだけを終了日が近い順に返す", async () => {
@@ -579,7 +727,7 @@ describe("dashboard/queries", () => {
   });
 
   describe("hasDashboardPastRecruitments", () => {
-    it("過去の確定済みシフトが存在する場合だけ true を返す", async () => {
+    it("終了済みシフトが未確定でも true を返す", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -594,8 +742,6 @@ describe("dashboard/queries", () => {
             shopId,
             deadline: "2026-04-20",
             shopClosedDates: [],
-            status: "confirmed" as const,
-            confirmedAt: Date.now(),
             isDeleted: false,
             submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
           };
@@ -603,16 +749,21 @@ describe("dashboard/queries", () => {
             ...base,
             periodStart: "2026-07-01",
             periodEnd: "2026-07-15",
+            status: "confirmed",
+            confirmedAt: Date.now(),
           });
           await ctx.db.insert("recruitments", {
             ...base,
             periodStart: "2026-05-01",
             periodEnd: "2026-05-15",
+            status: "open",
           });
           await ctx.db.insert("recruitments", {
             ...base,
             periodStart: "2026-04-01",
             periodEnd: "2026-04-15",
+            status: "confirmed",
+            confirmedAt: Date.now(),
             isDeleted: true,
           });
         });
@@ -627,7 +778,7 @@ describe("dashboard/queries", () => {
       }
     });
 
-    it("過去の確定済みシフトがない場合は false を返す", async () => {
+    it("終了済みシフトがない場合は false を返す", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -663,7 +814,7 @@ describe("dashboard/queries", () => {
   });
 
   describe("getDashboardPastRecruitments", () => {
-    it("過去の確定済みシフトを終了日が新しい順にページング取得する", async () => {
+    it("未確定と確定済みの過去シフトを終了日が新しい順にページング取得する", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
@@ -678,22 +829,28 @@ describe("dashboard/queries", () => {
             shopId,
             deadline: "2026-04-20",
             shopClosedDates: [],
-            status: "confirmed" as const,
-            confirmedAt: Date.now(),
             isDeleted: false,
             submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
           };
-          for (const [periodStart, periodEnd] of [
-            ["2026-05-16", "2026-05-31"],
-            ["2026-05-01", "2026-05-15"],
-            ["2026-04-16", "2026-04-30"],
+          for (const [periodStart, periodEnd, status] of [
+            ["2026-05-16", "2026-05-31", "open"],
+            ["2026-05-01", "2026-05-15", "confirmed"],
+            ["2026-04-16", "2026-04-30", "open"],
           ] as const) {
-            await ctx.db.insert("recruitments", { ...base, periodStart, periodEnd });
+            await ctx.db.insert("recruitments", {
+              ...base,
+              periodStart,
+              periodEnd,
+              status,
+              ...(status === "confirmed" ? { confirmedAt: Date.now() } : {}),
+            });
           }
           await ctx.db.insert("recruitments", {
             ...base,
             periodStart: "2026-07-01",
             periodEnd: "2026-07-15",
+            status: "confirmed",
+            confirmedAt: Date.now(),
           });
         });
 

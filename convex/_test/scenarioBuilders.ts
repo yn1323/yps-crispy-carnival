@@ -19,7 +19,14 @@ export function firstPage(numItems = 20) {
 
 export async function seedStaff(
   ctx: MutationCtx,
-  args: { shopId: Id<"shops">; name: string; email?: string; userId?: Id<"users">; isDeleted?: boolean },
+  args: {
+    shopId: Id<"shops">;
+    name: string;
+    email?: string;
+    userId?: Id<"users">;
+    isDeleted?: boolean;
+    excludedFromShift?: boolean;
+  },
 ) {
   return await ctx.db.insert("staffs", {
     shopId: args.shopId,
@@ -28,6 +35,7 @@ export async function seedStaff(
     emailNormalized: args.email?.trim().toLowerCase() ?? "",
     userId: args.userId,
     isDeleted: args.isDeleted ?? false,
+    ...(args.excludedFromShift === undefined ? {} : { excludedFromShift: args.excludedFromShift }),
   });
 }
 

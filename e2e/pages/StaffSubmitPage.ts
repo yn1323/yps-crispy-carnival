@@ -40,6 +40,12 @@ export class StaffSubmitPage {
     await expect(this.page.getByText(/提出締切を過ぎています|提出締切を過ぎました/)).toBeVisible();
   }
 
+  async expectUnavailableVisible() {
+    await expect(this.page.getByRole("heading", { name: "このリンクでは提出できません" })).toBeVisible({
+      timeout: STAFF_SUBMIT_DATA_TIMEOUT,
+    });
+  }
+
   async expectSubmitButtonNotVisible() {
     await expect(this.page.getByRole("button", { name: /提出|更新/ })).not.toBeVisible();
   }
@@ -119,8 +125,16 @@ export class StaffSubmitPage {
     await this.page.getByLabel(`${dateText}の${optionName} 未選択`).click();
   }
 
+  async deselectShiftTypeOption(dateText: string, optionName: string) {
+    await this.page.getByLabel(`${dateText}の${optionName} 選択済み`).click();
+  }
+
   async expectShiftTypeOptionSelected(dateText: string, optionName: string) {
     await expect(this.page.getByLabel(`${dateText}の${optionName} 選択済み`)).toBeVisible();
+  }
+
+  async expectShiftTypeOptionNotSelected(dateText: string, optionName: string) {
+    await expect(this.page.getByLabel(`${dateText}の${optionName} 未選択`)).toBeVisible();
   }
 
   private dateRow(dateText: string) {

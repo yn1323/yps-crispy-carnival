@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { submitStoryBaseData, submittedRequests } from "../storyData";
+import { submitStoryBaseData, submittedRequests } from "../fixtures";
 import { ReadOnlySubmitView } from "./index";
 
 const meta = {

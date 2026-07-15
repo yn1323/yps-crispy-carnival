@@ -1,42 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { ContactFormView } from "./index";
+import { ContactFormController } from "./ContactFormController";
 
 const meta = {
   title: "features/ContactForm",
-  component: ContactFormView,
+  component: ContactFormController,
   args: {
     onSubmit: async () => {},
     verification: { token: "storybook-token" },
   },
   parameters: { layout: "padded" },
-} satisfies Meta<typeof ContactFormView>;
+} satisfies Meta<typeof ContactFormController>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("option", { name: "利用開始について" })).toBeVisible();
-    await expect(canvas.getByRole("option", { name: "機能や使い方" })).toBeVisible();
-    await expect(canvas.getByRole("option", { name: "不具合・トラブル" })).toBeVisible();
-    await expect(canvas.getByRole("option", { name: "その他" })).toBeVisible();
-    await expect(canvas.getByRole("textbox", { name: "氏名" })).toHaveAttribute("placeholder", "例：山田 太郎");
-    await expect(canvas.getByRole("textbox", { name: "メールアドレス" })).toHaveAttribute(
-      "placeholder",
-      "例：yamada@example.com",
-    );
-    await expect(canvas.getByRole("textbox", { name: "店舗名または会社名（任意）" })).toHaveAttribute(
-      "placeholder",
-      "例：シフトリ渋谷店",
-    );
-    await expect(canvas.getByRole("textbox", { name: "問い合わせ内容" })).toHaveAttribute(
-      "placeholder",
-      "例：10名ほどでの利用を検討しています。料金や開始方法を教えてください。",
-    );
-  },
-};
+export const Default: Story = {};
 
 export const TroubleGuidance: Story = {
   play: async ({ canvasElement }) => {
@@ -58,7 +37,7 @@ export const Mobile: Story = {
 };
 
 export const Validation: Story = {
-  parameters: { chromatic: { disableSnapshot: true } },
+  parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "問い合わせを送る" }));

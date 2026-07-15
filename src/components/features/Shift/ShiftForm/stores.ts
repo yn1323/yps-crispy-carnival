@@ -1,10 +1,14 @@
 import { atom, type Getter } from "jotai";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { getAssignmentWarningSettingText } from "@/src/components/shared/ShiftAssignmentWarning";
 import { issueCountByDate } from "@/src/domains/shift/assignmentIssues";
-import { getAssignmentWarningSettingText } from "@/src/domains/shift/assignmentWarningSummary";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
+import { DEFAULT_POSITION } from "@/src/domains/shift/constants";
+import { toggleDateOnlyAssignment } from "@/src/domains/shift/dateOnlyAssignments";
+import { mergeAdjacentPositions } from "@/src/domains/shift/operations";
 import { indexShiftsByStaffId } from "@/src/domains/shift/shiftLookup";
+import { type ShiftTypeOptionLike, toggleShiftTypeAssignment } from "@/src/domains/shift/shiftTypeAssignments";
 import { compareDefaultStaffOrder, sortDailyStaffs, sortStaffs } from "@/src/domains/shift/sortStaffs";
 import type {
   PositionType,
@@ -54,7 +58,104 @@ export const lockedDailyStaffOrderAtom = atom<{ date: string; staffIds: string[]
 // ==========================================
 // シフトデータ
 // ==========================================
-export const shiftsAtom = atom<ShiftData[]>([]);
+const shiftDraftsAtom = atom<ShiftData[]>([]);
+
+export const shiftsAtom = atom((get) => get(shiftDraftsAtom));
+
+export const replaceShiftDraftsAtom = atom(null, (_get, set, shifts: ShiftData[]) => {
+  set(shiftDraftsAtom, shifts);
+});
+
+export const updateShiftDraftsAtom = atom(null, (get, set, update: (current: ShiftData[]) => ShiftData[]) => {
+  set(shiftDraftsAtom, update(get(shiftDraftsAtom)));
+});
+
+export const toggleDateOnlyAssignmentAtom = atom(
+  null,
+  (get, set, { staff, date }: { staff: StaffType; date: string }) => {
+    const config = get(shiftConfigAtom);
+    if (config.isReadOnly || !config.dates.includes(date) || config.holidays.includes(date)) return;
+
+    const position = config.positions[0];
+    set(
+      shiftDraftsAtom,
+      toggleDateOnlyAssignment({
+        shifts: get(shiftDraftsAtom),
+        staff,
+        date,
+        timeRange: config.timeRange,
+        ...(position ? { position } : {}),
+      }),
+    );
+  },
+);
+
+export const toggleShiftTypeAssignmentAtom = atom(
+  null,
+  (get, set, { staff, date, option }: { staff: StaffType; date: string; option: ShiftTypeOptionLike }) => {
+    const config = get(shiftConfigAtom);
+    if (config.isReadOnly || !config.dates.includes(date) || config.holidays.includes(date)) return;
+
+    const position = config.positions[0] ?? DEFAULT_POSITION;
+
+    set(
+      shiftDraftsAtom,
+      toggleShiftTypeAssignment({
+        shifts: get(shiftDraftsAtom),
+        staff,
+        date,
+        option,
+        position,
+      }),
+    );
+  },
+);
+
+export const upsertShiftDraftAtom = atom(null, (get, set, updatedShift: ShiftData) => {
+  if (get(shiftConfigAtom).isReadOnly) return;
+
+  const current = get(shiftDraftsAtom);
+  const exists = current.some((shift) => shift.id === updatedShift.id);
+  set(
+    shiftDraftsAtom,
+    exists ? current.map((shift) => (shift.id === updatedShift.id ? updatedShift : shift)) : [...current, updatedShift],
+  );
+});
+
+export const clearShiftDraftPositionsAtom = atom(
+  null,
+  (get, set, { staffId, date }: { staffId: string; date: string }) => {
+    if (get(shiftConfigAtom).isReadOnly) return;
+
+    set(
+      shiftDraftsAtom,
+      get(shiftDraftsAtom).map((shift) =>
+        shift.staffId === staffId && shift.date === date ? { ...shift, positions: [] } : shift,
+      ),
+    );
+  },
+);
+
+export const deleteShiftPositionAtom = atom(
+  null,
+  (get, set, { shiftId, positionId }: { shiftId: string; positionId: string }): ShiftData | null => {
+    if (get(shiftConfigAtom).isReadOnly) return null;
+
+    const current = get(shiftDraftsAtom);
+    const target = current.find((shift) => shift.id === shiftId);
+    if (!target) return null;
+
+    const updatedShift = {
+      ...target,
+      positions: mergeAdjacentPositions(target.positions.filter((position) => position.id !== positionId)),
+    };
+    set(
+      shiftDraftsAtom,
+      current.map((shift) => (shift.id === shiftId ? updatedShift : shift)),
+    );
+    return updatedShift;
+  },
+);
 
 // ==========================================
 // PC 日別ビューの動的 hourWidth（コンテナ幅に応じて可変）

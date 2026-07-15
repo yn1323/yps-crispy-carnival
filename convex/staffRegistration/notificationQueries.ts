@@ -8,7 +8,7 @@ import { STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT, STAFF_REGISTRATION_DIGES
 export const listPendingRequestShopIdsPage = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
-    // 最新依頼から3日間だけ通知する。3日以内のpendingがある店舗 = 最新pendingが3日以内の店舗
+    // 最新依頼から24時間だけ通知する。直近24時間以内のpendingがある店舗だけが対象。
     const windowStart = Date.now() - STAFF_REGISTRATION_DIGEST_WINDOW_MS;
     const result = await ctx.db
       .query("staffRegistrationRequests")

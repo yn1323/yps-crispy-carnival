@@ -8,9 +8,7 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
-  deployments: write
+  pull-requests: read
 
 env:
   VRT_REPORT_DIR: yps-crispy-carnival-vrt
@@ -144,6 +142,20 @@ jobs:
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Assert VRT baseline
+        run: |
+          if [ "${{ needs.prepare.outputs.should_fail_on_diff }}" = "true" ]; then
+            if [ "${{ steps.baseline.outputs.found }}" != "true" ]; then
+              echo "::error::VRT baseline is required for pull requests targeting ${{ needs.prepare.outputs.baseline_ref }}."
+              exit 1
+            fi
+
+            BASELINE_COUNT=$(find vrt-work/baseline -type f -name '*.png' | wc -l | tr -d ' ')
+            if [ "$BASELINE_COUNT" -eq 0 ]; then
+              echo "::error::VRT baseline contains no PNG artifacts."
+              exit 1
+            fi
+          fi
       - name: Build VRT report
         run: pnpm vrt:report
       - name: Assert VRT result
@@ -181,96 +193,9 @@ jobs:
           git commit -m "${REPORT_COMMIT_MESSAGE}" || exit 0
           git pull --rebase
           git push origin HEAD:main
-      - name: Build VRT comment
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-work/reg/index.html') != '' }}
-        run: |
-          node <<'NODE'
-            const fs = require("node:fs");
-            const reportUrl = '${{ needs.prepare.outputs.report_url }}';
-            const baselineFound = '${{ steps.baseline.outputs.found }}' === 'true';
-            const compareResult = baselineFound ? '${{ steps.regsuit.outcome }}' : 'success';
-            const statusText = baselineFound ? (compareResult === 'success' ? 'Passed' : 'Failed') : 'No baseline';
-
-            let changedCount = 'unknown';
-            let newCount = 'unknown';
-            let deletedCount = 'unknown';
-            let passedCount = 'unknown';
-            try {
-              const json = JSON.parse(fs.readFileSync('vrt-work/reg/out.json', 'utf8'));
-              const items = json.failedItems || json.changedItems || json.items || [];
-              const newItems = json.newItems || [];
-              const deletedItems = json.deletedItems || [];
-              const passedItems = json.passedItems || [];
-              changedCount = String(items.length);
-              newCount = String(newItems.length);
-              deletedCount = String(deletedItems.length);
-              passedCount = String(passedItems.length);
-            } catch (error) {
-              console.warn('RegSuit result JSON の読み込みに失敗しました', error);
-            }
-
-            const actionsUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
-            const hasDiff = compareResult !== 'success' && baselineFound;
-            const buildBody = (reportCell) => {
-              const actionRows = [
-                `| 差分確認 | ${reportCell} |`,
-                ...(hasDiff ? [`| 承認 | [承認ワークフローを開く](${actionsUrl}) |`] : []),
-              ].join('\n');
-
-              return [
-                '## VRT Report',
-                '',
-                `Status: ${statusText}`,
-                `差分: Changed ${changedCount} / New ${newCount} / Deleted ${deletedCount}`,
-                `Passed: ${passedCount}`,
-                '',
-                '| Action | Link |',
-                '|---|---|',
-                actionRows,
-                '',
-                'Details:',
-                'デプロイ先: [yn1323/hosting-pages:main](https://github.com/yn1323/hosting-pages/commits/main/)',
-                '',
-              ].join('\n');
-            };
-
-            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…'));
-            fs.writeFileSync('vrt-comment-final.md', buildBody(`[差分レポートを見る](${reportUrl}?v=${{ github.run_id }}-${{ github.run_attempt }})`));
-          NODE
-      - name: Delete previous VRT report comments
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const marker = '## VRT Report';
-            const { owner, repo } = context.repo;
-            const issue_number = Number('${{ needs.prepare.outputs.pull_number }}');
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
-                await github.rest.issues.deleteComment({
-                  owner,
-                  repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
-      - name: Comment PR with VRT report (deploying)
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-pending.md') != '' }}
-        uses: mshick/add-pr-comment@v2
-        with:
-          issue: ${{ needs.prepare.outputs.pull_number }}
-          message-id: vrt-report-${{ github.run_id }}-${{ github.run_attempt }}
-          message-path: vrt-comment-pending.md
       - name: Wait for hosting-pages deploy
         id: wait_deploy
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' }}
+        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-work/reg/index.html') != '' }}
         run: |
           MARKER_URL="${{ needs.prepare.outputs.report_url }}deploy-marker-${{ github.run_id }}-${{ github.run_attempt }}.txt"
           echo "Polling ${MARKER_URL}"
@@ -284,17 +209,6 @@ jobs:
           done
           echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
           echo "::warning::hosting-pages deploy could not be confirmed within 15 minutes"
-      - name: Append deploy warning to VRT comment
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' && steps.wait_deploy.outputs.deploy_status != 'success' }}
-        run: |
-          printf '\n> ⚠️ デプロイ完了を確認できませんでした。リンクが開けない場合は、しばらく待ってから再度お試しください。\n' >> vrt-comment-final.md
-      - name: Update PR comment with VRT report link
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && hashFiles('vrt-comment-final.md') != '' }}
-        uses: mshick/add-pr-comment@v2
-        with:
-          issue: ${{ needs.prepare.outputs.pull_number }}
-          message-id: vrt-report-${{ github.run_id }}-${{ github.run_attempt }}
-          message-path: vrt-comment-final.md
       - name: Set diff output
         id: diff_check
         if: always()
@@ -317,3 +231,78 @@ jobs:
     steps:
       - name: VRT diffs approved
         run: echo "Visual regression diffs have been reviewed and approved"
+
+  comment:
+    needs: [prepare, compare]
+    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment PR with VRT result
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = '## VRT Report';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const expectedHeadSha = context.payload.pull_request.head.sha;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issue_number,
+            });
+
+            if (pullRequest.state !== 'open') {
+              core.info(`PR #${issue_number} is no longer open.`);
+              return;
+            }
+            if (pullRequest.head.sha !== expectedHeadSha) {
+              core.info(`Skip stale run for ${expectedHeadSha}; current head is ${pullRequest.head.sha}.`);
+              return;
+            }
+
+            const compareResult = '${{ needs.compare.result }}';
+            const hasDiff = '${{ needs.compare.outputs.has_diff }}' === 'true';
+            const status = hasDiff
+              ? 'Failed'
+              : compareResult === 'success'
+                ? 'Passed'
+                : `Failed (${compareResult})`;
+            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const reportUrl = `${{ needs.prepare.outputs.report_url }}?v=${context.runId}-${{ github.run_attempt }}`;
+            const body = [
+              marker,
+              '',
+              `Status: ${status}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| 差分確認 | [差分レポートを見る](${reportUrl}) |`,
+              `| 実行確認 | [Actionsを見る](${actionsUrl}) |`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });

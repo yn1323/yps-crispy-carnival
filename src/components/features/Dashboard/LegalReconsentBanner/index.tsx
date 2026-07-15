@@ -1,6 +1,6 @@
 import { Box, Checkbox, Flex, Text } from "@chakra-ui/react";
 import { useState } from "react";
-import { LegalDocumentLink } from "@/src/components/features/LegalDocumentLink";
+import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { Button } from "@/src/components/ui/Button";
 
 export type LegalReconsentDocumentLinks = {

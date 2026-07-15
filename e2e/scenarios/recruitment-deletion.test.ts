@@ -12,7 +12,7 @@ const confirmedDates = {
   deadline: dayjs(dates.deadline).add(14, "day").format("YYYY-MM-DD"),
 };
 
-test.describe("シフト募集削除", () => {
+test.describe("シフト募集削除", { tag: ["@release"] }, () => {
   test.setTimeout(60_000);
 
   let dashboard: DashboardPage;

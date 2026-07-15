@@ -1,87 +1,87 @@
 # AGENTS.md
 
-このファイルは `src/` 配下を編集するエージェント向けの実装ルールです。ルートの `AGENTS.md` を前提にしつつ、フロントエンド層の責務分離はこのファイルを優先してください。
+このファイルは、`src/` 配下を編集するエージェント向けの入口です。
 
-## 基本方針
+フロントエンドのディレクトリ、依存方向、ファイル責務は `doc/rules/frontend-architecture.md` を Source of Truth とします。
+作業開始時に同ドキュメントを読み、ルートの `AGENTS.md`、`doc/rules/testing-strategy.md` と併用してください。
 
-`src/` は「ルーティング」「ページ状態」「機能UI」「ドメインロジック」を分けて管理します。迷った場合は、Convex API や画面状態に近いほど上位層、React や Convex に依存しないほど `domains/` に寄せます。
+`apps/analytics-dashboard/` は独立した内部BIなので、このファイルではなく `apps/analytics-dashboard/AGENTS.md` を優先します。
 
-```
-routes/       → URL定義、head、search/params の受け渡しのみ
-pages/        → useQuery、ローディング/エラー/正常系の振り分け
+## レイヤーの要約
+
+```text
+routes/       URL、head、search/params、route group
+pages/        route全体のquery、metadata、画面状態分岐
 components/
-  features/   → 機能UI、useMutation/useAction、ユーザー操作イベント
-  templates/  → レイアウト
-  ui/         → 汎用UI部品
-domains/      → 型、定数、純粋関数、表示変換
-stores/       → アプリ横断の Jotai 状態
-hooks/        → 複数機能で共有する React hook
-helpers/      → 汎用ヘルパー
-configs/      → 設定
-constants/    → アプリ横断の定数
+  features/   ユースケース、feature-local query、mutation/action、操作状態
+  shared/     複数featureで使う業務UI
+  templates/  ページとアプリのレイアウト
+  ui/         ドメイン非依存のUI基盤
+domains/      画面非依存の業務型と純粋ロジック
+providers/    React ProviderとSDK初期化
+hooks/        横断的なReact hook
+stores/       アプリ横断のclient state
+lib/          業務知識を持たない技術的な共通処理
+configs/      JSXを持たない設定
+constants/    真にアプリ横断の定数
+assets/       複数featureで共有するimport asset
+devtools/     本番から参照しない開発用UI
 ```
 
-## レイヤールール
+## 必須ルール
 
-### `routes/`
+- routeにはURL境界だけを書き、`__root.tsx`、route group、redirect-only routeを除くleaf routeからpageを呼び出す。
+- routeの `head` 用metadataは対応pageの `meta.ts` で組み立てる。
+- pageはroute全体を成立させるqueryとloading、error、null、empty、normalの分岐を担当する。
+- pageに `useMutation`、`useAction`、Toast、Dialog、submit後の状態遷移を書かない。
+- feature containerまたはcontrollerは、feature-local query、mutation/action、single-flight、画面状態、ユーザー操作の順序を担当する。
+- 下位Viewには判断済みのViewModelとintent callbackを渡し、raw DTOから業務可否を再計算させない。
+- 画面を変えても意味が変わらない業務ルールは `domains/` に置く。
+- 一つのfeatureだけで使うテスト対象または複雑な純粋処理は `script.ts` に置き、小さな表示固有の導出はViewに残してよい。
+- domainはReact、Convex、Chakra、Jotai、Router、DOM、localStorage、画面固有文言、component Propsへ依存しない。
+- uiはConvex、feature、業務store、domain固有文言へ依存しない。
+- leaf feature同士はimportしない。明示的なcomposition featureだけがtop-level再利用leaf featureの公開entryをimportしてよい。
+- 認可、店舗境界、token有効性、課金権限はフロントエンドで保証せず、Convex側の検証を正とする。
 
-- TanStack Router の `createFileRoute`、`head`、`validateSearch`、URL params/search の受け渡しだけを書く。
-- `useQuery`、`useMutation`、`useAction`、`usePaginatedQuery` は書かない。
-- ローディング、エラー、正常系の JSX 分岐を書かない。
-- ページ本体は `src/pages/{page}/index.tsx` に置き、route から呼び出す。
+## ファイル名
 
-### `pages/`
+- UIディレクトリの公開componentは `index.tsx` に置く。
+- `index.tsx` と対になる非UIコードは `script.ts` に置く。
+- 同じディレクトリに実装を持つ `index.ts` と `index.tsx` を共存させない。
+- `index.ts` はUIを持たないディレクトリの公開entryに限り、`index.tsx` の非UI companionには使わない。
+- `script.ts` にJSX、React hook、DOM、Toast、router、query、mutation、actionを書かない。
+- `script.ts` の変換関数はplain dataだけを扱い、Chakra UI、Jotai、browser storageにも依存させない。
+- 意味名を持つ `schema.ts`、`adapter.ts`、`stores.ts`、`presentation.ts`、`buildSubmissionInput.ts` などは `script.ts` と別に作ってよい。
+- `types.ts` には型だけを書き、関数、ソート、日付判定、ラベル生成を書かない。
+- component Propsは原則として利用componentと同じファイルに置く。
+- 純粋処理のtestは対象と同じbasenameにし、`script.ts` なら `script.test.ts` とする。
 
-- Convex の読み取りはここで行う。`useQuery` と `usePaginatedQuery` は許可する。
-- API 結果に応じた `loading` / `null` / `error` / 正常系の振り分けを担当する。
-- `useMutation` と `useAction` は定義しない。書き込みや action は `components/features/**/use*.ts` に hook として置く。
-- 正常系の UI 組み立ては feature コンポーネントへ渡す。ページ内に大きな機能 UI を増やさない。
+## シフト関連
 
-### `components/features/`
-
-- 機能単位の UI、操作イベント、`useMutation` / `useAction` hook を置く。
-- feature をまたいで使う型、日付/時刻変換、ソート、シフト操作などの純粋ロジックは `domains/` に出す。
-- UI 固有の座標計算、ドラッグ判定、DOM 前提の計算は feature 側に残してよい。
-- UI を追加・変更するときは、同階層の `index.stories.tsx` を作成または更新する。
-
-### `components/ui/`
-
-- ドメイン知識を持たない再利用 UI だけを置く。
-- Chakra UI v3 のラッパーやアプリ共通の見た目をここに集約する。
-- feature 固有の文言や Convex API 依存を入れない。
-
-### `domains/`
-
-- React、Convex、Chakra、Jotai に依存しないコードだけを置く。
-- 型、定数、日付/時刻変換、ソート、計算、正規化などを置く。
-- ロジックを追加・変更したら、同じ domain 配下に `*.test.ts` を置く。
-- `src/domains/shift/` がシフト関連の正規の置き場。日付操作は `src/domains/shift/date.ts`、時刻変換は `src/domains/shift/time.ts` を使う。
-
-## シフト関連のルール
-
-- `ShiftForm` の型は `src/domains/shift/types.ts` から import する。
-- シフト操作は `src/domains/shift/operations.ts` に置く。
-- スタッフ並び替えは `src/domains/shift/sortStaffs.ts` に置く。
-- UI 座標変換は `src/components/features/Shift/ShiftForm/utils/timelineGeometry.ts` に置く。
-- ドラッグの hit testing は `src/components/features/Shift/ShiftForm/utils/hitTesting.ts` に置く。
-- `new Date().toISOString()` で日付文字列を作らない。TZ ずれを避けるため、フロントの日付文字列は dayjs で `YYYY-MM-DD` に整形する。
+- シフトの業務型は `src/domains/shift/` を正規の置き場とする。
+- 日付操作は `src/domains/shift/date.ts`、時刻変換は `src/domains/shift/time.ts` を優先する。
+- シフト操作は `src/domains/shift/operations.ts`、スタッフソートは `src/domains/shift/sortStaffs.ts` を確認する。
+- UI座標変換、drag、hit testing、responsive分岐、Chakraの色tokenはShiftForm feature側に置く。
+- `new Date().toISOString()` で業務日付の `YYYY-MM-DD` を作らない。
 
 ## フォーム
 
-- React Hook Form + Zod を使う。
-- mutation と共有する Zod schema は `convex/{useCase}/schemas.ts` に置き、`src/` から import する。
-- UI 専用の refinement やフォーム固有のラッパーは feature 側に置いてよい。
-- Submit ボタンは原則 enabled のままにし、送信時に validation error を表示する。
+- React Hook FormとZodを使う。
+- mutationと共有するZod schemaは `convex/{useCase}/schemas.ts` を正とする。
+- frontendではresolver接続とUI固有refinementだけを追加する。
+- Submit系はUIのloading/disabledだけに頼らず、同期ガードと必要なbackend冪等性を設計する。
 
 ## import
 
 - パスエイリアスは `@/src/...` と `@/convex/...` を使う。
-- 同一 feature 内の近いファイルは相対 import でもよいが、domain や shared UI は alias import を優先する。
+- 同一feature内の近いファイルは相対importでもよい。
+- domain、shared UI、ui、Convexはalias importを優先する。
 - `src/routeTree.gen.ts` は生成物なので手動編集しない。
 
 ## テストと確認
 
-- UI なしのロジックを追加・変更したら `*.test.ts` を追加または更新する。
+- テスト層と粒度は `doc/rules/testing-strategy.md` と `test-strategy` に従う。
+- UIを追加または変更するときは、同階層のStoryを作成または更新する。
+- domainまたは `script.ts` の純粋ロジックを変更したら、対応するLogic UTを更新する。
 - `src/` の変更後は最低限 `pnpm lint` と `pnpm type-check` を実行する。
-- domain ロジックを触ったら `pnpm test:logic` を実行する。
-- 画面遷移や結合が変わる変更では `pnpm e2e` も実行する。
+- domainロジックを触ったら `pnpm test:logic` を実行する。

@@ -48,7 +48,7 @@ export const acceptStaffLegalConsent = mutation({
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (!staff || staff.isDeleted || !shop || shop.isDeleted) {
+    if (!staff || staff.isDeleted || staff.shopId !== tokenDoc.shopId || !shop || shop.isDeleted) {
       return { status: "expired" as const };
     }
 

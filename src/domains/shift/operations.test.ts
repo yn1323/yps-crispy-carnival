@@ -5,7 +5,9 @@ import {
   fillGapsWithBreak,
   mergeAdjacentPositions,
   normalizePositions,
+  paintPosition,
   resizeLinkedPositions,
+  resizePosition,
 } from "./operations";
 import type { LinkedResizeTarget, PositionSegment, ShiftData } from "./types";
 
@@ -16,6 +18,289 @@ const seg = (overrides: Partial<PositionSegment> & { id: string; start: string; 
   positionName: "ホール",
   color: "#3b82f6",
   ...overrides,
+});
+
+const shift = (positions: PositionSegment[]): ShiftData => ({
+  id: "shift1",
+  staffId: "staff1",
+  staffName: "田中",
+  date: "2026-01-27",
+  requestedTime: { start: "09:00", end: "18:00" },
+  requestedTimes: [
+    { start: "09:00", end: "12:00" },
+    { start: "13:00", end: "18:00" },
+  ],
+  requestedShiftTypeOptionIds: ["morning", "late"],
+  positions,
+});
+
+describe("paintPosition", () => {
+  test.each([
+    { name: "順方向", startMinutes: 600, endMinutes: 660 },
+    { name: "逆方向", startMinutes: 660, endMinutes: 600 },
+  ])("$nameのドラッグ範囲を同じポジションとして追加する", ({ startMinutes, endMinutes }) => {
+    const source = shift([]);
+
+    const result = paintPosition({
+      shift: source,
+      positionId: "pos2",
+      positionName: "キッチン",
+      positionColor: "#f97316",
+      startMinutes,
+      endMinutes,
+      segmentId: "painted",
+    });
+
+    expect(result).toEqual({
+      ...source,
+      positions: [
+        {
+          id: "painted",
+          positionId: "pos2",
+          positionName: "キッチン",
+          color: "#f97316",
+          start: "10:00",
+          end: "11:00",
+        },
+      ],
+    });
+    expect(source.positions).toEqual([]);
+  });
+
+  test("塗った範囲を優先し、完全重複を削除して左右の部分重複をtrimする", () => {
+    const source = shift([
+      seg({ id: "left", start: "08:00", end: "10:00", shiftTypeOptionId: "morning" }),
+      seg({ id: "covered", start: "10:00", end: "12:00" }),
+      seg({ id: "right", start: "12:00", end: "16:00", positionId: "pos3" }),
+    ]);
+
+    const result = paintPosition({
+      shift: source,
+      positionId: "pos2",
+      positionName: "キッチン",
+      positionColor: "#f97316",
+      startMinutes: 540,
+      endMinutes: 900,
+      segmentId: "painted",
+    });
+
+    expect(result.positions).toEqual([
+      seg({ id: "left-before", start: "08:00", end: "09:00", shiftTypeOptionId: "morning" }),
+      seg({ id: "right-after", start: "15:00", end: "16:00", positionId: "pos3" }),
+      seg({
+        id: "painted",
+        start: "09:00",
+        end: "15:00",
+        positionId: "pos2",
+        positionName: "キッチン",
+        color: "#f97316",
+      }),
+    ]);
+    expect(result.requestedTime).toEqual(source.requestedTime);
+    expect(result.requestedTimes).toEqual(source.requestedTimes);
+    expect(result.requestedShiftTypeOptionIds).toEqual(source.requestedShiftTypeOptionIds);
+    expect(result).toMatchObject({ id: source.id, staffId: source.staffId, date: source.date });
+  });
+
+  test("既存バーの中央だけを塗ると前後へ分割し、元の勤務区分IDを保持する", () => {
+    const source = shift([seg({ id: "wide", start: "08:00", end: "18:00", shiftTypeOptionId: "morning" })]);
+
+    const result = paintPosition({
+      shift: source,
+      positionId: "pos2",
+      positionName: "キッチン",
+      positionColor: "#f97316",
+      startMinutes: 600,
+      endMinutes: 720,
+      segmentId: "painted",
+    });
+
+    expect(result.positions).toEqual([
+      seg({ id: "wide-before", start: "08:00", end: "10:00", shiftTypeOptionId: "morning" }),
+      seg({ id: "wide-after", start: "12:00", end: "18:00", shiftTypeOptionId: "morning" }),
+      seg({
+        id: "painted",
+        start: "10:00",
+        end: "12:00",
+        positionId: "pos2",
+        positionName: "キッチン",
+        color: "#f97316",
+      }),
+    ]);
+  });
+
+  test("隣接境界に触れるだけの既存バーは変更しない", () => {
+    const source = shift([
+      seg({ id: "before", start: "08:00", end: "10:00" }),
+      seg({ id: "after", start: "12:00", end: "14:00" }),
+    ]);
+
+    const result = paintPosition({
+      shift: source,
+      positionId: "pos2",
+      positionName: "キッチン",
+      positionColor: "#f97316",
+      startMinutes: 600,
+      endMinutes: 720,
+      segmentId: "painted",
+    });
+
+    expect(result.positions.map(({ id, start, end }) => ({ id, start, end }))).toEqual([
+      { id: "before", start: "08:00", end: "10:00" },
+      { id: "after", start: "12:00", end: "14:00" },
+      { id: "painted", start: "10:00", end: "12:00" },
+    ]);
+  });
+
+  test("ドラッグ幅が0なら何も変更しない", () => {
+    const source = shift([seg({ id: "a", start: "10:00", end: "12:00" })]);
+
+    const result = paintPosition({
+      shift: source,
+      positionId: "pos2",
+      positionName: "キッチン",
+      positionColor: "#f97316",
+      startMinutes: 660,
+      endMinutes: 660,
+      segmentId: "painted",
+    });
+
+    expect(result).toBe(source);
+  });
+});
+
+describe("resizePosition", () => {
+  test.each([
+    { name: "開始端を右へ縮める", edge: "start" as const, newMinutes: 720, expected: ["12:00", "14:00"] },
+    { name: "終了端を左へ縮める", edge: "end" as const, newMinutes: 720, expected: ["10:00", "12:00"] },
+  ])("$name", ({ edge, newMinutes, expected }) => {
+    const source = shift([seg({ id: "target", start: "10:00", end: "14:00", shiftTypeOptionId: "morning" })]);
+
+    const result = resizePosition({
+      shift: source,
+      positionId: "target",
+      edge,
+      newMinutes,
+      minDuration: 30,
+    });
+
+    expect(result.positions[0]).toMatchObject({
+      id: "target",
+      start: expected[0],
+      end: expected[1],
+      shiftTypeOptionId: "morning",
+    });
+    expect(result.requestedTimes).toEqual(source.requestedTimes);
+    expect(result.requestedShiftTypeOptionIds).toEqual(source.requestedShiftTypeOptionIds);
+    expect(result).toMatchObject({ id: source.id, staffId: source.staffId, date: source.date });
+  });
+
+  test.each([
+    { name: "開始端", edge: "start" as const, newMinutes: 850, expected: ["13:30", "14:00"] },
+    { name: "終了端", edge: "end" as const, newMinutes: 610, expected: ["10:00", "10:30"] },
+  ])("$nameを反対側より先へ動かしても最小幅を維持する", ({ edge, newMinutes, expected }) => {
+    const source = shift([seg({ id: "target", start: "10:00", end: "14:00" })]);
+
+    const result = resizePosition({
+      shift: source,
+      positionId: "target",
+      edge,
+      newMinutes,
+      minDuration: 30,
+    });
+
+    expect(result.positions[0]).toMatchObject({ start: expected[0], end: expected[1] });
+  });
+
+  test("開始端を左へ広げると完全重複を削除し、左側の部分重複だけをtrimする", () => {
+    const source = shift([
+      seg({ id: "left-outer", start: "08:00", end: "10:00" }),
+      seg({ id: "left-covered", start: "10:00", end: "11:00", positionId: "pos2" }),
+      seg({ id: "target", start: "11:00", end: "13:00", positionId: "pos3" }),
+      seg({ id: "right", start: "13:00", end: "14:00", positionId: "pos2" }),
+    ]);
+
+    const result = resizePosition({
+      shift: source,
+      positionId: "target",
+      edge: "start",
+      newMinutes: 540,
+      minDuration: 30,
+    });
+
+    expect(result.positions.map(({ id, start, end }) => ({ id, start, end }))).toEqual([
+      { id: "left-outer-before", start: "08:00", end: "09:00" },
+      { id: "target", start: "09:00", end: "13:00" },
+      { id: "right", start: "13:00", end: "14:00" },
+    ]);
+  });
+
+  test("終了端を右へ広げると完全重複を削除し、右側の部分重複だけをtrimする", () => {
+    const source = shift([
+      seg({ id: "left", start: "09:00", end: "10:00" }),
+      seg({ id: "target", start: "10:00", end: "12:00", positionId: "pos3" }),
+      seg({ id: "right-covered", start: "12:00", end: "13:00", positionId: "pos2" }),
+      seg({ id: "right-outer", start: "13:00", end: "15:00" }),
+    ]);
+
+    const result = resizePosition({
+      shift: source,
+      positionId: "target",
+      edge: "end",
+      newMinutes: 840,
+      minDuration: 30,
+    });
+
+    expect(result.positions.map(({ id, start, end }) => ({ id, start, end }))).toEqual([
+      { id: "left", start: "09:00", end: "10:00" },
+      { id: "target", start: "10:00", end: "14:00" },
+      { id: "right-outer-after", start: "14:00", end: "15:00" },
+    ]);
+  });
+
+  test("広げたバーが別バーの中央に重なると前後へ分割する", () => {
+    const source = shift([
+      seg({ id: "wide", start: "08:00", end: "18:00", shiftTypeOptionId: "late" }),
+      seg({ id: "target", start: "10:00", end: "12:00", positionId: "pos2" }),
+    ]);
+
+    const result = resizePosition({
+      shift: source,
+      positionId: "target",
+      edge: "end",
+      newMinutes: 840,
+      minDuration: 30,
+    });
+
+    expect(result.positions).toEqual([
+      seg({ id: "wide-before", start: "08:00", end: "10:00", shiftTypeOptionId: "late" }),
+      seg({ id: "wide-after", start: "14:00", end: "18:00", shiftTypeOptionId: "late" }),
+      seg({ id: "target", start: "10:00", end: "14:00", positionId: "pos2" }),
+    ]);
+  });
+
+  test("境界が変わらない場合と対象IDがない場合は何も変更しない", () => {
+    const source = shift([seg({ id: "target", start: "10:00", end: "12:00" })]);
+
+    expect(
+      resizePosition({
+        shift: source,
+        positionId: "target",
+        edge: "start",
+        newMinutes: 600,
+        minDuration: 30,
+      }),
+    ).toBe(source);
+    expect(
+      resizePosition({
+        shift: source,
+        positionId: "missing",
+        edge: "end",
+        newMinutes: 780,
+        minDuration: 30,
+      }),
+    ).toBe(source);
+  });
 });
 
 describe("mergeAdjacentPositions", () => {

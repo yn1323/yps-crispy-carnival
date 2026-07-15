@@ -5,6 +5,7 @@ import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery } from "../_lib/functions";
 import {
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
+  DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
@@ -23,7 +24,7 @@ async function getManagerShop(ctx: {
   identity: { subject: string } | null;
   user: Doc<"users"> | null;
 }) {
-  if (!ctx.identity || !ctx.user) return null;
+  if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return null;
   const user = ctx.user;
   const memberships = ctx.db
     .query("shopMembers")
@@ -98,31 +99,42 @@ async function getDashboardRecruitmentCandidateDocs(
   groupLimit: number,
 ) {
   const today = todayJST();
-  const [currentRecruitments, actionRequiredRecruitments, collectingRecruitments, futureConfirmedRecruitments] =
-    await Promise.all([
-      getCurrentRecruitmentDocs(ctx, shopId),
-      ctx.db
-        .query("recruitments")
-        .withIndex("by_shopId_and_isDeleted_and_status_and_deadline", (q) =>
-          q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "open").lt("deadline", today),
-        )
-        .order("asc")
-        .take(groupLimit),
-      ctx.db
-        .query("recruitments")
-        .withIndex("by_shopId_and_isDeleted_and_status_and_deadline", (q) =>
-          q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "open").gte("deadline", today),
-        )
-        .order("asc")
-        .take(groupLimit),
-      ctx.db
-        .query("recruitments")
-        .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
-          q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "confirmed").gt("periodStart", today),
-        )
-        .order("asc")
-        .take(groupLimit),
-    ]);
+  const [currentRecruitments, openRecruitmentCandidates, futureConfirmedRecruitments] = await Promise.all([
+    getCurrentRecruitmentDocs(ctx, shopId),
+    ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
+        q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "open").gte("periodEnd", today),
+      )
+      .order("asc")
+      .take(DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT),
+    ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId_and_isDeleted_and_status_and_periodStart", (q) =>
+        q.eq("shopId", shopId).eq("isDeleted", false).eq("status", "confirmed").gt("periodStart", today),
+      )
+      .order("asc")
+      .take(groupLimit),
+  ]);
+
+  const actionRequiredRecruitments = openRecruitmentCandidates
+    .filter((recruitment) => recruitment.deadline < today)
+    .sort(
+      (a, b) =>
+        a.deadline.localeCompare(b.deadline) ||
+        a.periodStart.localeCompare(b.periodStart) ||
+        b._creationTime - a._creationTime,
+    )
+    .slice(0, groupLimit);
+  const collectingRecruitments = openRecruitmentCandidates
+    .filter((recruitment) => recruitment.deadline >= today)
+    .sort(
+      (a, b) =>
+        a.deadline.localeCompare(b.deadline) ||
+        a.periodStart.localeCompare(b.periodStart) ||
+        b._creationTime - a._creationTime,
+    )
+    .slice(0, groupLimit);
 
   const uniqueRecruitments = new Map<Doc<"recruitments">["_id"], Doc<"recruitments">>();
   for (const recruitment of [
@@ -157,7 +169,7 @@ export const getDashboardShop = authenticatedQuery({
 export const getMyShops = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    if (!ctx.identity || !ctx.user) return [];
+    if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return [];
     const user = ctx.user;
     const memberships = await ctx.db
       .query("shopMembers")
@@ -224,8 +236,8 @@ export const hasDashboardPastRecruitments = authenticatedQuery({
     const today = todayJST();
     const pastRecruitment = await ctx.db
       .query("recruitments")
-      .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
-        q.eq("shopId", shop._id).eq("isDeleted", false).eq("status", "confirmed").lt("periodEnd", today),
+      .withIndex("by_shopId_and_isDeleted_and_periodEnd", (q) =>
+        q.eq("shopId", shop._id).eq("isDeleted", false).lt("periodEnd", today),
       )
       .order("desc")
       .first();
@@ -242,8 +254,8 @@ export const getDashboardPastRecruitments = authenticatedQuery({
     const today = todayJST();
     const paginatedResult = await ctx.db
       .query("recruitments")
-      .withIndex("by_shopId_and_isDeleted_and_status_and_periodEnd", (q) =>
-        q.eq("shopId", shop._id).eq("isDeleted", false).eq("status", "confirmed").lt("periodEnd", today),
+      .withIndex("by_shopId_and_isDeleted_and_periodEnd", (q) =>
+        q.eq("shopId", shop._id).eq("isDeleted", false).lt("periodEnd", today),
       )
       .order("desc")
       .paginate(args.paginationOpts);

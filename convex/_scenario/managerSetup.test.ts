@@ -93,11 +93,13 @@ describe("管理者セットアップシナリオ", () => {
       });
     });
     const staff = scenario.staff();
-    const submissionPageData = await staff.getOkSubmissionPageData({
+    const submissionPageResult = await staff.getSubmissionPageData({
       sessionToken: "manager-staff-submit-session",
       recruitmentId,
     });
-    expect(submissionPageData.legalConsentRequired).toBe(false);
+    expect(submissionPageResult.status).toBe("ok");
+    if (submissionPageResult.status !== "ok") throw new Error("提出画面を取得できませんでした");
+    expect(submissionPageResult.data.legalConsentRequired).toBe(false);
 
     const scheduled = await readScheduledFunctions(t);
     expect(hasScheduledJob(scheduled, "line/actions:sendInviteEmail", { staffId: managerStaff._id })).toBe(true);

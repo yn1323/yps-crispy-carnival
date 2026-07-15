@@ -1,6 +1,6 @@
 import { LuCalendarX, LuTriangleAlert } from "react-icons/lu";
 import { Empty } from "@/src/components/ui/Empty";
-import type { StaffLinkUnavailableReason } from "@/src/utils/staffSession";
+import type { StaffLinkUnavailableReason } from "@/src/domains/staffAccess";
 import { SubmitPageHeader, SubmitPageLayout } from "../SubmitPageLayout";
 
 type Props = {

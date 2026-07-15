@@ -55,4 +55,23 @@ describe("useSingleFlight", () => {
 
     expect(handler).toHaveBeenCalledTimes(2);
   });
+
+  it("再描画後もrunの参照を保ちつつ最新のhandlerを実行する", async () => {
+    const firstHandler = vi.fn().mockResolvedValue("first");
+    const latestHandler = vi.fn().mockResolvedValue("latest");
+    const { rerender, result } = renderHook(
+      ({ handler }: { handler: () => Promise<string> }) => useSingleFlight(handler),
+      { initialProps: { handler: firstHandler } },
+    );
+    const initialRun = result.current.run;
+
+    rerender({ handler: latestHandler });
+
+    expect(result.current.run).toBe(initialRun);
+    await act(async () => {
+      await expect(result.current.run()).resolves.toBe("latest");
+    });
+    expect(firstHandler).not.toHaveBeenCalled();
+    expect(latestHandler).toHaveBeenCalledOnce();
+  });
 });

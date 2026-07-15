@@ -3,7 +3,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import type { Staff } from "../types";
-import { type EditStaffFormData, editStaffSchema } from "./index";
+import { type EditStaffFormData, editStaffSchema } from "./script";
+
+export type { EditStaffFormData } from "./script";
 
 type Props = {
   staff: Staff;

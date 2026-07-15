@@ -1,16 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-  findByRole,
-  findByText,
-  fireEvent,
-  getAllByRole,
-  getByDisplayValue,
-  getByRole,
-  getByText,
-  queryByText,
-  waitFor,
-} from "@testing-library/dom";
-import { expect } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { EditShopForm } from "./index.tsx";
 
@@ -103,69 +92,69 @@ export const RegularClosedDaysEmpty: Story = {
 
 export const InteractiveStepperFlow: Story = {
   parameters: {
-    chromatic: { disableSnapshot: true },
+    screenshot: { skip: true },
   },
   render: renderInStepperDialog,
   play: async ({ canvasElement }) => {
-    const root = getTestRoot(canvasElement);
+    const root = within(getTestRoot(canvasElement));
 
-    expect(getByRole(root, "textbox", { name: "お店の名前" })).toBeTruthy();
-    clickButton(root, "次へ");
+    expect(root.getByRole("textbox", { name: "お店の名前" })).toBeTruthy();
+    await clickButton(root, "次へ");
 
-    await findByText(root, "希望シフトの集め方");
-    clickButton(root, "次へ");
+    await root.findByText("希望シフトの集め方");
+    await clickButton(root, "次へ");
 
-    expect(await findByText(root, "現在の設定: 定休日なし")).toBeTruthy();
-    expect(queryByText(root, "追加設定なし")).toBeNull();
-    expect(queryByText(root, "勤務時間")).toBeNull();
+    expect(await root.findByText("現在の設定: 定休日なし")).toBeTruthy();
+    expect(root.queryByText("追加設定なし")).toBeNull();
+    expect(root.queryByText("勤務時間")).toBeNull();
 
-    clickButton(root, "戻る");
-    await findByText(root, "希望シフトの集め方");
-    clickButton(root, "時間指定");
-    clickButton(root, "次へ");
+    await clickButton(root, "戻る");
+    await root.findByText("希望シフトの集め方");
+    await clickButton(root, "時間指定");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "シフト開始時間");
-    expect(getByText(root, "シフト終了時間")).toBeTruthy();
-    const startTimeSelect = getByRole(root, "combobox", { name: "シフト開始時間" });
-    startTimeSelect.click();
-    expect(await findByRole(root, "listbox", { name: "シフト開始時間" })).toBeTruthy();
-    (await findByRole(root, "option", { name: "15:00" })).click();
+    await root.findByText("シフト開始時間");
+    expect(root.getByText("シフト終了時間")).toBeTruthy();
+    const startTimeSelect = root.getByRole("combobox", { name: "シフト開始時間" });
+    await userEvent.click(startTimeSelect);
+    expect(await root.findByRole("listbox", { name: "シフト開始時間" })).toBeTruthy();
+    await userEvent.click(await root.findByRole("option", { name: "15:00" }));
     await waitFor(() => expect(startTimeSelect).toHaveTextContent("15:00"));
 
-    const endTimeSelect = getByRole(root, "combobox", { name: "シフト終了時間" });
-    endTimeSelect.click();
-    expect(await findByRole(root, "listbox", { name: "シフト終了時間" })).toBeTruthy();
-    (await findByRole(root, "option", { name: "23:00" })).click();
+    const endTimeSelect = root.getByRole("combobox", { name: "シフト終了時間" });
+    await userEvent.click(endTimeSelect);
+    expect(await root.findByRole("listbox", { name: "シフト終了時間" })).toBeTruthy();
+    await userEvent.click(await root.findByRole("option", { name: "23:00" }));
     await waitFor(() => expect(endTimeSelect).toHaveTextContent("23:00"));
 
-    clickButton(root, "戻る");
-    await findByText(root, "希望シフトの集め方");
-    clickButton(root, "勤務区分");
-    clickButton(root, "次へ");
+    await clickButton(root, "戻る");
+    await root.findByText("希望シフトの集め方");
+    await clickButton(root, "勤務区分");
+    await clickButton(root, "次へ");
 
-    await findByText(root, "勤務区分を追加");
-    expect(getByDisplayValue(root, "早番")).toBeTruthy();
-    expect(getByDisplayValue(root, "遅番")).toBeTruthy();
-    clickButton(root, "勤務区分を追加");
-    await waitFor(() => expect(getAllByRole(root, "textbox", { name: "区分名" })).toHaveLength(3));
-    clickButton(root, "勤務区分を追加");
-    await waitFor(() => expect(getAllByRole(root, "textbox", { name: "区分名" })).toHaveLength(4));
-    const shiftTypeNameInputs = getAllByRole(root, "textbox", { name: "区分名" });
-    fireEvent.change(shiftTypeNameInputs[2], { target: { value: "中番" } });
-    fireEvent.change(shiftTypeNameInputs[3], { target: { value: "深夜" } });
-    expect(await findByText(root, "勤務区分は4件まで登録できます。")).toBeTruthy();
-    expect(getByRole(root, "button", { name: /勤務区分を追加/ })).toBeDisabled();
-    clickButton(root, "次へ");
+    await root.findByText("勤務区分を追加");
+    expect(root.getByDisplayValue("早番")).toBeTruthy();
+    expect(root.getByDisplayValue("遅番")).toBeTruthy();
+    await clickButton(root, "勤務区分を追加");
+    await waitFor(() => expect(root.getAllByRole("textbox", { name: "区分名" })).toHaveLength(3));
+    await clickButton(root, "勤務区分を追加");
+    await waitFor(() => expect(root.getAllByRole("textbox", { name: "区分名" })).toHaveLength(4));
+    const shiftTypeNameInputs = root.getAllByRole("textbox", { name: "区分名" });
+    await userEvent.type(shiftTypeNameInputs[2], "中番");
+    await userEvent.type(shiftTypeNameInputs[3], "深夜");
+    expect(await root.findByText("勤務区分は4件まで登録できます。")).toBeTruthy();
+    expect(root.getByRole("button", { name: /勤務区分を追加/ })).toBeDisabled();
+    await clickButton(root, "次へ");
 
-    expect(await findByText(root, "現在の設定: 定休日なし")).toBeTruthy();
-    expect(await findByRole(root, "button", { name: "変更を保存" })).toBeTruthy();
+    expect(await root.findByText("現在の設定: 定休日なし")).toBeTruthy();
+    expect(await root.findByRole("button", { name: "変更を保存" })).toBeTruthy();
   },
 };
 
 function getTestRoot(canvasElement: HTMLElement): HTMLElement {
-  return (document.querySelector('[role="dialog"]') as HTMLElement | null) ?? canvasElement;
+  return (canvasElement.ownerDocument.querySelector('[role="dialog"]') as HTMLElement | null) ?? canvasElement;
 }
 
-function clickButton(root: HTMLElement, name: string) {
-  getByRole(root, "button", { name: new RegExp(name) }).click();
+async function clickButton(root: ReturnType<typeof within>, name: string) {
+  await userEvent.click(root.getByRole("button", { name: new RegExp(name) }));
 }

@@ -1,6 +1,12 @@
-import type { ShiftTypeOption } from "@/convex/shop/schemas";
+import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
 
 export const DIALOG_SELECT_POSITIONING = { strategy: "fixed" as const, hideWhenDetached: true, sameWidth: true };
+
+export const DEFAULT_TIME_PATTERN: Extract<ShiftSubmissionPattern, { kind: "time" }> = {
+  kind: "time",
+  startTime: "09:00",
+  endTime: "22:00",
+};
 
 const DEFAULT_SHIFT_TYPE_OPTIONS: ShiftTypeOption[] = [
   { id: "early", name: "早番", startTime: "09:00", endTime: "15:00", sortOrder: 0 },

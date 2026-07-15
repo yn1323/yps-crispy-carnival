@@ -1,5 +1,5 @@
-import type { CreateRecruitmentData } from "@/src/components/features/Dashboard/CreateRecruitmentForm";
-import type { SubmissionData } from "@/src/components/features/StaffSubmit/SubmitFormView";
+import type { CreateRecruitmentData } from "@/src/components/features/CreateRecruitmentForm";
+import type { SubmissionData } from "@/src/components/features/StaffSubmit";
 import { BREAK_POSITION, DEFAULT_POSITION } from "@/src/domains/shift/constants";
 import { formatDateWithWeekday, getDateRange } from "@/src/domains/shift/date";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";

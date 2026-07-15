@@ -36,6 +36,7 @@ export const DialogOpen: Story = {
 };
 
 export const MobileDialogOpen: Story = {
+  tags: ["vrt-mobile1"],
   parameters: {
     layout: "fullscreen",
     viewport: { value: "mobile1", isRotated: false },
