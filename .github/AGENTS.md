@@ -137,15 +137,15 @@ contact-slack: PASS
 | `test-logic.yml` | 全push | ロジックテスト（sharding 2分割） |
 | `test-ui.yml` | 全push | UIテスト（sharding 2分割、Convex dev使用） |
 | `build.yml` | 全push | ビルド確認（Convex dev使用） |
-| `playwright.yml` | PR to develop (open/sync/reopen/edited) | Chrome系projectとPR専用Convex PreviewでFull Regression E2E、必須project/scenario・失敗・skip・flaky監査、通知FailureInbox・active dedupe監査、非公開artifact保存 |
-| `pr-report-comments.yml` | Playwright / Preview Deploy / VRT完了 | default branchの信頼済み`workflow_run`からPRレポートコメントを更新 |
+| `playwright.yml` | PR to develop (open/sync/reopen/edited) | Chrome系projectとPR専用Convex PreviewでFull Regression E2E、必須project/scenario・失敗・skip・flaky監査、通知FailureInbox・active dedupe監査、非公開artifact保存、コメント専用jobからPR結果を更新 |
+| `pr-report-comments.yml` | Preview Deploy完了 | default branchの信頼済み`workflow_run`からPRプレビューコメントを更新 |
 | `provider-canary-approval.yml` | main向けPRのcanaryラベル付与 / 追加push | 構造化attestationを検証してhead SHA markerを記録し、不備時と追加push時に承認ラベルを削除 |
 
 ### Storybook / VRT (`vrt.yml`)
 
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
-| `vrt.yml` | PR to develop/main、push to develop/main | Storycap testrunでPNG生成 → RegSuit比較 → hosting-pagesへレポート公開。main/developのみbaseline更新 |
+| `vrt.yml` | PR to develop/main、push to develop/main | Storycap testrunでPNG生成 → RegSuit比較 → hosting-pagesへレポート公開。PRではコメント専用jobから結果を更新し、main/developのみbaseline更新 |
 
 ## デプロイ順序
 
@@ -162,4 +162,4 @@ Convex deploy → Convex migrations → ビルド → CloudFlare の順で実行
 - E2E Full Regressionはdevelop向けPRのPreview環境でのみ実施し、developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない
 - E2E専用Convex Previewは自動失効に任せ、cleanup workflowを作らない
 - PR専用Convex previewは`preview/pr-{N}-e2e`参照で指定し、bare preview名を`--deployment`へ渡さない
-- PRのコードをcheckoutして実行するworkflowの`GITHUB_TOKEN`はread-onlyにする。PRコメントはcheckoutせずartifact内容も実行しない信頼済み`workflow_run`に分離する
+- PRのコードをcheckoutして実行するjobの`GITHUB_TOKEN`はread-onlyにする。PR workflowからコメントする場合は、checkoutとartifact内容の実行を行わないコメント専用jobだけに`issues: write`を付与し、実行時と現在のPR head SHAが一致する場合だけ更新する

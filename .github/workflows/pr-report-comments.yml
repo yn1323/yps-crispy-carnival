@@ -2,7 +2,7 @@ name: Trusted PR Report Comments
 
 on:
   workflow_run:
-    workflows: ["Playwright Tests", "Deploy to Cloudflare Pages", "vrt"]
+    workflows: ["Deploy to Cloudflare Pages"]
     types: [completed]
 
 permissions:
@@ -44,21 +44,7 @@ jobs:
             let marker;
             let body;
 
-            if (run.name === 'Playwright Tests') {
-              marker = '## Playwright Test Report';
-              body = [
-                marker,
-                '',
-                `Status: ${status}`,
-                '',
-                '| Action | Link |',
-                '|---|---|',
-                `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`,
-                '',
-                'Details:',
-                'trace・動画・tokenを含み得るため、レポートはActions artifactだけに保存します。',
-              ].join('\n');
-            } else if (run.name === 'Deploy to Cloudflare Pages') {
+            if (run.name === 'Deploy to Cloudflare Pages') {
               marker = '## 🚀 Preview Deploy';
               const previewUrl = `https://pr-${issue_number}.dev-yps-crispy-carnival.pages.dev`;
               body = [
@@ -67,19 +53,6 @@ jobs:
                 `Status: ${status}`,
                 `**App:** ${previewUrl}`,
                 `**Actions:** ${actionsUrl}`,
-              ].join('\n');
-            } else if (run.name === 'vrt') {
-              marker = '## VRT Report';
-              const reportUrl = `https://yn1323.github.io/hosting-pages/yps-crispy-carnival-vrt/pr-${issue_number}/?v=${run.id}-${run.run_attempt}`;
-              body = [
-                marker,
-                '',
-                `Status: ${status}`,
-                '',
-                '| Action | Link |',
-                '|---|---|',
-                `| 差分確認 | [差分レポートを見る](${reportUrl}) |`,
-                `| 実行確認 | [Actionsを見る](${actionsUrl}) |`,
               ].join('\n');
             } else {
               core.setFailed(`Unexpected source workflow: ${run.name}`);

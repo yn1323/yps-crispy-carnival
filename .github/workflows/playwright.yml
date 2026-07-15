@@ -89,3 +89,74 @@ jobs:
             test-results.json
             test-results/
           retention-days: 7
+
+  comment:
+    needs: test
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Comment PR with Playwright result
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = '## Playwright Test Report';
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const expectedHeadSha = context.payload.pull_request.head.sha;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issue_number,
+            });
+
+            if (pullRequest.state !== 'open') {
+              core.info(`PR #${issue_number} is no longer open.`);
+              return;
+            }
+            if (pullRequest.head.sha !== expectedHeadSha) {
+              core.info(`Skip stale run for ${expectedHeadSha}; current head is ${pullRequest.head.sha}.`);
+              return;
+            }
+
+            const result = '${{ needs.test.result }}';
+            const status = result === 'success' ? 'Passed' : `Failed (${result})`;
+            const actionsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              '',
+              `Status: ${status}`,
+              '',
+              '| Action | Link |',
+              '|---|---|',
+              `| レポート確認 | [Actionsの非公開artifactを見る](${actionsUrl}) |`,
+              '',
+              'Details:',
+              'trace・動画・tokenを含み得るため、レポートはActions artifactだけに保存します。',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            for (const comment of comments) {
+              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
