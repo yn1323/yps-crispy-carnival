@@ -159,7 +159,7 @@ describe("legal/mutations", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_1" })
-      .mutation(api.legal.mutations.acceptManagerLegalConsent, { acceptedLegal: true });
+      .mutation(api.legal.mutations.acceptManagerLegalConsent, { acceptedLegal: true, shopId });
 
     expect(result.status).toBe("ok");
     const [state, events] = await t.run(async (ctx) => {

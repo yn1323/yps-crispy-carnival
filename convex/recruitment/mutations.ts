@@ -10,6 +10,7 @@ import { managerMutation } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
 import { createRecruitmentSchema } from "./schemas";
+import { getActiveRecruitmentInShop } from "./service";
 
 const RECRUITMENT_DUPLICATE_ERROR_CODE = "RECRUITMENT_DUPLICATE";
 
@@ -135,8 +136,8 @@ export const deleteRecruitment = managerMutation({
     recruitmentId: v.id("recruitments"),
   },
   handler: async (ctx, args) => {
-    const recruitment = await ctx.db.get(args.recruitmentId);
-    if (!recruitment || recruitment.shopId !== ctx.shop._id || recruitment.isDeleted) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
       throw new ConvexError("Not found");
     }
 

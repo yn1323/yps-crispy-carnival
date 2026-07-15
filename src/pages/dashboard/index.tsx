@@ -6,9 +6,12 @@ import { Dashboard, DashboardSkeleton } from "@/src/components/features/Dashboar
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
 
 export function DashboardPage() {
-  const shop = useQuery(api.dashboard.queries.getDashboardShop);
+  const myShops = useQuery(api.dashboard.queries.getMyShops, {});
+  const selectedShop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
+  const shop = myShops === undefined ? undefined : myShops.length === 0 ? null : selectedShop;
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
   const managerLegalConsentStatus = useQuery(
     api.legal.queries.getManagerConsentStatus,

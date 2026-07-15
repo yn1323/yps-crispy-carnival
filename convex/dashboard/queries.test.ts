@@ -1,32 +1,40 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
+const firstPageArgs = (shopId: Id<"shops">) => ({ ...PAGINATION_FIRST_PAGE, shopId });
 
 describe("dashboard/queries", () => {
   describe("getDashboardShop", () => {
     it("未認証の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
-      const result = await t.query(api.dashboard.queries.getDashboardShop, {});
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
+      const result = await t.query(api.dashboard.queries.getDashboardShop, { shopId });
       expect(result).toBeNull();
     });
 
     it("認証済みだが店舗未登録の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
-      const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardShop, {});
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "未所属店舗"));
+      const result = await t
+        .withIdentity({ subject: "user_123" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
       expect(result).toBeNull();
     });
 
     it("店舗登録済みの場合、店舗情報を返す", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_123", shopName: "テスト店舗" });
-      });
+      const { shopId } = await t.run(
+        async (ctx) => await seedManagerShop(ctx, { subject: "user_123", shopName: "テスト店舗" }),
+      );
 
-      const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardShop, {});
+      const result = await t
+        .withIdentity({ subject: "user_123" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
       expect(result).toEqual({
         name: "テスト店舗",
         regularClosedDays: [],
@@ -34,21 +42,63 @@ describe("dashboard/queries", () => {
       });
     });
 
-    it("論理削除された店舗は null を返す", async () => {
+    it("同一managerの複数店舗は明示shopIdに応じて返し分ける", async () => {
+      const t = convexTest(schema, modules);
+      const { firstShopId, secondShopId } = await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "multi_shop_dashboard_user");
+        const firstShopId = await seedShop(ctx, "有効店舗A");
+        const secondShopId = await seedShop(ctx, "有効店舗B");
+        await seedShopMembership(ctx, { userId, shopId: firstShopId });
+        await seedShopMembership(ctx, { userId, shopId: secondShopId });
+        return { firstShopId, secondShopId };
+      });
+      const asManager = t.withIdentity({ subject: "multi_shop_dashboard_user" });
+
+      const firstShop = await asManager.query(api.dashboard.queries.getDashboardShop, { shopId: firstShopId });
+      const secondShop = await asManager.query(api.dashboard.queries.getDashboardShop, { shopId: secondShopId });
+
+      expect(firstShop?.name).toBe("有効店舗A");
+      expect(secondShop?.name).toBe("有効店舗B");
+    });
+
+    it("shopId省略時は旧クライアント互換で先頭の有効所属店舗を返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_deleted", shopName: "削除済み店舗", shopDeleted: true });
+        const userId = await seedUser(ctx, "legacy_multi_shop_dashboard_user");
+
+        const deletedShopId = await seedShop(ctx, "削除済み店舗");
+        await ctx.db.patch(deletedShopId, { isDeleted: true });
+        await seedShopMembership(ctx, { userId, shopId: deletedShopId });
+
+        const firstActiveShopId = await seedShop(ctx, "先頭の有効店舗");
+        const secondActiveShopId = await seedShop(ctx, "2件目の有効店舗");
+        await seedShopMembership(ctx, { userId, shopId: firstActiveShopId });
+        await seedShopMembership(ctx, { userId, shopId: secondActiveShopId });
       });
 
       const result = await t
-        .withIdentity({ subject: "user_deleted" })
+        .withIdentity({ subject: "legacy_multi_shop_dashboard_user" })
         .query(api.dashboard.queries.getDashboardShop, {});
+
+      expect(result?.name).toBe("先頭の有効店舗");
+    });
+
+    it("論理削除された店舗は null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(
+        async (ctx) =>
+          await seedManagerShop(ctx, { subject: "user_deleted", shopName: "削除済み店舗", shopDeleted: true }),
+      );
+
+      const result = await t
+        .withIdentity({ subject: "user_deleted" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
       expect(result).toBeNull();
     });
 
-    it("先頭の所属店舗が削除済みの場合、次の有効店舗を返す", async () => {
+    it("指定した店舗が削除済みの場合、別の有効店舗へフォールバックしない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const deletedShopId = await t.run(async (ctx) => {
         const userId = await seedUser(ctx, "user_deleted_first");
         const deletedShopId = await seedShop(ctx, "削除済み店舗");
         await ctx.db.patch(deletedShopId, { isDeleted: true });
@@ -56,53 +106,58 @@ describe("dashboard/queries", () => {
 
         const activeShopId = await seedShop(ctx, "残っている店舗");
         await seedShopMembership(ctx, { userId, shopId: activeShopId });
+        return deletedShopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_deleted_first" })
-        .query(api.dashboard.queries.getDashboardShop, {});
+        .query(api.dashboard.queries.getDashboardShop, { shopId: deletedShopId });
 
-      expect(result?.name).toBe("残っている店舗");
+      expect(result).toBeNull();
     });
 
     it("削除済みmembershipでは店舗情報を返さない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
-          subject: "user_deleted_membership",
-          shopName: "削除済みmembership店舗",
-          membershipDeleted: true,
-        });
-      });
+      const { shopId } = await t.run(
+        async (ctx) =>
+          await seedManagerShop(ctx, {
+            subject: "user_deleted_membership",
+            shopName: "削除済みmembership店舗",
+            membershipDeleted: true,
+          }),
+      );
 
       const result = await t
         .withIdentity({ subject: "user_deleted_membership" })
-        .query(api.dashboard.queries.getDashboardShop, {});
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
       expect(result).toBeNull();
     });
 
     it("論理削除済みユーザーには所属店舗情報を返さない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        const { userId } = await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const { userId, shopId } = await seedManagerShop(ctx, {
           subject: "deleted_dashboard_user",
           shopName: "削除ユーザー所属店舗",
         });
         await ctx.db.patch(userId, { isDeleted: true });
+        return shopId;
       });
 
       await expect(
-        t.withIdentity({ subject: "deleted_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, {}),
+        t.withIdentity({ subject: "deleted_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, { shopId }),
       ).resolves.toBeNull();
     });
 
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, { subject: "user_fields", shopName: "店舗" });
-      });
+      const { shopId } = await t.run(
+        async (ctx) => await seedManagerShop(ctx, { subject: "user_fields", shopName: "店舗" }),
+      );
 
-      const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardShop, {});
+      const result = await t
+        .withIdentity({ subject: "user_fields" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
       expect(Object.keys(result ?? {}).sort()).toEqual(["name", "regularClosedDays", "submissionPattern"]);
     });
   });
@@ -288,16 +343,18 @@ describe("dashboard/queries", () => {
 
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
-      const result = await t.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
+      const result = await t.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
 
     it("認証済みだが店舗未登録の場合、空ページを返す", async () => {
       const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "未所属店舗"));
       const result = await t
         .withIdentity({ subject: "user_no_shop" })
-        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
@@ -330,7 +387,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_rec" })
-        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
 
       expect(result.page).toHaveLength(1);
       expect(result.page[0].status).toBe("open");
@@ -340,7 +397,7 @@ describe("dashboard/queries", () => {
 
     it("論理削除された募集は除外する", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_rec_deleted",
           email: "deleted-rec@example.com",
@@ -367,11 +424,12 @@ describe("dashboard/queries", () => {
           isDeleted: true,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
+        return shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_rec_deleted" })
-        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
 
       expect(result.page).toHaveLength(1);
       expect(result.page[0].periodStart).toBe("2026-04-01");
@@ -394,7 +452,7 @@ describe("dashboard/queries", () => {
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
         const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
+        const shopId = await t.run(async (ctx) => {
           const { shopId } = await seedManagerShop(ctx, {
             subject: "user_rec_dashboard_order",
             email: "dashboard-order@example.com",
@@ -444,11 +502,12 @@ describe("dashboard/queries", () => {
             status: "confirmed",
             confirmedAt: Date.now(),
           });
+          return shopId;
         });
 
         const result = await t
           .withIdentity({ subject: "user_rec_dashboard_order" })
-          .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+          .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
 
         expect(result.page.map((recruitment) => recruitment.periodStart)).toEqual([
           "2026-06-01",
@@ -466,13 +525,13 @@ describe("dashboard/queries", () => {
     it("未確定シフトは終了日当日まで返し、翌日から初期取得ではなく過去取得で返す", async () => {
       vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
       const t = convexTest(schema, modules);
-      const recruitmentId = await t.run(async (ctx) => {
+      const { recruitmentId, shopId } = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_open_ended",
           email: "open-ended@example.com",
           shopName: "店舗",
         });
-        return await ctx.db.insert("recruitments", {
+        const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-07-01",
           periodEnd: "2026-07-07",
@@ -482,15 +541,16 @@ describe("dashboard/queries", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
+        return { recruitmentId, shopId };
       });
       const asManager = t.withIdentity({ subject: "user_open_ended" });
 
-      const onPeriodEnd = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+      const onPeriodEnd = await asManager.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
       expect(onPeriodEnd.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
 
       vi.setSystemTime(new Date("2026-07-08T00:00:00+09:00"));
-      const nextDay = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
-      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, PAGINATION_FIRST_PAGE);
+      const nextDay = await asManager.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, firstPageArgs(shopId));
 
       expect(nextDay.page).toEqual([]);
       expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
@@ -499,13 +559,13 @@ describe("dashboard/queries", () => {
     it("終了済みの未確定シフトは締切日が未来でも初期取得で返さない", async () => {
       vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
       const t = convexTest(schema, modules);
-      const recruitmentId = await t.run(async (ctx) => {
+      const { recruitmentId, shopId } = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_ended_before_deadline",
           email: "ended-before-deadline@example.com",
           shopName: "店舗",
         });
-        return await ctx.db.insert("recruitments", {
+        const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: "2026-07-01",
           periodEnd: "2026-07-06",
@@ -515,11 +575,12 @@ describe("dashboard/queries", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
+        return { recruitmentId, shopId };
       });
       const asManager = t.withIdentity({ subject: "user_ended_before_deadline" });
 
-      const active = await asManager.query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
-      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, PAGINATION_FIRST_PAGE);
+      const active = await asManager.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, firstPageArgs(shopId));
 
       expect(active.page).toEqual([]);
       expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
@@ -530,7 +591,7 @@ describe("dashboard/queries", () => {
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
         const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
+        const shopId = await t.run(async (ctx) => {
           const { shopId } = await seedManagerShop(ctx, {
             subject: "user_current_rec",
             email: "current-rec@example.com",
@@ -575,11 +636,12 @@ describe("dashboard/queries", () => {
             isDeleted: false,
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           });
+          return shopId;
         });
 
         const result = await t
           .withIdentity({ subject: "user_current_rec" })
-          .query(api.dashboard.queries.getDashboardCurrentRecruitments, {});
+          .query(api.dashboard.queries.getDashboardCurrentRecruitments, { shopId });
 
         expect(result.map((recruitment) => recruitment.periodEnd)).toEqual(["2026-06-20", "2026-06-30"]);
         expect(result.every((recruitment) => recruitment.status === "confirmed")).toBe(true);
@@ -590,7 +652,7 @@ describe("dashboard/queries", () => {
 
     it("recruitmentStats がない古い募集では responseCount は shiftSubmissions の件数を返す", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_rc",
           email: "rc@example.com",
@@ -658,18 +720,19 @@ describe("dashboard/queries", () => {
           startTime: "10:00",
           endTime: "18:00",
         });
+        return shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_rc" })
-        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
       expect(result.page[0].responseCount).toBe(2);
       expect(result.page[0].totalStaffCount).toBe(2);
     });
 
     it("recruitmentStats がある場合も totalStaffCount は現在の有効スタッフ数を返す", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_stats",
           email: "stats@example.com",
@@ -716,11 +779,12 @@ describe("dashboard/queries", () => {
           activeStaffCountSnapshot: 1,
           updatedAt: Date.now(),
         });
+        return shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_stats" })
-        .query(api.dashboard.queries.getDashboardRecruitments, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
       expect(result.page[0].responseCount).toBe(2);
       expect(result.page[0].totalStaffCount).toBe(3);
     });
@@ -732,7 +796,7 @@ describe("dashboard/queries", () => {
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
         const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
+        const shopId = await t.run(async (ctx) => {
           const { shopId } = await seedManagerShop(ctx, {
             subject: "user_has_past",
             email: "has-past@example.com",
@@ -766,11 +830,12 @@ describe("dashboard/queries", () => {
             confirmedAt: Date.now(),
             isDeleted: true,
           });
+          return shopId;
         });
 
         const result = await t
           .withIdentity({ subject: "user_has_past" })
-          .query(api.dashboard.queries.hasDashboardPastRecruitments, {});
+          .query(api.dashboard.queries.hasDashboardPastRecruitments, { shopId });
 
         expect(result).toBe(true);
       } finally {
@@ -783,7 +848,7 @@ describe("dashboard/queries", () => {
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
         const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
+        const shopId = await t.run(async (ctx) => {
           const { shopId } = await seedManagerShop(ctx, {
             subject: "user_no_past",
             email: "no-past@example.com",
@@ -800,11 +865,12 @@ describe("dashboard/queries", () => {
             isDeleted: false,
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           });
+          return shopId;
         });
 
         const result = await t
           .withIdentity({ subject: "user_no_past" })
-          .query(api.dashboard.queries.hasDashboardPastRecruitments, {});
+          .query(api.dashboard.queries.hasDashboardPastRecruitments, { shopId });
 
         expect(result).toBe(false);
       } finally {
@@ -819,7 +885,7 @@ describe("dashboard/queries", () => {
       vi.setSystemTime(new Date("2026-06-16T00:00:00+09:00"));
       try {
         const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
+        const shopId = await t.run(async (ctx) => {
           const { shopId } = await seedManagerShop(ctx, {
             subject: "user_past_page",
             email: "past-page@example.com",
@@ -852,14 +918,19 @@ describe("dashboard/queries", () => {
             status: "confirmed",
             confirmedAt: Date.now(),
           });
+          return shopId;
         });
 
         const firstPage = await t
           .withIdentity({ subject: "user_past_page" })
-          .query(api.dashboard.queries.getDashboardPastRecruitments, { paginationOpts: { numItems: 2, cursor: null } });
+          .query(api.dashboard.queries.getDashboardPastRecruitments, {
+            shopId,
+            paginationOpts: { numItems: 2, cursor: null },
+          });
         const secondPage = await t
           .withIdentity({ subject: "user_past_page" })
           .query(api.dashboard.queries.getDashboardPastRecruitments, {
+            shopId,
             paginationOpts: { numItems: 2, cursor: firstPage.continueCursor },
           });
 
@@ -876,23 +947,25 @@ describe("dashboard/queries", () => {
   describe("getDashboardStaffs", () => {
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
-      const result = await t.query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE);
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
+      const result = await t.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
 
     it("認証済みだが店舗未登録の場合、空ページを返す", async () => {
       const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => await seedShop(ctx, "未所属店舗"));
       const result = await t
         .withIdentity({ subject: "user_no_shop" })
-        .query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
 
     it("スタッフをページネーションで返し、削除済みは除外される", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_staff",
           email: "m@example.com",
@@ -910,11 +983,12 @@ describe("dashboard/queries", () => {
           email: "deleted@example.com",
           isDeleted: true,
         });
+        return shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_staff" })
-        .query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
 
       expect(result.page).toHaveLength(1);
       expect(result.page[0].name).toBe("田中太郎");
@@ -922,7 +996,7 @@ describe("dashboard/queries", () => {
 
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
           subject: "user_sf",
           email: "m@example.com",
@@ -934,11 +1008,12 @@ describe("dashboard/queries", () => {
           email: "staff@example.com",
           isDeleted: false,
         });
+        return shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_sf" })
-        .query(api.dashboard.queries.getDashboardStaffs, PAGINATION_FIRST_PAGE);
+        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
       expect(Object.keys(result.page[0]).sort()).toEqual([
         "_id",
         "email",

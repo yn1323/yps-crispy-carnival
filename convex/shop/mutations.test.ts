@@ -16,18 +16,40 @@ const MANAGER_SUBJECT = "user_manager";
 
 describe("shop/mutations", () => {
   describe("updateShopSettings", () => {
+    it("shopIdを省略した旧クライアントは先頭の有効所属店舗を更新できる", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "居酒屋たなか",
+        });
+        return shopId;
+      });
+      const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
+
+      await asManager.mutation(api.shop.mutations.updateShopSettings, validArgs);
+
+      const shop = await t.run(async (ctx) => ctx.db.get(shopId));
+      expect(shop?.name).toBe("新・居酒屋たなか");
+    });
+
     it("未認証の場合エラーをthrowする", async () => {
       const t = convexTest(schema, modules);
-      await expect(t.mutation(api.shop.mutations.updateShopSettings, validArgs)).rejects.toThrow();
+      const shopId = await t.run(async (ctx) => seedShop(ctx));
+      await expect(t.mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopId })).rejects.toThrow();
     });
 
     it("店舗が存在しないマネージャーは Not found でエラー", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
+      const shopId = await t.run(async (ctx) => {
         await seedUser(ctx, "user_no_shop", "noshop@example.com");
+        return seedShop(ctx);
       });
       await expect(
-        t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.updateShopSettings, validArgs),
+        t
+          .withIdentity({ subject: "user_no_shop" })
+          .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopId }),
       ).rejects.toThrow();
     });
 
@@ -44,6 +66,7 @@ describe("shop/mutations", () => {
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
         ...validArgs,
+        shopId,
         regularClosedDays: ["tue", "mon", "mon"],
       });
 
@@ -66,6 +89,7 @@ describe("shop/mutations", () => {
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
         ...validArgs,
+        shopId,
         submissionPattern: { kind: "dateOnly" },
       });
 
@@ -86,7 +110,7 @@ describe("shop/mutations", () => {
 
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopName: "  スペース入り  " });
+        .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopId, shopName: "  スペース入り  " });
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("スペース入り");
@@ -94,57 +118,62 @@ describe("shop/mutations", () => {
 
     it("空の店舗名は ConvexError", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t
           .withIdentity({ subject: MANAGER_SUBJECT })
-          .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopName: "   " }),
+          .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopId, shopName: "   " }),
       ).rejects.toThrow(ConvexError);
     });
 
     it("過長店舗名と制御文字入り店舗名は更新できない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1),
         }),
       ).rejects.toThrow("店舗名は80文字以内で入力してください");
       await expect(
         t
           .withIdentity({ subject: MANAGER_SUBJECT })
-          .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopName: "店舗\n名" }),
+          .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopId, shopName: "店舗\n名" }),
       ).rejects.toThrow("店舗名に使用できない文字が含まれています");
     });
 
     it("時間指定の終了時間 <= 開始時間は ConvexError", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: { kind: "time", startTime: "22:00", endTime: "22:00" },
         }),
       ).rejects.toThrow(ConvexError);
@@ -152,6 +181,7 @@ describe("shop/mutations", () => {
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: { kind: "time", startTime: "22:00", endTime: "20:00" },
         }),
       ).rejects.toThrow(ConvexError);
@@ -159,17 +189,19 @@ describe("shop/mutations", () => {
 
     it("時間指定の対応範囲外の時刻は ConvexError", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: { kind: "time", startTime: "10:00", endTime: "99:00" },
         }),
       ).rejects.toThrow(ConvexError);
@@ -188,6 +220,7 @@ describe("shop/mutations", () => {
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
         ...validArgs,
+        shopId,
         submissionPattern: { kind: "time", startTime: "00:00", endTime: "36:00" },
       });
 
@@ -217,7 +250,9 @@ describe("shop/mutations", () => {
         return { shopId, recruitmentId };
       });
 
-      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, validArgs);
+      await t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .mutation(api.shop.mutations.updateShopSettings, { ...validArgs, shopId });
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
@@ -238,6 +273,7 @@ describe("shop/mutations", () => {
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
         ...validArgs,
+        shopId,
         submissionPattern: {
           kind: "shiftType",
           options: [
@@ -261,17 +297,19 @@ describe("shop/mutations", () => {
 
     it("勤務区分 option id の重複は更新できない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: {
             kind: "shiftType",
             options: [
@@ -285,17 +323,19 @@ describe("shop/mutations", () => {
 
     it("不正な勤務区分時刻は ConvexError", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: {
             kind: "shiftType",
             options: [{ id: "morning", name: "早番", startTime: "bad", endTime: "15:00", sortOrder: 0 }],
@@ -306,6 +346,7 @@ describe("shop/mutations", () => {
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: {
             kind: "shiftType",
             options: [{ id: "night", name: "深夜", startTime: "10:00", endTime: "99:00", sortOrder: 0 }],
@@ -316,17 +357,19 @@ describe("shop/mutations", () => {
 
     it("過長・制御文字入りの勤務区分名は更新できない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: {
             kind: "shiftType",
             options: [
@@ -344,6 +387,7 @@ describe("shop/mutations", () => {
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: {
             kind: "shiftType",
             options: [{ id: "control", name: "早\n番", startTime: "09:00", endTime: "18:00", sortOrder: 0 }],
@@ -365,6 +409,7 @@ describe("shop/mutations", () => {
 
       await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
         ...validArgs,
+        shopId,
         submissionPattern: {
           kind: "shiftType",
           options: [{ id: "night", name: "深夜", startTime: "24:00", endTime: "36:00", sortOrder: 0 }],
@@ -380,17 +425,19 @@ describe("shop/mutations", () => {
 
     it("4件を超える勤務区分は更新できない", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await seedManagerShop(ctx, {
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: MANAGER_SUBJECT,
           email: "yamada@example.com",
           shopName: "居酒屋たなか",
         });
+        return seeded.shopId;
       });
 
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
+          shopId,
           submissionPattern: {
             kind: "shiftType",
             options: Array.from({ length: 5 }, (_, index) => ({
@@ -415,7 +462,7 @@ describe("shop/mutations", () => {
     it("未認証の場合エラーをthrowする", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => seedShop(ctx));
-      await expect(t.mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId })).rejects.toThrow();
+      await expect(t.mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId, shopId })).rejects.toThrow();
     });
 
     it("店舗が存在しないマネージャーは Not found でエラー", async () => {
@@ -425,7 +472,9 @@ describe("shop/mutations", () => {
         return seedShop(ctx);
       });
       await expect(
-        t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId }),
+        t
+          .withIdentity({ subject: "user_no_shop" })
+          .mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId, shopId }),
       ).rejects.toThrow();
     });
 
@@ -443,6 +492,7 @@ describe("shop/mutations", () => {
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.deleteShop, {
           confirmShopId: otherShopId,
+          shopId: ownShopId,
         }),
       ).rejects.toThrow();
 
@@ -526,7 +576,7 @@ describe("shop/mutations", () => {
 
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId });
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId, shopId: ids.shopId });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
@@ -568,7 +618,7 @@ describe("shop/mutations", () => {
 
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ownShopId });
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ownShopId, shopId: ownShopId });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
@@ -622,7 +672,7 @@ describe("shop/mutations", () => {
 
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId });
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: ids.shopId, shopId: ids.shopId });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
@@ -675,7 +725,7 @@ describe("shop/mutations", () => {
 
       await t
         .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId });
+        .mutation(api.shop.mutations.deleteShop, { confirmShopId: shopId, shopId });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {

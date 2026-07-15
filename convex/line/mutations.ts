@@ -7,6 +7,7 @@ import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { LINE_LINK_TOKEN_TTL_MS } from "../constants";
+import { getActiveStaffInShop } from "../staff/service";
 import { findStaffLineAccountsByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
 
 /**
@@ -18,8 +19,8 @@ import { findStaffLineAccountsByLineUserId, getStaffLineAccount, upsertStaffLine
 export const generateLinkToken = managerMutation({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.isDeleted || staff.shopId !== ctx.shop._id) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
 
@@ -269,8 +270,8 @@ export const upsertQuotaStatus = internalMutation({
 export const sendInvite = managerMutation({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.isDeleted || staff.shopId !== ctx.shop._id) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
     if (!staff.email) {

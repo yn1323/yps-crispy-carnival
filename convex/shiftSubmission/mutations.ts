@@ -6,6 +6,7 @@ import { rateLimit } from "../_lib/rateLimits";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
+import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
 
 type NormalizedShiftRequest = { date: string; startTime: string; endTime: string; optionId?: string };
@@ -150,8 +151,8 @@ export const submitShiftRequests = staffSessionMutation({
       throw new ConvexError("Not found");
     }
 
-    const recruitment = await ctx.db.get(args.recruitmentId);
-    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
+    if (!recruitment) {
       throw new ConvexError("Not found");
     }
     if (recruitment.status !== "open") {

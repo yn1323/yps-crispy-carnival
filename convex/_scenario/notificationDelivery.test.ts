@@ -153,6 +153,7 @@ describe("通知配送outboxシナリオ", () => {
       .withIdentity({ subject: MANAGER_SUBJECT })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        shopId: ids.shopId,
       });
     expect(openPage.page).toHaveLength(1);
     expect(openPage.page[0]).toMatchObject({
@@ -541,7 +542,7 @@ describe("通知配送outboxシナリオ", () => {
         endTime: "18:00",
         positionId,
       });
-      return { recruitmentId, staffId };
+      return { recruitmentId, shopId, staffId };
     });
 
     await t.action(internal.notification.actions.sendShiftConfirmationEmails, {
@@ -567,12 +568,13 @@ describe("通知配送outboxシナリオ", () => {
       .withIdentity({ subject: MANAGER_SUBJECT })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        shopId: ids.shopId,
       });
     expect(openPage.page).toHaveLength(0);
 
     const result = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {});
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, { shopId: ids.shopId });
     expect(result).toMatchObject({
       scheduled: false,
       scheduledCount: 0,
@@ -585,6 +587,7 @@ describe("通知配送outboxシナリオ", () => {
       t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect()),
       t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        shopId: ids.shopId,
       }),
     ]);
     expect(jobs.filter((job) => job.status === "pending")).toHaveLength(0);
@@ -646,6 +649,7 @@ describe("通知配送outboxシナリオ", () => {
       .withIdentity({ subject: MANAGER_SUBJECT })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        shopId: ids.shopId,
       });
     expect(firstOpenPage.page).toHaveLength(1);
     expect(firstOpenPage.page[0]).toMatchObject({
@@ -657,9 +661,10 @@ describe("通知配送outboxシナリオ", () => {
       canRetry: true,
     });
 
-    await t
-      .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.notificationOutbox.mutations.retryFailure, { failureId: firstOpenPage.page[0]._id });
+    await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.notificationOutbox.mutations.retryFailure, {
+      failureId: firstOpenPage.page[0]._id,
+      shopId: ids.shopId,
+    });
     let inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(inbox[0].status).toBe("retrying");
 
@@ -670,30 +675,36 @@ describe("通知配送outboxシナリオ", () => {
 
     vi.advanceTimersByTime(60_000);
     fetchMock.mockImplementationOnce(async () => ({ ok: true, status: 200, text: async () => "{}" }));
-    await t
-      .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.notificationOutbox.mutations.retryFailure, { failureId: firstOpenPage.page[0]._id });
+    await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.notificationOutbox.mutations.retryFailure, {
+      failureId: firstOpenPage.page[0]._id,
+      shopId: ids.shopId,
+    });
     await t.action(internal.notificationOutbox.actions.processPending, {});
 
     inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(inbox[0]).toMatchObject({ status: "resolved", resolutionKind: "sent" });
     await expect(
-      t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.notificationOutbox.queries.hasOpenFailures, {}),
+      t
+        .withIdentity({ subject: MANAGER_SUBJECT })
+        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: ids.shopId }),
     ).resolves.toBe(false);
   });
 
   it("スタッフ参加申請の日次digestはpending時だけowner向けoutboxを作る", async () => {
     const t = convexTest(schema, modules);
 
-    await t.run(async (ctx) => {
-      await seedManagerShop(ctx, {
+    const shopId = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "owner-digest@example.com",
         shopName: "参加申請通知店舗",
       });
+      return seeded.shopId;
     });
     const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
-    const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {});
+    const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId,
+    });
     const request = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
       token: registrationLink.token,
       name: "申請スタッフ",
@@ -719,6 +730,7 @@ describe("通知配送outboxシナリオ", () => {
 
     await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId: request.requestId,
+      shopId,
     });
     await t.action(internal.staffRegistration.actions.sendOwnerDailyDigest, {});
 

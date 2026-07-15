@@ -6,7 +6,7 @@ import { managerMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { getStaffLineAccount } from "../line/service";
 import { addStaffsSchema, editStaffSchema } from "./schemas";
-import { findActiveStaffByEmail, normalizeEmail } from "./service";
+import { findActiveStaffByEmail, getActiveStaffInShop, normalizeEmail } from "./service";
 
 type StaffNotificationKind = "openRecruitments" | "currentShift";
 type ManagerStaffMutationCtx = MutationCtx & {
@@ -15,8 +15,8 @@ type ManagerStaffMutationCtx = MutationCtx & {
 };
 
 async function getSendableStaff(ctx: ManagerStaffMutationCtx, staffId: Id<"staffs">) {
-  const staff = await ctx.db.get(staffId);
-  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+  const staff = await getActiveStaffInShop(ctx, ctx.shop._id, staffId);
+  if (!staff) {
     throw new ConvexError("Not found");
   }
 
@@ -117,8 +117,8 @@ export const editStaff = managerMutation({
       throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     }
     const input = parsed.data;
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
 
@@ -220,8 +220,8 @@ export const setShiftExclusion = managerMutation({
     excluded: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
@@ -256,8 +256,8 @@ export const deleteStaff = managerMutation({
     staffId: v.id("staffs"),
   },
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
       throw new ConvexError("Not found");
     }
 

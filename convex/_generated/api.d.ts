@@ -102,6 +102,7 @@ import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as position_service from "../position/service.js";
 import type * as recruitment_mutations from "../recruitment/mutations.js";
 import type * as recruitment_schemas from "../recruitment/schemas.js";
+import type * as recruitment_service from "../recruitment/service.js";
 import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
 import type * as shiftBoard_mutations from "../shiftBoard/mutations.js";
@@ -232,6 +233,7 @@ declare const fullApi: ApiFromModules<{
   "position/service": typeof position_service;
   "recruitment/mutations": typeof recruitment_mutations;
   "recruitment/schemas": typeof recruitment_schemas;
+  "recruitment/service": typeof recruitment_service;
   "setup/mutations": typeof setup_mutations;
   "setup/schemas": typeof setup_schemas;
   "shiftBoard/mutations": typeof shiftBoard_mutations;

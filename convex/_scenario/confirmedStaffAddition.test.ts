@@ -20,7 +20,7 @@ describe("確定後スタッフ追加シナリオ", () => {
     const staff = scenario.staff();
 
     // Arrange: 既存スタッフだけを割り当てたシフトを確定し、初回通知を完了させる。
-    const { existingStaffId } = await t.run(async (ctx) => {
+    const { existingStaffId, shopId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "confirmed-addition-manager@example.com",
@@ -31,7 +31,7 @@ describe("確定後スタッフ追加シナリオ", () => {
         name: "既存スタッフ",
         email: "confirmed-existing@example.com",
       });
-      return { existingStaffId };
+      return { existingStaffId, shopId };
     });
     const periodStart = scenarioDate(7);
     const recruitmentId = await asManager.createRecruitment({
@@ -89,6 +89,7 @@ describe("確定後スタッフ追加シナリオ", () => {
       .mutation(api.shiftBoard.mutations.confirmRecruitment, {
         recruitmentId,
         intent: "resend",
+        shopId,
       });
     expect(resendResult).toEqual({ status: "scheduled", notifiedStaffCount: 1 });
 

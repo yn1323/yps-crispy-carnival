@@ -51,17 +51,17 @@ describe("line/mutations", () => {
   describe("generateLinkToken", () => {
     it("未認証なら拒否", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupShop(t);
-      await expect(t.mutation(api.line.mutations.generateLinkToken, { staffId })).rejects.toThrow();
+      const { shopId, staffId } = await setupShop(t);
+      await expect(t.mutation(api.line.mutations.generateLinkToken, { shopId, staffId })).rejects.toThrow();
     });
 
     it("認証済みシフト担当者は自店舗スタッフにトークンを発行できる", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupShop(t);
+      const { shopId, staffId } = await setupShop(t);
 
       const { token } = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.line.mutations.generateLinkToken, { staffId });
+        .mutation(api.line.mutations.generateLinkToken, { shopId, staffId });
       expect(token).toMatch(/^[0-9a-f-]{36}$/);
 
       const link = await t.run(async (ctx) =>
@@ -76,7 +76,7 @@ describe("line/mutations", () => {
 
     it("他店舗スタッフへのトークン発行は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
-      await setupShop(t);
+      const { shopId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
         const otherShopId = await seedShop(ctx, "他店舗");
         return await ctx.db.insert("staffs", {
@@ -89,6 +89,7 @@ describe("line/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+          shopId,
           staffId: otherStaffId,
         }),
       ).rejects.toThrow("Not found");
@@ -96,9 +97,8 @@ describe("line/mutations", () => {
 
     it("複数店舗マネージャーは shopId 指定でその店舗のスタッフにトークンを発行できる", async () => {
       const t = convexTest(schema, modules);
-      // user_mgr は setupShop で店舗A（先頭）に所属。さらに店舗Bにも所属させる
-      const { shopBId, staffBId } = await t.run(async (ctx) => {
-        const { userId } = await seedManagerShop(ctx, {
+      const { shopAId, shopBId, staffBId } = await t.run(async (ctx) => {
+        const { userId, shopId: shopAId } = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
           shopName: "店舗A",
@@ -111,18 +111,19 @@ describe("line/mutations", () => {
           email: "b@example.com",
           isDeleted: false,
         });
-        return { shopBId, staffBId };
+        return { shopAId, shopBId, staffBId };
       });
 
-      // shopId 未指定だと先頭店舗(A)に解決され、店舗Bスタッフは Not found
+      // 店舗Aを明示した場合、店舗Bスタッフは店舗境界の外なので参照できない
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, { staffId: staffBId }),
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.line.mutations.generateLinkToken, { shopId: shopAId, staffId: staffBId }),
       ).rejects.toThrow("Not found");
 
-      // shopId=店舗B を指定すれば発行できる
       const { token } = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.line.mutations.generateLinkToken, { staffId: staffBId, shopId: shopBId });
+        .mutation(api.line.mutations.generateLinkToken, { shopId: shopBId, staffId: staffBId });
       const link = await t.run(async (ctx) =>
         ctx.db
           .query("lineLinkTokens")
@@ -653,19 +654,19 @@ describe("line/mutations", () => {
 
     it("自店舗スタッフへの送信が成功する", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupShop(t);
+      const { shopId, staffId } = await setupShop(t);
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
       ).resolves.not.toThrow();
     });
 
     it("同じスタッフへの短時間連打では送信予約を増やさない", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupShop(t);
+      const { shopId, staffId } = await setupShop(t);
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      await asManager.mutation(api.line.mutations.sendInvite, { staffId });
-      await asManager.mutation(api.line.mutations.sendInvite, { staffId });
+      await asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId });
+      await asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
@@ -691,7 +692,7 @@ describe("line/mutations", () => {
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       for (const staffId of staffIds) {
-        await expect(asManager.mutation(api.line.mutations.sendInvite, { staffId })).resolves.not.toThrow();
+        await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.not.toThrow();
       }
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
@@ -700,7 +701,7 @@ describe("line/mutations", () => {
 
     it("他店舗スタッフへの送信は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
-      await setupShop(t);
+      const { shopId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
         const sid = await seedShop(ctx, "他店舗");
         return await ctx.db.insert("staffs", {
@@ -711,18 +712,20 @@ describe("line/mutations", () => {
         });
       });
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { staffId: otherStaffId }),
+        t
+          .withIdentity({ subject: "user_mgr" })
+          .mutation(api.line.mutations.sendInvite, { shopId, staffId: otherStaffId }),
       ).rejects.toThrow("Not found");
     });
 
     it("メールアドレス未登録なら拒否", async () => {
       const t = convexTest(schema, modules);
-      const { staffId } = await setupShop(t);
+      const { shopId, staffId } = await setupShop(t);
       await t.run(async (ctx) => {
         await ctx.db.patch(staffId, { email: "" });
       });
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
       ).rejects.toThrow("メールアドレスが未登録");
     });
   });

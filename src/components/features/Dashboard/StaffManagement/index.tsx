@@ -1,6 +1,6 @@
-import { usePaginatedQuery } from "convex/react";
 import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
@@ -34,7 +34,7 @@ type Props = {
 
 export function StaffManagement({ data, openRecruitments, currentRecruitments, children }: Props) {
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
-  const staffQuery = usePaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
+  const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
   });
   const staffs = data?.staffs ?? staffQuery.results.slice(0, visibleStaffCount);

@@ -1,5 +1,4 @@
 import { useNavigate } from "@tanstack/react-router";
-import { usePaginatedQuery, useQuery } from "convex/react";
 import { type ReactNode, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
@@ -8,6 +7,8 @@ import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedba
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
+import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { buildDashboardRecruitmentGroups, sortRecruitmentsByCreatedAt } from "../script";
 import type { DashboardRecruitmentGroup, PaginationStatus, Recruitment } from "../types";
@@ -62,11 +63,11 @@ export function RecruitmentManagement({ regularClosedDays, submissionPattern, da
   const deleteDialog = useDialog();
   const [deleteTarget, setDeleteTarget] = useState<Recruitment | null>(null);
   const [isPastRecruitmentsVisible, setIsPastRecruitmentsVisible] = useState(data?.isPastRecruitmentsVisible ?? false);
-  const recruitments = usePaginatedQuery(api.dashboard.queries.getDashboardRecruitments, data ? "skip" : {}, {
+  const recruitments = useShopPaginatedQuery(api.dashboard.queries.getDashboardRecruitments, data ? "skip" : {}, {
     initialNumItems: ACTIVE_RECRUITMENT_QUERY_PAGE_SIZE,
   });
-  const hasPastRecruitments = useQuery(api.dashboard.queries.hasDashboardPastRecruitments, data ? "skip" : {});
-  const pastRecruitments = usePaginatedQuery(
+  const hasPastRecruitments = useShopQuery(api.dashboard.queries.hasDashboardPastRecruitments, data ? "skip" : {});
+  const pastRecruitments = useShopPaginatedQuery(
     api.dashboard.queries.getDashboardPastRecruitments,
     data || !isPastRecruitmentsVisible ? "skip" : {},
     { initialNumItems: PAST_RECRUITMENT_PAGE_SIZE },

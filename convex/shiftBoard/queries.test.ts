@@ -7,9 +7,9 @@ import { modules, schema } from "../_test/setup.test-helper";
 describe("shiftBoard/queries", () => {
   it("削除済み募集は null を返す", async () => {
     const t = convexTest(schema, modules);
-    const recruitmentId = await t.run(async (ctx) => {
+    const { shopId, recruitmentId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_deleted_recruitment", shopName: "テスト店舗" });
-      return await ctx.db.insert("recruitments", {
+      const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-04-01",
         periodEnd: "2026-04-07",
@@ -20,18 +20,19 @@ describe("shiftBoard/queries", () => {
         isDeleted: true,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
+      return { shopId, recruitmentId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_deleted_recruitment" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result).toBeNull();
   });
 
   it("シフト対象外スタッフはシフト表に含めない", async () => {
     const t = convexTest(schema, modules);
-    const { recruitmentId, includedStaffId } = await t.run(async (ctx) => {
+    const { shopId, recruitmentId, includedStaffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_excluded", shopName: "テスト店舗" });
       const includedStaffId = await ctx.db.insert("staffs", {
         shopId,
@@ -56,19 +57,19 @@ describe("shiftBoard/queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
-      return { recruitmentId, includedStaffId };
+      return { shopId, recruitmentId, includedStaffId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_excluded" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.staffs.map((s) => s._id)).toEqual([includedStaffId]);
   });
 
   it("全休み提出は提出済みとして返す", async () => {
     const t = convexTest(schema, modules);
-    const { recruitmentId, staffId } = await t.run(async (ctx) => {
+    const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_all_off", shopName: "テスト店舗" });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
@@ -91,12 +92,12 @@ describe("shiftBoard/queries", () => {
         staffId,
         submittedAt: Date.now(),
       });
-      return { recruitmentId, staffId };
+      return { shopId, recruitmentId, staffId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_all_off" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.staffs).toEqual([
       {
@@ -111,7 +112,7 @@ describe("shiftBoard/queries", () => {
 
   it("日ごと提出の希望日をシフト表用データとして返す", async () => {
     const t = convexTest(schema, modules);
-    const { recruitmentId, staffId } = await t.run(async (ctx) => {
+    const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_date_only_board", shopName: "テスト店舗" });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
@@ -140,12 +141,12 @@ describe("shiftBoard/queries", () => {
         staffId,
         date: "2026-04-03",
       });
-      return { recruitmentId, staffId };
+      return { shopId, recruitmentId, staffId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_date_only_board" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.requestedDates).toEqual([{ staffId, date: "2026-04-03" }]);
     expect(result?.requestedSlots).toEqual([]);
@@ -153,7 +154,7 @@ describe("shiftBoard/queries", () => {
 
   it("勤務区分募集のsnapshotとoptionIdつき希望・割当を返す", async () => {
     const t = convexTest(schema, modules);
-    const { recruitmentId, staffId, positionId } = await t.run(async (ctx) => {
+    const { shopId, recruitmentId, staffId, positionId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_shift_type_board", shopName: "テスト店舗" });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
@@ -208,12 +209,12 @@ describe("shiftBoard/queries", () => {
         positionId,
         optionId: "late",
       });
-      return { recruitmentId, staffId, positionId };
+      return { shopId, recruitmentId, staffId, positionId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_shift_type_board" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.submissionPattern).toEqual({
       kind: "shiftType",
@@ -232,7 +233,7 @@ describe("shiftBoard/queries", () => {
 
   it("下書き保存時点で提出済みだったスタッフを返す", async () => {
     const t = convexTest(schema, modules);
-    const { recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
+    const { shopId, recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_draft_status", shopName: "テスト店舗" });
       const staffBeforeDraftId = await ctx.db.insert("staffs", {
         shopId,
@@ -269,12 +270,12 @@ describe("shiftBoard/queries", () => {
         firstSubmittedAt: 3000,
         submittedAt: 3000,
       });
-      return { recruitmentId, staffBeforeDraftId, staffAfterDraftId };
+      return { shopId, recruitmentId, staffBeforeDraftId, staffAfterDraftId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_draft_status" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     const staffById = new Map(result?.staffs.map((s) => [s._id, s]));
     expect(staffById.get(staffBeforeDraftId)?.wasSubmittedAtDraft).toBe(true);
@@ -284,7 +285,7 @@ describe("shiftBoard/queries", () => {
 
   it("draftSavedAtがない既存データは保存済み割当の作成時刻を使う", async () => {
     const t = convexTest(schema, modules);
-    const { recruitmentId, staffId } = await t.run(async (ctx) => {
+    const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_legacy_draft", shopName: "テスト店舗" });
       const staffId = await ctx.db.insert("staffs", {
         shopId,
@@ -323,12 +324,12 @@ describe("shiftBoard/queries", () => {
         endTime: "18:00",
         positionId,
       });
-      return { recruitmentId, staffId };
+      return { shopId, recruitmentId, staffId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_legacy_draft" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.recruitment.draftSavedAt).toBeTypeOf("number");
     expect(result?.staffs.find((s) => s._id === staffId)?.wasSubmittedAtDraft).toBe(true);
@@ -336,9 +337,9 @@ describe("shiftBoard/queries", () => {
 
   it("分つきシフト時間は表示用に丸めつつ編集可能境界を分で返す", async () => {
     const t = convexTest(schema, modules);
-    const recruitmentId = await t.run(async (ctx) => {
+    const { shopId, recruitmentId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_half_hour", shopName: "テスト店舗" });
-      return await ctx.db.insert("recruitments", {
+      const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-04-01",
         periodEnd: "2026-04-07",
@@ -348,11 +349,12 @@ describe("shiftBoard/queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
       });
+      return { shopId, recruitmentId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_half_hour" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.timeRange).toEqual({
       start: 5,
@@ -365,9 +367,9 @@ describe("shiftBoard/queries", () => {
 
   it("募集スナップショットの時間指定を店舗設定より優先する", async () => {
     const t = convexTest(schema, modules);
-    const recruitmentId = await t.run(async (ctx) => {
+    const { shopId, recruitmentId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_snapshot", shopName: "テスト店舗" });
-      return await ctx.db.insert("recruitments", {
+      const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-04-01",
         periodEnd: "2026-04-07",
@@ -377,11 +379,12 @@ describe("shiftBoard/queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "05:30", endTime: "22:30" },
       });
+      return { shopId, recruitmentId };
     });
 
     const result = await t
       .withIdentity({ subject: "manager_snapshot" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result?.timeRange.editableStartMinutes).toBe(330);
     expect(result?.timeRange.editableEndMinutes).toBe(1350);

@@ -53,6 +53,12 @@ export const AuthGuard = ({ children }: Props) => {
     }
   }, [myShops, selectedShop, setSelectedShop]);
 
+  const isShopContextReady =
+    myShops !== undefined &&
+    (myShops.length === 0
+      ? selectedShop === null
+      : selectedShop !== null && myShops.some((shop) => shop.shopId === selectedShop.shopId));
+
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）
   if (isLoaded && !isSignedIn) {
@@ -61,7 +67,7 @@ export const AuthGuard = ({ children }: Props) => {
     );
   }
 
-  if (user.authId) {
+  if (user.authId && isShopContextReady) {
     return children;
   }
 
@@ -69,7 +75,7 @@ export const AuthGuard = ({ children }: Props) => {
     return <FullPageSpinner showHeader />;
   }
 
-  if (currentUser === undefined) {
+  if (currentUser === undefined || !isShopContextReady) {
     return <FullPageSpinner showHeader />;
   }
 

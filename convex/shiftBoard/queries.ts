@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
-import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { getSubmissionPatternTimeRange } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
@@ -8,19 +8,8 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
+import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
-
-function getBoardTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
-  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
-  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
-    const starts = pattern.options
-      .map((option) => option.startTime)
-      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    return { startTime: starts[0], endTime: ends[ends.length - 1] };
-  }
-  return { startTime: "09:00", endTime: "22:00" };
-}
 
 export const getShiftBoardData = managerQuery({
   args: {
@@ -30,8 +19,8 @@ export const getShiftBoardData = managerQuery({
     const { shop } = ctx;
     if (!shop) return null;
 
-    const recruitment = await ctx.db.get(args.recruitmentId);
-    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== shop._id) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, args.recruitmentId);
+    if (!recruitment) {
       return null;
     }
 
@@ -71,7 +60,7 @@ export const getShiftBoardData = managerQuery({
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
     const submissionPattern = recruitment.submissionPattern;
-    const { startTime: startTimeStr, endTime: endTimeStr } = getBoardTimeRange(submissionPattern);
+    const { startTime: startTimeStr, endTime: endTimeStr } = getSubmissionPatternTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
     const startHour = Math.floor(editableStartMinutes / 60);

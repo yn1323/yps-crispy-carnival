@@ -68,79 +68,125 @@ export function createScenario(t: ScenarioTest) {
   return {
     manager(identity: ManagerIdentity) {
       const asManager = t.withIdentity(typeof identity === "string" ? { subject: identity } : identity);
+      let selectedShopId: Id<"shops"> | null = null;
+
+      // Scenario fixture では単一店舗を選択中店舗として解決し、public API には必ず shopId を明示する。
+      const getSelectedShopId = async () => {
+        if (selectedShopId) return selectedShopId;
+        const [selectedShop] = await asManager.query(api.dashboard.queries.getMyShops, {});
+        const shopId = selectedShop?.shopId ?? null;
+        if (!shopId) throw new Error("Scenario manager shop is not selected");
+        selectedShopId = shopId;
+        return shopId;
+      };
 
       return {
-        setupShopAndManager(
+        async setupShopAndManager(
           args: ShopSettingsInput & { managerName: string; managerEmail: string; acceptedLegal: true },
         ) {
-          return asManager.mutation(api.setup.mutations.setupShopAndManager, {
+          const shopId = await asManager.mutation(api.setup.mutations.setupShopAndManager, {
             shopName: args.shopName,
             submissionPattern: resolveSubmissionPattern(args),
             managerName: args.managerName,
             managerEmail: args.managerEmail,
             acceptedLegal: args.acceptedLegal,
           });
+          selectedShopId = shopId;
+          return shopId;
         },
-        createRecruitment(args: RecruitmentInput) {
+        async createRecruitment(args: RecruitmentInput) {
           return asManager.mutation(api.recruitment.mutations.createRecruitment, {
             ...args,
             shopClosedDates: args.shopClosedDates ?? [],
+            shopId: await getSelectedShopId(),
           });
         },
-        deleteRecruitment(recruitmentId: Id<"recruitments">) {
-          return asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId });
+        async deleteRecruitment(recruitmentId: Id<"recruitments">) {
+          return asManager.mutation(api.recruitment.mutations.deleteRecruitment, {
+            recruitmentId,
+            shopId: await getSelectedShopId(),
+          });
         },
-        updateShopSettings(args: UpdateShopSettingsInput) {
+        async updateShopSettings(args: UpdateShopSettingsInput) {
           return asManager.mutation(api.shop.mutations.updateShopSettings, {
             shopName: args.shopName,
             regularClosedDays: args.regularClosedDays,
             submissionPattern: resolveSubmissionPattern(args),
+            shopId: await getSelectedShopId(),
           });
         },
-        addStaffs(entries: StaffEntry[]) {
-          return asManager.mutation(api.staff.mutations.addStaffs, { entries });
+        async addStaffs(entries: StaffEntry[]) {
+          return asManager.mutation(api.staff.mutations.addStaffs, { entries, shopId: await getSelectedShopId() });
         },
-        editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
-          return asManager.mutation(api.staff.mutations.editStaff, args);
+        async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
+          return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });
         },
-        sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { staffId });
+        async sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+            staffId,
+            shopId: await getSelectedShopId(),
+          });
         },
-        sendCurrentShiftNotification(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { staffId });
+        async sendCurrentShiftNotification(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            staffId,
+            shopId: await getSelectedShopId(),
+          });
         },
-        deleteStaff(staffId: Id<"staffs">) {
-          return asManager.mutation(api.staff.mutations.deleteStaff, { staffId });
+        async deleteStaff(staffId: Id<"staffs">) {
+          return asManager.mutation(api.staff.mutations.deleteStaff, { staffId, shopId: await getSelectedShopId() });
         },
-        setShiftExclusion(staffId: Id<"staffs">, excluded: boolean) {
-          return asManager.mutation(api.staff.mutations.setShiftExclusion, { staffId, excluded });
+        async setShiftExclusion(staffId: Id<"staffs">, excluded: boolean) {
+          return asManager.mutation(api.staff.mutations.setShiftExclusion, {
+            staffId,
+            excluded,
+            shopId: await getSelectedShopId(),
+          });
         },
-        saveShiftAssignments(args: { recruitmentId: Id<"recruitments">; assignments: ShiftAssignment[] }) {
-          return asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, args);
+        async saveShiftAssignments(args: { recruitmentId: Id<"recruitments">; assignments: ShiftAssignment[] }) {
+          return asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+            ...args,
+            shopId: await getSelectedShopId(),
+          });
         },
-        confirmRecruitment(recruitmentId: Id<"recruitments">) {
-          return asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId });
+        async confirmRecruitment(recruitmentId: Id<"recruitments">) {
+          return asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+            recruitmentId,
+            shopId: await getSelectedShopId(),
+          });
         },
-        generateLineLinkToken(staffId: Id<"staffs">) {
-          return asManager.mutation(api.line.mutations.generateLinkToken, { staffId });
+        async generateLineLinkToken(staffId: Id<"staffs">) {
+          return asManager.mutation(api.line.mutations.generateLinkToken, {
+            staffId,
+            shopId: await getSelectedShopId(),
+          });
         },
         getCurrentUser() {
           return asManager.query(api.dashboard.queries.getCurrentUser, {});
         },
-        getDashboardShop() {
-          return asManager.query(api.dashboard.queries.getDashboardShop, {});
+        async getDashboardShop() {
+          return asManager.query(api.dashboard.queries.getDashboardShop, { shopId: await getSelectedShopId() });
         },
-        getDashboardStaffs(paginationOpts = { numItems: 20, cursor: null as string | null }) {
-          return asManager.query(api.dashboard.queries.getDashboardStaffs, { paginationOpts });
+        async getDashboardStaffs(paginationOpts = { numItems: 20, cursor: null as string | null }) {
+          return asManager.query(api.dashboard.queries.getDashboardStaffs, {
+            paginationOpts,
+            shopId: await getSelectedShopId(),
+          });
         },
-        getDashboardRecruitments(paginationOpts = { numItems: 20, cursor: null as string | null }) {
-          return asManager.query(api.dashboard.queries.getDashboardRecruitments, { paginationOpts });
+        async getDashboardRecruitments(paginationOpts = { numItems: 20, cursor: null as string | null }) {
+          return asManager.query(api.dashboard.queries.getDashboardRecruitments, {
+            paginationOpts,
+            shopId: await getSelectedShopId(),
+          });
         },
         getManagerConsentStatus() {
           return asManager.query(api.legal.queries.getManagerConsentStatus, {});
         },
-        getShiftBoardData(recruitmentId: Id<"recruitments">) {
-          return asManager.query(api.shiftBoard.queries.getShiftBoardData, { recruitmentId });
+        async getShiftBoardData(recruitmentId: Id<"recruitments">) {
+          return asManager.query(api.shiftBoard.queries.getShiftBoardData, {
+            recruitmentId,
+            shopId: await getSelectedShopId(),
+          });
         },
       };
     },

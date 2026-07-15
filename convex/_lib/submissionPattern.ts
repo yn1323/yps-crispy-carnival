@@ -31,6 +31,18 @@ export const DEFAULT_SUBMISSION_PATTERN: ShiftSubmissionPattern = {
   endTime: "22:00",
 };
 
+export function getSubmissionPatternTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
+  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
+  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
+    const starts = pattern.options
+      .map((option) => option.startTime)
+      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    return { startTime: starts[0], endTime: ends[ends.length - 1] };
+  }
+  return { startTime: "09:00", endTime: "22:00" };
+}
+
 export const shiftTypeOptionValidator = v.object({
   id: v.string(),
   name: v.string(),

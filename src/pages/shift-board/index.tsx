@@ -1,22 +1,18 @@
-import { useQuery } from "convex/react";
-import { useAtomValue } from "jotai";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftBoardPage } from "@/src/components/features/ShiftBoard";
 import { Animation } from "@/src/components/templates/Animation";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
-import { selectedShopAtom } from "@/src/stores/shop";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
 
 type Props = {
   recruitmentId: string;
 };
 
 export function ShiftBoardRoutePage({ recruitmentId }: Props) {
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const data = useQuery(api.shiftBoard.queries.getShiftBoardData, {
+  const data = useShopQuery(api.shiftBoard.queries.getShiftBoardData, {
     recruitmentId: recruitmentId as Id<"recruitments">,
-    ...(selectedShop?.shopId ? { shopId: selectedShop.shopId as Id<"shops"> } : {}),
   });
 
   if (data === undefined) {

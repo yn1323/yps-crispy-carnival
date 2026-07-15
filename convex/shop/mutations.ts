@@ -86,10 +86,10 @@ export const updateShopSettings = managerMutation({
  * トークン無効化、配信予約済み通知のキャンセルは、大規模店舗でもトランザクション
  * 上限を超えないよう分割実行する（unbounded な collect を避ける）。
  *
- * managerMutation は shopId 省略時に「先頭の所属店舗」へフォールバックするため、
- * 複数店舗マネージャーがうっかり別テナントを消す事故が起きうる。破壊的操作なので
- * 削除対象を `confirmShopId` で明示させ、解決された店舗（ctx.shop）と一致しない限り
- * 実行しない（不一致は列挙対策のため "Not found" で区別しない）。
+ * managerMutation の必須 `shopId` で操作対象は確定するが、破壊的操作では呼び出し側が
+ * 確認画面で示した削除対象も `confirmShopId` として重ねて送る。両者が一致しない限り
+ * 実行しないことで、店舗選択変更や古い確認画面からの誤削除を防ぐ
+ * （不一致は列挙対策のため "Not found" で区別しない）。
  */
 export const deleteShop = managerMutation({
   args: {

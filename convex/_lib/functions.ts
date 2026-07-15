@@ -4,7 +4,7 @@ import { customMutation, customQuery } from "convex-helpers/server/customFunctio
 import type { Doc, Id } from "../_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
 import { isShiftTargetStaff } from "../staff/service";
-import { sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
+import { type StaffAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -22,29 +22,26 @@ async function getUserByIdentity(ctx: DbCtx, identity: UserIdentity) {
   return null;
 }
 
-async function getShopByUser(ctx: DbCtx, user: Doc<"users">) {
-  const memberships = ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
-
-  for await (const membership of memberships) {
-    const shop = await ctx.db.get(membership.shopId);
-    if (shop && !shop.isDeleted) return shop;
-  }
-  return null;
-}
-
 /**
  * 操作対象の店舗を解決する。
- * - shopId 指定あり: その店舗にユーザーが所属しているかを検証して返す（未所属なら null）
- * - shopId 未指定: 先頭の所属店舗にフォールバック（後方互換）
+ * - shopId 指定あり: 指定店舗への active membership を検証する。
+ * - shopId 未指定: 旧クライアントとの段階リリース互換のため、先頭の active 所属店舗を返す。
  *
- * 複数店舗に所属するマネージャーが、フロントから操作対象店舗を明示できるようにするための入口。
+ * 現行フロントは必ず shopId を送る。未指定経路はフロント配布後の別リリースで削除する。
  */
 async function resolveShopForUser(ctx: DbCtx, user: Doc<"users">, shopId?: Id<"shops">) {
   if (!shopId) {
-    return await getShopByUser(ctx, user);
+    const memberships = ctx.db
+      .query("shopMembers")
+      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
+
+    for await (const membership of memberships) {
+      const shop = await ctx.db.get(membership.shopId);
+      if (shop && !shop.isDeleted) return shop;
+    }
+    return null;
   }
+
   const membership = await ctx.db
     .query("shopMembers")
     .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
@@ -112,6 +109,7 @@ export const authenticatedMutation = customMutation(mutation, {
  * - 用途: createRecruitment, addStaffs 等の shop スコープ操作
  */
 export const managerQuery = customQuery(query, {
+  // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
   args: { shopId: v.optional(v.id("shops")) },
   input: async (ctx, { shopId }): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -128,6 +126,7 @@ export const managerQuery = customQuery(query, {
 });
 
 export const managerMutation = customMutation(mutation, {
+  // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
   args: { shopId: v.optional(v.id("shops")) },
   input: async (ctx, { shopId }): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -153,6 +152,44 @@ type StaffSessionQueryCtx = {
   session: Doc<"sessions"> | null;
 };
 
+type StaffSessionCtx = {
+  staff: Doc<"staffs">;
+  shop: Doc<"shops">;
+  session: Doc<"sessions">;
+};
+
+type StaffSessionResolution =
+  | { status: "ok"; ctx: StaffSessionCtx }
+  | { status: "sessionExpired" }
+  | { status: "notFound" };
+
+async function resolveStaffSession(
+  ctx: DbCtx,
+  sessionToken: string,
+  accessKind: StaffAccessKind,
+): Promise<StaffSessionResolution> {
+  const session = await ctx.db
+    .query("sessions")
+    .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
+    .first();
+  if (
+    !session ||
+    session.revokedAt ||
+    session.expiresAt < Date.now() ||
+    !sessionMatchesAccessKind(session, accessKind)
+  ) {
+    return { status: "sessionExpired" };
+  }
+
+  const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
+  // シフト対象外スタッフは、削除済みスタッフと同じくシフト画面の認証境界で拒否する。
+  if (!staff || !isShiftTargetStaff(staff) || staff.shopId !== session.shopId || !shop || shop.isDeleted) {
+    return { status: "notFound" };
+  }
+
+  return { status: "ok", ctx: { staff, shop, session } };
+}
+
 /**
  * staffSessionQuery
  * - sessionToken でスタッフセッションを検証
@@ -165,32 +202,13 @@ export const staffSessionQuery = customQuery(query, {
     ctx,
     { sessionToken, accessKind },
   ): Promise<{ ctx: StaffSessionQueryCtx; args: Record<string, never> }> => {
-    const session = await ctx.db
-      .query("sessions")
-      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
-      .first();
-    if (
-      !session ||
-      session.revokedAt ||
-      session.expiresAt < Date.now() ||
-      !sessionMatchesAccessKind(session, accessKind)
-    ) {
+    const result = await resolveStaffSession(ctx, sessionToken, accessKind);
+    if (result.status !== "ok") {
       return { ctx: { staff: null, shop: null, session: null }, args: {} };
     }
-    const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
-    // シフト対象外スタッフはシフト画面へアクセスさせない（削除同様に境界で弾く）。
-    if (!staff || !isShiftTargetStaff(staff) || staff.shopId !== session.shopId || !shop || shop.isDeleted) {
-      return { ctx: { staff: null, shop: null, session: null }, args: {} };
-    }
-    return { ctx: { staff, shop, session }, args: {} };
+    return { ctx: result.ctx, args: {} };
   },
 });
-
-type StaffSessionMutationCtx = {
-  staff: Doc<"staffs">;
-  shop: Doc<"shops">;
-  session: Doc<"sessions">;
-};
 
 /**
  * staffSessionMutation
@@ -199,27 +217,14 @@ type StaffSessionMutationCtx = {
  */
 export const staffSessionMutation = customMutation(mutation, {
   args: { sessionToken: v.string(), accessKind: staffAccessKindValidator },
-  input: async (
-    ctx,
-    { sessionToken, accessKind },
-  ): Promise<{ ctx: StaffSessionMutationCtx; args: Record<string, never> }> => {
-    const session = await ctx.db
-      .query("sessions")
-      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", sessionToken))
-      .first();
-    if (
-      !session ||
-      session.revokedAt ||
-      session.expiresAt < Date.now() ||
-      !sessionMatchesAccessKind(session, accessKind)
-    ) {
+  input: async (ctx, { sessionToken, accessKind }): Promise<{ ctx: StaffSessionCtx; args: Record<string, never> }> => {
+    const result = await resolveStaffSession(ctx, sessionToken, accessKind);
+    if (result.status === "sessionExpired") {
       throw new ConvexError("Session expired");
     }
-    const [staff, shop] = await Promise.all([ctx.db.get(session.staffId), ctx.db.get(session.shopId)]);
-    // シフト対象外スタッフはシフト希望提出等をさせない。
-    if (!staff || !isShiftTargetStaff(staff) || staff.shopId !== session.shopId || !shop || shop.isDeleted) {
+    if (result.status === "notFound") {
       throw new ConvexError("Not found");
     }
-    return { ctx: { staff, shop, session }, args: {} };
+    return { ctx: result.ctx, args: {} };
   },
 });

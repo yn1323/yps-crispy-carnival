@@ -1,22 +1,11 @@
 import { v } from "convex/values";
 import { formatPeriodLabel } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
-import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { getSubmissionPatternTimeRange } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT, SHIFT_BOARD_TIME_UNIT_MINUTES } from "../constants";
+import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
-
-function getViewTimeRange(pattern: ShiftSubmissionPattern): { startTime: string; endTime: string } {
-  if (pattern.kind === "time") return { startTime: pattern.startTime, endTime: pattern.endTime };
-  if (pattern.kind === "shiftType" && pattern.options.length > 0) {
-    const starts = pattern.options
-      .map((option) => option.startTime)
-      .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    const ends = pattern.options.map((option) => option.endTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    return { startTime: starts[0], endTime: ends[ends.length - 1] };
-  }
-  return { startTime: "09:00", endTime: "22:00" };
-}
 
 export const getShiftViewData = staffSessionQuery({
   args: { recruitmentId: v.id("recruitments") },
@@ -26,13 +15,8 @@ export const getShiftViewData = staffSessionQuery({
     const session = ctx.session;
     if (session.recruitmentId !== recruitmentId) return null;
 
-    const recruitment = await ctx.db.get(recruitmentId);
-    if (
-      !recruitment ||
-      recruitment.isDeleted ||
-      recruitment.shopId !== shop._id ||
-      recruitment.status !== "confirmed"
-    ) {
+    const recruitment = await getActiveRecruitmentInShop(ctx, shop._id, recruitmentId);
+    if (recruitment?.status !== "confirmed") {
       return null;
     }
 
@@ -52,7 +36,7 @@ export const getShiftViewData = staffSessionQuery({
     ]);
 
     const submissionPattern = recruitment.submissionPattern;
-    const { startTime: startTimeStr, endTime: endTimeStr } = getViewTimeRange(submissionPattern);
+    const { startTime: startTimeStr, endTime: endTimeStr } = getSubmissionPatternTimeRange(submissionPattern);
     const editableStartMinutes = timeToMinutes(startTimeStr);
     const editableEndMinutes = timeToMinutes(endTimeStr);
 

@@ -1,5 +1,7 @@
 import type { Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+
+type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -11,6 +13,11 @@ export function normalizeEmail(email: string) {
  */
 export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShift?: boolean }) {
   return !staff.isDeleted && !staff.excludedFromShift;
+}
+
+export async function getActiveStaffInShop(ctx: DbCtx, shopId: Id<"shops">, staffId: Id<"staffs">) {
+  const staff = await ctx.db.get(staffId);
+  return staff && staff.shopId === shopId && !staff.isDeleted ? staff : null;
 }
 
 export async function findActiveStaffByEmail(
