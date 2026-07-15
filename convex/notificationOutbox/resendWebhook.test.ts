@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { RESEND_WEBHOOK_BODY_MAX_BYTES } from "../constants";
 
 const RAW_SECRET = "test-resend-webhook-secret";
 const WEBHOOK_SECRET = `whsec_${bytesToBase64(new TextEncoder().encode(RAW_SECRET))}`;
@@ -28,6 +29,7 @@ describe("notificationOutbox/resendWebhook", () => {
       method: "POST",
       body: rawBody,
       headers: {
+        "content-type": "application/json",
         "svix-id": "svix_invalid_signature",
         "svix-timestamp": String(Math.floor(NOW / 1000)),
         "svix-signature": "v1,invalid",
@@ -45,7 +47,7 @@ describe("notificationOutbox/resendWebhook", () => {
 
   it("deliveredは受け取らずDBを更新しない", async () => {
     const t = convexTest(schema, modules);
-    const rawBody = JSON.stringify(providerEmailEvent("email.delivered", "email_delivered"));
+    const rawBody = JSON.stringify(providerEmailEvent("email.delivered", "email_delivered"), null, 2);
     const headers = await signedHeaders("svix_delivered", rawBody);
 
     const response = await t.fetch("/resend/webhook", {
@@ -61,6 +63,72 @@ describe("notificationOutbox/resendWebhook", () => {
     ]);
     expect(events).toEqual([]);
     expect(failures).toEqual([]);
+  });
+
+  it("JSON以外のContent-Typeを415で拒否しDBを更新しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedSentEmailOutbox(t, "email_wrong_content_type");
+    const rawBody = JSON.stringify(
+      providerEmailEvent("email.delivery_delayed", "email_wrong_content_type", ids.outboxId),
+    );
+
+    const response = await t.fetch("/resend/webhook", {
+      method: "POST",
+      body: rawBody,
+      headers: { ...(await signedHeaders("svix_wrong_content_type", rawBody)), "content-type": "text/plain" },
+    });
+
+    expect(response.status).toBe(415);
+    await expectProviderStateEmpty(t);
+  });
+
+  it("署名済みの64 KiBちょうどの対象外eventを200で受理しDBを更新しない", async () => {
+    const t = convexTest(schema, modules);
+    const rawBody = buildSizedJsonBody(
+      providerEmailEvent("email.delivered", "email_body_at_limit"),
+      RESEND_WEBHOOK_BODY_MAX_BYTES,
+    );
+
+    const response = await t.fetch("/resend/webhook", {
+      method: "POST",
+      body: rawBody,
+      headers: await signedHeaders("svix_body_at_limit", rawBody),
+    });
+
+    expect(response.status).toBe(200);
+    await expectProviderStateEmpty(t);
+  });
+
+  it("実bodyが64 KiBを1 byte超えるrequestを413で拒否しDBを更新しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedSentEmailOutbox(t, "email_body_too_large");
+    const rawBody = buildSizedJsonBody(
+      providerEmailEvent("email.delivery_delayed", "email_body_too_large", ids.outboxId),
+      RESEND_WEBHOOK_BODY_MAX_BYTES + 1,
+    );
+
+    const response = await t.fetch("/resend/webhook", {
+      method: "POST",
+      body: rawBody,
+      headers: { ...(await signedHeaders("svix_body_too_large", rawBody)), "content-length": "invalid" },
+    });
+
+    expect(response.status).toBe(413);
+    await expectProviderStateEmpty(t);
+  });
+
+  it("署名済みの非object rootを400で拒否しDBを更新しない", async () => {
+    const t = convexTest(schema, modules);
+    const rawBody = "[]";
+
+    const response = await t.fetch("/resend/webhook", {
+      method: "POST",
+      body: rawBody,
+      headers: await signedHeaders("svix_invalid_shape", rawBody),
+    });
+
+    expect(response.status).toBe(400);
+    await expectProviderStateEmpty(t);
   });
 
   it("署名済みdelivery_delayedはoutboxから店舗とスタッフを復元してFailureInboxに出す", async () => {
@@ -143,13 +211,34 @@ function providerEmailEvent(type: string, emailId: string, outboxId?: Id<"notifi
   };
 }
 
+function buildSizedJsonBody(value: Record<string, unknown>, byteLength: number) {
+  const encoder = new TextEncoder();
+  const base = JSON.stringify({ ...value, padding: "" });
+  const paddingLength = byteLength - encoder.encode(base).byteLength;
+  if (paddingLength < 0) throw new Error("requested body size is too small");
+
+  const rawBody = JSON.stringify({ ...value, padding: "x".repeat(paddingLength) });
+  if (encoder.encode(rawBody).byteLength !== byteLength) throw new Error("failed to build exact-size JSON body");
+  return rawBody;
+}
+
 async function signedHeaders(id: string, rawBody: string) {
   const timestamp = String(Math.floor(NOW / 1000));
   return {
+    "content-type": "application/json; charset=utf-8",
     "svix-id": id,
     "svix-timestamp": timestamp,
     "svix-signature": await sign(id, timestamp, rawBody),
   };
+}
+
+async function expectProviderStateEmpty(t: TestConvex<typeof schema>) {
+  const [events, failures] = await Promise.all([
+    t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
+    t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect()),
+  ]);
+  expect(events).toEqual([]);
+  expect(failures).toEqual([]);
 }
 
 async function sign(id: string, timestamp: string, rawBody: string) {
