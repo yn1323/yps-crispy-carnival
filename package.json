@@ -132,7 +132,6 @@
     "dotenv": "17.2.3",
     "jsdom": "27.4.0",
     "playwright": "1.60.0",
-    "reg-keygen-git-hash-plugin": "^0.14.5",
     "reg-notify-github-plugin": "^0.14.5",
     "reg-suit": "^0.14.5",
     "remark-frontmatter": "^5.0.0",
