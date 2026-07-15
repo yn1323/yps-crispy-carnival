@@ -59,6 +59,12 @@
 | `internal.line.mutations.dispatchWebhookEvents` | internalMutation | Webhook follow/unfollow/message ディスパッチ |
 | `POST /line/webhook` | httpAction | LINE Messaging API Webhook 受信（署名検証） |
 
+## Webhook受信制約
+
+- `POST /line/webhook` はparameter付きの `application/json` を受け付け、raw bodyを1 MiB、`events`を100件までに制限する。
+- `Content-Length`は早期拒否にだけ使い、request streamの実byte数も検査する。上限内のraw bodyを変更せずに署名検証し、検証後だけJSON parseとinternal mutationを行う。
+- LINEの疎通確認で送られる`events: []`と未知のevent typeは`200`で受理する。不正なContent-Type、body、署名、最小payload shapeは副作用なしで拒否する。
+
 ## 通知振り分けロジック
 
 `convex/_lib/notification.ts` の `selectChannel(staff, quota)`:

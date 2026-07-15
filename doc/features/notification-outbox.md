@@ -56,7 +56,8 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `email` は `sendResendEmail` 経由で配送し、outbox ID 由来の idempotency key と `shiftori_outbox_id` tag を使う。
 - Resend 送信成功時に返る `email_id` は `notificationOutbox.resendEmailId` に保存し、provider webhook の照合キーにする。
 - Resend の一時エラーや retry header 対応は `convex/_lib/resend.ts` に集約する。
-- Resend provider webhook は `RESEND_WEBHOOK_SECRET` と `svix-*` headers で raw body を署名検証してから処理する。`delivered` は受信対象にせず、遅延・失敗・拒否・抑止だけを扱う。
+- Resend provider webhook はparameter付きの`application/json`を受け付け、raw bodyを64 KiBまでに制限する。`Content-Length`は早期拒否にだけ使い、request streamの実byte数も検査する。
+- `RESEND_WEBHOOK_SECRET` と `svix-*` headersで上限内のraw bodyを変更せずに署名検証し、検証後だけJSON objectをparseしてDBへ反映する。`delivered` は受信対象にせず、遅延・失敗・拒否・抑止だけを扱う。
 - provider payload の店舗・スタッフ情報は信用しない。`resendEmailId` または `shiftori_outbox_id` tag から保存済み outbox を引き、`shopId` / `staffId` / `recruitmentId` / `notificationContext` を復元する。
 - `line` は `payload.message` があればそのmessageを、なければ既存 `payload.text` からtext messageを作って LINE Push API に配送する。どちらも `X-Line-Retry-Key` を付ける。
 - 新規のLINE Push通知は `payload.message.type === "flex"` を優先し、`payload.text` は既存ジョブ互換・altText・fallback用途として必須のまま保持する。
