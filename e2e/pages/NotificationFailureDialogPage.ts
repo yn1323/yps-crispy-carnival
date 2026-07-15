@@ -7,6 +7,14 @@ export class NotificationFailureDialogPage {
     return this.page.getByRole("dialog", { name: "送れなかった通知" });
   }
 
+  private failureRow(staffName: string): Locator {
+    return this.dialog()
+      .getByRole("row")
+      .filter({
+        has: this.page.getByRole("cell", { name: staffName, exact: true }),
+      });
+  }
+
   async open() {
     await expect(this.page.getByText("送れなかった通知があります")).toBeVisible();
     await this.page.getByRole("button", { name: "通知を確認" }).click();
@@ -14,11 +22,11 @@ export class NotificationFailureDialogPage {
   }
 
   async expectFailureVisible(staffName: string) {
-    await expect(this.dialog().getByRole("row").filter({ hasText: staffName })).toBeVisible();
+    await expect(this.failureRow(staffName)).toBeVisible();
   }
 
   async resend(staffName: string) {
-    const row = this.dialog().getByRole("row").filter({ hasText: staffName });
+    const row = this.failureRow(staffName);
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "再送", exact: true }).click();
     await expect(this.page.getByText("通知を再送しました")).toBeVisible();
@@ -31,7 +39,7 @@ export class NotificationFailureDialogPage {
   }
 
   async markAsNoActionRequired(staffName: string) {
-    const row = this.dialog().getByRole("row").filter({ hasText: staffName });
+    const row = this.failureRow(staffName);
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "対応不要" }).click();
 

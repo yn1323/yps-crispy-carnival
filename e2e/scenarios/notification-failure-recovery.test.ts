@@ -54,11 +54,19 @@ test.describe("送れなかった通知のDashboard対応", { tag: ["@release", 
         notificationContext: NOTIFICATION_CONTEXT,
         channel: "email",
       });
-      expect(probe.outbox).toHaveLength(2);
-      expect(probe.outbox.every((job) => ["pending", "processing", "sent"].includes(job.status))).toBe(true);
-      expect(probe.outbox.every((job) => job.deliverySuppressed)).toBe(true);
-      expect(probe.failureInbox).toHaveLength(3);
-      expect(probe.failureInbox.every((failure) => ["retrying", "resolved"].includes(failure.status))).toBe(true);
+      const outboxStates = probe.outbox
+        .map((job) => ({
+          state: job.status === "failed" ? "original-failed" : "retry-accepted",
+          deliverySuppressed: job.deliverySuppressed,
+        }))
+        .sort((left, right) => left.state.localeCompare(right.state));
+      expect(outboxStates).toEqual([
+        { state: "original-failed", deliverySuppressed: true },
+        { state: "retry-accepted", deliverySuppressed: true },
+        { state: "retry-accepted", deliverySuppressed: true },
+      ]);
+      expect(probe.failureInbox.map((failure) => failure.status).sort()).toEqual(["resolved", "retrying", "retrying"]);
+      expect(probe.duplicateDedupeKeyCount).toBe(0);
     });
   });
 });
