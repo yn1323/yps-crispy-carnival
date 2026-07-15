@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { APP_URL } from "./_lib/config";
-import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
+import { addDays, getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import { buildLineAuthorizeUrl } from "./_lib/lineClient";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "./_lib/submissionPattern";
@@ -1133,6 +1133,7 @@ export const seedDashboardPaginationScenario = internalMutation({
   args: {
     managerAuthTokenIdentifier: v.string(),
     managerEmail: v.optional(v.string()),
+    firstPeriodStart: v.string(),
   },
   handler: async (ctx, args) => {
     const { shopId } = await createManagerScenario(ctx, {
@@ -1149,20 +1150,15 @@ export const seedDashboardPaginationScenario = internalMutation({
       });
     }
 
-    const baseDate = new Date("2026-05-04");
+    // 8件を翌月1〜28日に収めつつ、同一期間にならないよう開始日を1日ずつずらす。
     for (let i = 0; i < 8; i++) {
-      const start = new Date(baseDate);
-      start.setDate(start.getDate() + i * 7);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 6);
-      const deadline = new Date(start);
-      deadline.setDate(deadline.getDate() - 1);
+      const periodStart = addDays(args.firstPeriodStart, i);
 
       await ctx.db.insert("recruitments", {
         shopId,
-        periodStart: start.toISOString().slice(0, 10),
-        periodEnd: end.toISOString().slice(0, 10),
-        deadline: deadline.toISOString().slice(0, 10),
+        periodStart,
+        periodEnd: addDays(periodStart, 20),
+        deadline: addDays(periodStart, -1),
         shopClosedDates: [],
         status: "open",
         isDeleted: false,
