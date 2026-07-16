@@ -9,6 +9,7 @@
 
 - 業務要件と受入条件は `doc/specs/organization-billing-business-flow.md` を正本とする。
 - 実装順序、移行境界、外部ゲートは `doc/plans/2026-07-14_事業者課金_複数店舗_複数管理者_実装計画.md` を参照する。
+- 既存事業者への無償Business付与は `doc/plans/2026-07-16_既存事業者_無償Business_実装計画.md` を参照する。
 - この文書は現行コードの機能配置とAPI一覧を示し、料金や会計判断は定義しない。
 
 ## 主要な契約
@@ -18,6 +19,7 @@
 - `organizationMembers` が管理者所属を表し、`active`、`readOnly`、`removed` の状態を持つ。
 - 管理者APIは認証済み利用者から事業者所属を解決し、選択された店舗が同じ事業者に属することをサーバー側で再確認する。
 - `organizationBillingStates` が事業者単位の課金状態を保持し、画面とmutationは共通policyから操作可否を導出する。
+- 旧店舗モデルから移行し、移行元店舗との相互リンクを一意に確認でき、課金状態が未設定の事業者は`complimentary.business`として、Stripeと接続せずBusinessの利用上限と有料機能を利用する。
 - 管理者招待はメールで送り、トークンのdigest、有効期限、単回利用、再送時の旧招待失効、回数制限を一つのライフサイクルで扱う。
 - 店舗スタッフの編集は`organizationPeople`を正本とし、同じ人物の有効な全店舗スタッフ行へ氏名とメールアドレスを同期する。
 - 店舗から人物を外しても事業者内の人物と利用人数算入は維持し、事業者からの削除では全所属と未送信通知を失効する。
@@ -40,7 +42,8 @@
 - `convex/migrations/m009_shops_to_organizations.ts`：既存店舗から一店舗一事業者を作成。
 - `convex/migrations/m010_shop_members_to_organization_members.ts`：既存店舗管理者を事業者人物と管理者所属へ移行。
 - `convex/migrations/m011_staffs_to_organization_people.ts`：既存スタッフを事業者人物へ結び付け、曖昧な一致を衝突として記録。
-- `convex/migrations/index.ts`：`m009`から`m011`を既存migration runnerへ登録。
+- `convex/migrations/m012_organizations_add_complimentary_business.ts`：移行元店舗との対応を確認できる事業者へ無償Businessを付与。
+- `convex/migrations/index.ts`：`m009`から`m011`を固定seriesへ登録し、m012のdry runと限定再実行に使う専用runnerを公開。
 - `scripts/setupEnv.ts`：管理者招待の署名秘密値を含むサーバー環境変数をConvex環境へ同期。
 
 ### フロントエンド
@@ -87,8 +90,8 @@
 | `api.organizationInvitation.mutations.resend` | `authenticatedMutation` | 現在の招待を失効させ、新しい招待を発行する |
 | `api.organizationInvitation.mutations.revoke` | `authenticatedMutation` | 未承認招待を取り消して予約枠を解放する |
 | `api.organizationInvitation.mutations.accept` | `authenticatedMutation` | 確認済みメール、期限、最新性、所属、上限を再確認して招待を承認する |
-| `api.organizationBilling.mutations.setFreeSelection` | `authenticatedMutation` | Freeで残す管理者と店舗を保存し、契約制限中は再評価する |
-| `api.organizationBilling.mutations.updateBillingEmail` | `authenticatedMutation` | 有効管理者または復旧担当者が請求先メールアドレスを変更する |
+| `api.organizationBilling.mutations.setFreeSelection` | `authenticatedMutation` | Freeで残す管理者と店舗を保存し、契約制限中は再評価する。無償Businessでは拒否する |
+| `api.organizationBilling.mutations.updateBillingEmail` | `authenticatedMutation` | 有効管理者または復旧担当者が請求先メールアドレスを変更する。無償Businessでは拒否する |
 | `api.staffRegistration.mutations.submitRegistrationRequest` | 公開`mutation` | 稼働中店舗の公開登録リンクからスタッフ登録申請を作成する |
 | `api.staffRegistration.mutations.approveRequest` | `managerMutation` | 最新の契約上限を確認し、予約枠を人物へ付け替えて申請を承認する |
 
@@ -112,8 +115,11 @@
 | `internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail` | `internalMutation` | 招待送信直前に有効性を確認し、生トークンを含まない表示情報を返す |
 | `internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications` | `internalMutation` | Free移行または契約制限開始後に未送信の業務通知を停止する |
 | `internal.migrations.index.run` | `internalMutation` | 登録済みmigrationを順番に実行する |
+| `internal.migrations.index.runM012` | `internalMutation` | m012だけをdry runまたは衝突修復後に限定再実行する |
 
-`m009`、`m010`、`m011`は`@convex-dev/migrations`のrunnerから順番に実行する内部migrationであり、本番実行はこの実装に含めない。
+`m009`、`m010`、`m011`は`@convex-dev/migrations`の固定seriesから順番に実行する。
+
+m012はWiden対応版をproductionへ反映するまで固定seriesへ登録せず、専用runnerも自動実行しない。
 
 ## 環境変数
 
@@ -130,6 +136,7 @@
 | Free | 4 | 1 | 1 |
 | Pro | 15 | 5 | 15 |
 | Business | 30 | 5 | 30 |
+| 無償Business | 30 | 5 | 30 |
 
 利用人数は、事業者内の有効なスタッフまたは有効管理者を人物単位で一度だけ数える。
 未承認招待は利用人数に含めず、新しい人物への招待が予約した枠を上限判定へ加える。
@@ -143,6 +150,7 @@
 | `pendingActivation` | 支払い成功を確認するまで保存済みのFreeまたは契約制限中の権限を継続し、有料権限は開放しない |
 | `active.free` | Free上限で業務更新を許可し、複数店舗と複数管理者などの有料機能を拒否する |
 | `active.pro`、`active.business` | 対応する上限で業務更新と有料機能を許可する |
+| `complimentary.business` | Business上限で業務更新と有料機能を許可し、期限、支払い操作、課金通知を持たない |
 | `scheduledChange` | 期限までは現在の有料プランを維持し、version付き期限処理で変更する |
 | `grace` | 猶予期限までは元の有料プランを維持し、期限超過時に再確認して制限へ移す |
 | `restricted` | 既存データの閲覧と、指定された復旧担当者による支払い、Free整理、人物削除、店舗アーカイブだけを許可する |
@@ -165,13 +173,15 @@ BusinessからProへの期間末変更は、未承認招待の予約枠を含む
 - `userId`付きの旧行は参照先ユーザーと人物の恒久IDを優先し、別ユーザーの同一メールや存在しないユーザーを自動統合しない。
 - 推測で統合できない行は`organizationMigrationConflicts`へ識別可能な衝突として残す。
 - 移行期間は`shopMembers`、`shopBillingStates`、旧スタッフ参照への最小限のfallbackと互換書き込みを残す。
+- `m012`は`migrationSourceShopId`と店舗の相互リンクを確認でき、課金状態が未設定の事業者だけに`complimentary.business`を作成する。
+- `m012`は既存課金状態、重複課金状態、移行元markerの重複、リンク不整合を上書きせず、migration conflictとして記録する。
 
 ## 外部ゲートと対象外
 
 | 項目 | 状態 |
 | --- | --- |
 | ProとBusinessの料金、税、請求周期、日割り、返金、未払い請求書 | 未決定であり、この実装では推測しない |
-| 既存本番利用者へ割り当てる初期課金状態 | 本番データの確認とプロダクト判断が必要であり、migration実行前に別途決定する |
+| 既存本番利用者へ割り当てる初期課金状態 | `migrationSourceShopId`がある事業者へ、期限と課金のない`complimentary.business`を付与することを決定済み |
 | Stripe Product、Price、Webhook endpoint、Customer Portal | 外部設定を作成していない |
 | Stripe Checkout、Customer Portal、Webhook、Customer同期 | 外部設定と会計判断が揃うまで接続しない |
 | 本番migration | migrationコードだけを実装し、本番データへは実行していない |
@@ -187,6 +197,7 @@ BusinessからProへの期間末変更は、未承認招待の予約枠を含む
 - `convex/organizationBilling/*.test.ts`：上限、利用人数、JST境界、状態遷移、期限処理、通知。
 - `convex/organizationInvitation/*.test.ts`：トークン、期限、単回利用、メール一致、上限、競合、通知。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`：複数APIと時間経過をまたぐ課金ライフサイクル。
+- `convex/organization/migrations.test.ts`：m012の対象限定、衝突記録、監査、再実行の冪等性。
 - `src/components/features/OrganizationSettings/index.stories.tsx`：事業者設定の代表状態と操作後の状態。
 - `src/components/features/ManagerInvitationAcceptance/index.stories.tsx`：招待プレビューと承認結果。
 - `src/components/features/ShopSwitcher/index.stories.tsx` と `src/components/features/ShopSelection/index.stories.tsx`：事業者と店舗の切り替え。
