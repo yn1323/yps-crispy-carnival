@@ -175,6 +175,9 @@ BusinessからProへの期間末変更は、未承認招待の予約枠を含む
 - 移行期間は`shopMembers`、`shopBillingStates`、旧スタッフ参照への最小限のfallbackと互換書き込みを残す。
 - `m012`は`migrationSourceShopId`と店舗の相互リンクを確認でき、課金状態が未設定の事業者だけに`complimentary.business`を作成する。
 - `m012`は既存課金状態、重複課金状態、移行元markerの重複、リンク不整合を上書きせず、migration conflictとして記録する。
+- production exportのZIPは、実行前を`pnpm convex:verify-complimentary-export -- --mode pre --path <export.zip>`、実行後を`pnpm convex:verify-complimentary-export -- --mode post --path <export.zip> --expected-target-count <preの件数> --expected-target-set-sha256 <preのhash>`で展開せずにオフライン検証する。対象0件、pre/postの対象集合差分、重複、リンク、課金状態、監査、未解消conflictの対応が崩れている場合はmigrationを進めない。
+- export検証はmigration componentのstatusを証明しない。developとproductionで別途`lib:getStatus`を確認し、m012が`isDone: true`かつ`state: "success"`であることを完走条件にする。
+- production snapshotには既存ファイルを掃除・上書きする`pnpm convex:save`を使わず、Dashboard backupまたは保存先を明示した`convex export`を使う。
 
 ## 外部ゲートと対象外
 
