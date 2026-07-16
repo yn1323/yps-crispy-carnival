@@ -1,0 +1,69 @@
+import { describe, expect, it } from "vitest";
+import { selectDashboardAnnouncementForContext } from "./script";
+
+type Announcement = {
+  key: string;
+  organizationId?: string;
+  shopId?: string;
+};
+
+const globalAnnouncement: Announcement = { key: "global" };
+const currentContext = { organizationId: "organization-current", shopId: "shop-current" };
+
+describe("selectDashboardAnnouncementForContext", () => {
+  it("queryの読み込み中はお知らせを選ばない", () => {
+    expect(selectDashboardAnnouncementForContext(undefined, currentContext)).toBeNull();
+  });
+
+  it("店舗未選択でも全体向けのお知らせを選ぶ", () => {
+    expect(selectDashboardAnnouncementForContext([globalAnnouncement], null)).toBe(globalAnnouncement);
+  });
+
+  it.each([
+    { target: { organizationId: currentContext.organizationId }, label: "事業者" },
+    { target: { shopId: currentContext.shopId }, label: "店舗" },
+    {
+      target: { organizationId: currentContext.organizationId, shopId: "shop-other" },
+      label: "事業者または店舗の片方",
+    },
+    {
+      target: { organizationId: "organization-other", shopId: currentContext.shopId },
+      label: "店舗または事業者の片方",
+    },
+  ])("$labelが現在の選択先と一致する最新のお知らせを選ぶ", ({ target }) => {
+    const targetedAnnouncement: Announcement = { key: "targeted", ...target };
+    const announcements: Announcement[] = [
+      { key: "other", organizationId: "organization-other", shopId: "shop-other" },
+      targetedAnnouncement,
+      globalAnnouncement,
+    ];
+
+    expect(selectDashboardAnnouncementForContext(announcements, currentContext)).toBe(targetedAnnouncement);
+  });
+
+  it("対象が一致しなければ次の全体向けお知らせを選ぶ", () => {
+    const announcements: Announcement[] = [
+      { key: "other", organizationId: "organization-other", shopId: "shop-other" },
+      globalAnnouncement,
+    ];
+
+    expect(selectDashboardAnnouncementForContext(announcements, currentContext)).toBe(globalAnnouncement);
+  });
+
+  it("複数が対象なら対象範囲より候補の新しい順を優先する", () => {
+    const targetedAnnouncement: Announcement = { key: "targeted", shopId: currentContext.shopId };
+
+    expect(selectDashboardAnnouncementForContext([globalAnnouncement, targetedAnnouncement], currentContext)).toBe(
+      globalAnnouncement,
+    );
+  });
+
+  it("店舗未選択では対象指定のあるお知らせを表示しない", () => {
+    const announcements: Announcement[] = [
+      { key: "organization", organizationId: currentContext.organizationId },
+      { key: "shop", shopId: currentContext.shopId },
+    ];
+
+    expect(selectDashboardAnnouncementForContext(announcements, null)).toBeNull();
+  });
+});

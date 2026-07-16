@@ -1,8 +1,11 @@
 import { useQuery } from "convex/react";
+import { useAtomValue } from "jotai";
 import type { ReactNode } from "react";
 import { api } from "@/convex/_generated/api";
+import { selectedShopAtom } from "@/src/stores/shop";
 import type { DashboardAnnouncement as DashboardAnnouncementData } from "../types";
 import { DashboardAnnouncementView } from "./DashboardAnnouncementView";
+import { selectDashboardAnnouncementForContext } from "./script";
 
 export type DashboardAnnouncementState = {
   announcement: DashboardAnnouncementData | null;
@@ -16,11 +19,15 @@ type Props = {
 };
 
 export const DashboardAnnouncement = ({ announcement, defaultOpen = false, children }: Props) => {
-  const queriedAnnouncement = useQuery(
-    api.dashboard.queries.getActiveDashboardAnnouncement,
+  const selectedShop = useAtomValue(selectedShopAtom);
+  const queriedAnnouncements = useQuery(
+    api.dashboard.queries.getActiveDashboardAnnouncements,
     announcement === undefined ? {} : "skip",
   );
-  const resolvedAnnouncement = announcement === undefined ? (queriedAnnouncement ?? null) : announcement;
+  const resolvedAnnouncement =
+    announcement === undefined
+      ? selectDashboardAnnouncementForContext(queriedAnnouncements, selectedShop)
+      : announcement;
   const content = resolvedAnnouncement ? (
     <DashboardAnnouncementView announcement={resolvedAnnouncement} defaultOpen={defaultOpen} />
   ) : null;

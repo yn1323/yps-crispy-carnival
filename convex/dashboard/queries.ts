@@ -1,15 +1,26 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
+import { v } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import {
+  DASHBOARD_ANNOUNCEMENT_CANDIDATE_LIMIT,
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+
+const dashboardAnnouncementValidator = v.object({
+  _id: v.id("dashboardAnnouncements"),
+  organizationId: v.optional(v.id("organizations")),
+  shopId: v.optional(v.id("shops")),
+  title: v.string(),
+  bodyHtml: v.string(),
+  displayDate: v.string(),
+});
 
 // shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
 // エラーログを出さないための空結果（queryはthrowせず空を返す規約）
@@ -130,6 +141,14 @@ async function getDashboardRecruitmentCandidateDocs(
   return Array.from(uniqueRecruitments.values());
 }
 
+async function getActiveDashboardAnnouncementCandidates(db: GenericDatabaseReader<DataModel>) {
+  return await db
+    .query("dashboardAnnouncements")
+    .withIndex("by_isPublished_and_isDeleted_and_displayDate", (q) => q.eq("isPublished", true).eq("isDeleted", false))
+    .order("desc")
+    .take(DASHBOARD_ANNOUNCEMENT_CANDIDATE_LIMIT);
+}
+
 export const getDashboardShop = managerQuery({
   args: {},
   handler: async (ctx) => {
@@ -164,18 +183,16 @@ export const getMyShops = authenticatedQuery({
   },
 });
 
+// 旧フロントとのdeploy互換用。対象指定のある本文を誤表示しないよう、全体向けだけを返す。
 export const getActiveDashboardAnnouncement = authenticatedQuery({
   args: {},
+  returns: v.union(dashboardAnnouncementValidator, v.null()),
   handler: async (ctx) => {
     if (!ctx.identity) return null;
 
-    const announcement = await ctx.db
-      .query("dashboardAnnouncements")
-      .withIndex("by_isPublished_and_isDeleted_and_displayDate", (q) =>
-        q.eq("isPublished", true).eq("isDeleted", false),
-      )
-      .order("desc")
-      .first();
+    const announcement = (await getActiveDashboardAnnouncementCandidates(ctx.db)).find(
+      (candidate) => candidate.organizationId === undefined && candidate.shopId === undefined,
+    );
     if (!announcement) return null;
 
     return {
@@ -184,6 +201,26 @@ export const getActiveDashboardAnnouncement = authenticatedQuery({
       bodyHtml: announcement.bodyHtml,
       displayDate: announcement.displayDate,
     };
+  },
+});
+
+// 対象IDは表示制御用であり、認可境界ではない。本文は全認証ユーザーへ返るため機密情報を登録しない。
+export const getActiveDashboardAnnouncements = authenticatedQuery({
+  args: {},
+  returns: v.array(dashboardAnnouncementValidator),
+  handler: async (ctx) => {
+    if (!ctx.identity) return [];
+
+    const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
+
+    return announcements.map((announcement) => ({
+      _id: announcement._id,
+      ...(announcement.organizationId !== undefined ? { organizationId: announcement.organizationId } : {}),
+      ...(announcement.shopId !== undefined ? { shopId: announcement.shopId } : {}),
+      title: announcement.title,
+      bodyHtml: announcement.bodyHtml,
+      displayDate: announcement.displayDate,
+    }));
   },
 });
 

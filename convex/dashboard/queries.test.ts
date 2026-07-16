@@ -225,13 +225,75 @@ describe("dashboard/queries", () => {
   });
 
   describe("getActiveDashboardAnnouncement", () => {
-    it("未認証の場合 null を返す", async () => {
+    it("未認証の場合はnullを返す", async () => {
       const t = convexTest(schema, modules);
       const result = await t.query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
       expect(result).toBeNull();
     });
 
-    it("公開中のお知らせがない場合 null を返す", async () => {
+    it("旧フロントには対象指定を除外して最新の全体向けだけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const globalAnnouncementId = await t.run(async (ctx) => {
+        const now = Date.now();
+        const organizationId = await ctx.db.insert("organizations", {
+          name: "互換確認事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const shopId = await ctx.db.insert("shops", {
+          organizationId,
+          name: "互換確認店舗",
+          regularClosedDays: [],
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          isDeleted: false,
+        });
+        await ctx.db.insert("dashboardAnnouncements", {
+          organizationId,
+          title: "事業者向けのお知らせ",
+          bodyHtml: "<p>旧フロントには表示しません。</p>",
+          displayDate: "2026-06-19",
+          isPublished: true,
+          isDeleted: false,
+        });
+        await ctx.db.insert("dashboardAnnouncements", {
+          shopId,
+          title: "店舗向けのお知らせ",
+          bodyHtml: "<p>旧フロントには表示しません。</p>",
+          displayDate: "2026-06-18",
+          isPublished: true,
+          isDeleted: false,
+        });
+        return await ctx.db.insert("dashboardAnnouncements", {
+          title: "全体向けのお知らせ",
+          bodyHtml: "<p>全体向けです。</p>",
+          displayDate: "2026-06-17",
+          isPublished: true,
+          isDeleted: false,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "announcement_compatibility_user" })
+        .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+
+      expect(result).toEqual({
+        _id: globalAnnouncementId,
+        title: "全体向けのお知らせ",
+        bodyHtml: "<p>全体向けです。</p>",
+        displayDate: "2026-06-17",
+      });
+    });
+  });
+
+  describe("getActiveDashboardAnnouncements", () => {
+    it("未認証の場合は空配列を返す", async () => {
+      const t = convexTest(schema, modules);
+      const result = await t.query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+      expect(result).toEqual([]);
+    });
+
+    it("公開中のお知らせがない場合は空配列を返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         await ctx.db.insert("dashboardAnnouncements", {
@@ -245,35 +307,106 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "announcement_user" })
-        .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
-      expect(result).toBeNull();
+        .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+      expect(result).toEqual([]);
     });
 
-    it("公開中のお知らせを必要なフィールドだけ返す", async () => {
+    it("全体・事業者・店舗向けのお知らせを必要なフィールドだけ返す", async () => {
       const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        await ctx.db.insert("dashboardAnnouncements", {
-          title: "LINE通知の遅延について",
-          bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p>",
+      const ids = await t.run(async (ctx) => {
+        const now = Date.now();
+        const organizationId = await ctx.db.insert("organizations", {
+          name: "対象事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const shopId = await ctx.db.insert("shops", {
+          organizationId,
+          name: "対象店舗",
+          regularClosedDays: [],
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          isDeleted: false,
+        });
+        const globalAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
+          title: "全体向けのお知らせ",
+          bodyHtml: "<p>全体向けです。</p>",
           displayDate: "2026-06-17",
           isPublished: true,
           isDeleted: false,
         });
+        const organizationAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
+          organizationId,
+          title: "事業者向けのお知らせ",
+          bodyHtml: "<p>事業者向けです。</p>",
+          displayDate: "2026-06-18",
+          isPublished: true,
+          isDeleted: false,
+        });
+        const shopAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
+          shopId,
+          title: "店舗向けのお知らせ",
+          bodyHtml: "<p>店舗向けです。</p>",
+          displayDate: "2026-06-19",
+          isPublished: true,
+          isDeleted: false,
+        });
+        const combinedAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
+          organizationId,
+          shopId,
+          title: "事業者または店舗向けのお知らせ",
+          bodyHtml: "<p>事業者または店舗向けです。</p>",
+          displayDate: "2026-06-20",
+          isPublished: true,
+          isDeleted: false,
+        });
+        return {
+          organizationId,
+          shopId,
+          globalAnnouncementId,
+          organizationAnnouncementId,
+          shopAnnouncementId,
+          combinedAnnouncementId,
+        };
       });
 
       const result = await t
         .withIdentity({ subject: "announcement_user" })
-        .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+        .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
 
-      expect(result).toMatchObject({
-        title: "LINE通知の遅延について",
-        bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p>",
-        displayDate: "2026-06-17",
-      });
-      expect(Object.keys(result ?? {}).sort()).toEqual(["_id", "bodyHtml", "displayDate", "title"]);
+      expect(result).toEqual([
+        {
+          _id: ids.combinedAnnouncementId,
+          organizationId: ids.organizationId,
+          shopId: ids.shopId,
+          title: "事業者または店舗向けのお知らせ",
+          bodyHtml: "<p>事業者または店舗向けです。</p>",
+          displayDate: "2026-06-20",
+        },
+        {
+          _id: ids.shopAnnouncementId,
+          shopId: ids.shopId,
+          title: "店舗向けのお知らせ",
+          bodyHtml: "<p>店舗向けです。</p>",
+          displayDate: "2026-06-19",
+        },
+        {
+          _id: ids.organizationAnnouncementId,
+          organizationId: ids.organizationId,
+          title: "事業者向けのお知らせ",
+          bodyHtml: "<p>事業者向けです。</p>",
+          displayDate: "2026-06-18",
+        },
+        {
+          _id: ids.globalAnnouncementId,
+          title: "全体向けのお知らせ",
+          bodyHtml: "<p>全体向けです。</p>",
+          displayDate: "2026-06-17",
+        },
+      ]);
     });
 
-    it("非公開と削除済みを除外し、公開中の最新1件だけ返す", async () => {
+    it("非公開と削除済みを除外し、公開中のお知らせを新しい順で返す", async () => {
       const t = convexTest(schema, modules);
       vi.useFakeTimers();
       try {
@@ -322,9 +455,13 @@ describe("dashboard/queries", () => {
 
         const result = await t
           .withIdentity({ subject: "announcement_user" })
-          .query(api.dashboard.queries.getActiveDashboardAnnouncement, {});
+          .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
 
-        expect(result?.title).toBe("同日の後に作ったお知らせ");
+        expect(result.map((announcement) => announcement.title)).toEqual([
+          "同日の後に作ったお知らせ",
+          "同日の先に作ったお知らせ",
+          "前日のお知らせ",
+        ]);
       } finally {
         vi.useRealTimers();
       }

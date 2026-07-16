@@ -81,9 +81,11 @@ const schema = defineSchema({
     .index("by_staffId_and_requestId", ["staffId", "requestId"]),
 
   // ========================================
-  // ダッシュボードお知らせ（全店舗共通）
+  // ダッシュボードお知らせ（全体・事業者・店舗対象）
   // ========================================
   dashboardAnnouncements: defineTable({
+    organizationId: v.optional(v.id("organizations")),
+    shopId: v.optional(v.id("shops")),
     title: v.string(),
     bodyHtml: v.string(),
     displayDate: v.string(), // "2026-06-17"

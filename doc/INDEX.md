@@ -17,7 +17,7 @@
 | [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
-| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事の全店舗共通お知らせをDashboard上部に1件だけ表示 | 実装済 |
+| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・事業者・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
 | [管理ユーザーと店舗所属](features/manager-shop-membership.md) | 管理ユーザーと店舗を `shopMembers` で結ぶ所属モデル。複数店舗対応のDB土台 | 準備中 |
 | [課金プラン管理](features/billing-plans.md) | 店舗単位で課金状態を持つ初期検討資料。新規実装は事業者課金の業務仕様を優先 | 旧検討 |
 | [管理者と請求管理者の権限方針](features/manager-billing-roles.md) | BillingManagerを含む初期検討資料。新規実装は事業者課金の業務仕様を優先 | 旧検討 |
