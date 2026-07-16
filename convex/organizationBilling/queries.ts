@@ -41,6 +41,7 @@ export const getNotificationData = internalQuery({
         .unique(),
     ]);
     if (!organization || organization.isDeleted || !billingState) return null;
+    if (billingState.state.kind === "complimentary") return null;
     if (args.event === "trialEnding" && billingState.state.kind !== "trial") return null;
     if (
       args.expectedDeadlineAt !== undefined &&

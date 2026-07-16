@@ -24,6 +24,7 @@ const actions = {
 const baseBilling: OrganizationBillingView = {
   state: "pro",
   currentPlan: "pro",
+  isComplimentary: false,
   peopleUsage: { current: 8, max: 15 },
   shopUsage: { current: 2, max: 5 },
   nextEvent: { label: "次回更新日", date: "2026年8月31日" },
@@ -538,6 +539,26 @@ export const Business: Story = {
   },
 };
 
+export const ComplimentaryBusiness: Story = {
+  args: {
+    defaultTab: "billing",
+    billing: billing({
+      state: "business",
+      currentPlan: "business",
+      isComplimentary: true,
+      peopleUsage: { current: 22, max: 30 },
+      shopUsage: { current: 3, max: 5 },
+      nextEvent: undefined,
+      paymentMethodLabel: undefined,
+      invoices: [],
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canUpdateBillingEmail: false,
+      canScheduleFree: false,
+    }),
+  },
+};
+
 export const ShopCapacityReachedBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: { ...Business.args, defaultTab: "shops" },
@@ -800,6 +821,12 @@ export const MobileRestricted: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: Restricted.args,
+};
+
+export const MobileComplimentaryBusiness: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: ComplimentaryBusiness.args,
 };
 
 export const MobileIncompleteFreeConfirmation: Story = {

@@ -220,6 +220,47 @@ describe("organizationBilling/mutations Free管理者選択", () => {
     expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toHaveLength(0);
   });
 
+  it("無償Businessでは直接呼ばれてもFree設定・version・監査・通知を変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "complimentary_free_selection",
+        complimentary: true,
+      }),
+    );
+
+    await expect(
+      t
+        .withIdentity({ subject: "complimentary_free_selection" })
+        .mutation(api.organizationBilling.mutations.setFreeSelection, {
+          shopId: ids.shopId,
+          managerPersonId: ids.personId,
+          freeShopId: ids.shopId,
+          requestId: "complimentary-free-selection",
+        }),
+    ).rejects.toThrow("料金なしのBusinessではFree設定を変更できません");
+
+    const result = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      billingState: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(result.billingState).toMatchObject({
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+    });
+    expect(result.billingState?.freeManagerPersonId).toBeUndefined();
+    expect(result.billingState?.freeShopId).toBeUndefined();
+    expect(result.audits).toEqual([]);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toEqual([]);
+  });
+
   it("契約制限中でFree条件を満たせない再評価は制限開始の副作用を再発行しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -594,6 +635,49 @@ describe("organizationBilling/mutations 請求先メール", () => {
     ).toHaveLength(0);
   });
 
+  it("無償Businessでは直接呼ばれても請求先・監査・通知を変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "complimentary_billing_email",
+        complimentary: true,
+      }),
+    );
+    const before = await t.run((ctx) => ctx.db.get(ids.organizationId));
+
+    await expect(
+      t
+        .withIdentity({ subject: "complimentary_billing_email" })
+        .mutation(api.organizationBilling.mutations.updateBillingEmail, {
+          shopId: ids.shopId,
+          email: "must-not-change@example.com",
+          requestId: "complimentary-billing-email",
+        }),
+    ).rejects.toThrow("料金なしのBusinessでは請求先メールアドレスを変更できません");
+
+    const result = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      billingState: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      organization: await ctx.db.get(ids.organizationId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(result.organization).toEqual(before);
+    expect(result.billingState).toMatchObject({
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+    });
+    expect(result.audits).toEqual([]);
+    expect(result.outbox).toEqual([]);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toEqual([]);
+  });
+
   it("Freeからの即時支払い結果待ちはFree権利として請求先メールを変更できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -743,6 +827,45 @@ describe("organizationBilling/mutations 請求先メール", () => {
 describe("organizationBilling/mutations 検証済み課金遷移", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
+
+  it("無償Businessでは検証済み課金更新を直接呼んでも状態・監査・通知を変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "complimentary_verified_transition",
+        complimentary: true,
+      }),
+    );
+
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        state: { kind: "active", plan: "business" },
+        correlationId: "complimentary-verified-transition",
+      }),
+    ).rejects.toThrow("現在の契約状態からこの変更は適用できません");
+
+    const result = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      billingState: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(result.billingState).toMatchObject({
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+    });
+    expect(result.audits).toEqual([]);
+    expect(result.outbox).toEqual([]);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/"))).toEqual([]);
+  });
 
   it("Freeから支払い猶予への飛び越しを拒否する", async () => {
     const t = convexTest(schema, modules);

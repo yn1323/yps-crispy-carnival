@@ -67,6 +67,7 @@ export async function seedOrganizationManagerShop(
     email?: string;
     shopName?: string;
     plan?: "free" | "pro" | "business";
+    complimentary?: boolean;
   },
 ) {
   const email = (args.email ?? `${args.subject}@example.com`).trim().toLowerCase();
@@ -109,9 +110,10 @@ export async function seedOrganizationManagerShop(
   });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: { kind: "active", plan: args.plan ?? "free" },
-    freeManagerPersonId: personId,
-    freeShopId: shopId,
+    state: args.complimentary
+      ? { kind: "complimentary", plan: "business" }
+      : { kind: "active", plan: args.plan ?? "free" },
+    ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
     version: 1,
     createdAt: now,
     updatedAt: now,

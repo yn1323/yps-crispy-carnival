@@ -24,7 +24,7 @@ export async function getOrganizationBillingState(ctx: DbCtx, organizationId: Id
 export async function requireOrganizationBillingState(ctx: DbCtx, organizationId: Id<"organizations">) {
   const billingState = await getOrganizationBillingState(ctx, organizationId);
   if (!billingState) {
-    // 既存店舗の新プラン対応は外部判断後に行う。推測したプランを割り当てない。
+    // m012未完了またはmigration conflictの可能性があるため、移行元や利用状況からプランを推測しない。
     throw new ConvexError("事業者の契約情報を確認中です。しばらくしてからもう一度お試しください");
   }
   return billingState;

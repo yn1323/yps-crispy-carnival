@@ -28,3 +28,6 @@ export const run = migrations.runner([
   internal.migrations.m010_shop_members_to_organization_members.migration,
   internal.migrations.m011_staffs_to_organization_people.migration,
 ]);
+
+// Widen対応版の確認とm012だけの再実行に使う。固定seriesへはMigrate PRで登録する。
+export const runM012 = migrations.runner(internal.migrations.m012_organizations_add_complimentary_business.migration);

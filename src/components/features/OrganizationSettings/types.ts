@@ -80,6 +80,7 @@ export type BillingInvoiceView = {
 export type OrganizationBillingView = {
   state: BillingDisplayState;
   currentPlan: "trial" | "free" | "pro" | "business" | null;
+  isComplimentary: boolean;
   targetPlan?: "free" | "pro" | "business";
   peopleUsage: BillingUsageView;
   shopUsage: BillingUsageView;

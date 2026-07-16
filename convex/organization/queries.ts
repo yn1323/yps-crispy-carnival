@@ -91,6 +91,7 @@ const billingViewValidator = v.object({
     v.literal("migrationPending"),
   ),
   currentPlan: v.union(billingPlanValidator, v.null()),
+  isComplimentary: v.boolean(),
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
   peopleUsage: v.object({ current: v.number(), max: v.number() }),
   shopUsage: v.object({ current: v.number(), max: v.number() }),
@@ -160,6 +161,7 @@ type BillingView = {
     | "scheduledPro"
     | "migrationPending";
   currentPlan: BillingPlan | null;
+  isComplimentary: boolean;
   targetPlan?: Exclude<BillingPlan, "trial">;
   peopleUsage: { current: number; max: number };
   shopUsage: { current: number; max: number };
@@ -218,6 +220,7 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
     billing: {
       state: "migrationPending" as const,
       currentPlan: null,
+      isComplimentary: false,
       peopleUsage: { current: 1, max: 0 },
       shopUsage: { current: shop.operatingStatus === "archived" ? 0 : 1, max: 0 },
       blockedReason: "事業者単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
@@ -353,6 +356,7 @@ export const getSettings = managerQuery({
     const usage = projectOrganizationUsage({ people: usageInputs, reservedPersonCount });
     const activeShopCount = shops.filter((shop) => (shop.operatingStatus ?? "active") === "active").length;
     const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+    const isComplimentary = billingState?.state.kind === "complimentary";
     const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
     const isActiveActor = ctx.organizationMember?.status === "active";
     const isRestrictedRecovery = Boolean(
@@ -837,40 +841,44 @@ export const getSettings = managerQuery({
 
     const billingCapabilities = {
       canManagePlan: Boolean(
-        isRestrictedRecovery ||
-          (isActiveActor &&
-            billingState &&
-            !restrictedState &&
-            billingState.state.kind !== "initialPaymentPending" &&
-            billingState.state.kind !== "pendingActivation"),
+        !isComplimentary &&
+          (isRestrictedRecovery ||
+            (isActiveActor &&
+              billingState &&
+              !restrictedState &&
+              billingState.state.kind !== "initialPaymentPending" &&
+              billingState.state.kind !== "pendingActivation")),
       ),
       canUpdatePaymentMethod: Boolean(
-        isRestrictedRecovery ||
-          (isActiveActor &&
-            billingState &&
-            !restrictedState &&
-            (billingState.state.kind === "trial" ||
-              billingState.state.kind === "initialPaymentPending" ||
-              billingState.state.kind === "scheduledChange" ||
-              billingState.state.kind === "grace" ||
-              (billingState.state.kind === "active" && billingState.state.plan !== "free"))),
+        !isComplimentary &&
+          (isRestrictedRecovery ||
+            (isActiveActor &&
+              billingState &&
+              !restrictedState &&
+              (billingState.state.kind === "trial" ||
+                billingState.state.kind === "initialPaymentPending" ||
+                billingState.state.kind === "scheduledChange" ||
+                billingState.state.kind === "grace" ||
+                (billingState.state.kind === "active" && billingState.state.plan !== "free")))),
       ),
       canUpdateBillingEmail: Boolean(
-        isRestrictedRecovery ||
-          (isActiveActor &&
-            billingState &&
-            !restrictedState &&
-            (billingState.state.kind !== "pendingActivation" || billingState.state.fallback === "free")),
+        !isComplimentary &&
+          (isRestrictedRecovery ||
+            (isActiveActor &&
+              billingState &&
+              !restrictedState &&
+              (billingState.state.kind !== "pendingActivation" || billingState.state.fallback === "free"))),
       ),
       canScheduleFree: Boolean(
-        isRestrictedRecovery ||
-          (isActiveActor &&
-            billingState &&
-            !restrictedState &&
-            (billingState.state.kind === "trial" ||
-              billingState.state.kind === "scheduledChange" ||
-              billingState.state.kind === "grace" ||
-              (billingState.state.kind === "active" && billingState.state.plan !== "free"))),
+        !isComplimentary &&
+          (isRestrictedRecovery ||
+            (isActiveActor &&
+              billingState &&
+              !restrictedState &&
+              (billingState.state.kind === "trial" ||
+                billingState.state.kind === "scheduledChange" ||
+                billingState.state.kind === "grace" ||
+                (billingState.state.kind === "active" && billingState.state.plan !== "free")))),
       ),
     };
     const billingBase = {
@@ -878,6 +886,7 @@ export const getSettings = managerQuery({
       shopUsage: { current: activeShopCount, max: usageLimits?.maxActiveShops ?? 0 },
       billingEmail: organization.billingEmail ?? "",
       invoices: [],
+      isComplimentary,
       ...billingCapabilities,
     };
     const accessDisabledReason =
@@ -886,31 +895,34 @@ export const getSettings = managerQuery({
           ? "契約の復旧担当者だけがこの操作を行えます。"
           : "閲覧のみの管理者はこの操作を行えません。"
         : undefined;
-    const managePlanDisabledReason = billingCapabilities.canManagePlan
-      ? undefined
-      : !billingState
-        ? "設定の移行が完了するまでお待ちください。"
-        : (accessDisabledReason ??
-          (billingState.state.kind === "initialPaymentPending"
-            ? "初回支払いの結果を確認中のため、プランを変更できません。"
-            : billingState.state.kind === "pendingActivation"
-              ? "支払い結果を確認中のため、別のプラン変更はできません。"
-              : "現在の契約状態ではプランを変更できません。"));
-    const paymentMethodDisabledReason = billingCapabilities.canUpdatePaymentMethod
-      ? undefined
-      : !billingState
-        ? "設定の移行が完了するまでお待ちください。"
-        : (accessDisabledReason ??
-          (billingState.state.kind === "active" && billingState.state.plan === "free"
-            ? "Freeでは支払い方法の登録はありません。有料プランを契約するときに登録します。"
-            : billingState.state.kind === "pendingActivation"
-              ? "支払い結果を確認中です。確定後に支払い方法を変更できます。"
-              : "現在の契約状態では支払い方法を変更できません。"));
-    const billingEmailDisabledReason = billingCapabilities.canUpdateBillingEmail
-      ? undefined
-      : !billingState
-        ? "設定の移行が完了するまでお待ちください。"
-        : (accessDisabledReason ?? "現在の契約状態では請求先メールアドレスを変更できません。");
+    const managePlanDisabledReason =
+      billingCapabilities.canManagePlan || isComplimentary
+        ? undefined
+        : !billingState
+          ? "設定の移行が完了するまでお待ちください。"
+          : (accessDisabledReason ??
+            (billingState.state.kind === "initialPaymentPending"
+              ? "初回支払いの結果を確認中のため、プランを変更できません。"
+              : billingState.state.kind === "pendingActivation"
+                ? "支払い結果を確認中のため、別のプラン変更はできません。"
+                : "現在の契約状態ではプランを変更できません。"));
+    const paymentMethodDisabledReason =
+      billingCapabilities.canUpdatePaymentMethod || isComplimentary
+        ? undefined
+        : !billingState
+          ? "設定の移行が完了するまでお待ちください。"
+          : (accessDisabledReason ??
+            (billingState.state.kind === "active" && billingState.state.plan === "free"
+              ? "Freeでは支払い方法の登録はありません。有料プランを契約するときに登録します。"
+              : billingState.state.kind === "pendingActivation"
+                ? "支払い結果を確認中です。確定後に支払い方法を変更できます。"
+                : "現在の契約状態では支払い方法を変更できません。"));
+    const billingEmailDisabledReason =
+      billingCapabilities.canUpdateBillingEmail || isComplimentary
+        ? undefined
+        : !billingState
+          ? "設定の移行が完了するまでお待ちください。"
+          : (accessDisabledReason ?? "現在の契約状態では請求先メールアドレスを変更できません。");
     const billingCapabilityReasons = {
       ...(managePlanDisabledReason ? { managePlanDisabledReason } : {}),
       ...(paymentMethodDisabledReason ? { paymentMethodDisabledReason } : {}),
@@ -968,6 +980,14 @@ export const getSettings = managerQuery({
             ...billingCapabilityReasons,
             state: state.plan,
             currentPlan: state.plan,
+          };
+          break;
+        case "complimentary":
+          billing = {
+            ...billingBase,
+            ...billingCapabilityReasons,
+            state: "business",
+            currentPlan: "business",
           };
           break;
         case "scheduledChange":

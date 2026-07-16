@@ -57,6 +57,7 @@ const shop: OrganizationShopView = {
 const billing: OrganizationBillingView = {
   state: "pro",
   currentPlan: "pro",
+  isComplimentary: false,
   peopleUsage: { current: 4, max: 15 },
   shopUsage: { current: 1, max: 5 },
   billingEmail: "billing@example.com",

@@ -492,4 +492,59 @@ describe("事業者課金ライフサイクル", () => {
         }),
     ).rejects.toThrow(ConvexError);
   });
+
+  it("無償Businessでは二店舗目を追加しても課金状態を維持し、期限処理と課金通知を予約しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "complimentary_business_second_shop",
+        complimentary: true,
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      return { ...seeded, billingStateId: billingState._id };
+    });
+    const actor = t.withIdentity({ subject: "complimentary_business_second_shop" });
+
+    const created = await actor.mutation(api.organization.mutations.addShop, {
+      shopId: ids.shopId,
+      shopName: "二店舗目",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      requestId: "complimentary-business-second-shop",
+    });
+    const settings = await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(created).toMatchObject({ changed: true, shopStatus: "active" });
+    expect(settings).toMatchObject({
+      billing: {
+        state: "business",
+        currentPlan: "business",
+        isComplimentary: true,
+        peopleUsage: { max: 30 },
+        shopUsage: { current: 2, max: 5 },
+        canManagePlan: false,
+        canUpdatePaymentMethod: false,
+        canUpdateBillingEmail: false,
+        canScheduleFree: false,
+      },
+    });
+
+    const result = await t.run(async (ctx) => ({
+      billingState: await ctx.db.get(ids.billingStateId),
+      billingNotifications: (await ctx.db.query("notificationOutbox").collect()).filter(
+        (job) => job.payload.kind === "email" && job.payload.context.startsWith("organizationBilling."),
+      ),
+      scheduledBillingJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (job) =>
+          job.name === "organizationBilling/mutations:processDeadline" ||
+          job.name === "organizationBilling/actions:enqueueBillingNotification",
+      ),
+    }));
+    expect(result.billingState?.state).toEqual({ kind: "complimentary", plan: "business" });
+    expect(result.billingNotifications).toEqual([]);
+    expect(result.scheduledBillingJobs).toEqual([]);
+  });
 });

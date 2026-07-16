@@ -113,8 +113,12 @@ export const PlanAndPaymentSection = ({
       // 呼び出し側が利用者向けエラーを表示する。失敗時は選択内容を保ったまま再試行できるようにする。
     }
   });
-  const presentation =
-    billing.state === "pendingActivation" && billing.currentPlan === "free"
+  const presentation = billing.isComplimentary
+    ? {
+        ...STATE_PRESENTATION.business,
+        description: "この事業者では、料金なしでBusinessの全機能を利用できます。",
+      }
+    : billing.state === "pendingActivation" && billing.currentPlan === "free"
       ? {
           ...STATE_PRESENTATION.pendingActivation,
           description: "支払い成功を確認するまで有料プランは開始されません。確認中もFreeの基本機能は利用できます。",
@@ -136,6 +140,11 @@ export const PlanAndPaymentSection = ({
           <Alert.Content>
             <HStack gap={2} wrap="wrap">
               <Alert.Title>{presentation.label}</Alert.Title>
+              {billing.isComplimentary && (
+                <Badge variant="subtle" colorPalette="teal">
+                  料金なし
+                </Badge>
+              )}
               {billing.targetPlan && (
                 <Badge variant="subtle" colorPalette="teal">
                   変更先: {planLabel(billing.targetPlan)}
@@ -200,27 +209,29 @@ export const PlanAndPaymentSection = ({
           </HStack>
         )}
 
-        <Flex gap={2} wrap="wrap">
-          <Button
-            colorPalette="teal"
-            onClick={onManagePlan}
-            disabled={!billing.canManagePlan}
-            title={!billing.canManagePlan ? billing.managePlanDisabledReason : undefined}
-            aria-describedby={
-              !billing.canManagePlan && billing.managePlanDisabledReason
-                ? "organization-billing-manage-plan-disabled-reason"
-                : undefined
-            }
-          >
-            {isPaidPlanRecovery(billing) ? "有料プランを開始・再開" : "プランを確認・変更"}
-          </Button>
-          {billing.canScheduleFree && (
-            <Button variant="outline" onClick={freeConfirmation.open}>
-              Freeで残す内容を確認
+        {!billing.isComplimentary && (
+          <Flex gap={2} wrap="wrap">
+            <Button
+              colorPalette="teal"
+              onClick={onManagePlan}
+              disabled={!billing.canManagePlan}
+              title={!billing.canManagePlan ? billing.managePlanDisabledReason : undefined}
+              aria-describedby={
+                !billing.canManagePlan && billing.managePlanDisabledReason
+                  ? "organization-billing-manage-plan-disabled-reason"
+                  : undefined
+              }
+            >
+              {isPaidPlanRecovery(billing) ? "有料プランを開始・再開" : "プランを確認・変更"}
             </Button>
-          )}
-        </Flex>
-        {!billing.canManagePlan && billing.managePlanDisabledReason && (
+            {billing.canScheduleFree && (
+              <Button variant="outline" onClick={freeConfirmation.open}>
+                Freeで残す内容を確認
+              </Button>
+            )}
+          </Flex>
+        )}
+        {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
           <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
             {billing.managePlanDisabledReason}
           </Text>
@@ -235,49 +246,10 @@ export const PlanAndPaymentSection = ({
           </Heading>
         </HStack>
         <Box borderWidth="1px" borderRadius="xl" bg="white" p={{ base: 4, md: 5 }}>
-          <Stack gap={4}>
-            <Flex
-              justify="space-between"
-              align={{ base: "flex-start", md: "center" }}
-              gap={3}
-              direction={{ base: "column", md: "row" }}
-            >
-              <Stack gap={1}>
-                <Text fontSize="xs" color="fg.muted">
-                  支払い方法
-                </Text>
-                <Text fontWeight="semibold">{billing.paymentMethodLabel ?? "支払い方法は未登録です"}</Text>
-              </Stack>
-              <Stack gap={1.5} align={{ base: "stretch", md: "flex-end" }}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={onUpdatePaymentMethod}
-                  disabled={!billing.canUpdatePaymentMethod}
-                  title={!billing.canUpdatePaymentMethod ? billing.paymentMethodDisabledReason : undefined}
-                  aria-describedby={
-                    !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason
-                      ? "organization-billing-payment-method-disabled-reason"
-                      : undefined
-                  }
-                >
-                  支払い方法を更新
-                </Button>
-                {!billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason && (
-                  <Text
-                    id="organization-billing-payment-method-disabled-reason"
-                    maxW={{ md: "360px" }}
-                    fontSize="xs"
-                    color="orange.700"
-                    textAlign={{ base: "start", md: "end" }}
-                  >
-                    {billing.paymentMethodDisabledReason}
-                  </Text>
-                )}
-              </Stack>
-            </Flex>
-            <Box h="1px" bg="border.default" />
-            <Stack gap={1}>
+          {billing.isComplimentary ? (
+            <Text>現在の利用料金はかかりません。支払い方法の登録は不要です。</Text>
+          ) : (
+            <Stack gap={4}>
               <Flex
                 justify="space-between"
                 align={{ base: "flex-start", md: "center" }}
@@ -286,46 +258,89 @@ export const PlanAndPaymentSection = ({
               >
                 <Stack gap={1}>
                   <Text fontSize="xs" color="fg.muted">
-                    請求先メールアドレス
+                    支払い方法
                   </Text>
-                  <Text fontWeight="semibold" wordBreak="break-all">
-                    {billing.billingEmail}
-                  </Text>
+                  <Text fontWeight="semibold">{billing.paymentMethodLabel ?? "支払い方法は未登録です"}</Text>
                 </Stack>
                 <Stack gap={1.5} align={{ base: "stretch", md: "flex-end" }}>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={onUpdateBillingEmail}
-                    disabled={!billing.canUpdateBillingEmail}
-                    title={!billing.canUpdateBillingEmail ? billing.billingEmailDisabledReason : undefined}
+                    onClick={onUpdatePaymentMethod}
+                    disabled={!billing.canUpdatePaymentMethod}
+                    title={!billing.canUpdatePaymentMethod ? billing.paymentMethodDisabledReason : undefined}
                     aria-describedby={
-                      !billing.canUpdateBillingEmail && billing.billingEmailDisabledReason
-                        ? "organization-billing-email-disabled-reason"
+                      !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason
+                        ? "organization-billing-payment-method-disabled-reason"
                         : undefined
                     }
                   >
-                    請求先を変更
+                    支払い方法を更新
                   </Button>
-                  {!billing.canUpdateBillingEmail && billing.billingEmailDisabledReason && (
+                  {!billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason && (
                     <Text
-                      id="organization-billing-email-disabled-reason"
+                      id="organization-billing-payment-method-disabled-reason"
                       maxW={{ md: "360px" }}
                       fontSize="xs"
                       color="orange.700"
                       textAlign={{ base: "start", md: "end" }}
                     >
-                      {billing.billingEmailDisabledReason}
+                      {billing.paymentMethodDisabledReason}
                     </Text>
                   )}
                 </Stack>
               </Flex>
+              <Box h="1px" bg="border.default" />
+              <Stack gap={1}>
+                <Flex
+                  justify="space-between"
+                  align={{ base: "flex-start", md: "center" }}
+                  gap={3}
+                  direction={{ base: "column", md: "row" }}
+                >
+                  <Stack gap={1}>
+                    <Text fontSize="xs" color="fg.muted">
+                      請求先メールアドレス
+                    </Text>
+                    <Text fontWeight="semibold" wordBreak="break-all">
+                      {billing.billingEmail}
+                    </Text>
+                  </Stack>
+                  <Stack gap={1.5} align={{ base: "stretch", md: "flex-end" }}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onUpdateBillingEmail}
+                      disabled={!billing.canUpdateBillingEmail}
+                      title={!billing.canUpdateBillingEmail ? billing.billingEmailDisabledReason : undefined}
+                      aria-describedby={
+                        !billing.canUpdateBillingEmail && billing.billingEmailDisabledReason
+                          ? "organization-billing-email-disabled-reason"
+                          : undefined
+                      }
+                    >
+                      請求先を変更
+                    </Button>
+                    {!billing.canUpdateBillingEmail && billing.billingEmailDisabledReason && (
+                      <Text
+                        id="organization-billing-email-disabled-reason"
+                        maxW={{ md: "360px" }}
+                        fontSize="xs"
+                        color="orange.700"
+                        textAlign={{ base: "start", md: "end" }}
+                      >
+                        {billing.billingEmailDisabledReason}
+                      </Text>
+                    )}
+                  </Stack>
+                </Flex>
+              </Stack>
             </Stack>
-          </Stack>
+          )}
         </Box>
       </Stack>
 
-      <InvoiceList invoices={billing.invoices} onOpenInvoice={onOpenInvoice} />
+      {!billing.isComplimentary && <InvoiceList invoices={billing.invoices} onOpenInvoice={onOpenInvoice} />}
 
       <FreeTransitionConfirmation
         isOpen={freeConfirmation.isOpen}

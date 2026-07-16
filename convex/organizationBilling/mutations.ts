@@ -70,6 +70,8 @@ function previousPlan(state: OrganizationBillingState): "free" | "pro" | "busine
   switch (state.kind) {
     case "active":
       return state.plan;
+    case "complimentary":
+      return "business";
     case "scheduledChange":
       return state.currentPlan;
     case "initialPaymentPending":
@@ -570,6 +572,9 @@ export const setFreeSelection = authenticatedMutation({
     });
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
     if (!billingState) throw new ConvexError("事業者の契約情報を確認中です");
+    if (billingState.state.kind === "complimentary") {
+      throw new ConvexError("料金なしのBusinessではFree設定を変更できません");
+    }
     if (billingState.state.kind === "initialPaymentPending") {
       throw new ConvexError("支払い結果の確認中はFree設定を変更できません");
     }
@@ -1027,13 +1032,16 @@ export const updateBillingEmail = authenticatedMutation({
       shopId: args.shopId,
       allowReadOnly: true,
     });
-    const normalized = args.email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {
-      throw new ConvexError("メールアドレスの形式で入力してください");
-    }
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
     if (!billingState) {
       throw new ConvexError("事業者の契約情報を確認中です");
+    }
+    if (billingState.state.kind === "complimentary") {
+      throw new ConvexError("料金なしのBusinessでは請求先メールアドレスを変更できません");
+    }
+    const normalized = args.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {
+      throw new ConvexError("メールアドレスの形式で入力してください");
     }
     const requiresRestrictedRecovery =
       billingState.state.kind === "restricted" ||

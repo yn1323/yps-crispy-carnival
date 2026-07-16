@@ -49,7 +49,12 @@ export async function recordOrganizationMigrationConflict(
 /** canonical linkまで修復できたsourceについて、未解消のmigration conflictだけを完了扱いにする。 */
 export async function resolveOrganizationMigrationConflicts(
   ctx: MigrationCtx,
-  args: { sourceType: "shop" | "shopMember" | "staff"; sourceId: string; resolvedAt?: number },
+  args: {
+    sourceType: "shop" | "shopMember" | "staff";
+    sourceId: string;
+    codes?: readonly string[];
+    resolvedAt?: number;
+  },
 ) {
   const conflicts = await ctx.db
     .query("organizationMigrationConflicts")
@@ -59,6 +64,7 @@ export async function resolveOrganizationMigrationConflicts(
     .collect();
   const resolvedAt = args.resolvedAt ?? Date.now();
   for (const conflict of conflicts) {
+    if (args.codes && !args.codes.includes(conflict.code)) continue;
     if (conflict.resolvedAt === undefined) await ctx.db.patch(conflict._id, { resolvedAt });
   }
 }

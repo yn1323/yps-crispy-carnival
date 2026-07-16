@@ -1296,3 +1296,375 @@ describe("organization migrations", () => {
     expect(shops.first?.organizationId).not.toBe(shops.second?.organizationId);
   });
 });
+
+describe("m012 complimentary business migration", () => {
+  const args = { batchSize: 100, cursor: null, dryRun: false };
+
+  it("削除済みを含む移行元markerがある事業者だけに課金状態と監査を一件作成し、再実行しても重複しない", async () => {
+    const t = createOrganizationTest();
+    const seeded = await t.run(async (ctx) => {
+      const migrated = await seedManagerShop(ctx, {
+        subject: "complimentary_business_migration",
+        shopName: "無償Business移行店舗",
+      });
+      const now = Date.now();
+      const newOrganizationId = await ctx.db.insert("organizations", {
+        name: "新規事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...migrated, newOrganizationId };
+    });
+    await t.mutation(internal.migrations.m009_shops_to_organizations.migration, args);
+    const organizationId = await t.run(async (ctx) => {
+      const organizations = await ctx.db
+        .query("organizations")
+        .withIndex("by_migrationSourceShopId", (q) => q.eq("migrationSourceShopId", seeded.shopId))
+        .collect();
+      if (organizations.length !== 1) throw new Error("organization migration failed");
+      return organizations[0]._id;
+    });
+    await t.run(async (ctx) => await ctx.db.patch(organizationId, { isDeleted: true, updatedAt: Date.now() }));
+
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+
+    const result = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_correlationId", (q) =>
+          q.eq("correlationId", `${organizationId}:migration:m012:complimentary-business`),
+        )
+        .collect(),
+      conflicts: await ctx.db.query("organizationMigrationConflicts").collect(),
+      migratedBillingStates: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .collect(),
+      newOrganizationBillingStates: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.newOrganizationId))
+        .collect(),
+    }));
+
+    expect(result.migratedBillingStates).toHaveLength(1);
+    expect(result.migratedBillingStates[0]).toMatchObject({
+      organizationId,
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+    });
+    expect(result.migratedBillingStates[0].createdAt).toBe(result.migratedBillingStates[0].updatedAt);
+    expect(result.audits).toEqual([
+      expect.objectContaining({
+        organizationId,
+        action: "organization.billing_state_changed",
+        targetKind: "billing",
+        targetId: result.migratedBillingStates[0]._id,
+        toState: "complimentary.business",
+        correlationId: `${organizationId}:migration:m012:complimentary-business`,
+      }),
+    ]);
+    expect(result.newOrganizationBillingStates).toEqual([]);
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it("既存課金状態を上書きせず、修復後はm012所有のconflictだけを解消する", async () => {
+    const t = createOrganizationTest();
+    const seeded = await t.run(async (ctx) =>
+      seedManagerShop(ctx, {
+        subject: "complimentary_business_existing_billing",
+        shopName: "既存課金状態店舗",
+      }),
+    );
+    await t.mutation(internal.migrations.m009_shops_to_organizations.migration, args);
+    const prepared = await t.run(async (ctx) => {
+      const organizations = await ctx.db
+        .query("organizations")
+        .withIndex("by_migrationSourceShopId", (q) => q.eq("migrationSourceShopId", seeded.shopId))
+        .collect();
+      if (organizations.length !== 1) throw new Error("organization migration failed");
+      const organizationId = organizations[0]._id;
+      const now = Date.now();
+      const billingStateId = await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: { kind: "active", plan: "business" },
+        version: 7,
+        createdAt: now - 100,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMigrationConflicts", {
+        organizationId,
+        sourceType: "shop",
+        sourceId: seeded.shopId,
+        code: "unrelated_existing_conflict",
+        createdAt: now,
+      });
+      return { billingStateId, organizationId };
+    });
+
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+
+    const blocked = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", prepared.organizationId))
+        .collect(),
+      billingStates: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", prepared.organizationId))
+        .collect(),
+      conflicts: await ctx.db
+        .query("organizationMigrationConflicts")
+        .withIndex("by_sourceType_and_sourceId_and_code", (q) =>
+          q.eq("sourceType", "shop").eq("sourceId", seeded.shopId),
+        )
+        .collect(),
+    }));
+    expect(blocked.billingStates.map((state) => state._id)).toEqual([prepared.billingStateId]);
+    expect(blocked.billingStates[0]).toMatchObject({ state: { kind: "active", plan: "business" }, version: 7 });
+    expect(blocked.audits).toEqual([]);
+    expect(
+      blocked.conflicts
+        .map(({ code, resolvedAt }) => ({ code, resolvedAt }))
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    ).toEqual([
+      { code: "complimentary_business_existing_billing_state", resolvedAt: undefined },
+      { code: "unrelated_existing_conflict", resolvedAt: undefined },
+    ]);
+
+    await t.run(async (ctx) => await ctx.db.delete(prepared.billingStateId));
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+
+    const repaired = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", prepared.organizationId))
+        .collect(),
+      billingStates: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", prepared.organizationId))
+        .collect(),
+      conflicts: await ctx.db
+        .query("organizationMigrationConflicts")
+        .withIndex("by_sourceType_and_sourceId_and_code", (q) =>
+          q.eq("sourceType", "shop").eq("sourceId", seeded.shopId),
+        )
+        .collect(),
+    }));
+    expect(repaired.billingStates).toHaveLength(1);
+    expect(repaired.billingStates[0]).toMatchObject({
+      state: { kind: "complimentary", plan: "business" },
+      version: 1,
+    });
+    expect(repaired.audits).toHaveLength(1);
+    expect(
+      repaired.conflicts
+        .map(({ code, resolvedAt }) => ({
+          code,
+          resolved: resolvedAt !== undefined,
+        }))
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    ).toEqual([
+      { code: "complimentary_business_existing_billing_state", resolved: true },
+      { code: "unrelated_existing_conflict", resolved: false },
+    ]);
+  });
+
+  it("重複課金状態を任意に採用せず、一件のconflictとして再実行可能に停止する", async () => {
+    const t = createOrganizationTest();
+    const seeded = await t.run(async (ctx) =>
+      seedManagerShop(ctx, {
+        subject: "complimentary_business_duplicate_billing",
+        shopName: "課金状態重複店舗",
+      }),
+    );
+    await t.mutation(internal.migrations.m009_shops_to_organizations.migration, args);
+    const prepared = await t.run(async (ctx) => {
+      const organizations = await ctx.db
+        .query("organizations")
+        .withIndex("by_migrationSourceShopId", (q) => q.eq("migrationSourceShopId", seeded.shopId))
+        .collect();
+      if (organizations.length !== 1) throw new Error("organization migration failed");
+      const organizationId = organizations[0]._id;
+      const now = Date.now();
+      const billingStateIds = [
+        await ctx.db.insert("organizationBillingStates", {
+          organizationId,
+          state: { kind: "trial", trialEndsAt: now + 1_000 },
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        }),
+        await ctx.db.insert("organizationBillingStates", {
+          organizationId,
+          state: { kind: "active", plan: "pro" },
+          version: 2,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ];
+      return { billingStateIds, organizationId };
+    });
+
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+
+    const result = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", prepared.organizationId))
+        .collect(),
+      billingStates: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", prepared.organizationId))
+        .collect(),
+      conflicts: await ctx.db
+        .query("organizationMigrationConflicts")
+        .withIndex("by_sourceType_and_sourceId_and_code", (q) =>
+          q
+            .eq("sourceType", "shop")
+            .eq("sourceId", seeded.shopId)
+            .eq("code", "complimentary_business_ambiguous_billing_states"),
+        )
+        .collect(),
+    }));
+    expect(result.billingStates.map((state) => state._id)).toEqual(prepared.billingStateIds);
+    expect(result.audits).toEqual([]);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].resolvedAt).toBeUndefined();
+  });
+
+  it("移行元店舗の欠損・相互リンク不一致・marker重複をcode別conflictにして付与を止める", async () => {
+    const t = createOrganizationTest();
+    const seeded = await t.run(async (ctx) => {
+      const missing = await seedManagerShop(ctx, {
+        subject: "complimentary_business_missing_source",
+        shopName: "移行元欠損店舗",
+      });
+      const mismatch = await seedManagerShop(ctx, {
+        subject: "complimentary_business_link_mismatch",
+        shopName: "相互リンク不一致店舗",
+      });
+      const duplicate = await seedManagerShop(ctx, {
+        subject: "complimentary_business_duplicate_marker",
+        shopName: "移行元marker重複店舗",
+      });
+      return { duplicate, mismatch, missing };
+    });
+    await t.mutation(internal.migrations.m009_shops_to_organizations.migration, args);
+    const prepared = await t.run(async (ctx) => {
+      const getOrganizationId = async (shopId: typeof seeded.missing.shopId) => {
+        const organizations = await ctx.db
+          .query("organizations")
+          .withIndex("by_migrationSourceShopId", (q) => q.eq("migrationSourceShopId", shopId))
+          .collect();
+        if (organizations.length !== 1) throw new Error("organization migration failed");
+        return organizations[0]._id;
+      };
+      await getOrganizationId(seeded.missing.shopId);
+      await getOrganizationId(seeded.mismatch.shopId);
+      const duplicateOrganizationId = await getOrganizationId(seeded.duplicate.shopId);
+      const now = Date.now();
+      const duplicateMarkerOrganizationId = await ctx.db.insert("organizations", {
+        migrationSourceShopId: seeded.duplicate.shopId,
+        name: "重複marker事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMigrationConflicts", {
+        organizationId: duplicateOrganizationId,
+        sourceType: "shop",
+        sourceId: seeded.duplicate.shopId,
+        code: "unrelated_duplicate_marker_conflict",
+        createdAt: now,
+      });
+      await ctx.db.delete(seeded.missing.shopId);
+      await ctx.db.patch(seeded.mismatch.shopId, { organizationId: duplicateOrganizationId });
+      return {
+        duplicateMarkerOrganizationId,
+        duplicateOrganizationId,
+      };
+    });
+
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+
+    const blocked = await t.run(async (ctx) => ({
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      billingStates: await ctx.db.query("organizationBillingStates").collect(),
+      conflicts: await ctx.db.query("organizationMigrationConflicts").collect(),
+    }));
+    expect(blocked.audits).toEqual([]);
+    expect(blocked.billingStates).toEqual([]);
+    expect(
+      blocked.conflicts
+        .map(({ sourceId, code, resolvedAt }) => ({ sourceId, code, resolvedAt }))
+        .sort((a, b) => `${a.sourceId}:${a.code}`.localeCompare(`${b.sourceId}:${b.code}`)),
+    ).toEqual(
+      [
+        {
+          sourceId: seeded.missing.shopId,
+          code: "complimentary_business_missing_source_shop",
+          resolvedAt: undefined,
+        },
+        {
+          sourceId: seeded.mismatch.shopId,
+          code: "complimentary_business_source_shop_organization_mismatch",
+          resolvedAt: undefined,
+        },
+        {
+          sourceId: seeded.duplicate.shopId,
+          code: "complimentary_business_ambiguous_source_organization",
+          resolvedAt: undefined,
+        },
+        {
+          sourceId: seeded.duplicate.shopId,
+          code: "complimentary_business_source_shop_organization_mismatch",
+          resolvedAt: undefined,
+        },
+        {
+          sourceId: seeded.duplicate.shopId,
+          code: "unrelated_duplicate_marker_conflict",
+          resolvedAt: undefined,
+        },
+      ].sort((a, b) => `${a.sourceId}:${a.code}`.localeCompare(`${b.sourceId}:${b.code}`)),
+    );
+
+    await t.run(async (ctx) => await ctx.db.delete(prepared.duplicateMarkerOrganizationId));
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+    await t.mutation(internal.migrations.m012_organizations_add_complimentary_business.migration, args);
+
+    const repaired = await t.run(async (ctx) => ({
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", prepared.duplicateOrganizationId))
+        .collect(),
+      billingStates: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", prepared.duplicateOrganizationId))
+        .collect(),
+      conflicts: await ctx.db
+        .query("organizationMigrationConflicts")
+        .withIndex("by_sourceType_and_sourceId_and_code", (q) =>
+          q.eq("sourceType", "shop").eq("sourceId", seeded.duplicate.shopId),
+        )
+        .collect(),
+    }));
+    expect(repaired.audits).toHaveLength(1);
+    expect(repaired.billingStates).toHaveLength(1);
+    expect(repaired.billingStates[0].state).toEqual({ kind: "complimentary", plan: "business" });
+    expect(
+      repaired.conflicts
+        .map(({ code, resolvedAt }) => ({ code, resolved: resolvedAt !== undefined }))
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    ).toEqual([
+      { code: "complimentary_business_ambiguous_source_organization", resolved: true },
+      { code: "complimentary_business_source_shop_organization_mismatch", resolved: true },
+      { code: "unrelated_duplicate_marker_conflict", resolved: false },
+    ]);
+  });
+});

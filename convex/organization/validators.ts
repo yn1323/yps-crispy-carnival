@@ -75,6 +75,10 @@ export const organizationBillingStateValidator = v.union(
     plan: organizationActivePlanValidator,
   }),
   v.object({
+    kind: v.literal("complimentary"),
+    plan: v.literal("business"),
+  }),
+  v.object({
     kind: v.literal("scheduledChange"),
     currentPlan: organizationPaidPlanValidator,
     targetPlan: v.union(v.literal("free"), v.literal("pro")),

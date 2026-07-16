@@ -77,6 +77,8 @@ export function isVerifiedBillingTransitionAllowed(
   next: OrganizationBillingState,
   cause: VerifiedBillingTransitionCause = "stateUpdate",
 ): boolean {
+  if (current.kind === "complimentary" || next.kind === "complimentary") return false;
+
   switch (next.kind) {
     case "initialPaymentPending":
       return (
@@ -180,6 +182,8 @@ export function deriveOrganizationBillingPolicy(state: OrganizationBillingState)
       return restrictedPolicy();
     case "active":
       return state.plan === "free" ? freePolicy() : enabledPolicy(state.plan, null);
+    case "complimentary":
+      return enabledPolicy("business", null);
     case "scheduledChange":
       // FreeまたはProへの変更予定は、期間終了まで現在の有料プランを維持する。
       return enabledPolicy(state.currentPlan, state.effectiveAt);
@@ -404,6 +408,7 @@ export function getOrganizationBillingStateDeadline(state: OrganizationBillingSt
     case "initialPaymentPending":
     case "pendingActivation":
     case "active":
+    case "complimentary":
     case "restricted":
       return null;
   }

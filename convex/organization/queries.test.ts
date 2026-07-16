@@ -60,6 +60,7 @@ describe("organization/queries.getSettings", () => {
       billing: {
         state: "pro",
         currentPlan: "pro",
+        isComplimentary: false,
         peopleUsage: { current: 1, max: 15 },
         shopUsage: { current: 1, max: 5 },
       },
@@ -89,6 +90,48 @@ describe("organization/queries.getSettings", () => {
       "id",
       "status",
     ]);
+  });
+
+  it("無償BusinessをBusiness権限と料金なしの最小DTOへ投影する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_complimentary_business",
+        shopName: "無償Business店舗",
+        complimentary: true,
+      });
+      await ctx.db.patch(seeded.organizationId, {
+        migrationSourceShopId: seeded.shopId,
+        updatedAt: Date.now(),
+      });
+      return seeded;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_complimentary_business" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result).toMatchObject({
+      canAddShop: true,
+      canInviteManager: true,
+      billing: {
+        state: "business",
+        currentPlan: "business",
+        isComplimentary: true,
+        peopleUsage: { current: 1, max: 30 },
+        shopUsage: { current: 1, max: 5 },
+        canManagePlan: false,
+        canUpdatePaymentMethod: false,
+        canUpdateBillingEmail: false,
+        canScheduleFree: false,
+      },
+    });
+    expect(result?.billing).not.toHaveProperty("nextEvent");
+    expect(result?.billing.managePlanDisabledReason).toBeUndefined();
+    expect(result?.billing.paymentMethodDisabledReason).toBeUndefined();
+    expect(result?.billing.billingEmailDisabledReason).toBeUndefined();
+    expect(result?.billing).not.toHaveProperty("migrationSourceShopId");
+    expect(result?.billing).not.toHaveProperty("kind");
   });
 
   it("Outbox作成前に失敗した管理者招待を送信失敗として投影する", async () => {
@@ -526,6 +569,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "migrationPending",
       currentPlan: null,
+      isComplimentary: false,
       canManagePlan: false,
       managePlanDisabledReason: "設定の移行が完了するまでお待ちください。",
       canUpdatePaymentMethod: false,

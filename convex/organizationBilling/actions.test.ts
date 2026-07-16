@@ -36,6 +36,25 @@ describe("organizationBilling/actions", () => {
     expect(jobs.some((job) => job.channel === "line")).toBe(false);
   });
 
+  it("無償Businessでは内部通知actionを直接呼んでも課金通知を作成しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "complimentary_billing_notice",
+        complimentary: true,
+      }),
+    );
+
+    await expect(
+      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
+        organizationId: ids.organizationId,
+        event: "billingEmailChanged",
+        eventKey: "complimentary-billing-notice",
+      }),
+    ).resolves.toEqual({ enqueuedCount: 0 });
+    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
+  });
+
   it("Free適用通知は移行直前の管理者snapshotへ送れるが、削除済み人物は除外する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

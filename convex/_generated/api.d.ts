@@ -81,6 +81,7 @@ import type * as migrations_m008_recruitments_strip_legacy_shift_times from "../
 import type * as migrations_m009_shops_to_organizations from "../migrations/m009_shops_to_organizations.js";
 import type * as migrations_m010_shop_members_to_organization_members from "../migrations/m010_shop_members_to_organization_members.js";
 import type * as migrations_m011_staffs_to_organization_people from "../migrations/m011_staffs_to_organization_people.js";
+import type * as migrations_m012_organizations_add_complimentary_business from "../migrations/m012_organizations_add_complimentary_business.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
@@ -238,6 +239,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m009_shops_to_organizations": typeof migrations_m009_shops_to_organizations;
   "migrations/m010_shop_members_to_organization_members": typeof migrations_m010_shop_members_to_organization_members;
   "migrations/m011_staffs_to_organization_people": typeof migrations_m011_staffs_to_organization_people;
+  "migrations/m012_organizations_add_complimentary_business": typeof migrations_m012_organizations_add_complimentary_business;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;

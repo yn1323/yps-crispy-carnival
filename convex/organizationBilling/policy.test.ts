@@ -119,6 +119,23 @@ describe("organizationBilling/policy capabilities", () => {
     });
   });
 
+  it("無償BusinessはBusinessの上限と有料機能を期限なしで利用できる", () => {
+    const state = { kind: "complimentary", plan: "business" } as const;
+
+    expect(deriveOrganizationBillingPolicy(state)).toEqual({
+      entitlementPlan: "business",
+      limits: ORGANIZATION_PLAN_LIMITS.business,
+      canReadExistingData: true,
+      canWriteBusinessData: true,
+      businessWriteBlockReason: null,
+      canUsePaidFeatures: true,
+      paidFeatureBlockReason: null,
+      allowedRecoveryCapabilities: [],
+      deadlineAt: null,
+    });
+    expect(getOrganizationBillingStateDeadline(state)).toBeNull();
+  });
+
   it("Freeは基本業務を書き込めるが有料機能を許可しない", () => {
     expect(deriveOrganizationBillingPolicy({ kind: "active", plan: "free" })).toMatchObject({
       entitlementPlan: "free",
@@ -303,6 +320,32 @@ describe("organizationBilling/policy payment grace", () => {
 });
 
 describe("organizationBilling/policy verified transition", () => {
+  it("無償Businessを検証済み課金結果から作成または別状態へ変更できない", () => {
+    const complimentary = { kind: "complimentary", plan: "business" } as const;
+    const destinations: OrganizationBillingState[] = [
+      { kind: "trial", trialEndsAt: 100 },
+      { kind: "initialPaymentPending", plan: "business", startedAt: 100 },
+      { kind: "pendingActivation", plan: "business", fallback: "free", startedAt: 100 },
+      { kind: "active", plan: "business" },
+      { kind: "scheduledChange", currentPlan: "business", targetPlan: "pro", effectiveAt: 200 },
+      { kind: "grace", plan: "business", startedAt: 100, endsAt: 200 },
+      {
+        kind: "restricted",
+        reason: "unexpectedCancellation",
+        previousPlan: "business",
+        recoveryManagerPersonIds: [],
+        previousActiveShopIds: [],
+        restrictedAt: 100,
+      },
+      complimentary,
+    ];
+
+    for (const destination of destinations) {
+      expect(isVerifiedBillingTransitionAllowed(complimentary, destination)).toBe(false);
+    }
+    expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, complimentary)).toBe(false);
+  });
+
   it("支払い失敗は有効な有料契約または初回請求処理中からだけ猶予へ移せる", () => {
     const grace = createPaymentGraceState("pro", 100);
 
