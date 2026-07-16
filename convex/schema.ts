@@ -228,8 +228,9 @@ const schema = defineSchema({
   // ダッシュボードお知らせ（全体・事業者・店舗対象）
   // ========================================
   dashboardAnnouncements: defineTable({
-    organizationId: v.optional(v.id("organizations")),
-    shopId: v.optional(v.id("shops")),
+    // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
+    organizationId: v.optional(v.string()),
+    shopId: v.optional(v.string()),
     title: v.string(),
     bodyHtml: v.string(),
     displayDate: v.string(), // "2026-06-17"

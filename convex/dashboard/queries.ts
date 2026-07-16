@@ -54,8 +54,8 @@ const dashboardRecruitmentValidator = v.object({
 
 const dashboardAnnouncementValidator = v.object({
   _id: v.id("dashboardAnnouncements"),
-  organizationId: v.optional(v.id("organizations")),
-  shopId: v.optional(v.id("shops")),
+  organizationId: v.optional(v.string()),
+  shopId: v.optional(v.string()),
   title: v.string(),
   bodyHtml: v.string(),
   displayDate: v.string(),

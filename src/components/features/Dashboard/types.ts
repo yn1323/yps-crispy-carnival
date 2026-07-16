@@ -55,8 +55,8 @@ export type StaffRegistrationRequest = {
 
 export type DashboardAnnouncement = {
   _id: Id<"dashboardAnnouncements">;
-  organizationId?: Id<"organizations">;
-  shopId?: Id<"shops">;
+  organizationId?: string;
+  shopId?: string;
   title: string;
   bodyHtml: string;
   displayDate: string;

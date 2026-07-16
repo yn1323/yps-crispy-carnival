@@ -8,6 +8,15 @@ type AnnouncementContext = {
   shopId: string;
 } | null;
 
+function parseTargetIds(value: string | undefined): string[] {
+  return (
+    value
+      ?.split(",")
+      .map((id) => id.trim())
+      .filter(Boolean) ?? []
+  );
+}
+
 export function selectDashboardAnnouncementForContext<T extends TargetedAnnouncement>(
   announcements: readonly T[] | undefined,
   context: AnnouncementContext,
@@ -20,9 +29,10 @@ export function selectDashboardAnnouncementForContext<T extends TargetedAnnounce
       if (isGlobal) return true;
       if (!context) return false;
 
-      const matchesOrganization =
-        announcement.organizationId !== undefined && announcement.organizationId === context.organizationId;
-      const matchesShop = announcement.shopId !== undefined && announcement.shopId === context.shopId;
+      const organizationIds = parseTargetIds(announcement.organizationId);
+      const shopIds = parseTargetIds(announcement.shopId);
+      const matchesOrganization = context.organizationId !== null && organizationIds.includes(context.organizationId);
+      const matchesShop = shopIds.includes(context.shopId);
       return matchesOrganization || matchesShop;
     }) ?? null
   );

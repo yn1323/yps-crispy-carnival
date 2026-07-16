@@ -423,7 +423,7 @@ describe("dashboard/queries", () => {
           isDeleted: false,
         });
         await ctx.db.insert("dashboardAnnouncements", {
-          organizationId,
+          organizationId: `${organizationId}, ${organizationId}`,
           title: "事業者向けのお知らせ",
           bodyHtml: "<p>旧フロントには表示しません。</p>",
           displayDate: "2026-06-19",
@@ -485,7 +485,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it("全体・事業者・店舗向けのお知らせを必要なフィールドだけ返す", async () => {
+    it("単一IDとカンマ区切りの対象指定を必要なフィールドだけ返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const now = Date.now();
@@ -502,6 +502,21 @@ describe("dashboard/queries", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           isDeleted: false,
         });
+        const otherOrganizationId = await ctx.db.insert("organizations", {
+          name: "別の対象事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          organizationId: otherOrganizationId,
+          name: "別の対象店舗",
+          regularClosedDays: [],
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          isDeleted: false,
+        });
+        const organizationTargets = `${organizationId}, ${otherOrganizationId}`;
+        const shopTargets = `${shopId}, ${otherShopId}`;
         const globalAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
           title: "全体向けのお知らせ",
           bodyHtml: "<p>全体向けです。</p>",
@@ -510,7 +525,7 @@ describe("dashboard/queries", () => {
           isDeleted: false,
         });
         const organizationAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
-          organizationId,
+          organizationId: organizationTargets,
           title: "事業者向けのお知らせ",
           bodyHtml: "<p>事業者向けです。</p>",
           displayDate: "2026-06-18",
@@ -526,8 +541,8 @@ describe("dashboard/queries", () => {
           isDeleted: false,
         });
         const combinedAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
-          organizationId,
-          shopId,
+          organizationId: organizationTargets,
+          shopId: shopTargets,
           title: "事業者または店舗向けのお知らせ",
           bodyHtml: "<p>事業者または店舗向けです。</p>",
           displayDate: "2026-06-20",
@@ -537,6 +552,8 @@ describe("dashboard/queries", () => {
         return {
           organizationId,
           shopId,
+          organizationTargets,
+          shopTargets,
           globalAnnouncementId,
           organizationAnnouncementId,
           shopAnnouncementId,
@@ -551,8 +568,8 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([
         {
           _id: ids.combinedAnnouncementId,
-          organizationId: ids.organizationId,
-          shopId: ids.shopId,
+          organizationId: ids.organizationTargets,
+          shopId: ids.shopTargets,
           title: "事業者または店舗向けのお知らせ",
           bodyHtml: "<p>事業者または店舗向けです。</p>",
           displayDate: "2026-06-20",
@@ -566,7 +583,7 @@ describe("dashboard/queries", () => {
         },
         {
           _id: ids.organizationAnnouncementId,
-          organizationId: ids.organizationId,
+          organizationId: ids.organizationTargets,
           title: "事業者向けのお知らせ",
           bodyHtml: "<p>事業者向けです。</p>",
           displayDate: "2026-06-18",

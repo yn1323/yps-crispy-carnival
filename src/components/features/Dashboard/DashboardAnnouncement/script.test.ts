@@ -20,8 +20,14 @@ describe("selectDashboardAnnouncementForContext", () => {
   });
 
   it.each([
-    { target: { organizationId: currentContext.organizationId }, label: "事業者" },
-    { target: { shopId: currentContext.shopId }, label: "店舗" },
+    {
+      target: { organizationId: `organization-other, ${currentContext.organizationId}` },
+      label: "カンマ区切りの事業者",
+    },
+    {
+      target: { shopId: `shop-other, ${currentContext.shopId},` },
+      label: "カンマ区切りの店舗",
+    },
     {
       target: { organizationId: currentContext.organizationId, shopId: "shop-other" },
       label: "事業者または店舗の片方",
@@ -39,6 +45,16 @@ describe("selectDashboardAnnouncementForContext", () => {
     ];
 
     expect(selectDashboardAnnouncementForContext(announcements, currentContext)).toBe(targetedAnnouncement);
+  });
+
+  it("空白と空要素を無視してIDを完全一致で判定する", () => {
+    const announcements: Announcement[] = [
+      { key: "substring", shopId: `${currentContext.shopId}-other` },
+      { key: "empty", organizationId: " , , ", shopId: "" },
+      { key: "matched", shopId: ` , ${currentContext.shopId}, , ` },
+    ];
+
+    expect(selectDashboardAnnouncementForContext(announcements, currentContext)?.key).toBe("matched");
   });
 
   it("対象が一致しなければ次の全体向けお知らせを選ぶ", () => {
@@ -62,6 +78,7 @@ describe("selectDashboardAnnouncementForContext", () => {
     const announcements: Announcement[] = [
       { key: "organization", organizationId: currentContext.organizationId },
       { key: "shop", shopId: currentContext.shopId },
+      { key: "empty", organizationId: " , " },
     ];
 
     expect(selectDashboardAnnouncementForContext(announcements, null)).toBeNull();
