@@ -46,6 +46,8 @@ describe("管理者セットアップシナリオ", () => {
     ]);
     expect(currentUser).toEqual({ isNewUser: false, name: "山田 太郎", email: "manager@example.com" });
     expect(shop).toEqual({
+      businessWriteBlockReason: null,
+      canWriteBusinessData: true,
       name: "初回セットアップ店舗",
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },

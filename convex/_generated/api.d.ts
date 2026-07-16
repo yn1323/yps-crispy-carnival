@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
 import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
 import type * as _lib_emailFormat from "../_lib/emailFormat.js";
@@ -77,6 +78,10 @@ import type * as migrations_m005_shop_billing_states_backfill_free from "../migr
 import type * as migrations_m006_notification_failure_inbox_collapse_duplicates from "../migrations/m006_notification_failure_inbox_collapse_duplicates.js";
 import type * as migrations_m007_shops_strip_legacy_shift_times from "../migrations/m007_shops_strip_legacy_shift_times.js";
 import type * as migrations_m008_recruitments_strip_legacy_shift_times from "../migrations/m008_recruitments_strip_legacy_shift_times.js";
+import type * as migrations_m009_shops_to_organizations from "../migrations/m009_shops_to_organizations.js";
+import type * as migrations_m010_shop_members_to_organization_members from "../migrations/m010_shop_members_to_organization_members.js";
+import type * as migrations_m011_staffs_to_organization_people from "../migrations/m011_staffs_to_organization_people.js";
+import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
 import type * as notification_failureRecording from "../notification/failureRecording.js";
@@ -94,11 +99,32 @@ import type * as notificationOutbox_failureReminderQueries from "../notification
 import type * as notificationOutbox_failureResend from "../notificationOutbox/failureResend.js";
 import type * as notificationOutbox_failureSuppress from "../notificationOutbox/failureSuppress.js";
 import type * as notificationOutbox_mutations from "../notificationOutbox/mutations.js";
+import type * as notificationOutbox_origin from "../notificationOutbox/origin.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
 import type * as notificationOutbox_resendProviderEvents from "../notificationOutbox/resendProviderEvents.js";
 import type * as notificationOutbox_resendWebhook from "../notificationOutbox/resendWebhook.js";
 import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.js";
 import type * as notificationOutbox_types from "../notificationOutbox/types.js";
+import type * as organization_access from "../organization/access.js";
+import type * as organization_audit from "../organization/audit.js";
+import type * as organization_mutations from "../organization/mutations.js";
+import type * as organization_queries from "../organization/queries.js";
+import type * as organization_schemas from "../organization/schemas.js";
+import type * as organization_service from "../organization/service.js";
+import type * as organization_validators from "../organization/validators.js";
+import type * as organizationBilling_actions from "../organizationBilling/actions.js";
+import type * as organizationBilling_mutations from "../organizationBilling/mutations.js";
+import type * as organizationBilling_notification from "../organizationBilling/notification.js";
+import type * as organizationBilling_policy from "../organizationBilling/policy.js";
+import type * as organizationBilling_queries from "../organizationBilling/queries.js";
+import type * as organizationBilling_service from "../organizationBilling/service.js";
+import type * as organizationInvitation_actions from "../organizationInvitation/actions.js";
+import type * as organizationInvitation_constants from "../organizationInvitation/constants.js";
+import type * as organizationInvitation_mutations from "../organizationInvitation/mutations.js";
+import type * as organizationInvitation_queries from "../organizationInvitation/queries.js";
+import type * as organizationInvitation_schemas from "../organizationInvitation/schemas.js";
+import type * as organizationInvitation_service from "../organizationInvitation/service.js";
+import type * as organizationInvitation_token from "../organizationInvitation/token.js";
 import type * as position_service from "../position/service.js";
 import type * as recruitment_mutations from "../recruitment/mutations.js";
 import type * as recruitment_schemas from "../recruitment/schemas.js";
@@ -139,6 +165,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "_lib/auditCorrelation": typeof _lib_auditCorrelation;
   "_lib/config": typeof _lib_config;
   "_lib/dateFormat": typeof _lib_dateFormat;
   "_lib/emailFormat": typeof _lib_emailFormat;
@@ -208,6 +235,10 @@ declare const fullApi: ApiFromModules<{
   "migrations/m006_notification_failure_inbox_collapse_duplicates": typeof migrations_m006_notification_failure_inbox_collapse_duplicates;
   "migrations/m007_shops_strip_legacy_shift_times": typeof migrations_m007_shops_strip_legacy_shift_times;
   "migrations/m008_recruitments_strip_legacy_shift_times": typeof migrations_m008_recruitments_strip_legacy_shift_times;
+  "migrations/m009_shops_to_organizations": typeof migrations_m009_shops_to_organizations;
+  "migrations/m010_shop_members_to_organization_members": typeof migrations_m010_shop_members_to_organization_members;
+  "migrations/m011_staffs_to_organization_people": typeof migrations_m011_staffs_to_organization_people;
+  "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
   "notification/failureRecording": typeof notification_failureRecording;
@@ -225,11 +256,32 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/failureResend": typeof notificationOutbox_failureResend;
   "notificationOutbox/failureSuppress": typeof notificationOutbox_failureSuppress;
   "notificationOutbox/mutations": typeof notificationOutbox_mutations;
+  "notificationOutbox/origin": typeof notificationOutbox_origin;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
   "notificationOutbox/resendProviderEvents": typeof notificationOutbox_resendProviderEvents;
   "notificationOutbox/resendWebhook": typeof notificationOutbox_resendWebhook;
   "notificationOutbox/schemas": typeof notificationOutbox_schemas;
   "notificationOutbox/types": typeof notificationOutbox_types;
+  "organization/access": typeof organization_access;
+  "organization/audit": typeof organization_audit;
+  "organization/mutations": typeof organization_mutations;
+  "organization/queries": typeof organization_queries;
+  "organization/schemas": typeof organization_schemas;
+  "organization/service": typeof organization_service;
+  "organization/validators": typeof organization_validators;
+  "organizationBilling/actions": typeof organizationBilling_actions;
+  "organizationBilling/mutations": typeof organizationBilling_mutations;
+  "organizationBilling/notification": typeof organizationBilling_notification;
+  "organizationBilling/policy": typeof organizationBilling_policy;
+  "organizationBilling/queries": typeof organizationBilling_queries;
+  "organizationBilling/service": typeof organizationBilling_service;
+  "organizationInvitation/actions": typeof organizationInvitation_actions;
+  "organizationInvitation/constants": typeof organizationInvitation_constants;
+  "organizationInvitation/mutations": typeof organizationInvitation_mutations;
+  "organizationInvitation/queries": typeof organizationInvitation_queries;
+  "organizationInvitation/schemas": typeof organizationInvitation_schemas;
+  "organizationInvitation/service": typeof organizationInvitation_service;
+  "organizationInvitation/token": typeof organizationInvitation_token;
   "position/service": typeof position_service;
   "recruitment/mutations": typeof recruitment_mutations;
   "recruitment/schemas": typeof recruitment_schemas;

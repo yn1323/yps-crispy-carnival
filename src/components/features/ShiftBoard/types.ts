@@ -4,6 +4,14 @@ import type { TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardData = {
   shopId: Id<"shops">;
+  canWriteBusinessData: boolean;
+  businessWriteBlockReason:
+    | "memberReadOnly"
+    | "shopArchived"
+    | "shopPlanSuspended"
+    | "paymentResultPending"
+    | "restricted"
+    | null;
   recruitment: {
     _id: Id<"recruitments">;
     periodStart: string;

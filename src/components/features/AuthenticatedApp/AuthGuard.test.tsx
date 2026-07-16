@@ -6,7 +6,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type SelectedShop = {
   shopId: string;
   shopName: string;
+  shopStatus: "active" | "archived" | "planSuspended";
+  organizationId: string | null;
+  organizationName: string | null;
+  memberStatus: "active" | "readOnly" | "removed";
 } | null;
+
+type ShopRow = {
+  shopId: string;
+  shopName: string;
+  shopStatus?: "active" | "archived" | "planSuspended";
+  organizationId?: string;
+  organizationName?: string;
+  memberStatus?: "active" | "readOnly" | "removed";
+};
 
 const mocks = vi.hoisted(() => ({
   currentUserQuery: Symbol("getCurrentUser"),
@@ -21,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   setUser: vi.fn(),
   managerChildRender: vi.fn(),
   currentUser: { name: "管理者", email: "manager@example.com" },
-  myShops: [{ shopId: "active-shop", shopName: "所属店舗" }],
+  myShops: [{ shopId: "active-shop", shopName: "所属店舗" }] as ShopRow[],
   selectedShop: null as SelectedShop,
   user: { authId: "manager-user", name: "管理者", email: "manager@example.com" },
 }));
@@ -31,7 +44,7 @@ vi.mock("@clerk/clerk-react", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Navigate: () => null,
+  Navigate: ({ to }: { to: string }) => <div data-testid="navigate" data-to={to} />,
   useRouterState: mocks.useRouterState,
 }));
 
@@ -39,7 +52,8 @@ vi.mock("convex/react", () => ({
   useQuery: mocks.useQuery,
 }));
 
-vi.mock("jotai", () => ({
+vi.mock("jotai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("jotai")>()),
   useAtom: mocks.useAtom,
 }));
 
@@ -58,7 +72,8 @@ vi.mock("@/src/components/templates/FullPageSpinner", () => ({
   FullPageSpinner: () => <div data-testid="full-page-spinner" />,
 }));
 
-vi.mock("@/src/stores/shop", () => ({
+vi.mock("@/src/stores/shop", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/src/stores/shop")>()),
   selectedShopAtom: mocks.selectedShopAtom,
 }));
 
@@ -82,7 +97,15 @@ beforeEach(() => {
   mocks.setUser.mockReset();
   mocks.managerChildRender.mockReset();
 
-  mocks.selectedShop = { shopId: "stale-shop", shopName: "過去の所属店舗" };
+  mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
+  mocks.selectedShop = {
+    shopId: "stale-shop",
+    shopName: "過去の所属店舗",
+    shopStatus: "active",
+    organizationId: null,
+    organizationName: null,
+    memberStatus: "active",
+  };
   mocks.user = { authId: "manager-user", name: "管理者", email: "manager@example.com" };
 
   mocks.useAuth.mockReturnValue({
@@ -115,10 +138,24 @@ describe("AuthGuard", () => {
     expect(screen.queryByTestId("manager-child")).toBeNull();
     expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
     await waitFor(() => {
-      expect(mocks.setSelectedShop).toHaveBeenCalledWith({ shopId: "active-shop", shopName: "所属店舗" });
+      expect(mocks.setSelectedShop).toHaveBeenCalledWith({
+        shopId: "active-shop",
+        shopName: "所属店舗",
+        shopStatus: "active",
+        organizationId: null,
+        organizationName: null,
+        memberStatus: "active",
+      });
     });
 
-    mocks.selectedShop = { shopId: "active-shop", shopName: "所属店舗" };
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      memberStatus: "active",
+    };
     rerender(
       <AuthGuard>
         <ManagerChild />
@@ -128,5 +165,40 @@ describe("AuthGuard", () => {
     expect(mocks.managerChildRender).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("manager-child")).not.toBeNull();
     expect(screen.queryByTestId("full-page-spinner")).toBeNull();
+  });
+
+  it("有効候補が複数で保存値が無効なら先頭を選ばず店舗選択へ移動する", async () => {
+    mocks.myShops = [
+      { shopId: "shop-a", shopName: "A店", organizationId: "org-a", organizationName: "A社" },
+      { shopId: "shop-b", shopName: "B店", organizationId: "org-b", organizationName: "B社" },
+    ];
+
+    render(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/shop-select");
+    await waitFor(() => expect(mocks.setSelectedShop).toHaveBeenCalledWith(null));
+    expect(mocks.setSelectedShop).not.toHaveBeenCalledWith(expect.objectContaining({ shopId: "shop-a" }));
+  });
+
+  it("店舗選択routeは選択前でも描画する", () => {
+    mocks.myShops = [
+      { shopId: "shop-a", shopName: "A店" },
+      { shopId: "shop-b", shopName: "B店" },
+    ];
+    mocks.selectedShop = null;
+    mocks.useRouterState.mockReturnValue({ pathname: "/shop-select", searchStr: "" });
+
+    render(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(screen.queryByTestId("navigate")).toBeNull();
   });
 });

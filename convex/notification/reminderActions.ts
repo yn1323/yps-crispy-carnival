@@ -9,6 +9,7 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLineText } from "./templates";
 
@@ -18,8 +19,9 @@ import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLine
  * - それ以外 → メール（未連携なら CTA を末尾に挿入）
  */
 export const sendReminderEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
     if (!data || data.staffEntries.length === 0) return;
 
@@ -87,6 +89,7 @@ export const sendReminderEmails = internalAction({
             : undefined;
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
             dedupeKey: lineDedupeKey,
@@ -112,6 +115,7 @@ export const sendReminderEmails = internalAction({
 
         const result = await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           staffId: staff.staffId,
           dedupeKey: emailDedupeKey,
@@ -165,8 +169,10 @@ export const sendReminderEmailForStaff = internalAction({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
     notificationRunId: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, staffId, notificationRunId }) => {
+  handler: async (ctx, { recruitmentId, staffId, notificationRunId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailDataForStaff, {
       recruitmentId,
       staffId,
@@ -235,6 +241,7 @@ export const sendReminderEmailForStaff = internalAction({
           : undefined;
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           staffId: data.staff.staffId,
           dedupeKey: lineDedupeKey,
@@ -258,6 +265,7 @@ export const sendReminderEmailForStaff = internalAction({
       });
       await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         recruitmentId,
         staffId: data.staff.staffId,
         dedupeKey: emailDedupeKey,

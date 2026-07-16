@@ -4,6 +4,7 @@ import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { buildConfirmationSnapshotsForStaffs } from "../notification/confirmationSnapshots";
+import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { getActiveStaffInShop } from "../staff/service";
@@ -26,6 +27,7 @@ export const saveShiftAssignments = managerMutation({
       }),
     ),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
     if (!recruitment) {
@@ -94,6 +96,7 @@ export const saveShiftAssignments = managerMutation({
     );
 
     await ctx.db.patch(args.recruitmentId, { draftSavedAt });
+    return null;
   },
 });
 
@@ -102,6 +105,13 @@ export const confirmRecruitment = managerMutation({
     recruitmentId: v.id("recruitments"),
     intent: v.optional(v.union(v.literal("confirm"), v.literal("resend"))),
   },
+  returns: v.union(
+    v.null(),
+    v.object({
+      status: v.union(v.literal("no_changes"), v.literal("scheduled")),
+      notifiedStaffCount: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
     if (!recruitment) {
@@ -189,10 +199,12 @@ export const confirmRecruitment = managerMutation({
       status: "confirmed",
       confirmedAt: notificationRunId,
     });
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendShiftConfirmationEmails, {
       recruitmentId: args.recruitmentId,
       isResend,
+      ...notificationOrigin,
       ...(isResend ? { targetStaffIds, notificationRunId } : {}),
     });
     return { status: "scheduled" as const, notifiedStaffCount: targetStaffIds.length };

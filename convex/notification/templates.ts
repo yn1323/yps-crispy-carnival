@@ -434,6 +434,113 @@ function escapeEmailHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+type OrganizationBillingEmailParams = {
+  recipientName: string;
+  organizationName: string;
+  heading: string;
+  paragraphs: readonly string[];
+  action?: {
+    label: string;
+    url: string;
+  };
+};
+
+export const ORGANIZATION_MANAGER_INVITATION_SUBJECT = "管理者として招待されました";
+
+type OrganizationManagerInvitationEmailParams = {
+  organizationName: string;
+  inviterName: string;
+  invitationUrl: string;
+};
+
+/**
+ * 管理者招待の本文。invitationUrlはprovider呼び出し直前にactionのメモリ内で生成する。
+ */
+export function buildOrganizationManagerInvitationEmailHtml(params: OrganizationManagerInvitationEmailParams): string {
+  const organizationName = escapeEmailHtml(params.organizationName);
+  const inviterName = escapeEmailHtml(params.inviterName);
+  const invitationUrl = escapeEmailHtml(params.invitationUrl);
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">管理者として招待されました</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${inviterName}さんから「${organizationName}」の管理者に招待されました。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">管理者になると、この事業者のすべての店舗を管理し、契約に関する操作を行えます。</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <a href="${invitationUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">招待を確認する</a>
+            </td></tr>
+          </table>
+
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは7日間有効で、一度だけ使用できます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">心当たりがない場合は、このメールを破棄してください。</p>
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * 課金状態ごとの事実と次の操作を、安全なplain textから組み立てる共通メール。
+ * 外部入力をHTMLとして受け取らず、各通知のaction側で件名と本文の業務事実を決める。
+ */
+export function buildOrganizationBillingEmailHtml(params: OrganizationBillingEmailParams): string {
+  const recipientName = escapeEmailHtml(params.recipientName);
+  const organizationName = escapeEmailHtml(params.organizationName);
+  const heading = escapeEmailHtml(params.heading);
+  const paragraphs = params.paragraphs
+    .map((paragraph) => `<p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${escapeEmailHtml(paragraph)}</p>`)
+    .join("");
+  const action = params.action
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
+            <tr><td align="center">
+              <a href="${escapeEmailHtml(params.action.url)}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">${escapeEmailHtml(params.action.label)}</a>
+            </td></tr>
+          </table>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="background-color:#319795;padding:16px 24px;">
+          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
+        </td></tr>
+        <tr><td style="padding:32px 24px;">
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">${organizationName}</p>
+          <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">${heading}</p>
+          ${paragraphs}
+          ${action}
+
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。返信しても届きません。</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 function shiftRow(shift: ShiftEntry): string {
   const timeLabel = shiftTimeLabel(shift);
   const date = escapeEmailHtml(shift.date);

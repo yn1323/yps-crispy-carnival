@@ -70,6 +70,8 @@ const convexLogicProject = defineConfig({
   test: {
     name: "convex(logic)",
     environment: "edge-runtime",
+    // 全project同時実行時も、100人規模のOutbox/移行回帰を環境負荷だけで失敗させない。
+    testTimeout: 10_000,
     include: ["./convex/**/*.test.ts"],
     exclude: ["node_modules", "./convex/_generated/**", "./convex/_scenario/**"],
   },

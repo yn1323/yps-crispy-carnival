@@ -1,6 +1,7 @@
 import { useAtomValue } from "jotai";
 import { lazy, Suspense } from "react";
 import { FeatureRequestAction } from "@/src/components/features/FeatureRequestDialog";
+import { ShopSwitcher } from "@/src/components/features/ShopSwitcher";
 import { Header } from "@/src/components/templates/Header";
 import { hasSelectedShopAtom } from "@/src/stores/shop";
 
@@ -15,6 +16,7 @@ export const AuthenticatedHeader = () => {
     <Header
       userActions={
         <>
+          {hasSelectedShop && <ShopSwitcher />}
           {hasSelectedShop && <FeatureRequestAction />}
           <Suspense fallback={null}>
             <UserMenu tone="light" />

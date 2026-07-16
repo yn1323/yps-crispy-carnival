@@ -13,6 +13,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ManagerInviteRouteImport } from './routes/manager-invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HowtoRouteImport } from './routes/howto'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -31,6 +32,8 @@ import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
 import { Route as DemoFlowRouteImport } from './routes/demo.flow'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
+import { Route as AuthShopSelectRouteImport } from './routes/_auth/shop-select'
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
@@ -60,6 +63,11 @@ const SignupRoute = SignupRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerInviteRoute = ManagerInviteRouteImport.update({
+  id: '/manager-invite',
+  path: '/manager-invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -150,6 +158,16 @@ const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => ArticlesRoute,
 } as any)
+const AuthShopSelectRoute = AuthShopSelectRouteImport.update({
+  id: '/shop-select',
+  path: '/shop-select',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSettingsRoute = AuthSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -218,11 +236,14 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
+  '/manager-invite': typeof ManagerInviteRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/settings': typeof AuthSettingsRoute
+  '/shop-select': typeof AuthShopSelectRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
@@ -249,11 +270,14 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
+  '/manager-invite': typeof ManagerInviteRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
+  '/settings': typeof AuthSettingsRoute
+  '/shop-select': typeof AuthShopSelectRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
@@ -284,11 +308,14 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
+  '/manager-invite': typeof ManagerInviteRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
   '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
+  '/_auth/settings': typeof AuthSettingsRoute
+  '/_auth/shop-select': typeof AuthShopSelectRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
@@ -318,11 +345,14 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/howto'
     | '/login'
+    | '/manager-invite'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
     | '/terms'
     | '/dashboard'
+    | '/settings'
+    | '/shop-select'
     | '/articles/$slug'
     | '/demo/flow'
     | '/demo/shiftboard'
@@ -349,11 +379,14 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/howto'
     | '/login'
+    | '/manager-invite'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
     | '/terms'
     | '/dashboard'
+    | '/settings'
+    | '/shop-select'
     | '/articles/$slug'
     | '/demo/flow'
     | '/demo/shiftboard'
@@ -383,11 +416,14 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/howto'
     | '/login'
+    | '/manager-invite'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
     | '/terms'
     | '/_auth/dashboard'
+    | '/_auth/settings'
+    | '/_auth/shop-select'
     | '/articles/$slug'
     | '/demo/flow'
     | '/demo/shiftboard'
@@ -418,6 +454,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   HowtoRoute: typeof HowtoRoute
   LoginRoute: typeof LoginRoute
+  ManagerInviteRoute: typeof ManagerInviteRoute
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
@@ -458,6 +495,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager-invite': {
+      id: '/manager-invite'
+      path: '/manager-invite'
+      fullPath: '/manager-invite'
+      preLoaderRoute: typeof ManagerInviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -586,6 +630,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesSlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/_auth/shop-select': {
+      id: '/_auth/shop-select'
+      path: '/shop-select'
+      fullPath: '/shop-select'
+      preLoaderRoute: typeof AuthShopSelectRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/settings': {
+      id: '/_auth/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthSettingsRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
       path: '/dashboard'
@@ -661,11 +719,15 @@ declare module '@tanstack/react-router' {
 
 interface AuthRouteChildren {
   AuthDashboardRoute: typeof AuthDashboardRoute
+  AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthShopSelectRoute: typeof AuthShopSelectRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthDashboardRoute: AuthDashboardRoute,
+  AuthSettingsRoute: AuthSettingsRoute,
+  AuthShopSelectRoute: AuthShopSelectRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
 }
 
@@ -723,6 +785,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   HowtoRoute: HowtoRoute,
   LoginRoute: LoginRoute,
+  ManagerInviteRoute: ManagerInviteRoute,
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,

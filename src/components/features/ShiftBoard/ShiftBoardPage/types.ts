@@ -9,6 +9,8 @@ export type ShiftBoardPageViewModel = {
   periodLabel: string;
   confirmedAtLabel: string | null;
   isConfirmed: boolean;
+  isReadOnly: boolean;
+  readOnlyReason: string | null;
   showTimeInputGuide: boolean;
   shiftForm: {
     shopId: string;

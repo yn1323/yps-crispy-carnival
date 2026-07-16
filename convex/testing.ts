@@ -77,14 +77,14 @@ function assertE2EHelpersEnabled() {
 }
 
 function notificationContextForProbe(job: Doc<"notificationOutbox">) {
-  if (job.payload.kind === "email") return job.payload.context;
+  if (job.payload.kind !== "line") return job.payload.context;
   return job.payload.fallbackEmail?.payload.context ?? job.dedupeKey.split(":").slice(0, 2).join(":");
 }
 
 async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox">) {
   // LINEはfallback emailを除外し、実際のLINE本文/Flex messageにCTAがあることを確認する。
   const payloadForCta =
-    job.payload.kind === "email"
+    job.payload.kind !== "line"
       ? job.payload
       : {
           kind: job.payload.kind,
@@ -92,15 +92,17 @@ async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox"
           message: job.payload.message,
         };
   const serializedPayload = JSON.stringify(payloadForCta);
-  const hasRecognizedCta = [
-    "/shifts/submit?token=",
-    "/shifts/view?token=",
-    "/shifts/reissue?",
-    "/legal/staff/consent?token=",
-    "/staff/register?token=",
-    "/dashboard",
-    "access.line.me/oauth2/v2.1/authorize",
-  ].some((fragment) => serializedPayload.includes(fragment));
+  const hasRecognizedCta =
+    job.payload.kind === "organizationManagerInvitationEmail" ||
+    [
+      "/shifts/submit?token=",
+      "/shifts/view?token=",
+      "/shifts/reissue?",
+      "/legal/staff/consent?token=",
+      "/staff/register?token=",
+      "/dashboard",
+      "access.line.me/oauth2/v2.1/authorize",
+    ].some((fragment) => serializedPayload.includes(fragment));
 
   const staffId = job.staffId;
   if (!staffId) return { hasRecognizedCta, ctaTokenMatchesTarget: null };

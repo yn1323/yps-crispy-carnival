@@ -1,0 +1,188 @@
+import type { GenericDatabaseReader } from "convex/server";
+import type { DataModel, Doc, Id } from "../_generated/dataModel";
+import { getOrganizationBillingState } from "../organization/service";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
+
+type DbCtx = {
+  db: GenericDatabaseReader<DataModel>;
+};
+
+export type OrganizationInvitationPurpose = "managerAddition" | "freeManagerExchange";
+
+export function getOrganizationInvitationPurpose(
+  invitation: Pick<Doc<"organizationInvitations">, "purpose">,
+): OrganizationInvitationPurpose {
+  // TODO[narrow]: 対象はNarrow着手時に追加するorganizationInvitations purpose補完migration。
+  //   Widen前の招待を失効または補完し、develop/prodの未設定件数が0件であることを
+  //   `pnpm convex:migrate:status` と管理用集計で確認後、schemaのpurposeを必須化してこのfallbackを削除する。
+  return invitation.purpose ?? "managerAddition";
+}
+
+export type FreeManagerExchangeEligibility = {
+  purpose: "freeManagerExchange";
+  organization: Doc<"organizations">;
+  billingState: Doc<"organizationBillingStates">;
+  inviter: Doc<"organizationMembers">;
+  inviterPerson: Doc<"organizationPeople">;
+  targetPerson: Doc<"organizationPeople">;
+  targetMember: Doc<"organizationMembers"> | null;
+};
+
+type ManagerAdditionEligibility = {
+  purpose: "managerAddition";
+  organization: Doc<"organizations">;
+  inviter: Doc<"organizationMembers">;
+  inviterPerson: Doc<"organizationPeople">;
+};
+
+export type OrganizationInvitationEligibility = ManagerAdditionEligibility | FreeManagerExchangeEligibility;
+
+async function getValidInviter(
+  ctx: DbCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    inviterMemberId: Id<"organizationMembers">;
+  },
+) {
+  const inviter = await ctx.db.get(args.inviterMemberId);
+  if (!inviter || inviter.organizationId !== args.organizationId || inviter.status !== "active") return null;
+  const [person, user, memberships] = await Promise.all([
+    ctx.db.get(inviter.personId),
+    ctx.db.get(inviter.userId),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_organizationId", (q) =>
+        q.eq("userId", inviter.userId).eq("organizationId", args.organizationId),
+      )
+      .take(2),
+  ]);
+  if (
+    memberships.length !== 1 ||
+    memberships[0]._id !== inviter._id ||
+    !person ||
+    person.organizationId !== args.organizationId ||
+    person.status !== "active" ||
+    person.userId !== inviter.userId ||
+    !user ||
+    user.isDeleted
+  ) {
+    return null;
+  }
+  return { inviter, inviterPerson: person };
+}
+
+export async function resolveFreeManagerExchangeEligibility(
+  ctx: DbCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    inviterMemberId: Id<"organizationMembers">;
+    emailNormalized: string;
+  },
+): Promise<FreeManagerExchangeEligibility | null> {
+  const [organization, billingState, inviterData, activeMembers, people] = await Promise.all([
+    ctx.db.get(args.organizationId),
+    getOrganizationBillingState(ctx, args.organizationId),
+    getValidInviter(ctx, args),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_status", (q) =>
+        q.eq("organizationId", args.organizationId).eq("status", "active"),
+      )
+      .take(2),
+    ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_emailNormalized", (q) =>
+        q.eq("organizationId", args.organizationId).eq("emailNormalized", args.emailNormalized),
+      )
+      .take(2),
+  ]);
+  if (
+    !organization ||
+    organization.isDeleted ||
+    !billingState ||
+    deriveOrganizationBillingPolicy(billingState.state).entitlementPlan !== "free" ||
+    !inviterData ||
+    activeMembers.length !== 1 ||
+    activeMembers[0]._id !== inviterData.inviter._id ||
+    billingState.freeManagerPersonId !== inviterData.inviterPerson._id ||
+    people.length !== 1 ||
+    people[0].status !== "active" ||
+    people[0]._id === inviterData.inviterPerson._id
+  ) {
+    return null;
+  }
+
+  const targetPerson = people[0];
+  const [members, staffs] = await Promise.all([
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_personId", (q) =>
+        q.eq("organizationId", args.organizationId).eq("personId", targetPerson._id),
+      )
+      .take(2),
+    ctx.db
+      .query("staffs")
+      .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+        q.eq("organizationId", args.organizationId).eq("organizationPersonId", targetPerson._id),
+      )
+      .collect(),
+  ]);
+  if (members.length > 1 || members[0]?.status === "active") {
+    return null;
+  }
+  let hasActiveStaffAffiliation = false;
+  for (const staff of staffs) {
+    if (staff.isDeleted) continue;
+    const shop = await ctx.db.get(staff.shopId);
+    if (shop?.organizationId === args.organizationId && !shop.isDeleted) {
+      hasActiveStaffAffiliation = true;
+      break;
+    }
+  }
+  if (!hasActiveStaffAffiliation) return null;
+  const targetMember = members[0] ?? null;
+  if (targetMember && (!targetPerson.userId || targetMember.userId !== targetPerson.userId)) return null;
+  if (targetPerson.userId) {
+    const targetUser = await ctx.db.get(targetPerson.userId);
+    if (!targetUser || targetUser.isDeleted) return null;
+  }
+
+  return {
+    purpose: "freeManagerExchange",
+    organization,
+    billingState,
+    inviter: inviterData.inviter,
+    inviterPerson: inviterData.inviterPerson,
+    targetPerson,
+    targetMember,
+  };
+}
+
+export async function resolveOrganizationInvitationEligibility(
+  ctx: DbCtx,
+  invitation: Pick<
+    Doc<"organizationInvitations">,
+    "organizationId" | "inviterMemberId" | "emailNormalized" | "purpose"
+  >,
+): Promise<OrganizationInvitationEligibility | null> {
+  const purpose = getOrganizationInvitationPurpose(invitation);
+  if (purpose === "freeManagerExchange") {
+    return await resolveFreeManagerExchangeEligibility(ctx, invitation);
+  }
+
+  const [organization, billingState, inviterData] = await Promise.all([
+    ctx.db.get(invitation.organizationId),
+    getOrganizationBillingState(ctx, invitation.organizationId),
+    getValidInviter(ctx, invitation),
+  ]);
+  if (
+    !organization ||
+    organization.isDeleted ||
+    !billingState ||
+    !deriveOrganizationBillingPolicy(billingState.state).canUsePaidFeatures ||
+    !inviterData
+  ) {
+    return null;
+  }
+  return { purpose, organization, ...inviterData };
+}

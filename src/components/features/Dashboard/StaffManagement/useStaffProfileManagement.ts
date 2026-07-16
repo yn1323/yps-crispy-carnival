@@ -10,14 +10,16 @@ import type { Staff } from "../types";
 
 type Options = {
   onResetDetail: () => void;
+  isReadOnly?: boolean;
 };
 
-export function useStaffProfileManagement(staffs: Staff[], { onResetDetail }: Options) {
+export function useStaffProfileManagement(staffs: Staff[], { onResetDetail, isReadOnly = false }: Options) {
   const dialog = useDialog();
   const [staffId, setStaffId] = useState<Staff["_id"] | null>(null);
   const staff = staffId ? (staffs.find((candidate) => candidate._id === staffId) ?? null) : null;
   const editStaff = useShopMutation(api.staff.mutations.editStaff);
   const deleteStaff = useShopMutation(api.staff.mutations.deleteStaff);
+  const removePersonFromShop = useShopMutation(api.organization.mutations.removePersonFromShop);
   const setShiftExclusion = useShopMutation(api.staff.mutations.setShiftExclusion);
 
   const resetDetail = useCallback(() => {
@@ -42,7 +44,7 @@ export function useStaffProfileManagement(staffs: Staff[], { onResetDetail }: Op
   };
 
   const { run: handleEdit, isRunning: isEditing } = useSingleFlight(async (data: EditStaffFormData) => {
-    if (!staff) return;
+    if (isReadOnly || !staff) return;
     try {
       await editStaff({ staffId: staff._id, name: data.name, email: data.email });
       showSuccessToast({ title: "スタッフ情報を更新しました" });
@@ -52,10 +54,22 @@ export function useStaffProfileManagement(staffs: Staff[], { onResetDetail }: Op
   });
 
   const { run: handleDelete, isRunning: isDeleting } = useSingleFlight(async (target: Staff) => {
+    if (isReadOnly) return;
     try {
-      await deleteStaff({ staffId: target._id });
+      if (target.isOrganizationLinked) {
+        await removePersonFromShop({ staffId: target._id, requestId: crypto.randomUUID() });
+      } else {
+        // TODO[narrow]: develop/prodでm011_staffs_to_organization_peopleが完走したことを
+        // `pnpm convex:migrate:status`で確認し、移行済みフロント配布後にこの分岐とdeleteStaff hookを削除する。
+        await deleteStaff({ staffId: target._id });
+      }
       handleClose();
-      showSuccessToast({ title: "スタッフを削除しました" });
+      showSuccessToast({
+        title: target.isOrganizationLinked ? "この店舗のスタッフ所属を削除しました" : "スタッフを削除しました",
+        ...(target.isOrganizationLinked
+          ? { description: "事業者の人物情報、ほかの店舗所属、管理者権限は変更していません。" }
+          : {}),
+      });
     } catch (error) {
       showErrorToast(error);
     }
@@ -63,6 +77,7 @@ export function useStaffProfileManagement(staffs: Staff[], { onResetDetail }: Op
 
   const { run: handleChangeShiftTarget, isRunning: isChangingShiftTarget } = useSingleFlight(
     async (target: Staff, isShiftTarget: boolean) => {
+      if (isReadOnly) return;
       const nextExcluded = !isShiftTarget;
       try {
         await setShiftExclusion({ staffId: target._id, excluded: nextExcluded });

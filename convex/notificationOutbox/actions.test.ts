@@ -4,14 +4,19 @@ import { internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS, RESEND_RETRY_DELAY_PADDING_MS } from "../constants";
+import {
+  NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+  RESEND_EMAIL_SEND_INTERVAL_MS,
+  RESEND_RETRY_DELAY_PADDING_MS,
+} from "../constants";
+import { deriveInvitationToken } from "../organizationInvitation/token";
 
 const fallbackEmail = {
   dedupeKey: "email:test:fallback",
   payload: {
     kind: "email" as const,
     from: "シフトリ <noreply@example.com>",
-    to: "staff@example.com",
+    to: "line-staff@example.com",
     subject: "fallback",
     html: "<p>fallback</p>",
     context: "test.fallback",
@@ -395,6 +400,421 @@ describe("notificationOutbox/actions", () => {
     });
   });
 
+  it("管理者招待は送信直前にtokenと本文を生成し、Outboxには保存しない", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    vi.stubEnv("APP_URL", "https://app.example.com/base");
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "test-secret-that-is-at-least-32-characters");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_invitation_123" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId, invitationId } = await setupOrganizationInvitationJob("valid");
+    const expectedToken = await deriveInvitationToken({
+      invitationId,
+      version: 1,
+      signingSecret: "test-secret-that-is-at-least-32-characters",
+    });
+
+    const before = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(before?.payload).toEqual({
+      kind: "organizationManagerInvitationEmail",
+      from: "シフトリ <noreply@example.com>",
+      to: "invite@example.com",
+      context: "organizationInvitation.send",
+    });
+    expect(JSON.stringify(before)).not.toContain(expectedToken);
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const resendCall = fetchMock.mock.calls.find(([input]) => String(input).includes("api.resend.com/emails"));
+    expect(resendCall).toBeDefined();
+    const requestBody = JSON.parse(String((resendCall?.[1] as RequestInit | undefined)?.body));
+    expect(requestBody).toMatchObject({
+      from: "シフトリ <noreply@example.com>",
+      to: "invite@example.com",
+      subject: "【シフトリ：招待事業者】管理者として招待されました",
+      tags: [{ name: "shiftori_outbox_id", value: outboxId }],
+    });
+    expect(requestBody.html).toContain(`href="https://app.example.com/manager-invite?token=${expectedToken}"`);
+    expect(requestBody.html).toContain("招待者さんから「招待事業者」の管理者に招待されました。");
+    expect(requestBody.html).not.toContain(invitationId);
+    expect(new Headers((resendCall?.[1] as RequestInit | undefined)?.headers).get("idempotency-key")).toBe(
+      `notification-outbox-${outboxId}`,
+    );
+
+    const after = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(after).toMatchObject({ status: "sent", resendEmailId: "email_invitation_123" });
+    expect(JSON.stringify(after)).not.toContain(expectedToken);
+  });
+
+  it("契約制限開始後は業務メールを停止し、課金メールだけを送る", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_billing_123" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { userId, shopId } = await seedManagerShop(ctx, {
+        subject: "restricted_manager",
+        email: "manager@example.com",
+        shopName: "契約制限店舗",
+      });
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        createdByUserId: userId,
+        name: "契約制限事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        userId,
+        name: "管理者",
+        email: "manager@example.com",
+        emailNormalized: "manager@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId,
+        personId,
+        userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: {
+          kind: "restricted",
+          reason: "paymentGraceExpired",
+          previousPlan: "pro",
+          recoveryManagerPersonIds: [personId],
+          previousActiveShopIds: [shopId],
+          restrictedAt: now,
+        },
+        version: 2,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const insertEmail = async (purpose: "business" | "billing") =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "pending",
+          dedupeKey: `email:test:restricted-${purpose}`,
+          organizationId,
+          purpose,
+          userId,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "manager@example.com",
+            subject: purpose,
+            html: `<p>${purpose}</p>`,
+            context: `test.restricted.${purpose}`,
+          },
+          attemptCount: 0,
+          nextRunAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      return {
+        businessId: await insertEmail("business"),
+        billingId: await insertEmail("billing"),
+      };
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const resendCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("api.resend.com/emails"));
+    expect(resendCalls).toHaveLength(1);
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    const stateById = new Map(jobs.map((job) => [job._id, job]));
+    expect(stateById.get(ids.businessId)).toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_restricted",
+    });
+    expect(stateById.get(ids.billingId)).toMatchObject({
+      status: "sent",
+      resendEmailId: "email_billing_123",
+    });
+  });
+
+  it("Free移行前の業務メールは送信直前に停止し、移行後の業務メールと課金メールだけを送る", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_free_123" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const { userId } = await seedManagerShop(ctx, {
+        subject: "free_cutoff_manager",
+        email: "manager@example.com",
+        shopName: "Free通知店舗",
+      });
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        createdByUserId: userId,
+        name: "Free通知事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        userId,
+        name: "管理者",
+        email: "manager@example.com",
+        emailNormalized: "manager@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId,
+        personId,
+        userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: { kind: "active", plan: "free" },
+        businessNotificationCutoffAt: now,
+        businessNotificationCutoffVersion: 2,
+        version: 2,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const insertEmail = async (args: {
+        dedupeKey: string;
+        purpose: "business" | "billing";
+        billingVersion?: number;
+      }) =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "pending",
+          dedupeKey: args.dedupeKey,
+          organizationId,
+          ...(args.billingVersion !== undefined ? { organizationBillingVersionAtEnqueue: args.billingVersion } : {}),
+          purpose: args.purpose,
+          userId,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "manager@example.com",
+            subject: args.dedupeKey,
+            html: `<p>${args.dedupeKey}</p>`,
+            context: `test.free.${args.purpose}`,
+          },
+          attemptCount: 0,
+          nextRunAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      return {
+        oldBusinessId: await insertEmail({
+          dedupeKey: "email:test:free-old-business",
+          purpose: "business",
+          billingVersion: 1,
+        }),
+        newBusinessId: await insertEmail({
+          dedupeKey: "email:test:free-new-business",
+          purpose: "business",
+          billingVersion: 2,
+        }),
+        billingId: await insertEmail({ dedupeKey: "email:test:free-billing", purpose: "billing" }),
+      };
+    });
+
+    const pending = t.action(internal.notificationOutbox.actions.processPending, {});
+    await vi.advanceTimersByTimeAsync(RESEND_EMAIL_SEND_INTERVAL_MS);
+    await pending;
+
+    const resendCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("api.resend.com/emails"));
+    expect(resendCalls).toHaveLength(2);
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    const stateById = new Map(jobs.map((job) => [job._id, job]));
+    expect(stateById.get(ids.oldBusinessId)).toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_billing_changed",
+    });
+    expect(stateById.get(ids.newBusinessId)).toMatchObject({ status: "sent", resendEmailId: "email_free_123" });
+    expect(stateById.get(ids.billingId)).toMatchObject({ status: "sent", resendEmailId: "email_free_123" });
+  });
+
+  it("有料契約へ復旧してもcutoff前の業務メールは送らない", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const outboxId = await t.run(async (ctx) => {
+      const { userId } = await seedManagerShop(ctx, {
+        subject: "paid_recovery_manager",
+        email: "manager@example.com",
+        shopName: "復旧通知店舗",
+      });
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        createdByUserId: userId,
+        name: "復旧通知事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        userId,
+        name: "管理者",
+        email: "manager@example.com",
+        emailNormalized: "manager@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId,
+        personId,
+        userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: { kind: "active", plan: "pro" },
+        businessNotificationCutoffAt: now,
+        businessNotificationCutoffVersion: 2,
+        version: 3,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:test:paid-recovery-old-business",
+        organizationId,
+        organizationBillingVersionAtEnqueue: 1,
+        purpose: "business",
+        userId,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "manager@example.com",
+          subject: "旧業務通知",
+          html: "<p>old</p>",
+          context: "test.paid-recovery.business",
+        },
+        attemptCount: 0,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(t.run(async (ctx) => await ctx.db.get(outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_billing_changed",
+    });
+  });
+
+  it("enqueue後にスタッフが削除された場合はproviderを呼ばずに停止する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, staffId } = await setupEmailJob({ dedupeKey: "email:test:removed-staff" });
+    await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+  });
+
+  it.each([
+    { label: "スタッフ", target: "staff" },
+    { label: "事業者人物", target: "organizationPerson" },
+    { label: "旧管理者user", target: "legacyUser" },
+  ] as const)("enqueue後に$labelのメールアドレスが変わった場合は旧宛先へ送らない", async ({ target }) => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupStaleEmailJob(target);
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(t.run(async (ctx) => await ctx.db.get(outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it.each([
+    "person",
+    "member",
+  ] as const)("enqueue後に事業者の%sが削除された場合はproviderを呼ばずに停止する", async (removedTarget) => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupOrganizationEmailJob(removedTarget);
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(job).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+  });
+
+  it("enqueue後に店舗が停止した場合はproviderを呼ばずに停止する", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, shopId } = await setupEmailJob({ dedupeKey: "email:test:inactive-shop" });
+    await t.run(async (ctx) => await ctx.db.patch(shopId, { isDeleted: true }));
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ status: "cancelled", cancelReason: "shop_inactive" });
+  });
+
+  it.each([
+    { label: "再発行前のversion", variant: "versionMismatch", reason: "invitation_inactive" },
+    { label: "取消済み", variant: "revoked", reason: "invitation_inactive" },
+    { label: "使用済み", variant: "accepted", reason: "invitation_inactive" },
+    { label: "期限切れ", variant: "expired", reason: "invitation_inactive" },
+    { label: "宛先が変わった", variant: "recipientMismatch", reason: "invitation_inactive" },
+    { label: "権限を失った招待者", variant: "inviterMemberRemoved", reason: "invitation_inactive" },
+    { label: "削除された招待者", variant: "inviterPersonRemoved", reason: "invitation_inactive" },
+    { label: "有料機能を失った事業者", variant: "paidFeatureUnavailable", reason: "invitation_inactive" },
+    { label: "削除された事業者", variant: "organizationDeleted", reason: "organization_inactive" },
+  ] as const)("$labelの管理者招待はproviderを呼ばずに停止する", async ({ variant, reason }) => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupInvalidOrganizationInvitationJob(variant);
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(job).toMatchObject({ status: "cancelled", cancelReason: reason });
+  });
+
   it("Resend 429 はretry-afterに従って再予約する", async () => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -543,6 +963,297 @@ async function setupEmailJob(options: { dedupeKey?: string; context?: string; su
       updatedAt: Date.now(),
     });
     return { shopId, staffId };
+  });
+  return { t, ...ids };
+}
+
+async function setupOrganizationEmailJob(removedTarget: "person" | "member") {
+  const t = convexTest(schema, modules);
+  const outboxId = await t.run(async (ctx) => {
+    const { userId, shopId } = await seedManagerShop(ctx, {
+      subject: `removed_${removedTarget}`,
+      email: "manager@example.com",
+      shopName: "所属確認店舗",
+    });
+    const now = Date.now();
+    const organizationId = await ctx.db.insert("organizations", {
+      createdByUserId: userId,
+      name: "所属確認事業者",
+      isDeleted: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+    const personId = await ctx.db.insert("organizationPeople", {
+      organizationId,
+      userId,
+      name: "管理者",
+      email: "manager@example.com",
+      emailNormalized: "manager@example.com",
+      status: removedTarget === "person" ? "removed" : "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationMembers", {
+      organizationId,
+      personId,
+      userId,
+      status: removedTarget === "member" ? "removed" : "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId,
+      state: { kind: "active", plan: "pro" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return await ctx.db.insert("notificationOutbox", {
+      channel: "email",
+      status: "pending",
+      dedupeKey: `email:test:removed-organization-${removedTarget}`,
+      organizationId,
+      purpose: "business",
+      userId,
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "manager@example.com",
+        subject: "所属確認",
+        html: "<p>test</p>",
+        context: "test.organizationRecipient",
+      },
+      attemptCount: 0,
+      nextRunAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  return { t, outboxId };
+}
+
+async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "legacyUser") {
+  const t = convexTest(schema, modules);
+  const outboxId = await t.run(async (ctx) => {
+    const seeded = await seedManagerShop(ctx, {
+      subject: `stale_email_${target}`,
+      email: "old-recipient@example.com",
+      shopName: "宛先変更確認店舗",
+    });
+    const now = Date.now();
+    if (target === "staff") {
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: seeded.shopId,
+        name: "宛先変更スタッフ",
+        email: "old-recipient@example.com",
+        emailNormalized: "old-recipient@example.com",
+        isDeleted: false,
+      });
+      const id = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:test:stale-staff-address",
+        shopId: seeded.shopId,
+        staffId,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "old-recipient@example.com",
+          subject: "宛先変更確認",
+          html: "<p>test</p>",
+          context: "test.staleEmail.staff",
+        },
+        attemptCount: 0,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(staffId, {
+        email: "new-recipient@example.com",
+        emailNormalized: "new-recipient@example.com",
+      });
+      return id;
+    }
+
+    if (target === "legacyUser") {
+      const id = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:test:stale-legacy-user-address",
+        shopId: seeded.shopId,
+        userId: seeded.userId,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "old-recipient@example.com",
+          subject: "宛先変更確認",
+          html: "<p>test</p>",
+          context: "test.staleEmail.legacyUser",
+        },
+        attemptCount: 0,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(seeded.userId, {
+        email: "new-recipient@example.com",
+        emailNormalized: "new-recipient@example.com",
+      });
+      return id;
+    }
+
+    const organizationId = await ctx.db.insert("organizations", {
+      createdByUserId: seeded.userId,
+      name: "宛先変更確認事業者",
+      isDeleted: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(seeded.shopId, { organizationId, operatingStatus: "active" });
+    const personId = await ctx.db.insert("organizationPeople", {
+      organizationId,
+      userId: seeded.userId,
+      name: "宛先変更管理者",
+      email: "old-recipient@example.com",
+      emailNormalized: "old-recipient@example.com",
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationMembers", {
+      organizationId,
+      personId,
+      userId: seeded.userId,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId,
+      state: { kind: "active", plan: "pro" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const id = await ctx.db.insert("notificationOutbox", {
+      channel: "email",
+      status: "pending",
+      dedupeKey: "email:test:stale-organization-person-address",
+      organizationId,
+      purpose: "billing",
+      userId: seeded.userId,
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "old-recipient@example.com",
+        subject: "宛先変更確認",
+        html: "<p>test</p>",
+        context: "test.staleEmail.organizationPerson",
+      },
+      attemptCount: 0,
+      nextRunAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(personId, {
+      email: "new-recipient@example.com",
+      emailNormalized: "new-recipient@example.com",
+    });
+    return id;
+  });
+  return { t, outboxId };
+}
+
+type InvalidOrganizationInvitationVariant =
+  | "versionMismatch"
+  | "revoked"
+  | "accepted"
+  | "expired"
+  | "recipientMismatch"
+  | "inviterMemberRemoved"
+  | "inviterPersonRemoved"
+  | "paidFeatureUnavailable"
+  | "organizationDeleted";
+
+async function setupInvalidOrganizationInvitationJob(variant: InvalidOrganizationInvitationVariant) {
+  return await setupOrganizationInvitationJob(variant);
+}
+
+async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvitationVariant | "valid") {
+  const t = convexTest(schema, modules);
+  const ids = await t.run(async (ctx) => {
+    const { userId } = await seedManagerShop(ctx, {
+      subject: `inviter_${variant}`,
+      email: "inviter@example.com",
+      shopName: "招待店舗",
+    });
+    const now = Date.now();
+    const organizationId = await ctx.db.insert("organizations", {
+      createdByUserId: userId,
+      name: "招待事業者",
+      isDeleted: variant === "organizationDeleted",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const personId = await ctx.db.insert("organizationPeople", {
+      organizationId,
+      userId,
+      name: "招待者",
+      email: "inviter@example.com",
+      emailNormalized: "inviter@example.com",
+      status: variant === "inviterPersonRemoved" ? "removed" : "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const memberId = await ctx.db.insert("organizationMembers", {
+      organizationId,
+      personId,
+      userId,
+      status: variant === "inviterMemberRemoved" ? "removed" : "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId,
+      state: { kind: "active", plan: variant === "paidFeatureUnavailable" ? "free" : "pro" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const invitationId = await ctx.db.insert("organizationInvitations", {
+      organizationId,
+      email: "invite@example.com",
+      emailNormalized: "invite@example.com",
+      tokenDigest: "digest",
+      status: variant === "revoked" ? "revoked" : variant === "accepted" ? "accepted" : "pending",
+      inviterMemberId: memberId,
+      reservedSeat: true,
+      version: variant === "versionMismatch" ? 2 : 1,
+      expiresAt: variant === "expired" ? now : now + 60_000,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const outboxId = await ctx.db.insert("notificationOutbox", {
+      channel: "email",
+      status: "pending",
+      dedupeKey: `email:test:invalid-organization-invitation:${variant}`,
+      organizationId,
+      organizationInvitationId: invitationId,
+      organizationInvitationVersion: 1,
+      purpose: "business",
+      payload: {
+        kind: "organizationManagerInvitationEmail",
+        from: "シフトリ <noreply@example.com>",
+        to: variant === "recipientMismatch" ? "other@example.com" : "invite@example.com",
+        context: "organizationInvitation.send",
+      },
+      attemptCount: 0,
+      nextRunAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { outboxId, invitationId };
   });
   return { t, ...ids };
 }

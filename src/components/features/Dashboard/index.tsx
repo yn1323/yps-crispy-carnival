@@ -17,12 +17,14 @@ type Props = {
   shop: DashboardContentProps["shop"];
   currentUser: CurrentUser;
   managerLegalConsentStatus: DashboardContentProps["managerLegalConsentStatus"];
+  isReadOnly?: boolean;
 };
 
-export function Dashboard({ shop, currentUser, managerLegalConsentStatus }: Props) {
+export function Dashboard({ shop, currentUser, managerLegalConsentStatus, isReadOnly = false }: Props) {
   return (
     <DashboardContent
       shop={shop}
+      isReadOnly={isReadOnly}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
       )}

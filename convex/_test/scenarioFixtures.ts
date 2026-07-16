@@ -1,5 +1,6 @@
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { generateUUID } from "../_lib/uuid";
 import type { ScenarioTest } from "./scenarioBuilders";
 
 type ManagerIdentity =
@@ -116,7 +117,15 @@ export function createScenario(t: ScenarioTest) {
           });
         },
         async addStaffs(entries: StaffEntry[]) {
-          return asManager.mutation(api.staff.mutations.addStaffs, { entries, shopId: await getSelectedShopId() });
+          const result = await asManager.mutation(api.staff.mutations.addStaffs, {
+            entries,
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+          if (result.status !== "added") {
+            throw new Error("Scenario staff addition unexpectedly requires confirmation");
+          }
+          return result.staffIds;
         },
         async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
           return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });

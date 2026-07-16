@@ -8,11 +8,18 @@
  * - RESEND_WEBHOOK_SECRET
  * - APP_URL
  * - CLERK_JWT_ISSUER_DOMAIN
+ * - ORGANIZATION_INVITATION_SIGNING_SECRET
  */
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
 
-const CONVEX_ENV_KEYS = ["RESEND_API_KEY", "RESEND_WEBHOOK_SECRET", "APP_URL", "CLERK_JWT_ISSUER_DOMAIN"] as const;
+const CONVEX_ENV_KEYS = [
+  "RESEND_API_KEY",
+  "RESEND_WEBHOOK_SECRET",
+  "APP_URL",
+  "CLERK_JWT_ISSUER_DOMAIN",
+  "ORGANIZATION_INVITATION_SIGNING_SECRET",
+] as const;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const main = () => {

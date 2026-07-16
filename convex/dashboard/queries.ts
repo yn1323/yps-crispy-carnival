@@ -1,9 +1,10 @@
 import type { GenericDatabaseReader } from "convex/server";
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
-import type { DataModel, Doc } from "../_generated/dataModel";
+import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
+import { submissionPatternValidator } from "../_lib/submissionPattern";
 import {
   DASHBOARD_ANNOUNCEMENT_CANDIDATE_LIMIT,
   DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT,
@@ -12,6 +13,44 @@ import {
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import {
+  organizationMemberStatusValidator,
+  organizationShopOperatingStatusValidator,
+} from "../organization/validators";
+import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+
+const myShopValidator = v.object({
+  shopId: v.id("shops"),
+  shopName: v.string(),
+  shopStatus: organizationShopOperatingStatusValidator,
+  organizationId: v.union(v.id("organizations"), v.null()),
+  organizationName: v.union(v.string(), v.null()),
+  memberStatus: organizationMemberStatusValidator,
+});
+
+const dashboardStaffValidator = v.object({
+  _id: v.id("staffs"),
+  name: v.string(),
+  email: v.string(),
+  isManager: v.boolean(),
+  isLineLinked: v.boolean(),
+  isLineFollowing: v.boolean(),
+  excludedFromShift: v.boolean(),
+  isOrganizationLinked: v.boolean(),
+});
+
+const dashboardRecruitmentValidator = v.object({
+  _id: v.id("recruitments"),
+  createdAt: v.number(),
+  periodStart: v.string(),
+  periodEnd: v.string(),
+  deadline: v.string(),
+  shopClosedDates: v.array(v.string()),
+  status: v.union(v.literal("open"), v.literal("confirmed")),
+  confirmedAt: v.union(v.number(), v.null()),
+  responseCount: v.number(),
+  totalStaffCount: v.number(),
+});
 
 const dashboardAnnouncementValidator = v.object({
   _id: v.id("dashboardAnnouncements"),
@@ -20,6 +59,38 @@ const dashboardAnnouncementValidator = v.object({
   title: v.string(),
   bodyHtml: v.string(),
   displayDate: v.string(),
+});
+
+const currentUserValidator = v.union(
+  v.object({
+    isNewUser: v.literal(true),
+    name: v.string(),
+    email: v.string(),
+  }),
+  v.object({
+    isNewUser: v.literal(false),
+    name: v.string(),
+    email: v.string(),
+    dashboardOnboardingDismissedAt: v.optional(v.number()),
+  }),
+);
+
+const dashboardShopValidator = v.object({
+  name: v.string(),
+  regularClosedDays: v.array(
+    v.union(
+      v.literal("sun"),
+      v.literal("mon"),
+      v.literal("tue"),
+      v.literal("wed"),
+      v.literal("thu"),
+      v.literal("fri"),
+      v.literal("sat"),
+    ),
+  ),
+  submissionPattern: submissionPatternValidator,
+  canWriteBusinessData: v.boolean(),
+  businessWriteBlockReason: v.union(v.literal("paymentResultPending"), v.literal("restricted"), v.null()),
 });
 
 // shop未登録のsetup中や、ログアウト直後に購読中queryが未認証で再実行された場合でも
@@ -151,14 +222,19 @@ async function getActiveDashboardAnnouncementCandidates(db: GenericDatabaseReade
 
 export const getDashboardShop = managerQuery({
   args: {},
+  returns: v.union(dashboardShopValidator, v.null()),
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return null;
+    const billingPolicy = ctx.organization ? await getOrganizationBillingPolicy(ctx, ctx.organization._id) : null;
 
     return {
       name: shop.name,
       regularClosedDays: shop.regularClosedDays,
       submissionPattern: shop.submissionPattern,
+      // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
+      canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
+      businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
     };
   },
 });
@@ -169,17 +245,126 @@ export const getDashboardShop = managerQuery({
  */
 export const getMyShops = authenticatedQuery({
   args: {},
+  returns: v.array(myShopValidator),
   handler: async (ctx) => {
     if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return [];
     const user = ctx.user;
-    const memberships = await ctx.db
+    const result = new Map<
+      Doc<"shops">["_id"],
+      {
+        shopId: Doc<"shops">["_id"];
+        shopName: string;
+        shopStatus: "active" | "archived" | "planSuspended";
+        organizationId: Doc<"organizations">["_id"] | null;
+        organizationName: string | null;
+        memberStatus: "active" | "readOnly" | "removed";
+      }
+    >();
+
+    for (const status of ["active", "readOnly"] as const) {
+      const organizationMemberships = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", status))
+        .collect();
+      for (const membership of organizationMemberships) {
+        const membershipsForOrganization = await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_userId_and_organizationId", (q) =>
+            q.eq("userId", user._id).eq("organizationId", membership.organizationId),
+          )
+          .take(2);
+        if (membershipsForOrganization.length !== 1 || membershipsForOrganization[0]._id !== membership._id) continue;
+
+        const [organization, person] = await Promise.all([
+          ctx.db.get(membership.organizationId),
+          ctx.db.get(membership.personId),
+        ]);
+        if (
+          !organization ||
+          organization.isDeleted ||
+          !person ||
+          person.status !== "active" ||
+          person.organizationId !== organization._id ||
+          person.userId !== user._id
+        ) {
+          continue;
+        }
+
+        const shops = await ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
+          .collect();
+        for (const shop of shops) {
+          if (shop.isDeleted) continue;
+          result.set(shop._id, {
+            shopId: shop._id,
+            shopName: shop.name,
+            shopStatus: shop.operatingStatus ?? "active",
+            organizationId: organization._id,
+            organizationName: organization.name,
+            memberStatus: membership.status,
+          });
+        }
+      }
+    }
+
+    // TODO[narrow]: develop/prodでm009_shops_to_organizationsと
+    //   m010_shop_members_to_organization_membersが完走していることを
+    //   `pnpm convex:migrate:status`（state: done）で確認後、このlegacyMemberships fallbackを削除する。
+    const legacyMemberships = await ctx.db
       .query("shopMembers")
       .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
       .collect();
-    const shops = await Promise.all(memberships.map((m) => ctx.db.get(m.shopId)));
-    return shops
-      .filter((shop): shop is Doc<"shops"> => shop !== null && !shop.isDeleted)
-      .map((shop) => ({ shopId: shop._id, shopName: shop.name }));
+    const legacyMembershipCountByShopId = new Map<Id<"shops">, number>();
+    for (const membership of legacyMemberships) {
+      legacyMembershipCountByShopId.set(
+        membership.shopId,
+        (legacyMembershipCountByShopId.get(membership.shopId) ?? 0) + 1,
+      );
+    }
+    for (const membership of legacyMemberships) {
+      if (result.has(membership.shopId)) continue;
+      if (legacyMembershipCountByShopId.get(membership.shopId) !== 1) continue;
+      const shop = await ctx.db.get(membership.shopId);
+      if (!shop || shop.isDeleted) continue;
+
+      if (!shop.organizationId) {
+        result.set(shop._id, {
+          shopId: shop._id,
+          shopName: shop.name,
+          shopStatus: shop.operatingStatus ?? "active",
+          organizationId: null,
+          organizationName: null,
+          memberStatus: "active",
+        });
+        continue;
+      }
+
+      // m009完了後/m010完了前だけは、該当店舗一件に限って旧所属を読む。
+      // organizationMembersが存在する場合はremoved/readOnlyを旧所属で上書きしない。
+      const organizationId = shop.organizationId;
+      const organizationMemberships = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", user._id).eq("organizationId", organizationId))
+        .take(2);
+      if (organizationMemberships.length !== 0) continue;
+      const organization = await ctx.db.get(organizationId);
+      if (!organization || organization.isDeleted) continue;
+      result.set(shop._id, {
+        shopId: shop._id,
+        shopName: shop.name,
+        shopStatus: shop.operatingStatus ?? "active",
+        organizationId: organization._id,
+        organizationName: organization.name,
+        memberStatus: "active",
+      });
+    }
+
+    return [...result.values()].sort(
+      (a, b) =>
+        (a.organizationName ?? "").localeCompare(b.organizationName ?? "", "ja") ||
+        a.shopName.localeCompare(b.shopName, "ja"),
+    );
   },
 });
 
@@ -226,6 +411,7 @@ export const getActiveDashboardAnnouncements = authenticatedQuery({
 
 export const getDashboardRecruitments = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(dashboardRecruitmentValidator),
   handler: async (ctx, args) => {
     const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
@@ -248,6 +434,7 @@ export const getDashboardRecruitments = managerQuery({
 
 export const hasDashboardPastRecruitments = managerQuery({
   args: {},
+  returns: v.boolean(),
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return false;
@@ -266,6 +453,7 @@ export const hasDashboardPastRecruitments = managerQuery({
 
 export const getDashboardPastRecruitments = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(dashboardRecruitmentValidator),
   handler: async (ctx, args) => {
     const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
@@ -293,6 +481,7 @@ export const getDashboardPastRecruitments = managerQuery({
 
 export const getDashboardCurrentRecruitments = managerQuery({
   args: {},
+  returns: v.array(dashboardRecruitmentValidator),
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return [];
@@ -308,6 +497,7 @@ export const getDashboardCurrentRecruitments = managerQuery({
 
 export const getDashboardStaffs = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(dashboardStaffValidator),
   handler: async (ctx, args) => {
     const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
@@ -328,6 +518,7 @@ export const getDashboardStaffs = managerQuery({
           isLineLinked: Boolean(lineAccount?.lineUserId),
           isLineFollowing: Boolean(lineAccount?.following),
           excludedFromShift: s.excludedFromShift ?? false,
+          isOrganizationLinked: Boolean(s.organizationId && s.organizationPersonId),
         };
       }),
     );
@@ -341,6 +532,7 @@ export const getDashboardStaffs = managerQuery({
 
 export const getCurrentUser = authenticatedQuery({
   args: {},
+  returns: v.union(currentUserValidator, v.null()),
   handler: async (ctx) => {
     const { identity, user } = ctx;
     if (!identity) return null;

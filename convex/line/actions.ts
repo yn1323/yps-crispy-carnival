@@ -16,6 +16,7 @@ import {
 } from "../_lib/lineClient";
 import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 function getLoginChannelId(): string {
   const v = process.env.LINE_LOGIN_CHANNEL_ID;
@@ -44,6 +45,9 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
  */
 export const redeemLineToken = action({
   args: { state: v.string(), code: v.string() },
+  returns: v.object({
+    status: v.union(v.literal("ok"), v.literal("needs_follow"), v.literal("expired"), v.literal("rate_limited")),
+  }),
   handler: async (
     ctx,
     args,
@@ -119,8 +123,10 @@ export const sendInviteEmail = internalAction({
   args: {
     staffId: v.id("staffs"),
     context: v.optional(v.union(v.literal("default"), v.literal("registration_approved"))),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, context }) => {
+  handler: async (ctx, { staffId, context, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
     const suppressDelivery = await ctx.runQuery(
@@ -140,6 +146,7 @@ export const sendInviteEmail = internalAction({
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
+      ...notificationOrigin,
       staffId: data.staffId,
       dedupeKey: `email:lineInvite:${data.staffId}`,
       payload: emailPayload({

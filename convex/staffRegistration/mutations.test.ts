@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, seedShop, seedShopMembership, seedUser } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "../constants";
 
@@ -48,6 +48,41 @@ describe("staffRegistration/mutations", () => {
       .withIdentity({ subject: "manager_submit" })
       .query(api.staffRegistration.queries.getPendingRequests, { shopId });
     expect(requests).toMatchObject([{ name: "申請スタッフ", email: "request@example.com" }]);
+  });
+
+  it("同一tokenが異なる店舗に重複している場合は一般化したエラーで申請を作成しない", async () => {
+    const t = convexTest(schema, modules);
+    const token = "duplicate-target-registration-token";
+    await t.run(async (ctx) => {
+      for (const index of [1, 2]) {
+        const shopId = await seedShop(ctx, `重複登録token対象店舗${index}`);
+        await ctx.db.insert("shopRegistrationLinks", {
+          shopId,
+          token,
+          createdAt: Date.now(),
+        });
+      }
+    });
+
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token,
+        name: "重複token申請者",
+        email: "duplicate-registration@example.com",
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("登録リンクの有効期限が切れています");
+
+    const state = await t.run(async (ctx) => ({
+      requests: await ctx.db.query("staffRegistrationRequests").collect(),
+      links: await ctx.db
+        .query("shopRegistrationLinks")
+        .withIndex("by_token", (q) => q.eq("token", token))
+        .collect(),
+    }));
+    expect(state.requests).toEqual([]);
+    expect(state.links).toHaveLength(2);
+    expect(new Set(state.links.map((link) => link.shopId)).size).toBe(2);
   });
 
   it("参加申請の入力内容をサーバー側でも検証する", async () => {
@@ -111,6 +146,77 @@ describe("staffRegistration/mutations", () => {
         acceptedLegal: true,
       }),
     ).rejects.toThrow(`メールアドレスは${EMAIL_MAX_LENGTH}文字以内で入力してください`);
+  });
+
+  it.each([
+    "archived",
+    "planSuspended",
+  ] as const)("%s店舗では既存の公開登録リンクから新しい申請を作成できない", async (operatingStatus) => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: `registration_${operatingStatus}_submit_manager`,
+          plan: "pro",
+        }),
+    );
+    const link = await t
+      .withIdentity({ subject: `registration_${operatingStatus}_submit_manager` })
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: seeded.shopId });
+    await t.run(async (ctx) => await ctx.db.patch(seeded.shopId, { operatingStatus }));
+
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token: link.token,
+        name: "停止後の申請者",
+        email: `${operatingStatus}-submit@example.com`,
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("登録リンクの有効期限が切れています");
+
+    await expect(t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect())).resolves.toEqual([]);
+  });
+
+  it("契約制限開始後は既存の公開登録リンクから新しい申請を作成できない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "registration_restricted_submit_manager",
+          plan: "pro",
+        }),
+    );
+    const link = await t
+      .withIdentity({ subject: "registration_restricted_submit_manager" })
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: seeded.shopId });
+    await t.run(async (ctx) => {
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "restricted",
+          reason: "freeConditionsNotMet",
+          previousPlan: "pro",
+          recoveryManagerPersonIds: [seeded.personId],
+          previousActiveShopIds: [seeded.shopId],
+          restrictedAt: Date.now(),
+        },
+      });
+    });
+
+    await expect(
+      t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+        token: link.token,
+        name: "制限後の申請者",
+        email: "restricted-submit@example.com",
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("登録リンクの有効期限が切れています");
+
+    await expect(t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect())).resolves.toEqual([]);
   });
 
   it("同じメールアドレスの承認待ち申請は重複登録できない", async () => {
@@ -215,6 +321,82 @@ describe("staffRegistration/mutations", () => {
     ).rejects.toThrow("Not found");
   });
 
+  it.each([
+    "archived",
+    "planSuspended",
+    "restricted",
+    "readOnly",
+  ] as const)("%sへの状態変更後は承認待ち申請を確定できず、副作用を作らない", async (blockedState) => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: `registration_${blockedState}_approve_manager`,
+          plan: "pro",
+        }),
+    );
+    const asManager = t.withIdentity({ subject: `registration_${blockedState}_approve_manager` });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const submitted = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "状態変更前の申請者",
+      email: `${blockedState}-approve@example.com`,
+      acceptedLegal: true,
+    });
+    if (submitted.status !== "ok") throw new Error(`unexpected status: ${submitted.status}`);
+
+    await t.run(async (ctx) => {
+      if (blockedState === "archived" || blockedState === "planSuspended") {
+        await ctx.db.patch(seeded.shopId, { operatingStatus: blockedState });
+        return;
+      }
+      if (blockedState === "readOnly") {
+        await ctx.db.patch(seeded.memberId, { status: "readOnly", updatedAt: Date.now() });
+        return;
+      }
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "restricted",
+          reason: "freeConditionsNotMet",
+          previousPlan: "pro",
+          recoveryManagerPersonIds: [seeded.personId],
+          previousActiveShopIds: [seeded.shopId],
+          restrictedAt: Date.now(),
+        },
+      });
+    });
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: submitted.requestId,
+        shopId: seeded.shopId,
+      }),
+    ).rejects.toThrow();
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(submitted.requestId),
+      people: await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect(),
+      staffs: await ctx.db.query("staffs").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.request?.status).toBe("pending");
+    expect(state.people).toHaveLength(1);
+    expect(state.staffs).toEqual([]);
+    expect(state.audits).toEqual([]);
+    expect(state.scheduled).toEqual([]);
+  });
+
   it("削除済み店舗とは別の有効な所属店舗を指定すると、その店舗の承認待ち申請を返す", async () => {
     const t = convexTest(schema, modules);
     const activeShopId = await t.run(async (ctx) => {
@@ -314,6 +496,553 @@ describe("staffRegistration/mutations", () => {
         (job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === staffId,
       ),
     ).toBe(false);
+  });
+
+  it("事業者配下の承認は人物とstaffsをdual-writeし、同じ申請の再承認でも重複保存しない", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, organizationId } = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "organization_approve_manager",
+          email: "organization-approve-manager@example.com",
+        }),
+    );
+    const asManager = t.withIdentity({ subject: "organization_approve_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "承認対象スタッフ",
+      email: "Org-Approved@Example.com",
+      acceptedLegal: true,
+    });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+
+    const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+      requestId: submitResult.requestId,
+      shopId,
+    });
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: submitResult.requestId,
+        shopId,
+      }),
+    ).rejects.toThrow("Not found");
+
+    const state = await t.run(async (ctx) => {
+      const staff = await ctx.db.get(staffId);
+      const person = staff?.organizationPersonId ? await ctx.db.get(staff.organizationPersonId) : null;
+      const staffs = await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
+        .collect();
+      const people = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", organizationId))
+        .collect();
+      const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+      const audits = await ctx.db.query("organizationAuditEvents").collect();
+      return { staff, person, staffs, people, scheduled, audits };
+    });
+    expect(state.staff).toMatchObject({
+      shopId,
+      organizationId,
+      email: "org-approved@example.com",
+      emailNormalized: "org-approved@example.com",
+    });
+    expect(state.staff?.organizationPersonId).toBe(state.person?._id);
+    expect(state.person).toMatchObject({
+      organizationId,
+      emailNormalized: "org-approved@example.com",
+      status: "active",
+    });
+    expect(state.staffs).toHaveLength(1);
+    expect(state.people).toHaveLength(2);
+    expect(state.scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
+    expect(
+      state.scheduled.filter(
+        (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff",
+      ),
+    ).toHaveLength(1);
+    expect(state.audits).toEqual([
+      expect.objectContaining({
+        organizationId,
+        actorUserId: expect.any(String),
+        action: "organization.staff_added",
+        targetKind: "staff",
+        targetId: staffId,
+        fromState: "new",
+        toState: `active:${shopId}:batch:1`,
+      }),
+    ]);
+  });
+
+  it("同じメールのpending管理者招待が予約した利用枠を承認スタッフへ原子的に付け替える", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_reserved_invitation_manager",
+        email: "registration-reserved-owner@example.com",
+        plan: "pro",
+      });
+      const now = Date.now();
+      for (let index = 0; index < 13; index += 1) {
+        const email = `registration-reserved-filler-${index}@example.com`;
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: organization.organizationId,
+          name: `既存スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffs", {
+          shopId: organization.shopId,
+          organizationId: organization.organizationId,
+          organizationPersonId: personId,
+          name: `既存スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          isDeleted: false,
+        });
+      }
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: organization.organizationId,
+        email: "Reserved-Registration@Example.com",
+        emailNormalized: "reserved-registration@example.com",
+        tokenDigest: "registration-reserved-invitation-digest",
+        status: "pending",
+        purpose: "managerAddition",
+        inviterMemberId: organization.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 7 * 24 * 60 * 60 * 1000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...organization, invitationId };
+    });
+    const asManager = t.withIdentity({ subject: "registration_reserved_invitation_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const submitted = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "予約枠の申請スタッフ",
+      email: "Reserved-Registration@Example.com",
+      acceptedLegal: true,
+    });
+    if (submitted.status !== "ok") throw new Error(`unexpected status: ${submitted.status}`);
+
+    const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+      requestId: submitted.requestId,
+      shopId: seeded.shopId,
+    });
+
+    const state = await t.run(async (ctx) => {
+      const staff = await ctx.db.get(staffId);
+      const person = staff?.organizationPersonId ? await ctx.db.get(staff.organizationPersonId) : null;
+      const people = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect();
+      const invitations = await ctx.db
+        .query("organizationInvitations")
+        .withIndex("by_organizationId_and_emailNormalized_and_status", (q) =>
+          q
+            .eq("organizationId", seeded.organizationId)
+            .eq("emailNormalized", "reserved-registration@example.com")
+            .eq("status", "pending"),
+        )
+        .collect();
+      const audits = await ctx.db.query("organizationAuditEvents").collect();
+      const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+      return { staff, person, people, invitations, audits, scheduled };
+    });
+    expect(state.people).toHaveLength(15);
+    expect(state.staff).toMatchObject({
+      organizationId: seeded.organizationId,
+      organizationPersonId: state.person?._id,
+      name: "予約枠の申請スタッフ",
+      email: "reserved-registration@example.com",
+      isDeleted: false,
+    });
+    expect(state.invitations).toEqual([
+      expect.objectContaining({
+        _id: seeded.invitationId,
+        status: "pending",
+        reservedSeat: false,
+        version: 1,
+      }),
+    ]);
+    expect(state.audits).toEqual([
+      expect.objectContaining({
+        organizationId: seeded.organizationId,
+        action: "organization.staff_added",
+        targetKind: "staff",
+        targetId: staffId,
+        fromState: "new",
+      }),
+    ]);
+    expect(state.scheduled.map((job) => job.name).sort()).toEqual(
+      ["line/actions:sendInviteEmail", "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff"].sort(),
+    );
+  });
+
+  it("予約枠を付け替えても人数上限を超える場合は、招待予約を含む全変更をrollbackする", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_reservation_rollback_manager",
+        plan: "pro",
+      });
+      const now = Date.now();
+      for (let index = 0; index < 14; index += 1) {
+        const email = `registration-rollback-filler-${index}@example.com`;
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: organization.organizationId,
+          name: `上限スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffs", {
+          shopId: organization.shopId,
+          organizationId: organization.organizationId,
+          organizationPersonId: personId,
+          name: `上限スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          isDeleted: false,
+        });
+      }
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: organization.organizationId,
+        email: "registration-rollback@example.com",
+        emailNormalized: "registration-rollback@example.com",
+        tokenDigest: "registration-reservation-rollback-digest",
+        status: "pending",
+        purpose: "managerAddition",
+        inviterMemberId: organization.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 7 * 24 * 60 * 60 * 1000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...organization, invitationId };
+    });
+    const asManager = t.withIdentity({ subject: "registration_reservation_rollback_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const submitted = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "上限超過の申請者",
+      email: "registration-rollback@example.com",
+      acceptedLegal: true,
+    });
+    if (submitted.status !== "ok") throw new Error(`unexpected status: ${submitted.status}`);
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: submitted.requestId,
+        shopId: seeded.shopId,
+      }),
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 15名 / 上限 15名）");
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(submitted.requestId),
+      invitation: await ctx.db.get(seeded.invitationId),
+      people: await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect(),
+      staffs: await ctx.db.query("staffs").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.request?.status).toBe("pending");
+    expect(state.invitation).toMatchObject({ status: "pending", reservedSeat: true, version: 1 });
+    expect(state.people).toHaveLength(15);
+    expect(state.staffs).toHaveLength(14);
+    expect(state.audits).toEqual([]);
+    expect(state.scheduled).toEqual([]);
+  });
+
+  it("同じ事業者の既存人物を別店舗の承認で再利用し、新しい人物を作らない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_reuse_manager",
+        email: "registration-reuse-manager@example.com",
+        plan: "pro",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: organization.organizationId,
+        operatingStatus: "active",
+        name: "承認先店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const existingPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: organization.organizationId,
+        name: "既存人物",
+        email: "registration-shared@example.com",
+        emailNormalized: "registration-shared@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: existingPersonId,
+        name: "既存店舗スタッフ",
+        email: "registration-shared@example.com",
+        emailNormalized: "registration-shared@example.com",
+        isDeleted: false,
+      });
+      return { ...organization, secondShopId, existingPersonId };
+    });
+    const asManager = t.withIdentity({ subject: "registration_reuse_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.secondShopId,
+    });
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "別店舗の表示名",
+      email: "Registration-Shared@Example.com",
+      acceptedLegal: true,
+    });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+
+    const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+      requestId: submitResult.requestId,
+      shopId: seeded.secondShopId,
+    });
+
+    const state = await t.run(async (ctx) => {
+      const people = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect();
+      return { people, staff: await ctx.db.get(staffId) };
+    });
+    expect(state.people).toHaveLength(2);
+    expect(state.staff).toMatchObject({
+      shopId: seeded.secondShopId,
+      organizationId: seeded.organizationId,
+      organizationPersonId: seeded.existingPersonId,
+      name: "既存人物",
+    });
+  });
+
+  it("削除済み人物の参加申請は承認せず、申請・人物を変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_removed_manager",
+        email: "registration-removed-manager@example.com",
+      });
+      const now = Date.now();
+      const removedPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: organization.organizationId,
+        name: "削除済み人物",
+        email: "registration-removed@example.com",
+        emailNormalized: "registration-removed@example.com",
+        status: "removed",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...organization, removedPersonId };
+    });
+    const asManager = t.withIdentity({ subject: "registration_removed_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "再登録申請",
+      email: "Registration-Removed@Example.com",
+      acceptedLegal: true,
+    });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: submitResult.requestId,
+        shopId: seeded.shopId,
+      }),
+    ).rejects.toThrow("人物管理から再有効化してから追加してください");
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(submitResult.requestId),
+      person: await ctx.db.get(seeded.removedPersonId),
+      staffs: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
+        .collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.request?.status).toBe("pending");
+    expect(state.person?.status).toBe("removed");
+    expect(state.staffs).toEqual([]);
+    expect(state.scheduled).toEqual([]);
+  });
+
+  it("参加申請の承認前に利用人数上限を検証し、申請だけをpendingのまま残す", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "registration_capacity_manager",
+        email: "registration-capacity-manager@example.com",
+        plan: "free",
+      });
+      const now = Date.now();
+      for (let index = 0; index < 3; index += 1) {
+        const email = `registration-filler-${index}@example.com`;
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: organization.organizationId,
+          name: `既存スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffs", {
+          shopId: organization.shopId,
+          organizationId: organization.organizationId,
+          organizationPersonId: personId,
+          name: `既存スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          isDeleted: false,
+        });
+      }
+      return organization;
+    });
+    const asManager = t.withIdentity({ subject: "registration_capacity_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "上限超過スタッフ",
+      email: "registration-over-limit@example.com",
+      acceptedLegal: true,
+    });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: submitResult.requestId,
+        shopId: seeded.shopId,
+      }),
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます（現在 4名 / 上限 4名）");
+
+    const state = await t.run(async (ctx) => {
+      const people = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect();
+      const staffs = await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
+        .collect();
+      const consents = await ctx.db.query("legalConsentStates").collect();
+      const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+      return { request: await ctx.db.get(submitResult.requestId), people, staffs, consents, scheduled };
+    });
+    expect(state.request?.status).toBe("pending");
+    expect(state.people).toHaveLength(4);
+    expect(state.staffs).toHaveLength(3);
+    expect(state.consents).toEqual([]);
+    expect(state.scheduled).toEqual([]);
+  });
+
+  it("BusinessからProへの変更予約中はPro上限を超える参加申請承認を保存しない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "scheduled_pro_registration_manager",
+        plan: "business",
+      });
+      const now = Date.now();
+      for (let index = 0; index < 14; index += 1) {
+        const email = `scheduled-pro-registration-${index}@example.com`;
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: organization.organizationId,
+          name: `既存スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffs", {
+          shopId: organization.shopId,
+          organizationId: organization.organizationId,
+          organizationPersonId: personId,
+          name: `既存スタッフ${index}`,
+          email,
+          emailNormalized: email,
+          isDeleted: false,
+        });
+      }
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organization.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "scheduledChange",
+          currentPlan: "business",
+          targetPlan: "pro",
+          effectiveAt: now + 30 * 24 * 60 * 60 * 1000,
+        },
+      });
+      return organization;
+    });
+    const asManager = t.withIdentity({ subject: "scheduled_pro_registration_manager" });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const submitResult = await t.mutation(api.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "16人目",
+      email: "scheduled-pro-registration-over-limit@example.com",
+      acceptedLegal: true,
+    });
+    if (submitResult.status !== "ok") throw new Error(`unexpected status: ${submitResult.status}`);
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: submitResult.requestId,
+        shopId: seeded.shopId,
+      }),
+    ).rejects.toThrow("Proプランへの変更予約を取り消してから追加してください");
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(submitResult.requestId),
+      people: await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect(),
+      staffs: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
+        .collect(),
+    }));
+    expect(state.request?.status).toBe("pending");
+    expect(state.people).toHaveLength(15);
+    expect(state.staffs).toHaveLength(14);
   });
 
   it("却下するとstaffs作成と通知予約をしない", async () => {

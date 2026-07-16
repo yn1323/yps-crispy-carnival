@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_DELIVERY_EVENT_PRUNE_BATCH_SIZE,
@@ -26,7 +26,7 @@ const emailPayload = {
 async function setupShop() {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
-    const { shopId } = await seedManagerShop(ctx, {
+    const { shopId, userId } = await seedManagerShop(ctx, {
       subject: "user_mgr",
       email: "manager@example.com",
       shopName: "通知店舗",
@@ -37,7 +37,7 @@ async function setupShop() {
       email: "staff@example.com",
       isDeleted: false,
     });
-    return { shopId, staffId };
+    return { shopId, staffId, userId };
   });
   return { t, ...ids };
 }
@@ -118,10 +118,578 @@ describe("notificationOutbox", () => {
       payload: emailPayload,
     });
 
-    expect(second.deduped).toBe(true);
-    expect(second.outboxId).toBe(first.outboxId);
+    expect(second?.deduped).toBe(true);
+    expect(second?.outboxId).toBe(first?.outboxId);
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
+    expect(jobs[0].purpose).toBe("business");
+  });
+
+  it.each([
+    {
+      label: "Trial終了",
+      context: "organizationBilling.trialEnding",
+      state: { kind: "trial" as const, trialEndsAt: 1_000 },
+    },
+    {
+      label: "猶予終了前",
+      context: "organizationBilling.graceEndingSoon",
+      state: { kind: "grace" as const, plan: "pro" as const, startedAt: 100, endsAt: 1_000 },
+    },
+  ])("$labelの課金reminderは状態変更後の再送を送信直前に停止する", async ({ context, state }) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: `stale_${state.kind}_reminder`,
+        plan: "pro",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, { state, version: 4 });
+      return { ...seeded, billingStateId: billingState._id };
+    });
+    const payload = {
+      kind: "email" as const,
+      from: "シフトリ <noreply@example.com>",
+      to: `stale_${state.kind}_reminder@example.com`,
+      subject: "契約期限のお知らせ",
+      html: "<p>test</p>",
+      context,
+      suppressDelivery: true,
+    };
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "billing",
+      dedupeKey: `email:test:stale-${state.kind}-reminder`,
+      payload,
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.billingStateId, {
+        state: { kind: "active", plan: "pro" },
+        version: 5,
+      });
+      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
+    });
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_billing_changed",
+      organizationBillingVersionAtEnqueue: 4,
+    });
+  });
+
+  it("契約制限を維持する支払い結果待ちはfallback snapshot欠損でも業務通知を送信直前に停止する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "pending_restricted_business_gate", plan: "pro" }),
+    );
+    const payload = {
+      kind: "email" as const,
+      from: "シフトリ <noreply@example.com>",
+      to: "pending_restricted_business_gate@example.com",
+      subject: "業務通知",
+      html: "<p>test</p>",
+      context: "test.organizationBusiness",
+      suppressDelivery: true,
+    };
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "email:test:pending-restricted-final-gate",
+      payload,
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+    await t.run(async (ctx) => {
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "pendingActivation",
+          plan: "business",
+          fallback: "restricted",
+          startedAt: Date.now(),
+        },
+        version: 2,
+      });
+      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_restricted",
+    });
+  });
+
+  it("課金状態の正本が重複した場合は送信直前にfail-closedにする", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "duplicate_billing_state_gate", plan: "pro" }),
+    );
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "billing",
+      dedupeKey: "email:test:duplicate-billing-state-gate",
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "duplicate_billing_state_gate@example.com",
+        subject: "課金通知",
+        html: "<p>test</p>",
+        context: "organizationBilling.billingEmailChanged",
+        suppressDelivery: true,
+      },
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId: ids.organizationId,
+        state: { kind: "active", plan: "pro" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "invalid_scope",
+    });
+  });
+
+  it("legacy shopMembersが重複した受信者は送信直前にfail-closedにする", async () => {
+    const { t, shopId, userId } = await setupShop();
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      userId,
+      purpose: "business",
+      dedupeKey: "email:test:duplicate-legacy-recipient",
+      payload: {
+        kind: "email",
+        from: "シフトリ <noreply@example.com>",
+        to: "manager@example.com",
+        subject: "業務通知",
+        html: "<p>test</p>",
+        context: "test.duplicateLegacyRecipient",
+        suppressDelivery: true,
+      },
+    });
+    if (!enqueued) throw new Error("notification was not enqueued");
+    await t.run(async (ctx) => {
+      await seedShopMembership(ctx, { shopId, userId });
+      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        now: Date.now(),
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it.each([
+    "restrictedStarted",
+    "recovered",
+  ] as const)("%sのreadOnly非復旧担当者は既存Outbox経路でも送信対象にしない", async (event) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: `${event}_outbox_current`, plan: "pro" });
+      const now = Date.now();
+      const formerUserId = await seedUser(ctx, `${event}_outbox_former`, `${event}-outbox-former@example.com`);
+      const formerPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: seeded.organizationId,
+        userId: formerUserId,
+        name: "旧復旧担当者",
+        email: `${event}-outbox-former@example.com`,
+        emailNormalized: `${event}-outbox-former@example.com`,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: seeded.organizationId,
+        personId: formerPersonId,
+        userId: formerUserId,
+        status: "readOnly",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      if (event === "restrictedStarted") {
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "restricted",
+            reason: "freeConditionsNotMet",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [seeded.personId],
+            previousActiveShopIds: [seeded.shopId],
+            restrictedAt: now,
+          },
+        });
+      }
+      return { ...seeded, formerUserId };
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        organizationId: ids.organizationId,
+        userId: ids.formerUserId,
+        purpose: "billing",
+        dedupeKey: `email:test:${event}-former-recipient`,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: `${event}-outbox-former@example.com`,
+          subject: "契約通知",
+          html: "<p>test</p>",
+          context: `organizationBilling.${event}`,
+          suppressDelivery: true,
+        },
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
+  });
+
+  it("契約cutoff前の同一dedupeKeyジョブを停止し、現在versionの業務通知を新規作成する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const { oldOutboxId, organizationId } = await t.run(async (ctx) => {
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        name: "Free通知事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: { kind: "active", plan: "free" },
+        businessNotificationCutoffAt: now,
+        businessNotificationCutoffVersion: 2,
+        version: 2,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const oldOutboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "pending",
+        dedupeKey: "email:test:billing-version-dedupe",
+        shopId,
+        organizationId,
+        organizationBillingVersionAtEnqueue: 1,
+        purpose: "business",
+        staffId,
+        payload: emailPayload,
+        attemptCount: 0,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { oldOutboxId, organizationId };
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId,
+      organizationId,
+      organizationBillingVersionAtOrigin: 2,
+      staffId,
+      dedupeKey: "email:test:billing-version-dedupe",
+      payload: emailPayload,
+    });
+
+    expect(result).toMatchObject({ deduped: false });
+    expect(result?.outboxId).not.toBe(oldOutboxId);
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs.find((job) => job._id === oldOutboxId)).toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_billing_changed",
+    });
+    expect(jobs.find((job) => job._id === result?.outboxId)).toMatchObject({
+      status: "pending",
+      organizationBillingVersionAtEnqueue: 2,
+    });
+  });
+
+  it("事業者の業務通知だけを停止し、billing通知と送信済み通知は残す", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        name: "通知事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+
+      const insertOutbox = async (args: {
+        dedupeKey: string;
+        status: "pending" | "processing" | "sent";
+        purpose?: "business" | "billing";
+        organizationScoped?: boolean;
+        billingVersion?: number;
+      }) =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: args.status,
+          dedupeKey: args.dedupeKey,
+          shopId,
+          ...(args.organizationScoped ? { organizationId } : {}),
+          ...(args.billingVersion !== undefined ? { organizationBillingVersionAtEnqueue: args.billingVersion } : {}),
+          ...(args.purpose ? { purpose: args.purpose } : {}),
+          staffId,
+          payload: emailPayload,
+          attemptCount: args.status === "processing" ? 1 : 0,
+          nextRunAt: now,
+          ...(args.status === "processing" ? { processingStartedAt: now } : {}),
+          ...(args.status === "sent" ? { sentAt: now } : {}),
+          createdAt: now,
+          updatedAt: now,
+        });
+
+      return {
+        organizationId,
+        businessId: await insertOutbox({
+          dedupeKey: "email:test:organization-business",
+          status: "pending",
+          purpose: "business",
+          organizationScoped: true,
+          billingVersion: 1,
+        }),
+        processingId: await insertOutbox({
+          dedupeKey: "email:test:organization-processing",
+          status: "processing",
+          purpose: "business",
+          organizationScoped: true,
+          billingVersion: 1,
+        }),
+        legacyId: await insertOutbox({
+          dedupeKey: "email:test:organization-legacy",
+          status: "pending",
+        }),
+        billingId: await insertOutbox({
+          dedupeKey: "email:test:organization-billing",
+          status: "pending",
+          purpose: "billing",
+          organizationScoped: true,
+        }),
+        newBusinessId: await insertOutbox({
+          dedupeKey: "email:test:organization-new-business",
+          status: "pending",
+          purpose: "business",
+          organizationScoped: true,
+          billingVersion: 2,
+        }),
+        sentId: await insertOutbox({
+          dedupeKey: "email:test:organization-sent",
+          status: "sent",
+          purpose: "business",
+          organizationScoped: true,
+        }),
+      };
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications, {
+        organizationId: ids.organizationId,
+        cutoffAt: Date.now(),
+        cutoffVersion: 2,
+      }),
+    ).resolves.toEqual({ cancelledCount: 3 });
+
+    await t.mutation(internal.notificationOutbox.mutations.markSent, { outboxId: ids.businessId });
+    await t.mutation(internal.notificationOutbox.mutations.markRetry, {
+      outboxId: ids.legacyId,
+      lastError: "late worker",
+      nextRunAt: Date.now(),
+    });
+
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    const stateById = new Map(jobs.map((job) => [job._id, job]));
+    for (const outboxId of [ids.businessId, ids.processingId, ids.legacyId]) {
+      expect(stateById.get(outboxId)).toMatchObject({
+        status: "cancelled",
+        cancelReason: "organization_billing_changed",
+      });
+    }
+    expect(stateById.get(ids.billingId)?.status).toBe("pending");
+    expect(stateById.get(ids.newBusinessId)?.status).toBe("pending");
+    expect(stateById.get(ids.sentId)?.status).toBe("sent");
+
+    const claimed = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    expect(new Set(claimed.map((job) => job._id))).toEqual(new Set([ids.billingId, ids.newBusinessId]));
+  });
+
+  it("billingと管理者招待のchannel・payload・参照を整合させる", async () => {
+    const { t, shopId, userId } = await setupShop();
+    const { organizationId, invitationId } = await t.run(async (ctx) => {
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        createdByUserId: userId,
+        name: "招待事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        userId,
+        name: "管理者",
+        email: "manager@example.com",
+        emailNormalized: "manager@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const memberId = await ctx.db.insert("organizationMembers", {
+        organizationId,
+        personId,
+        userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId,
+        email: "invite@example.com",
+        emailNormalized: "invite@example.com",
+        tokenDigest: "digest",
+        status: "pending",
+        inviterMemberId: memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 60_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId,
+        state: { kind: "active", plan: "pro" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { organizationId, invitationId };
+    });
+
+    const linePayload = { kind: "line" as const, toUserId: "U_test", text: "test" };
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "line",
+        organizationId,
+        userId,
+        purpose: "billing",
+        dedupeKey: "line:test:billing",
+        payload: linePayload,
+      }),
+    ).rejects.toThrow("Notification cannot be enqueued");
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "line",
+        organizationId,
+        organizationInvitationId: invitationId,
+        organizationInvitationVersion: 1,
+        purpose: "business",
+        dedupeKey: "line:test:organization-invitation",
+        payload: linePayload,
+      }),
+    ).rejects.toThrow("Notification cannot be enqueued");
+
+    const invitationPayload = {
+      kind: "organizationManagerInvitationEmail" as const,
+      from: "シフトリ <noreply@example.com>",
+      to: "invite@example.com",
+      context: "organizationInvitation.send",
+    };
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        organizationId,
+        purpose: "business",
+        dedupeKey: "email:test:organization-invitation-missing-reference",
+        payload: invitationPayload,
+      }),
+    ).rejects.toThrow("Notification cannot be enqueued");
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        organizationId,
+        organizationInvitationId: invitationId,
+        organizationInvitationVersion: 1,
+        purpose: "billing",
+        dedupeKey: "email:test:organization-invitation-billing",
+        payload: invitationPayload,
+      }),
+    ).rejects.toThrow("Notification cannot be enqueued");
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        organizationId,
+        organizationInvitationId: invitationId,
+        organizationInvitationVersion: 1,
+        purpose: "business",
+        dedupeKey: "email:test:organization-invitation-rendered-html",
+        payload: { ...emailPayload, to: "invite@example.com" },
+      }),
+    ).rejects.toThrow("Notification cannot be enqueued");
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      organizationId,
+      organizationInvitationId: invitationId,
+      organizationInvitationVersion: 1,
+      purpose: "business",
+      dedupeKey: "email:test:organization-invitation-valid",
+      payload: invitationPayload,
+    });
+    expect(result?.deduped).toBe(false);
+    expect(await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect())).toHaveLength(1);
   });
 
   it("100件の通常通知をpendingジョブとして受け付ける", async () => {
@@ -188,8 +756,8 @@ describe("notificationOutbox", () => {
       payload: emailPayload,
     });
 
-    expect(result.deduped).toBe(false);
-    const outboxId = result.outboxId as Id<"notificationOutbox">;
+    expect(result?.deduped).toBe(false);
+    const outboxId = result?.outboxId as Id<"notificationOutbox">;
     const job = await t.run(async (ctx) => await ctx.db.get(outboxId));
     expect(job?.status).toBe("pending");
   });

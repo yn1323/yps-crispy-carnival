@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { mutation } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
@@ -8,8 +8,28 @@ import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
-import { findActiveStaffByEmail, normalizeEmail } from "../staff/service";
+import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import { recordOrganizationAuditEvent } from "../organization/audit";
+import { getOrganizationBillingPolicy, requireOrganizationCapacity } from "../organizationBilling/service";
+import {
+  findActiveStaffByEmail,
+  materializeOrganizationPeopleForStaffAddition,
+  normalizeEmail,
+  prepareOrganizationPeopleForStaffAddition,
+  releasePendingInvitationReservationsForStaffAddition,
+} from "../staff/service";
 import { staffRegistrationFormSchema } from "./schemas";
+
+const registrationRequestResultValidator = v.union(
+  v.object({ status: v.literal("ok"), requestId: v.id("staffRegistrationRequests") }),
+  v.object({ status: v.literal("already_registered") }),
+  v.object({ status: v.literal("already_applied") }),
+);
+const registrationLinkResultValidator = v.object({ token: v.string(), registrationUrl: v.string() });
+
+function registrationLinkUnavailableError() {
+  return new ConvexError("登録リンクの有効期限が切れています");
+}
 
 function buildRegistrationUrl(token: string) {
   return `${APP_URL}/staff/register?token=${token}`;
@@ -25,6 +45,7 @@ async function findActiveRegistrationLink(ctx: { db: MutationCtx["db"]; shop: Do
 
 export const ensureShopRegistrationLink = managerMutation({
   args: {},
+  returns: registrationLinkResultValidator,
   handler: async (ctx) => {
     const existing = await findActiveRegistrationLink(ctx);
     if (existing) {
@@ -54,6 +75,7 @@ export const submitRegistrationRequest = mutation({
     email: v.string(),
     acceptedLegal: v.boolean(),
   },
+  returns: registrationRequestResultValidator,
   handler: async (ctx, args) => {
     const parsed = staffRegistrationFormSchema.safeParse({
       name: args.name,
@@ -64,17 +86,36 @@ export const submitRegistrationRequest = mutation({
       throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
     }
 
-    const link = await ctx.db
+    const links = await ctx.db
       .query("shopRegistrationLinks")
       .withIndex("by_token", (q) => q.eq("token", args.token))
-      .first();
-    if (!link || link.revokedAt) {
-      throw new ConvexError("登録リンクの有効期限が切れています");
+      .take(2);
+    if (links.length !== 1) {
+      throw registrationLinkUnavailableError();
+    }
+    const link = links[0];
+    if (link.revokedAt) {
+      throw registrationLinkUnavailableError();
     }
 
     const shop = await ctx.db.get(link.shopId);
     if (!shop || shop.isDeleted) {
-      throw new ConvexError("登録リンクの有効期限が切れています");
+      throw registrationLinkUnavailableError();
+    }
+    if (shop.organizationId) {
+      const organization = await ctx.db.get(shop.organizationId);
+      const billingPolicy = await getOrganizationBillingPolicy(ctx, shop.organizationId);
+      if (
+        !organization ||
+        organization.isDeleted ||
+        shop.operatingStatus !== "active" ||
+        (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
+      ) {
+        // 公開Capabilityでは、店舗や契約の内部状態を区別できるエラーを返さない。
+        throw registrationLinkUnavailableError();
+      }
+    } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
+      throw registrationLinkUnavailableError();
     }
 
     const name = parsed.data.name;
@@ -121,6 +162,7 @@ export const submitRegistrationRequest = mutation({
 
 export const approveRequest = managerMutation({
   args: { requestId: v.id("staffRegistrationRequests") },
+  returns: v.object({ staffId: v.id("staffs") }),
   handler: async (ctx, { requestId }) => {
     const request = await ctx.db.get(requestId);
     if (!request || request.shopId !== ctx.shop._id || request.status !== "pending") {
@@ -132,11 +174,46 @@ export const approveRequest = managerMutation({
       throw new ConvexError("このメールアドレスは既に使用されています");
     }
 
+    const organizationId = ctx.shop.organizationId;
+    let organizationPersonId: Id<"organizationPeople"> | undefined;
+    let staffSourceState: "new" | "activePerson" = "new";
+    let staffName = request.name;
+    let staffEmail = request.email;
+    let staffEmailNormalized = request.emailNormalized;
+    if (organizationId) {
+      if (ctx.organization?._id !== organizationId) {
+        throw new ConvexError("Not found");
+      }
+      const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
+        organizationId,
+        shopId: ctx.shop._id,
+        entries: [{ name: request.name, email: request.emailNormalized }],
+        deferCapacityCheck: true,
+      });
+      // 同じ人物へのmanager招待が予約した枠を解放してから、実人物を加えた見込み人数を再検証する。
+      // 後続が失敗すればmutation全体がrollbackされ、予約状態だけが変わることはない。
+      await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
+      const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
+      if (additionalPeople > 0) {
+        await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
+      }
+      const [materialized] = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
+      if (!materialized) {
+        throw new ConvexError("Not found");
+      }
+      organizationPersonId = materialized.personId;
+      staffSourceState = materialized.personState === "active" ? "activePerson" : "new";
+      staffName = materialized.name;
+      staffEmail = materialized.email;
+      staffEmailNormalized = materialized.email;
+    }
+
     const staffId = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
-      name: request.name,
-      email: request.email,
-      emailNormalized: request.emailNormalized,
+      ...(organizationId && organizationPersonId ? { organizationId, organizationPersonId } : {}),
+      name: staffName,
+      email: staffEmail,
+      emailNormalized: staffEmailNormalized,
       isDeleted: false,
     });
 
@@ -161,12 +238,30 @@ export const approveRequest = managerMutation({
       reviewedByUserId: ctx.user._id,
     });
 
+    if (organizationId) {
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember?.personId,
+        action: "organization.staff_added",
+        targetKind: "staff",
+        targetId: staffId,
+        fromState: staffSourceState,
+        toState: `active:${ctx.shop._id}:batch:1`,
+        correlationId: `${organizationId}:staff-registration:${request._id}:staff`,
+        occurredAt: reviewedAt,
+      });
+    }
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
+
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId,
       context: "registration_approved",
+      ...notificationOrigin,
     });
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
       staffId,
+      ...notificationOrigin,
     });
 
     return { staffId };
@@ -175,6 +270,7 @@ export const approveRequest = managerMutation({
 
 export const rejectRequest = managerMutation({
   args: { requestId: v.id("staffRegistrationRequests") },
+  returns: v.null(),
   handler: async (ctx, { requestId }) => {
     const request = await ctx.db.get(requestId);
     if (!request || request.shopId !== ctx.shop._id || request.status !== "pending") {
@@ -185,5 +281,6 @@ export const rejectRequest = managerMutation({
       reviewedAt: Date.now(),
       reviewedByUserId: ctx.user._id,
     });
+    return null;
   },
 });

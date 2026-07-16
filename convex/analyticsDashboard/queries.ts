@@ -617,7 +617,7 @@ async function getCurrentShiftTargetStaffCount(ctx: QueryCtx, shopId: Id<"shops"
 }
 
 function reminderNotificationContext(payload: Doc<"notificationOutbox">["payload"]) {
-  if (payload.kind === "email") return payload.context;
+  if (payload.kind !== "line") return payload.context;
   return payload.fallbackEmail?.payload.context ?? null;
 }
 

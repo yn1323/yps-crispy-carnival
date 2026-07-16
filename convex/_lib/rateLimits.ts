@@ -83,6 +83,46 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 1,
   },
 
+  // 事業者管理者招待の発行: organizationId+normalized email 単位
+  // 同じ宛先への並行操作はDBの一意性/OCCでも止め、これは連打とメール爆撃を抑える。
+  organizationManagerInviteCreateShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
+  organizationManagerInviteCreateDaily: {
+    kind: "token bucket",
+    rate: 10,
+    period: DAY_MS,
+    capacity: 10,
+  },
+
+  // 再送は新しい招待を発行して旧招待を失効させるため、専用bucketで制限する。
+  organizationManagerInviteResendShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
+  // 招待承認: token digestの先頭をkeyにして総当たりと連打を抑える。
+  organizationManagerInviteAccept: {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE_MS,
+    capacity: 5,
+  },
+
+  // 店舗・プラン・所属を変える事業者設定操作の同期的な連打防止。
+  organizationSettingsMutationShort: {
+    kind: "token bucket",
+    rate: 1,
+    period: MINUTE_MS,
+    capacity: 1,
+  },
+
   // ログイン後の要望送信: userId 単位
   // 1回/分 — 連打と意図しない二重投稿を抑止
   featureRequestShort: {

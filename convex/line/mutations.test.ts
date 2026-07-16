@@ -3,7 +3,13 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedShop, seedShopMembership, seedStaffLineAccount } from "../_test/seed";
+import {
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedShop,
+  seedShopMembership,
+  seedStaffLineAccount,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function setupShop(t: TestConvex<typeof schema>) {
@@ -20,6 +26,25 @@ async function setupShop(t: TestConvex<typeof schema>) {
       isDeleted: false,
     });
     return { shopId, staffId };
+  });
+}
+
+async function setupOrganizationShop(t: TestConvex<typeof schema>, subject: string) {
+  return await t.run(async (ctx) => {
+    const seeded = await seedOrganizationManagerShop(ctx, {
+      subject,
+      email: `${subject}@example.com`,
+      shopName: "事業者店舗",
+      plan: "pro",
+    });
+    const staffId = await ctx.db.insert("staffs", {
+      shopId: seeded.shopId,
+      organizationId: seeded.organizationId,
+      name: "事業者店舗スタッフ",
+      email: `${subject}-staff@example.com`,
+      isDeleted: false,
+    });
+    return { ...seeded, staffId };
   });
 }
 
@@ -209,6 +234,42 @@ describe("line/mutations", () => {
       expect(r.status).toBe("expired");
     });
 
+    it("同一stateが異なるスタッフに重複している場合は対象情報を返さず連携を変更しない", async () => {
+      const t = convexTest(schema, modules);
+      const first = await setupShop(t);
+      const second = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "重複token対象店舗");
+        const staffId = await ctx.db.insert("staffs", {
+          shopId,
+          name: "重複token対象スタッフ",
+          email: "duplicate-line@example.com",
+          isDeleted: false,
+        });
+        return { shopId, staffId };
+      });
+      const token = "duplicate-target-line-token";
+      await seedLineLinkToken(t, { ...first, token });
+      await seedLineLinkToken(t, { ...second, token });
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
+        status: "expired",
+      });
+
+      const state = await t.run(async (ctx) => ({
+        links: await ctx.db
+          .query("lineLinkTokens")
+          .withIndex("by_token", (q) => q.eq("token", token))
+          .collect(),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.links).toHaveLength(2);
+      expect(new Set(state.links.map((link) => link.staffId))).toEqual(new Set([first.staffId, second.staffId]));
+      expect(state.links.every((link) => link.usedAt === undefined)).toBe(true);
+      expect(state.accounts).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+    });
+
     it("tokenの店舗とスタッフ所属店舗が一致しない場合は expired を返す", async () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);
@@ -252,6 +313,73 @@ describe("line/mutations", () => {
       await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
         status: "expired",
       });
+    });
+
+    it("発行後に事業者店舗がplanSuspendedになったtokenは expired を返し副作用を起こさない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupOrganizationShop(t, "line_validate_suspended");
+      const { token, tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "suspended-shop-line-token",
+      });
+      await t.run(async (ctx) => await ctx.db.patch(shopId, { operatingStatus: "planSuspended" }));
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
+        status: "expired",
+      });
+
+      const state = await t.run(async (ctx) => ({
+        link: await ctx.db.get(tokenDocId),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.link?.usedAt).toBeUndefined();
+      expect(state.accounts).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+    });
+
+    it("発行後に事業者がrestrictedになったtokenは expired を返し副作用を起こさない", async () => {
+      const t = convexTest(schema, modules);
+      const { organizationId, personId, staffId, shopId } = await setupOrganizationShop(t, "line_validate_restricted");
+      const { token, tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "restricted-organization-line-token",
+      });
+      await t.run(async (ctx) => {
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        if (!billingState) throw new Error("missing billing state");
+        const now = Date.now();
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "restricted",
+            reason: "paymentGraceExpired",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [personId],
+            previousActiveShopIds: [shopId],
+            restrictedAt: now,
+          },
+          version: billingState.version + 1,
+          updatedAt: now,
+        });
+      });
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
+        status: "expired",
+      });
+
+      const state = await t.run(async (ctx) => ({
+        link: await ctx.db.get(tokenDocId),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.link?.usedAt).toBeUndefined();
+      expect(state.accounts).toEqual([]);
+      expect(state.scheduled).toEqual([]);
     });
 
     it("同じstate先頭8文字で6回検証するとrate limitする", async () => {
@@ -308,6 +436,44 @@ describe("line/mutations", () => {
       expect(
         scheduled.some((job) => job.name === "legal/actions:sendStaffConsentLine" && job.args[0]?.staffId === staffId),
       ).toBe(true);
+    });
+
+    it("事業者移行中で課金状態が未作成でもactive店舗ならvalidateと連携を継続できる", async () => {
+      const t = convexTest(schema, modules);
+      const { organizationId, staffId, shopId } = await setupOrganizationShop(t, "line_widen_without_billing");
+      const { token, tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "widen-without-billing-line-token",
+      });
+      await t.run(async (ctx) => {
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        if (!billingState) throw new Error("missing billing state");
+        await ctx.db.delete(billingState._id);
+      });
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
+        status: "ok",
+      });
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId,
+          lineUserId: "U_widen_without_billing",
+          lineFollowing: false,
+        }),
+      ).resolves.toEqual({ status: "ok" });
+
+      const account = await t.run(async (ctx) =>
+        ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .unique(),
+      );
+      expect(account?.lineUserId).toBe("U_widen_without_billing");
     });
 
     it("使用済み tokenDocId は expired を返し、スタッフを上書きしない", async () => {
@@ -394,6 +560,89 @@ describe("line/mutations", () => {
             .first(),
         ),
       ).resolves.toBeNull();
+    });
+
+    it("token検証後に事業者店舗がplanSuspendedになった場合は連携もscheduleも行わない", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, shopId } = await setupOrganizationShop(t, "line_finalize_suspended");
+      const { token, tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "suspended-shop-finalize-token",
+      });
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
+        status: "ok",
+      });
+      await t.run(async (ctx) => await ctx.db.patch(shopId, { operatingStatus: "planSuspended" }));
+
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId,
+          lineUserId: "U_suspended_shop",
+          lineFollowing: true,
+        }),
+      ).resolves.toEqual({ status: "expired" });
+
+      const state = await t.run(async (ctx) => ({
+        link: await ctx.db.get(tokenDocId),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.link?.usedAt).toBeUndefined();
+      expect(state.accounts).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+    });
+
+    it("token検証後に事業者がrestrictedになった場合は連携もscheduleも行わない", async () => {
+      const t = convexTest(schema, modules);
+      const { organizationId, personId, staffId, shopId } = await setupOrganizationShop(t, "line_finalize_restricted");
+      const { token, tokenDocId } = await seedLineLinkToken(t, {
+        staffId,
+        shopId,
+        token: "restricted-organization-finalize-token",
+      });
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
+        status: "ok",
+      });
+      await t.run(async (ctx) => {
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        if (!billingState) throw new Error("missing billing state");
+        const now = Date.now();
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "restricted",
+            reason: "paymentGraceExpired",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [personId],
+            previousActiveShopIds: [shopId],
+            restrictedAt: now,
+          },
+          version: billingState.version + 1,
+          updatedAt: now,
+        });
+      });
+
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId,
+          lineUserId: "U_restricted_organization",
+          lineFollowing: true,
+        }),
+      ).resolves.toEqual({ status: "expired" });
+
+      const state = await t.run(async (ctx) => ({
+        link: await ctx.db.get(tokenDocId),
+        accounts: await ctx.db.query("staffLineAccounts").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.link?.usedAt).toBeUndefined();
+      expect(state.accounts).toEqual([]);
+      expect(state.scheduled).toEqual([]);
     });
 
     it("既に他スタッフに紐づく lineUserId は奪う", async () => {

@@ -2,7 +2,7 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, seedShop, seedUser } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
 
@@ -498,6 +498,29 @@ describe("shop/mutations", () => {
 
       const ownShop = await t.run(async (ctx) => ctx.db.get(ownShopId));
       expect(ownShop?.isDeleted).toBe(false);
+    });
+
+    it("事業者に紐づく店舗は旧APIで削除せずcanonicalアーカイブ導線へ寄せる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run((ctx) =>
+        seedOrganizationManagerShop(ctx, { subject: "organization_shop_delete", plan: "pro" }),
+      );
+
+      await expect(
+        t.withIdentity({ subject: "organization_shop_delete" }).mutation(api.shop.mutations.deleteShop, {
+          confirmShopId: ids.shopId,
+          shopId: ids.shopId,
+        }),
+      ).rejects.toThrow("事業者設定から店舗をアーカイブしてください");
+
+      const state = await t.run(async (ctx) => ({
+        shop: await ctx.db.get(ids.shopId),
+        member: await ctx.db.get(ids.memberId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.shop).toMatchObject({ isDeleted: false, operatingStatus: "active" });
+      expect(state.member?.status).toBe("active");
+      expect(state.scheduled.filter((job) => job.name === "shop/mutations:cleanupDeletedShop")).toHaveLength(0);
     });
 
     it("店舗・所属スタッフ・所属マネージャーを論理削除し、アクセス経路を無効化する", async () => {

@@ -11,7 +11,8 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
-import type { NotificationEmailPayload } from "../notificationOutbox/types";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import type { NotificationRenderedEmailPayload } from "../notificationOutbox/types";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import {
   buildConfirmationEmailHtml,
@@ -36,8 +37,13 @@ export const sendShiftConfirmationEmails = internalAction({
     isResend: v.boolean(),
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
     notificationRunId: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, isResend, targetStaffIds, notificationRunId }) => {
+  handler: async (
+    ctx,
+    { recruitmentId, isResend, targetStaffIds, notificationRunId, organizationBillingVersionAtOrigin },
+  ) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getConfirmationEmailData, {
       recruitmentId,
       ...(targetStaffIds ? { targetStaffIds } : {}),
@@ -93,6 +99,7 @@ export const sendShiftConfirmationEmails = internalAction({
           });
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staffData.staffId,
             dedupeKey: lineDedupeKey,
@@ -112,6 +119,7 @@ export const sendShiftConfirmationEmails = internalAction({
 
         const result = await enqueueConfirmationEmail({
           ctx,
+          ...notificationOrigin,
           staffData,
           data,
           recruitmentId,
@@ -157,8 +165,9 @@ async function buildConfirmationEmail(opts: {
   magicLinkUrl: string;
   isResend: boolean;
   suppressDelivery: boolean;
+  organizationBillingVersionAtOrigin?: number;
   dedupeKey?: string;
-}): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
+}): Promise<{ dedupeKey: string; payload: NotificationRenderedEmailPayload } | null> {
   const { ctx, staffData, data, recruitmentId, magicLinkUrl, isResend, suppressDelivery, dedupeKey } = opts;
   if (!staffData.email) return null;
 
@@ -200,6 +209,7 @@ async function enqueueConfirmationEmail(opts: Parameters<typeof buildConfirmatio
   if (!email) return null;
   return await enqueueEmail(opts.ctx, {
     shopId: opts.data.shopId,
+    ...businessNotificationOriginFrom(opts),
     recruitmentId: opts.recruitmentId,
     staffId: opts.staffData.staffId,
     dedupeKey: email.dedupeKey,
@@ -252,8 +262,10 @@ export const sendReissueEmail = internalAction({
   args: {
     staffId: v.id("staffs"),
     recruitmentId: v.id("recruitments"),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, recruitmentId }) => {
+  handler: async (ctx, { staffId, recruitmentId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const log = (level: "log" | "warn" | "error", event: string, extra: Record<string, unknown> = {}) =>
       console[level](`[sendReissueEmail] ${event}`, { staffId, recruitmentId, ...extra });
 
@@ -308,6 +320,7 @@ export const sendReissueEmail = internalAction({
         : undefined;
       const result = await enqueueLine(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         staffId,
         dedupeKey: `line:reissue:${recruitmentId}:${staffId}`,
         payload: linePayload({
@@ -326,6 +339,7 @@ export const sendReissueEmail = internalAction({
     try {
       const result = await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         staffId,
         dedupeKey: `email:reissue:${recruitmentId}:${staffId}`,
         payload: emailPayload({
@@ -360,8 +374,9 @@ function errorMessage(e: unknown): string {
  * 募集開始通知の配信（LINE 振り分け対応）
  */
 export const sendRecruitmentNotificationEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, { recruitmentId });
     if (!data) return;
 
@@ -414,6 +429,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
             : null;
           await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
             dedupeKey: lineDedupeKey,
@@ -444,6 +460,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
         if (email) {
           await enqueueEmail(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId,
             staffId: staff.staffId,
             dedupeKey: email.dedupeKey,
@@ -487,7 +504,7 @@ async function buildRecruitmentEmail(opts: {
   suppressDelivery: boolean;
   context: string;
   dedupeKey?: string;
-}): Promise<{ dedupeKey: string; payload: NotificationEmailPayload } | null> {
+}): Promise<{ dedupeKey: string; payload: NotificationRenderedEmailPayload } | null> {
   const {
     ctx,
     shopId,
@@ -539,8 +556,13 @@ export const sendRecruitmentNotificationForStaff = internalAction({
     staffId: v.id("staffs"),
     notificationContext: v.string(),
     notificationRunId: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, staffId, notificationContext, notificationRunId }) => {
+  handler: async (
+    ctx,
+    { recruitmentId, staffId, notificationContext, notificationRunId, organizationBillingVersionAtOrigin },
+  ) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getRecruitmentNotificationDataForStaff, {
       recruitmentId,
       staffId,
@@ -597,6 +619,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           : null;
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           staffId: data.staff.staffId,
           dedupeKey: lineDedupeKey,
@@ -627,6 +650,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
       if (!email) return;
       await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         recruitmentId,
         staffId: data.staff.staffId,
         dedupeKey: email.dedupeKey,
@@ -654,8 +678,9 @@ export const sendRecruitmentNotificationForStaff = internalAction({
  * スタッフ追加時: 追加された1スタッフへ、現在募集中の希望提出リンクをメールで送る。
  */
 export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
@@ -694,6 +719,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
         if (!email) continue;
         await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           dedupeKey: email.dedupeKey,
@@ -726,8 +752,10 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
     staffId: v.id("staffs"),
     expectedEmailNormalized: v.string(),
     emailChangedAt: v.number(),
+    ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, expectedEmailNormalized, emailChangedAt }) => {
+  handler: async (ctx, { staffId, expectedEmailNormalized, emailChangedAt, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(
       internal.notification.queries.getOpenRecruitmentEmailChangeNotificationDataForStaff,
       {
@@ -776,6 +804,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
         if (!email) continue;
         await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           dedupeKey: email.dedupeKey,
@@ -804,8 +833,9 @@ export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internal
  * 手動再送: 1スタッフへ、現在送れる募集中シフトを通常の LINE / メール振り分けで送る。
  */
 export const sendOpenRecruitmentNotificationsForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
@@ -863,6 +893,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
             : null;
           await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId: recruitment.recruitmentId,
             staffId: data.staff.staffId,
             dedupeKey: lineDedupeKey,
@@ -893,6 +924,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
         if (!email) continue;
         await enqueueEmail(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           dedupeKey: email.dedupeKey,
@@ -921,8 +953,9 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
  * LINE連携・follow時: 1スタッフへ、現在募集中の希望提出リンクをLINEで送る。
  */
 export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
       staffId,
     });
@@ -961,6 +994,7 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
         };
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId: recruitment.recruitmentId,
           staffId: data.staff.staffId,
           dedupeKey,
@@ -994,8 +1028,9 @@ export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
  * 手動再送: 1スタッフへ、現在の確定シフトを送る。
  */
 export const sendCurrentShiftConfirmationForStaff = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getCurrentConfirmationEmailDataForStaff, {
       staffId,
     });
@@ -1045,6 +1080,7 @@ export const sendCurrentShiftConfirmationForStaff = internalAction({
           };
           const fallbackEmail = await buildConfirmationEmail({
             ctx,
+            ...notificationOrigin,
             staffData,
             data: confirmationData,
             recruitmentId: recruitment.recruitmentId,
@@ -1055,6 +1091,7 @@ export const sendCurrentShiftConfirmationForStaff = internalAction({
           });
           await enqueueLine(ctx, {
             shopId: data.shopId,
+            ...notificationOrigin,
             recruitmentId: recruitment.recruitmentId,
             staffId: staffData.staffId,
             dedupeKey: lineDedupeKey,
@@ -1071,6 +1108,7 @@ export const sendCurrentShiftConfirmationForStaff = internalAction({
 
         await enqueueConfirmationEmail({
           ctx,
+          ...notificationOrigin,
           staffData,
           data: confirmationData,
           recruitmentId: recruitment.recruitmentId,

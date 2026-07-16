@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
@@ -15,13 +15,20 @@ export type ShopSettingsData = {
 
 type Props = {
   shop: ShopSettingsData;
+  isReadOnly?: boolean;
   children: (actions: { openShopSettings: () => void }) => ReactNode;
 };
 
-export function ShopSettings({ shop, children }: Props) {
+export function ShopSettings({ shop, isReadOnly = false, children }: Props) {
   const dialog = useDialog();
   const updateShopSettings = useShopMutation(api.shop.mutations.updateShopSettings);
+
+  useEffect(() => {
+    if (isReadOnly) dialog.close();
+  }, [dialog.close, isReadOnly]);
+
   const { run: handleUpdate } = useSingleFlight(async (data: EditShopFormData) => {
+    if (isReadOnly) return;
     try {
       await updateShopSettings(data);
       dialog.close();
@@ -31,9 +38,14 @@ export function ShopSettings({ shop, children }: Props) {
     }
   });
 
+  const handleOpen = () => {
+    if (isReadOnly) return;
+    dialog.open();
+  };
+
   return (
-    <ShopSettingsView shop={shop} dialog={dialog} onUpdate={handleUpdate}>
-      {children({ openShopSettings: dialog.open })}
+    <ShopSettingsView shop={shop} dialog={dialog} isReadOnly={isReadOnly} onUpdate={handleUpdate}>
+      {children({ openShopSettings: handleOpen })}
     </ShopSettingsView>
   );
 }

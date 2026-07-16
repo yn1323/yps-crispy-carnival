@@ -14,6 +14,7 @@ import {
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { SHIFT_CONFIRMATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 /**
  * シフト締め切り日の翌日17時に発火。募集がまだ確定していなければ、店舗のマネージャー全員に
@@ -23,8 +24,9 @@ import { SHIFT_CONFIRMATION_REMINDER_CONTEXT } from "../notificationOutbox/failu
  * 補助的な通知のため、失敗しても failureInbox には載せない（context で抑止）。
  */
 export const sendManagerConfirmationReminder = internalAction({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
       recruitmentId,
     });
@@ -73,6 +75,7 @@ export const sendManagerConfirmationReminder = internalAction({
         };
         await enqueueLine(ctx, {
           shopId: data.shopId,
+          ...notificationOrigin,
           recruitmentId,
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
@@ -89,6 +92,7 @@ export const sendManagerConfirmationReminder = internalAction({
 
       await enqueueEmail(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         recruitmentId,
         userId: recipient.userId,
         dedupeKey: emailDedupeKey,

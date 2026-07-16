@@ -9,6 +9,7 @@ type Props = {
     regularClosedDays: EditShopFormData["regularClosedDays"];
     submissionPattern: EditShopFormData["submissionPattern"];
   };
+  isReadOnly: boolean;
   dialog: {
     isOpen: boolean;
     onOpenChange: (details: { open: boolean }) => void;
@@ -17,11 +18,16 @@ type Props = {
   onUpdate: (data: EditShopFormData) => void | Promise<void>;
 };
 
-export function ShopSettingsView({ children, shop, dialog, onUpdate }: Props) {
+export function ShopSettingsView({ children, shop, dialog, isReadOnly, onUpdate }: Props) {
   return (
     <>
       {children}
-      <StepperDialog title="店舗設定" isOpen={dialog.isOpen} onOpenChange={dialog.onOpenChange} onClose={dialog.close}>
+      <StepperDialog
+        title="店舗設定"
+        isOpen={dialog.isOpen && !isReadOnly}
+        onOpenChange={dialog.onOpenChange}
+        onClose={dialog.close}
+      >
         <EditShopForm
           key={dialog.isOpen ? "edit-shop-open" : "edit-shop-closed"}
           defaultValues={{

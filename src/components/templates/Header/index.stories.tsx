@@ -56,6 +56,7 @@ export const UserWithoutShopDeletionEntry: Story = {
     const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await expect(contactLink).toHaveAttribute("href", "/contact");
     await expect(contactLink).toHaveAttribute("target", "_blank");
+    await expect(screen.getByRole("menuitem", { name: "事業者設定" })).toHaveAttribute("href", "/settings");
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
     await userEvent.keyboard("{Escape}");

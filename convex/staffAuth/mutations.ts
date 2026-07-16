@@ -1,17 +1,19 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { mutation } from "../_generated/server";
 import { getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { RATE_LIMIT_RETRY_FALLBACK_MS, STAFF_SESSION_TTL_MS } from "../constants";
+import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { isShiftTargetStaff } from "../staff/service";
 import { reissueSchema } from "./schemas";
 
 type ExpiredReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
 
-function expired(recruitmentId: string | null, reason: ExpiredReason) {
+function expired(recruitmentId: Id<"recruitments"> | null, reason: ExpiredReason) {
   return {
     status: "expired" as const,
     reason,
@@ -25,6 +27,23 @@ function expired(recruitmentId: string | null, reason: ExpiredReason) {
  */
 export const verifyToken = mutation({
   args: { token: v.string(), accessKind: staffAccessKindValidator },
+  returns: v.union(
+    v.object({
+      status: v.literal("rate_limited"),
+      retryAfter: v.number(),
+      recruitmentId: v.null(),
+    }),
+    v.object({
+      status: v.literal("expired"),
+      reason: v.union(v.literal("invalid_link"), v.literal("recruitment_deleted"), v.literal("submission_closed")),
+      recruitmentId: v.union(v.id("recruitments"), v.null()),
+    }),
+    v.object({
+      status: v.literal("ok"),
+      sessionToken: v.string(),
+      recruitmentId: v.id("recruitments"),
+    }),
+  ),
   handler: async (ctx, { token, accessKind }) => {
     const now = Date.now();
     // レートリミットチェック（トークン先頭8文字をキーに）
@@ -40,13 +59,18 @@ export const verifyToken = mutation({
       };
     }
 
-    const magicLink = await ctx.db
+    const magicLinks = await ctx.db
       .query("magicLinks")
       .withIndex("by_token", (q) => q.eq("token", token))
-      .first();
+      .take(2);
 
-    if (!magicLink || magicLink.revokedAt) {
-      return expired(magicLink?.recruitmentId ?? null, "invalid_link");
+    if (magicLinks.length !== 1) {
+      return expired(null, "invalid_link");
+    }
+    const magicLink = magicLinks[0];
+
+    if (magicLink.revokedAt) {
+      return expired(magicLink.recruitmentId, "invalid_link");
     }
 
     const [recruitment, staff, shop] = await Promise.all([
@@ -149,9 +173,12 @@ export const requestReissue = mutation({
     email: v.string(),
     recruitmentId: v.id("recruitments"),
   },
+  returns: v.null(),
   handler: async (ctx, { email, recruitmentId }) => {
-    const logSkip = (reason: string, extra: Record<string, unknown> = {}) =>
+    const logSkip = (reason: string, extra: Record<string, unknown> = {}) => {
       console.warn("[requestReissue] skip", { reason, recruitmentId, ...extra });
+      return null;
+    };
     const parsed = reissueSchema.safeParse({ email });
     if (!parsed.success) return logSkip("invalid_email");
 
@@ -178,19 +205,27 @@ export const requestReissue = mutation({
       return logSkip("recruitment_not_confirmed", { status: recruitment.status });
     }
 
-    const staff = await ctx.db
+    const staffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
         q.eq("shopId", recruitment.shopId).eq("emailNormalized", normalizedEmail).eq("isDeleted", false),
       )
-      .first();
-    if (!staff) return logSkip("staff_not_found", { emailDomain });
+      .take(2);
+    if (staffs.length === 0) return logSkip("staff_not_found", { emailDomain });
+    if (staffs.length !== 1) return logSkip("staff_not_unique", { emailDomain });
+    const staff = staffs[0];
     // シフト対象外スタッフには確定シフトの再発行リンクを送らない。
     if (!isShiftTargetStaff(staff)) return logSkip("staff_excluded", { emailDomain });
 
     const staffId = staff._id;
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: recruitment.shopId });
 
-    await ctx.scheduler.runAfter(0, internal.notification.actions.sendReissueEmail, { staffId, recruitmentId });
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendReissueEmail, {
+      staffId,
+      recruitmentId,
+      ...notificationOrigin,
+    });
     console.log("[requestReissue] scheduled", { staffId, recruitmentId });
+    return null;
   },
 });

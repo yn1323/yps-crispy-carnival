@@ -23,6 +23,7 @@ import type {
 
 type Props = {
   shop: ShopSettingsData | null;
+  isReadOnly?: boolean;
   managerProfileDefaults?: {
     name: string;
     email: string;
@@ -57,6 +58,7 @@ type Props = {
 
 export const DashboardContent = ({
   shop,
+  isReadOnly = false,
   managerProfileDefaults,
   managerLegalConsentStatus,
   recruitments,
@@ -111,26 +113,30 @@ export const DashboardContent = ({
         }
 
         return (
-          <ShopSettings shop={shop}>
+          <ShopSettings shop={shop} isReadOnly={isReadOnly}>
             {({ openShopSettings }) => (
               <RecruitmentManagement
                 regularClosedDays={shop.regularClosedDays}
                 submissionPattern={shop.submissionPattern}
                 data={recruitmentData}
+                isReadOnly={isReadOnly}
               >
                 {(recruitment) => (
                   <StaffManagement
                     data={staffData}
                     openRecruitments={recruitment.openRecruitments}
                     currentRecruitments={recruitment.currentRecruitments}
+                    isReadOnly={isReadOnly}
                   >
                     {(staff) => (
                       <StaffRegistrationRequestManagement
                         requests={usesInjectedData ? (pendingStaffRequests ?? []) : undefined}
+                        isReadOnly={isReadOnly}
                       >
                         {(registrationRequests) => (
                           <NotificationFailureRecovery
                             failures={usesInjectedData ? (notificationFailures ?? []) : undefined}
+                            isReadOnly={isReadOnly}
                           >
                             {(notificationFailure) => {
                               if (
@@ -147,7 +153,7 @@ export const DashboardContent = ({
                                   staffs={staff.staffs}
                                   pendingStaffRequestCount={registrationRequests.requests.length}
                                   isDismissed={isDashboardOnboardingDismissed}
-                                  canShow={managerLegalConsentStatus?.required === false}
+                                  canShow={!isReadOnly && managerLegalConsentStatus?.required === false}
                                 >
                                   {(onboarding) => (
                                     <>
@@ -156,6 +162,7 @@ export const DashboardContent = ({
                                         <HeroSummary
                                           shop={shop}
                                           recruitments={recruitment.recruitments}
+                                          isReadOnly={isReadOnly}
                                           onEditClick={openShopSettings}
                                           onOpenShiftBoard={(recruitmentId) =>
                                             recruitment.openShiftBoard(
@@ -176,6 +183,7 @@ export const DashboardContent = ({
                                               : undefined
                                           }
                                           hideActionSection={
+                                            isReadOnly ||
                                             (onboarding.isVisible && notificationFailure.failures.length === 0) ||
                                             !managerLegalConsentStatus
                                           }

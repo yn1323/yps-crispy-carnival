@@ -20,6 +20,8 @@ const secondStaff: StaffType = { id: secondStaffId, name: "鈴木 花子", isSub
 
 const baseData: ShiftBoardData = {
   shopId,
+  canWriteBusinessData: true,
+  businessWriteBlockReason: null,
   recruitment: {
     _id: recruitmentId,
     periodStart: date,

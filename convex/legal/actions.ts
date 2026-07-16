@@ -11,10 +11,12 @@ import {
   buildStaffLegalConsentLineText,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 export const sendStaffConsentEmail = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, {
       staffId,
     });
@@ -33,6 +35,7 @@ export const sendStaffConsentEmail = internalAction({
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
+      ...notificationOrigin,
       staffId: data.staffId,
       dedupeKey: `email:legalConsent:${staffId}`,
       payload: emailPayload({
@@ -54,8 +57,9 @@ export const sendStaffConsentEmail = internalAction({
 });
 
 export const sendStaffConsentLine = internalAction({
-  args: { staffId: v.id("staffs") },
-  handler: async (ctx, { staffId }) => {
+  args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
+  handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
+    const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
     if (!data?.lineUserId || data.lineFollowing === false) return;
     const suppressDelivery = await ctx.runQuery(
@@ -98,6 +102,7 @@ export const sendStaffConsentLine = internalAction({
         : undefined;
       await enqueueLine(ctx, {
         shopId: data.shopId,
+        ...notificationOrigin,
         staffId: data.staffId,
         dedupeKey: `line:legalConsent:${staffId}`,
         payload: linePayload({

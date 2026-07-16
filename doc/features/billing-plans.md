@@ -1,38 +1,20 @@
-# 課金プラン管理
+# 店舗単位課金プランの旧検討
 
-店舗単位で課金プラン状態を管理し、有料ユーザー向け機能を安全に出し分けるための土台。現時点ではStripe連携、料金ページ、ユーザー向けのプラン表示、スタッフ数上限の強制は未実装。
+この文書名は既存リンクを維持するために残している。
+現在の課金契約は事業者単位であり、実装と業務判断は[事業者課金、複数店舗、複数管理者](organization-billing.md)と[業務フロー](../specs/organization-billing-business-flow.md)を参照する。
 
-## 関連ファイル
+## 現行仕様との違い
 
-- `convex/schema.ts` — `shopBillingStates` と `by_shopId` index
-- `convex/billing/service.ts` — プラン定義、entitlements計算、有料機能guard
-- `convex/setup/mutations.ts` — 新規店舗作成時の `free` 課金状態作成
-- `convex/migrations/m005_shop_billing_states_backfill_free.ts` — 既存店舗への `free` 課金状態バックフィル
-- `convex/migrations/index.ts` — migration runner登録
+- `shopBillingStates`の`free`、`standard`、`premium`は、分析と旧読み取りの互換性を保つために残した旧モデルである。
+- 新しい課金状態の正本は`organizationBillingStates`であり、Trial、Free、Pro、Business、支払い猶予、契約制限を一つの状態unionで表す。
+- プラン上限と操作可否は`convex/organizationBilling/policy.ts`から導出する。
+- ProとBusinessの料金、税、請求周期、日割り、返金は未決定であり、この文書の旧プラン名や上限を料金判断に使わない。
+- Stripe連携、本番migration、Narrow、旧課金データの物理削除は外部ゲートとして分離している。
 
-## プラン
+## 参考ファイル
 
-| planKey | 表示名 | 有料機能 | スタッフ上限 |
-|---|---|---|---:|
-| `free` | フリー | 利用不可 | 10 |
-| `standard` | スタンダード | 利用可 | 20 |
-| `premium` | プレミアム | 利用可 | 30 |
-
-スタッフ上限は料金設計のメタデータとして定義しているが、課金機能公開前のためまだ強制しない。既存店舗はスタッフ数に関係なくそのまま利用できる。
-
-## 判定方針
-
-有料機能をConvex側で実装するときは、画面やmutation内で `planKey` を直接判定しない。必ず `convex/billing/service.ts` の `requirePaidFeature(ctx, shopId)` または `getShopEntitlements(ctx, shopId)` を使う。
-
-`shopBillingStates` が存在しない店舗は互換性のため `free` として扱う。migration完了後は原則として1店舗につき1行を持つ。
-
-## 今回やらないこと
-
-- Stripe Checkout / Customer Portal
-- Stripe Webhook同期
-- `shopSubscriptions` / `stripeWebhookEvents`
-- 手動override専用テーブル
-- Dashboardや店舗設定でのプラン表示
-- スタッフ追加・参加申請承認時の人数上限チェック
-
-Stripe連携時は、Stripe上の契約状態とシフトリ上の利用権限を分ける。画面・APIは契約状態ではなく `getShopEntitlements` の結果を使う。
+- `doc/features/organization-billing.md`
+- `doc/specs/organization-billing-business-flow.md`
+- `convex/organizationBilling/policy.ts`
+- `convex/organization/validators.ts`
+- `convex/schema.ts`

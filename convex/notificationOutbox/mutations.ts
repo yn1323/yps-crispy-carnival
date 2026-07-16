@@ -16,6 +16,8 @@ import {
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { hasOpenRecruitmentScope, isManagerVisibleNotificationFailure } from "./failureEligibility";
 import {
   getNotificationFailureIdentity,
@@ -24,19 +26,43 @@ import {
 } from "./failureIdentity";
 import { getNotificationFailureResendKind, isLineInviteResendContext } from "./failureResend";
 import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
+import { getBusinessNotificationOrigin } from "./origin";
 import { type ResendProviderIssueEventType, resendProviderDeliveryStatus } from "./resendProviderEvents";
 import {
   notificationChannelValidator,
   notificationDeliveryEventTypeValidator,
   notificationPayloadValidator,
+  notificationPurposeValidator,
   resendProviderIssueEventTypeValidator,
 } from "./schemas";
+import type {
+  NotificationCancelReason,
+  NotificationChannel,
+  NotificationEmailPayload,
+  NotificationPayload,
+  NotificationPurpose,
+} from "./types";
+import { notificationChannelForPayload } from "./types";
 
 const ACTIVE_STATUSES = ["pending", "processing"] as const;
 const DELIVERY_EVENT_ERROR_MESSAGE_MAX_LENGTH = 2_000;
 const FAILURE_RESEND_BATCH_SIZE = 50;
 const FAILURE_DUPLICATE_SCAN_LIMIT = 50;
 const FAILURE_EXPIRE_TARGET_STATUSES = ["open", "retrying"] as const;
+const ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE = 100;
+const HISTORICAL_BILLING_RECIPIENT_CONTEXTS = new Set(["organizationBilling.freeApplied"]);
+const BILLING_DEADLINE_CONTEXT_STATE = {
+  "organizationBilling.trialEnding": "trial",
+  "organizationBilling.graceEndingSoon": "grace",
+} as const;
+
+const failureResendResultValidator = v.union(
+  v.object({ scheduled: v.literal(true) }),
+  v.object({
+    scheduled: v.literal(false),
+    reason: v.union(v.literal("notRetryable"), v.literal("rateLimited")),
+  }),
+);
 
 type ManagerNotificationOutboxMutationCtx = MutationCtx & {
   user: Doc<"users">;
@@ -46,7 +72,12 @@ type ManagerNotificationOutboxMutationCtx = MutationCtx & {
 export const enqueue = internalMutation({
   args: {
     channel: notificationChannelValidator,
-    shopId: v.id("shops"),
+    shopId: v.optional(v.id("shops")),
+    organizationId: v.optional(v.id("organizations")),
+    organizationBillingVersionAtOrigin: v.optional(v.number()),
+    organizationInvitationId: v.optional(v.id("organizationInvitations")),
+    organizationInvitationVersion: v.optional(v.number()),
+    purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
@@ -54,11 +85,20 @@ export const enqueue = internalMutation({
     payload: notificationPayloadValidator,
   },
   handler: async (ctx, args) => {
-    if (args.channel !== args.payload.kind) {
+    if (args.channel !== notificationChannelForPayload(args.payload)) {
       throw new ConvexError("Notification channel does not match payload");
     }
 
     const now = Date.now();
+    const purpose = args.purpose ?? "business";
+    const eligibility = await getNotificationEligibility(ctx, { ...args, purpose }, now);
+    if (eligibility.cancelReason) {
+      if (eligibility.cancelReason !== "unsupported_channel" && eligibility.cancelReason !== "invalid_scope") {
+        return null;
+      }
+      throw new ConvexError("Notification cannot be enqueued");
+    }
+
     // worker が別ジョブの status を高頻度に更新するため、enqueue の読み取りは dedupeKey 単位に絞る。
     for (const status of ACTIVE_STATUSES) {
       const existing = await ctx.db
@@ -66,15 +106,32 @@ export const enqueue = internalMutation({
         .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", args.dedupeKey).eq("status", status))
         .first();
       if (existing) {
+        if (
+          purpose === "business" &&
+          existingBelongsToNotificationScope(existing, args, eligibility.organizationId) &&
+          predatesBusinessNotificationCutoff(existing, eligibility)
+        ) {
+          await cancelActiveNotification(ctx, existing, "organization_billing_changed", now);
+          continue;
+        }
         return { outboxId: existing._id, deduped: true };
       }
     }
 
+    const organizationBillingVersionAtEnqueue =
+      args.organizationBillingVersionAtOrigin ?? eligibility.organizationBillingVersion;
     const outboxId = await ctx.db.insert("notificationOutbox", {
       channel: args.channel,
       status: "pending",
       dedupeKey: args.dedupeKey,
-      shopId: args.shopId,
+      ...(args.shopId ? { shopId: args.shopId } : {}),
+      ...(eligibility.organizationId ? { organizationId: eligibility.organizationId } : {}),
+      ...(organizationBillingVersionAtEnqueue !== undefined ? { organizationBillingVersionAtEnqueue } : {}),
+      ...(args.organizationInvitationId ? { organizationInvitationId: args.organizationInvitationId } : {}),
+      ...(args.organizationInvitationVersion !== undefined
+        ? { organizationInvitationVersion: args.organizationInvitationVersion }
+        : {}),
+      purpose,
       ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
       ...(args.staffId ? { staffId: args.staffId } : {}),
       ...(args.userId ? { userId: args.userId } : {}),
@@ -92,6 +149,9 @@ export const recordDeliveryEvent = internalMutation({
   args: {
     eventType: notificationDeliveryEventTypeValidator,
     shopId: v.optional(v.id("shops")),
+    organizationId: v.optional(v.id("organizations")),
+    organizationInvitationId: v.optional(v.id("organizationInvitations")),
+    organizationInvitationVersion: v.optional(v.number()),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
@@ -210,11 +270,206 @@ export const claimDue = internalMutation({
   },
 });
 
+/**
+ * provider呼び出し直前の最終ゲート。
+ * claim後に契約・店舗・所属・招待が失効していても、新しい外部送信を開始しない。
+ */
+export const prepareForDelivery = internalMutation({
+  args: { outboxId: v.id("notificationOutbox"), now: v.number() },
+  handler: async (ctx, { outboxId, now }) => {
+    const job = await ctx.db.get(outboxId);
+    if (job?.status !== "processing") return null;
+
+    const eligibility = await getNotificationEligibility(ctx, job, now);
+    if (!eligibility.cancelReason) return job;
+
+    await cancelActiveNotification(ctx, job, eligibility.cancelReason, now);
+    return null;
+  },
+});
+
+/**
+ * 管理者招待メール専用の送信直前ゲート。
+ * 生tokenは返さず、actionがメモリ内でtokenとHTMLを組み立てるための安全な表示情報だけを返す。
+ */
+export const prepareOrganizationManagerInvitationEmail = internalMutation({
+  args: { outboxId: v.id("notificationOutbox"), now: v.number() },
+  handler: async (ctx, { outboxId, now }) => {
+    const job = await ctx.db.get(outboxId);
+    if (job?.status !== "processing") return null;
+
+    const eligibility = await getNotificationEligibility(ctx, job, now);
+    if (eligibility.cancelReason) {
+      await cancelActiveNotification(ctx, job, eligibility.cancelReason, now);
+      return null;
+    }
+    if (
+      job.payload.kind !== "organizationManagerInvitationEmail" ||
+      !job.organizationId ||
+      !job.organizationInvitationId ||
+      job.organizationInvitationVersion === undefined
+    ) {
+      await cancelActiveNotification(ctx, job, "invalid_scope", now);
+      return null;
+    }
+
+    const [organization, invitation] = await Promise.all([
+      ctx.db.get(job.organizationId),
+      ctx.db.get(job.organizationInvitationId),
+    ]);
+    if (!organization || !invitation) {
+      await cancelActiveNotification(ctx, job, "invitation_inactive", now);
+      return null;
+    }
+    const inviterMember = await ctx.db.get(invitation.inviterMemberId);
+    const inviterPerson = inviterMember ? await ctx.db.get(inviterMember.personId) : null;
+    if (!inviterMember || !inviterPerson) {
+      await cancelActiveNotification(ctx, job, "invitation_inactive", now);
+      return null;
+    }
+
+    return {
+      invitationId: invitation._id,
+      invitationVersion: invitation.version,
+      organizationName: organization.name,
+      inviterName: inviterPerson.name,
+    };
+  },
+});
+
+/**
+ * 契約制限への移行時に、事業者配下の未送信の業務通知だけを有界バッチで停止する。
+ * purpose未設定の既存行はbusinessとして扱い、billing通知は残す。
+ */
+export const cancelOrganizationBusinessNotifications = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    cutoffAt: v.number(),
+    cutoffVersion: v.number(),
+  },
+  handler: async (ctx, { organizationId, cutoffAt, cutoffVersion }) => {
+    const now = Date.now();
+    const jobs = await findOrganizationBusinessNotificationsToCancel(ctx, {
+      organizationId,
+      cutoffAt,
+      cutoffVersion,
+    });
+
+    for (const job of jobs) {
+      await cancelActiveNotification(ctx, job, "organization_billing_changed", now);
+    }
+
+    if (jobs.length === ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications, {
+        organizationId,
+        cutoffAt,
+        cutoffVersion,
+      });
+    }
+
+    return { cancelledCount: jobs.length };
+  },
+});
+
+/**
+ * 人物・店舗所属の終了と同じtransactionで、対象者に紐づく未送信の業務通知を停止する。
+ *
+ * userIdは別事業者でも共有され得るため、recipient indexで拾った後に必ず事業者境界を再確認する。
+ * 招待メールは受信者ではなく発行者の失効でも止める必要があるため、失効した招待IDも受け取る。
+ */
+export async function cancelOrganizationRecipientBusinessNotifications(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    staffIds?: readonly Id<"staffs">[];
+    userId?: Id<"users">;
+    invitationIds?: readonly Id<"organizationInvitations">[];
+    includeBillingUserNotifications?: boolean;
+    preserveStaffNotificationsForUser?: boolean;
+  },
+) {
+  const candidates = new Map<Id<"notificationOutbox">, Doc<"notificationOutbox">>();
+  const staffIds = new Set(args.staffIds ?? []);
+  const invitationIds = new Set(args.invitationIds ?? []);
+
+  for (const status of ACTIVE_STATUSES) {
+    for (const staffId of staffIds) {
+      const jobs = await ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_staffId_status", (q) => q.eq("staffId", staffId).eq("status", status))
+        .collect();
+      for (const job of jobs) candidates.set(job._id, job);
+    }
+    if (args.userId) {
+      const jobs = await ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_userId_status", (q) => q.eq("userId", args.userId).eq("status", status))
+        .collect();
+      for (const job of jobs) candidates.set(job._id, job);
+    }
+    if (invitationIds.size > 0) {
+      for (const purpose of ["business", undefined] as const) {
+        const jobs = await ctx.db
+          .query("notificationOutbox")
+          .withIndex("by_organizationId_purpose_status", (q) =>
+            q.eq("organizationId", args.organizationId).eq("purpose", purpose).eq("status", status),
+          )
+          .collect();
+        for (const job of jobs) {
+          if (job.organizationInvitationId && invitationIds.has(job.organizationInvitationId)) {
+            candidates.set(job._id, job);
+          }
+        }
+      }
+    }
+  }
+
+  let cancelledCount = 0;
+  const now = Date.now();
+  for (const job of candidates.values()) {
+    if (!(await notificationBelongsToOrganization(ctx, job, args.organizationId))) continue;
+
+    const invitationInactive =
+      job.organizationInvitationId !== undefined && invitationIds.has(job.organizationInvitationId);
+    const userMatches = args.userId !== undefined && job.userId === args.userId;
+    const userNotificationCanBeCancelled =
+      userMatches && (!args.preserveStaffNotificationsForUser || job.staffId === undefined);
+    if (job.purpose === "billing" && !(args.includeBillingUserNotifications && userNotificationCanBeCancelled)) {
+      continue;
+    }
+    const recipientInactive =
+      (job.staffId !== undefined && staffIds.has(job.staffId)) || userNotificationCanBeCancelled;
+    if (!invitationInactive && !recipientInactive) continue;
+
+    if (
+      await cancelActiveNotification(ctx, job, invitationInactive ? "invitation_inactive" : "recipient_inactive", now)
+    ) {
+      cancelledCount += 1;
+    }
+  }
+  return { cancelledCount };
+}
+
+async function notificationBelongsToOrganization(
+  ctx: MutationCtx,
+  job: Doc<"notificationOutbox">,
+  organizationId: Id<"organizations">,
+) {
+  if (job.organizationId !== undefined) return job.organizationId === organizationId;
+  if (!job.shopId) return false;
+  const shop = await ctx.db.get(job.shopId);
+  return shop?.organizationId === organizationId;
+}
+
 export const markSent = internalMutation({
   args: { outboxId: v.id("notificationOutbox"), resendEmailId: v.optional(v.string()) },
   handler: async (ctx, { outboxId, resendEmailId }) => {
     const job = await ctx.db.get(outboxId);
     if (!job) return;
+
+    // cancellationだけは、遅れて完了したworkerで上書きしない。
+    if (job.status === "cancelled") return;
+    const wasSent = job.status === "sent";
 
     const now = Date.now();
     await ctx.db.patch(outboxId, {
@@ -226,11 +481,11 @@ export const markSent = internalMutation({
     });
     await resolveFailureInboxByOutbox(ctx, outboxId, { resolutionKind: "sent" });
 
-    // actionリトライ等で再実行されても使用量を二重カウントしない
-    if (job.status === "sent") return;
+    // actionリトライ等で再実行されても使用量を二重カウントしない。
+    if (wasSent) return;
     // dry-run等で実際には配送していないジョブは課金対象外なのでカウントしない（送信時と同じ最終ゲートで判定）
     if (isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery })) return;
-    await incrementNotificationUsage(ctx, job.shopId, job.channel, now);
+    if (job.shopId) await incrementNotificationUsage(ctx, job.shopId, job.channel, now);
   },
 });
 
@@ -263,6 +518,440 @@ async function incrementNotificationUsage(
   });
 }
 
+type NotificationEligibilityInput = {
+  channel: NotificationChannel;
+  shopId?: Id<"shops">;
+  organizationId?: Id<"organizations">;
+  organizationBillingVersionAtOrigin?: number;
+  organizationBillingVersionAtEnqueue?: number;
+  organizationInvitationId?: Id<"organizationInvitations">;
+  organizationInvitationVersion?: number;
+  purpose?: NotificationPurpose;
+  staffId?: Id<"staffs">;
+  userId?: Id<"users">;
+  payload: NotificationPayload;
+  createdAt?: number;
+};
+
+type NotificationEligibility = {
+  organizationId?: Id<"organizations">;
+  organizationBillingVersion?: number;
+  businessNotificationCutoffAt?: number;
+  businessNotificationCutoffVersion?: number;
+  cancelReason?: NotificationCancelReason;
+};
+
+function existingBelongsToNotificationScope(
+  existing: Doc<"notificationOutbox">,
+  notification: { shopId?: Id<"shops"> },
+  organizationId?: Id<"organizations">,
+) {
+  if (organizationId && existing.organizationId === organizationId) return true;
+  return (
+    existing.organizationId === undefined &&
+    notification.shopId !== undefined &&
+    existing.shopId === notification.shopId
+  );
+}
+
+function predatesBusinessNotificationCutoff(
+  notification: {
+    organizationBillingVersionAtOrigin?: number;
+    organizationBillingVersionAtEnqueue?: number;
+    createdAt?: number;
+  },
+  cutoff: {
+    businessNotificationCutoffAt?: number;
+    businessNotificationCutoffVersion?: number;
+  },
+) {
+  const notificationBillingVersion =
+    notification.organizationBillingVersionAtEnqueue ?? notification.organizationBillingVersionAtOrigin;
+  if (notificationBillingVersion !== undefined && cutoff.businessNotificationCutoffVersion !== undefined) {
+    return notificationBillingVersion < cutoff.businessNotificationCutoffVersion;
+  }
+  if (
+    notificationBillingVersion === undefined &&
+    notification.createdAt === undefined &&
+    cutoff.businessNotificationCutoffVersion !== undefined
+  ) {
+    // Widen前に予約済みのactionは操作発生時versionを持たないため、cutoff後は安全側で停止する。
+    return true;
+  }
+  return (
+    notificationBillingVersion === undefined &&
+    notification.createdAt !== undefined &&
+    cutoff.businessNotificationCutoffAt !== undefined &&
+    notification.createdAt <= cutoff.businessNotificationCutoffAt
+  );
+}
+
+async function getNotificationEligibility(
+  ctx: MutationCtx,
+  notification: NotificationEligibilityInput,
+  now: number,
+): Promise<NotificationEligibility> {
+  const purpose = notification.purpose ?? "business";
+  if (notification.channel !== notificationChannelForPayload(notification.payload)) {
+    return { cancelReason: "unsupported_channel" };
+  }
+  const isInvitationPayload = notification.payload.kind === "organizationManagerInvitationEmail";
+  const hasInvitationId = notification.organizationInvitationId !== undefined;
+  const hasInvitationVersion = notification.organizationInvitationVersion !== undefined;
+  if ((purpose === "billing" || hasInvitationId || hasInvitationVersion) && notification.channel !== "email") {
+    return { cancelReason: "unsupported_channel" };
+  }
+  if (
+    hasInvitationId !== hasInvitationVersion ||
+    isInvitationPayload !== (hasInvitationId && hasInvitationVersion) ||
+    (isInvitationPayload && (purpose !== "business" || notification.organizationId === undefined))
+  ) {
+    return { cancelReason: "invalid_scope" };
+  }
+  if (!notification.shopId && !notification.organizationId) {
+    return { cancelReason: "invalid_scope" };
+  }
+
+  const shop = notification.shopId ? await ctx.db.get(notification.shopId) : null;
+  const organizationId = notification.organizationId ?? shop?.organizationId;
+  if (notification.organizationId && shop?.organizationId && notification.organizationId !== shop.organizationId) {
+    return { organizationId, cancelReason: "invalid_scope" };
+  }
+  if (purpose === "business" && notification.shopId) {
+    if (!shop || shop.isDeleted || (shop.operatingStatus !== undefined && shop.operatingStatus !== "active")) {
+      return { organizationId, cancelReason: "shop_inactive" };
+    }
+  }
+  if (!organizationId) {
+    return notification.shopId
+      ? await getLegacyShopRecipientEligibility(ctx, notification)
+      : { cancelReason: "invalid_scope" };
+  }
+
+  const organization = await ctx.db.get(organizationId);
+  if (!organization || organization.isDeleted) {
+    return { organizationId, cancelReason: "organization_inactive" };
+  }
+
+  const billingStates = await ctx.db
+    .query("organizationBillingStates")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+    .take(2);
+  if (billingStates.length > 1) {
+    return { organizationId, cancelReason: "invalid_scope" };
+  }
+  const billingState = billingStates[0] ?? null;
+  if (
+    purpose === "business" &&
+    billingState &&
+    deriveOrganizationBillingPolicy(billingState.state).businessWriteBlockReason === "restricted"
+  ) {
+    return { organizationId, cancelReason: "organization_restricted" };
+  }
+  const billingContext: NotificationEligibility = billingState
+    ? {
+        organizationId,
+        organizationBillingVersion: billingState.version,
+        ...(billingState.businessNotificationCutoffAt !== undefined
+          ? { businessNotificationCutoffAt: billingState.businessNotificationCutoffAt }
+          : {}),
+        ...(billingState.businessNotificationCutoffVersion !== undefined
+          ? { businessNotificationCutoffVersion: billingState.businessNotificationCutoffVersion }
+          : {}),
+      }
+    : { organizationId };
+  if (purpose === "billing" && notification.payload.kind === "email") {
+    const expectedStateKind =
+      BILLING_DEADLINE_CONTEXT_STATE[notification.payload.context as keyof typeof BILLING_DEADLINE_CONTEXT_STATE];
+    if (
+      expectedStateKind &&
+      (billingState?.state.kind !== expectedStateKind ||
+        (notification.organizationBillingVersionAtEnqueue !== undefined &&
+          notification.organizationBillingVersionAtEnqueue !== billingState.version))
+    ) {
+      return { organizationId, cancelReason: "organization_billing_changed" };
+    }
+  }
+  if (purpose === "business" && predatesBusinessNotificationCutoff(notification, billingContext)) {
+    return { organizationId, cancelReason: "organization_billing_changed" };
+  }
+
+  if (isInvitationPayload) {
+    const inviteReason = await getInvitationCancellationReason(ctx, notification, organizationId, now);
+    return inviteReason ? { organizationId, cancelReason: inviteReason } : billingContext;
+  }
+
+  if (purpose === "billing" && !notification.userId) {
+    return { organizationId, cancelReason: "invalid_scope" };
+  }
+
+  if (notification.staffId) {
+    const staffReason = await getStaffRecipientCancellationReason(ctx, notification, organizationId);
+    if (staffReason) return { organizationId, cancelReason: staffReason };
+  }
+
+  if (notification.userId) {
+    const userReason = await getUserRecipientCancellationReason(
+      ctx,
+      notification,
+      organizationId,
+      billingState ? (getEffectiveRestrictedBillingState(billingState.state)?.recoveryManagerPersonIds ?? []) : [],
+    );
+    if (userReason) return { organizationId, cancelReason: userReason };
+  }
+
+  if (!notification.staffId && !notification.userId) {
+    return { organizationId, cancelReason: "invalid_scope" };
+  }
+
+  return billingContext;
+}
+
+async function getLegacyShopRecipientEligibility(
+  ctx: MutationCtx,
+  notification: NotificationEligibilityInput,
+): Promise<NotificationEligibility> {
+  if (notification.organizationInvitationId || notification.organizationInvitationVersion !== undefined) {
+    return { cancelReason: "invalid_scope" };
+  }
+  if (notification.staffId) {
+    const reason = await getStaffRecipientCancellationReason(ctx, notification);
+    if (reason) return { cancelReason: reason };
+  }
+  if (notification.userId) {
+    const reason = await getUserRecipientCancellationReason(ctx, notification);
+    if (reason) return { cancelReason: reason };
+  }
+  return { cancelReason: notification.staffId || notification.userId ? undefined : "invalid_scope" };
+}
+
+async function getInvitationCancellationReason(
+  ctx: MutationCtx,
+  notification: NotificationEligibilityInput,
+  organizationId: Id<"organizations">,
+  now: number,
+): Promise<NotificationCancelReason | undefined> {
+  if (
+    notification.purpose === "billing" ||
+    !notification.organizationInvitationId ||
+    notification.organizationInvitationVersion === undefined ||
+    !Number.isSafeInteger(notification.organizationInvitationVersion) ||
+    notification.organizationInvitationVersion < 1 ||
+    notification.payload.kind !== "organizationManagerInvitationEmail"
+  ) {
+    return "invitation_inactive";
+  }
+
+  const invitation = await ctx.db.get(notification.organizationInvitationId);
+  if (
+    !invitation ||
+    invitation.organizationId !== organizationId ||
+    invitation.status !== "pending" ||
+    invitation.expiresAt <= now ||
+    invitation.version !== notification.organizationInvitationVersion ||
+    normalizeEmail(invitation.emailNormalized) !== normalizeEmail(notification.payload.to)
+  ) {
+    return "invitation_inactive";
+  }
+
+  return (await resolveOrganizationInvitationEligibility(ctx, invitation)) ? undefined : "invitation_inactive";
+}
+
+async function getStaffRecipientCancellationReason(
+  ctx: MutationCtx,
+  notification: NotificationEligibilityInput,
+  organizationId?: Id<"organizations">,
+): Promise<NotificationCancelReason | undefined> {
+  if (!notification.staffId) return undefined;
+  const staff = await ctx.db.get(notification.staffId);
+  if (
+    !staff ||
+    staff.isDeleted ||
+    (notification.shopId !== undefined && staff.shopId !== notification.shopId) ||
+    (organizationId !== undefined && staff.organizationId !== undefined && staff.organizationId !== organizationId)
+  ) {
+    return "recipient_inactive";
+  }
+
+  if (organizationId && staff.organizationPersonId) {
+    const person = await ctx.db.get(staff.organizationPersonId);
+    if (!person || person.organizationId !== organizationId || person.status !== "active") {
+      return "recipient_inactive";
+    }
+    if (
+      notification.payload.kind === "email" &&
+      normalizeEmail(notification.payload.to) !== normalizeEmail(person.email)
+    ) {
+      return "recipient_inactive";
+    }
+  } else if (
+    notification.payload.kind === "email" &&
+    normalizeEmail(notification.payload.to) !== normalizeEmail(staff.email)
+  ) {
+    return "recipient_inactive";
+  }
+  return undefined;
+}
+
+async function getUserRecipientCancellationReason(
+  ctx: MutationCtx,
+  notification: NotificationEligibilityInput,
+  organizationId?: Id<"organizations">,
+  recoveryManagerPersonIds: Id<"organizationPeople">[] = [],
+): Promise<NotificationCancelReason | undefined> {
+  const userId = notification.userId;
+  if (!userId) return undefined;
+  const user = await ctx.db.get(userId);
+  if (!user || user.isDeleted) return "recipient_inactive";
+
+  let person: Doc<"organizationPeople"> | null = null;
+  let member: Doc<"organizationMembers"> | null = null;
+  if (organizationId) {
+    const [people, members] = await Promise.all([
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_userId", (q) => q.eq("organizationId", organizationId).eq("userId", userId))
+        .take(2),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", userId).eq("organizationId", organizationId))
+        .take(2),
+    ]);
+    if (people.length > 1 || members.length > 1) return "recipient_inactive";
+    person = people[0] ?? null;
+    member = members[0] ?? null;
+
+    if (member) {
+      if (person && person._id !== member.personId) return "recipient_inactive";
+      if (!person) {
+        person = await ctx.db.get(member.personId);
+      }
+      if (
+        !person ||
+        person.organizationId !== organizationId ||
+        person.userId !== userId ||
+        person.status !== "active"
+      ) {
+        return "recipient_inactive";
+      }
+    } else if (person && (person.organizationId !== organizationId || person.status !== "active")) {
+      return "recipient_inactive";
+    }
+
+    const isRecoveryRecipient =
+      notification.purpose === "billing" &&
+      member?.status === "readOnly" &&
+      recoveryManagerPersonIds.includes(member.personId);
+    const isHistoricalBillingRecipient =
+      notification.purpose === "billing" &&
+      member?.status === "readOnly" &&
+      notification.payload.kind === "email" &&
+      HISTORICAL_BILLING_RECIPIENT_CONTEXTS.has(notification.payload.context);
+    if (member && member.status !== "active" && !isRecoveryRecipient && !isHistoricalBillingRecipient) {
+      return "recipient_inactive";
+    }
+  }
+
+  if (notification.payload.kind === "email") {
+    const currentEmail = person?.email ?? user.email;
+    if (normalizeEmail(notification.payload.to) !== normalizeEmail(currentEmail)) {
+      return "recipient_inactive";
+    }
+  }
+
+  const shopId = notification.shopId;
+  const legacyShopMembers =
+    !member && shopId
+      ? await ctx.db
+          .query("shopMembers")
+          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
+            q.eq("userId", userId).eq("shopId", shopId).eq("isDeleted", false),
+          )
+          .take(2)
+      : [];
+  if (!member && legacyShopMembers.length !== 1) return "recipient_inactive";
+  return undefined;
+}
+
+async function findOrganizationBusinessNotificationsToCancel(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    cutoffAt: number;
+    cutoffVersion: number;
+  },
+): Promise<Doc<"notificationOutbox">[]> {
+  const jobs: Doc<"notificationOutbox">[] = [];
+  const seen = new Set<Id<"notificationOutbox">>();
+  const cutoff = {
+    businessNotificationCutoffAt: args.cutoffAt,
+    businessNotificationCutoffVersion: args.cutoffVersion,
+  };
+
+  for (const purpose of ["business", undefined] as const) {
+    for (const status of ACTIVE_STATUSES) {
+      const remaining = ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE - jobs.length;
+      if (remaining === 0) return jobs;
+      const candidates = await ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_organizationId_purpose_status", (q) =>
+          q.eq("organizationId", args.organizationId).eq("purpose", purpose).eq("status", status),
+        )
+        .take(remaining);
+      for (const candidate of candidates) {
+        if (seen.has(candidate._id) || !predatesBusinessNotificationCutoff(candidate, cutoff)) continue;
+        seen.add(candidate._id);
+        jobs.push(candidate);
+      }
+    }
+  }
+
+  // Widen前に作られたshop-scoped行にはorganizationId/purposeがないため、店舗indexでも拾う。
+  const shops = await ctx.db
+    .query("shops")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
+    .take(ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE);
+  for (const shop of shops) {
+    for (const status of ACTIVE_STATUSES) {
+      const remaining = ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE - jobs.length;
+      if (remaining === 0) return jobs;
+      const candidates = await ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_shopId_status", (q) => q.eq("shopId", shop._id).eq("status", status))
+        .filter((q) => q.and(q.eq(q.field("organizationId"), undefined), q.neq(q.field("purpose"), "billing")))
+        .take(remaining);
+      for (const candidate of candidates) {
+        if (seen.has(candidate._id) || !predatesBusinessNotificationCutoff(candidate, cutoff)) continue;
+        seen.add(candidate._id);
+        jobs.push(candidate);
+      }
+    }
+  }
+  return jobs;
+}
+
+async function cancelActiveNotification(
+  ctx: MutationCtx,
+  job: Doc<"notificationOutbox">,
+  cancelReason: NotificationCancelReason,
+  now: number,
+) {
+  if (!ACTIVE_STATUSES.includes(job.status as (typeof ACTIVE_STATUSES)[number])) return false;
+  await ctx.db.patch(job._id, {
+    status: "cancelled",
+    cancelledAt: now,
+    cancelReason,
+    processingStartedAt: undefined,
+    updatedAt: now,
+  });
+  await resolveFailureInboxByOutbox(ctx, job._id, { resolutionKind: "superseded" });
+  return true;
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 export const markFailed = internalMutation({
   args: {
     outboxId: v.id("notificationOutbox"),
@@ -281,6 +970,7 @@ export const markFailed = internalMutation({
       });
       return;
     }
+    if (job.status === "cancelled") return;
 
     await ctx.db.patch(outboxId, {
       status: "failed",
@@ -289,7 +979,7 @@ export const markFailed = internalMutation({
       lastError,
     });
     const eventId = await insertDeliveryEvent(ctx, deliveryEventFromJob(job, "final_failed", lastError, { errorName }));
-    if (suppressFailureInbox) return;
+    if (suppressFailureInbox || !job.shopId) return;
 
     const notificationContext = notificationContextForJob(job);
     if (shouldSuppressNotificationFailureInbox(notificationContext)) return;
@@ -336,6 +1026,7 @@ export const markRetry = internalMutation({
       });
       return;
     }
+    if (job.status === "cancelled") return;
 
     await ctx.db.patch(outboxId, {
       status: "pending",
@@ -349,6 +1040,7 @@ export const markRetry = internalMutation({
 
 export const retryFailure = managerMutation({
   args: { failureId: v.id("notificationFailureInbox") },
+  returns: failureResendResultValidator,
   handler: async (ctx, { failureId }) => {
     const failure = await ctx.db.get(failureId);
     if (!failure || failure.shopId !== ctx.shop._id || failure.status !== "open") {
@@ -362,6 +1054,7 @@ export const retryFailure = managerMutation({
 
 export const resendFailure = managerMutation({
   args: { failureId: v.id("notificationFailureInbox") },
+  returns: failureResendResultValidator,
   handler: async (ctx, { failureId }) => {
     const failure = await ctx.db.get(failureId);
     if (!failure || failure.shopId !== ctx.shop._id || failure.status !== "open") {
@@ -375,6 +1068,13 @@ export const resendFailure = managerMutation({
 
 export const resendOpenFailures = managerMutation({
   args: {},
+  returns: v.object({
+    scheduled: v.boolean(),
+    scheduledCount: v.number(),
+    scheduledFailureIds: v.array(v.id("notificationFailureInbox")),
+    skippedCount: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx) => {
     const failures = await ctx.db
       .query("notificationFailureInbox")
@@ -493,6 +1193,7 @@ async function requestFailureResend(
   }
 
   const now = Date.now();
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
   switch (resendKind) {
     case "recruitment":
       await ctx.scheduler.runAfter(0, internal.notification.actions.sendRecruitmentNotificationForStaff, {
@@ -500,6 +1201,7 @@ async function requestFailureResend(
         staffId: failure.staffId,
         notificationContext: failure.notificationContext,
         notificationRunId: now,
+        ...notificationOrigin,
       });
       break;
     case "reminder":
@@ -507,6 +1209,7 @@ async function requestFailureResend(
         recruitmentId: failure.recruitmentId,
         staffId: failure.staffId,
         notificationRunId: now,
+        ...notificationOrigin,
       });
       break;
     case "confirmation":
@@ -515,12 +1218,14 @@ async function requestFailureResend(
         isResend: true,
         targetStaffIds: [failure.staffId],
         notificationRunId: now,
+        ...notificationOrigin,
       });
       break;
     case "reissue":
       await ctx.scheduler.runAfter(0, internal.notification.actions.sendReissueEmail, {
         recruitmentId: failure.recruitmentId,
         staffId: failure.staffId,
+        ...notificationOrigin,
       });
       break;
   }
@@ -550,10 +1255,12 @@ async function requestLineInviteResend(
     key: `${ctx.shop._id}:${failure.staffId}`,
   });
   if (!ok) return { scheduled: false, reason: "rateLimited" as const };
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
   // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
     staffId: failure.staffId,
+    ...notificationOrigin,
   });
   await markFailureRetrying(ctx, failure._id, Date.now());
   return { scheduled: true as const };
@@ -589,6 +1296,7 @@ async function retryOutboxFailure(
   if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
 
   const now = Date.now();
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
   await ctx.db.patch(outbox._id, {
     status: "pending",
     attemptCount: 0,
@@ -597,6 +1305,9 @@ async function retryOutboxFailure(
     failedAt: undefined,
     processingStartedAt: undefined,
     sentAt: undefined,
+    ...(outbox.purpose !== "billing" && notificationOrigin.organizationBillingVersionAtOrigin !== undefined
+      ? { organizationBillingVersionAtEnqueue: notificationOrigin.organizationBillingVersionAtOrigin }
+      : {}),
     updatedAt: now,
   });
   await markFailureRetrying(ctx, failure._id, now);
@@ -627,6 +1338,7 @@ async function markFailureRetrying(
 
 export const resolveFailure = managerMutation({
   args: { failureId: v.id("notificationFailureInbox") },
+  returns: v.object({ resolved: v.literal(true) }),
   handler: async (ctx, { failureId }) => {
     const failure = await ctx.db.get(failureId);
     if (
@@ -643,7 +1355,7 @@ export const resolveFailure = managerMutation({
       resolvedByUserId: ctx.user._id,
     });
 
-    return { resolved: true };
+    return { resolved: true as const };
   },
 });
 
@@ -707,6 +1419,9 @@ export const expireOldFailures = internalMutation({
 type DeliveryEventInput = {
   eventType: Doc<"notificationDeliveryEvents">["eventType"];
   shopId?: Id<"shops">;
+  organizationId?: Id<"organizations">;
+  organizationInvitationId?: Id<"organizationInvitations">;
+  organizationInvitationVersion?: number;
   recruitmentId?: Id<"recruitments">;
   staffId?: Id<"staffs">;
   userId?: Id<"users">;
@@ -735,7 +1450,7 @@ type RecordResendProviderIssueArgs = {
 
 type EmailNotificationOutbox = Doc<"notificationOutbox"> & {
   channel: "email";
-  payload: Extract<Doc<"notificationOutbox">["payload"], { kind: "email" }>;
+  payload: NotificationEmailPayload;
 };
 
 type FailureInboxUpsertInput = {
@@ -786,7 +1501,7 @@ function resendProviderIssueDeliveryEventInput(
 }
 
 function isEmailNotificationOutbox(outbox: Doc<"notificationOutbox"> | null): outbox is EmailNotificationOutbox {
-  return outbox?.channel === "email" && outbox.payload.kind === "email";
+  return outbox?.channel === "email" && outbox.payload.kind !== "line";
 }
 
 async function patchOutboxResendProviderState(
@@ -809,7 +1524,12 @@ function resendProviderFailureInboxInput(
   eventId: Id<"notificationDeliveryEvents">,
 ): FailureInboxUpsertInput | null {
   const notificationContext = notificationContextForJob(outbox);
-  if (outbox.payload.suppressFailureInbox || shouldSuppressNotificationFailureInbox(notificationContext)) {
+  if (
+    outbox.status === "cancelled" ||
+    !outbox.shopId ||
+    outbox.payload.suppressFailureInbox ||
+    shouldSuppressNotificationFailureInbox(notificationContext)
+  ) {
     return null;
   }
 
@@ -845,6 +1565,11 @@ async function insertDeliveryEvent(ctx: MutationCtx, input: DeliveryEventInput) 
     createdAt: now,
     expiresAt: now + NOTIFICATION_DELIVERY_EVENT_RETENTION_MS,
     ...(input.shopId ? { shopId: input.shopId } : {}),
+    ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+    ...(input.organizationInvitationId ? { organizationInvitationId: input.organizationInvitationId } : {}),
+    ...(input.organizationInvitationVersion !== undefined
+      ? { organizationInvitationVersion: input.organizationInvitationVersion }
+      : {}),
     ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
     ...(input.staffId ? { staffId: input.staffId } : {}),
     ...(input.userId ? { userId: input.userId } : {}),
@@ -971,7 +1696,7 @@ function deliveryEventFromJob(
 
 // 分析KPI（analytics/dailyAggregation）でも通知種別の分類に再利用する
 export function notificationContextForJob(job: Doc<"notificationOutbox">) {
-  if (job.payload.kind === "email") return job.payload.context;
+  if (job.payload.kind !== "line") return job.payload.context;
   return job.payload.fallbackEmail?.payload.context ?? dedupeContext(job.dedupeKey);
 }
 

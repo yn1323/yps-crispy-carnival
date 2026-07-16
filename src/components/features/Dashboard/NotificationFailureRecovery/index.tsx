@@ -13,6 +13,7 @@ import { resendAllOpenNotificationFailuresBatches } from "./script";
 
 type Props = {
   failures?: DashboardNotificationFailure[];
+  isReadOnly?: boolean;
   children: (state: NotificationFailureRecoveryState) => ReactNode;
 };
 
@@ -24,7 +25,7 @@ export type NotificationFailureRecoveryState = {
 
 const NOTIFICATION_FAILURE_PAGE_SIZE = 50;
 
-export function NotificationFailureRecovery({ failures: failureOverrides, children }: Props) {
+export function NotificationFailureRecovery({ failures: failureOverrides, isReadOnly = false, children }: Props) {
   const dialog = useDialog();
   const failureQuery = useShopPaginatedQuery(
     api.notificationOutbox.queries.listOpenFailures,
@@ -71,6 +72,14 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
     });
   }, [acceptedFailureIds, dialog.isOpen, visibleFailures]);
 
+  useEffect(() => {
+    if (!isReadOnly) return;
+    dialog.close();
+    setAcceptedFailureIds(new Set());
+    setResendingFailureIds(new Set());
+    setDismissTarget(null);
+  }, [dialog.close, isReadOnly]);
+
   const resetDialogState = () => {
     setDialogRows(visibleFailures);
     setAcceptedFailureIds(new Set());
@@ -79,6 +88,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
   };
 
   const handleOpenChange = (details: { open: boolean }) => {
+    if (details.open && isReadOnly) return;
     dialog.onOpenChange(details);
     if (!details.open) resetDialogState();
   };
@@ -89,7 +99,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
   };
 
   const handleResend = async (failureId: Id<"notificationFailureInbox">) => {
-    if (acceptedFailureIds.has(failureId) || resendingFailureIds.has(failureId) || isResendingAll) return;
+    if (isReadOnly || acceptedFailureIds.has(failureId) || resendingFailureIds.has(failureId) || isResendingAll) return;
 
     setResendingFailureIds((current) => new Set(current).add(failureId));
     try {
@@ -115,6 +125,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
   };
 
   const { run: handleResendAll, isRunning: isResendingAll } = useSingleFlight(async () => {
+    if (isReadOnly) return;
     const retryableFailures = dialogRows.filter((failure) => failure.canRetry && !acceptedFailureIds.has(failure._id));
     if (retryableFailures.length === 0) return;
 
@@ -144,7 +155,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
   });
 
   const { run: handleDismiss, isRunning: isDismissing } = useSingleFlight(async () => {
-    if (!dismissTarget) return;
+    if (isReadOnly || !dismissTarget) return;
 
     try {
       await resolveFailure({ failureId: dismissTarget._id });
@@ -160,6 +171,7 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
   const content = (
     <NotificationFailureRecoveryView
       isOpen={dialog.isOpen}
+      isReadOnly={isReadOnly}
       onOpenChange={handleOpenChange}
       onClose={handleClose}
       failures={dialogRows}
@@ -170,11 +182,21 @@ export function NotificationFailureRecovery({ failures: failureOverrides, childr
       isDismissing={isDismissing}
       onResend={handleResend}
       onResendAll={handleResendAll}
-      onDismiss={setDismissTarget}
+      onDismiss={(failure) => {
+        if (isReadOnly) return;
+        setDismissTarget(failure);
+      }}
       onCancelDismiss={() => setDismissTarget(null)}
       onConfirmDismiss={handleDismiss}
     />
   );
 
-  return children({ failures: visibleFailures, openNotificationFailures: dialog.open, content });
+  return children({
+    failures: visibleFailures,
+    openNotificationFailures: () => {
+      if (isReadOnly) return;
+      dialog.open();
+    },
+    content,
+  });
 }

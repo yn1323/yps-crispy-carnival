@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("shiftBoard/queries", () => {
@@ -28,6 +28,40 @@ describe("shiftBoard/queries", () => {
       .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
 
     expect(result).toBeNull();
+  });
+
+  it("閲覧のみ管理者にはシフトデータを返しつつ書き込み不可理由を返す", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, recruitmentId } = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "readonly_shift_board",
+        shopName: "閲覧店舗",
+        plan: "pro",
+      });
+      await ctx.db.patch(seeded.memberId, { status: "readOnly" });
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-08-01",
+        periodEnd: "2026-08-07",
+        deadline: "2026-07-28",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: Date.now(),
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { shopId: seeded.shopId, recruitmentId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "readonly_shift_board" })
+      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+
+    expect(result).toMatchObject({
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "memberReadOnly",
+      recruitment: { _id: recruitmentId },
+    });
   });
 
   it("シフト対象外スタッフはシフト表に含めない", async () => {

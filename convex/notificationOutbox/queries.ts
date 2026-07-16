@@ -1,4 +1,5 @@
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
+import { v } from "convex/values";
 import { filter } from "convex-helpers/server/filter";
 import type { Doc } from "../_generated/dataModel";
 import { formatPeriodLabel } from "../_lib/dateFormat";
@@ -10,6 +11,11 @@ import {
   getNotificationFailureResendKind,
   isLineInviteResendContext,
 } from "./failureResend";
+import {
+  notificationChannelValidator,
+  notificationFailureInboxSourceTypeValidator,
+  notificationFailureInboxStatusValidator,
+} from "./schemas";
 
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
   page: never[];
@@ -18,8 +24,37 @@ const EMPTY_PAGE = { page: [], isDone: true, continueCursor: "" } as {
 };
 const VISIBLE_FAILURE_PAGINATION_SCAN_LIMIT = 20;
 
+const managerNotificationFailureValidator = v.object({
+  _id: v.id("notificationFailureInbox"),
+  sourceType: notificationFailureInboxSourceTypeValidator,
+  status: notificationFailureInboxStatusValidator,
+  shopId: v.id("shops"),
+  recruitmentId: v.optional(v.id("recruitments")),
+  staffId: v.optional(v.id("staffs")),
+  userId: v.optional(v.id("users")),
+  outboxId: v.optional(v.id("notificationOutbox")),
+  channel: v.optional(notificationChannelValidator),
+  dedupeKey: v.string(),
+  notificationContext: v.string(),
+  notificationKind: v.union(
+    v.literal("recruitment"),
+    v.literal("reminder"),
+    v.literal("confirmation"),
+    v.literal("lineInvite"),
+    v.literal("other"),
+  ),
+  notificationKindLabel: v.string(),
+  staffName: v.string(),
+  periodLabel: v.union(v.string(), v.null()),
+  firstFailedAt: v.number(),
+  lastFailedAt: v.number(),
+  attemptCount: v.optional(v.number()),
+  canRetry: v.boolean(),
+});
+
 export const listOpenFailures = managerQuery({
   args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(managerNotificationFailureValidator),
   handler: async (ctx, { paginationOpts }) => {
     if (!ctx.shop) return EMPTY_PAGE;
     const shop = ctx.shop;
@@ -104,6 +139,7 @@ export const listOpenFailures = managerQuery({
 
 export const hasOpenFailures = managerQuery({
   args: {},
+  returns: v.boolean(),
   handler: async (ctx) => {
     if (!ctx.shop) return false;
     const shop = ctx.shop;

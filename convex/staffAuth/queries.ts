@@ -7,6 +7,14 @@ import { query } from "../_generated/server";
  */
 export const getRecruitmentInfo = query({
   args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(
+    v.object({
+      shopName: v.string(),
+      periodStart: v.string(),
+      periodEnd: v.string(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, { recruitmentId }) => {
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;

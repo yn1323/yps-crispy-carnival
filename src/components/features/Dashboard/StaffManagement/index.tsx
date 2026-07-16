@@ -29,10 +29,11 @@ type Props = {
   data?: StaffManagementData;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
+  isReadOnly?: boolean;
   children: (state: StaffManagementState) => ReactNode;
 };
 
-export function StaffManagement({ data, openRecruitments, currentRecruitments, children }: Props) {
+export function StaffManagement({ data, openRecruitments, currentRecruitments, isReadOnly = false, children }: Props) {
   const [visibleStaffCount, setVisibleStaffCount] = useState(STAFF_INITIAL_VISIBLE_COUNT);
   const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
     initialNumItems: STAFF_QUERY_PAGE_SIZE,
@@ -55,10 +56,10 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, c
       }
     });
 
-  const invitation = useStaffInvitation();
-  const lineConnection = useStaffLineConnection();
-  const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset });
-  const notifications = useStaffNotificationDelivery();
+  const invitation = useStaffInvitation(isReadOnly);
+  const lineConnection = useStaffLineConnection(isReadOnly);
+  const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
+  const notifications = useStaffNotificationDelivery(isReadOnly);
 
   const content = (
     <StaffManagementView
@@ -68,6 +69,7 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, c
       onLoadMore={handleLoadMore}
       openRecruitments={openRecruitments}
       currentRecruitments={currentRecruitments}
+      isReadOnly={isReadOnly}
       invitation={invitation}
       detail={{
         staff: profile.staff,

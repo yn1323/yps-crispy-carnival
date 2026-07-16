@@ -60,6 +60,7 @@ export const updateShopSettings = managerMutation({
     ),
     submissionPattern: submissionPatternValidator,
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const parsed = updateShopSettingsSchema.safeParse(args);
     if (!parsed.success) {
@@ -72,6 +73,7 @@ export const updateShopSettings = managerMutation({
       regularClosedDays: WEEKDAY_ORDER.filter((day) => input.regularClosedDays.includes(day)),
       submissionPattern,
     });
+    return null;
   },
 });
 
@@ -95,13 +97,18 @@ export const deleteShop = managerMutation({
   args: {
     confirmShopId: v.id("shops"),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     if (args.confirmShopId !== ctx.shop._id) {
       throw new ConvexError("Not found");
     }
+    if (ctx.shop.organizationId) {
+      throw new ConvexError("事業者設定から店舗をアーカイブしてください");
+    }
     // shop.isDeleted を立てるだけで全認証ラッパーが弾くため、ここでアクセスは遮断される。
     await ctx.db.patch(ctx.shop._id, { isDeleted: true });
     await ctx.scheduler.runAfter(0, internal.shop.mutations.cleanupDeletedShop, { shopId: ctx.shop._id });
+    return null;
   },
 });
 

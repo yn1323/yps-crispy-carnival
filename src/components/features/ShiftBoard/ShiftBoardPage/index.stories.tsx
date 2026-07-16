@@ -1,12 +1,17 @@
+import { HStack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/src/components/ui/Button";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import type { ShiftBoardData } from "../types";
 import { ShiftBoardPage } from "./index";
 
 const mockData: ShiftBoardData = {
   shopId: "shop-1" as Id<"shops">,
+  canWriteBusinessData: true,
+  businessWriteBlockReason: null,
   recruitment: {
     _id: "recruitment-1" as Id<"recruitments">,
     periodStart: "2026-01-20",
@@ -255,6 +260,137 @@ export const Confirmed: Story = {
         confirmedAt: new Date("2026-03-28T23:15:00").getTime(),
       },
     },
+  },
+};
+
+export const ReadOnly: Story = {
+  args: {
+    data: {
+      ...mockData,
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "restricted",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByLabelText("下書き保存")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: /シフトを確定|もう一度通知/ })).not.toBeInTheDocument();
+  },
+};
+
+const dynamicCapabilityData: ShiftBoardData = {
+  ...mockData,
+  recruitment: {
+    ...mockData.recruitment,
+    periodStart: "2099-01-20",
+    periodEnd: "2099-01-26",
+    deadline: "2099-01-17",
+  },
+  submissionPattern: { kind: "dateOnly" },
+  staffs: mockData.staffs.slice(0, 2),
+  requestedSlots: [],
+  requestedDates: [],
+  shiftAssignments: [],
+};
+
+const DynamicCapabilityHarness = () => {
+  const [data, setData] = useState(dynamicCapabilityData);
+
+  return (
+    <>
+      <HStack position="fixed" top={2} right={2} zIndex="tooltip" gap={2}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            setData((current) => ({
+              ...current,
+              shiftAssignments: [
+                {
+                  staffId: "s2" as Id<"staffs">,
+                  date: "2099-01-20",
+                  startTime: "09:00",
+                  endTime: "22:00",
+                  positionId: "position-1" as Id<"positions">,
+                },
+              ],
+            }))
+          }
+        >
+          サーバーデータを更新
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            setData((current) => ({
+              ...current,
+              canWriteBusinessData: false,
+              businessWriteBlockReason: "restricted",
+            }))
+          }
+        >
+          閲覧のみに切り替える
+        </Button>
+      </HStack>
+      <ShiftBoardPage data={data} recruitmentId={"recruitment-1" as Id<"recruitments">} />
+    </>
+  );
+};
+
+export const DynamicReadOnlyTransition: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <DynamicCapabilityHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    const userDraftCell = await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ });
+    await userEvent.click(userDraftCell);
+    await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務あり/ })).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "サーバーデータを更新" }));
+    await expect(canvas.getByRole("button", { name: /鈴木太郎 1\/20.*勤務あり/ })).toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: /佐藤花子 1\/20.*勤務なし/ })).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: "シフトを確定して通知" }));
+    await expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    // modal表示中の外部状態更新を再現するため、DOM eventを直接発火する。
+    canvas.getByRole("button", { name: "閲覧のみに切り替える", hidden: true }).click();
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(await canvas.findByRole("button", { name: /佐藤花子 1\/20.*勤務あり/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(canvas.queryByLabelText("下書き保存")).not.toBeInTheDocument();
+  },
+};
+
+export const DynamicReadOnlyClearsNavigationBlocker: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <DynamicCapabilityHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ }));
+    await userEvent.click(canvas.getByRole("link", { name: "戻る" }));
+    await expect(await screen.findByRole("alertdialog", { name: "保存していない変更があります" })).toBeInTheDocument();
+
+    canvas.getByRole("button", { name: "閲覧のみに切り替える", hidden: true }).click();
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await expect(await canvas.findByRole("button", { name: /鈴木太郎 1\/20.*勤務なし/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 

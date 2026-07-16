@@ -27,3 +27,11 @@ export function getContactAllowedOrigins(): string[] {
 export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
 }
+
+export function getOrganizationInvitationSigningSecret(): string {
+  const secret = (process.env.ORGANIZATION_INVITATION_SIGNING_SECRET ?? "").trim();
+  if (secret.length < 32) {
+    throw new Error("ORGANIZATION_INVITATION_SIGNING_SECRET is not configured");
+  }
+  return secret;
+}

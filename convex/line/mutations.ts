@@ -1,14 +1,35 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalMutation } from "../_generated/server";
+import type { Doc, Id } from "../_generated/dataModel";
+import { internalMutation, type MutationCtx } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { LINE_LINK_TOKEN_TTL_MS } from "../constants";
+import { type BusinessNotificationOrigin, getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getActiveStaffInShop } from "../staff/service";
 import { findStaffLineAccountsByLineUserId, getStaffLineAccount, upsertStaffLineAccount } from "./service";
+
+async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop: Doc<"shops">) {
+  const organizationId = shop.organizationId;
+  if (!organizationId) return true;
+  if (shop.operatingStatus !== "active") return false;
+
+  const [organization, billingStates] = await Promise.all([
+    ctx.db.get(organizationId),
+    ctx.db
+      .query("organizationBillingStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .take(2),
+  ]);
+  if (!organization || organization.isDeleted || billingStates.length > 1) return false;
+
+  const billingState = billingStates[0];
+  return billingState === undefined || deriveOrganizationBillingPolicy(billingState.state).canWriteBusinessData;
+}
 
 /**
  * シフト担当者UI: 指定スタッフに紐づくLINE連携トークンを発行
@@ -18,6 +39,10 @@ import { findStaffLineAccountsByLineUserId, getStaffLineAccount, upsertStaffLine
  */
 export const generateLinkToken = managerMutation({
   args: { staffId: v.id("staffs") },
+  returns: v.object({
+    token: v.string(),
+    authorizeUrl: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx, args) => {
     const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
     if (!staff) {
@@ -77,15 +102,22 @@ export const validateLinkToken = internalMutation({
     });
     if (!ok) return { status: "rate_limited" as const };
 
-    const link = await ctx.db
+    const links = await ctx.db
       .query("lineLinkTokens")
       .withIndex("by_token", (q) => q.eq("token", state))
-      .first();
-    if (!link || link.revokedAt || link.expiresAt < Date.now() || link.usedAt) {
+      .take(2);
+    if (links.length !== 1) {
+      return { status: "expired" as const };
+    }
+    const link = links[0];
+    if (link.revokedAt || link.expiresAt < Date.now() || link.usedAt) {
       return { status: "expired" as const };
     }
     const [staff, shop] = await Promise.all([ctx.db.get(link.staffId), ctx.db.get(link.shopId)]);
     if (!staff || staff.isDeleted || staff.shopId !== link.shopId || !shop || shop.isDeleted) {
+      return { status: "expired" as const };
+    }
+    if (!(await canRedeemLineLinkTokenForShop(ctx, shop))) {
       return { status: "expired" as const };
     }
     return {
@@ -116,6 +148,9 @@ export const finalizeLinking = internalMutation({
     if (!staff || staff.isDeleted || staff.shopId !== link.shopId || !shop || shop.isDeleted) {
       return { status: "expired" as const };
     }
+    if (!(await canRedeemLineLinkTokenForShop(ctx, shop))) {
+      return { status: "expired" as const };
+    }
     const currentAccount = await getStaffLineAccount(ctx, args.staffId);
 
     // 同一店舗で別スタッフに同じ lineUserId が紐づいていた場合だけ付け替える
@@ -134,11 +169,16 @@ export const finalizeLinking = internalMutation({
       following: args.lineFollowing,
     });
     await ctx.db.patch(args.tokenDocId, { usedAt: Date.now() });
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, {
+      organizationId: shop.organizationId,
+      shopId: shop._id,
+    });
     if (args.lineFollowing) {
       // LINE連携直後に同意依頼を送る。未followの場合は needs_follow 画面で友だち追加を促し、
       // follow Webhook 側で同じ案内を送る。
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
         staffId: args.staffId,
+        ...notificationOrigin,
       });
     }
     if (args.lineFollowing && !currentAccount?.following) {
@@ -146,6 +186,7 @@ export const finalizeLinking = internalMutation({
       // 既にfollow済みの再連携では重複送信しない。
       await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
+        ...notificationOrigin,
       });
     }
     return { status: "ok" as const };
@@ -168,11 +209,14 @@ export const markFollowing = internalMutation({
     }
     const wasFollowing = Boolean(account?.following);
     if (args.following && staff && !wasFollowing && !staff.isDeleted) {
+      const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: staff.shopId });
       await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
         staffId: args.staffId,
+        ...notificationOrigin,
       });
       await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
         staffId: args.staffId,
+        ...notificationOrigin,
       });
     }
   },
@@ -203,6 +247,7 @@ export const dispatchWebhookEvents = internalMutation({
     // 同じ userId の follow/unfollow が連続した場合は最後の状態だけを反映する
     // （by_lineUserId クエリも 1 userId につき 1 回に集約）
     const followingByUserId = new Map<string, boolean>();
+    const notificationOriginByShopId = new Map<Id<"shops">, BusinessNotificationOrigin>();
     const replyTokens: string[] = [];
     for (const ev of events) {
       if (ev.type === "follow" && ev.userId) followingByUserId.set(ev.userId, true);
@@ -219,12 +264,19 @@ export const dispatchWebhookEvents = internalMutation({
         const wasFollowing = Boolean(account.following);
         await ctx.db.patch(account._id, { following, lastWebhookAt: Date.now() });
         if (following && !wasFollowing) {
+          let notificationOrigin = notificationOriginByShopId.get(staff.shopId);
+          if (!notificationOrigin) {
+            notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: staff.shopId });
+            notificationOriginByShopId.set(staff.shopId, notificationOrigin);
+          }
           // ブロック解除などでfollow状態に戻った場合、未送達になっていた案内を補う。
           await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
             staffId: staff._id,
+            ...notificationOrigin,
           });
           await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
             staffId: staff._id,
+            ...notificationOrigin,
           });
         }
       }
@@ -269,6 +321,7 @@ export const upsertQuotaStatus = internalMutation({
  */
 export const sendInvite = managerMutation({
   args: { staffId: v.id("staffs") },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
     if (!staff) {
@@ -283,9 +336,12 @@ export const sendInvite = managerMutation({
       key: `${ctx.shop._id}:${staff._id}`,
     });
     if (!shortLimit.ok) return null;
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,
+      ...notificationOrigin,
     });
+    return null;
   },
 });

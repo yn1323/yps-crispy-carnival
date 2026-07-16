@@ -9,6 +9,7 @@ import { StaffRow } from "./StaffRow";
 
 type Props = {
   staffs: Staff[];
+  isReadOnly?: boolean;
   status: PaginationStatus;
   canLoadMore: boolean;
   onAddClick: () => void;
@@ -16,7 +17,15 @@ type Props = {
   onLoadMore: () => void;
 };
 
-export const StaffRoster = ({ staffs, status, canLoadMore, onAddClick, onOpenDetail, onLoadMore }: Props) => {
+export const StaffRoster = ({
+  staffs,
+  isReadOnly = false,
+  status,
+  canLoadMore,
+  onAddClick,
+  onOpenDetail,
+  onLoadMore,
+}: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
   const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
 
@@ -46,6 +55,8 @@ export const StaffRoster = ({ staffs, status, canLoadMore, onAddClick, onOpenDet
             colorPalette="teal"
             size="sm"
             onClick={onAddClick}
+            disabled={isReadOnly}
+            title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
             gap={1.5}
             fontWeight="semibold"
           >

@@ -9,6 +9,8 @@ import {
   buildNotificationFailureReminderEmailHtml,
   buildNotificationFailureReminderLineFlexMessage,
   buildNotificationFailureReminderLineText,
+  buildOrganizationBillingEmailHtml,
+  buildOrganizationManagerInvitationEmailHtml,
   buildRecruitmentEmailHtml,
   buildRecruitmentLineFlexMessage,
   buildRecruitmentLineText,
@@ -43,6 +45,28 @@ describe("notification/templates", () => {
     "https://example.com/path?q=%E3%81%82&amp;next=&quot;/&gt;&lt;script&gt;alert(1)&lt;/script&gt;#frag";
 
   const emailHtmlCases = [
+    {
+      name: "事業者管理者招待",
+      build: () =>
+        buildOrganizationManagerInvitationEmailHtml({
+          organizationName: dangerousText,
+          inviterName: dangerousText,
+          invitationUrl: dangerousUrl,
+        }),
+      staticMarkup: ["招待を確認する", "このリンクは7日間有効で、一度だけ使用できます。"],
+    },
+    {
+      name: "事業者課金",
+      build: () =>
+        buildOrganizationBillingEmailHtml({
+          recipientName: dangerousText,
+          organizationName: dangerousText,
+          heading: dangerousText,
+          paragraphs: [dangerousText],
+          action: { label: dangerousText, url: dangerousUrl },
+        }),
+      staticMarkup: ["このメールは送信専用です。返信しても届きません。"],
+    },
     {
       name: "シフト確定",
       build: () =>

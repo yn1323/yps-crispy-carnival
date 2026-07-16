@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { type ActionCtx, internalAction } from "../_generated/server";
-import { isDebugNotifyFailEnabled } from "../_lib/config";
+import { getAppUrl, getOrganizationInvitationSigningSecret, isDebugNotifyFailEnabled } from "../_lib/config";
+import { formatResendSubject } from "../_lib/emailFormat";
 import { LineApiError, pushLineMessage } from "../_lib/lineClient";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
@@ -14,12 +15,18 @@ import {
   NOTIFICATION_OUTBOX_RETRY_MAX_MS,
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
 } from "../constants";
-import type { LinePushMessage } from "../notification/templates";
+import {
+  buildOrganizationManagerInvitationEmailHtml,
+  type LinePushMessage,
+  ORGANIZATION_MANAGER_INVITATION_SUBJECT,
+} from "../notification/templates";
+import { deriveInvitationToken } from "../organizationInvitation/token";
 
 type NotificationJob = Doc<"notificationOutbox">;
 const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
 type SendJobResult = {
   resendEmailId?: string;
+  cancelled?: true;
 };
 
 export const processPending = internalAction({
@@ -35,9 +42,18 @@ export const processPending = internalAction({
       return;
     }
 
-    for (const job of jobs) {
+    for (const claimedJob of jobs) {
+      let job = claimedJob;
       try {
+        const preparedJob = await ctx.runMutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+          outboxId: claimedJob._id,
+          now: Date.now(),
+        });
+        if (!preparedJob) continue;
+        job = preparedJob;
+
         const result = await sendJob(ctx, job);
+        if (result.cancelled) continue;
         await ctx.runMutation(internal.notificationOutbox.mutations.markSent, {
           outboxId: job._id,
           ...(result.resendEmailId ? { resendEmailId: result.resendEmailId } : {}),
@@ -71,21 +87,43 @@ export const processPending = internalAction({
 
 async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobResult> {
   if (job.payload.kind === "email") {
-    const resend = getResendClient({ suppressDelivery: job.payload.suppressDelivery });
-    const resendEmailId = await sendResendEmail(
-      resend,
-      {
-        from: job.payload.from,
-        to: job.payload.to,
-        subject: job.payload.subject,
-        html: job.payload.html,
-        tags: [{ name: "shiftori_outbox_id", value: job._id }],
-      },
-      job.payload.context,
-      { idempotencyKey: `notification-outbox-${job._id}` },
+    return await sendEmailJob(job, {
+      from: job.payload.from,
+      to: job.payload.to,
+      subject: job.payload.subject,
+      html: job.payload.html,
+      context: job.payload.context,
+      suppressDelivery: job.payload.suppressDelivery,
+    });
+  }
+
+  if (job.payload.kind === "organizationManagerInvitationEmail") {
+    const invitation = await ctx.runMutation(
+      internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail,
+      { outboxId: job._id, now: Date.now() },
     );
-    if (isNotificationDeliverySuppressed({ suppressDelivery: job.payload.suppressDelivery })) return {};
-    return { resendEmailId };
+    if (!invitation) return { cancelled: true };
+
+    const token = await deriveInvitationToken({
+      invitationId: invitation.invitationId,
+      version: invitation.invitationVersion,
+      signingSecret: getOrganizationInvitationSigningSecret(),
+    });
+    const invitationUrl = new URL("/manager-invite", getAppUrl());
+    invitationUrl.searchParams.set("token", token);
+
+    return await sendEmailJob(job, {
+      from: job.payload.from,
+      to: job.payload.to,
+      subject: formatResendSubject(invitation.organizationName, ORGANIZATION_MANAGER_INVITATION_SUBJECT),
+      html: buildOrganizationManagerInvitationEmailHtml({
+        organizationName: invitation.organizationName,
+        inviterName: invitation.inviterName,
+        invitationUrl: invitationUrl.toString(),
+      }),
+      context: job.payload.context,
+      suppressDelivery: job.payload.suppressDelivery,
+    });
   }
 
   if (isDebugNotifyFailEnabled()) {
@@ -102,7 +140,12 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
       try {
         await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
           channel: "email",
-          shopId: job.shopId,
+          ...(job.shopId ? { shopId: job.shopId } : {}),
+          ...(job.organizationId ? { organizationId: job.organizationId } : {}),
+          ...(job.organizationBillingVersionAtEnqueue !== undefined
+            ? { organizationBillingVersionAtOrigin: job.organizationBillingVersionAtEnqueue }
+            : {}),
+          ...(job.purpose ? { purpose: job.purpose } : {}),
           ...(job.staffId ? { staffId: job.staffId } : {}),
           ...(job.userId ? { userId: job.userId } : {}),
           dedupeKey: job.payload.fallbackEmail.dedupeKey,
@@ -112,7 +155,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
         try {
           await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
             eventType: "enqueue_failed",
-            shopId: job.shopId,
+            ...(job.shopId ? { shopId: job.shopId } : {}),
             ...(job.staffId ? { staffId: job.staffId } : {}),
             ...(job.userId ? { userId: job.userId } : {}),
             outboxId: job._id,
@@ -132,7 +175,7 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
       try {
         await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
           eventType: "fallback_enqueued",
-          shopId: job.shopId,
+          ...(job.shopId ? { shopId: job.shopId } : {}),
           ...(job.staffId ? { staffId: job.staffId } : {}),
           ...(job.userId ? { userId: job.userId } : {}),
           outboxId: job._id,
@@ -155,6 +198,34 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
     retryKey: lineRetryKey(job._id),
   });
   return {};
+}
+
+async function sendEmailJob(
+  job: NotificationJob,
+  input: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    context: string;
+    suppressDelivery?: boolean;
+  },
+): Promise<SendJobResult> {
+  const resend = getResendClient({ suppressDelivery: input.suppressDelivery });
+  const resendEmailId = await sendResendEmail(
+    resend,
+    {
+      from: input.from,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      tags: [{ name: "shiftori_outbox_id", value: job._id }],
+    },
+    input.context,
+    { idempotencyKey: `notification-outbox-${job._id}` },
+  );
+  if (isNotificationDeliverySuppressed({ suppressDelivery: input.suppressDelivery })) return {};
+  return { resendEmailId };
 }
 
 function lineMessageFromPayload(payload: Extract<NotificationJob["payload"], { kind: "line" }>): LinePushMessage {

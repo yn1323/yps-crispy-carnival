@@ -138,6 +138,7 @@ export const submitShiftRequests = staffSessionMutation({
     ),
     submission: v.optional(shiftSubmissionInputValidator),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const rateLimitResult = await rateLimit(ctx, {
       name: "submitShiftRequests",
@@ -286,5 +287,6 @@ export const submitShiftRequests = staffSessionMutation({
         updatedAt: now,
       });
     }
+    return null;
   },
 });

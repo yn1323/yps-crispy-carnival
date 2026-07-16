@@ -8,6 +8,18 @@ import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service
  */
 export const getLinkStatusByShop = managerQuery({
   args: {},
+  returns: v.union(
+    v.array(
+      v.object({
+        staffId: v.id("staffs"),
+        name: v.string(),
+        email: v.string(),
+        isLinked: v.boolean(),
+        isFollowing: v.boolean(),
+      }),
+    ),
+    v.null(),
+  ),
   handler: async (ctx) => {
     const shop = ctx.shop;
     if (!shop) return null;
@@ -36,6 +48,17 @@ export const getLinkStatusByShop = managerQuery({
  */
 export const getQuotaStatus = managerQuery({
   args: {},
+  returns: v.union(
+    v.object({
+      status: v.union(v.literal("normal"), v.literal("exceeded")),
+      remaining: v.number(),
+      totalQuota: v.number(),
+      consumed: v.number(),
+      checkedAt: v.number(),
+      plan: v.union(v.literal("communication"), v.literal("light"), v.literal("standard")),
+    }),
+    v.null(),
+  ),
   handler: async (ctx) => {
     if (!ctx.shop) return null;
     const status = await ctx.db.query("lineQuotaStatus").order("desc").first();

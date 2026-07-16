@@ -1,7 +1,8 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { type ComponentProps, useState } from "react";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "@/src/components/ui/Button";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
@@ -167,6 +168,98 @@ export const Normal: Story = {
     loadMoreStaffs: noop,
   },
 };
+
+export const ReadOnlyShop: Story = {
+  args: {
+    ...Normal.args,
+    isReadOnly: true,
+    isDashboardOnboardingDismissed: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await expect(canvas.getByRole("button", { name: "店舗設定を編集" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "スタッフを招待" })).toBeDisabled();
+
+    await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
+    const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
+    await expect(within(staffDetailDialog).getByRole("button", { name: "変更を保存" })).toBeDisabled();
+  },
+};
+
+export const ReadOnlyTransitionBehavior: Story = {
+  args: Normal.args,
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ReadOnlyTransitionStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const toggle = canvas.getByRole("button", { name: "閲覧専用を切り替える" });
+
+    const expectDialogClosedByReadOnly = async (dialogName: string) => {
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+      await waitFor(() => expect(body.queryByRole("dialog", { name: dialogName })).not.toBeInTheDocument());
+      fireEvent.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
+    };
+
+    await userEvent.click(canvas.getByRole("button", { name: "店舗設定を編集" }));
+    await body.findByRole("dialog", { name: "店舗設定" });
+    await expectDialogClosedByReadOnly("店舗設定");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "新しい募集をつくる" }));
+    await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    await expectDialogClosedByReadOnly("新しい募集をつくる");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを招待" }));
+    await body.findByRole("dialog", { name: "スタッフを招待" });
+    await expectDialogClosedByReadOnly("スタッフを招待");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
+    await body.findByRole("dialog", { name: "スタッフ登録申請" });
+    await expectDialogClosedByReadOnly("スタッフ登録申請");
+
+    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認" }));
+    await body.findByRole("dialog", { name: "送れなかった通知" });
+    await expectDialogClosedByReadOnly("送れなかった通知");
+  },
+};
+
+function ReadOnlyTransitionStory() {
+  const [isReadOnly, setIsReadOnly] = useState(false);
+
+  return (
+    <>
+      <Button
+        aria-label="閲覧専用を切り替える"
+        aria-pressed={isReadOnly}
+        position="fixed"
+        top={2}
+        left={2}
+        zIndex="tooltip"
+        onClick={() => setIsReadOnly((current) => !current)}
+      >
+        閲覧専用を切り替える
+      </Button>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        isReadOnly={isReadOnly}
+        recruitments={dashboardRecruitments}
+        recruitmentGroups={dashboardRecruitmentGroups}
+        currentRecruitments={mockCurrentRecruitments}
+        staffs={mockStaffs}
+        pendingStaffRequests={pendingStaffRequests}
+        notificationFailures={notificationFailures}
+        isDashboardOnboardingDismissed
+      />
+    </>
+  );
+}
 
 export const ManagementDialogsBehavior: Story = {
   args: Normal.args,

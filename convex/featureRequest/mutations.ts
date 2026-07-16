@@ -8,6 +8,7 @@ export const submit = managerMutation({
     comment: v.string(),
     requestId: v.string(),
   },
+  returns: v.object({ status: v.literal("accepted") }),
   handler: async (ctx, args) => {
     const parsed = submitFeatureRequestSchema.safeParse(args);
     if (!parsed.success) {
@@ -45,6 +46,7 @@ export const submitFromStaff = staffSessionMutation({
     comment: v.string(),
     requestId: v.string(),
   },
+  returns: v.object({ status: v.literal("accepted") }),
   handler: async (ctx, args) => {
     const parsed = submitFeatureRequestSchema.safeParse(args);
     if (!parsed.success) {

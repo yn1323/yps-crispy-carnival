@@ -377,6 +377,32 @@ describe("staffAuth/mutations", () => {
       expect(result.recruitmentId).toBeNull();
       if (result.status === "expired") expect(result.reason).toBe("invalid_link");
     });
+
+    it("同一tokenが異なる募集に重複している場合は対象情報を返さずセッションを作らない", async () => {
+      const t = convexTest(schema, modules);
+      const first = await setupTestData(t);
+      const second = await setupTestData(t);
+
+      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
+        token: first.magicLinkToken,
+        accessKind: "view",
+      });
+
+      expect(result).toEqual({ status: "expired", reason: "invalid_link", recruitmentId: null });
+      const state = await t.run(async (ctx) => ({
+        sessions: await ctx.db.query("sessions").collect(),
+        links: await ctx.db
+          .query("magicLinks")
+          .withIndex("by_token", (q) => q.eq("token", first.magicLinkToken))
+          .collect(),
+      }));
+      expect(state.sessions).toEqual([]);
+      expect(state.links).toHaveLength(2);
+      expect(new Set(state.links.map((link) => link.recruitmentId))).toEqual(
+        new Set([first.recruitmentId, second.recruitmentId]),
+      );
+      expect(state.links.every((link) => link.usedAt === undefined)).toBe(true);
+    });
   });
 
   describe("verifyToken レートリミット", () => {
@@ -581,6 +607,30 @@ describe("staffAuth/mutations", () => {
         recruitmentId: ids.recruitmentId,
       });
       logSpy.mockRestore();
+    });
+
+    it("同一店舗に同じメールの有効staffが複数ある場合は一般化した応答のまま通知を予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("staffs", {
+          shopId: ids.shopId,
+          name: "重複スタッフ",
+          email: "suzuki@example.com",
+          emailNormalized: "suzuki@example.com",
+          isDeleted: false,
+        });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled).toEqual([]);
     });
 
     it("同じメールと募集の短時間連打では再発行通知予約を増やさない", async () => {

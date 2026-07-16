@@ -16,6 +16,7 @@ type Shop = {
 type Props = {
   shop: Shop;
   recruitments: Recruitment[];
+  isReadOnly?: boolean;
   onEditClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
@@ -32,6 +33,7 @@ type Props = {
 export const HeroSummary = ({
   shop,
   recruitments,
+  isReadOnly = false,
   onEditClick,
   onOpenShiftBoard,
   onCreateRecruitment,
@@ -67,6 +69,8 @@ export const HeroSummary = ({
             fontWeight="semibold"
             flexShrink={0}
             onClick={onEditClick}
+            disabled={isReadOnly}
+            title={isReadOnly ? "閲覧のみの店舗では設定を変更できません" : undefined}
           >
             編集
           </Button>

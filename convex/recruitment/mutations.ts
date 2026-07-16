@@ -9,6 +9,7 @@ import {
 import { managerMutation } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
 import { RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
+import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { createRecruitmentSchema } from "./schemas";
 import { getActiveRecruitmentInShop } from "./service";
 
@@ -45,6 +46,7 @@ export const createRecruitment = managerMutation({
     deadline: v.string(),
     shopClosedDates: v.array(v.string()),
   },
+  returns: v.id("recruitments"),
   handler: async (ctx, args) => {
     const parsed = createRecruitmentSchema.safeParse(args);
     if (!parsed.success) {
@@ -106,14 +108,17 @@ export const createRecruitment = managerMutation({
       activeStaffCountSnapshot: activeStaffs.length,
       updatedAt: now,
     });
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
     // 募集作成はDB更新を先に完了させ、通知は action 側で LINE / email / dry-run を振り分ける。
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendRecruitmentNotificationEmails, {
       recruitmentId,
+      ...notificationOrigin,
     });
     if (shouldScheduleReminder) {
       await ctx.scheduler.runAt(reminderScheduledAt, internal.notification.reminderActions.sendReminderEmails, {
         recruitmentId,
+        ...notificationOrigin,
       });
     }
 
@@ -123,7 +128,7 @@ export const createRecruitment = managerMutation({
       await ctx.scheduler.runAt(
         confirmationReminderAt,
         internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder,
-        { recruitmentId },
+        { recruitmentId, ...notificationOrigin },
       );
     }
 
@@ -135,6 +140,7 @@ export const deleteRecruitment = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const recruitment = await getActiveRecruitmentInShop(ctx, ctx.shop._id, args.recruitmentId);
     if (!recruitment) {

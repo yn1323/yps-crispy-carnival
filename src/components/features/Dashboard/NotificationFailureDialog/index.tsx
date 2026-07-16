@@ -17,6 +17,7 @@ export type DashboardNotificationFailure = {
 
 type Props = {
   failures: DashboardNotificationFailure[];
+  isReadOnly?: boolean;
   acceptedFailureIds: ReadonlySet<Id<"notificationFailureInbox">>;
   resendingFailureIds: ReadonlySet<Id<"notificationFailureInbox">>;
   isResendingAll: boolean;
@@ -32,6 +33,7 @@ const EMAIL_FAILURE_HELP_LINES = [
 
 export const NotificationFailureDialogContent = ({
   failures,
+  isReadOnly = false,
   acceptedFailureIds,
   resendingFailureIds,
   isResendingAll,
@@ -39,7 +41,9 @@ export const NotificationFailureDialogContent = ({
   onResendAll,
   onDismiss,
 }: Props) => {
-  const hasPendingRetryable = failures.some((failure) => failure.canRetry && !acceptedFailureIds.has(failure._id));
+  const hasPendingRetryable = failures.some(
+    (failure) => !isReadOnly && failure.canRetry && !acceptedFailureIds.has(failure._id),
+  );
 
   if (failures.length === 0) {
     return (
@@ -133,6 +137,7 @@ export const NotificationFailureDialogContent = ({
                 <Table.Cell textAlign="center" verticalAlign="middle" w="216px">
                   <FailureActionButtons
                     failure={failure}
+                    isReadOnly={isReadOnly}
                     isAccepted={acceptedFailureIds.has(failure._id)}
                     isLoading={isResendingAll || resendingFailureIds.has(failure._id)}
                     onResend={onResend}
@@ -170,6 +175,7 @@ export const NotificationFailureDialogContent = ({
               <Flex>
                 <FailureActionButtons
                   failure={failure}
+                  isReadOnly={isReadOnly}
                   isAccepted={acceptedFailureIds.has(failure._id)}
                   isLoading={isResendingAll || resendingFailureIds.has(failure._id)}
                   onResend={onResend}
@@ -244,6 +250,7 @@ const ErrorDateBadge = ({ lastFailedAt }: { lastFailedAt: number }) => (
 
 const FailureActionButtons = ({
   failure,
+  isReadOnly,
   isAccepted,
   isLoading,
   onResend,
@@ -251,6 +258,7 @@ const FailureActionButtons = ({
   fullWidth = false,
 }: {
   failure: DashboardNotificationFailure;
+  isReadOnly: boolean;
   isAccepted: boolean;
   isLoading: boolean;
   onResend: (failureId: Id<"notificationFailureInbox">) => void;
@@ -259,7 +267,14 @@ const FailureActionButtons = ({
 }) => {
   if (isAccepted) {
     return (
-      <ResendButton failure={failure} isAccepted isLoading={isLoading} onResend={onResend} fullWidth={fullWidth} />
+      <ResendButton
+        failure={failure}
+        isReadOnly={isReadOnly}
+        isAccepted
+        isLoading={isLoading}
+        onResend={onResend}
+        fullWidth={fullWidth}
+      />
     );
   }
 
@@ -267,6 +282,7 @@ const FailureActionButtons = ({
     <HStack gap={2} flexShrink={0} justify="center" w={fullWidth ? "100%" : undefined}>
       <ResendButton
         failure={failure}
+        isReadOnly={isReadOnly}
         isAccepted={false}
         isLoading={isLoading}
         onResend={onResend}
@@ -276,7 +292,7 @@ const FailureActionButtons = ({
         size="sm"
         variant="outline"
         colorPalette="red"
-        disabled={isLoading}
+        disabled={isReadOnly || isLoading}
         onClick={() => onDismiss(failure)}
         flex={fullWidth ? 1 : undefined}
         gap={1.5}
@@ -290,12 +306,14 @@ const FailureActionButtons = ({
 
 const ResendButton = ({
   failure,
+  isReadOnly,
   isAccepted,
   isLoading,
   onResend,
   fullWidth = false,
 }: {
   failure: DashboardNotificationFailure;
+  isReadOnly: boolean;
   isAccepted: boolean;
   isLoading: boolean;
   onResend: (failureId: Id<"notificationFailureInbox">) => void;
@@ -315,7 +333,7 @@ const ResendButton = ({
       size="sm"
       colorPalette="teal"
       loading={isLoading}
-      disabled={isLoading || !failure.canRetry}
+      disabled={isReadOnly || isLoading || !failure.canRetry}
       onClick={() => onResend(failure._id)}
       flex={fullWidth ? 1 : undefined}
       gap={1.5}

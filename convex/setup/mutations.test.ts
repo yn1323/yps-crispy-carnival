@@ -25,6 +25,61 @@ describe("setup/mutations", () => {
       await expect(t.mutation(api.setup.mutations.setupShopAndManager, setupArgs)).rejects.toThrow();
     });
 
+    it("削除済みユーザーは拒否し、事業者・店舗・所属を作成しない", async () => {
+      const t = convexTest(schema, modules);
+      const userId = await t.run(async (ctx) => {
+        const id = await seedUser(ctx, "deleted_setup_user", "deleted-setup@example.com");
+        await ctx.db.patch(id, { isDeleted: true });
+        return id;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "deleted_setup_user" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).rejects.toThrow("無効になったアカウントでは初期設定を開始できません");
+
+      const state = await t.run(async (ctx) => ({
+        user: await ctx.db.get(userId),
+        organizations: await ctx.db.query("organizations").collect(),
+        people: await ctx.db.query("organizationPeople").collect(),
+        members: await ctx.db.query("organizationMembers").collect(),
+        shops: await ctx.db.query("shops").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.user).toMatchObject({ isDeleted: true, email: "deleted-setup@example.com" });
+      expect(state.organizations).toEqual([]);
+      expect(state.people).toEqual([]);
+      expect(state.members).toEqual([]);
+      expect(state.shops).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+    });
+
+    it("認証識別子に複数userが紐づく場合は新しいuserや事業者を作成しない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await seedUser(ctx, "duplicate_setup_identity", "duplicate-setup-1@example.com");
+        await seedUser(ctx, "duplicate_setup_identity", "duplicate-setup-2@example.com");
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "duplicate_setup_identity" })
+          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).rejects.toThrow("Not found");
+
+      const state = await t.run(async (ctx) => ({
+        users: await ctx.db.query("users").collect(),
+        organizations: await ctx.db.query("organizations").collect(),
+        people: await ctx.db.query("organizationPeople").collect(),
+        members: await ctx.db.query("organizationMembers").collect(),
+        shops: await ctx.db.query("shops").collect(),
+      }));
+      expect(state.users).toHaveLength(2);
+      expect(state.organizations).toEqual([]);
+      expect(state.people).toEqual([]);
+      expect(state.members).toEqual([]);
+      expect(state.shops).toEqual([]);
+    });
+
     it("同意なしではエラー", async () => {
       const t = convexTest(schema, modules);
       await expect(
@@ -82,6 +137,30 @@ describe("setup/mutations", () => {
       expect(shop?.name).toBe("テスト店舗");
       expect(shop?.regularClosedDays).toEqual([]);
       expect(shop?.submissionPattern).toEqual({ kind: "dateOnly" });
+      expect(shop?.operatingStatus).toBe("active");
+      expect(shop?.organizationId).toBeDefined();
+      if (!shop?.organizationId) throw new Error("organization not found");
+      const organizationId = shop.organizationId;
+
+      const organization = await t.run(async (ctx) => ctx.db.get(organizationId));
+      expect(organization).toMatchObject({
+        name: "テスト店舗",
+        billingEmail: "yamada@example.com",
+        billingEmailNormalized: "yamada@example.com",
+        isDeleted: false,
+      });
+      const organizationBillingState = await t.run(async (ctx) =>
+        ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique(),
+      );
+      expect(organizationBillingState).toMatchObject({
+        organizationId,
+        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00") },
+        version: 1,
+        freeShopId: shopId,
+      });
       const billingState = await t.run(async (ctx) =>
         ctx.db
           .query("shopBillingStates")
@@ -105,6 +184,25 @@ describe("setup/mutations", () => {
       expect(user?.name).toBe("山田 太郎");
       expect(user?.email).toBe("yamada@example.com");
       expect(user?.role).toBe("manager");
+      const organizationPerson = await t.run(async (ctx) =>
+        ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId_and_userId", (q) =>
+            q.eq("organizationId", organizationId).eq("userId", user._id),
+          )
+          .unique(),
+      );
+      expect(organizationPerson).toMatchObject({ status: "active", emailNormalized: "yamada@example.com" });
+      const organizationMember = await t.run(async (ctx) =>
+        ctx.db
+          .query("organizationMembers")
+          .withIndex("by_userId_and_organizationId", (q) =>
+            q.eq("userId", user._id).eq("organizationId", organizationId),
+          )
+          .unique(),
+      );
+      expect(organizationMember).toMatchObject({ status: "active", personId: organizationPerson?._id });
+      expect(organizationBillingState?.freeManagerPersonId).toBe(organizationPerson?._id);
       const consentState = await t.run(async (ctx) =>
         ctx.db
           .query("legalConsentStates")
@@ -127,6 +225,8 @@ describe("setup/mutations", () => {
       expect(staffs[0].name).toBe("山田 太郎");
       expect(staffs[0].email).toBe("yamada@example.com");
       expect(staffs[0].userId).toBe(user?._id);
+      expect(staffs[0].organizationId).toBe(organizationId);
+      expect(staffs[0].organizationPersonId).toBe(organizationPerson?._id);
       const staffConsentState = await t.run(async (ctx) =>
         ctx.db
           .query("legalConsentStates")
@@ -149,6 +249,15 @@ describe("setup/mutations", () => {
             job.name === "shopActivationReminder/actions:sendReminder" &&
             job.args[0]?.shopId === shopId &&
             job.scheduledTime === getShopActivationReminderAt(now.getTime()),
+        ),
+      ).toBe(true);
+      expect(
+        scheduled.some(
+          (job) =>
+            job.name === "organizationBilling/mutations:processDeadline" &&
+            job.args[0]?.organizationId === organizationId &&
+            job.args[0]?.expectedVersion === 1 &&
+            job.args[0]?.expectedDeadlineAt === Date.parse("2026-09-01T00:00:00+09:00"),
         ),
       ).toBe(true);
 

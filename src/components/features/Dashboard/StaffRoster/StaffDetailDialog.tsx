@@ -15,6 +15,7 @@ type DirectAction = "sendRecruitments" | "sendCurrentShift" | "sendLineInvite";
 
 type Props = {
   staff: Staff | null;
+  isReadOnly?: boolean;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
@@ -42,6 +43,7 @@ type Props = {
 
 export const StaffDetailDialog = ({
   staff,
+  isReadOnly = false,
   isOpen,
   onOpenChange,
   onClose,
@@ -146,59 +148,62 @@ export const StaffDetailDialog = ({
             </Tabs.Trigger>
           </Tabs.List>
 
-          <Tabs.Content value="basic" pt={4}>
-            <StaffDetailBasicTab staff={staff} onEdit={onEdit} isEditing={isEditing} />
-          </Tabs.Content>
+          <fieldset disabled={isReadOnly} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>
+            <Tabs.Content value="basic" pt={4}>
+              <StaffDetailBasicTab staff={staff} onEdit={onEdit} isEditing={isEditing} />
+            </Tabs.Content>
 
-          <Tabs.Content value="notification" pt={4}>
-            <StaffDetailNotificationTab
-              isShiftTarget={isShiftTarget}
-              openRecruitments={openRecruitments}
-              currentRecruitments={currentRecruitments}
-              sendRecruitmentsAction={{
-                isDisabled: !canSendRecruitments || isDirectActionRunning,
-                isLoading: isSendingRecruitments || directAction === "sendRecruitments",
-                onAction: () => runDirectAction("sendRecruitments", () => onSendRecruitments(staff)),
-              }}
-              sendCurrentShiftAction={{
-                isDisabled: !canSendCurrentShift || isDirectActionRunning,
-                isLoading: isSendingCurrentShift || directAction === "sendCurrentShift",
-                onAction: () => runDirectAction("sendCurrentShift", () => onSendCurrentShift(staff)),
-              }}
-            />
-          </Tabs.Content>
+            <Tabs.Content value="notification" pt={4}>
+              <StaffDetailNotificationTab
+                isShiftTarget={isShiftTarget}
+                openRecruitments={openRecruitments}
+                currentRecruitments={currentRecruitments}
+                sendRecruitmentsAction={{
+                  isDisabled: !canSendRecruitments || isDirectActionRunning,
+                  isLoading: isSendingRecruitments || directAction === "sendRecruitments",
+                  onAction: () => runDirectAction("sendRecruitments", () => onSendRecruitments(staff)),
+                }}
+                sendCurrentShiftAction={{
+                  isDisabled: !canSendCurrentShift || isDirectActionRunning,
+                  isLoading: isSendingCurrentShift || directAction === "sendCurrentShift",
+                  onAction: () => runDirectAction("sendCurrentShift", () => onSendCurrentShift(staff)),
+                }}
+              />
+            </Tabs.Content>
 
-          <Tabs.Content value="line" pt={4}>
-            <StaffDetailLineTab
-              staffName={staff.name}
-              lineStatus={lineStatus}
-              isLineActive={isLineActive}
-              hasEmail={hasEmail}
-              showLineQr={showLineQr}
-              lineAuthorizeUrl={lineQrState.authorizeUrl}
-              isLineQrLoading={lineQrState.isLoading}
-              onShowLineQr={() => onShowLineQr(staff)}
-              sendLineInviteAction={{
-                isDisabled: !hasEmail || isLineActive || isSendingLineInvite || isDirectActionRunning,
-                isLoading: isSendingLineInvite || directAction === "sendLineInvite",
-                onAction: () => runDirectAction("sendLineInvite", () => onSendLineInvite(staff)),
-              }}
-            />
-          </Tabs.Content>
+            <Tabs.Content value="line" pt={4}>
+              <StaffDetailLineTab
+                staffName={staff.name}
+                lineStatus={lineStatus}
+                isLineActive={isLineActive}
+                hasEmail={hasEmail}
+                showLineQr={showLineQr}
+                lineAuthorizeUrl={lineQrState.authorizeUrl}
+                isLineQrLoading={lineQrState.isLoading}
+                onShowLineQr={() => onShowLineQr(staff)}
+                sendLineInviteAction={{
+                  isDisabled: !hasEmail || isLineActive || isSendingLineInvite || isDirectActionRunning,
+                  isLoading: isSendingLineInvite || directAction === "sendLineInvite",
+                  onAction: () => runDirectAction("sendLineInvite", () => onSendLineInvite(staff)),
+                }}
+              />
+            </Tabs.Content>
 
-          <Tabs.Content value="settings" pt={4}>
-            <StaffDetailSettingsTab
-              isShiftTarget={isShiftTarget}
-              isChangingShiftTarget={isChangingShiftTarget}
-              isManager={staff.isManager}
-              isDeleteConfirmationOpen={pendingAction === "delete"}
-              isDeleting={isDeleting}
-              onChangeShiftTarget={(nextIsShiftTarget) => onChangeShiftTarget(staff, nextIsShiftTarget)}
-              onRequestDelete={() => setPendingAction("delete")}
-              onCancelDelete={() => setPendingAction(null)}
-              onConfirmDelete={handleDelete}
-            />
-          </Tabs.Content>
+            <Tabs.Content value="settings" pt={4}>
+              <StaffDetailSettingsTab
+                isShiftTarget={isShiftTarget}
+                isChangingShiftTarget={isChangingShiftTarget}
+                isManager={staff.isManager}
+                isOrganizationLinked={staff.isOrganizationLinked ?? false}
+                isDeleteConfirmationOpen={pendingAction === "delete"}
+                isDeleting={isDeleting}
+                onChangeShiftTarget={(nextIsShiftTarget) => onChangeShiftTarget(staff, nextIsShiftTarget)}
+                onRequestDelete={() => setPendingAction("delete")}
+                onCancelDelete={() => setPendingAction(null)}
+                onConfirmDelete={handleDelete}
+              />
+            </Tabs.Content>
+          </fieldset>
         </Tabs.Root>
       </Stack>
     </Dialog>

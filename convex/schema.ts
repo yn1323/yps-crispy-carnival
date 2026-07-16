@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
+  notificationCancelReasonValidator,
   notificationChannelValidator,
   notificationDeliveryEventTypeValidator,
   notificationFailureInboxSourceTypeValidator,
@@ -10,9 +11,18 @@ import {
   notificationFailureResolutionKindValidator,
   notificationOutboxStatusValidator,
   notificationPayloadValidator,
+  notificationPurposeValidator,
   resendProviderDeliveryStatusValidator,
   resendProviderIssueEventTypeValidator,
 } from "./notificationOutbox/schemas";
+import {
+  organizationBillingStateValidator,
+  organizationInvitationPurposeValidator,
+  organizationInvitationStatusValidator,
+  organizationMemberStatusValidator,
+  organizationPersonStatusValidator,
+  organizationShopOperatingStatusValidator,
+} from "./organization/validators";
 
 const schema = defineSchema({
   ...rateLimitTables,
@@ -20,6 +30,16 @@ const schema = defineSchema({
   // 店舗情報
   // ========================================
   shops: defineTable({
+    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
+    //   前提: develop/prod で m009_shops_to_organizations が完走していること
+    //   （確認: pnpm convex:migrate:status）。
+    //   対応: v.optional() を外して v.id("organizations") にする。
+    organizationId: v.optional(v.id("organizations")),
+    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
+    //   前提: develop/prod で m009_shops_to_organizations が完走していること
+    //   （確認: pnpm convex:migrate:status）。
+    //   対応: v.optional() を外して organizationShopOperatingStatusValidator にする。
+    operatingStatus: v.optional(organizationShopOperatingStatusValidator),
     name: v.string(),
     regularClosedDays: v.array(
       v.union(
@@ -34,7 +54,131 @@ const schema = defineSchema({
     ),
     submissionPattern: submissionPatternValidator,
     isDeleted: v.boolean(),
-  }),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"]),
+
+  // ========================================
+  // 事業者・人物・管理者所属
+  // ========================================
+  organizations: defineTable({
+    createdByUserId: v.optional(v.id("users")),
+    migrationSourceShopId: v.optional(v.id("shops")),
+    name: v.string(),
+    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
+    //   前提: 既存事業者の初期請求連絡先を運用確認して補完し、develop/prodの未設定件数が
+    //   0件であること（確認: pnpm convex:migrate:status と管理用集計）。
+    //   対応: v.optional() を外して v.string() にする。
+    billingEmail: v.optional(v.string()),
+    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
+    //   前提: billingEmail と同じ補完が完了し、develop/prodの未設定件数が0件であること
+    //   （確認: pnpm convex:migrate:status と管理用集計）。
+    //   対応: v.optional() を外して v.string() にする。
+    billingEmailNormalized: v.optional(v.string()),
+    isDeleted: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_createdByUserId", ["createdByUserId"])
+    .index("by_migrationSourceShopId", ["migrationSourceShopId"]),
+
+  organizationPeople: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.optional(v.id("users")),
+    name: v.string(),
+    email: v.string(),
+    emailNormalized: v.string(),
+    status: organizationPersonStatusValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId_and_emailNormalized", ["organizationId", "emailNormalized"])
+    .index("by_organizationId_and_userId", ["organizationId", "userId"])
+    .index("by_userId_and_status", ["userId", "status"]),
+
+  organizationMembers: defineTable({
+    organizationId: v.id("organizations"),
+    personId: v.id("organizationPeople"),
+    userId: v.id("users"),
+    status: organizationMemberStatusValidator,
+    invitedByMemberId: v.optional(v.id("organizationMembers")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_userId_and_status", ["userId", "status"])
+    .index("by_userId_and_organizationId", ["userId", "organizationId"])
+    .index("by_organizationId_and_personId", ["organizationId", "personId"]),
+
+  organizationInvitations: defineTable({
+    organizationId: v.id("organizations"),
+    email: v.string(),
+    emailNormalized: v.string(),
+    tokenDigest: v.string(),
+    status: organizationInvitationStatusValidator,
+    // TODO[narrow]: 対象はNarrow着手時に追加するorganizationInvitations purpose補完migration。
+    //   Widen前に作成された招待の失効または補完が完了し、develop/prodの未設定件数が0件であることを
+    //   `pnpm convex:migrate:status` と管理用集計で確認後、v.optional()を外し、
+    //   organizationInvitation/service.tsのmanagerAddition fallbackも削除する。
+    purpose: v.optional(organizationInvitationPurposeValidator),
+    inviterMemberId: v.id("organizationMembers"),
+    reservedSeat: v.boolean(),
+    version: v.number(),
+    predecessorInvitationId: v.optional(v.id("organizationInvitations")),
+    expiresAt: v.number(),
+    sentAt: v.optional(v.number()),
+    acceptedAt: v.optional(v.number()),
+    acceptedByPersonId: v.optional(v.id("organizationPeople")),
+    revokedAt: v.optional(v.number()),
+    expiredAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_tokenDigest", ["tokenDigest"])
+    .index("by_organizationId_and_emailNormalized_and_status", ["organizationId", "emailNormalized", "status"])
+    .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_inviterMemberId_and_status", ["inviterMemberId", "status"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  organizationBillingStates: defineTable({
+    organizationId: v.id("organizations"),
+    state: organizationBillingStateValidator,
+    freeManagerPersonId: v.optional(v.id("organizationPeople")),
+    freeShopId: v.optional(v.id("shops")),
+    businessNotificationCutoffAt: v.optional(v.number()),
+    businessNotificationCutoffVersion: v.optional(v.number()),
+    version: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
+
+  organizationAuditEvents: defineTable({
+    organizationId: v.id("organizations"),
+    actorUserId: v.optional(v.id("users")),
+    actorPersonId: v.optional(v.id("organizationPeople")),
+    action: v.string(),
+    targetKind: v.optional(v.string()),
+    targetId: v.optional(v.string()),
+    fromState: v.optional(v.string()),
+    toState: v.optional(v.string()),
+    correlationId: v.optional(v.string()),
+    occurredAt: v.number(),
+  })
+    .index("by_organizationId_and_occurredAt", ["organizationId", "occurredAt"])
+    .index("by_actorUserId_and_occurredAt", ["actorUserId", "occurredAt"])
+    .index("by_actorPersonId_and_occurredAt", ["actorPersonId", "occurredAt"])
+    .index("by_correlationId", ["correlationId"]),
+
+  organizationMigrationConflicts: defineTable({
+    organizationId: v.optional(v.id("organizations")),
+    sourceType: v.string(),
+    sourceId: v.string(),
+    code: v.string(),
+    createdAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_sourceType_and_sourceId_and_code", ["sourceType", "sourceId", "code"])
+    .index("by_organizationId_and_resolvedAt", ["organizationId", "resolvedAt"]),
 
   shopBillingStates: defineTable({
     shopId: v.id("shops"),
@@ -98,6 +242,18 @@ const schema = defineSchema({
   // ========================================
   staffs: defineTable({
     shopId: v.id("shops"),
+    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
+    //   前提: develop/prod で m010_shop_members_to_organization_members と
+    //   m011_staffs_to_organization_people が完走し、conflictが解消済みであること
+    //   （確認: pnpm convex:migrate:status）。
+    //   対応: v.optional() を外して v.id("organizations") にする。
+    organizationId: v.optional(v.id("organizations")),
+    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
+    //   前提: develop/prod で m010_shop_members_to_organization_members と
+    //   m011_staffs_to_organization_people が完走し、conflictが解消済みであること
+    //   （確認: pnpm convex:migrate:status）。
+    //   対応: v.optional() を外して v.id("organizationPeople") にする。
+    organizationPersonId: v.optional(v.id("organizationPeople")),
     name: v.string(),
     email: v.string(),
     emailNormalized: v.optional(v.string()),
@@ -110,6 +266,9 @@ const schema = defineSchema({
     .index("by_shopId_isDeleted", ["shopId", "isDeleted"])
     .index("by_shopId_email_isDeleted", ["shopId", "email", "isDeleted"])
     .index("by_shopId_emailNormalized_isDeleted", ["shopId", "emailNormalized", "isDeleted"])
+    .index("by_userId_and_shopId", ["userId", "shopId"])
+    .index("by_organizationId", ["organizationId"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
     .index("by_email", ["email"])
     .index("by_emailNormalized", ["emailNormalized"]),
 
@@ -248,7 +407,8 @@ const schema = defineSchema({
   })
     .index("by_recruitmentId", ["recruitmentId"])
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
-    .index("by_recruitmentId_date", ["recruitmentId", "date"]),
+    .index("by_recruitmentId_date", ["recruitmentId", "date"])
+    .index("by_staffId_and_date", ["staffId", "date"]),
 
   shiftConfirmationSnapshots: defineTable({
     recruitmentId: v.id("recruitments"),
@@ -376,7 +536,12 @@ const schema = defineSchema({
     channel: notificationChannelValidator,
     status: notificationOutboxStatusValidator,
     dedupeKey: v.string(),
-    shopId: v.id("shops"),
+    shopId: v.optional(v.id("shops")),
+    organizationId: v.optional(v.id("organizations")),
+    organizationBillingVersionAtEnqueue: v.optional(v.number()),
+    organizationInvitationId: v.optional(v.id("organizationInvitations")),
+    organizationInvitationVersion: v.optional(v.number()),
+    purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
@@ -387,6 +552,8 @@ const schema = defineSchema({
     processingStartedAt: v.optional(v.number()),
     sentAt: v.optional(v.number()),
     failedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(notificationCancelReasonValidator),
     resendEmailId: v.optional(v.string()),
     resendLastEventType: v.optional(resendProviderIssueEventTypeValidator),
     resendLastEventAt: v.optional(v.number()),
@@ -397,6 +564,11 @@ const schema = defineSchema({
     .index("by_dedupeKey_status", ["dedupeKey", "status"])
     .index("by_status_nextRunAt", ["status", "nextRunAt"])
     .index("by_shopId_status", ["shopId", "status"])
+    .index("by_organizationId_status", ["organizationId", "status"])
+    .index("by_organizationId_purpose_status", ["organizationId", "purpose", "status"])
+    .index("by_organizationInvitationId", ["organizationInvitationId"])
+    .index("by_userId_status", ["userId", "status"])
+    .index("by_staffId_status", ["staffId", "status"])
     .index("by_resendEmailId", ["resendEmailId"])
     // 分析KPI: 日次窓（JST）での送信/最終失敗のレンジスキャン用
     .index("by_status_sentAt", ["status", "sentAt"])
@@ -407,6 +579,9 @@ const schema = defineSchema({
     createdAt: v.number(),
     expiresAt: v.number(),
     shopId: v.optional(v.id("shops")),
+    organizationId: v.optional(v.id("organizations")),
+    organizationInvitationId: v.optional(v.id("organizationInvitations")),
+    organizationInvitationVersion: v.optional(v.number()),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     userId: v.optional(v.id("users")),
@@ -425,6 +600,8 @@ const schema = defineSchema({
   })
     .index("by_expiresAt", ["expiresAt"])
     .index("by_shopId_createdAt", ["shopId", "createdAt"])
+    .index("by_organizationId_createdAt", ["organizationId", "createdAt"])
+    .index("by_organizationInvitationId_createdAt", ["organizationInvitationId", "createdAt"])
     .index("by_outboxId_createdAt", ["outboxId", "createdAt"])
     .index("by_eventType_createdAt", ["eventType", "createdAt"])
     .index("by_providerEventId", ["providerEventId"]),

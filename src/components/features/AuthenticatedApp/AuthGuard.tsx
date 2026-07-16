@@ -2,11 +2,17 @@ import { useAuth } from "@clerk/clerk-react";
 import { Navigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
-import { selectedShopAtom } from "@/src/stores/shop";
+import {
+  isSameSelectedShop,
+  isSelectableShop,
+  normalizeShopContextOptions,
+  selectedShopAtom,
+  toSelectedShop,
+} from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -20,6 +26,14 @@ export const AuthGuard = ({ children }: Props) => {
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
   const myShops = useQuery(api.dashboard.queries.getMyShops, isSignedIn ? {} : "skip");
+  const selectableShops = useMemo(
+    () => (myShops ? normalizeShopContextOptions(myShops).filter(isSelectableShop) : []),
+    [myShops],
+  );
+  const selectedCandidate = selectedShop
+    ? (selectableShops.find((shop) => shop.shopId === selectedShop.shopId) ?? null)
+    : null;
+  const isShopSelectionRoute = location.pathname === "/shop-select";
 
   useEffect(() => {
     if (userId && currentUser) {
@@ -31,33 +45,33 @@ export const AuthGuard = ({ children }: Props) => {
     }
   }, [userId, currentUser, setUser]);
 
-  // 選択中店舗を初期化/整合する。未選択 or 保存値が所属一覧から消えた場合は先頭店舗にする。
-  // （店舗切替UIは未提供。ここで selectedShopAtom にセットした値が manager 系の shopId として送られる）
+  // 保存済み店舗を現在の所属情報へ正規化する。候補が複数なら自動選択せず、選択画面へ委ねる。
   useEffect(() => {
     if (!myShops) return;
-    if (myShops.length === 0) {
+    if (selectableShops.length === 0) {
       if (selectedShop !== null) {
         setSelectedShop(null);
       }
       return;
     }
 
-    const currentShop = selectedShop ? myShops.find((shop) => shop.shopId === selectedShop.shopId) : null;
-    if (!currentShop) {
-      setSelectedShop({ shopId: myShops[0].shopId, shopName: myShops[0].shopName });
+    if (!selectedCandidate) {
+      if (selectableShops.length === 1) {
+        setSelectedShop(toSelectedShop(selectableShops[0]));
+      } else if (selectedShop !== null) {
+        setSelectedShop(null);
+      }
       return;
     }
 
-    if (currentShop.shopName !== selectedShop?.shopName) {
-      setSelectedShop({ shopId: currentShop.shopId, shopName: currentShop.shopName });
+    if (!isSameSelectedShop(selectedShop, selectedCandidate)) {
+      setSelectedShop(toSelectedShop(selectedCandidate));
     }
-  }, [myShops, selectedShop, setSelectedShop]);
+  }, [myShops, selectableShops, selectedCandidate, selectedShop, setSelectedShop]);
 
-  const isShopContextReady =
-    myShops !== undefined &&
-    (myShops.length === 0
-      ? selectedShop === null
-      : selectedShop !== null && myShops.some((shop) => shop.shopId === selectedShop.shopId));
+  const hasResolvedShopContext = selectableShops.length === 0 ? selectedShop === null : selectedCandidate !== null;
+  const isShopContextReady = myShops !== undefined && (isShopSelectionRoute || hasResolvedShopContext);
+  const needsShopSelection = myShops !== undefined && selectableShops.length > 1 && selectedCandidate === null;
 
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）
@@ -65,6 +79,10 @@ export const AuthGuard = ({ children }: Props) => {
     return (
       <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(`${location.pathname}${location.searchStr}`) }} />
     );
+  }
+
+  if (needsShopSelection && !isShopSelectionRoute) {
+    return <Navigate to="/shop-select" replace />;
   }
 
   if (user.authId && isShopContextReady) {

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { managerQuery } from "../_lib/functions";
-import { getSubmissionPatternTimeRange } from "../_lib/submissionPattern";
+import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
   SHIFT_ASSIGNMENT_LIMIT,
@@ -8,13 +8,80 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
+import { getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
+
+const shiftBoardWriteBlockReasonValidator = v.union(
+  v.literal("memberReadOnly"),
+  v.literal("shopArchived"),
+  v.literal("shopPlanSuspended"),
+  v.literal("paymentResultPending"),
+  v.literal("restricted"),
+  v.null(),
+);
+
+const shiftBoardDataValidator = v.object({
+  shopId: v.id("shops"),
+  canWriteBusinessData: v.boolean(),
+  businessWriteBlockReason: shiftBoardWriteBlockReasonValidator,
+  recruitment: v.object({
+    _id: v.id("recruitments"),
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    deadline: v.string(),
+    shopClosedDates: v.array(v.string()),
+    status: v.union(v.literal("open"), v.literal("confirmed")),
+    confirmedAt: v.union(v.number(), v.null()),
+    reminderScheduledAt: v.union(v.number(), v.null()),
+    lastReminderSentAt: v.union(v.number(), v.null()),
+    draftSavedAt: v.union(v.number(), v.null()),
+  }),
+  submissionPattern: submissionPatternValidator,
+  staffs: v.array(
+    v.object({
+      _id: v.id("staffs"),
+      name: v.string(),
+      isSubmitted: v.boolean(),
+      createdAt: v.number(),
+      wasSubmittedAtDraft: v.boolean(),
+    }),
+  ),
+  positions: v.array(v.object({ _id: v.id("positions"), name: v.string(), color: v.string(), isDefault: v.boolean() })),
+  requestedSlots: v.array(
+    v.object({
+      staffId: v.id("staffs"),
+      date: v.string(),
+      startTime: v.string(),
+      endTime: v.string(),
+      optionId: v.optional(v.string()),
+    }),
+  ),
+  requestedDates: v.array(v.object({ staffId: v.id("staffs"), date: v.string() })),
+  shiftAssignments: v.array(
+    v.object({
+      staffId: v.id("staffs"),
+      date: v.string(),
+      startTime: v.string(),
+      endTime: v.string(),
+      positionId: v.id("positions"),
+      optionId: v.optional(v.string()),
+    }),
+  ),
+  timeRange: v.object({
+    start: v.number(),
+    end: v.number(),
+    unit: v.number(),
+    editableStartMinutes: v.number(),
+    editableEndMinutes: v.number(),
+  }),
+});
 
 export const getShiftBoardData = managerQuery({
   args: {
     recruitmentId: v.id("recruitments"),
   },
+  returns: v.union(shiftBoardDataValidator, v.null()),
   handler: async (ctx, args) => {
     const { shop } = ctx;
     if (!shop) return null;
@@ -65,9 +132,21 @@ export const getShiftBoardData = managerQuery({
     const editableEndMinutes = timeToMinutes(endTimeStr);
     const startHour = Math.floor(editableStartMinutes / 60);
     const endHour = Math.ceil(editableEndMinutes / 60);
+    const shopStatus = shop.operatingStatus ?? "active";
+    const billingPolicy = ctx.organization ? await getOrganizationBillingPolicy(ctx, ctx.organization._id) : null;
+    const businessWriteBlockReason =
+      shopStatus === "archived"
+        ? ("shopArchived" as const)
+        : shopStatus === "planSuspended"
+          ? ("shopPlanSuspended" as const)
+          : ctx.organizationMember?.status === "readOnly"
+            ? ("memberReadOnly" as const)
+            : (billingPolicy?.businessWriteBlockReason ?? null);
 
     return {
       shopId: shop._id,
+      canWriteBusinessData: businessWriteBlockReason === null,
+      businessWriteBlockReason,
       recruitment: {
         _id: recruitment._id,
         periodStart: recruitment.periodStart,

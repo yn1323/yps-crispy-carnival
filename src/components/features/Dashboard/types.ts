@@ -42,6 +42,8 @@ export type Staff = {
   isLineLinked: boolean;
   isLineFollowing: boolean;
   excludedFromShift: boolean;
+  /** 移行済みスタッフは、削除時に事業者人物を残して操作中店舗の所属だけを終了する。 */
+  isOrganizationLinked?: boolean;
 };
 
 export type StaffRegistrationRequest = {

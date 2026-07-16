@@ -8,6 +8,21 @@ export const notificationOutboxStatusValidator = v.union(
   v.literal("processing"),
   v.literal("sent"),
   v.literal("failed"),
+  v.literal("cancelled"),
+);
+
+export const notificationPurposeValidator = v.union(v.literal("business"), v.literal("billing"));
+
+// 永続化する理由は監査・運用に必要な安全な分類だけに限定し、宛先やtokenを含めない。
+export const notificationCancelReasonValidator = v.union(
+  v.literal("organization_billing_changed"),
+  v.literal("organization_restricted"),
+  v.literal("organization_inactive"),
+  v.literal("shop_inactive"),
+  v.literal("recipient_inactive"),
+  v.literal("invitation_inactive"),
+  v.literal("unsupported_channel"),
+  v.literal("invalid_scope"),
 );
 
 export const notificationDeliveryEventTypeValidator = v.union(
@@ -54,7 +69,7 @@ export const notificationFailureResolutionKindValidator = v.union(
   v.literal("expired"),
 );
 
-export const notificationEmailPayloadValidator = v.object({
+export const notificationRenderedEmailPayloadValidator = v.object({
   kind: v.literal("email"),
   from: v.string(),
   to: v.string(),
@@ -64,6 +79,20 @@ export const notificationEmailPayloadValidator = v.object({
   suppressDelivery: v.optional(v.boolean()),
   suppressFailureInbox: v.optional(v.boolean()),
 });
+
+export const notificationOrganizationManagerInvitationEmailPayloadValidator = v.object({
+  kind: v.literal("organizationManagerInvitationEmail"),
+  from: v.string(),
+  to: v.string(),
+  context: v.string(),
+  suppressDelivery: v.optional(v.boolean()),
+  suppressFailureInbox: v.optional(v.boolean()),
+});
+
+export const notificationEmailPayloadValidator = v.union(
+  notificationRenderedEmailPayloadValidator,
+  notificationOrganizationManagerInvitationEmailPayloadValidator,
+);
 
 export const notificationLineMessageValidator = v.union(
   v.object({
@@ -87,12 +116,13 @@ export const notificationLinePayloadValidator = v.object({
   fallbackEmail: v.optional(
     v.object({
       dedupeKey: v.string(),
-      payload: notificationEmailPayloadValidator,
+      payload: notificationRenderedEmailPayloadValidator,
     }),
   ),
 });
 
 export const notificationPayloadValidator = v.union(
-  notificationEmailPayloadValidator,
+  notificationRenderedEmailPayloadValidator,
+  notificationOrganizationManagerInvitationEmailPayloadValidator,
   notificationLinePayloadValidator,
 );

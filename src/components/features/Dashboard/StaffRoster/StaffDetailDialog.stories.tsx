@@ -21,6 +21,10 @@ const lineNotFollowingStaff = {
 } as Staff;
 
 const excludedStaff = mockStaffsWithExcluded[2] as Staff;
+const organizationLinkedStaff = {
+  ...mockStaffs[1],
+  isOrganizationLinked: true,
+} as Staff;
 
 const meta = {
   title: "Features/Dashboard/StaffDetailDialog",
@@ -126,5 +130,18 @@ export const ManagerStaff: Story = {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
     await expect(await within(dialog).findByRole("button", { name: "スタッフを削除" })).toBeDisabled();
+  },
+};
+
+export const OrganizationLinkedStaffRemoval: Story = {
+  args: {
+    staff: organizationLinkedStaff,
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await userEvent.click(await within(dialog).findByRole("button", { name: "スタッフを削除" }));
+    await expect(within(dialog).getByText(/利用人数にも引き続き含まれます/)).toBeInTheDocument();
+    await expect(within(dialog).getByRole("button", { name: "店舗から削除" })).toBeEnabled();
   },
 };

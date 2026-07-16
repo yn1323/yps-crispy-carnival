@@ -38,12 +38,17 @@ export const acceptStaffLegalConsent = mutation({
     token: v.string(),
     acceptedLegal: v.literal(true),
   },
+  returns: v.object({ status: v.union(v.literal("expired"), v.literal("ok")) }),
   handler: async (ctx, { token }) => {
-    const tokenDoc = await ctx.db
+    const tokenDocs = await ctx.db
       .query("legalConsentTokens")
       .withIndex("by_token", (q) => q.eq("token", token))
-      .first();
-    if (!tokenDoc || tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now() || tokenDoc.usedAt) {
+      .take(2);
+    if (tokenDocs.length !== 1) {
+      return { status: "expired" as const };
+    }
+    const tokenDoc = tokenDocs[0];
+    if (tokenDoc.revokedAt || tokenDoc.expiresAt < Date.now() || tokenDoc.usedAt) {
       return { status: "expired" as const };
     }
 
@@ -90,6 +95,7 @@ export const acceptManagerLegalConsent = managerMutation({
   args: {
     acceptedLegal: v.literal(true),
   },
+  returns: v.object({ status: v.union(v.literal("already_accepted"), v.literal("ok")) }),
   handler: async (ctx) => {
     if (await hasCurrentUserLegalConsent(ctx, ctx.user._id)) {
       return { status: "already_accepted" as const };

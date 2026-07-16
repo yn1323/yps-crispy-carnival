@@ -6,6 +6,7 @@ type Props = {
   isShiftTarget: boolean;
   isChangingShiftTarget: boolean;
   isManager: boolean;
+  isOrganizationLinked: boolean;
   isDeleteConfirmationOpen: boolean;
   isDeleting: boolean;
   onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
@@ -18,6 +19,7 @@ export const StaffDetailSettingsTab = ({
   isShiftTarget,
   isChangingShiftTarget,
   isManager,
+  isOrganizationLinked,
   isDeleteConfirmationOpen,
   isDeleting,
   onChangeShiftTarget,
@@ -64,7 +66,12 @@ export const StaffDetailSettingsTab = ({
         </Text>
       )}
       {isDeleteConfirmationOpen && (
-        <DeleteStaffConfirmation isDeleting={isDeleting} onCancel={onCancelDelete} onConfirm={onConfirmDelete} />
+        <DeleteStaffConfirmation
+          isDeleting={isDeleting}
+          isOrganizationLinked={isOrganizationLinked}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
+        />
       )}
     </Stack>
   </Stack>
@@ -72,10 +79,12 @@ export const StaffDetailSettingsTab = ({
 
 const DeleteStaffConfirmation = ({
   isDeleting,
+  isOrganizationLinked,
   onCancel,
   onConfirm,
 }: {
   isDeleting: boolean;
+  isOrganizationLinked: boolean;
   onCancel: () => void;
   onConfirm: () => void | Promise<void>;
 }) => (
@@ -83,10 +92,12 @@ const DeleteStaffConfirmation = ({
     <Stack gap={3}>
       <Stack gap={1}>
         <Text fontWeight="semibold" color="red.700">
-          スタッフを削除しますか？
+          {isOrganizationLinked ? "この店舗のスタッフ所属を削除しますか？" : "スタッフを削除しますか？"}
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          削除すると元に戻せません。既存のシフト用リンクやLINE連携も使えなくなります。
+          {isOrganizationLinked
+            ? "この店舗の所属と既存のシフト用リンク、LINE連携を終了します。事業者の人物情報、ほかの店舗所属、管理者権限は変更せず、利用人数にも引き続き含まれます。将来のシフトに割り当てられている場合は削除できません。"
+            : "削除すると元に戻せません。既存のシフト用リンクやLINE連携も使えなくなります。"}
         </Text>
       </Stack>
       <HStack justify="flex-end" gap={2}>
@@ -94,7 +105,7 @@ const DeleteStaffConfirmation = ({
           やめる
         </Button>
         <Button colorPalette="red" loading={isDeleting} onClick={onConfirm}>
-          スタッフを削除
+          {isOrganizationLinked ? "店舗から削除" : "スタッフを削除"}
         </Button>
       </HStack>
     </Stack>
