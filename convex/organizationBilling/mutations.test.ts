@@ -613,7 +613,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "new-billing@example.com",
           requestId: "billing-email-missing-state",
         }),
-    ).rejects.toThrow("事業者の契約情報を確認中です");
+    ).rejects.toThrow("グループの契約情報を確認中です");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -1450,6 +1450,56 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     expect(result.billingState?.version).toBe(1);
     expect(result.member?.status).toBe("readOnly");
     expect(result.shop?.operatingStatus).toBe("planSuspended");
+  });
+
+  it("支払い猶予の期限処理は削除済み店舗を復旧対象に含めない", async () => {
+    const now = new Date("2026-07-17T00:00:00.000Z").getTime();
+    const deadlineAt = now + 1_000;
+    vi.setSystemTime(now);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "grace_deleted_shop", plan: "pro" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      const deletedShopId = await ctx.db.insert("shops", {
+        organizationId: seeded.organizationId,
+        operatingStatus: "active",
+        name: "削除済み店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: true,
+      });
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "grace", plan: "pro", startedAt: now - 1_000, endsAt: deadlineAt },
+        updatedAt: now,
+      });
+      return { ...seeded, deletedShopId };
+    });
+
+    vi.setSystemTime(deadlineAt);
+    await expect(
+      t.mutation(internal.organizationBilling.mutations.processDeadline, {
+        organizationId: ids.organizationId,
+        expectedVersion: 1,
+        expectedDeadlineAt: deadlineAt,
+      }),
+    ).resolves.toEqual({ changed: true, stateKind: "restricted" });
+
+    const billingState = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billingState?.state).toMatchObject({
+      kind: "restricted",
+      previousActiveShopIds: [ids.shopId],
+    });
+    if (billingState?.state.kind !== "restricted") throw new Error("restricted state not found");
+    expect(billingState.state.previousActiveShopIds).not.toContain(ids.deletedShopId);
   });
 
   it("同じpersonにmembershipが重複する復旧対象では有料プランも管理権限も有効化しない", async () => {

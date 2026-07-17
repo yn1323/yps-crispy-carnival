@@ -37,7 +37,7 @@ export const setupShopAndManager = authenticatedMutation({
         .withIndex("by_createdByUserId", (q) => q.eq("createdByUserId", currentUser._id))
         .first();
       if (selfCreatedOrganization) {
-        throw new ConvexError("自分で作成できる事業者は一つまでです");
+        throw new ConvexError("自分で作成できるグループは一つまでです");
       }
 
       // TODO[narrow]: develop/prodでm009_shops_to_organizationsと

@@ -4,6 +4,7 @@ import { type ComponentProps, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
+import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
 import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
@@ -16,6 +17,34 @@ const shop = {
   regularClosedDays: [],
   submissionPattern: { kind: "time" as const, startTime: "14:00", endTime: "25:00" },
 };
+const operationShop = {
+  shopId: "shop-1",
+  shopName: shop.name,
+  shopStatus: "active" as const,
+  organizationId: "organization-1",
+  organizationName: "たなかグループ",
+  organizationPlan: "pro" as const,
+  memberStatus: "active" as const,
+};
+const operationContextData = {
+  shops: [
+    operationShop,
+    {
+      ...operationShop,
+      shopId: "shop-2",
+      shopName: "カフェたなか",
+    },
+    {
+      ...operationShop,
+      shopId: "shop-3",
+      shopName: "ビストロ佐藤",
+      organizationId: "organization-2",
+      organizationName: "佐藤フードグループ",
+    },
+  ],
+  selectedShop: operationShop,
+  onSelect: noop,
+} satisfies OperationContextData;
 const managerLegalConsentReady = {
   required: false,
   documents: {
@@ -110,6 +139,7 @@ const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
 
 const dashboardBaseArgs = {
   shop,
+  operationContextData,
   managerLegalConsentStatus: managerLegalConsentReady,
   recruitmentStatus: "Exhausted",
   hasPastRecruitments: false,
@@ -124,6 +154,7 @@ const dashboardBaseArgs = {
 } satisfies Pick<
   ComponentProps<typeof DashboardContent>,
   | "shop"
+  | "operationContextData"
   | "managerLegalConsentStatus"
   | "recruitmentStatus"
   | "hasPastRecruitments"
@@ -151,6 +182,7 @@ type Story = StoryObj<typeof meta>;
 export const Normal: Story = {
   args: {
     shop,
+    operationContextData,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: dashboardRecruitments,
     recruitmentGroups: dashboardRecruitmentGroups,
@@ -179,7 +211,7 @@ export const ReadOnlyShop: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await expect(canvas.getByRole("button", { name: "店舗設定を編集" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "居酒屋たなかの店舗設定を編集" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "スタッフを招待" })).toBeDisabled();
 
@@ -208,7 +240,7 @@ export const ReadOnlyTransitionBehavior: Story = {
       await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
     };
 
-    await userEvent.click(canvas.getByRole("button", { name: "店舗設定を編集" }));
+    await userEvent.click(canvas.getByRole("button", { name: "居酒屋たなかの店舗設定を編集" }));
     await body.findByRole("dialog", { name: "店舗設定" });
     await expectDialogClosedByReadOnly("店舗設定");
 
@@ -270,7 +302,7 @@ export const ManagementDialogsBehavior: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "店舗設定を編集" }));
+    await userEvent.click(canvas.getByRole("button", { name: "居酒屋たなかの店舗設定を編集" }));
     const shopSettingsDialog = await body.findByRole("dialog", { name: "店舗設定" });
     await userEvent.click(within(shopSettingsDialog).getByRole("button", { name: "閉じる" }));
     await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());
@@ -343,6 +375,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     shop,
+    operationContextData,
     managerLegalConsentStatus: managerLegalConsentReady,
     recruitments: [],
     currentRecruitments: [],

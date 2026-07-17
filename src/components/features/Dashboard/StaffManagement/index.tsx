@@ -5,6 +5,7 @@ import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
 import { useStaffLineConnection } from "./useStaffLineConnection";
+import { useStaffManagerInvitation } from "./useStaffManagerInvitation";
 import { useStaffNotificationDelivery } from "./useStaffNotificationDelivery";
 import { useStaffProfileManagement } from "./useStaffProfileManagement";
 
@@ -59,6 +60,7 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
   const invitation = useStaffInvitation(isReadOnly);
   const lineConnection = useStaffLineConnection(isReadOnly);
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
+  const managerInvitation = useStaffManagerInvitation(profile.staff, { isReadOnly });
   const notifications = useStaffNotificationDelivery(isReadOnly);
 
   const content = (
@@ -83,6 +85,8 @@ export function StaffManagement({ data, openRecruitments, currentRecruitments, i
         isDeleting: profile.isDeleting,
         onChangeShiftTarget: profile.onChangeShiftTarget,
         isChangingShiftTarget: profile.isChangingShiftTarget,
+        onInviteManager: managerInvitation.onInvite,
+        isInvitingManager: managerInvitation.isInviting,
         onShowLineQr: lineConnection.onShowQr,
         lineQrState: lineConnection.qrState,
         onSendLineInvite: lineConnection.onSendInvite,

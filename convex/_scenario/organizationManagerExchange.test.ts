@@ -1,0 +1,356 @@
+import { convexTest } from "convex-test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api, internal } from "../_generated/api";
+import { SCENARIO_NOW, scenarioDate } from "../_test/scenarioBuilders";
+import { createScenario } from "../_test/scenarioFixtures";
+import { seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { modules, schema } from "../_test/setup.test-helper";
+import { deriveInvitationToken } from "../organizationInvitation/token";
+
+const SIGNING_SECRET = "test-only-organization-invitation-secret-123456";
+
+describe("Free管理者交代シナリオ", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(SCENARIO_NOW);
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it("既存スタッフへの交代後は元管理者の管理権限だけを外しスタッフ通知と別事業者の権限を保つ", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const formerManager = scenario.manager({
+      subject: "free_exchange_former",
+      email: "former@example.com",
+    });
+    const successor = scenario.manager({
+      subject: "free_exchange_successor",
+      name: "交代先スタッフ",
+      email: "successor@example.com",
+      emailVerified: true,
+    });
+
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "free_exchange_former",
+        email: "former@example.com",
+        shopName: "Free交代対象店舗",
+        plan: "free",
+      });
+      const formerStaffId = await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: organization.personId,
+        userId: organization.userId,
+        name: "元管理者スタッフ",
+        email: "former@example.com",
+        emailNormalized: "former@example.com",
+        isDeleted: false,
+      });
+      const formerLegacyMemberId = await ctx.db.insert("shopMembers", {
+        shopId: organization.shopId,
+        userId: organization.userId,
+        role: "manager",
+        isDeleted: false,
+      });
+      const formerLineAccountId = await seedStaffLineAccount(ctx, {
+        staffId: formerStaffId,
+        shopId: organization.shopId,
+        lineUserId: "U_former_manager_staff",
+        following: true,
+      });
+      const unjoinedShopId = await ctx.db.insert("shops", {
+        organizationId: organization.organizationId,
+        operatingStatus: "archived",
+        name: "元管理者がスタッフではない店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+
+      const now = Date.now();
+      const otherOrganizationId = await ctx.db.insert("organizations", {
+        createdByUserId: organization.userId,
+        name: "別事業者",
+        billingEmail: "former@example.com",
+        billingEmailNormalized: "former@example.com",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const otherPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: otherOrganizationId,
+        userId: organization.userId,
+        name: "別事業者の管理者",
+        email: "former@example.com",
+        emailNormalized: "former@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const otherMemberId = await ctx.db.insert("organizationMembers", {
+        organizationId: otherOrganizationId,
+        personId: otherPersonId,
+        userId: organization.userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const otherShopId = await ctx.db.insert("shops", {
+        organizationId: otherOrganizationId,
+        operatingStatus: "active",
+        name: "別事業者の店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId: otherOrganizationId,
+        state: { kind: "active", plan: "free" },
+        freeManagerPersonId: otherPersonId,
+        freeShopId: otherShopId,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const otherLegacyMemberId = await ctx.db.insert("shopMembers", {
+        shopId: otherShopId,
+        userId: organization.userId,
+        role: "manager",
+        isDeleted: false,
+      });
+      const otherStaffId = await ctx.db.insert("staffs", {
+        shopId: otherShopId,
+        organizationId: otherOrganizationId,
+        organizationPersonId: otherPersonId,
+        userId: organization.userId,
+        name: "別事業者のスタッフ",
+        email: "former@example.com",
+        emailNormalized: "former@example.com",
+        isDeleted: false,
+      });
+      return {
+        ...organization,
+        formerStaffId,
+        formerLegacyMemberId,
+        formerLineAccountId,
+        unjoinedShopId,
+        otherOrganizationId,
+        otherPersonId,
+        otherMemberId,
+        otherShopId,
+        otherLegacyMemberId,
+        otherStaffId,
+      };
+    });
+
+    const [successorStaffId, excludedStaffId] = await formerManager.addStaffs([
+      { name: "交代先スタッフ", email: "successor@example.com" },
+      { name: "シフト対象外スタッフ", email: "excluded@example.com" },
+    ]);
+    await formerManager.setShiftExclusion(excludedStaffId, true);
+
+    const beforeExchange = await t.run(async (ctx) => {
+      const successorStaff = await ctx.db.get(successorStaffId);
+      if (!successorStaff?.organizationPersonId) throw new Error("交代先スタッフが組織に紐づいていません");
+      return {
+        formerPerson: await ctx.db.get(seeded.personId),
+        formerStaff: await ctx.db.get(seeded.formerStaffId),
+        formerLineAccount: await ctx.db.get(seeded.formerLineAccountId),
+        successorPersonId: successorStaff.organizationPersonId,
+        otherPerson: await ctx.db.get(seeded.otherPersonId),
+        otherMember: await ctx.db.get(seeded.otherMemberId),
+        otherLegacyMember: await ctx.db.get(seeded.otherLegacyMemberId),
+        otherStaff: await ctx.db.get(seeded.otherStaffId),
+      };
+    });
+
+    const created = await formerManager.inviteStaffAsManager(successorStaffId);
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("管理者交代の招待が見つかりません");
+    expect(invitation).toMatchObject({
+      targetPersonId: beforeExchange.successorPersonId,
+      purpose: "freeManagerExchange",
+      status: "pending",
+    });
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    await expect(successor.acceptManagerInvitation(token)).resolves.toEqual({
+      status: "accepted",
+      organizationId: seeded.organizationId,
+      shopId: seeded.shopId,
+    });
+
+    const afterExchange = await t.run(async (ctx) => ({
+      formerMember: await ctx.db.get(seeded.memberId),
+      successorMembers: await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_personId", (q) =>
+          q.eq("organizationId", seeded.organizationId).eq("personId", beforeExchange.successorPersonId),
+        )
+        .collect(),
+      formerPerson: await ctx.db.get(seeded.personId),
+      formerStaff: await ctx.db.get(seeded.formerStaffId),
+      formerLegacyMember: await ctx.db.get(seeded.formerLegacyMemberId),
+      formerLineAccount: await ctx.db.get(seeded.formerLineAccountId),
+      otherPerson: await ctx.db.get(seeded.otherPersonId),
+      otherMember: await ctx.db.get(seeded.otherMemberId),
+      otherLegacyMember: await ctx.db.get(seeded.otherLegacyMemberId),
+      otherStaff: await ctx.db.get(seeded.otherStaffId),
+      otherShopStaffs: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", seeded.otherShopId).eq("isDeleted", false))
+        .collect(),
+      unjoinedShopStaffs: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", seeded.unjoinedShopId).eq("isDeleted", false))
+        .collect(),
+      billingState: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique(),
+    }));
+    expect(afterExchange.formerMember?.status).toBe("removed");
+    expect(afterExchange.successorMembers).toHaveLength(1);
+    expect(afterExchange.successorMembers[0]?.status).toBe("active");
+    expect(afterExchange.billingState?.freeManagerPersonId).toBe(beforeExchange.successorPersonId);
+    expect(afterExchange.formerPerson).toEqual(beforeExchange.formerPerson);
+    expect(afterExchange.formerStaff).toEqual(beforeExchange.formerStaff);
+    expect(afterExchange.formerLineAccount).toEqual(beforeExchange.formerLineAccount);
+    expect(afterExchange.formerLegacyMember?.isDeleted).toBe(true);
+    expect(afterExchange.otherPerson).toEqual(beforeExchange.otherPerson);
+    expect(afterExchange.otherMember).toEqual(beforeExchange.otherMember);
+    expect(afterExchange.otherLegacyMember).toEqual(beforeExchange.otherLegacyMember);
+    expect(afterExchange.otherStaff).toEqual(beforeExchange.otherStaff);
+    expect(afterExchange.otherShopStaffs.map((staff) => staff._id)).toEqual([seeded.otherStaffId]);
+    expect(afterExchange.unjoinedShopStaffs).toEqual([]);
+
+    const formerIdentity = t.withIdentity({ subject: "free_exchange_former", email: "former@example.com" });
+    await expect(formerIdentity.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([
+      expect.objectContaining({
+        shopId: seeded.otherShopId,
+        organizationId: seeded.otherOrganizationId,
+        memberStatus: "active",
+      }),
+    ]);
+    const remainingDashboardShop = await formerIdentity.query(api.dashboard.queries.getDashboardShop, {});
+    expect(remainingDashboardShop).toMatchObject({ name: "別事業者の店舗" });
+    expect(remainingDashboardShop).not.toMatchObject({ name: "Free交代対象店舗" });
+
+    const beforeDeniedWrite = await t.run(async (ctx) => ({
+      shop: await ctx.db.get(seeded.shopId),
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect(),
+    }));
+    await expect(
+      formerIdentity.mutation(api.shop.mutations.updateShopSettings, {
+        shopId: seeded.shopId,
+        shopName: "変更されてはいけない店舗名",
+        regularClosedDays: ["sun"],
+        submissionPattern: { kind: "time", startTime: "10:00", endTime: "20:00" },
+      }),
+    ).rejects.toThrow();
+    const afterDeniedWrite = await t.run(async (ctx) => ({
+      shop: await ctx.db.get(seeded.shopId),
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", seeded.organizationId))
+        .collect(),
+    }));
+    expect(afterDeniedWrite).toEqual(beforeDeniedWrite);
+
+    const recruitmentId = await t
+      .withIdentity({
+        subject: "free_exchange_successor",
+        email: "successor@example.com",
+        emailVerified: true,
+      })
+      .mutation(api.recruitment.mutations.createRecruitment, {
+        shopId: seeded.shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(3),
+        shopClosedDates: [],
+      });
+    const recruitmentData = await t.query(internal.notification.queries.getRecruitmentEmailData, {
+      recruitmentId,
+    });
+    expect(recruitmentData?.staffEntries.map((entry) => entry.staffId).sort()).toEqual(
+      [seeded.formerStaffId, successorStaffId].sort(),
+    );
+    expect(recruitmentData?.staffEntries).toHaveLength(2);
+    expect(recruitmentData?.staffEntries.find((entry) => entry.staffId === seeded.formerStaffId)).toMatchObject({
+      email: "former@example.com",
+      lineUserId: "U_former_manager_staff",
+      lineFollowing: true,
+    });
+    expect(recruitmentData?.staffEntries.map((entry) => entry.staffId)).not.toContain(excludedStaffId);
+  });
+
+  it("元管理者がシフト対象外なら交代後も募集通知のrecipientに含めない", async () => {
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const formerManager = scenario.manager({ subject: "excluded_former", email: "excluded-former@example.com" });
+    const successor = scenario.manager({
+      subject: "excluded_successor",
+      email: "excluded-successor@example.com",
+      emailVerified: true,
+    });
+    const seeded = await t.run(async (ctx) => {
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "excluded_former",
+        email: "excluded-former@example.com",
+        plan: "free",
+      });
+      const formerStaffId = await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: organization.personId,
+        userId: organization.userId,
+        name: "シフト対象外の元管理者",
+        email: "excluded-former@example.com",
+        emailNormalized: "excluded-former@example.com",
+        excludedFromShift: true,
+        isDeleted: false,
+      });
+      return { ...organization, formerStaffId };
+    });
+    const [successorStaffId] = await formerManager.addStaffs([
+      { name: "交代先スタッフ", email: "excluded-successor@example.com" },
+    ]);
+    const formerStaffBefore = await t.run((ctx) => ctx.db.get(seeded.formerStaffId));
+    const created = await formerManager.inviteStaffAsManager(successorStaffId);
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("管理者交代の招待が見つかりません");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    await expect(successor.acceptManagerInvitation(token)).resolves.toMatchObject({ status: "accepted" });
+    expect(await t.run((ctx) => ctx.db.get(seeded.formerStaffId))).toEqual(formerStaffBefore);
+    expect(formerStaffBefore?.excludedFromShift).toBe(true);
+
+    const recruitmentId = await successor.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+    const recruitmentData = await t.query(internal.notification.queries.getRecruitmentEmailData, {
+      recruitmentId,
+    });
+    expect(recruitmentData?.staffEntries.map((entry) => entry.staffId)).toEqual([successorStaffId]);
+    expect(recruitmentData?.staffEntries).toHaveLength(1);
+    expect(recruitmentData?.staffEntries.map((entry) => entry.staffId)).not.toContain(seeded.formerStaffId);
+  });
+});

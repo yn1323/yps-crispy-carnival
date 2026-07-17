@@ -2,12 +2,11 @@ import { useAuth, useClerk } from "@clerk/clerk-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { showErrorToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { normalizeShopContextOptions, selectedShopAtom, toSelectedShop } from "@/src/stores/shop";
+import { normalizeShopContextOptions } from "@/src/stores/shop";
 import {
   ManagerInvitationAcceptanceView,
   type ManagerInvitationAcceptanceViewState,
@@ -39,7 +38,6 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const preview = useQuery(api.organizationInvitation.queries.getPreview, token ? { token } : "skip");
   const rawShops = useQuery(api.dashboard.queries.getMyShops, isAuthenticated ? {} : "skip");
   const acceptInvitation = useMutation(api.organizationInvitation.mutations.accept);
-  const setSelectedShop = useSetAtom(selectedShopAtom);
   const [acceptStatus, setAcceptStatus] = useState<AcceptResultStatus | null>(null);
   const [acceptedTarget, setAcceptedTarget] = useState<AcceptedTarget | null>(null);
   const invitationRedirect = useMemo(() => buildManagerInvitationRedirect(token), [token]);
@@ -53,9 +51,8 @@ export function ManagerInvitationAcceptance({ token }: Props) {
 
   useEffect(() => {
     if (!destinationShop) return;
-    setSelectedShop(toSelectedShop(destinationShop));
-    void navigate({ to: "/dashboard", replace: true });
-  }, [destinationShop, navigate, setSelectedShop]);
+    void navigate({ to: "/dashboard", search: { shop: destinationShop.shopId }, replace: true });
+  }, [destinationShop, navigate]);
 
   const { run: acceptOnce, isRunning: isAccepting } = useSingleFlight(async () => {
     if (!token || !isAuthenticated) return;

@@ -3,6 +3,7 @@ import { SignOutButton } from "@clerk/clerk-react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { LuBookOpen, LuBuilding2, LuChevronDown, LuLogOut, LuMailQuestion, LuUserRound } from "react-icons/lu";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 
 export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
+  const selectedShop = useAtomValue(selectedShopAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
 
@@ -77,9 +79,9 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
             </Box>
             <Menu.Separator />
             <Menu.Item asChild value="organization-settings" cursor="pointer">
-              <RouterLink to="/settings">
+              <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
                 <LuBuilding2 />
-                事業者設定
+                グループ設定
               </RouterLink>
             </Menu.Item>
             <Menu.Item asChild value="howto" cursor="pointer">

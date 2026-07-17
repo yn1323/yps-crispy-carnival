@@ -4,14 +4,22 @@ import { OrganizationSettings, OrganizationSettingsSkeleton } from "@/src/compon
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 
-export function OrganizationSettingsPage({ defaultTab = "people" }: { defaultTab?: "people" | "shops" | "billing" }) {
+type SettingsTab = "people" | "shops" | "billing";
+
+export function OrganizationSettingsPage({
+  defaultTab = "people",
+  onTabChange,
+}: {
+  defaultTab?: SettingsTab;
+  onTabChange?: (tab: SettingsTab) => void;
+}) {
   const settings = useShopQuery(api.organization.queries.getSettings, {});
 
   return (
     <SettingsPageLayout
       content={
         settings ? (
-          <OrganizationSettings settings={settings} defaultTab={defaultTab} />
+          <OrganizationSettings settings={settings} defaultTab={defaultTab} onTabChange={onTabChange} />
         ) : (
           <OrganizationSettingsSkeleton />
         )

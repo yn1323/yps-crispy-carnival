@@ -13,11 +13,16 @@ import {
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
+import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
 import {
   organizationMemberStatusValidator,
   organizationShopOperatingStatusValidator,
 } from "../organization/validators";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
+import { resolveFreeManagerExchangeEligibility } from "../organizationInvitation/service";
+import { normalizeEmail } from "../staff/service";
 
 const myShopValidator = v.object({
   shopId: v.id("shops"),
@@ -38,6 +43,18 @@ const dashboardStaffValidator = v.object({
   isLineFollowing: v.boolean(),
   excludedFromShift: v.boolean(),
   isOrganizationLinked: v.boolean(),
+  managerInvitationState: v.union(
+    v.object({
+      kind: v.literal("available"),
+      mode: v.union(v.literal("addition"), v.literal("freeManagerExchange")),
+      replacesStaleInvitation: v.boolean(),
+    }),
+    v.object({
+      kind: v.literal("pending"),
+      mode: v.union(v.literal("addition"), v.literal("freeManagerExchange")),
+    }),
+    v.object({ kind: v.literal("unavailable"), reason: v.string() }),
+  ),
 });
 
 const dashboardRecruitmentValidator = v.object({
@@ -538,6 +555,24 @@ export const getDashboardStaffs = managerQuery({
     const shop = ctx.shop;
     if (!shop) return EMPTY_PAGE;
 
+    const organization = ctx.organization;
+    const organizationMember = ctx.organizationMember;
+    const now = Date.now();
+    const [billingState, usage, pendingInvitations] = organization
+      ? await Promise.all([
+          getOrganizationBillingState(ctx, organization._id),
+          getOrganizationUsageSnapshot(ctx, organization._id, now),
+          ctx.db
+            .query("organizationInvitations")
+            .withIndex("by_organizationId_and_status", (q) =>
+              q.eq("organizationId", organization._id).eq("status", "pending"),
+            )
+            .collect(),
+        ])
+      : [null, null, []];
+    const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+    const activePendingInvitations = pendingInvitations.filter((invitation) => invitation.expiresAt > now);
+
     const paginatedResult = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
@@ -546,15 +581,164 @@ export const getDashboardStaffs = managerQuery({
     const page = await Promise.all(
       paginatedResult.page.map(async (s) => {
         const lineAccount = await getStaffLineAccount(ctx, s._id);
+        const isOrganizationLinked = Boolean(
+          organization && s.organizationId === organization._id && s.organizationPersonId,
+        );
+        const person = isOrganizationLinked && s.organizationPersonId ? await ctx.db.get(s.organizationPersonId) : null;
+        const members =
+          person && organization && person.organizationId === organization._id
+            ? await ctx.db
+                .query("organizationMembers")
+                .withIndex("by_organizationId_and_personId", (q) =>
+                  q.eq("organizationId", organization._id).eq("personId", person._id),
+                )
+                .take(2)
+            : [];
+        const isManager = members.length === 1 && members[0].status === "active";
+
+        let managerInvitationState:
+          | { kind: "available"; mode: "addition" | "freeManagerExchange"; replacesStaleInvitation: boolean }
+          | { kind: "pending"; mode: "addition" | "freeManagerExchange" }
+          | { kind: "unavailable"; reason: string };
+        if (
+          !organization ||
+          !organizationMember ||
+          !usage ||
+          !isOrganizationLinked ||
+          !person ||
+          person.organizationId !== organization._id ||
+          person.status !== "active"
+        ) {
+          managerInvitationState = {
+            kind: "unavailable",
+            reason: "グループ単位の設定を移行しています。完了後にもう一度お試しください。",
+          };
+        } else if (members.length > 1 || (members[0] && person.userId && members[0].userId !== person.userId)) {
+          managerInvitationState = {
+            kind: "unavailable",
+            reason: "このスタッフの管理者権限を確認できません。グループ設定を確認してください。",
+          };
+        } else if (isManager) {
+          managerInvitationState = { kind: "unavailable", reason: "このスタッフはすでに管理者です。" };
+        } else {
+          const emailNormalized = normalizeEmail(person.email);
+          if (!emailNormalized || normalizeEmail(s.email) !== emailNormalized) {
+            managerInvitationState = {
+              kind: "unavailable",
+              reason: "スタッフ情報のメールアドレスを確認してください。",
+            };
+          } else {
+            const targetInvitations = activePendingInvitations.filter(
+              (invitation) => invitation.targetPersonId === person._id,
+            );
+            const currentEmailInvitations = activePendingInvitations.filter(
+              (invitation) => invitation.emailNormalized === emailNormalized,
+            );
+            const staleTargetInvitations = targetInvitations.filter(
+              (invitation) => invitation.emailNormalized !== emailNormalized,
+            );
+            const applicableInvitationIds = new Set(
+              [...targetInvitations, ...currentEmailInvitations].map((invitation) => invitation._id),
+            );
+            if (applicableInvitationIds.size > 1) {
+              managerInvitationState = {
+                kind: "unavailable",
+                reason: "このスタッフへの招待状態を確認できません。グループ設定を確認してください。",
+              };
+            } else if (
+              currentEmailInvitations[0]?.targetPersonId !== undefined &&
+              currentEmailInvitations[0].targetPersonId !== person._id
+            ) {
+              managerInvitationState = {
+                kind: "unavailable",
+                reason: "このスタッフへの招待状態を確認できません。グループ設定を確認してください。",
+              };
+            } else if (currentEmailInvitations[0]) {
+              managerInvitationState = {
+                kind: "pending",
+                mode:
+                  getOrganizationInvitationPurpose(currentEmailInvitations[0]) === "freeManagerExchange"
+                    ? "freeManagerExchange"
+                    : "addition",
+              };
+            } else if (organizationMember.status !== "active") {
+              managerInvitationState = {
+                kind: "unavailable",
+                reason: "閲覧のみの管理者は、管理者招待を送れません。",
+              };
+            } else if (!billingState || !policy) {
+              managerInvitationState = {
+                kind: "unavailable",
+                reason: "グループのプラン設定を移行しています。完了後にもう一度お試しください。",
+              };
+            } else if (!policy.canWriteBusinessData) {
+              managerInvitationState = {
+                kind: "unavailable",
+                reason: "現在の契約状態では、管理者招待を送れません。",
+              };
+            } else if (policy.entitlementPlan === "free") {
+              const exchange = await resolveFreeManagerExchangeEligibility(ctx, {
+                organizationId: organization._id,
+                inviterMemberId: organizationMember._id,
+                emailNormalized,
+                targetPersonId: person._id,
+              });
+              const staleInvitationId = staleTargetInvitations[0]?._id;
+              const hasOtherFreeExchange = activePendingInvitations.some(
+                (invitation) =>
+                  invitation._id !== staleInvitationId &&
+                  getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
+              );
+              managerInvitationState =
+                exchange && !hasOtherFreeExchange
+                  ? {
+                      kind: "available",
+                      mode: "freeManagerExchange",
+                      replacesStaleInvitation: staleTargetInvitations.length === 1,
+                    }
+                  : {
+                      kind: "unavailable",
+                      reason: hasOtherFreeExchange
+                        ? "管理者交代の承認を待っています。承認前は現在の管理者が引き続き利用できます。"
+                        : "Freeでは、グループ内の既存スタッフとの管理者交代だけを利用できます。",
+                    };
+            } else if (!policy.canUsePaidFeatures || !policy.limits) {
+              managerInvitationState = {
+                kind: "unavailable",
+                reason: "現在のプランでは管理者を追加できません。",
+              };
+            } else {
+              const staleManagerReservation = staleTargetInvitations.some(
+                (invitation) => getOrganizationInvitationPurpose(invitation) === "managerAddition",
+              )
+                ? 1
+                : 0;
+              const projectedAfterInvitation = usage.projectedActiveManagerCount - staleManagerReservation + 1;
+              managerInvitationState =
+                projectedAfterInvitation <= policy.limits.maxActiveManagers
+                  ? {
+                      kind: "available",
+                      mode: "addition",
+                      replacesStaleInvitation: staleTargetInvitations.length === 1,
+                    }
+                  : {
+                      kind: "unavailable",
+                      reason:
+                        "管理者と招待中の管理者は、グループ全体で5名までです。管理者権限を外すか、招待を取り消してからもう一度お試しください。",
+                    };
+            }
+          }
+        }
         return {
           _id: s._id,
           name: s.name,
           email: s.email,
-          isManager: s.userId === ctx.user?._id,
+          isManager,
           isLineLinked: Boolean(lineAccount?.lineUserId),
           isLineFollowing: Boolean(lineAccount?.following),
           excludedFromShift: s.excludedFromShift ?? false,
-          isOrganizationLinked: Boolean(s.organizationId && s.organizationPersonId),
+          isOrganizationLinked,
+          managerInvitationState,
         };
       }),
     );

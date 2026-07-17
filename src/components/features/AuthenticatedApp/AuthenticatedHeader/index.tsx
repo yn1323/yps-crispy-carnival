@@ -1,3 +1,4 @@
+import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense } from "react";
 import { FeatureRequestAction } from "@/src/components/features/FeatureRequestDialog";
@@ -12,11 +13,14 @@ const UserMenu = lazy(() =>
 
 export const AuthenticatedHeader = () => {
   const hasSelectedShop = useAtomValue(hasSelectedShopAtom);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const showShopSwitcher = hasSelectedShop && pathname !== "/dashboard";
+
   return (
     <Header
       userActions={
         <>
-          {hasSelectedShop && <ShopSwitcher />}
+          {showShopSwitcher && <ShopSwitcher />}
           {hasSelectedShop && <FeatureRequestAction />}
           <Suspense fallback={null}>
             <UserMenu tone="light" />

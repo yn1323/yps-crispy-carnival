@@ -1,3 +1,5 @@
+export type OrganizationSettingsTab = "people" | "shops" | "billing";
+
 export type OrganizationPersonView = {
   id: string;
   name: string;
@@ -5,21 +7,8 @@ export type OrganizationPersonView = {
   managerRole: "active" | "readOnly" | "none";
   isStaff: boolean;
   shopNames: string[];
-  currentShopStaffId: string | null;
-  canRemoveFromCurrentShop: boolean;
-  removeFromCurrentShopDisabledReason?: string;
   canRemoveManagerRole: boolean;
   managerRoleRemovalDisabledReason?: string;
-  countsTowardPeopleLimit: boolean;
-  futureAssignments?: Array<{
-    date: string;
-    startTime: string;
-    endTime: string;
-    shopName: string;
-    periodStart: string;
-    periodEnd: string;
-  }>;
-  hasMoreFutureAssignments?: boolean;
   canRemove: boolean;
   removeDisabledReason?: string;
 };
@@ -46,11 +35,9 @@ export type ManagerInvitationView = {
 export type OrganizationShopView = {
   id: string;
   name: string;
-  status: "active" | "archived" | "planSuspended";
-  isFreeRetainedShop: boolean;
-  canArchive: boolean;
-  canReactivate: boolean;
-  actionDisabledReason?: string;
+  staffCount: number;
+  canDelete: boolean;
+  deleteDisabledReason?: string;
 };
 
 export type BillingDisplayState =
@@ -96,52 +83,32 @@ export type OrganizationBillingView = {
   canManagePlan: boolean;
   canUpdatePaymentMethod: boolean;
   canUpdateBillingEmail: boolean;
-  canScheduleFree: boolean;
   managePlanDisabledReason?: string;
   paymentMethodDisabledReason?: string;
   billingEmailDisabledReason?: string;
 };
 
-export type FreeSelectionSummary = {
-  selectedManagerId: string | null;
-  selectedManagerName: string | null;
-  selectedShopId: string | null;
-  selectedShopName: string | null;
-  managerCandidates: Array<{ id: string; name: string; projectedPeopleCount: number }>;
-  shopCandidates: Array<{ id: string; name: string }>;
-  projectedPeopleCount: number;
-  readOnlyManagerNames: string[];
-  suspendedShopNames: string[];
-  isComplete: boolean;
-  incompleteReason?: string;
-};
-
 export type OrganizationSettingsActions = {
   onUpdateOrganizationName: () => void;
   onInviteManager: () => void;
-  onRemovePersonFromCurrentShop: (personId: string) => void;
   onRemoveManagerRole: (personId: string) => void;
   onRemovePerson: (personId: string) => void;
   onResendInvitation: (invitationId: string) => void;
   onRevokeInvitation: (invitationId: string) => void;
   onAddShop: () => void;
-  onArchiveShop: (shopId: string) => void;
-  onReactivateShop: (shopId: string) => void;
+  onOpenShop: (shopId: string) => void;
   onManagePlan: () => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   onOpenInvoice: (invoiceId: string) => void;
-  onSaveFreeSelection: (managerPersonId: string | null, shopId: string | null) => void | Promise<void>;
 };
 
 export type OrganizationSettingsViewProps = {
   organizationName: string;
-  currentShopName: string;
   people: OrganizationPersonView[];
   managerInvitations: ManagerInvitationView[];
   shops: OrganizationShopView[];
   billing: OrganizationBillingView;
-  freeSelection: FreeSelectionSummary;
   canInviteManager: boolean;
   managerInvitationMode: "addition" | "freeManagerExchange";
   freeManagerExchangeCandidates: Array<{ id: string; name: string; email: string }>;
@@ -151,7 +118,8 @@ export type OrganizationSettingsViewProps = {
   canAddShop: boolean;
   addShopDisabledReason?: string;
   actions: OrganizationSettingsActions;
-  defaultTab?: "people" | "shops" | "billing";
+  defaultTab?: OrganizationSettingsTab;
+  onTabChange?: (tab: OrganizationSettingsTab) => void;
 };
 
-export type OrganizationSettingsData = Omit<OrganizationSettingsViewProps, "actions" | "defaultTab">;
+export type OrganizationSettingsData = Omit<OrganizationSettingsViewProps, "actions" | "defaultTab" | "onTabChange">;

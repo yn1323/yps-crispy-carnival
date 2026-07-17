@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs, mockStaffsWithExcluded } from "../stories/fixtures";
 import type { Staff } from "../types";
 import { StaffDetailDialog } from "./StaffDetailDialog";
@@ -25,6 +25,37 @@ const organizationLinkedStaff = {
   ...mockStaffs[1],
   isOrganizationLinked: true,
 } as Staff;
+const availableManagerInvitationStaff = {
+  ...mockStaffs[1],
+  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
+} as Staff;
+const pendingManagerInvitationStaff = {
+  ...mockStaffs[1],
+  managerInvitationState: { kind: "pending", mode: "addition" },
+} as Staff;
+const unavailableManagerInvitationStaff = {
+  ...mockStaffs[1],
+  managerInvitationState: {
+    kind: "unavailable",
+    reason:
+      "管理者と招待中の管理者は、グループ全体で5名までです。管理者権限を外すか、招待を取り消してからもう一度お試しください。",
+  },
+} as Staff;
+const freeManagerExchangeStaff = {
+  ...mockStaffs[1],
+  managerInvitationState: { kind: "available", mode: "freeManagerExchange", replacesStaleInvitation: false },
+} as Staff;
+const staleManagerInvitationStaff = {
+  ...mockStaffs[1],
+  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: true },
+} as Staff;
+
+let managerInvitationCallCount = 0;
+const countManagerInvitation = async (): Promise<boolean> => {
+  managerInvitationCallCount += 1;
+  return true;
+};
+const rejectManagerInvitation = async (): Promise<boolean> => false;
 
 const meta = {
   title: "Features/Dashboard/StaffDetailDialog",
@@ -53,6 +84,8 @@ const meta = {
     isSendingCurrentShift: false,
     onChangeShiftTarget: noop,
     isChangingShiftTarget: false,
+    onInviteManager: async (): Promise<boolean> => true,
+    isInvitingManager: false,
   },
 } satisfies Meta<typeof StaffDetailDialog>;
 
@@ -130,6 +163,82 @@ export const ManagerStaff: Story = {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
     await expect(await within(dialog).findByRole("button", { name: "スタッフを削除" })).toBeDisabled();
+  },
+};
+
+export const ManagerInvitationAvailable: Story = {
+  args: {
+    staff: availableManagerInvitationStaff,
+    defaultTab: "settings",
+  },
+};
+
+export const ManagerInvitationPending: Story = {
+  args: {
+    staff: pendingManagerInvitationStaff,
+    defaultTab: "settings",
+  },
+};
+
+export const ManagerInvitationUnavailableAtCapacity: Story = {
+  args: {
+    staff: unavailableManagerInvitationStaff,
+    defaultTab: "settings",
+  },
+};
+
+export const FreeManagerExchangeAvailable: Story = {
+  args: {
+    staff: freeManagerExchangeStaff,
+    defaultTab: "settings",
+  },
+};
+
+export const ManagerInvitationWithStaleEmail: Story = {
+  args: {
+    staff: staleManagerInvitationStaff,
+    defaultTab: "settings",
+  },
+};
+
+export const ManagerInvitationConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    staff: availableManagerInvitationStaff,
+    onInviteManager: countManagerInvitation,
+  },
+  play: async () => {
+    managerInvitationCallCount = 0;
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "管理者として招待" }));
+    await expect(
+      await within(dialog).findByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "招待メールを送る" }));
+    await expect(managerInvitationCallCount).toBe(1);
+    await waitFor(() => {
+      expect(
+        within(dialog).queryByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
+      ).not.toBeInTheDocument();
+    });
+  },
+};
+
+export const ManagerInvitationFailureKeepsConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    staff: availableManagerInvitationStaff,
+    onInviteManager: rejectManagerInvitation,
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "管理者として招待" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "招待メールを送る" }));
+    await expect(
+      within(dialog).getByRole("heading", { name: "佐藤花子さんを管理者として招待しますか？" }),
+    ).toBeInTheDocument();
   },
 };
 

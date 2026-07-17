@@ -7,16 +7,14 @@ import {
   getEffectiveRestrictedBillingState,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationPersonUsageInput,
-  projectFreeUsage,
   projectOrganizationUsage,
 } from "../organizationBilling/policy";
+import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import {
-  getOrganizationInvitationPurpose,
   resolveFreeManagerExchangeEligibility,
   resolveOrganizationInvitationEligibility,
 } from "../organizationInvitation/service";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
-import { organizationShopOperatingStatusValidator } from "./validators";
 
 const organizationPersonViewValidator = v.object({
   id: v.string(),
@@ -25,23 +23,8 @@ const organizationPersonViewValidator = v.object({
   managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
   isStaff: v.boolean(),
   shopNames: v.array(v.string()),
-  currentShopStaffId: v.union(v.string(), v.null()),
-  canRemoveFromCurrentShop: v.boolean(),
-  removeFromCurrentShopDisabledReason: v.optional(v.string()),
   canRemoveManagerRole: v.boolean(),
   managerRoleRemovalDisabledReason: v.optional(v.string()),
-  countsTowardPeopleLimit: v.boolean(),
-  futureAssignments: v.array(
-    v.object({
-      date: v.string(),
-      startTime: v.string(),
-      endTime: v.string(),
-      shopName: v.string(),
-      periodStart: v.string(),
-      periodEnd: v.string(),
-    }),
-  ),
-  hasMoreFutureAssignments: v.boolean(),
   canRemove: v.boolean(),
   removeDisabledReason: v.optional(v.string()),
 });
@@ -67,11 +50,9 @@ const managerInvitationViewValidator = v.object({
 const organizationShopViewValidator = v.object({
   id: v.string(),
   name: v.string(),
-  status: organizationShopOperatingStatusValidator,
-  isFreeRetainedShop: v.boolean(),
-  canArchive: v.boolean(),
-  canReactivate: v.boolean(),
-  actionDisabledReason: v.optional(v.string()),
+  staffCount: v.number(),
+  canDelete: v.boolean(),
+  deleteDisabledReason: v.optional(v.string()),
 });
 
 const billingPlanValidator = v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"));
@@ -116,28 +97,12 @@ const billingViewValidator = v.object({
   billingEmailDisabledReason: v.optional(v.string()),
 });
 
-const freeSelectionSummaryValidator = v.object({
-  selectedManagerId: v.union(v.string(), v.null()),
-  selectedManagerName: v.union(v.string(), v.null()),
-  selectedShopId: v.union(v.string(), v.null()),
-  selectedShopName: v.union(v.string(), v.null()),
-  managerCandidates: v.array(v.object({ id: v.string(), name: v.string(), projectedPeopleCount: v.number() })),
-  shopCandidates: v.array(v.object({ id: v.string(), name: v.string() })),
-  projectedPeopleCount: v.number(),
-  readOnlyManagerNames: v.array(v.string()),
-  suspendedShopNames: v.array(v.string()),
-  isComplete: v.boolean(),
-  incompleteReason: v.optional(v.string()),
-});
-
 const organizationSettingsValidator = v.object({
   organizationName: v.string(),
-  currentShopName: v.string(),
   people: v.array(organizationPersonViewValidator),
   managerInvitations: v.array(managerInvitationViewValidator),
   shops: v.array(organizationShopViewValidator),
   billing: billingViewValidator,
-  freeSelection: freeSelectionSummaryValidator,
   canInviteManager: v.boolean(),
   managerInvitationMode: v.union(v.literal("addition"), v.literal("freeManagerExchange")),
   freeManagerExchangeCandidates: v.array(v.object({ id: v.string(), name: v.string(), email: v.string() })),
@@ -181,10 +146,9 @@ type BillingView = {
 };
 
 function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) {
-  const migrationReason = "事業者単位の設定を移行しています。完了するまで既存データを閲覧できます。";
+  const migrationReason = "グループ単位の設定を移行しています。完了するまで既存データを閲覧できます。";
   return {
     organizationName: shop.name,
-    currentShopName: shop.name,
     people: [
       {
         id: user._id,
@@ -193,14 +157,8 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
         managerRole: "active" as const,
         isStaff: false,
         shopNames: [],
-        currentShopStaffId: null,
-        canRemoveFromCurrentShop: false,
-        removeFromCurrentShopDisabledReason: migrationReason,
         canRemoveManagerRole: false,
         managerRoleRemovalDisabledReason: migrationReason,
-        countsTowardPeopleLimit: true,
-        futureAssignments: [],
-        hasMoreFutureAssignments: false,
         canRemove: false,
         removeDisabledReason: migrationReason,
       },
@@ -210,11 +168,9 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
       {
         id: shop._id,
         name: shop.name,
-        status: shop.operatingStatus ?? ("active" as const),
-        isFreeRetainedShop: false,
-        canArchive: false,
-        canReactivate: false,
-        actionDisabledReason: migrationReason,
+        staffCount: 0,
+        canDelete: false,
+        deleteDisabledReason: migrationReason,
       },
     ],
     billing: {
@@ -222,8 +178,8 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
       currentPlan: null,
       isComplimentary: false,
       peopleUsage: { current: 1, max: 0 },
-      shopUsage: { current: shop.operatingStatus === "archived" ? 0 : 1, max: 0 },
-      blockedReason: "事業者単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
+      shopUsage: { current: 1, max: 0 },
+      blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
       billingEmail: user.email,
       invoices: [],
       canManagePlan: false,
@@ -233,19 +189,6 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
       managePlanDisabledReason: "設定の移行が完了するまでお待ちください。",
       paymentMethodDisabledReason: "設定の移行が完了するまでお待ちください。",
       billingEmailDisabledReason: "設定の移行が完了するまでお待ちください。",
-    },
-    freeSelection: {
-      selectedManagerId: null,
-      selectedManagerName: null,
-      selectedShopId: null,
-      selectedShopName: null,
-      managerCandidates: [],
-      shopCandidates: [],
-      projectedPeopleCount: 1,
-      readOnlyManagerNames: [],
-      suspendedShopNames: [],
-      isComplete: false,
-      incompleteReason: "設定の移行が完了してからFreeの構成を選択できます。",
     },
     canInviteManager: false,
     managerInvitationMode: "addition" as const,
@@ -262,13 +205,13 @@ function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">
   switch (state.reason) {
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
-      return "Freeの利用人数または店舗数を超えています。利用者削除や店舗アーカイブ後に再確認してください。";
+      return "Freeの利用人数または店舗数を超えています。ユーザーまたは店舗を削除してから再確認してください。";
     case "paymentGraceExpired":
-      return "支払い猶予が終了しています。支払い方法を更新するか、Freeで残す構成を整理してください。";
+      return "支払い猶予が終了しています。支払い方法を更新するか、有料プランを再開してください。";
     case "paymentActivationFailed":
-      return "有料契約の支払いを確認できませんでした。再契約するか、Freeで残す構成を整理してください。";
+      return "有料プランの支払いを確認できませんでした。有料プランを再契約してください。";
     case "unexpectedCancellation":
-      return "契約状態を確認できません。再契約するか、Freeで残す構成を整理してください。";
+      return "契約状態を確認できません。有料プランを再契約してください。";
   }
 }
 
@@ -280,38 +223,88 @@ export const getSettings = managerQuery({
     if (!ctx.organization) return legacyMigrationPendingSettings(ctx.user, ctx.shop);
 
     const organization = ctx.organization;
-    const currentShopId = ctx.shop._id;
-    const currentShopStatus = ctx.shop.operatingStatus ?? "active";
     const now = Date.now();
-    const [peopleDocs, memberDocs, shopDocs, invitationDocs, staffDocs, billingState] = await Promise.all([
+    const [
+      peopleDocs,
+      activeMembers,
+      readOnlyMembers,
+      shops,
+      pendingInvitations,
+      acceptedInvitations,
+      revokedInvitations,
+      expiredInvitations,
+      billingState,
+    ] = await Promise.all([
       ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", organization._id))
         .collect(),
       ctx.db
         .query("organizationMembers")
-        .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organization._id))
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "active"),
+        )
+        .collect(),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "readOnly"),
+        )
         .collect(),
       ctx.db
         .query("shops")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organization._id).eq("isDeleted", false),
+        )
         .collect(),
       ctx.db
         .query("organizationInvitations")
-        .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organization._id))
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "pending"),
+        )
+        .collect(),
+      ctx.db
+        .query("organizationInvitations")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "accepted"),
+        )
         .order("desc")
         .take(100),
       ctx.db
-        .query("staffs")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
-        .collect(),
+        .query("organizationInvitations")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "revoked"),
+        )
+        .order("desc")
+        .take(100),
+      ctx.db
+        .query("organizationInvitations")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", organization._id).eq("status", "expired"),
+        )
+        .order("desc")
+        .take(100),
       getOrganizationBillingState(ctx, organization._id),
     ]);
-
     const people = peopleDocs.filter((person) => person.status === "active");
-    const shops = shopDocs.filter((shop) => !shop.isDeleted);
+    const historicalInvitations = [...acceptedInvitations, ...revokedInvitations, ...expiredInvitations]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 100);
+    const invitationDocs = [...pendingInvitations, ...historicalInvitations].sort((a, b) => b.updatedAt - a.updatedAt);
+
+    const staffDocs = (
+      await Promise.all(
+        shops.map(async (shop) =>
+          ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+            .collect(),
+        ),
+      )
+    ).flat();
     const shopById = new Map(shops.map((shop) => [shop._id, shop]));
-    const memberUsers = await Promise.all(memberDocs.map(async (member) => await ctx.db.get(member.userId)));
+    const memberDocs = [...activeMembers, ...readOnlyMembers];
+    const memberUsers = await Promise.all(memberDocs.map(async (member) => ctx.db.get(member.userId)));
     const memberUserById = new Map(memberUsers.filter((user) => user !== null).map((user) => [user._id, user]));
     const membersByPersonId = new Map<Id<"organizationPeople">, Doc<"organizationMembers">[]>();
     for (const member of memberDocs) {
@@ -332,13 +325,14 @@ export const getSettings = managerQuery({
       const members = membersByPersonId.get(person._id) ?? [];
       const member = members.length === 1 ? members[0] : null;
       const memberUser = member ? memberUserById.get(member.userId) : null;
-      const memberMatchesPerson =
-        member && person.userId && member.userId === person.userId && memberUser && !memberUser.isDeleted;
+      const memberMatchesPerson = Boolean(
+        member && person.userId && member.userId === person.userId && memberUser && !memberUser.isDeleted,
+      );
       managerRoleByPersonId.set(
         person._id,
-        memberMatchesPerson && member.status === "active"
+        memberMatchesPerson && member?.status === "active"
           ? "active"
-          : memberMatchesPerson && member.status === "readOnly"
+          : memberMatchesPerson && member?.status === "readOnly"
             ? "readOnly"
             : "none",
       );
@@ -350,29 +344,58 @@ export const getSettings = managerQuery({
       isStaff: (staffRowsByPersonId.get(person._id)?.length ?? 0) > 0,
       managerRole: managerRoleByPersonId.get(person._id) ?? "none",
     }));
-    const reservedPersonCount = invitationDocs.filter(
-      (invitation) => invitation.status === "pending" && invitation.reservedSeat && invitation.expiresAt > now,
+    const reservedPersonCount = pendingInvitations.filter(
+      (invitation) => invitation.reservedSeat && invitation.expiresAt > now,
     ).length;
     const usage = projectOrganizationUsage({ people: usageInputs, reservedPersonCount });
-    const activeShopCount = shops.filter((shop) => (shop.operatingStatus ?? "active") === "active").length;
     const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
     const isComplimentary = billingState?.state.kind === "complimentary";
     const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
     const isActiveActor = ctx.organizationMember?.status === "active";
     const isRestrictedRecovery = Boolean(
       restrictedState &&
+        isActiveActor &&
         ctx.organizationMember &&
         restrictedState.recoveryManagerPersonIds.includes(ctx.organizationMember.personId),
     );
     const canWriteNormally = Boolean(isActiveActor && policy?.canWriteBusinessData);
-    const activeManagerCount = usage.activeManagerCount;
     const usageLimits = restrictedState ? ORGANIZATION_PLAN_LIMITS.free : policy?.limits;
 
+    const futureAssignmentPersonIds = new Set<Id<"organizationPeople">>();
+    const today = todayJST();
+    for (const [personId, staffRows] of staffRowsByPersonId) {
+      let hasFutureAssignment = false;
+      for (const staff of staffRows) {
+        const assignments = ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_staffId_and_date", (q) => q.eq("staffId", staff._id).gte("date", today));
+        for await (const assignment of assignments) {
+          const recruitment = await ctx.db.get(assignment.recruitmentId);
+          if (!recruitment || recruitment.isDeleted || !shopById.has(recruitment.shopId)) continue;
+          hasFutureAssignment = true;
+          break;
+        }
+        if (hasFutureAssignment) break;
+      }
+      if (hasFutureAssignment) futureAssignmentPersonIds.add(personId);
+    }
+
+    const recoveryPersonIds = restrictedState
+      ? restrictedState.recoveryManagerPersonIds.filter((personId) => people.some((person) => person._id === personId))
+      : [];
+    const billingEmailNormalized = (organization.billingEmailNormalized ?? organization.billingEmail ?? "")
+      .trim()
+      .toLowerCase();
+    const activeManagerCount = usage.activeManagerCount;
+    const pendingManagerInvitationCount = pendingInvitations.filter(
+      (invitation) => invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "managerAddition",
+    ).length;
+    const projectedActiveManagerCount = activeManagerCount + pendingManagerInvitationCount;
     const canInviteManagerAddition = Boolean(
       isActiveActor &&
         policy?.canUsePaidFeatures &&
         policy.limits &&
-        activeManagerCount < policy.limits.maxActiveManagers,
+        projectedActiveManagerCount < policy.limits.maxActiveManagers,
     );
     const hasFreeEntitlement = policy?.entitlementPlan === "free";
     const invitationInviterMemberId = ctx.organizationMember?._id;
@@ -405,11 +428,9 @@ export const getSettings = managerQuery({
         eligibility ? [eligibility.targetPerson.emailNormalized] : [],
       ),
     );
-    const activeFreeManagerExchangeInvitations = invitationDocs.filter(
+    const activeFreeManagerExchangeInvitations = pendingInvitations.filter(
       (invitation) =>
-        invitation.status === "pending" &&
-        invitation.expiresAt > now &&
-        getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
+        invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
     );
     const canInviteFreeManagerExchange = Boolean(
       isActiveActor &&
@@ -423,7 +444,8 @@ export const getSettings = managerQuery({
     const canRevokeInvitation = Boolean(isActiveActor && policy?.canWriteBusinessData);
     const managerInvitations = await Promise.all(
       invitationDocs.map(async (invitation) => {
-        const isExpired = invitation.status === "pending" && invitation.expiresAt <= now;
+        const isExpired =
+          invitation.status === "expired" || (invitation.status === "pending" && invitation.expiresAt <= now);
         const currentVersionOutbox =
           invitation.status === "pending"
             ? await ctx.db
@@ -466,22 +488,41 @@ export const getSettings = managerQuery({
         const hasOtherPendingFreeExchange = activeFreeManagerExchangeInvitations.some(
           (candidate) => candidate._id !== invitation._id,
         );
-        const matchingPeople = peopleDocs.filter((person) => person.emailNormalized === invitation.emailNormalized);
+        const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
+        const targetPersonMismatch = Boolean(
+          invitation.targetPersonId &&
+            (!targetPerson ||
+              targetPerson.organizationId !== organization._id ||
+              targetPerson.emailNormalized !== invitation.emailNormalized),
+        );
+        const matchingPeople = invitation.targetPersonId
+          ? targetPerson && !targetPersonMismatch
+            ? [targetPerson]
+            : []
+          : peopleDocs.filter((person) => person.emailNormalized === invitation.emailNormalized);
         const existingPerson =
           matchingPeople.length === 1 && matchingPeople[0].status === "active" ? matchingPeople[0] : null;
         const existingPersonCounts = existingPerson
           ? await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, existingPerson._id)
           : false;
-        const reservationAlreadyCounted =
+        const personReservationAlreadyCounted =
           invitation.status === "pending" && invitation.expiresAt > now && invitation.reservedSeat;
         const canFitResentPerson = Boolean(
           policy?.limits &&
             (existingPersonCounts ||
-              usage.projectedPeopleCount + (reservationAlreadyCounted ? 0 : 1) <= policy.limits.maxPeople),
+              usage.projectedPeopleCount + (personReservationAlreadyCounted ? 0 : 1) <= policy.limits.maxPeople),
+        );
+        const managerReservationAlreadyCounted =
+          invitation.status === "pending" && invitation.expiresAt > now && purpose === "managerAddition";
+        const canFitResentManager = Boolean(
+          policy?.limits &&
+            projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <=
+              policy.limits.maxActiveManagers,
         );
         const hasTargetConflict = Boolean(
           canRetryStatus &&
-            (matchingPeople.length > 1 ||
+            (targetPersonMismatch ||
+              matchingPeople.length > 1 ||
               matchingPeople[0]?.status === "removed" ||
               (existingPerson && managerRoleByPersonId.get(existingPerson._id) === "active") ||
               (purpose === "freeManagerExchange" &&
@@ -492,15 +533,16 @@ export const getSettings = managerQuery({
           canRetryStatus &&
             !hasTargetConflict &&
             purpose === "managerAddition" &&
-            policy?.limits &&
-            (activeManagerCount >= policy.limits.maxActiveManagers || !canFitResentPerson),
+            (!canFitResentManager || !canFitResentPerson),
         );
         const canResend = Boolean(
-          canRetryStatus &&
+          canRevokeInvitation &&
+            canRetryStatus &&
             eligibility &&
+            !hasTargetConflict &&
             (purpose === "freeManagerExchange"
               ? !hasOtherPendingFreeExchange && freeManagerExchangeCandidateEmails.has(invitation.emailNormalized)
-              : canInviteManagerAddition &&
+              : canFitResentManager &&
                 matchingPeople.length <= 1 &&
                 (!existingPerson || managerRoleByPersonId.get(existingPerson._id) !== "active") &&
                 canFitResentPerson),
@@ -514,15 +556,22 @@ export const getSettings = managerQuery({
               : isSendFailed
                 ? ("sendFailed" as const)
                 : invitation.status;
+        const canRevoke = Boolean(canRevokeInvitation && !isExpired && invitation.status === "pending");
         const statusDetail =
           status === "expired"
-            ? "有効期限が切れました。再送すると新しいURLを発行します。"
+            ? canResend
+              ? "有効期限が切れました。再送すると新しいURLを発行します。"
+              : "この招待は再送できません。権限、利用者、契約状態を確認してください。"
             : status === "sendFailed"
-              ? "メールを送信できませんでした。アドレスを確認して再送してください。"
+              ? canResend
+                ? "メールを送信できませんでした。アドレスを確認して再送してください。"
+                : "この招待は再送できません。権限、利用者、契約状態を確認してください。"
               : status === "limitReached"
                 ? "現在のプラン上限に達しているため、この招待を承認できません。利用状況またはプランを確認してください。"
                 : status === "conflict"
-                  ? "招待後に利用者または契約の状態が変わりました。この招待を取り消して内容を確認してください。"
+                  ? canRevoke
+                    ? "招待後に利用者または契約の状態が変わりました。この招待を取り消して内容を確認してください。"
+                    : "招待後に利用者または契約の状態が変わりました。権限、利用者、契約状態を確認してください。"
                   : status === "pending" && purpose === "freeManagerExchange"
                     ? "承認が完了するまでは、現在の管理者が操作を継続します。"
                     : undefined;
@@ -533,197 +582,23 @@ export const getSettings = managerQuery({
           ...(statusDetail ? { statusDetail } : {}),
           ...(invitation.status === "pending" ? { expiresAt: formatDateTimeJa(invitation.expiresAt) } : {}),
           canResend,
-          canRevoke: canRevokeInvitation && !isExpired && invitation.status === "pending",
+          canRevoke,
         };
       }),
     );
-
-    const recoveryPersonIds = restrictedState
-      ? restrictedState.recoveryManagerPersonIds.filter((personId) => people.some((person) => person._id === personId))
-      : [];
-    const sourceManagerPersonIds = restrictedState
-      ? recoveryPersonIds
-      : people.filter((person) => managerRoleByPersonId.get(person._id) === "active").map((person) => person._id);
-    const sourceShopIds = restrictedState
-      ? restrictedState.previousActiveShopIds.filter((shopId) => {
-          const shop = shopById.get(shopId);
-          return shop && (shop.operatingStatus ?? "active") !== "archived";
-        })
-      : shops.filter((shop) => (shop.operatingStatus ?? "active") === "active").map((shop) => shop._id);
-    const selectedManagerPersonId =
-      billingState?.freeManagerPersonId && sourceManagerPersonIds.includes(billingState.freeManagerPersonId)
-        ? billingState.freeManagerPersonId
-        : null;
-    const requestedFreeShopId =
-      billingState?.freeShopId && sourceShopIds.includes(billingState.freeShopId) ? billingState.freeShopId : null;
-    const selectedFreeShopId = requestedFreeShopId ?? (sourceShopIds.length === 1 ? sourceShopIds[0] : null);
-    const freeProjectionInputs = usageInputs.map((input) => ({
-      ...input,
-      managerRole:
-        selectedManagerPersonId && input.personId === selectedManagerPersonId
-          ? ("active" as const)
-          : sourceManagerPersonIds.includes(input.personId as Id<"organizationPeople">)
-            ? ("readOnly" as const)
-            : input.managerRole,
-    }));
-    const freeProjection = projectFreeUsage(freeProjectionInputs, selectedManagerPersonId);
-    const managerCandidates = sourceManagerPersonIds.flatMap((personId) => {
-      const person = people.find((candidate) => candidate._id === personId);
-      if (!person) return [];
-      const candidateProjectionInputs = usageInputs.map((input) => ({
-        ...input,
-        managerRole:
-          input.personId === personId
-            ? ("active" as const)
-            : sourceManagerPersonIds.includes(input.personId as Id<"organizationPeople">)
-              ? ("readOnly" as const)
-              : input.managerRole,
-      }));
-      return [
-        {
-          id: personId,
-          name: person.name,
-          projectedPeopleCount: projectFreeUsage(candidateProjectionInputs, personId).projectedPeopleCount,
-        },
-      ];
-    });
-    const shopCandidates = sourceShopIds.flatMap((shopId) => {
-      const shop = shopById.get(shopId);
-      return shop ? [{ id: shopId, name: shop.name }] : [];
-    });
-    const freeSelectionIsComplete = Boolean(
-      selectedManagerPersonId &&
-        (sourceShopIds.length === 0 || selectedFreeShopId) &&
-        freeProjection.projectedPeopleCount <= ORGANIZATION_PLAN_LIMITS.free.maxPeople,
-    );
-    const incompleteReason = !selectedManagerPersonId
-      ? "Freeで残す管理者を1名選択してください。"
-      : sourceShopIds.length > 0 && !selectedFreeShopId
-        ? "Freeで残す店舗を1店舗選択してください。"
-        : freeProjection.projectedPeopleCount > ORGANIZATION_PLAN_LIMITS.free.maxPeople
-          ? "Freeの利用人数上限を超えています。事業者から利用者を削除してください。"
-          : undefined;
-    const freeSelection = {
-      selectedManagerId: selectedManagerPersonId,
-      selectedManagerName: people.find((person) => person._id === selectedManagerPersonId)?.name ?? null,
-      selectedShopId: selectedFreeShopId,
-      selectedShopName: selectedFreeShopId ? (shopById.get(selectedFreeShopId)?.name ?? null) : null,
-      managerCandidates,
-      shopCandidates,
-      projectedPeopleCount: freeProjection.projectedPeopleCount,
-      readOnlyManagerNames: sourceManagerPersonIds
-        .filter((personId) => personId !== selectedManagerPersonId)
-        .flatMap((personId) => {
-          const person = people.find((candidate) => candidate._id === personId);
-          return person ? [person.name] : [];
-        }),
-      suspendedShopNames: sourceShopIds
-        .filter((shopId) => shopId !== selectedFreeShopId)
-        .flatMap((shopId) => {
-          const shop = shopById.get(shopId);
-          return shop ? [shop.name] : [];
-        }),
-      isComplete: freeSelectionIsComplete,
-      ...(incompleteReason ? { incompleteReason } : {}),
-    };
-
-    const futureAssignmentsByPersonId = new Map<
-      Id<"organizationPeople">,
-      {
-        assignments: Array<{
-          date: string;
-          startTime: string;
-          endTime: string;
-          shopName: string;
-          periodStart: string;
-          periodEnd: string;
-        }>;
-        hasMore: boolean;
-      }
-    >();
-    const futureAssignmentPreviewLimit = 10;
-    const today = todayJST();
-    for (const [personId, staffRows] of staffRowsByPersonId) {
-      const assignmentsForPerson: Array<{
-        date: string;
-        startTime: string;
-        endTime: string;
-        shopName: string;
-        periodStart: string;
-        periodEnd: string;
-      }> = [];
-      let hasMore = false;
-      for (const staff of staffRows) {
-        const assignments = ctx.db
-          .query("shiftAssignments")
-          .withIndex("by_staffId_and_date", (q) => q.eq("staffId", staff._id).gte("date", today));
-        for await (const assignment of assignments) {
-          const recruitment = await ctx.db.get(assignment.recruitmentId);
-          const assignmentShop = recruitment ? shopById.get(recruitment.shopId) : undefined;
-          if (!recruitment || recruitment.isDeleted || !assignmentShop) continue;
-          if (assignmentsForPerson.length >= futureAssignmentPreviewLimit) {
-            hasMore = true;
-            break;
-          }
-          assignmentsForPerson.push({
-            date: assignment.date,
-            startTime: assignment.startTime,
-            endTime: assignment.endTime,
-            shopName: assignmentShop.name,
-            periodStart: recruitment.periodStart,
-            periodEnd: recruitment.periodEnd,
-          });
-        }
-        if (hasMore) break;
-      }
-      if (assignmentsForPerson.length > 0) {
-        assignmentsForPerson.sort(
-          (a, b) =>
-            a.date.localeCompare(b.date) ||
-            a.startTime.localeCompare(b.startTime) ||
-            a.shopName.localeCompare(b.shopName, "ja"),
-        );
-        futureAssignmentsByPersonId.set(personId, { assignments: assignmentsForPerson, hasMore });
-      }
-    }
-
-    const canRemoveNormally = canWriteNormally;
-    const billingEmailNormalized = (organization.billingEmailNormalized ?? organization.billingEmail ?? "")
-      .trim()
-      .toLowerCase();
     const peopleView = people
       .map((person) => {
         const managerRole = managerRoleByPersonId.get(person._id) ?? "none";
         const staffRows = staffRowsByPersonId.get(person._id) ?? [];
-        const isStaff = staffRows.some((staff) => !staff.isDeleted);
-        const currentShopStaffRows = staffRows.filter((staff) => !staff.isDeleted && staff.shopId === currentShopId);
-        const currentShopStaffId = currentShopStaffRows.length === 1 ? currentShopStaffRows[0]._id : null;
-        const canRemoveFromCurrentShop = Boolean(
-          currentShopStaffId && currentShopStatus === "active" && canRemoveNormally,
-        );
-        const removeFromCurrentShopDisabledReason = canRemoveFromCurrentShop
-          ? undefined
-          : currentShopStaffRows.length > 1
-            ? "店舗所属を一意に確認できません。"
-            : currentShopStaffRows.length === 0
-              ? undefined
-              : currentShopStatus === "archived"
-                ? "アーカイブ済み店舗の所属は変更できません。再稼働してから操作してください。"
-                : currentShopStatus === "planSuspended"
-                  ? "プラン停止中店舗の所属は変更できません。"
-                  : !isActiveActor
-                    ? "閲覧のみの管理者は店舗所属を変更できません。"
-                    : "現在の契約状態では店舗所属を変更できません。";
+        const isStaff = staffRows.length > 0;
         const isLastActiveManager = managerRole === "active" && activeManagerCount <= 1;
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
         const isBillingContact =
           billingEmailNormalized.length > 0 && billingEmailNormalized === person.emailNormalized.trim().toLowerCase();
-        const futureAssignmentInfo = futureAssignmentsByPersonId.get(person._id);
-        const futureAssignments = futureAssignmentInfo?.assignments ?? [];
-        const hasFutureAssignment = futureAssignments.length > 0;
+        const hasFutureAssignment = futureAssignmentPersonIds.has(person._id);
         const canRemove =
-          (canRemoveNormally || isRestrictedRecovery) &&
+          (canWriteNormally || isRestrictedRecovery) &&
           !isLastActiveManager &&
           !isLastRecoveryManager &&
           !isBillingContact &&
@@ -745,7 +620,7 @@ export const getSettings = managerQuery({
                 : restrictedState
                   ? "契約制限中は管理者権限を外せません。"
                   : policy?.paidFeatureBlockReason === "freePlan"
-                    ? "Freeでは管理者の個別解除はできません。管理者交代を利用してください。"
+                    ? "Freeでは管理者の個別解除はできません。"
                     : policy?.paidFeatureBlockReason === "paymentResultPending"
                       ? "支払い結果が確定してから管理者権限を変更できます。"
                       : !isStaff && isBillingContact
@@ -764,17 +639,16 @@ export const getSettings = managerQuery({
                 : hasFutureAssignment
                   ? "将来のシフト割当を解除してから削除してください。"
                   : isRestrictedRecovery
-                    ? "現在の契約状態ではこの利用者を削除できません。"
+                    ? "現在の契約状態ではこのユーザーを削除できません。"
                     : !isActiveActor
-                      ? "閲覧のみの管理者は利用者を削除できません。"
-                      : "現在の契約状態では利用者を削除できません。";
+                      ? "閲覧のみの管理者はユーザーを削除できません。"
+                      : "現在の契約状態ではユーザーを削除できません。";
         const shopNames = staffRows
-          .filter((staff) => !staff.isDeleted && shopById.has(staff.shopId))
           .flatMap((staff) => {
             const shop = shopById.get(staff.shopId);
             return shop ? [shop.name] : [];
           })
-          .filter((name, index, all) => all.indexOf(name) === index)
+          .filter((name, index, names) => names.indexOf(name) === index)
           .sort((a, b) => a.localeCompare(b, "ja"));
         return {
           id: person._id,
@@ -783,15 +657,8 @@ export const getSettings = managerQuery({
           managerRole,
           isStaff,
           shopNames,
-          currentShopStaffId,
-          canRemoveFromCurrentShop,
-          ...(removeFromCurrentShopDisabledReason ? { removeFromCurrentShopDisabledReason } : {}),
           canRemoveManagerRole,
           ...(managerRoleRemovalDisabledReason ? { managerRoleRemovalDisabledReason } : {}),
-          // 店舗から外しただけの人物も事業者に残るため、過去のstaff rowがあれば利用人数へ含め続ける。
-          countsTowardPeopleLimit: staffRows.length > 0 || managerRole === "active",
-          futureAssignments,
-          hasMoreFutureAssignments: futureAssignmentInfo?.hasMore ?? false,
           canRemove,
           ...(removeDisabledReason ? { removeDisabledReason } : {}),
         };
@@ -803,40 +670,28 @@ export const getSettings = managerQuery({
           a.name.localeCompare(b.name, "ja"),
       );
 
-    const shopActionReason = (status: "active" | "archived" | "planSuspended", canPerform: boolean) => {
-      if (canPerform) return undefined;
-      if (!billingState) return "事業者単位のプラン設定を移行しています。完了までお待ちください。";
-      if (!isActiveActor && !isRestrictedRecovery) return "閲覧のみの管理者は店舗の状態を変更できません。";
-      if (restrictedState) {
-        return status === "active"
-          ? "契約の復旧担当者だけが店舗をアーカイブできます。"
-          : "契約制限中は店舗を再稼働できません。";
-      }
-      if (!policy?.canWriteBusinessData) return "支払い結果が確定するまで店舗の状態を変更できません。";
-      return "稼働店舗数が現在のプラン上限に達しています。別の店舗をアーカイブしてください。";
-    };
+    const staffCountByShopId = new Map<Id<"shops">, number>();
+    for (const staff of staffDocs) {
+      staffCountByShopId.set(staff.shopId, (staffCountByShopId.get(staff.shopId) ?? 0) + 1);
+    }
+    const canDeleteShop = Boolean(shops.length > 1 && (restrictedState ? isRestrictedRecovery : canWriteNormally));
+    const deleteShopDisabledReason = canDeleteShop
+      ? undefined
+      : shops.length <= 1
+        ? "グループには少なくとも1店舗が必要です。"
+        : !isActiveActor
+          ? "閲覧のみの管理者は店舗を削除できません。"
+          : restrictedState
+            ? "契約の復旧担当者だけが店舗を削除できます。"
+            : "現在の契約状態では店舗を削除できません。";
     const shopsView = shops
-      .map((shop) => {
-        const status = shop.operatingStatus ?? "active";
-        const canArchive = status !== "archived" && (canWriteNormally || isRestrictedRecovery);
-        const canReactivate = Boolean(
-          status !== "active" &&
-            canWriteNormally &&
-            policy?.limits &&
-            activeShopCount + 1 <= policy.limits.maxActiveShops,
-        );
-        const canPerform = status === "active" ? canArchive : canReactivate;
-        const actionDisabledReason = shopActionReason(status, canPerform);
-        return {
-          id: shop._id,
-          name: shop.name,
-          status,
-          isFreeRetainedShop: shop._id === selectedFreeShopId,
-          canArchive,
-          canReactivate,
-          ...(actionDisabledReason ? { actionDisabledReason } : {}),
-        };
-      })
+      .map((shop) => ({
+        id: shop._id,
+        name: shop.name,
+        staffCount: staffCountByShopId.get(shop._id) ?? 0,
+        canDelete: canDeleteShop,
+        ...(deleteShopDisabledReason ? { deleteDisabledReason: deleteShopDisabledReason } : {}),
+      }))
       .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
     const billingCapabilities = {
@@ -883,7 +738,7 @@ export const getSettings = managerQuery({
     };
     const billingBase = {
       peopleUsage: { current: usage.currentPeopleCount, max: usageLimits?.maxPeople ?? 0 },
-      shopUsage: { current: activeShopCount, max: usageLimits?.maxActiveShops ?? 0 },
+      shopUsage: { current: shops.length, max: usageLimits?.maxActiveShops ?? 0 },
       billingEmail: organization.billingEmail ?? "",
       invoices: [],
       isComplimentary,
@@ -928,6 +783,7 @@ export const getSettings = managerQuery({
       ...(paymentMethodDisabledReason ? { paymentMethodDisabledReason } : {}),
       ...(billingEmailDisabledReason ? { billingEmailDisabledReason } : {}),
     };
+
     let billing: BillingView;
     if (!billingState) {
       billing = {
@@ -935,7 +791,7 @@ export const getSettings = managerQuery({
         ...billingCapabilityReasons,
         state: "migrationPending",
         currentPlan: null,
-        blockedReason: "事業者単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
+        blockedReason: "グループ単位のプラン設定を移行しています。完了後に利用状態を再確認します。",
       };
     } else {
       const state = billingState.state;
@@ -1026,13 +882,10 @@ export const getSettings = managerQuery({
       }
     }
 
-    const canAddShop = Boolean(
-      isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
-    );
     const inviteManagerDisabledReason = canInviteManager
       ? undefined
       : !billingState
-        ? "事業者単位のプラン設定を移行しています。完了までお待ちください。"
+        ? "グループ単位のプラン設定を移行しています。完了までお待ちください。"
         : !isActiveActor
           ? "閲覧のみの管理者は管理者を招待できません。"
           : restrictedState
@@ -1040,44 +893,45 @@ export const getSettings = managerQuery({
             : managerInvitationMode === "freeManagerExchange" && activeFreeManagerExchangeInvitations.length > 0
               ? "管理者交代の承認を待っています。承認前は現在の管理者が操作を継続します。"
               : managerInvitationMode === "freeManagerExchange"
-                ? "Freeでは、事業者内の既存スタッフとの管理者交代だけを利用できます。"
+                ? "Freeでは、グループ内の既存スタッフとの管理者交代だけを利用できます。"
                 : policy?.paidFeatureBlockReason === "freePlan"
                   ? "Freeでは管理者を追加できません。有料プランを選択してください。"
                   : policy?.paidFeatureBlockReason === "paymentResultPending"
                     ? "支払い結果が確定してから管理者を招待できます。"
-                    : "有効管理者数が現在のプラン上限に達しています。";
+                    : "管理者と招待中の管理者は、グループ全体で5名までです。";
+    const canAddShop = Boolean(
+      isActiveActor && policy?.canUsePaidFeatures && policy.limits && shops.length < policy.limits.maxActiveShops,
+    );
     const addShopDisabledReason = canAddShop
       ? undefined
       : !billingState
-        ? "事業者単位のプラン設定を移行しています。完了までお待ちください。"
+        ? "グループ単位のプラン設定を移行しています。完了までお待ちください。"
         : !isActiveActor
           ? "閲覧のみの管理者は店舗を追加できません。"
           : restrictedState
-            ? "契約制限中は店舗を追加・再稼働できません。"
+            ? "契約制限中は店舗を追加できません。"
             : policy?.paidFeatureBlockReason === "freePlan"
               ? "Freeでは店舗を追加できません。有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから店舗を追加できます。"
-                : "稼働店舗数が現在のプラン上限に達しています。プランを確認してください。";
+                : "店舗数が現在のプラン上限に達しています。プランを確認してください。";
     const canUpdateOrganizationName = canWriteNormally;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
       : !billingState
-        ? "事業者単位の設定を移行しています。完了までお待ちください。"
+        ? "グループ単位の設定を移行しています。完了までお待ちください。"
         : !isActiveActor
-          ? "閲覧のみの管理者は事業者名を変更できません。"
+          ? "閲覧のみの管理者はグループ名を変更できません。"
           : restrictedState
-            ? "契約制限中は事業者名を変更できません。"
-            : "支払い結果が確定してから事業者名を変更できます。";
+            ? "契約制限中はグループ名を変更できません。"
+            : "支払い結果が確定してからグループ名を変更できます。";
 
     return {
       organizationName: organization.name,
-      currentShopName: ctx.shop.name,
       people: peopleView,
       managerInvitations,
       shops: shopsView,
       billing,
-      freeSelection,
       canInviteManager,
       managerInvitationMode,
       freeManagerExchangeCandidates,

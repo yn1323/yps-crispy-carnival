@@ -56,6 +56,7 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   })
     .index("by_organizationId", ["organizationId"])
+    .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"])
     .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"]),
 
   // ========================================
@@ -93,6 +94,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   })
     .index("by_organizationId_and_emailNormalized", ["organizationId", "emailNormalized"])
+    .index("by_organizationId_and_status", ["organizationId", "status"])
     .index("by_organizationId_and_userId", ["organizationId", "userId"])
     .index("by_userId_and_status", ["userId", "status"]),
 
@@ -122,6 +124,8 @@ const schema = defineSchema({
     //   organizationInvitation/service.tsのmanagerAddition fallbackも削除する。
     purpose: v.optional(organizationInvitationPurposeValidator),
     inviterMemberId: v.id("organizationMembers"),
+    // スタッフ詳細から作成した招待だけ、承認対象の人物を固定する。任意メール招待では未設定が正しい。
+    targetPersonId: v.optional(v.id("organizationPeople")),
     reservedSeat: v.boolean(),
     version: v.number(),
     predecessorInvitationId: v.optional(v.id("organizationInvitations")),
@@ -136,6 +140,7 @@ const schema = defineSchema({
   })
     .index("by_tokenDigest", ["tokenDigest"])
     .index("by_organizationId_and_emailNormalized_and_status", ["organizationId", "emailNormalized", "status"])
+    .index("by_organizationId_and_targetPersonId_and_status", ["organizationId", "targetPersonId", "status"])
     .index("by_organizationId_and_status", ["organizationId", "status"])
     .index("by_inviterMemberId_and_status", ["inviterMemberId", "status"])
     .index("by_expiresAt", ["expiresAt"]),

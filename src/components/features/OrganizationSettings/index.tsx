@@ -9,14 +9,15 @@ import { PersonRemovalDialog } from "./PersonRemoval/PersonRemovalDialog";
 import { usePersonRemovalController } from "./PersonRemoval/usePersonRemovalController";
 import { ShopManagementDialog } from "./ShopManagement/ShopManagementDialog";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
-import type { OrganizationSettingsData } from "./types";
+import type { OrganizationSettingsData, OrganizationSettingsTab } from "./types";
 
 type Props = {
   settings: OrganizationSettingsData;
-  defaultTab?: "people" | "shops" | "billing";
+  defaultTab?: OrganizationSettingsTab;
+  onTabChange?: (tab: OrganizationSettingsTab) => void;
 };
 
-export function OrganizationSettings({ settings, defaultTab = "people" }: Props) {
+export function OrganizationSettings({ settings, defaultTab = "people", onTabChange }: Props) {
   const organizationName = useOrganizationNameController({
     organizationName: settings.organizationName,
     canUpdateOrganizationName: settings.canUpdateOrganizationName,
@@ -29,32 +30,27 @@ export function OrganizationSettings({ settings, defaultTab = "people" }: Props)
   });
   const personRemoval = usePersonRemovalController(settings.people);
   const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop, shops: settings.shops });
-  const billingSettings = useBillingSettingsController({
-    billing: settings.billing,
-    freeSelection: settings.freeSelection,
-  });
+  const billingSettings = useBillingSettingsController({ billing: settings.billing });
 
   return (
     <>
       <OrganizationSettingsView
         {...settings}
         defaultTab={defaultTab}
+        onTabChange={onTabChange}
         actions={{
           onUpdateOrganizationName: organizationName.open,
           onInviteManager: managerInvitation.open,
-          onRemovePersonFromCurrentShop: personRemoval.removeFromCurrentShop,
           onRemoveManagerRole: personRemoval.removeManagerRole,
           onRemovePerson: personRemoval.removePerson,
           onResendInvitation: managerInvitation.resend,
           onRevokeInvitation: managerInvitation.revoke,
           onAddShop: shopManagement.addShop,
-          onArchiveShop: shopManagement.archiveShop,
-          onReactivateShop: shopManagement.reactivateShop,
+          onOpenShop: shopManagement.openShop,
           onManagePlan: billingSettings.managePlan,
           onUpdatePaymentMethod: billingSettings.updatePaymentMethod,
           onUpdateBillingEmail: billingSettings.updateBillingEmail,
           onOpenInvoice: billingSettings.openInvoice,
-          onSaveFreeSelection: billingSettings.saveFreeSelection,
         }}
       />
       <OrganizationNameDialog {...organizationName.dialog} />
@@ -71,13 +67,13 @@ export type {
   BillingDisplayState,
   BillingInvoiceView,
   BillingUsageView,
-  FreeSelectionSummary,
   ManagerInvitationStatus,
   ManagerInvitationView,
   OrganizationBillingView,
   OrganizationPersonView,
   OrganizationSettingsActions,
   OrganizationSettingsData,
+  OrganizationSettingsTab,
   OrganizationSettingsViewProps,
   OrganizationShopView,
 } from "./types";

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type SelectedShop = {
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
   useQuery: vi.fn(),
   useRouterState: vi.fn(),
+  navigate: vi.fn(),
   useAtom: vi.fn(),
   setSelectedShop: vi.fn(),
   setUser: vi.fn(),
@@ -74,6 +76,24 @@ vi.mock("@/src/components/templates/FullPageSpinner", () => ({
   FullPageSpinner: () => <div data-testid="full-page-spinner" />,
 }));
 
+vi.mock("@/src/components/ui/Button", () => ({
+  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("@/src/components/ui/Empty", () => ({
+  Empty: ({ title, description, action }: { title: ReactNode; description?: ReactNode; action?: ReactNode }) => (
+    <main>
+      <h1>{title}</h1>
+      <p>{description}</p>
+      {action}
+    </main>
+  ),
+}));
+
 vi.mock("@/src/stores/shop", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/src/stores/shop")>()),
   selectedShopAtom: mocks.selectedShopAtom,
@@ -94,6 +114,7 @@ beforeEach(() => {
   mocks.useAuth.mockReset();
   mocks.useQuery.mockReset();
   mocks.useRouterState.mockReset();
+  mocks.navigate.mockReset();
   mocks.useAtom.mockReset();
   mocks.setSelectedShop.mockReset();
   mocks.setUser.mockReset();
@@ -132,7 +153,7 @@ beforeEach(() => {
 describe("AuthGuard", () => {
   it("保存済みの不所属店舗を整合するまではmanager子画面を描画しない", async () => {
     const { rerender } = render(
-      <AuthGuard>
+      <AuthGuard requestedShopId="active-shop">
         <ManagerChild />
       </AuthGuard>,
     );
@@ -162,7 +183,7 @@ describe("AuthGuard", () => {
       memberStatus: "active",
     };
     rerender(
-      <AuthGuard>
+      <AuthGuard requestedShopId="active-shop">
         <ManagerChild />
       </AuthGuard>,
     );
@@ -170,23 +191,58 @@ describe("AuthGuard", () => {
     expect(mocks.managerChildRender).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("manager-child")).not.toBeNull();
     expect(screen.queryByTestId("full-page-spinner")).toBeNull();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("有効候補が複数で保存値が無効なら先頭を選ばず店舗選択へ移動する", async () => {
+  it("URLがなく保存値も無効なら複数候補の先頭を保存してURLをreplace正規化する", async () => {
     mocks.myShops = [
       { shopId: "shop-a", shopName: "A店", organizationId: "org-a", organizationName: "A社" },
       { shopId: "shop-b", shopName: "B店", organizationId: "org-b", organizationName: "B社" },
     ];
 
-    render(
-      <AuthGuard>
+    const { rerender } = render(
+      <AuthGuard onNormalizeShopUrl={mocks.navigate}>
         <ManagerChild />
       </AuthGuard>,
     );
 
-    expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/shop-select");
-    await waitFor(() => expect(mocks.setSelectedShop).toHaveBeenCalledWith(null));
-    expect(mocks.setSelectedShop).not.toHaveBeenCalledWith(expect.objectContaining({ shopId: "shop-a" }));
+    await waitFor(() => {
+      expect(mocks.setSelectedShop).toHaveBeenCalledWith({
+        shopId: "shop-a",
+        shopName: "A店",
+        shopStatus: "active",
+        organizationId: "org-a",
+        organizationName: "A社",
+        organizationPlan: null,
+        memberStatus: "active",
+      });
+    });
+    expect(mocks.managerChildRender).not.toHaveBeenCalled();
+
+    mocks.selectedShop = {
+      shopId: "shop-a",
+      shopName: "A店",
+      shopStatus: "active",
+      organizationId: "org-a",
+      organizationName: "A社",
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+    rerender(
+      <AuthGuard onNormalizeShopUrl={mocks.navigate}>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("shop-a"));
+
+    rerender(
+      <AuthGuard requestedShopId="shop-a" onNormalizeShopUrl={mocks.navigate}>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).not.toBeNull();
   });
 
   it("同じ店舗でも契約プランが変わったら選択コンテキストを最新化する", async () => {
@@ -210,7 +266,7 @@ describe("AuthGuard", () => {
     };
 
     render(
-      <AuthGuard>
+      <AuthGuard requestedShopId="active-shop">
         <ManagerChild />
       </AuthGuard>,
     );
@@ -223,23 +279,74 @@ describe("AuthGuard", () => {
         organizationPlan: "business",
       });
     });
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("店舗選択routeは選択前でも描画する", () => {
-    mocks.myShops = [
-      { shopId: "shop-a", shopName: "A店" },
-      { shopId: "shop-b", shopName: "B店" },
-    ];
-    mocks.selectedShop = null;
-    mocks.useRouterState.mockReturnValue({ pathname: "/shop-select", searchStr: "" });
-
-    render(
+  it("所属店舗がなくなったら古い選択を消すまで子画面を描画せず、ログアウトせずに続行する", async () => {
+    mocks.myShops = [];
+    mocks.selectedShop = {
+      shopId: "removed-shop",
+      shopName: "権限を失った店舗",
+      shopStatus: "active",
+      organizationId: "removed-organization",
+      organizationName: "権限を失ったグループ",
+      organizationPlan: "free",
+      memberStatus: "active",
+    };
+    const { rerender } = render(
       <AuthGuard>
         <ManagerChild />
       </AuthGuard>,
     );
 
+    expect(mocks.managerChildRender).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
+    expect(screen.queryByText("権限を失った店舗")).toBeNull();
+    expect(screen.queryByText("権限を失ったグループ")).toBeNull();
+    await waitFor(() => expect(mocks.setSelectedShop).toHaveBeenCalledWith(null));
+
+    mocks.selectedShop = null;
+    rerender(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("full-page-spinner")).toBeNull();
     expect(screen.queryByTestId("manager-child")).not.toBeNull();
     expect(screen.queryByTestId("navigate")).toBeNull();
+    expect(mocks.useAuth).toHaveReturnedWith(expect.objectContaining({ isSignedIn: true, userId: "manager-user" }));
+  });
+
+  it("明示されたURL店舗が候補外ならfallbackせず汎用エラーを表示する", () => {
+    mocks.myShops = [
+      { shopId: "shop-a", shopName: "A店" },
+      { shopId: "shop-b", shopName: "B店" },
+    ];
+    mocks.selectedShop = {
+      shopId: "shop-a",
+      shopName: "A店",
+      shopStatus: "active",
+      organizationId: null,
+      organizationName: null,
+      organizationPlan: null,
+      memberStatus: "active",
+    };
+
+    render(
+      <AuthGuard requestedShopId="unknown-shop" onReturnToDashboard={mocks.navigate}>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(screen.getByRole("heading", { name: "この店舗を開けません" })).not.toBeNull();
+    expect(screen.queryByText("unknown-shop")).toBeNull();
+    expect(mocks.setSelectedShop).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "ダッシュボードへ戻る" }));
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
   });
 });

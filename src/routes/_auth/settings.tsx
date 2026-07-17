@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { updateSettingsTabSearch } from "@/src/lib/authenticatedSearch";
 import { OrganizationSettingsPage } from "@/src/pages/settings";
 import { buildOrganizationSettingsPageHead } from "@/src/pages/settings/meta";
 
@@ -15,8 +16,19 @@ export const Route = createFileRoute("/_auth/settings")({
 });
 
 function SettingsRoute() {
+  const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
-  return <OrganizationSettingsPage defaultTab={tab} />;
+  return (
+    <OrganizationSettingsPage
+      defaultTab={tab}
+      onTabChange={(nextTab) =>
+        void navigate({
+          replace: true,
+          search: (previous) => updateSettingsTabSearch(previous, nextTab),
+        })
+      }
+    />
+  );
 }
 
 function isSettingsTab(value: unknown): value is SettingsTab {

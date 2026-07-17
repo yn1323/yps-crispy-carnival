@@ -55,18 +55,20 @@ export function DashboardPage() {
                 <Alert.Title>この店舗は閲覧のみです</Alert.Title>
                 <Alert.Description>
                   {selectedContext.shopStatus === "archived"
-                    ? "アーカイブ済みのため、新しいシフトや利用者は変更できません。再開するときは事業者設定から再稼働してください。"
+                    ? "アーカイブ済みのため、新しいシフトや利用者は変更できません。再開するときはグループ設定から再稼働してください。"
                     : selectedContext.shopStatus === "planSuspended"
                       ? "現在のプランでは停止中です。既存データは削除されていません。"
                       : shop?.businessWriteBlockReason === "paymentResultPending"
                         ? "支払い結果を確認中です。確認が完了するまで、既存データを閲覧できますが変更や通知送信はできません。"
                         : shop?.businessWriteBlockReason === "restricted"
-                          ? "契約制限中です。既存データを閲覧しながら、事業者設定で契約の復旧や利用状況の整理を進めてください。"
+                          ? "契約制限中です。既存データを閲覧しながら、グループ設定で契約の復旧や利用状況の整理を進めてください。"
                           : "閲覧のみの管理者は既存データを確認できますが、変更や通知送信はできません。"}
                 </Alert.Description>
                 {(selectedContext.shopStatus !== "active" || isBillingReadOnly) && (
                   <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
-                    <RouterLink to="/settings">事業者設定を開く</RouterLink>
+                    <RouterLink to="/settings" search={{ shop: selectedContext.shopId }}>
+                      グループ設定を開く
+                    </RouterLink>
                   </Button>
                 )}
               </Alert.Content>
@@ -77,6 +79,9 @@ export function DashboardPage() {
             currentUser={currentUser}
             managerLegalConsentStatus={managerLegalConsentStatus}
             isReadOnly={isReadOnly}
+            operationContextData={
+              selectedContext && selectableShops ? { shops: selectableShops, selectedShop: selectedContext } : undefined
+            }
           />
         </Stack>
       </Animation>

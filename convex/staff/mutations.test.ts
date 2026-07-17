@@ -1618,7 +1618,7 @@ describe("staff/mutations", () => {
           name: "変更後",
           email: "second@example.com",
         }),
-      ).rejects.toThrow("事業者内の別の利用者");
+      ).rejects.toThrow("グループ内の別の利用者");
     });
 
     it("メールアドレス変更時は募集中シフト通知の追送actionをスケジュールする", async () => {
@@ -1891,7 +1891,7 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: `organization_staff_delete_${hasFutureAssignment}` })
           .mutation(api.staff.mutations.deleteStaff, { shopId: ids.shopId, staffId: ids.staffId }),
-      ).rejects.toThrow("事業者設定から店舗所属を解除してください");
+      ).rejects.toThrow("グループ設定から店舗所属を解除してください");
       await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffId))?.isDeleted)).resolves.toBe(false);
       await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
     });

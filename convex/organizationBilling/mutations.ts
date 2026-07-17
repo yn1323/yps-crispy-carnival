@@ -6,14 +6,18 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { authenticatedMutation } from "../_lib/functions";
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
+import {
+  getOrganizationBillingState,
+  getOrganizationUsageSnapshot,
+  removeLegacyOrganizationManagerAccess,
+} from "../organization/service";
+import { scheduleOrganizationBillingStateDeadline } from "./deadline";
 import {
   createPaymentGraceState,
   decideScheduledTransition,
   evaluateFreeEligibility,
   evaluatePlanLimits,
   getEffectiveRestrictedBillingState,
-  getOrganizationBillingStateDeadline,
   isVerifiedBillingTransitionAllowed,
   type OrganizationBillingState,
   type OrganizationPersonUsageInput,
@@ -164,16 +168,6 @@ async function revokePendingManagerInvitations(ctx: MutationCtx, organizationId:
   }
 }
 
-async function scheduleCurrentDeadline(ctx: MutationCtx, billingState: Doc<"organizationBillingStates">) {
-  const deadlineAt = getOrganizationBillingStateDeadline(billingState.state);
-  if (deadlineAt === null) return;
-  await ctx.scheduler.runAt(deadlineAt, internal.organizationBilling.mutations.processDeadline, {
-    organizationId: billingState.organizationId,
-    expectedVersion: billingState.version,
-    expectedDeadlineAt: deadlineAt,
-  });
-}
-
 function paidActivationNeedsExplicitRestoration(state: OrganizationBillingState): boolean {
   return (
     state.kind === "restricted" ||
@@ -207,7 +201,7 @@ async function applyVerifiedPaidRestoration(
     const usage = await getOrganizationUsageSnapshot(ctx, args.organizationId);
     const eligibility = evaluatePlanLimits(args.plan, {
       peopleCount: usage.projectedPersonCount,
-      activeManagerCount: usage.activeManagerCount,
+      activeManagerCount: usage.projectedActiveManagerCount,
       activeShopCount: usage.activeShopCount,
     });
     if (!eligibility.withinLimits) throw new ConvexError("復旧後の利用状況がプラン上限を超えます");
@@ -267,7 +261,7 @@ async function applyVerifiedPaidRestoration(
   });
   const eligibility = evaluatePlanLimits(args.plan, {
     peopleCount: projection.projectedPeopleCount,
-    activeManagerCount: managerPersonIds.length,
+    activeManagerCount: managerPersonIds.length + usage.pendingManagerInvitationCount,
     activeShopCount: shopIds.length,
   });
   if (!eligibility.withinLimits) throw new ConvexError("復旧後の利用状況がプラン上限を超えます");
@@ -352,26 +346,6 @@ async function applyFreeOrRestricted(
       : undefined;
   const shopSelectionIsResolved = sourceShopIds.length === 0 || selectedShopId !== undefined;
 
-  if (selectedManagerIsValid && selectedManagerId) {
-    for (const member of members) {
-      if (member.status === "removed") continue;
-      const isTransitionManager = restrictedState
-        ? recoveryManagerPersonIds.has(member.personId)
-        : member.status === "active";
-      if (!isTransitionManager) continue;
-      const targetStatus = member.personId === selectedManagerId ? "active" : "readOnly";
-      if (member.status !== targetStatus) await ctx.db.patch(member._id, { status: targetStatus, updatedAt: now });
-    }
-  }
-  if (shopSelectionIsResolved) {
-    for (const shopId of sourceShopIds) {
-      const shop = allOrganizationShops.find((candidate) => candidate._id === shopId);
-      if (!shop) continue;
-      const targetStatus = shopId === selectedShopId ? "active" : "planSuspended";
-      if (shop.operatingStatus !== targetStatus) await ctx.db.patch(shop._id, { operatingStatus: targetStatus });
-    }
-  }
-
   const projectedInputs = inputs.map((input) => ({
     ...input,
     managerRole:
@@ -399,6 +373,55 @@ async function applyFreeOrRestricted(
         previousActiveShopIds: restrictedState ? restrictedState.previousActiveShopIds : sourceShopIds,
         restrictedAt: now,
       };
+
+  if (shopSelectionIsResolved) {
+    for (const shopId of sourceShopIds) {
+      const shop = allOrganizationShops.find((candidate) => candidate._id === shopId);
+      if (!shop) continue;
+      const targetStatus = shopId === selectedShopId ? "active" : "planSuspended";
+      if (shop.operatingStatus !== targetStatus) await ctx.db.patch(shop._id, { operatingStatus: targetStatus });
+    }
+  }
+
+  if (selectedManagerIsValid && selectedManagerId) {
+    for (const member of members) {
+      if (member.status === "removed") continue;
+      const isTransitionManager =
+        nextState.kind === "active"
+          ? member.status === "active" || member.status === "readOnly"
+          : restrictedState
+            ? recoveryManagerPersonIds.has(member.personId)
+            : member.status === "active";
+      if (!isTransitionManager) continue;
+
+      const targetStatus =
+        member.personId === selectedManagerId ? "active" : nextState.kind === "active" ? "removed" : "readOnly";
+      if (member.status === targetStatus) continue;
+      await ctx.db.patch(member._id, { status: targetStatus, updatedAt: now });
+      if (targetStatus !== "removed") continue;
+
+      await removeLegacyOrganizationManagerAccess(ctx, organizationId, member.userId);
+      const activeStaff = await ctx.db
+        .query("staffs")
+        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+          q.eq("organizationId", organizationId).eq("organizationPersonId", member.personId),
+        )
+        .filter((q) => q.eq(q.field("isDeleted"), false))
+        .first();
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId,
+        actorUserId: args.actorUserId,
+        actorPersonId: args.actorPersonId,
+        action: "organization.manager_role_removed",
+        targetKind: "person",
+        targetId: member.personId,
+        fromState: member.status,
+        toState: activeStaff ? "staffOnly" : "personOnly",
+        correlationId: `${args.correlationId}:manager-role-removed:${member._id}`,
+        occurredAt: now,
+      });
+    }
+  }
 
   // すでに契約制限中でFree条件を満たせない再評価は、新たな「制限開始」ではない。
   // 選択値と人物・店舗の絞り込みは呼び出し元のversionで確定済みなので、制限開始時の副作用を再発行しない。
@@ -571,7 +594,7 @@ export const setFreeSelection = authenticatedMutation({
       allowReadOnly: true,
     });
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
-    if (!billingState) throw new ConvexError("事業者の契約情報を確認中です");
+    if (!billingState) throw new ConvexError("グループの契約情報を確認中です");
     if (billingState.state.kind === "complimentary") {
       throw new ConvexError("料金なしのBusinessではFree設定を変更できません");
     }
@@ -677,7 +700,7 @@ export const setFreeSelection = authenticatedMutation({
         correlationId: `${correlationId}:evaluate`,
       });
     }
-    await scheduleCurrentDeadline(ctx, updatedBillingState);
+    await scheduleOrganizationBillingStateDeadline(ctx, updatedBillingState);
     return { changed: true, stateKind: updatedBillingState.state.kind };
   },
 });
@@ -749,9 +772,10 @@ export const processDeadline = internalMutation({
         .collect();
       const activeShops = await ctx.db
         .query("shops")
-        .withIndex("by_organizationId_and_operatingStatus", (q) =>
-          q.eq("organizationId", billingState.organizationId).eq("operatingStatus", "active"),
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", billingState.organizationId).eq("isDeleted", false),
         )
+        .filter((q) => q.eq(q.field("operatingStatus"), "active"))
         .collect();
       const nextState: OrganizationBillingState = {
         kind: "restricted",
@@ -806,7 +830,7 @@ export const processDeadline = internalMutation({
       const usage = await getOrganizationUsageSnapshot(ctx, billingState.organizationId);
       const proEligibility = evaluatePlanLimits("pro", {
         peopleCount: usage.projectedPersonCount,
-        activeManagerCount: usage.activeManagerCount,
+        activeManagerCount: usage.projectedActiveManagerCount,
         activeShopCount: usage.activeShopCount,
       });
       const nextPlan = proEligibility.withinLimits ? "pro" : "business";
@@ -942,7 +966,7 @@ export const setStateFromVerifiedBilling = internalMutation({
       const usage = await getOrganizationUsageSnapshot(ctx, args.organizationId);
       const eligibility = evaluatePlanLimits("pro", {
         peopleCount: usage.projectedPersonCount,
-        activeManagerCount: usage.activeManagerCount,
+        activeManagerCount: usage.projectedActiveManagerCount,
         activeShopCount: usage.activeShopCount,
       });
       if (!eligibility.withinLimits) {
@@ -976,7 +1000,7 @@ export const setStateFromVerifiedBilling = internalMutation({
       occurredAt: now,
     });
     const updated = { ...billingState, state: nextState, version: nextVersion, updatedAt: now };
-    await scheduleCurrentDeadline(ctx, updated);
+    await scheduleOrganizationBillingStateDeadline(ctx, updated);
     const event = paymentFailureEvent
       ? paymentFailureEvent
       : scheduledChangeCanceled
@@ -1034,7 +1058,7 @@ export const updateBillingEmail = authenticatedMutation({
     });
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
     if (!billingState) {
-      throw new ConvexError("事業者の契約情報を確認中です");
+      throw new ConvexError("グループの契約情報を確認中です");
     }
     if (billingState.state.kind === "complimentary") {
       throw new ConvexError("料金なしのBusinessでは請求先メールアドレスを変更できません");

@@ -25,14 +25,16 @@ export function ManagerInvitationDialog({
   onSubmit,
 }: Props) {
   const [email, setEmail] = useState("");
+
   useEffect(() => {
     if (isOpen) setEmail("");
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const normalized = email.trim();
+  const normalizedEmail = email.trim();
   const isFreeManagerExchange = managerInvitationMode === "freeManagerExchange";
+
   return (
     <Dialog
       title={isFreeManagerExchange ? "Freeの管理者を交代" : "管理者を招待"}
@@ -44,25 +46,27 @@ export function ManagerInvitationDialog({
       formId="invite-manager-form"
       submitLabel={isFreeManagerExchange ? "交代の招待を送る" : "招待メールを送る"}
       isLoading={isRunning}
-      isSubmitDisabled={!isEmail(normalized)}
+      isSubmitDisabled={!isEmail(normalizedEmail)}
       maxW={{ base: "calc(100vw - 24px)", md: "520px" }}
     >
       <form
         id="invite-manager-form"
         onSubmit={(event) => {
           event.preventDefault();
-          if (isEmail(normalized)) onSubmit(normalized);
+          if (isEmail(normalizedEmail)) onSubmit(normalizedEmail);
         }}
       >
         <Stack gap={4}>
           {peopleCapacityResolution && (
             <PeopleCapacityResolutionAlert resolution={peopleCapacityResolution} retryActionLabel="管理者を招待" />
           )}
+
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
             {isFreeManagerExchange
-              ? "事業者内の既存スタッフへ管理者権限を引き継ぎます。承認完了後に新しい管理者が有効になり、現在の管理者は閲覧のみに変わります。"
-              : "招待された管理者は、この事業者のすべての店舗と、プラン・支払いを含む契約設定を管理できます。"}
+              ? "承認後、新しい管理者へ交代し、現在の管理者はこのグループの管理画面を開けなくなります。現在の管理者の既存の店舗スタッフ所属、シフト対象、通知設定は維持されます。"
+              : "招待された管理者は、このグループのすべての店舗と、プラン・支払いを含む設定を管理できます。管理者と招待中の管理者は合計5名までです。"}
           </Text>
+
           {isFreeManagerExchange ? (
             <Field.Root required>
               <Field.Label>新しい管理者</Field.Label>

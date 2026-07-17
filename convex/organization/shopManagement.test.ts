@@ -1,11 +1,12 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
-import { api } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api, internal } from "../_generated/api";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { getOrganizationUsageSnapshot } from "./service";
 
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
 
@@ -371,5 +372,372 @@ describe("organization shop management", () => {
         requestId: "reactivate-after-space",
       }),
     ).resolves.toEqual({ shopId: ids.targetShopId, shopStatus: "active", changed: true });
+  });
+
+  describe("deleteShop", () => {
+    const deadlineStateCases: Array<{
+      label: string;
+      buildState: (now: number, deadlineAt: number) => Doc<"organizationBillingStates">["state"];
+    }> = [
+      {
+        label: "trial",
+        buildState: (_now, deadlineAt) => ({ kind: "trial", trialEndsAt: deadlineAt }),
+      },
+      {
+        label: "scheduledChange",
+        buildState: (_now, deadlineAt) => ({
+          kind: "scheduledChange",
+          currentPlan: "pro",
+          targetPlan: "free",
+          effectiveAt: deadlineAt,
+        }),
+      },
+      {
+        label: "grace",
+        buildState: (now, deadlineAt) => ({
+          kind: "grace",
+          plan: "pro",
+          startedAt: now - 1_000,
+          endsAt: deadlineAt,
+        }),
+      },
+    ];
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("スタッフ所属がある組織店舗を即時削除し、同じrequestIdの再送では監査とcleanupを重複させない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_shop", plan: "pro" });
+        const remainingShopId = await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "残す店舗",
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: base.personId,
+          userId: base.userId,
+          name: "所属スタッフ",
+          email: "delete_shop@example.com",
+          emailNormalized: "delete_shop@example.com",
+          isDeleted: false,
+        });
+        return { ...base, remainingShopId, staffId };
+      });
+      const asActor = t.withIdentity({ subject: "delete_shop" });
+      const args = {
+        shopId: ids.shopId,
+        confirmShopId: ids.shopId,
+        requestId: "delete-shop-request",
+      };
+
+      await expect(asActor.mutation(api.organization.mutations.deleteShop, args)).resolves.toEqual({
+        shopId: ids.shopId,
+        changed: true,
+      });
+      await expect(asActor.mutation(api.organization.mutations.deleteShop, args)).resolves.toEqual({
+        shopId: ids.shopId,
+        changed: false,
+      });
+
+      const requestKey = await toAuditRequestKey(args.requestId);
+      const state = await t.run(async (ctx) => ({
+        deletedShop: await ctx.db.get(ids.shopId),
+        remainingShop: await ctx.db.get(ids.remainingShopId),
+        staff: await ctx.db.get(ids.staffId),
+        usage: await getOrganizationUsageSnapshot(ctx, ids.organizationId),
+        audits: await ctx.db
+          .query("organizationAuditEvents")
+          .withIndex("by_correlationId", (q) =>
+            q.eq("correlationId", `${ids.organizationId}:shop:delete:${ids.shopId}:${requestKey}`),
+          )
+          .collect(),
+        cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === "shop/mutations:cleanupDeletedShop",
+        ),
+      }));
+      expect(state.deletedShop?.isDeleted).toBe(true);
+      expect(state.remainingShop?.isDeleted).toBe(false);
+      expect(state.staff?.isDeleted).toBe(false);
+      expect(state.usage.activeShopCount).toBe(1);
+      expect(state.audits).toHaveLength(1);
+      expect(state.audits[0]).toMatchObject({
+        action: "organization.shop_deleted",
+        actorUserId: ids.userId,
+        targetKind: "shop",
+        targetId: ids.shopId,
+        toState: "deleted",
+      });
+      expect(state.cleanupJobs).toHaveLength(1);
+      expect(state.cleanupJobs[0]?.args[0]?.shopId).toBe(ids.shopId);
+    });
+
+    it("2店舗を同時に削除してもOCCで必ず1店舗を残す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_concurrently", plan: "pro" });
+        const secondShopId = await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "第二店舗",
+        });
+        return { ...base, secondShopId };
+      });
+      const asActor = t.withIdentity({ subject: "delete_concurrently" });
+
+      const results = await Promise.allSettled([
+        asActor.mutation(api.organization.mutations.deleteShop, {
+          shopId: ids.shopId,
+          confirmShopId: ids.shopId,
+          requestId: "delete-concurrently-first",
+        }),
+        asActor.mutation(api.organization.mutations.deleteShop, {
+          shopId: ids.secondShopId,
+          confirmShopId: ids.secondShopId,
+          requestId: "delete-concurrently-second",
+        }),
+      ]);
+
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+      expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+      const state = await t.run(async (ctx) => ({
+        shops: await ctx.db
+          .query("shops")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .filter((q) => q.eq(q.field("isDeleted"), false))
+          .collect(),
+        cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === "shop/mutations:cleanupDeletedShop",
+        ),
+      }));
+      expect(state.shops).toHaveLength(1);
+      expect(state.cleanupJobs).toHaveLength(1);
+      expect(state.cleanupJobs[0]?.args[0]?.shopId).not.toBe(state.shops[0]?._id);
+    });
+
+    it("最後の非削除店舗は削除しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(
+        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "delete_last_shop", plan: "pro" }),
+      );
+
+      await expect(
+        t.withIdentity({ subject: "delete_last_shop" }).mutation(api.organization.mutations.deleteShop, {
+          shopId: ids.shopId,
+          confirmShopId: ids.shopId,
+          requestId: "delete-last-shop",
+        }),
+      ).rejects.toThrow("最後の店舗は削除できません");
+
+      const state = await t.run(async (ctx) => ({
+        shop: await ctx.db.get(ids.shopId),
+        audits: await ctx.db
+          .query("organizationAuditEvents")
+          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+          .filter((q) => q.eq(q.field("action"), "organization.shop_deleted"))
+          .collect(),
+        cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === "shop/mutations:cleanupDeletedShop",
+        ),
+      }));
+      expect(state.shop?.isDeleted).toBe(false);
+      expect(state.audits).toHaveLength(0);
+      expect(state.cleanupJobs).toHaveLength(0);
+    });
+
+    it("確認対象と削除対象が一致しない場合は削除しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_confirm_mismatch", plan: "pro" });
+        const otherShopId = await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "別店舗",
+        });
+        return { ...base, otherShopId };
+      });
+
+      await expect(
+        t.withIdentity({ subject: "delete_confirm_mismatch" }).mutation(api.organization.mutations.deleteShop, {
+          shopId: ids.shopId,
+          confirmShopId: ids.otherShopId,
+          requestId: "delete-confirm-mismatch",
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(t.run((ctx) => ctx.db.get(ids.shopId))).resolves.toMatchObject({ isDeleted: false });
+    });
+
+    it("Freeで残す店舗も削除し、参照をクリアして残存店舗を自動再稼働しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_free_shop", plan: "free" });
+        const remainingShopId = await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "停止中の残存店舗",
+          status: "planSuspended",
+        });
+        return { ...base, remainingShopId };
+      });
+
+      await expect(
+        t.withIdentity({ subject: "delete_free_shop" }).mutation(api.organization.mutations.deleteShop, {
+          shopId: ids.shopId,
+          confirmShopId: ids.shopId,
+          requestId: "delete-free-shop",
+        }),
+      ).resolves.toEqual({ shopId: ids.shopId, changed: true });
+
+      const state = await t.run(async (ctx) => ({
+        deletedShop: await ctx.db.get(ids.shopId),
+        remainingShop: await ctx.db.get(ids.remainingShopId),
+        billingState: await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+      }));
+      expect(state.deletedShop?.isDeleted).toBe(true);
+      expect(state.remainingShop).toMatchObject({ isDeleted: false, operatingStatus: "planSuspended" });
+      expect(state.billingState?.freeShopId).toBeUndefined();
+      expect(state.billingState?.version).toBe(2);
+    });
+
+    it.each(
+      deadlineStateCases,
+    )("$labelの期限中にFree対象店舗を削除しても、更新後versionで同じ期限を再予約する", async ({ buildState }) => {
+      const t = convexTest(schema, modules);
+      const now = Date.parse("2026-08-01T00:00:00+09:00");
+      const deadlineAt = now + 7 * 24 * 60 * 60 * 1000;
+      vi.setSystemTime(now);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_deadline_shop", plan: "pro" });
+        await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "期限後も残る店舗",
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: buildState(now, deadlineAt),
+          freeShopId: base.shopId,
+          version: 7,
+          updatedAt: now,
+        });
+        await ctx.scheduler.runAt(deadlineAt, internal.organizationBilling.mutations.processDeadline, {
+          organizationId: base.organizationId,
+          expectedVersion: 7,
+          expectedDeadlineAt: deadlineAt,
+        });
+        return { ...base, billingStateId: billingState._id };
+      });
+
+      await expect(
+        t.withIdentity({ subject: "delete_deadline_shop" }).mutation(api.organization.mutations.deleteShop, {
+          shopId: ids.shopId,
+          confirmShopId: ids.shopId,
+          requestId: "delete-deadline-shop",
+        }),
+      ).resolves.toEqual({ shopId: ids.shopId, changed: true });
+
+      const state = await t.run(async (ctx) => ({
+        billingState: await ctx.db.get(ids.billingStateId),
+        deadlineJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) =>
+            job.name === "organizationBilling/mutations:processDeadline" &&
+            job.args[0]?.organizationId === ids.organizationId &&
+            job.args[0]?.expectedDeadlineAt === deadlineAt,
+        ),
+      }));
+      expect(state.billingState?.freeShopId).toBeUndefined();
+      expect(state.billingState?.version).toBe(8);
+      expect(
+        state.deadlineJobs
+          .map((job) => ({
+            expectedVersion: job.args[0]?.expectedVersion,
+            expectedDeadlineAt: job.args[0]?.expectedDeadlineAt,
+            scheduledTime: job.scheduledTime,
+          }))
+          .sort((a, b) => (a.expectedVersion ?? 0) - (b.expectedVersion ?? 0)),
+      ).toEqual([
+        { expectedVersion: 7, expectedDeadlineAt: deadlineAt, scheduledTime: deadlineAt },
+        { expectedVersion: 8, expectedDeadlineAt: deadlineAt, scheduledTime: deadlineAt },
+      ]);
+    });
+
+    it("契約制限中は復旧担当の有効管理者だけが店舗を削除できる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_recovery", plan: "pro" });
+        const remainingShopId = await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "復旧後も残す店舗",
+        });
+        await seedAdditionalManager(ctx, {
+          organizationId: base.organizationId,
+          shopId: base.shopId,
+          subject: "delete_non_recovery",
+          status: "active",
+        });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, {
+          state: {
+            kind: "restricted",
+            reason: "freeConditionsNotMet",
+            previousPlan: "pro",
+            recoveryManagerPersonIds: [base.personId],
+            previousActiveShopIds: [base.shopId, remainingShopId],
+            restrictedAt: Date.now(),
+          },
+        });
+        return base;
+      });
+      const args = {
+        shopId: ids.shopId,
+        confirmShopId: ids.shopId,
+        requestId: "delete-restricted-shop",
+      };
+
+      await expect(
+        t.withIdentity({ subject: "delete_non_recovery" }).mutation(api.organization.mutations.deleteShop, args),
+      ).rejects.toThrow("この復旧操作を行う権限がありません");
+      await expect(
+        t.withIdentity({ subject: "delete_recovery" }).mutation(api.organization.mutations.deleteShop, args),
+      ).resolves.toEqual({ shopId: ids.shopId, changed: true });
+    });
+
+    it("閲覧のみの管理者と別組織の管理者は店舗を削除できない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const target = await seedOrganizationManagerShop(ctx, { subject: "delete_target_owner", plan: "pro" });
+        await seedOrganizationShop(ctx, { organizationId: target.organizationId, name: "対象組織の残す店舗" });
+        const readOnly = await seedAdditionalManager(ctx, {
+          organizationId: target.organizationId,
+          shopId: target.shopId,
+          subject: "delete_readonly",
+          status: "readOnly",
+        });
+        await seedOrganizationManagerShop(ctx, { subject: "delete_other_organization", plan: "pro" });
+        return { ...target, readOnly };
+      });
+      const args = {
+        shopId: ids.shopId,
+        confirmShopId: ids.shopId,
+        requestId: "delete-shop-unauthorized",
+      };
+
+      await expect(
+        t.withIdentity({ subject: "delete_readonly" }).mutation(api.organization.mutations.deleteShop, args),
+      ).rejects.toThrow("Not found");
+      await expect(
+        t.withIdentity({ subject: "delete_other_organization" }).mutation(api.organization.mutations.deleteShop, args),
+      ).rejects.toThrow("Not found");
+      await expect(t.run((ctx) => ctx.db.get(ids.shopId))).resolves.toMatchObject({ isDeleted: false });
+    });
   });
 });

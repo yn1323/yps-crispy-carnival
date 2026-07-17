@@ -387,6 +387,132 @@ describe("dashboard/queries", () => {
       expect(result.some((shop) => shop.shopId === ids.otherShopId)).toBe(false);
     });
 
+    it("複数グループに所属する利用者には各グループの非削除店舗だけを所属状態付きで返す", async () => {
+      const t = convexTest(schema, modules);
+      const subject = "multi_organization_shop_list";
+      const ids = await t.run(async (ctx) => {
+        const email = "multi-organization@example.com";
+        const organizationA = await seedOrganizationManagerShop(ctx, {
+          subject,
+          email,
+          shopName: "組織A店舗",
+          plan: "pro",
+        });
+        await ctx.db.patch(organizationA.organizationId, { name: "組織A" });
+        await ctx.db.insert("shops", {
+          organizationId: organizationA.organizationId,
+          operatingStatus: "active",
+          name: "組織A削除済み店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        });
+
+        const now = Date.now();
+        const organizationBId = await ctx.db.insert("organizations", {
+          name: "組織B",
+          billingEmail: email,
+          billingEmailNormalized: email,
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const organizationBPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: organizationBId,
+          userId: organizationA.userId,
+          name: "管理者",
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: organizationBId,
+          personId: organizationBPersonId,
+          userId: organizationA.userId,
+          status: "readOnly",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const organizationBShopId = await ctx.db.insert("shops", {
+          organizationId: organizationBId,
+          operatingStatus: "archived",
+          name: "組織B店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        await ctx.db.insert("shops", {
+          organizationId: organizationBId,
+          operatingStatus: "active",
+          name: "組織B削除済み店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        });
+        await ctx.db.insert("organizationBillingStates", {
+          organizationId: organizationBId,
+          state: { kind: "active", plan: "business" },
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await seedOrganizationManagerShop(ctx, {
+          subject: "multi_organization_other_user",
+          shopName: "非所属組織C店舗",
+          plan: "business",
+        });
+
+        return {
+          organizationAId: organizationA.organizationId,
+          organizationAShopId: organizationA.shopId,
+          organizationBId,
+          organizationBShopId,
+        };
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
+
+      expect(
+        result
+          .map((shop) => ({
+            organizationId: shop.organizationId,
+            organizationName: shop.organizationName,
+            organizationPlan: shop.organizationPlan,
+            memberStatus: shop.memberStatus,
+            shopId: shop.shopId,
+            shopName: shop.shopName,
+            shopStatus: shop.shopStatus,
+          }))
+          .sort(
+            (a, b) =>
+              (a.organizationName ?? "").localeCompare(b.organizationName ?? "", "ja") ||
+              a.shopName.localeCompare(b.shopName, "ja"),
+          ),
+      ).toEqual([
+        {
+          organizationId: ids.organizationAId,
+          organizationName: "組織A",
+          organizationPlan: "pro",
+          memberStatus: "active",
+          shopId: ids.organizationAShopId,
+          shopName: "組織A店舗",
+          shopStatus: "active",
+        },
+        {
+          organizationId: ids.organizationBId,
+          organizationName: "組織B",
+          organizationPlan: "business",
+          memberStatus: "readOnly",
+          shopId: ids.organizationBShopId,
+          shopName: "組織B店舗",
+          shopStatus: "archived",
+        },
+      ]);
+    });
+
     it.each([
       {
         label: "有効なBusiness",
@@ -1493,6 +1619,186 @@ describe("dashboard/queries", () => {
       expect(result.page.find((staff) => staff.name === "移行前スタッフ")?.isOrganizationLinked).toBe(false);
     });
 
+    it("対象人物の管理者所属と招待状態を返し、メール変更後の招待し直しを案内する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_manager_state_owner",
+          plan: "pro",
+        });
+        const now = Date.now();
+        const targetUserId = await seedUser(ctx, "dashboard_manager_state_target", "target-before@example.com");
+        const targetPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          userId: targetUserId,
+          name: "招待対象スタッフ",
+          email: "target-before@example.com",
+          emailNormalized: "target-before@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const targetStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: targetPersonId,
+          userId: targetUserId,
+          name: "招待対象スタッフ",
+          email: "target-before@example.com",
+          emailNormalized: "target-before@example.com",
+          isDeleted: false,
+        });
+        const otherManagerUserId = await seedUser(ctx, "dashboard_other_manager", "other-manager@example.com");
+        const otherManagerPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          userId: otherManagerUserId,
+          name: "別の管理者",
+          email: "other-manager@example.com",
+          emailNormalized: "other-manager@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: base.organizationId,
+          personId: otherManagerPersonId,
+          userId: otherManagerUserId,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: otherManagerPersonId,
+          userId: otherManagerUserId,
+          name: "別の管理者",
+          email: "other-manager@example.com",
+          emailNormalized: "other-manager@example.com",
+          isDeleted: false,
+        });
+        return { ...base, targetPersonId, targetStaffId, otherManagerPersonId };
+      });
+      const owner = t.withIdentity({ subject: "dashboard_manager_state_owner" });
+
+      const before = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+      expect(before.page.find((staff) => staff.name === "別の管理者")).toMatchObject({
+        isManager: true,
+        managerInvitationState: { kind: "unavailable", reason: "このスタッフはすでに管理者です。" },
+      });
+      expect(before.page.find((staff) => staff._id === ids.targetStaffId)).toMatchObject({
+        isManager: false,
+        managerInvitationState: {
+          kind: "available",
+          mode: "addition",
+          replacesStaleInvitation: false,
+        },
+      });
+
+      const invitationId = await t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert("organizationInvitations", {
+          organizationId: ids.organizationId,
+          email: "target-before@example.com",
+          emailNormalized: "target-before@example.com",
+          tokenDigest: "dashboard-target-pending",
+          status: "pending",
+          purpose: "managerAddition",
+          inviterMemberId: ids.memberId,
+          targetPersonId: ids.targetPersonId,
+          reservedSeat: false,
+          version: 1,
+          expiresAt: now + 86_400_000,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      const pending = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+      expect(pending.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
+        kind: "pending",
+        mode: "addition",
+      });
+
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        await ctx.db.patch(ids.targetPersonId, {
+          email: "target-after@example.com",
+          emailNormalized: "target-after@example.com",
+          updatedAt: now,
+        });
+        await ctx.db.patch(ids.targetStaffId, {
+          email: "target-after@example.com",
+          emailNormalized: "target-after@example.com",
+        });
+      });
+      const stale = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+      expect(stale.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
+        kind: "available",
+        mode: "addition",
+        replacesStaleInvitation: true,
+      });
+
+      const currentEmailLegacyInvitationId = await t.run(async (ctx) => {
+        const now = Date.now();
+        return await ctx.db.insert("organizationInvitations", {
+          organizationId: ids.organizationId,
+          email: "target-after@example.com",
+          emailNormalized: "target-after@example.com",
+          tokenDigest: "dashboard-current-email-legacy-pending",
+          status: "pending",
+          purpose: "managerAddition",
+          inviterMemberId: ids.memberId,
+          reservedSeat: false,
+          version: 1,
+          expiresAt: now + 86_400_000,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      const conflicted = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+      expect(conflicted.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
+        kind: "unavailable",
+        reason: "このスタッフへの招待状態を確認できません。グループ設定を確認してください。",
+      });
+
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        await ctx.db.patch(invitationId, {
+          status: "revoked",
+          revokedAt: now,
+          version: 2,
+          updatedAt: now,
+        });
+        await ctx.db.patch(currentEmailLegacyInvitationId, {
+          status: "revoked",
+          revokedAt: now,
+          version: 2,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationInvitations", {
+          organizationId: ids.organizationId,
+          email: "target-after@example.com",
+          emailNormalized: "target-after@example.com",
+          tokenDigest: "dashboard-current-email-other-target-pending",
+          status: "pending",
+          purpose: "managerAddition",
+          inviterMemberId: ids.memberId,
+          targetPersonId: ids.otherManagerPersonId,
+          reservedSeat: false,
+          version: 1,
+          expiresAt: now + 86_400_000,
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      const wrongTarget = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+      expect(wrongTarget.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
+        kind: "unavailable",
+        reason: "このスタッフへの招待状態を確認できません。グループ設定を確認してください。",
+      });
+      expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
+    });
+
     it("返り値に不要なフィールドが含まれない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
@@ -1521,6 +1827,7 @@ describe("dashboard/queries", () => {
         "isLineLinked",
         "isManager",
         "isOrganizationLinked",
+        "managerInvitationState",
         "name",
       ]);
     });

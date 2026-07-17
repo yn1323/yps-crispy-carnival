@@ -66,6 +66,8 @@ type StaffDetailViewModel = {
   isSendingCurrentShift: boolean;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
+  onInviteManager: (staff: Staff) => Promise<boolean>;
+  isInvitingManager: boolean;
 };
 
 type Props = {
@@ -191,7 +193,7 @@ export function StaffManagementView({
               retryActionLabel="スタッフを再追加"
             />
           )}
-          <Text fontSize="sm">入力したメールアドレスは、以前この事業者から削除された人物と一致しました。</Text>
+          <Text fontSize="sm">入力したメールアドレスは、以前このグループから削除された人物と一致しました。</Text>
           <Stack gap={2}>
             {invitation.reactivationConfirmation.candidates.map((candidate) => (
               <Stack key={candidate.personId} gap={0} rounded="md" borderWidth="1px" px={3} py={2}>
@@ -236,6 +238,8 @@ export function StaffManagementView({
         isSendingCurrentShift={detail.isSendingCurrentShift}
         onChangeShiftTarget={detail.onChangeShiftTarget}
         isChangingShiftTarget={detail.isChangingShiftTarget}
+        onInviteManager={detail.onInviteManager}
+        isInvitingManager={detail.isInvitingManager}
       />
     </>
   );

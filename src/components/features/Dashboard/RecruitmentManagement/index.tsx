@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
@@ -10,6 +11,7 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { buildDashboardRecruitmentGroups, sortRecruitmentsByCreatedAt } from "../script";
 import type { DashboardRecruitmentGroup, PaginationStatus, Recruitment } from "../types";
 import { getCreateRecruitmentErrorMessage } from "./presentation";
@@ -66,6 +68,7 @@ export function RecruitmentManagement({
   children,
 }: Props) {
   const navigate = useNavigate();
+  const selectedShop = useAtomValue(selectedShopAtom);
   const createDialog = useDialog();
   const deleteDialog = useDialog();
   const [deleteTarget, setDeleteTarget] = useState<Recruitment | null>(null);
@@ -156,7 +159,11 @@ export function RecruitmentManagement({
     onBeforeOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void,
   ) => {
     onBeforeOpenShiftBoard?.(recruitmentId);
-    navigate({ to: "/shiftboard/$recruitmentId", params: { recruitmentId } });
+    navigate({
+      to: "/shiftboard/$recruitmentId",
+      params: { recruitmentId },
+      search: { shop: selectedShop?.shopId },
+    });
   };
 
   const handleOpenCreate = () => {

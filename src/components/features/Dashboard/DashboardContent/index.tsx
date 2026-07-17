@@ -5,6 +5,7 @@ import { HeroSummary, HeroSummarySkeleton } from "../HeroSummary";
 import { LegalReconsent } from "../LegalReconsent";
 import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
 import { NotificationFailureRecovery } from "../NotificationFailureRecovery";
+import { OperationContext, type OperationContextData, OperationContextSkeleton } from "../OperationContext";
 import { RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import { RecruitmentManagement, type RecruitmentManagementData } from "../RecruitmentManagement";
 import { Setup } from "../Setup";
@@ -54,6 +55,7 @@ type Props = {
   notificationFailures?: DashboardNotificationFailure[];
   isDashboardOnboardingDismissed?: boolean;
   announcement?: DashboardAnnouncementData | null;
+  operationContextData?: OperationContextData;
 };
 
 export const DashboardContent = ({
@@ -79,8 +81,9 @@ export const DashboardContent = ({
   notificationFailures,
   isDashboardOnboardingDismissed = false,
   announcement,
+  operationContextData,
 }: Props) => {
-  // Storyはqueryに依存せず代表状態を固定する。production entryはデータpropsを渡さず各子featureが購読する。
+  // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
   const usesInjectedData = recruitments !== undefined || staffs !== undefined;
   const recruitmentData: RecruitmentManagementData | undefined = usesInjectedData
     ? {
@@ -158,12 +161,14 @@ export const DashboardContent = ({
                                   {(onboarding) => (
                                     <>
                                       <ContentWrapper>
+                                        <OperationContext
+                                          data={operationContextData}
+                                          isReadOnly={isReadOnly}
+                                          onOpenShopSettings={openShopSettings}
+                                        />
                                         <LegalReconsent status={managerLegalConsentStatus} />
                                         <HeroSummary
-                                          shop={shop}
                                           recruitments={recruitment.recruitments}
-                                          isReadOnly={isReadOnly}
-                                          onEditClick={openShopSettings}
                                           onOpenShiftBoard={(recruitmentId) =>
                                             recruitment.openShiftBoard(
                                               recruitmentId as Recruitment["_id"],
@@ -218,6 +223,7 @@ export const DashboardContent = ({
 
 export const DashboardContentSkeleton = () => (
   <ContentWrapper>
+    <OperationContextSkeleton />
     <HeroSummarySkeleton />
     <RecruitmentBoardSkeleton />
     <StaffRosterSkeleton />

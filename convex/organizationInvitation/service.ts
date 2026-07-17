@@ -2,21 +2,11 @@ import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { getOrganizationBillingState } from "../organization/service";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
+import { getOrganizationInvitationPurpose } from "./purpose";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
 };
-
-export type OrganizationInvitationPurpose = "managerAddition" | "freeManagerExchange";
-
-export function getOrganizationInvitationPurpose(
-  invitation: Pick<Doc<"organizationInvitations">, "purpose">,
-): OrganizationInvitationPurpose {
-  // TODO[narrow]: 対象はNarrow着手時に追加するorganizationInvitations purpose補完migration。
-  //   Widen前の招待を失効または補完し、develop/prodの未設定件数が0件であることを
-  //   `pnpm convex:migrate:status` と管理用集計で確認後、schemaのpurposeを必須化してこのfallbackを削除する。
-  return invitation.purpose ?? "managerAddition";
-}
 
 export type FreeManagerExchangeEligibility = {
   purpose: "freeManagerExchange";
@@ -71,12 +61,35 @@ async function getValidInviter(
   return { inviter, inviterPerson: person };
 }
 
+async function getInvitationTargetPeople(
+  ctx: DbCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    emailNormalized: string;
+    targetPersonId?: Id<"organizationPeople">;
+  },
+) {
+  if (args.targetPersonId) {
+    const person = await ctx.db.get(args.targetPersonId);
+    return person && person.organizationId === args.organizationId && person.emailNormalized === args.emailNormalized
+      ? [person]
+      : [];
+  }
+  return await ctx.db
+    .query("organizationPeople")
+    .withIndex("by_organizationId_and_emailNormalized", (q) =>
+      q.eq("organizationId", args.organizationId).eq("emailNormalized", args.emailNormalized),
+    )
+    .take(2);
+}
+
 export async function resolveFreeManagerExchangeEligibility(
   ctx: DbCtx,
   args: {
     organizationId: Id<"organizations">;
     inviterMemberId: Id<"organizationMembers">;
     emailNormalized: string;
+    targetPersonId?: Id<"organizationPeople">;
   },
 ): Promise<FreeManagerExchangeEligibility | null> {
   const [organization, billingState, inviterData, activeMembers, people] = await Promise.all([
@@ -89,12 +102,7 @@ export async function resolveFreeManagerExchangeEligibility(
         q.eq("organizationId", args.organizationId).eq("status", "active"),
       )
       .take(2),
-    ctx.db
-      .query("organizationPeople")
-      .withIndex("by_organizationId_and_emailNormalized", (q) =>
-        q.eq("organizationId", args.organizationId).eq("emailNormalized", args.emailNormalized),
-      )
-      .take(2),
+    getInvitationTargetPeople(ctx, args),
   ]);
   if (
     !organization ||
@@ -162,7 +170,7 @@ export async function resolveOrganizationInvitationEligibility(
   ctx: DbCtx,
   invitation: Pick<
     Doc<"organizationInvitations">,
-    "organizationId" | "inviterMemberId" | "emailNormalized" | "purpose"
+    "organizationId" | "inviterMemberId" | "emailNormalized" | "purpose" | "targetPersonId"
   >,
 ): Promise<OrganizationInvitationEligibility | null> {
   const purpose = getOrganizationInvitationPurpose(invitation);
@@ -183,6 +191,23 @@ export async function resolveOrganizationInvitationEligibility(
     !inviterData
   ) {
     return null;
+  }
+  if (invitation.targetPersonId) {
+    const targetPeople = await getInvitationTargetPeople(ctx, invitation);
+    if (targetPeople.length !== 1 || targetPeople[0].status !== "active") return null;
+    const targetPerson = targetPeople[0];
+    const members = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_personId", (q) =>
+        q.eq("organizationId", invitation.organizationId).eq("personId", targetPerson._id),
+      )
+      .take(2);
+    if (members.length > 1 || members[0]?.status === "active") return null;
+    if (members[0] && (!targetPerson.userId || members[0].userId !== targetPerson.userId)) return null;
+    if (targetPerson.userId) {
+      const user = await ctx.db.get(targetPerson.userId);
+      if (!user || user.isDeleted) return null;
+    }
   }
   return { purpose, organization, ...inviterData };
 }

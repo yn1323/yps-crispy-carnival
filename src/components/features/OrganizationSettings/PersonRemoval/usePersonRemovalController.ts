@@ -13,7 +13,6 @@ type Operation = PersonRemovalDialogState["kind"];
 
 export function usePersonRemovalController(people: OrganizationPersonView[]) {
   const selectedShop = useAtomValue(selectedShopAtom);
-  const removePersonFromShop = useMutation(api.organization.mutations.removePersonFromShop);
   const removeManagerRole = useMutation(api.organization.mutations.removeManagerRole);
   const removePerson = useMutation(api.organization.mutations.removePersonFromOrganization);
   const [dialog, setDialog] = useState<PersonRemovalDialogState | null>(null);
@@ -41,21 +40,6 @@ export function usePersonRemovalController(people: OrganizationPersonView[]) {
     const shopId = selectedShop.shopId as Id<"shops">;
     try {
       switch (operation) {
-        case "removePersonFromShop":
-          if (!person.currentShopStaffId) {
-            setDialog(null);
-            return;
-          }
-          await removePersonFromShop({
-            shopId,
-            staffId: person.currentShopStaffId as Id<"staffs">,
-            requestId,
-          });
-          showSuccessToast({
-            title: "操作中の店舗から削除しました",
-            description: "事業者の人物情報、ほかの店舗所属、管理者権限、利用人数の算入は変更していません。",
-          });
-          break;
         case "removeManagerRole":
           await removeManagerRole({
             shopId,
@@ -66,7 +50,7 @@ export function usePersonRemovalController(people: OrganizationPersonView[]) {
             title: "管理者権限を外しました",
             description: person.isStaff
               ? "スタッフとしての店舗所属と業務用アクセスは維持しています。"
-              : "スタッフ所属がないため、この事業者へのアクセスも終了しました。",
+              : "スタッフ所属がないため、このグループへのアクセスも終了しました。",
           });
           break;
         case "removePerson":
@@ -76,7 +60,7 @@ export function usePersonRemovalController(people: OrganizationPersonView[]) {
             requestId,
           });
           showSuccessToast({
-            title: "利用者を事業者から削除しました",
+            title: "利用者をグループから削除しました",
             description: "過去のシフト履歴は保持されます。",
           });
           break;
@@ -94,7 +78,6 @@ export function usePersonRemovalController(people: OrganizationPersonView[]) {
   };
 
   return {
-    removeFromCurrentShop: (personId: string) => open("removePersonFromShop", personId),
     removeManagerRole: (personId: string) => open("removeManagerRole", personId),
     removePerson: (personId: string) => open("removePerson", personId),
     dialog: {
@@ -110,8 +93,6 @@ export function usePersonRemovalController(people: OrganizationPersonView[]) {
 
 function canRun(person: OrganizationPersonView, operation: Operation): boolean {
   switch (operation) {
-    case "removePersonFromShop":
-      return person.canRemoveFromCurrentShop && person.currentShopStaffId !== null;
     case "removeManagerRole":
       return person.canRemoveManagerRole;
     case "removePerson":

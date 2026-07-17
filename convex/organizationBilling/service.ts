@@ -51,22 +51,25 @@ export async function requireOrganizationCapacity(
     additionalPeople?: number;
     additionalActiveShops?: number;
     additionalActiveManagers?: number;
+    excludedInvitationId?: Id<"organizationInvitations">;
   },
 ) {
   const billingState = await getOrganizationBillingState(ctx, args.organizationId);
   if (!billingState) {
-    throw new ConvexError("事業者の契約情報を確認中のため、この追加操作はまだ利用できません");
+    throw new ConvexError("グループの契約情報を確認中のため、この追加操作はまだ利用できません");
   }
   const policy = deriveOrganizationBillingPolicy(billingState.state);
   if (!policy.entitlementPlan || !policy.limits || !policy.canWriteBusinessData) {
     throw new ConvexError("現在の契約状態では追加できません");
   }
 
-  const usage = await getOrganizationUsageSnapshot(ctx, args.organizationId);
+  const usage = await getOrganizationUsageSnapshot(ctx, args.organizationId, Date.now(), {
+    excludedInvitationId: args.excludedInvitationId,
+  });
   const projectedUsage = {
     peopleCount: usage.projectedPersonCount + (args.additionalPeople ?? 0),
     activeShopCount: usage.activeShopCount + (args.additionalActiveShops ?? 0),
-    activeManagerCount: usage.activeManagerCount + (args.additionalActiveManagers ?? 0),
+    activeManagerCount: usage.projectedActiveManagerCount + (args.additionalActiveManagers ?? 0),
   };
   const evaluation = evaluatePlanLimits(policy.entitlementPlan, projectedUsage);
   if (!evaluation.withinLimits) {
@@ -74,7 +77,7 @@ export async function requireOrganizationCapacity(
       ? `利用人数が現在のプラン上限を超えます（現在 ${usage.projectedPersonCount}名 / 上限 ${policy.limits.maxPeople}名）`
       : evaluation.violations.includes("activeShops")
         ? "稼働店舗数が現在のプラン上限を超えます"
-        : "有効管理者数が現在のプラン上限を超えます";
+        : "管理者と招待中の管理者が現在のプラン上限を超えます";
     throw new ConvexError(message);
   }
   if (

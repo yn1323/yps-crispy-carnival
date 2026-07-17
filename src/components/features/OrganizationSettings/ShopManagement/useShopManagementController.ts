@@ -15,8 +15,7 @@ type Input = {
 
 export function useShopManagementController(input: Input) {
   const addShop = useShopMutation(api.organization.mutations.addShop);
-  const archiveShop = useMutation(api.organization.mutations.archiveShop);
-  const reactivateShop = useMutation(api.organization.mutations.reactivateShop);
+  const deleteShop = useMutation(api.organization.mutations.deleteShop);
   const [dialog, setDialog] = useState<ShopManagementDialogState | null>(null);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -28,8 +27,7 @@ export function useShopManagementController(input: Input) {
       return;
     }
     const latestShop = input.shops.find((shop) => shop.id === dialog.shop.id);
-    const canRun = dialog.kind === "archiveShop" ? latestShop?.canArchive : latestShop?.canReactivate;
-    if (!latestShop || !canRun) {
+    if (!latestShop) {
       setDialog(null);
       return;
     }
@@ -43,13 +41,9 @@ export function useShopManagementController(input: Input) {
         setDialog(null);
         return;
       }
-    } else {
-      const shop = latest.shops.find((candidate) => candidate.id === operation.shopId);
-      const canRun = operation.kind === "archiveShop" ? shop?.canArchive : shop?.canReactivate;
-      if (!canRun) {
-        setDialog(null);
-        return;
-      }
+    } else if (!latest.shops.find((candidate) => candidate.id === operation.shopId)?.canDelete) {
+      setDialog(null);
+      return;
     }
 
     const requestId = crypto.randomUUID();
@@ -62,16 +56,13 @@ export function useShopManagementController(input: Input) {
           });
           showSuccessToast({ title: "店舗を追加しました" });
           break;
-        case "archiveShop":
-          await archiveShop({ shopId: operation.shopId as Id<"shops">, requestId });
-          showSuccessToast({
-            title: "店舗をアーカイブしました",
-            description: "店舗データと過去のシフトは保持されます。",
+        case "deleteShop":
+          await deleteShop({
+            shopId: operation.shopId as Id<"shops">,
+            confirmShopId: operation.shopId as Id<"shops">,
+            requestId,
           });
-          break;
-        case "reactivateShop":
-          await reactivateShop({ shopId: operation.shopId as Id<"shops">, requestId });
-          showSuccessToast({ title: "店舗を再稼働しました" });
+          showSuccessToast({ title: "店舗を削除しました" });
           break;
       }
       setDialog(null);
@@ -81,18 +72,16 @@ export function useShopManagementController(input: Input) {
     }
   });
 
-  const openShopDialog = (kind: "archiveShop" | "reactivateShop", shopId: string) => {
+  const openShop = (shopId: string) => {
     const shop = latestRef.current.shops.find((candidate) => candidate.id === shopId);
-    const canRun = kind === "archiveShop" ? shop?.canArchive : shop?.canReactivate;
-    if (shop && canRun) setDialog({ kind, shop });
+    if (shop) setDialog({ kind: "shopDetails", shop });
   };
 
   return {
     addShop: () => {
       if (latestRef.current.canAddShop) setDialog({ kind: "addShop" });
     },
-    archiveShop: (shopId: string) => openShopDialog("archiveShop", shopId),
-    reactivateShop: (shopId: string) => openShopDialog("reactivateShop", shopId),
+    openShop,
     dialog: {
       dialog,
       isRunning,

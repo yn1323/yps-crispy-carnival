@@ -31,14 +31,14 @@ const selectedShopStorage = {
     normalizeSelectedShop(rawStorage.getItem(key, initialValue)),
   setItem: (key: string, value: SelectedShopType) => rawStorage.setItem(key, value),
   removeItem: (key: string) => rawStorage.removeItem(key),
-  subscribe: rawStorage.subscribe
-    ? (key: string, callback: (value: SelectedShopType) => void, initialValue: SelectedShopType) =>
-        rawStorage.subscribe?.(key, (value) => callback(normalizeSelectedShop(value)), initialValue)
-    : undefined,
 };
 
-// localStorage永続化。旧DTOは初回読込時に不足fieldを安全な既定値で補い、query結果で正規化する。
-export const selectedShopAtom = atomWithStorage<SelectedShopType>("selected-shop", null, selectedShopStorage);
+// localStorage永続化。URL未指定時のfallbackに使うため、同期storageの前回値を初回renderから読む。
+// URLはタブ単位の正なので、他タブのstorage eventは購読せず実行中contextを上書きしない。
+// 旧DTOは初回読込時に不足fieldを安全な既定値で補い、query結果で正規化する。
+export const selectedShopAtom = atomWithStorage<SelectedShopType>("selected-shop", null, selectedShopStorage, {
+  getOnInit: true,
+});
 
 // 派生atom: 店舗選択済みかどうか
 export const hasSelectedShopAtom = atom((get) => get(selectedShopAtom) !== null);
@@ -75,7 +75,7 @@ export function toSelectedShop(shop: ShopContextOption): NonNullable<SelectedSho
 }
 
 export function isSelectableShop(shop: ShopContextOption): boolean {
-  // archived / planSuspended は既存データと事業者設定を読むための選択肢として残す。
+  // archived / planSuspended は既存データとグループ設定を読むための選択肢として残す。
   // 書き込み可否はConvex側が店舗状態と管理者所属を再検証する。
   return shop.memberStatus !== "removed";
 }
@@ -106,8 +106,9 @@ export function groupShopsByOrganization(shops: readonly ShopContextOption[]): S
   const groups = new Map<string, ShopOrganizationGroup>();
 
   for (const shop of shops) {
-    const organizationName = shop.organizationName ?? "所属事業者";
-    const key = shop.organizationId ?? `name:${organizationName}`;
+    const organizationName = shop.organizationName ?? `${shop.shopName}のグループ`;
+    // organizationId がまだない移行中店舗を、表示名だけで同一グループと誤認しない。
+    const key = shop.organizationId ?? `legacy:${shop.shopId}`;
     const group = groups.get(key) ?? { key, organizationName, shops: [] };
     group.shops.push(shop);
     groups.set(key, group);

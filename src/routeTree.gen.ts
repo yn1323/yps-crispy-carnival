@@ -32,7 +32,6 @@ import { Route as PrivacyManagerRouteImport } from './routes/privacy_.manager'
 import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
 import { Route as DemoFlowRouteImport } from './routes/demo.flow'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
-import { Route as AuthShopSelectRouteImport } from './routes/_auth/shop-select'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
@@ -158,11 +157,6 @@ const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => ArticlesRoute,
 } as any)
-const AuthShopSelectRoute = AuthShopSelectRouteImport.update({
-  id: '/shop-select',
-  path: '/shop-select',
-  getParentRoute: () => AuthRoute,
-} as any)
 const AuthSettingsRoute = AuthSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -243,7 +237,6 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
-  '/shop-select': typeof AuthShopSelectRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
@@ -277,7 +270,6 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/settings': typeof AuthSettingsRoute
-  '/shop-select': typeof AuthShopSelectRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
@@ -315,7 +307,6 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/settings': typeof AuthSettingsRoute
-  '/_auth/shop-select': typeof AuthShopSelectRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
@@ -352,7 +343,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/dashboard'
     | '/settings'
-    | '/shop-select'
     | '/articles/$slug'
     | '/demo/flow'
     | '/demo/shiftboard'
@@ -386,7 +376,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/dashboard'
     | '/settings'
-    | '/shop-select'
     | '/articles/$slug'
     | '/demo/flow'
     | '/demo/shiftboard'
@@ -423,7 +412,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_auth/dashboard'
     | '/_auth/settings'
-    | '/_auth/shop-select'
     | '/articles/$slug'
     | '/demo/flow'
     | '/demo/shiftboard'
@@ -630,13 +618,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesSlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
-    '/_auth/shop-select': {
-      id: '/_auth/shop-select'
-      path: '/shop-select'
-      fullPath: '/shop-select'
-      preLoaderRoute: typeof AuthShopSelectRouteImport
-      parentRoute: typeof AuthRoute
-    }
     '/_auth/settings': {
       id: '/_auth/settings'
       path: '/settings'
@@ -720,14 +701,12 @@ declare module '@tanstack/react-router' {
 interface AuthRouteChildren {
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
-  AuthShopSelectRoute: typeof AuthShopSelectRoute
   AuthShiftboardRecruitmentIdRoute: typeof AuthShiftboardRecruitmentIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthDashboardRoute: AuthDashboardRoute,
   AuthSettingsRoute: AuthSettingsRoute,
-  AuthShopSelectRoute: AuthShopSelectRoute,
   AuthShiftboardRecruitmentIdRoute: AuthShiftboardRecruitmentIdRoute,
 }
 

@@ -474,7 +474,7 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">管理者として招待されました</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${inviterName}さんから「${organizationName}」の管理者に招待されました。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">管理者になると、この事業者のすべての店舗を管理し、契約に関する操作を行えます。</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">管理者になると、このグループのすべての店舗を管理し、契約に関する操作を行えます。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">

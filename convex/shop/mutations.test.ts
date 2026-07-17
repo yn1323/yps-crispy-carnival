@@ -1,10 +1,14 @@
 import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
+import {
+  NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+  SHIFT_TYPE_NAME_MAX_LENGTH,
+  SHOP_NAME_MAX_LENGTH,
+} from "../constants";
 
 const validArgs = {
   shopName: "新・居酒屋たなか",
@@ -500,7 +504,7 @@ describe("shop/mutations", () => {
       expect(ownShop?.isDeleted).toBe(false);
     });
 
-    it("事業者に紐づく店舗は旧APIで削除せずcanonicalアーカイブ導線へ寄せる", async () => {
+    it("事業者に紐づく店舗は旧APIで削除せずグループ設定の削除導線へ寄せる", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run((ctx) =>
         seedOrganizationManagerShop(ctx, { subject: "organization_shop_delete", plan: "pro" }),
@@ -511,7 +515,7 @@ describe("shop/mutations", () => {
           confirmShopId: ids.shopId,
           shopId: ids.shopId,
         }),
-      ).rejects.toThrow("事業者設定から店舗をアーカイブしてください");
+      ).rejects.toThrow("グループ設定から店舗を削除してください");
 
       const state = await t.run(async (ctx) => ({
         shop: await ctx.db.get(ids.shopId),
@@ -650,7 +654,7 @@ describe("shop/mutations", () => {
       });
     });
 
-    it("配信予約済み（pending/processing）の通知をキャンセルし、送信済みは変更しない", async () => {
+    it("pending通知はすぐ停止し、processing通知はlease終了後に回収して送信済みは変更しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
@@ -690,7 +694,23 @@ describe("shop/mutations", () => {
           dedupeKey: "dedupe-sent",
           sentAt: Date.now(),
         });
-        return { shopId, pendingId, processingId, sentId };
+        const now = Date.now();
+        const failureId = await ctx.db.insert("notificationFailureInbox", {
+          failureKey: `outbox:${pendingId}`,
+          sourceType: "outbox",
+          status: "retrying",
+          shopId,
+          outboxId: pendingId,
+          channel: "email",
+          dedupeKey: "dedupe-pending",
+          notificationContext: "test",
+          firstFailedAt: now,
+          lastFailedAt: now,
+          lastError: "delivery failed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { shopId, pendingId, processingId, sentId, failureId };
       });
 
       await t
@@ -699,10 +719,76 @@ describe("shop/mutations", () => {
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       await t.run(async (ctx) => {
-        expect((await ctx.db.get(ids.pendingId))?.status).toBe("failed");
-        expect((await ctx.db.get(ids.processingId))?.status).toBe("failed");
+        expect(await ctx.db.get(ids.pendingId)).toMatchObject({
+          status: "cancelled",
+          cancelReason: "shop_inactive",
+          cancelledAt: expect.any(Number),
+        });
+        expect(await ctx.db.get(ids.processingId)).toMatchObject({
+          status: "cancelled",
+          cancelReason: "shop_inactive",
+        });
+        expect(await ctx.db.get(ids.failureId)).toMatchObject({
+          status: "resolved",
+          resolutionKind: "superseded",
+          resolvedAt: expect.any(Number),
+        });
         expect((await ctx.db.get(ids.sentId))?.status).toBe("sent");
       });
+    });
+
+    it("provider処理中の通知はlease中に上書きせず、staleになった後で回収する", async () => {
+      const t = convexTest(schema, modules);
+      const startedAt = Date.now();
+      const ids = await t.run(async (ctx) => {
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "yamada@example.com",
+          shopName: "削除対象店",
+        });
+        await ctx.db.patch(shopId, { isDeleted: true });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          shopId,
+          status: "processing",
+          dedupeKey: "dedupe-processing-lease",
+          payload: {
+            kind: "email",
+            context: "test",
+            from: "noreply@example.com",
+            to: "sato@example.com",
+            subject: "件名",
+            html: "<p>body</p>",
+          },
+          attemptCount: 1,
+          nextRunAt: startedAt,
+          processingStartedAt: startedAt,
+          createdAt: startedAt,
+          updatedAt: startedAt,
+        });
+        return { shopId, outboxId };
+      });
+
+      await t.mutation(internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId: ids.shopId });
+
+      const beforeExpiry = await t.run(async (ctx) => ({
+        outbox: await ctx.db.get(ids.outboxId),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(beforeExpiry.outbox?.status).toBe("processing");
+      expect(
+        beforeExpiry.scheduled.some((job) => job.name === "shop/mutations:cleanupDeletedShopProcessingOutbox"),
+      ).toBe(true);
+
+      vi.setSystemTime(startedAt + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS + 1);
+      await t.mutation(internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId: ids.shopId });
+
+      const staleOutbox = await t.run(async (ctx) => ctx.db.get(ids.outboxId));
+      expect(staleOutbox).toMatchObject({
+        status: "cancelled",
+        cancelReason: "shop_inactive",
+      });
+      expect(staleOutbox).not.toHaveProperty("processingStartedAt");
     });
 
     it("バッチサイズを超える件数でも全件を後片付けできる", async () => {

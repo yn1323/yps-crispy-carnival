@@ -9,6 +9,7 @@ type ManagerIdentity =
       subject: string;
       name?: string;
       email?: string;
+      emailVerified?: boolean;
     };
 
 type RecruitmentInput = {
@@ -126,6 +127,16 @@ export function createScenario(t: ScenarioTest) {
             throw new Error("Scenario staff addition unexpectedly requires confirmation");
           }
           return result.staffIds;
+        },
+        async inviteStaffAsManager(staffId: Id<"staffs">) {
+          return asManager.mutation(api.organizationInvitation.mutations.createForStaff, {
+            staffId,
+            requestId: generateUUID(),
+            shopId: await getSelectedShopId(),
+          });
+        },
+        acceptManagerInvitation(token: string) {
+          return asManager.mutation(api.organizationInvitation.mutations.accept, { token });
         },
         async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
           return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });

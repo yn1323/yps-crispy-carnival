@@ -948,6 +948,11 @@ async function cancelActiveNotification(
   return true;
 }
 
+/** 店舗削除cleanupから、通常の取消と同じterminal・Failure Inbox解決契約を適用する。 */
+export async function cancelNotificationForInactiveShop(ctx: MutationCtx, job: Doc<"notificationOutbox">, now: number) {
+  return await cancelActiveNotification(ctx, job, "shop_inactive", now);
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }

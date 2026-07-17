@@ -61,7 +61,7 @@ export function organizationBillingNotificationCopy(
           ? [
               `無料体験は${trialEndsAtLabel}に終了します。`,
               `選択済みの契約プランは${selectedPlanLabel}です。初回請求は${trialEndsAtLabel}を予定しています。`,
-              `Freeプランへ変更する場合の設定期限は${trialEndsAtLabel}です。期限までに事業者設定から変更してください。`,
+              `Freeプランへ変更する場合の設定期限は${trialEndsAtLabel}です。期限までにグループ設定から変更してください。`,
             ]
           : [
               `無料体験は${trialEndsAtLabel}に終了します。有料プランはまだ契約されていません。`,
@@ -76,7 +76,7 @@ export function organizationBillingNotificationCopy(
         heading: "初回請求の結果を確認しています",
         paragraphs: [
           "支払い結果を確認しています。確認中も、選択した有料プランの機能を利用できます。",
-          "結果が確定すると、事業者設定へ反映されます。",
+          "結果が確定すると、グループ設定へ反映されます。",
         ],
       };
     case "freeApplied":
@@ -85,7 +85,7 @@ export function organizationBillingNotificationCopy(
         heading: "Freeプランへ変更しました",
         paragraphs: [
           "選択した管理者と店舗を残してFreeプランへ変更しました。店舗、利用者、過去のシフトは削除されません。",
-          "閲覧のみになった管理者とプラン停止中の店舗は、事業者設定から確認できます。",
+          "閲覧のみになった管理者とプラン停止中の店舗は、グループ設定から確認できます。",
         ],
       };
     case "scheduledChange":
@@ -103,14 +103,14 @@ export function organizationBillingNotificationCopy(
         heading: "プラン変更予約を取り消しました",
         paragraphs: [
           "期間末に予定していたプラン変更を取り消しました。",
-          "現在の有料プランを継続します。現在の契約状態は事業者設定で確認できます。",
+          "現在の有料プランを継続します。現在の契約状態はグループ設定で確認できます。",
         ],
       };
     case "planActivated":
       return {
         subject: "有料プランを開始しました",
         heading: "有料プランを開始しました",
-        paragraphs: ["支払い結果を確認し、有料プランを開始しました。現在の利用状況は事業者設定で確認できます。"],
+        paragraphs: ["支払い結果を確認し、有料プランを開始しました。現在の利用状況はグループ設定で確認できます。"],
       };
     case "proDowngradeNotApplied":
       return {
@@ -118,7 +118,7 @@ export function organizationBillingNotificationCopy(
         heading: "Businessプランを継続しています",
         paragraphs: [
           "更新日時点の利用人数、予約済み利用枠、管理者、店舗のいずれかがProプランの上限を超えていたため、変更を適用しませんでした。",
-          "Businessプランを継続しています。現在の利用状況は事業者設定で確認できます。",
+          "Businessプランを継続しています。現在の利用状況はグループ設定で確認できます。",
         ],
       };
     case "paidActivationFailedFreeContinued":
@@ -154,7 +154,7 @@ export function organizationBillingNotificationCopy(
         heading: "支払い猶予の終了まで3日です",
         paragraphs: [
           "未払いのまま猶予が終了すると、業務操作を停止して契約制限中へ移行します。",
-          "事業者設定から支払い方法を確認してください。",
+          "グループ設定から支払い方法を確認してください。",
         ],
       };
     case "restrictedStarted":
@@ -163,7 +163,7 @@ export function organizationBillingNotificationCopy(
         heading: "契約制限中へ移行しました",
         paragraphs: [
           "既存データは引き続き閲覧できますが、シフト作成や通知などの業務操作を停止しています。",
-          "事業者設定で有料契約を再開するか、Freeで残す管理者と店舗を整理してください。",
+          "グループ設定で有料契約を再開するか、Freeで残す管理者と店舗を整理してください。",
         ],
       };
     case "recovered":
@@ -180,7 +180,7 @@ export function organizationBillingNotificationCopy(
         subject: "請求先メールアドレスを変更しました",
         heading: "請求先メールアドレスを変更しました",
         paragraphs: [
-          "事業者の請求先メールアドレスが変更されました。請求先は通知先であり、契約操作の権限には影響しません。",
+          "グループの請求先メールアドレスが変更されました。請求先は通知先であり、契約操作の権限には影響しません。",
         ],
       };
   }

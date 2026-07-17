@@ -1,19 +1,17 @@
-import { Box, Heading, HStack, Skeleton, Stack, Tabs, Text } from "@chakra-ui/react";
-import { LuBuilding2, LuCreditCard, LuStore, LuUsers } from "react-icons/lu";
-import { Button } from "@/src/components/ui/Button";
+import { Box, Flex, Heading, HStack, Skeleton, Stack, Tabs, Text } from "@chakra-ui/react";
+import { LuBuilding2, LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
+import { IconButton } from "@/src/components/ui/Button";
 import { PeopleSection } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import { ShopsSection } from "./ShopsSection";
-import type { OrganizationSettingsViewProps } from "./types";
+import type { OrganizationSettingsTab, OrganizationSettingsViewProps } from "./types";
 
 export const OrganizationSettingsView = ({
   organizationName,
-  currentShopName,
   people,
   managerInvitations,
   shops,
   billing,
-  freeSelection,
   canInviteManager,
   managerInvitationMode,
   inviteManagerDisabledReason,
@@ -23,20 +21,25 @@ export const OrganizationSettingsView = ({
   addShopDisabledReason,
   actions,
   defaultTab = "people",
+  onTabChange,
 }: OrganizationSettingsViewProps) => (
   <Stack gap={{ base: 5, md: 7 }}>
     <Stack gap={2}>
-      <HStack gap={2} color="teal.700" wrap="wrap">
+      <HStack gap={2} color="teal.700">
         <LuBuilding2 aria-hidden />
         <Text fontSize="sm" fontWeight="bold">
           {organizationName}
         </Text>
-        <Text fontSize="sm" color="fg.muted">
-          / 操作中: {currentShopName}
-        </Text>
-        <Button
-          size="xs"
-          variant="plain"
+      </HStack>
+      <Flex align="center" justify="space-between" gap={3}>
+        <Heading as="h1" fontSize={{ base: "2xl", md: "3xl" }} color="gray.900">
+          グループ設定
+        </Heading>
+        <IconButton
+          aria-label="グループ名を変更"
+          size="sm"
+          variant="ghost"
+          colorPalette="teal"
           onClick={actions.onUpdateOrganizationName}
           disabled={!canUpdateOrganizationName}
           title={!canUpdateOrganizationName ? updateOrganizationNameDisabledReason : undefined}
@@ -46,25 +49,28 @@ export const OrganizationSettingsView = ({
               : undefined
           }
         >
-          事業者名を変更
-        </Button>
-      </HStack>
+          <LuSettings aria-hidden />
+        </IconButton>
+      </Flex>
       {!canUpdateOrganizationName && updateOrganizationNameDisabledReason && (
         <Text id="organization-name-update-disabled-reason" fontSize="xs" color="orange.700">
           {updateOrganizationNameDisabledReason}
         </Text>
       )}
-      <Heading as="h1" fontSize={{ base: "2xl", md: "3xl" }} color="gray.900">
-        事業者設定
-      </Heading>
-      <Text color="fg.muted">事業者全体の利用者、店舗、プランと支払いを管理します。</Text>
+      <Text color="fg.muted">グループ全体のユーザー、店舗、プランと支払いを管理します。</Text>
     </Stack>
 
-    <Tabs.Root defaultValue={defaultTab} colorPalette="teal" variant="line">
+    <Tabs.Root
+      value={onTabChange ? defaultTab : undefined}
+      defaultValue={onTabChange ? undefined : defaultTab}
+      onValueChange={onTabChange ? ({ value }) => onTabChange(value as OrganizationSettingsTab) : undefined}
+      colorPalette="teal"
+      variant="line"
+    >
       <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
         <Tabs.Trigger value="people" flexShrink={0} gap={2}>
           <LuUsers aria-hidden />
-          利用者
+          ユーザー
         </Tabs.Trigger>
         <Tabs.Trigger value="shops" flexShrink={0} gap={2}>
           <LuStore aria-hidden />
@@ -80,12 +86,10 @@ export const OrganizationSettingsView = ({
         <PeopleSection
           people={people}
           invitations={managerInvitations}
-          billing={billing}
           canInviteManager={canInviteManager}
           managerInvitationMode={managerInvitationMode}
           inviteManagerDisabledReason={inviteManagerDisabledReason}
           onInviteManager={actions.onInviteManager}
-          onRemovePersonFromCurrentShop={actions.onRemovePersonFromCurrentShop}
           onRemoveManagerRole={actions.onRemoveManagerRole}
           onRemovePerson={actions.onRemovePerson}
           onResendInvitation={actions.onResendInvitation}
@@ -99,21 +103,17 @@ export const OrganizationSettingsView = ({
           canAddShop={canAddShop}
           addShopDisabledReason={addShopDisabledReason}
           onAddShop={actions.onAddShop}
-          onArchiveShop={actions.onArchiveShop}
-          onReactivateShop={actions.onReactivateShop}
+          onOpenShop={actions.onOpenShop}
         />
       </Tabs.Content>
 
       <Tabs.Content value="billing" pt={{ base: 5, md: 6 }}>
         <PlanAndPaymentSection
-          organizationName={organizationName}
           billing={billing}
-          freeSelection={freeSelection}
           onManagePlan={actions.onManagePlan}
           onUpdatePaymentMethod={actions.onUpdatePaymentMethod}
           onUpdateBillingEmail={actions.onUpdateBillingEmail}
           onOpenInvoice={actions.onOpenInvoice}
-          onSaveFreeSelection={actions.onSaveFreeSelection}
         />
       </Tabs.Content>
     </Tabs.Root>
@@ -121,7 +121,7 @@ export const OrganizationSettingsView = ({
 );
 
 export const OrganizationSettingsSkeleton = () => (
-  <Stack gap={6} aria-label="事業者設定を読み込み中">
+  <Stack gap={6} aria-label="グループ設定を読み込み中">
     <Stack gap={2}>
       <Skeleton h="20px" w="220px" />
       <Skeleton h="40px" w="200px" />

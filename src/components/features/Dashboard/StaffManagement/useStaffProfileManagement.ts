@@ -67,7 +67,7 @@ export function useStaffProfileManagement(staffs: Staff[], { onResetDetail, isRe
       showSuccessToast({
         title: target.isOrganizationLinked ? "この店舗のスタッフ所属を削除しました" : "スタッフを削除しました",
         ...(target.isOrganizationLinked
-          ? { description: "事業者の人物情報、ほかの店舗所属、管理者権限は変更していません。" }
+          ? { description: "グループの人物情報、ほかの店舗所属、管理者権限は変更していません。" }
           : {}),
       });
     } catch (error) {

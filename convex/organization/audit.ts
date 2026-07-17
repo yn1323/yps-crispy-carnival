@@ -7,6 +7,7 @@ export type OrganizationAuditAction =
   | "organization.billing_email_changed"
   | "organization.shop_added"
   | "organization.shop_archived"
+  | "organization.shop_deleted"
   | "organization.shop_reactivated"
   | "organization.person_removed_from_shop"
   | "organization.person_removed"

@@ -352,7 +352,7 @@ export const editStaff = managerMutation({
         )
         .take(2);
       if (matchingPeople.some((person) => person._id !== organizationPerson._id)) {
-        throw new ConvexError("このメールアドレスは事業者内の別の利用者が使用しています");
+        throw new ConvexError("このメールアドレスはグループ内の別の利用者が使用しています");
       }
 
       const linkedStaffs = await ctx.db
@@ -562,7 +562,7 @@ export const deleteStaff = managerMutation({
       throw new ConvexError("Not found");
     }
     if (staff.organizationId || staff.organizationPersonId) {
-      throw new ConvexError("事業者設定から店舗所属を解除してください");
+      throw new ConvexError("グループ設定から店舗所属を解除してください");
     }
 
     if (staff.userId === ctx.user._id) {

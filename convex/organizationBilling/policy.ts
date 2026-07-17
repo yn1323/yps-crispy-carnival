@@ -10,7 +10,7 @@ export const ORGANIZATION_PLAN_LIMITS = {
   trial: {
     maxPeople: 30,
     maxActiveShops: 5,
-    maxActiveManagers: 30,
+    maxActiveManagers: 5,
   },
   free: {
     maxPeople: 4,
@@ -20,12 +20,12 @@ export const ORGANIZATION_PLAN_LIMITS = {
   pro: {
     maxPeople: 15,
     maxActiveShops: 5,
-    maxActiveManagers: 15,
+    maxActiveManagers: 5,
   },
   business: {
     maxPeople: 30,
     maxActiveShops: 5,
-    maxActiveManagers: 30,
+    maxActiveManagers: 5,
   },
 } as const;
 

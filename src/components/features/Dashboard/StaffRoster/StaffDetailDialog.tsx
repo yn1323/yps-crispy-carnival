@@ -1,5 +1,5 @@
 import { Stack, Tabs } from "@chakra-ui/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { EditStaffFormData } from "../EditStaffForm";
 import type { Recruitment, Staff } from "../types";
@@ -10,13 +10,17 @@ import { StaffDetailSettingsTab } from "./StaffDetailSettingsTab";
 import { StaffDetailSummary } from "./StaffDetailSummary";
 import { getStaffLineStatus } from "./staffDetailPresentation";
 
-type PendingAction = "delete" | null;
+type PendingAction = {
+  kind: "delete" | "managerInvitation";
+  contextKey: string;
+};
 type DirectAction = "sendRecruitments" | "sendCurrentShift" | "sendLineInvite";
 
 type Props = {
   staff: Staff | null;
   isReadOnly?: boolean;
   isOpen: boolean;
+  defaultTab?: "basic" | "notification" | "line" | "settings";
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   openRecruitments: Recruitment[];
@@ -39,12 +43,15 @@ type Props = {
   isSendingCurrentShift: boolean;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
+  onInviteManager: (staff: Staff) => Promise<boolean>;
+  isInvitingManager: boolean;
 };
 
 export const StaffDetailDialog = ({
   staff,
   isReadOnly = false,
   isOpen,
+  defaultTab = "basic",
   onOpenChange,
   onClose,
   openRecruitments,
@@ -63,12 +70,27 @@ export const StaffDetailDialog = ({
   isSendingCurrentShift,
   onChangeShiftTarget,
   isChangingShiftTarget,
+  onInviteManager,
+  isInvitingManager,
 }: Props) => {
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const directActionRef = useRef<DirectAction | null>(null);
   const [directAction, setDirectAction] = useState<DirectAction | null>(null);
+  const managerInvitationCapability =
+    staff?.managerInvitationState.kind === "available"
+      ? `${staff.managerInvitationState.mode}:${staff.managerInvitationState.replacesStaleInvitation}`
+      : null;
+  const pendingActionContextKey = `${staff?._id ?? "none"}:${managerInvitationCapability ?? "unavailable"}:${isReadOnly}`;
+  const previousPendingActionContextKeyRef = useRef(pendingActionContextKey);
+
+  useEffect(() => {
+    if (previousPendingActionContextKeyRef.current === pendingActionContextKey) return;
+    previousPendingActionContextKeyRef.current = pendingActionContextKey;
+    setPendingAction(null);
+  }, [pendingActionContextKey]);
 
   if (!staff) return null;
+  const activePendingAction = pendingAction?.contextKey === pendingActionContextKey ? pendingAction.kind : null;
 
   const handleOpenChange = (details: { open: boolean }) => {
     if (!details.open) setPendingAction(null);
@@ -83,6 +105,11 @@ export const StaffDetailDialog = ({
   const handleDelete = async () => {
     await onDelete(staff);
     setPendingAction(null);
+  };
+
+  const handleManagerInvitation = async () => {
+    const succeeded = await onInviteManager(staff);
+    if (succeeded) setPendingAction(null);
   };
 
   const runDirectAction = async (action: DirectAction, handler: () => void | Promise<void>) => {
@@ -132,7 +159,7 @@ export const StaffDetailDialog = ({
       <Stack gap={5}>
         <StaffDetailSummary staff={staff} lineStatus={lineStatus} />
 
-        <Tabs.Root defaultValue="basic" colorPalette="teal" variant="line">
+        <Tabs.Root defaultValue={defaultTab} colorPalette="teal" variant="line">
           <Tabs.List overflowX="auto" overflowY="hidden" whiteSpace="nowrap" borderBottomWidth="1px">
             <Tabs.Trigger value="basic" flexShrink={0}>
               情報
@@ -194,11 +221,21 @@ export const StaffDetailDialog = ({
                 isShiftTarget={isShiftTarget}
                 isChangingShiftTarget={isChangingShiftTarget}
                 isManager={staff.isManager}
+                staffName={staff.name}
+                staffEmail={staff.email}
+                managerInvitationState={staff.managerInvitationState}
+                isManagerInvitationConfirmationOpen={activePendingAction === "managerInvitation"}
+                isInvitingManager={isInvitingManager}
                 isOrganizationLinked={staff.isOrganizationLinked ?? false}
-                isDeleteConfirmationOpen={pendingAction === "delete"}
+                isDeleteConfirmationOpen={activePendingAction === "delete"}
                 isDeleting={isDeleting}
                 onChangeShiftTarget={(nextIsShiftTarget) => onChangeShiftTarget(staff, nextIsShiftTarget)}
-                onRequestDelete={() => setPendingAction("delete")}
+                onRequestManagerInvitation={() =>
+                  setPendingAction({ kind: "managerInvitation", contextKey: pendingActionContextKey })
+                }
+                onCancelManagerInvitation={() => setPendingAction(null)}
+                onConfirmManagerInvitation={handleManagerInvitation}
+                onRequestDelete={() => setPendingAction({ kind: "delete", contextKey: pendingActionContextKey })}
                 onCancelDelete={() => setPendingAction(null)}
                 onConfirmDelete={handleDelete}
               />

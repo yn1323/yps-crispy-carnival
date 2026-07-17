@@ -1,0 +1,137 @@
+import { Stack } from "@chakra-ui/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import type { ShopContextOption } from "@/src/stores/shop";
+import { buildOperationContextModel, getShopForGroupSelection } from "./script";
+import { OperationContextView } from "./View";
+
+const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
+  shopId: "shop-a-1",
+  shopName: "A店舗",
+  shopStatus: "active",
+  organizationId: "org-a",
+  organizationName: "東日本事業部",
+  organizationPlan: "pro",
+  memberStatus: "active",
+  ...overrides,
+});
+
+const multipleShops = [
+  shop({}),
+  shop({ shopId: "shop-a-2", shopName: "B店舗" }),
+  shop({ shopId: "shop-b-1", shopName: "C店舗", organizationId: "org-b", organizationName: "関西事業部" }),
+  shop({ shopId: "shop-b-2", shopName: "D店舗", organizationId: "org-b", organizationName: "関西事業部" }),
+];
+
+const createModel = (shops: readonly ShopContextOption[], selectedShopId: string) => {
+  const model = buildOperationContextModel(shops, selectedShopId);
+  if (!model) throw new Error("Storyの操作先データが不正です");
+  return model;
+};
+
+const meta = {
+  title: "Features/Dashboard/OperationContext",
+  component: OperationContextView,
+  parameters: {
+    layout: "padded",
+  },
+  decorators: [
+    (Story) => (
+      <Stack maxW="1024px" mx="auto" w="full">
+        <Story />
+      </Stack>
+    ),
+  ],
+  args: {
+    isReadOnly: false,
+    groupSettingsShopId: "shop-a-1",
+    onGroupSelect: () => {},
+    onShopSelect: () => {},
+    onOpenShopSettings: () => {},
+  },
+} satisfies Meta<typeof OperationContextView>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const SingleGroupSingleShop: Story = {
+  args: {
+    model: createModel([shop({})], "shop-a-1"),
+  },
+};
+
+export const MultipleGroupsMultipleShops: Story = {
+  args: {
+    model: createModel(multipleShops, "shop-a-1"),
+  },
+};
+
+export const LongNamesReadOnly: Story = {
+  args: {
+    model: createModel(
+      [
+        shop({
+          shopName: "駅前商業施設内レストランとても長い店舗名",
+          organizationName: "株式会社とても長い名前のフードサービスグループ",
+          memberStatus: "readOnly",
+        }),
+      ],
+      "shop-a-1",
+    ),
+    isReadOnly: true,
+  },
+};
+
+export const Mobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    model: createModel(multipleShops, "shop-a-1"),
+  },
+};
+
+export const SelectionBehavior: Story = {
+  args: {
+    model: createModel(multipleShops, "shop-a-1"),
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <SelectionBehaviorStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "グループを切り替える。現在は東日本事業部" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: /関西事業部/ }));
+    await waitFor(() =>
+      expect(canvas.getByRole("button", { name: "グループを切り替える。現在は関西事業部" })).toBeVisible(),
+    );
+    await expect(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" })).toBeVisible();
+
+    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える。現在はD店舗" })).toBeVisible());
+  },
+};
+
+const SelectionBehaviorStory = () => {
+  const [selectedShopId, setSelectedShopId] = useState("shop-a-1");
+  const model = createModel(multipleShops, selectedShopId);
+
+  const handleGroupSelect = (groupKey: string) => {
+    const nextShop = getShopForGroupSelection(model.groups, groupKey, model.selectedShop.shopId);
+    if (nextShop) setSelectedShopId(nextShop.shopId);
+  };
+
+  return (
+    <OperationContextView
+      model={model}
+      groupSettingsShopId={selectedShopId}
+      onGroupSelect={handleGroupSelect}
+      onShopSelect={setSelectedShopId}
+      onOpenShopSettings={() => {}}
+    />
+  );
+};

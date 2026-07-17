@@ -38,6 +38,7 @@ const staff = (overrides: Partial<Staff> = {}): Staff => ({
   isLineLinked: false,
   isLineFollowing: false,
   excludedFromShift: false,
+  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   ...overrides,
 });
 

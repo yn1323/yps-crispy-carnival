@@ -237,6 +237,164 @@ describe("organizationInvitation/mutations", () => {
     expect(invitations[0]?.reservedSeat).toBe(true);
   });
 
+  it("スタッフIDで対象人物を固定し、メール変更後は古い招待を失効して現在メールへ付け替える", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, {
+        subject: "staff_invite_owner",
+        plan: "pro",
+      });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "staff_invite_target",
+        email: "staff-target-before@example.com",
+      });
+      const other = await seedOrganizationManagerShop(ctx, {
+        subject: "staff_invite_other_owner",
+        plan: "pro",
+      });
+      const otherTarget = await seedActiveOrganizationStaff(ctx, {
+        organizationId: other.organizationId,
+        shopId: other.shopId,
+        subject: "staff_invite_other_target",
+      });
+      return { ...manager, target, otherTarget };
+    });
+    const owner = t.withIdentity({ subject: "staff_invite_owner" });
+
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.createForStaff, {
+        shopId: ids.shopId,
+        staffId: ids.otherTarget.staffId,
+        requestId: "staff-target-cross-shop",
+      }),
+    ).rejects.toThrow("Not found");
+
+    const first = await owner.mutation(api.organizationInvitation.mutations.createForStaff, {
+      shopId: ids.shopId,
+      staffId: ids.target.staffId,
+      requestId: "staff-target-first",
+    });
+    const firstInvitation = await t.run((ctx) => ctx.db.get(first.invitationId));
+    if (!firstInvitation) throw new Error("invitation not found");
+    expect(firstInvitation).toMatchObject({
+      targetPersonId: ids.target.personId,
+      emailNormalized: "staff-target-before@example.com",
+      purpose: "managerAddition",
+      reservedSeat: false,
+      status: "pending",
+    });
+    const firstToken = await deriveInvitationToken({
+      invitationId: firstInvitation._id,
+      version: firstInvitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+
+    await owner.mutation(api.staff.mutations.editStaff, {
+      shopId: ids.shopId,
+      staffId: ids.target.staffId,
+      name: "現在メールのスタッフ",
+      email: "staff-target-after@example.com",
+    });
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
+      status: "unavailable",
+    });
+
+    const second = await owner.mutation(api.organizationInvitation.mutations.createForStaff, {
+      shopId: ids.shopId,
+      staffId: ids.target.staffId,
+      requestId: "staff-target-second",
+    });
+    const state = await t.run(async (ctx) => ({
+      first: await ctx.db.get(first.invitationId),
+      second: await ctx.db.get(second.invitationId),
+    }));
+    expect(state.first).toMatchObject({ status: "revoked", reservedSeat: false });
+    expect(state.second).toMatchObject({
+      targetPersonId: ids.target.personId,
+      predecessorInvitationId: first.invitationId,
+      emailNormalized: "staff-target-after@example.com",
+      status: "pending",
+    });
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
+      status: "revoked",
+    });
+
+    if (!state.second) throw new Error("replacement invitation not found");
+    const secondToken = await deriveInvitationToken({
+      invitationId: state.second._id,
+      version: state.second.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    await expect(
+      t
+        .withIdentity({
+          subject: "staff_invite_target",
+          email: "staff-target-after@example.com",
+          emailVerified: true,
+        })
+        .mutation(api.organizationInvitation.mutations.accept, { token: secondToken }),
+    ).resolves.toMatchObject({ status: "accepted", organizationId: ids.organizationId });
+    await expect(
+      t.run((ctx) =>
+        ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId_and_personId", (q) =>
+            q.eq("organizationId", ids.organizationId).eq("personId", ids.target.personId),
+          )
+          .unique(),
+      ),
+    ).resolves.toMatchObject({ status: "active" });
+  });
+
+  it("別スタッフへの並行招待でも有効管理者と追加招待を合計5枠までにする", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, {
+        subject: "manager_reservation_owner",
+        plan: "pro",
+      });
+      const targets = [];
+      for (let index = 0; index < 5; index += 1) {
+        targets.push(
+          await seedActiveOrganizationStaff(ctx, {
+            organizationId: manager.organizationId,
+            shopId: manager.shopId,
+            subject: `manager_reservation_target_${index}`,
+          }),
+        );
+      }
+      return { ...manager, targets };
+    });
+    const owner = t.withIdentity({ subject: "manager_reservation_owner" });
+
+    const results = await Promise.allSettled(
+      ids.targets.map((target, index) =>
+        owner.mutation(api.organizationInvitation.mutations.createForStaff, {
+          shopId: ids.shopId,
+          staffId: target.staffId,
+          requestId: `manager-reservation-${index}`,
+        }),
+      ),
+    );
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(4);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(String(results.find((result) => result.status === "rejected")?.reason)).toContain(
+      "管理者と招待中の管理者が現在のプラン上限を超えます",
+    );
+    const pending = await t.run((ctx) =>
+      ctx.db
+        .query("organizationInvitations")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("status", "pending"),
+        )
+        .collect(),
+    );
+    expect(pending).toHaveLength(4);
+    expect(new Set(pending.map((invitation) => invitation.targetPersonId)).size).toBe(4);
+  });
+
   it("管理者招待の短時間再作成を拒否し、一分後だけ新しい招待を発行する", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
@@ -872,6 +1030,48 @@ describe("organizationInvitation/mutations", () => {
         subject: "free_exchange_target",
         email: "free-target@example.com",
       });
+      const ownerStaffId = await ctx.db.insert("staffs", {
+        shopId: manager.shopId,
+        organizationId: manager.organizationId,
+        organizationPersonId: manager.personId,
+        userId: manager.userId,
+        name: "管理者兼スタッフ",
+        email: "free-owner@example.com",
+        emailNormalized: "free-owner@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.insert("shopMembers", {
+        shopId: manager.shopId,
+        userId: manager.userId,
+        role: "manager",
+        isDeleted: false,
+      });
+      const insertNotification = async (dedupeKey: string, purpose: "business" | "billing", staffId?: Id<"staffs">) =>
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "pending",
+          dedupeKey,
+          shopId: manager.shopId,
+          organizationId: manager.organizationId,
+          purpose,
+          ...(staffId ? { staffId } : {}),
+          userId: manager.userId,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "free-owner@example.com",
+            subject: "テスト通知",
+            html: "<p>test</p>",
+            context: dedupeKey,
+          },
+          attemptCount: 0,
+          nextRunAt: Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      const managerNotificationId = await insertNotification("free-exchange:manager", "business");
+      const billingNotificationId = await insertNotification("free-exchange:billing", "billing");
+      const staffNotificationId = await insertNotification("free-exchange:staff", "business", ownerStaffId);
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", manager.organizationId))
@@ -885,14 +1085,16 @@ describe("organizationInvitation/mutations", () => {
           startedAt: Date.now(),
         },
       });
-      return { ...manager, target };
+      return {
+        ...manager,
+        target,
+        ownerStaffId,
+        managerNotificationId,
+        billingNotificationId,
+        staffNotificationId,
+      };
     });
     const owner = t.withIdentity({ subject: "free_exchange_owner", email: "free-owner@example.com" });
-    await expect(owner.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
-      managerInvitationMode: "freeManagerExchange",
-      canInviteManager: true,
-      freeManagerExchangeCandidates: [{ id: ids.target.personId }],
-    });
     const created = await owner.mutation(api.organizationInvitation.mutations.create, {
       shopId: ids.shopId,
       email: " Free-Target@Example.com ",
@@ -995,6 +1197,10 @@ describe("organizationInvitation/mutations", () => {
         .query("shopMembers")
         .withIndex("by_userId_and_shopId", (q) => q.eq("userId", ids.target.userId).eq("shopId", ids.shopId))
         .collect();
+      const ownerLegacyMemberships = await ctx.db
+        .query("shopMembers")
+        .withIndex("by_userId_and_shopId", (q) => q.eq("userId", ids.userId).eq("shopId", ids.shopId))
+        .collect();
       const audits = await ctx.db
         .query("organizationAuditEvents")
         .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
@@ -1005,17 +1211,25 @@ describe("organizationInvitation/mutations", () => {
         people,
         billing,
         legacyMemberships,
+        ownerLegacyMemberships,
         audits,
         ownerMember: await ctx.db.get(ids.memberId),
+        ownerPerson: await ctx.db.get(ids.personId),
+        ownerStaff: await ctx.db.get(ids.ownerStaffId),
+        managerNotification: await ctx.db.get(ids.managerNotificationId),
+        billingNotification: await ctx.db.get(ids.billingNotificationId),
+        staffNotification: await ctx.db.get(ids.staffNotificationId),
         targetStaff: await ctx.db.get(ids.target.staffId),
         invitation: await ctx.db.get(second._id),
       };
     });
-    expect(result.ownerMember?.status).toBe("readOnly");
+    expect(result.ownerMember?.status).toBe("removed");
     expect(result.targetMembers).toHaveLength(1);
     expect(result.targetMembers[0]?.status).toBe("active");
     expect(result.activeMembers.map((member) => member.personId)).toEqual([ids.target.personId]);
     expect(result.people).toHaveLength(2);
+    expect(result.ownerPerson?.status).toBe("active");
+    expect(result.ownerStaff).toMatchObject({ isDeleted: false });
     expect(result.targetStaff?.isDeleted).toBe(false);
     expect(result.billing).toMatchObject({
       state: { kind: "pendingActivation", fallback: "free", plan: "pro" },
@@ -1024,9 +1238,23 @@ describe("organizationInvitation/mutations", () => {
     });
     expect(result.legacyMemberships).toHaveLength(1);
     expect(result.legacyMemberships[0]?.isDeleted).toBe(false);
+    expect(result.ownerLegacyMemberships).toHaveLength(1);
+    expect(result.ownerLegacyMemberships[0]?.isDeleted).toBe(true);
+    expect(result.managerNotification).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+    expect(result.billingNotification).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+    expect(result.staffNotification).toMatchObject({ status: "pending" });
     expect(result.invitation).toMatchObject({ status: "accepted", reservedSeat: false });
     expect(result.audits.map((audit) => audit.action)).toEqual(
       expect.arrayContaining(["organization.manager_invitation_accepted", "organization.free_selection_changed"]),
+    );
+    expect(result.audits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "organization.manager_role_removed",
+          targetId: ids.personId,
+          toState: "staffOnly",
+        }),
+      ]),
     );
   });
 

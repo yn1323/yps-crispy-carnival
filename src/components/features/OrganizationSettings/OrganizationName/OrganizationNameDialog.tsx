@@ -22,7 +22,7 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
 
   return (
     <Dialog
-      title="事業者名を変更"
+      title="グループ名を変更"
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
@@ -43,10 +43,10 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
       >
         <Stack gap={4}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            事業者名は、事業者設定と管理者招待に表示されます。店舗名は変更されません。
+            グループ名は、グループ設定や招待メールに表示されます。店舗名は変更されません。
           </Text>
           <Field.Root required>
-            <Field.Label>事業者名</Field.Label>
+            <Field.Label>グループ名</Field.Label>
             <Input
               value={name}
               maxLength={ORGANIZATION_NAME_MAX_LENGTH}

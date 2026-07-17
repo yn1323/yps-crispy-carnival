@@ -8,9 +8,8 @@ const mocks = vi.hoisted(() => ({
   myShopsQuery: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
   navigate: vi.fn(),
-  setSelectedShop: vi.fn(),
   useQuery: vi.fn(),
-  useAtom: vi.fn(),
+  useAtomValue: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -23,7 +22,7 @@ vi.mock("convex/react", () => ({
 
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
-  useAtom: mocks.useAtom,
+  useAtomValue: mocks.useAtomValue,
 }));
 
 vi.mock("@/convex/_generated/api", () => ({
@@ -57,9 +56,8 @@ beforeEach(() => {
     dispatchEvent: vi.fn(),
   }));
   mocks.navigate.mockReset();
-  mocks.setSelectedShop.mockReset();
   mocks.useQuery.mockReset();
-  mocks.useAtom.mockReset();
+  mocks.useAtomValue.mockReset();
 
   mocks.useQuery.mockReturnValue([
     {
@@ -81,22 +79,19 @@ beforeEach(() => {
       memberStatus: "active",
     },
   ]);
-  mocks.useAtom.mockReturnValue([
-    {
-      shopId: "shop-a",
-      shopName: "A店",
-      shopStatus: "active",
-      organizationId: "org-a",
-      organizationName: "A社",
-      organizationPlan: "business",
-      memberStatus: "active",
-    },
-    mocks.setSelectedShop,
-  ]);
+  mocks.useAtomValue.mockReturnValue({
+    shopId: "shop-a",
+    shopName: "A店",
+    shopStatus: "active",
+    organizationId: "org-a",
+    organizationName: "A社",
+    organizationPlan: "business",
+    memberStatus: "active",
+  });
 });
 
 describe("ShopSwitcher", () => {
-  it("店舗選択を保存してからDashboardへreplace遷移する", async () => {
+  it("選んだ店舗をURLへ指定してDashboardへ遷移する", async () => {
     render(
       <ChakraProvider>
         <ShopSwitcher />
@@ -107,17 +102,29 @@ describe("ShopSwitcher", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: /B店/ }));
 
     await waitFor(() => {
-      expect(mocks.setSelectedShop).toHaveBeenCalledWith({
-        shopId: "shop-b",
-        shopName: "B店",
-        shopStatus: "active",
-        organizationId: "org-b",
-        organizationName: "B社",
-        organizationPlan: "pro",
-        memberStatus: "active",
-      });
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", replace: true });
+      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: { shop: "shop-b" } });
     });
-    expect(mocks.setSelectedShop.mock.invocationCallOrder[0]).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
+  });
+
+  it("利用可能な店舗が一つだけなら切り替えUIを表示しない", () => {
+    mocks.useQuery.mockReturnValue([
+      {
+        shopId: "shop-a",
+        shopName: "A店",
+        shopStatus: "active",
+        organizationId: "org-a",
+        organizationName: "A社",
+        organizationPlan: "business",
+        memberStatus: "active",
+      },
+    ]);
+
+    render(
+      <ChakraProvider>
+        <ShopSwitcher />
+      </ChakraProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
   });
 });

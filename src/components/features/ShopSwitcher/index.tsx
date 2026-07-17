@@ -1,7 +1,7 @@
 import { Badge, Box, HStack, Icon, Menu, Portal, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { LuCheck, LuChevronDown, LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import {
@@ -10,22 +10,20 @@ import {
   normalizeShopContextOptions,
   type ShopContextOption,
   selectedShopAtom,
-  toSelectedShop,
 } from "@/src/stores/shop";
 
 export const ShopSwitcher = () => {
   const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, {});
-  const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
+  const selectedShop = useAtomValue(selectedShopAtom);
 
   if (rawShops === undefined) return null;
 
   const shops = normalizeShopContextOptions(rawShops).filter(isSelectableShop);
-  if (shops.length === 0) return null;
+  if (shops.length <= 1) return null;
 
   const handleSelect = (shop: ShopContextOption) => {
-    setSelectedShop(toSelectedShop(shop));
-    void navigate({ to: "/dashboard", replace: true });
+    void navigate({ to: "/dashboard", search: { shop: shop.shopId } });
   };
 
   return <ShopSwitcherView shops={shops} selectedShopId={selectedShop?.shopId ?? null} onSelect={handleSelect} />;
@@ -45,7 +43,7 @@ export const ShopSwitcherView = ({ shops, selectedShopId, onSelect }: ShopSwitch
   if (selectableShops.length === 0) return null;
 
   const currentContextLabel = selectedShop
-    ? `${selectedShop.organizationName ?? "所属事業者"}、${selectedShop.shopName}`
+    ? `${selectedShop.organizationName ?? "所属グループ"}、${selectedShop.shopName}`
     : "店舗未選択";
 
   return (
@@ -73,7 +71,7 @@ export const ShopSwitcherView = ({ shops, selectedShopId, onSelect }: ShopSwitch
           <Icon as={LuStore} boxSize={5} color="teal.600" flexShrink={0} />
           <Box display={{ base: "none", md: "block" }} minW={0} textAlign="left" flex={1}>
             <Text fontSize="xs" color="fg.muted" truncate>
-              {selectedShop?.organizationName ?? "事業者・店舗を選択"}
+              {selectedShop?.organizationName ?? "グループ・店舗を選択"}
             </Text>
             <Text fontSize="sm" fontWeight="semibold" truncate>
               {selectedShop?.shopName ?? "店舗を選ぶ"}
@@ -92,16 +90,6 @@ export const ShopSwitcherView = ({ shops, selectedShopId, onSelect }: ShopSwitch
       <Portal>
         <Menu.Positioner>
           <Menu.Content w="min(340px, calc(100vw - 24px))" maxH="min(520px, calc(100dvh - 96px))" overflowY="auto">
-            <Box px={3} pt={3} pb={2}>
-              <Text fontSize="sm" fontWeight="bold" color="gray.900">
-                操作する店舗を選択
-              </Text>
-              <Text mt={0.5} fontSize="xs" color="fg.muted">
-                店舗を選ぶと事業者の文脈も切り替わります。
-              </Text>
-            </Box>
-            <Menu.Separator />
-
             {groups.map((group, groupIndex) => (
               <Box key={group.key}>
                 {groupIndex > 0 && <Menu.Separator />}

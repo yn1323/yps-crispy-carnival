@@ -31,7 +31,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         flexShrink={0}
       >
         <Box justifySelf="start">
-          <Link to="/dashboard">
+          <Link to="/dashboard" search={{ shop: shiftForm.shopId }}>
             <Flex align="center" gap={1} color="gray.500" _hover={{ color: "gray.700" }} cursor="pointer">
               <Icon boxSize={4}>
                 <LuChevronLeft />

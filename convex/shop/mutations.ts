@@ -4,6 +4,8 @@ import type { Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
+import { NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS } from "../constants";
+import { cancelNotificationForInactiveShop } from "../notificationOutbox/mutations";
 import { updateShopSettingsSchema } from "./schemas";
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -103,7 +105,7 @@ export const deleteShop = managerMutation({
       throw new ConvexError("Not found");
     }
     if (ctx.shop.organizationId) {
-      throw new ConvexError("事業者設定から店舗をアーカイブしてください");
+      throw new ConvexError("グループ設定から店舗を削除してください");
     }
     // shop.isDeleted を立てるだけで全認証ラッパーが弾くため、ここでアクセスは遮断される。
     await ctx.db.patch(ctx.shop._id, { isDeleted: true });
@@ -121,9 +123,9 @@ export const deleteShop = managerMutation({
  * の読み書き上限を超えずに完了できる。
  *
  * 対象と単調性の担保:
- * - 通知 outbox（pending/processing → failed）: worker は shop を再読込せず配信するため、
- *   削除後に予約済みシフト/登録通知が飛ばないようキャンセルする。status をインデックスに
- *   含む by_shopId_status を patch で抜けるので take + 再スケジュールで前進する。
+ * - 通知 outbox（pending → cancelled）: 未着手の外部送信を止める。processing はprovider呼び出し中の
+ *   結果を取消で上書きせず、lease終了後も残ったstale jobだけを別のcleanupで回収する。
+ *   status をインデックスに含む by_shopId_status を patch で抜けるので take + 再スケジュールで前進する。
  * - staffs / shopMembers / staffLineAccounts（isDeleted → true）: isDeleted をインデックスに
  *   含むため同様に take で前進する。
  * - sessions / magicLinks / lineLinkTokens / shopRegistrationLinks（revokedAt 付与）: revokedAt は
@@ -156,9 +158,10 @@ async function runShopCleanupPhase(
 ): Promise<ShopCleanupStep> {
   switch (phase) {
     case "outboxPending":
-      return await cancelOutboxBatch(ctx, shopId, "pending", phase);
+      return await cancelPendingOutboxBatch(ctx, shopId, phase);
     case "outboxProcessing":
-      return await cancelOutboxBatch(ctx, shopId, "processing", phase);
+      await ctx.scheduler.runAfter(0, internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId });
+      return advanceAfterTakeBatch(phase, 0);
     case "staffs":
       return await softDeleteStaffsBatch(ctx, shopId, phase);
     case "members":
@@ -175,6 +178,45 @@ async function runShopCleanupPhase(
       return await revokeRegistrationLinksBatch(ctx, shopId, phase, cursor);
   }
 }
+
+/**
+ * 削除時点で provider 呼び出し中だった通知は即時に上書きせず、lease 終了後にだけ停止する。
+ * worker が完了すれば terminal status へ移るため no-op になり、worker が落ちた場合だけ回収できる。
+ */
+export const cleanupDeletedShopProcessingOutbox = internalMutation({
+  args: { shopId: v.id("shops") },
+  handler: async (ctx, { shopId }) => {
+    const shop = await ctx.db.get(shopId);
+    if (!shop?.isDeleted) return;
+
+    const jobs = await ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "processing"))
+      .take(SHOP_CLEANUP_BATCH_SIZE);
+    if (jobs.length === 0) return;
+
+    const now = Date.now();
+    const staleBefore = now - NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS;
+    const staleJobs = jobs.filter((job) => (job.processingStartedAt ?? 0) <= staleBefore);
+    for (const job of staleJobs) {
+      await cancelNotificationForInactiveShop(ctx, job, now);
+    }
+
+    if (staleJobs.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId });
+      return;
+    }
+
+    const nextLeaseExpiry = Math.min(
+      ...jobs.map((job) => (job.processingStartedAt ?? 0) + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS),
+    );
+    await ctx.scheduler.runAfter(
+      Math.max(1, nextLeaseExpiry - now),
+      internal.shop.mutations.cleanupDeletedShopProcessingOutbox,
+      { shopId },
+    );
+  },
+});
 
 // take 件数が満杯なら同フェーズを継続、そうでなければ次フェーズへ進む（カーソル不要）。
 function advanceAfterTakeBatch(phase: ShopCleanupPhase, processed: number): ShopCleanupStep {
@@ -193,24 +235,18 @@ function advanceAfterPaginatedBatch(
   return next ? { phase: next, cursor: null } : null;
 }
 
-async function cancelOutboxBatch(
+async function cancelPendingOutboxBatch(
   ctx: MutationCtx,
   shopId: Id<"shops">,
-  status: "pending" | "processing",
   phase: ShopCleanupPhase,
 ): Promise<ShopCleanupStep> {
   const jobs = await ctx.db
     .query("notificationOutbox")
-    .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", status))
+    .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "pending"))
     .take(SHOP_CLEANUP_BATCH_SIZE);
   const now = Date.now();
   for (const job of jobs) {
-    await ctx.db.patch(job._id, {
-      status: "failed",
-      failedAt: now,
-      updatedAt: now,
-      lastError: "shop deleted",
-    });
+    await cancelNotificationForInactiveShop(ctx, job, now);
   }
   return advanceAfterTakeBatch(phase, jobs.length);
 }

@@ -10,6 +10,7 @@
 
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
 import type * as _lib_config from "../_lib/config.js";
+import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
 import type * as _lib_dateFormat from "../_lib/dateFormat.js";
 import type * as _lib_emailFormat from "../_lib/emailFormat.js";
 import type * as _lib_functions from "../_lib/functions.js";
@@ -82,6 +83,8 @@ import type * as migrations_m009_shops_to_organizations from "../migrations/m009
 import type * as migrations_m010_shop_members_to_organization_members from "../migrations/m010_shop_members_to_organization_members.js";
 import type * as migrations_m011_staffs_to_organization_people from "../migrations/m011_staffs_to_organization_people.js";
 import type * as migrations_m012_organizations_add_complimentary_business from "../migrations/m012_organizations_add_complimentary_business.js";
+import type * as migrations_m013_former_managers_remove_manager_access from "../migrations/m013_former_managers_remove_manager_access.js";
+import type * as migrations_m014_removed_organization_members_delete_legacy_shop_members from "../migrations/m014_removed_organization_members_delete_legacy_shop_members.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as notificationOutbox_actions from "../notificationOutbox/actions.js";
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
@@ -107,6 +110,7 @@ import type * as notification_reminderActions from "../notification/reminderActi
 import type * as notification_reminderQueries from "../notification/reminderQueries.js";
 import type * as notification_templates from "../notification/templates.js";
 import type * as organizationBilling_actions from "../organizationBilling/actions.js";
+import type * as organizationBilling_deadline from "../organizationBilling/deadline.js";
 import type * as organizationBilling_mutations from "../organizationBilling/mutations.js";
 import type * as organizationBilling_notification from "../organizationBilling/notification.js";
 import type * as organizationBilling_policy from "../organizationBilling/policy.js";
@@ -115,12 +119,14 @@ import type * as organizationBilling_service from "../organizationBilling/servic
 import type * as organizationInvitation_actions from "../organizationInvitation/actions.js";
 import type * as organizationInvitation_constants from "../organizationInvitation/constants.js";
 import type * as organizationInvitation_mutations from "../organizationInvitation/mutations.js";
+import type * as organizationInvitation_purpose from "../organizationInvitation/purpose.js";
 import type * as organizationInvitation_queries from "../organizationInvitation/queries.js";
 import type * as organizationInvitation_schemas from "../organizationInvitation/schemas.js";
 import type * as organizationInvitation_service from "../organizationInvitation/service.js";
 import type * as organizationInvitation_token from "../organizationInvitation/token.js";
 import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
+import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
 import type * as organization_queries from "../organization/queries.js";
 import type * as organization_schemas from "../organization/schemas.js";
@@ -168,6 +174,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
   "_lib/config": typeof _lib_config;
+  "_lib/dashboardUrl": typeof _lib_dashboardUrl;
   "_lib/dateFormat": typeof _lib_dateFormat;
   "_lib/emailFormat": typeof _lib_emailFormat;
   "_lib/functions": typeof _lib_functions;
@@ -240,6 +247,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/m010_shop_members_to_organization_members": typeof migrations_m010_shop_members_to_organization_members;
   "migrations/m011_staffs_to_organization_people": typeof migrations_m011_staffs_to_organization_people;
   "migrations/m012_organizations_add_complimentary_business": typeof migrations_m012_organizations_add_complimentary_business;
+  "migrations/m013_former_managers_remove_manager_access": typeof migrations_m013_former_managers_remove_manager_access;
+  "migrations/m014_removed_organization_members_delete_legacy_shop_members": typeof migrations_m014_removed_organization_members_delete_legacy_shop_members;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "notificationOutbox/actions": typeof notificationOutbox_actions;
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
@@ -265,6 +274,7 @@ declare const fullApi: ApiFromModules<{
   "notification/reminderQueries": typeof notification_reminderQueries;
   "notification/templates": typeof notification_templates;
   "organizationBilling/actions": typeof organizationBilling_actions;
+  "organizationBilling/deadline": typeof organizationBilling_deadline;
   "organizationBilling/mutations": typeof organizationBilling_mutations;
   "organizationBilling/notification": typeof organizationBilling_notification;
   "organizationBilling/policy": typeof organizationBilling_policy;
@@ -273,12 +283,14 @@ declare const fullApi: ApiFromModules<{
   "organizationInvitation/actions": typeof organizationInvitation_actions;
   "organizationInvitation/constants": typeof organizationInvitation_constants;
   "organizationInvitation/mutations": typeof organizationInvitation_mutations;
+  "organizationInvitation/purpose": typeof organizationInvitation_purpose;
   "organizationInvitation/queries": typeof organizationInvitation_queries;
   "organizationInvitation/schemas": typeof organizationInvitation_schemas;
   "organizationInvitation/service": typeof organizationInvitation_service;
   "organizationInvitation/token": typeof organizationInvitation_token;
   "organization/access": typeof organization_access;
   "organization/audit": typeof organization_audit;
+  "organization/migrations": typeof organization_migrations;
   "organization/mutations": typeof organization_mutations;
   "organization/queries": typeof organization_queries;
   "organization/schemas": typeof organization_schemas;

@@ -57,6 +57,7 @@ export function useManagerInvitationController(input: Input) {
 
     const requestId = crypto.randomUUID();
     if (operation.kind === "create") setPeopleCapacityResolution(null);
+
     try {
       switch (operation.kind) {
         case "create":
@@ -75,7 +76,7 @@ export function useManagerInvitationController(input: Input) {
           break;
         case "resend":
           await resendInvitation({ invitationId: operation.invitationId, requestId });
-          showSuccessToast({ title: "新しい管理者招待を送りました", description: "以前の招待URLは無効です。" });
+          showSuccessToast({ title: "管理者招待を再送しました", description: "以前の招待URLは無効です。" });
           break;
         case "revoke":
           await revokeInvitation({ invitationId: operation.invitationId, requestId });

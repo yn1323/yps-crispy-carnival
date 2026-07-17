@@ -2,15 +2,6 @@ import { Flex, HStack, Skeleton, Stack } from "@chakra-ui/react";
 
 export const HeroSummarySkeleton = () => (
   <Stack gap={{ base: 5, lg: 6 }} aria-label="ダッシュボード概要を読み込み中">
-    <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
-      <Skeleton display={{ base: "none", md: "block" }} h="18px" w="40px" />
-
-      <Flex align="center" justify="space-between" direction="row" gap={4} minW={0}>
-        <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
-        <Skeleton h="32px" w="48px" flexShrink={0} />
-      </Flex>
-    </Stack>
-
     <Stack gap={{ base: 3, lg: 4 }}>
       <HStack gap={2.5} align="center">
         <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />

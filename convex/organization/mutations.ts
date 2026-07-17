@@ -7,7 +7,8 @@ import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
-import { getEffectiveRestrictedBillingState, getOrganizationBillingStateDeadline } from "../organizationBilling/policy";
+import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
+import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import {
   requireOrganizationBusinessWrite,
   requireOrganizationCapacity,
@@ -25,6 +26,11 @@ import { organizationShopOperatingStatusValidator } from "./validators";
 const shopMutationResultValidator = v.object({
   shopId: v.id("shops"),
   shopStatus: organizationShopOperatingStatusValidator,
+  changed: v.boolean(),
+});
+
+const deleteShopResultValidator = v.object({
+  shopId: v.id("shops"),
   changed: v.boolean(),
 });
 
@@ -62,6 +68,34 @@ async function getPriorShopOperation(
   const shop = await ctx.db.get(shopId);
   if (!shop || shop.organizationId !== args.organizationId) throw new ConvexError("以前の操作結果を確認できません");
   return shop;
+}
+
+function shopDeletionCorrelationId(organizationId: Id<"organizations">, shopId: Id<"shops">, requestId: string) {
+  return `${organizationId}:shop:delete:${shopId}:${requestId}`;
+}
+
+async function findShopDeletionAudit(ctx: MutationCtx, correlationId: string) {
+  return await ctx.db
+    .query("organizationAuditEvents")
+    .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
+    .first();
+}
+
+function isMatchingShopDeletionAudit(
+  audit: Doc<"organizationAuditEvents">,
+  args: {
+    organizationId: Id<"organizations">;
+    shopId: Id<"shops">;
+    actorUserId: Id<"users">;
+  },
+) {
+  return (
+    audit.organizationId === args.organizationId &&
+    audit.action === "organization.shop_deleted" &&
+    audit.targetKind === "shop" &&
+    audit.targetId === args.shopId &&
+    audit.actorUserId === args.actorUserId
+  );
 }
 
 async function materializeLegacyManagerMemberships(
@@ -362,6 +396,109 @@ export const reactivateShop = authenticatedMutation({
       occurredAt: now,
     });
     return shopMutationResult(actor.shop._id, "active", true);
+  },
+});
+
+/**
+ * 組織店舗を論理削除する。
+ *
+ * 店舗の削除フラグを同一トランザクションで先に確定し、所属・session・token・通知の
+ * 後片付けは既存の bounded cleanup へ委譲する。最後の店舗は組織設定へ到達するための
+ * context を失うため削除しない。
+ */
+export const deleteShop = authenticatedMutation({
+  args: {
+    shopId: v.id("shops"),
+    confirmShopId: v.id("shops"),
+    requestId: v.string(),
+  },
+  returns: deleteShopResultValidator,
+  handler: async (ctx, args) => {
+    if (args.confirmShopId !== args.shopId) throw new ConvexError("Not found");
+
+    const requestId = await toAuditRequestKey(args.requestId);
+    const requestedShop = await ctx.db.get(args.shopId);
+    if (requestedShop?.isDeleted && requestedShop.organizationId && ctx.user && !ctx.user.isDeleted) {
+      const correlationId = shopDeletionCorrelationId(requestedShop.organizationId, requestedShop._id, requestId);
+      const priorAudit = await findShopDeletionAudit(ctx, correlationId);
+      if (
+        priorAudit &&
+        isMatchingShopDeletionAudit(priorAudit, {
+          organizationId: requestedShop.organizationId,
+          shopId: requestedShop._id,
+          actorUserId: ctx.user._id,
+        })
+      ) {
+        return { shopId: requestedShop._id, changed: false };
+      }
+    }
+
+    const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
+    if (getEffectiveRestrictedBillingState(billingState.state)) {
+      await requireRestrictedRecoveryCapability(ctx, {
+        organizationId: actor.organization._id,
+        personId: actor.person._id,
+        capability: "archiveShop",
+      });
+    } else {
+      await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    }
+    const correlationId = shopDeletionCorrelationId(actor.organization._id, actor.shop._id, requestId);
+    const priorAudit = await findShopDeletionAudit(ctx, correlationId);
+    if (priorAudit) {
+      if (
+        isMatchingShopDeletionAudit(priorAudit, {
+          organizationId: actor.organization._id,
+          shopId: actor.shop._id,
+          actorUserId: actor.member.userId,
+        })
+      ) {
+        return { shopId: actor.shop._id, changed: false };
+      }
+      throw new ConvexError("以前の操作結果を確認できません");
+    }
+
+    const nonDeletedShops = await ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", actor.organization._id).eq("isDeleted", false),
+      )
+      .take(2);
+    if (nonDeletedShops.length <= 1) {
+      throw new ConvexError("最後の店舗は削除できません");
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(actor.shop._id, { isDeleted: true });
+    if (billingState.freeShopId === actor.shop._id) {
+      const updatedBillingState = {
+        ...billingState,
+        freeShopId: undefined,
+        version: billingState.version + 1,
+        updatedAt: now,
+      };
+      await ctx.db.patch(billingState._id, {
+        freeShopId: updatedBillingState.freeShopId,
+        version: updatedBillingState.version,
+        updatedAt: updatedBillingState.updatedAt,
+      });
+      await scheduleOrganizationBillingStateDeadline(ctx, updatedBillingState);
+    }
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId: actor.organization._id,
+      actorUserId: actor.member.userId,
+      actorPersonId: actor.person._id,
+      action: "organization.shop_deleted",
+      targetKind: "shop",
+      targetId: actor.shop._id,
+      fromState: shopStatus(actor.shop),
+      toState: "deleted",
+      correlationId,
+      occurredAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.shop.mutations.cleanupDeletedShop, { shopId: actor.shop._id });
+    return { shopId: actor.shop._id, changed: true };
   },
 });
 
@@ -721,14 +858,11 @@ async function applyBillingReferenceUpdate(
     });
   }
 
-  const deadlineAt = getOrganizationBillingStateDeadline(nextState);
-  if (deadlineAt !== null) {
-    await ctx.scheduler.runAt(deadlineAt, internal.organizationBilling.mutations.processDeadline, {
-      organizationId: args.billingState.organizationId,
-      expectedVersion: nextVersion,
-      expectedDeadlineAt: deadlineAt,
-    });
-  }
+  await scheduleOrganizationBillingStateDeadline(ctx, {
+    organizationId: args.billingState.organizationId,
+    state: nextState,
+    version: nextVersion,
+  });
 }
 
 type FullOrganizationPersonRemovalPlan = {

@@ -1,20 +1,14 @@
-import { Alert, Badge, Box, Field, Flex, Heading, HStack, NativeSelect, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { Alert, Badge, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { LuCalendarClock, LuCreditCard, LuFileText, LuGauge, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { Dialog, useDialog } from "@/src/components/ui/Dialog";
-import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type { BillingDisplayState, BillingInvoiceView, FreeSelectionSummary, OrganizationBillingView } from "./types";
+import type { BillingDisplayState, BillingInvoiceView, OrganizationBillingView } from "./types";
 
 type Props = {
-  organizationName: string;
   billing: OrganizationBillingView;
-  freeSelection: FreeSelectionSummary;
   onManagePlan: () => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   onOpenInvoice: (invoiceId: string) => void;
-  onSaveFreeSelection: (managerPersonId: string | null, shopId: string | null) => void | Promise<void>;
 };
 
 const STATE_PRESENTATION: Record<
@@ -59,7 +53,8 @@ const STATE_PRESENTATION: Record<
   restricted: {
     label: "契約制限中",
     status: "error",
-    description: "既存データは閲覧できます。業務を再開するには、支払いまたはFree構成を整理してください。",
+    description:
+      "既存データは閲覧できます。業務を再開するには、支払いを確認するか利用人数・店舗数を上限内にしてください。",
   },
   scheduledFree: {
     label: "Freeへ変更予定",
@@ -74,49 +69,21 @@ const STATE_PRESENTATION: Record<
   migrationPending: {
     label: "設定を移行中",
     status: "info",
-    description: "事業者単位のプラン設定を準備しています。完了するまで既存データを閲覧できます。",
+    description: "グループ単位のプラン設定を準備しています。完了するまで既存データを閲覧できます。",
   },
 };
 
 export const PlanAndPaymentSection = ({
-  organizationName,
   billing,
-  freeSelection,
   onManagePlan,
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
   onOpenInvoice,
-  onSaveFreeSelection,
 }: Props) => {
-  const freeConfirmation = useDialog();
-  const [selectedManagerId, setSelectedManagerId] = useState(freeSelection.selectedManagerId ?? "");
-  const [selectedShopId, setSelectedShopId] = useState(freeSelection.selectedShopId ?? "");
-  const canScheduleFreeRef = useRef(billing.canScheduleFree);
-  canScheduleFreeRef.current = billing.canScheduleFree;
-  useEffect(() => {
-    if (!freeConfirmation.isOpen) return;
-    setSelectedManagerId(freeSelection.selectedManagerId ?? "");
-    setSelectedShopId(freeSelection.selectedShopId ?? "");
-  }, [freeConfirmation.isOpen, freeSelection.selectedManagerId, freeSelection.selectedShopId]);
-  useEffect(() => {
-    if (!billing.canScheduleFree && freeConfirmation.isOpen) freeConfirmation.close();
-  }, [billing.canScheduleFree, freeConfirmation.close, freeConfirmation.isOpen]);
-  const { run: confirmFreeTransition, isRunning: isConfirmingFree } = useSingleFlight(async () => {
-    if (!canScheduleFreeRef.current) {
-      freeConfirmation.close();
-      return;
-    }
-    try {
-      await onSaveFreeSelection(selectedManagerId || null, selectedShopId || null);
-      freeConfirmation.close();
-    } catch {
-      // 呼び出し側が利用者向けエラーを表示する。失敗時は選択内容を保ったまま再試行できるようにする。
-    }
-  });
   const presentation = billing.isComplimentary
     ? {
         ...STATE_PRESENTATION.business,
-        description: "この事業者では、料金なしでBusinessの全機能を利用できます。",
+        description: "このグループでは、料金なしでBusinessの全機能を利用できます。",
       }
     : billing.state === "pendingActivation" && billing.currentPlan === "free"
       ? {
@@ -124,6 +91,8 @@ export const PlanAndPaymentSection = ({
           description: "支払い成功を確認するまで有料プランは開始されません。確認中もFreeの基本機能は利用できます。",
         }
       : STATE_PRESENTATION[billing.state];
+  const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
+  const currentPlanPresentation = currentPlan ? STATE_PRESENTATION[currentPlan] : null;
 
   return (
     <Stack gap={6}>
@@ -135,35 +104,58 @@ export const PlanAndPaymentSection = ({
           </Heading>
         </HStack>
 
-        <Alert.Root status={presentation.status} borderRadius="xl" alignItems="flex-start">
-          <Alert.Indicator mt={1} />
-          <Alert.Content>
-            <HStack gap={2} wrap="wrap">
-              <Alert.Title>{presentation.label}</Alert.Title>
-              {billing.isComplimentary && (
-                <Badge variant="subtle" colorPalette="teal">
-                  料金なし
-                </Badge>
-              )}
-              {billing.targetPlan && (
-                <Badge variant="subtle" colorPalette="teal">
-                  変更先: {planLabel(billing.targetPlan)}
-                </Badge>
-              )}
-              {shouldShowCurrentPlan(billing.state) && billing.currentPlan && (
-                <Badge variant="outline" colorPalette="gray">
-                  現在: {planLabel(billing.currentPlan)}
-                </Badge>
-              )}
-              {billing.state === "restricted" && billing.previousPlan && (
-                <Badge variant="outline" colorPalette="gray">
-                  直前: {planLabel(billing.previousPlan)}
-                </Badge>
-              )}
-            </HStack>
-            <Alert.Description>{presentation.description}</Alert.Description>
-          </Alert.Content>
-        </Alert.Root>
+        {currentPlanPresentation && (
+          <Box borderWidth="1px" borderRadius="xl" bg="white" p={{ base: 4, md: 5 }}>
+            <Stack gap={3}>
+              <Text fontSize="sm" fontWeight="semibold" color="fg.muted">
+                現在のプラン
+              </Text>
+              <HStack gap={2} wrap="wrap">
+                <Heading as="h3" fontSize="2xl">
+                  {currentPlanPresentation.label}
+                </Heading>
+                {billing.isComplimentary && (
+                  <Badge variant="subtle" colorPalette="teal">
+                    料金なし
+                  </Badge>
+                )}
+              </HStack>
+              <Stack gap={1}>
+                <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+                  できること
+                </Text>
+                <Text fontSize="sm">{currentPlanPresentation.description}</Text>
+              </Stack>
+            </Stack>
+          </Box>
+        )}
+
+        {isExceptionalState(billing.state) && (
+          <Alert.Root status={presentation.status} borderRadius="xl" alignItems="flex-start">
+            <Alert.Indicator mt={1} />
+            <Alert.Content>
+              <HStack gap={2} wrap="wrap">
+                <Alert.Title>{presentation.label}</Alert.Title>
+                {billing.targetPlan && (
+                  <Badge variant="subtle" colorPalette="teal">
+                    変更先: {planLabel(billing.targetPlan)}
+                  </Badge>
+                )}
+                {shouldShowCurrentPlan(billing.state) && billing.currentPlan && (
+                  <Badge variant="outline" colorPalette="gray">
+                    現在: {planLabel(billing.currentPlan)}
+                  </Badge>
+                )}
+                {billing.state === "restricted" && billing.previousPlan && (
+                  <Badge variant="outline" colorPalette="gray">
+                    直前: {planLabel(billing.previousPlan)}
+                  </Badge>
+                )}
+              </HStack>
+              <Alert.Description>{presentation.description}</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        )}
 
         {billing.blockedReason && (
           <Box borderWidth="1px" borderColor="orange.200" bg="orange.50" borderRadius="lg" p={3}>
@@ -184,12 +176,7 @@ export const PlanAndPaymentSection = ({
               current={billing.peopleUsage.current}
               max={billing.peopleUsage.max}
             />
-            <UsageMeter
-              icon={LuGauge}
-              label="稼働店舗"
-              current={billing.shopUsage.current}
-              max={billing.shopUsage.max}
-            />
+            <UsageMeter icon={LuGauge} label="店舗数" current={billing.shopUsage.current} max={billing.shopUsage.max} />
           </Flex>
         )}
 
@@ -224,11 +211,6 @@ export const PlanAndPaymentSection = ({
             >
               {isPaidPlanRecovery(billing) ? "有料プランを開始・再開" : "プランを確認・変更"}
             </Button>
-            {billing.canScheduleFree && (
-              <Button variant="outline" onClick={freeConfirmation.open}>
-                Freeで残す内容を確認
-              </Button>
-            )}
           </Flex>
         )}
         {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
@@ -341,22 +323,6 @@ export const PlanAndPaymentSection = ({
       </Stack>
 
       {!billing.isComplimentary && <InvoiceList invoices={billing.invoices} onOpenInvoice={onOpenInvoice} />}
-
-      <FreeTransitionConfirmation
-        isOpen={freeConfirmation.isOpen}
-        onOpenChange={freeConfirmation.onOpenChange}
-        onClose={freeConfirmation.close}
-        selection={freeSelection}
-        selectedManagerId={selectedManagerId}
-        selectedShopId={selectedShopId}
-        onManagerChange={setSelectedManagerId}
-        onShopChange={setSelectedShopId}
-        onConfirm={() => void confirmFreeTransition()}
-        isConfirming={isConfirmingFree}
-        isRestricted={billing.state === "restricted"}
-        organizationName={organizationName}
-        currentPlanLabel={billing.currentPlan ? planLabel(billing.currentPlan) : presentation.label}
-      />
     </Stack>
   );
 };
@@ -444,163 +410,19 @@ const InvoiceList = ({
   </Stack>
 );
 
-const FreeTransitionConfirmation = ({
-  isOpen,
-  onOpenChange,
-  onClose,
-  selection,
-  selectedManagerId,
-  selectedShopId,
-  onManagerChange,
-  onShopChange,
-  onConfirm,
-  isConfirming,
-  isRestricted,
-  organizationName,
-  currentPlanLabel,
-}: {
-  isOpen: boolean;
-  onOpenChange: (details: { open: boolean }) => void;
-  onClose: () => void;
-  selection: FreeSelectionSummary;
-  selectedManagerId: string;
-  selectedShopId: string;
-  onManagerChange: (personId: string) => void;
-  onShopChange: (shopId: string) => void;
-  onConfirm: () => void;
-  isConfirming: boolean;
-  isRestricted: boolean;
-  organizationName: string;
-  currentPlanLabel: string;
-}) => {
-  const selectedManager = selection.managerCandidates.find((candidate) => candidate.id === selectedManagerId);
-  const selectedShop = selection.shopCandidates.find((candidate) => candidate.id === selectedShopId);
-  const projectedPeopleCount = selectedManager?.projectedPeopleCount ?? selection.projectedPeopleCount;
-  const managerIsSelected = Boolean(selectedManager);
-  const shopIsSelected = selection.shopCandidates.length === 0 || Boolean(selectedShop);
-  const isComplete = managerIsSelected && shopIsSelected && projectedPeopleCount <= 4;
-  const readOnlyManagerNames = managerIsSelected
-    ? selection.managerCandidates
-        .filter((candidate) => candidate.id !== selectedManagerId)
-        .map((candidate) => candidate.name)
-    : [];
-  const suspendedShopNames = shopIsSelected
-    ? selection.shopCandidates.filter((candidate) => candidate.id !== selectedShopId).map((candidate) => candidate.name)
-    : [];
-  const incompleteReason =
-    !managerIsSelected || !shopIsSelected
-      ? `Freeで残す${!managerIsSelected && !shopIsSelected ? "管理者と店舗" : !managerIsSelected ? "管理者" : "店舗"}が未選択です。設定は保存できますが、適用時までに選ばない場合は契約制限中へ移行します。`
-      : projectedPeopleCount > 4
-        ? "Freeの利用人数上限を超えています。適用時までに事業者の利用者を4名以下へ整理してください。"
-        : undefined;
-
-  return (
-    <Dialog
-      title="Freeプランで残す内容を確認"
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      onClose={onClose}
-      onSubmit={onConfirm}
-      submitLabel={isRestricted && isComplete ? "Freeで利用を再開" : "Free設定を保存"}
-      isLoading={isConfirming}
-      role="alertdialog"
-      maxW={{ base: "calc(100vw - 24px)", md: "620px" }}
-    >
-      <Stack gap={4}>
-        <Stack gap={2} borderWidth="1px" borderRadius="lg" bg="gray.50" p={3}>
-          <ConfirmationRow label="対象事業者" value={organizationName} />
-          <ConfirmationRow label="現在のプラン" value={currentPlanLabel} />
-        </Stack>
-        {!isComplete && (
-          <Alert.Root status="warning" borderRadius="lg">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>Freeの成立条件がそろっていません</Alert.Title>
-              <Alert.Description>
-                {incompleteReason ?? "設定は保存できますが、適用時までに整理できない場合は契約制限中へ移行します。"}
-              </Alert.Description>
-            </Alert.Content>
-          </Alert.Root>
-        )}
-        <Stack gap={3}>
-          <Field.Root>
-            <Field.Label>Freeで残す管理者</Field.Label>
-            <NativeSelect.Root>
-              <NativeSelect.Field
-                value={selectedManagerId}
-                onChange={(event) => onManagerChange(event.currentTarget.value)}
-                bg="white"
-              >
-                <option value="">あとで選ぶ</option>
-                {selection.managerCandidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </NativeSelect.Field>
-              <NativeSelect.Indicator />
-            </NativeSelect.Root>
-            <Field.HelperText>選ばなかった管理者は、Free適用後も閲覧のみで残ります。</Field.HelperText>
-          </Field.Root>
-          {selection.shopCandidates.length > 0 ? (
-            <Field.Root>
-              <Field.Label>Freeで残す店舗</Field.Label>
-              <NativeSelect.Root>
-                <NativeSelect.Field
-                  value={selectedShopId}
-                  onChange={(event) => onShopChange(event.currentTarget.value)}
-                  bg="white"
-                >
-                  <option value="">あとで選ぶ</option>
-                  {selection.shopCandidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
-              <Field.HelperText>選ばなかった店舗は削除せず、プラン停止中として残ります。</Field.HelperText>
-            </Field.Root>
-          ) : (
-            <ConfirmationRow label="残す店舗" value="稼働店舗なし" />
-          )}
-          <ConfirmationRow label="見込み利用人数" value={`${projectedPeopleCount}名`} />
-          <ConfirmationRow
-            label="閲覧のみになる管理者"
-            value={
-              !managerIsSelected ? "未確定" : readOnlyManagerNames.length > 0 ? readOnlyManagerNames.join("、") : "なし"
-            }
-          />
-          <ConfirmationRow
-            label="プラン停止中になる店舗"
-            value={!shopIsSelected ? "未確定" : suspendedShopNames.length > 0 ? suspendedShopNames.join("、") : "なし"}
-          />
-        </Stack>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          Free適用後は、AIシフトたたき台、複数管理者、複数店舗を利用できません。データは削除されません。
-        </Text>
-      </Stack>
-    </Dialog>
-  );
-};
-
-const ConfirmationRow = ({ label, value }: { label: string; value: string }) => (
-  <Flex justify="space-between" gap={4} borderBottomWidth="1px" borderColor="border.default" pb={2}>
-    <Text fontSize="sm" color="fg.muted">
-      {label}
-    </Text>
-    <Text fontSize="sm" fontWeight="semibold" textAlign="right">
-      {value}
-    </Text>
-  </Flex>
-);
-
 function planLabel(plan: NonNullable<OrganizationBillingView["currentPlan"]>): string {
   if (plan === "trial") return "無料体験";
   if (plan === "free") return "Free";
   if (plan === "pro") return "Pro";
   return "Business";
+}
+
+function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "pro" | "business" {
+  return state === "trial" || state === "free" || state === "pro" || state === "business";
+}
+
+function isExceptionalState(state: BillingDisplayState): boolean {
+  return !isPlanState(state);
 }
 
 function shouldShowCurrentPlan(state: BillingDisplayState): boolean {

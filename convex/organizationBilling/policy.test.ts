@@ -20,10 +20,10 @@ import {
 describe("organizationBilling/policy plan limits", () => {
   it("Trial、Free、Pro、Businessの人数・店舗・管理者上限を定義する", () => {
     expect(ORGANIZATION_PLAN_LIMITS).toEqual({
-      trial: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 30 },
+      trial: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
       free: { maxPeople: 4, maxActiveShops: 1, maxActiveManagers: 1 },
-      pro: { maxPeople: 15, maxActiveShops: 5, maxActiveManagers: 15 },
-      business: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 30 },
+      pro: { maxPeople: 15, maxActiveShops: 5, maxActiveManagers: 5 },
+      business: { maxPeople: 30, maxActiveShops: 5, maxActiveManagers: 5 },
     });
   });
 
@@ -32,13 +32,17 @@ describe("organizationBilling/policy plan limits", () => {
       withinLimits: true,
       violations: [],
     });
-    expect(evaluatePlanLimits("pro", { peopleCount: 16, activeShopCount: 6, activeManagerCount: 16 })).toMatchObject({
+    expect(evaluatePlanLimits("pro", { peopleCount: 16, activeShopCount: 6, activeManagerCount: 6 })).toMatchObject({
       withinLimits: false,
       violations: ["people", "activeShops", "activeManagers"],
     });
     expect(
-      evaluatePlanLimits("business", { peopleCount: 30, activeShopCount: 5, activeManagerCount: 30 }),
+      evaluatePlanLimits("business", { peopleCount: 30, activeShopCount: 5, activeManagerCount: 5 }),
     ).toMatchObject({ withinLimits: true });
+    expect(evaluatePlanLimits("trial", { peopleCount: 30, activeShopCount: 5, activeManagerCount: 6 })).toMatchObject({
+      withinLimits: false,
+      violations: ["activeManagers"],
+    });
   });
 });
 

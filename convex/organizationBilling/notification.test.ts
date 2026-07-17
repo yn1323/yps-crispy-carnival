@@ -13,7 +13,7 @@ describe("organizationBilling/notification", () => {
     expect(copy.paragraphs).toEqual([
       "無料体験は9/1(火) 00:00に終了します。",
       "選択済みの契約プランはProプランです。初回請求は9/1(火) 00:00を予定しています。",
-      "Freeプランへ変更する場合の設定期限は9/1(火) 00:00です。期限までに事業者設定から変更してください。",
+      "Freeプランへ変更する場合の設定期限は9/1(火) 00:00です。期限までにグループ設定から変更してください。",
     ]);
     expect(copy.paragraphs.join("\n")).not.toContain("円");
   });
@@ -34,7 +34,7 @@ describe("organizationBilling/notification", () => {
       heading: "Businessプランを継続しています",
       paragraphs: [
         "更新日時点の利用人数、予約済み利用枠、管理者、店舗のいずれかがProプランの上限を超えていたため、変更を適用しませんでした。",
-        "Businessプランを継続しています。現在の利用状況は事業者設定で確認できます。",
+        "Businessプランを継続しています。現在の利用状況はグループ設定で確認できます。",
       ],
     });
   });
@@ -45,7 +45,7 @@ describe("organizationBilling/notification", () => {
       heading: "プラン変更予約を取り消しました",
       paragraphs: [
         "期間末に予定していたプラン変更を取り消しました。",
-        "現在の有料プランを継続します。現在の契約状態は事業者設定で確認できます。",
+        "現在の有料プランを継続します。現在の契約状態はグループ設定で確認できます。",
       ],
     });
   });
