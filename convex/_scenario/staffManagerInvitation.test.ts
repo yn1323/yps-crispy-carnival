@@ -20,7 +20,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     vi.useRealTimers();
   });
 
-  it("スタッフ詳細から招待した本人が承認すると同じ人物とスタッフのまま管理者になる", async () => {
+  it("スタッフ詳細から招待した本人がログインすると同じ人物とスタッフのまま管理者になる", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const owner = scenario.manager({ subject: "staff_invitation_owner", email: "owner@example.com" });
@@ -58,7 +58,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     expect(invitation).toMatchObject({
       organizationId: seeded.organizationId,
       targetPersonId: personId,
-      status: "pending",
+      status: "issued",
       purpose: "managerAddition",
     });
 
@@ -67,8 +67,8 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.acceptManagerInvitation(token)).resolves.toEqual({
-      status: "accepted",
+    await expect(target.linkManagerInvitationAccount(token)).resolves.toEqual({
+      status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
     });

@@ -138,6 +138,9 @@ export function createScenario(t: ScenarioTest) {
         acceptManagerInvitation(token: string) {
           return asManager.mutation(api.organizationInvitation.mutations.accept, { token });
         },
+        linkManagerInvitationAccount(token: string) {
+          return asManager.mutation(api.organizationInvitation.mutations.linkAccount, { token });
+        },
         async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
           return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });
         },

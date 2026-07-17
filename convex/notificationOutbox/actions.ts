@@ -7,6 +7,7 @@ import { type ActionCtx, internalAction } from "../_generated/server";
 import { getAppUrl, getOrganizationInvitationSigningSecret, isDebugNotifyFailEnabled } from "../_lib/config";
 import { formatResendSubject } from "../_lib/emailFormat";
 import { LineApiError, pushLineMessage } from "../_lib/lineClient";
+import { withOpenExternalBrowser } from "../_lib/lineUrl";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
@@ -24,6 +25,15 @@ import { deriveInvitationToken } from "../organizationInvitation/token";
 
 type NotificationJob = Doc<"notificationOutbox">;
 const LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE = "LINE quota exceeded; fallback email enqueued";
+type LineFallbackEmail = NonNullable<
+  Extract<NotificationJob["payload"], { kind: "line" | "organizationManagerInvitationLine" }>["fallbackEmail"]
+>;
+class LinePushDeliveryError extends Error {
+  constructor(readonly deliveryCause: unknown) {
+    super(errorMessage(deliveryCause));
+    this.name = errorName(deliveryCause) ?? "LinePushDeliveryError";
+  }
+}
 type SendJobResult = {
   resendEmailId?: string;
   cancelled?: true;
@@ -68,7 +78,20 @@ export const processPending = internalAction({
             ...(errorName(e) ? { errorName: errorName(e) } : {}),
           });
         } else {
-          const suppressFailureInbox = lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE;
+          let suppressFailureInbox = lastError === LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE;
+          if (
+            !suppressFailureInbox &&
+            e instanceof LinePushDeliveryError &&
+            job.payload.kind === "organizationManagerInvitationLine" &&
+            job.payload.fallbackEmail
+          ) {
+            try {
+              await enqueueLineFallback(ctx, job, job.payload.fallbackEmail, lastError);
+              suppressFailureInbox = true;
+            } catch {
+              // enqueueLineFallback が enqueue_failed を記録する。元のLINE失敗は通常の最終失敗として残す。
+            }
+          }
           await ctx.runMutation(internal.notificationOutbox.mutations.markFailed, {
             outboxId: job._id,
             lastError,
@@ -126,9 +149,56 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
     });
   }
 
-  if (isDebugNotifyFailEnabled()) {
-    await pushLineMessage(job.payload.toUserId, lineMessageFromPayload(job.payload), {
+  if (job.payload.kind === "organizationManagerInvitationLine") {
+    const invitation = await ctx.runMutation(
+      internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail,
+      { outboxId: job._id, now: Date.now() },
+    );
+    if (!invitation) return { cancelled: true };
+
+    const token = await deriveInvitationToken({
+      invitationId: invitation.invitationId,
+      version: invitation.invitationVersion,
+      signingSecret: getOrganizationInvitationSigningSecret(),
+    });
+    const invitationUrl = new URL("/manager-invite", getAppUrl());
+    invitationUrl.searchParams.set("token", token);
+    const externalBrowserUrl = withOpenExternalBrowser(invitationUrl.toString());
+    return await sendLineJob(ctx, job, {
+      toUserId: job.payload.toUserId,
       suppressDelivery: job.payload.suppressDelivery,
+      fallbackEmail: job.payload.fallbackEmail,
+      message: {
+        type: "text",
+        text: `${invitation.organizationName}の管理者として招待されました。\nログインしてアカウント連携を完了してください。\n${externalBrowserUrl}`,
+      },
+    });
+  }
+
+  return await sendLineJob(ctx, job, {
+    toUserId: job.payload.toUserId,
+    suppressDelivery: job.payload.suppressDelivery,
+    fallbackEmail: job.payload.fallbackEmail,
+    message: lineMessageFromPayload(job.payload),
+  });
+}
+
+async function sendLineJob(
+  ctx: ActionCtx,
+  job: NotificationJob,
+  input: {
+    toUserId: string;
+    suppressDelivery?: boolean;
+    fallbackEmail?: Extract<
+      NotificationJob["payload"],
+      { kind: "line" | "organizationManagerInvitationLine" }
+    >["fallbackEmail"];
+    message: LinePushMessage;
+  },
+): Promise<SendJobResult> {
+  if (isDebugNotifyFailEnabled()) {
+    await pushLineJob(input.toUserId, input.message, {
+      suppressDelivery: input.suppressDelivery,
       retryKey: lineRetryKey(job._id),
     });
     return {};
@@ -136,68 +206,105 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
 
   const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
   if (quota?.status === "exceeded") {
-    if (job.payload.fallbackEmail) {
-      try {
-        await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
-          channel: "email",
-          ...(job.shopId ? { shopId: job.shopId } : {}),
-          ...(job.organizationId ? { organizationId: job.organizationId } : {}),
-          ...(job.organizationBillingVersionAtEnqueue !== undefined
-            ? { organizationBillingVersionAtOrigin: job.organizationBillingVersionAtEnqueue }
-            : {}),
-          ...(job.purpose ? { purpose: job.purpose } : {}),
-          ...(job.staffId ? { staffId: job.staffId } : {}),
-          ...(job.userId ? { userId: job.userId } : {}),
-          dedupeKey: job.payload.fallbackEmail.dedupeKey,
-          payload: job.payload.fallbackEmail.payload,
-        });
-      } catch (e) {
-        try {
-          await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
-            eventType: "enqueue_failed",
-            ...(job.shopId ? { shopId: job.shopId } : {}),
-            ...(job.staffId ? { staffId: job.staffId } : {}),
-            ...(job.userId ? { userId: job.userId } : {}),
-            outboxId: job._id,
-            channel: "email",
-            dedupeKey: job.payload.fallbackEmail.dedupeKey,
-            notificationContext: job.payload.fallbackEmail.payload.context,
-            attemptCount: job.attemptCount,
-            errorMessage: errorMessage(e),
-            ...(errorName(e) ? { errorName: errorName(e) } : {}),
-          });
-        } catch (logError) {
-          console.error("Notification fallback enqueue failure logging failed", logError);
-        }
-        throw e;
-      }
-
-      try {
-        await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
-          eventType: "fallback_enqueued",
-          ...(job.shopId ? { shopId: job.shopId } : {}),
-          ...(job.staffId ? { staffId: job.staffId } : {}),
-          ...(job.userId ? { userId: job.userId } : {}),
-          outboxId: job._id,
-          channel: job.channel,
-          dedupeKey: job.dedupeKey,
-          notificationContext: job.payload.fallbackEmail.payload.context,
-          attemptCount: job.attemptCount,
-          errorMessage: LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE,
-        });
-      } catch (logError) {
-        console.error("Notification fallback event logging failed", logError);
-      }
+    if (input.fallbackEmail) {
+      await enqueueLineFallback(ctx, job, input.fallbackEmail, LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE);
       throw new Error(LINE_QUOTA_FALLBACK_ENQUEUED_MESSAGE);
     }
     throw new Error("LINE quota exceeded");
   }
 
-  await pushLineMessage(job.payload.toUserId, lineMessageFromPayload(job.payload), {
-    suppressDelivery: job.payload.suppressDelivery,
+  await pushLineJob(input.toUserId, input.message, {
+    suppressDelivery: input.suppressDelivery,
     retryKey: lineRetryKey(job._id),
   });
   return {};
+}
+
+async function pushLineJob(
+  toUserId: string,
+  message: LinePushMessage,
+  options: { suppressDelivery?: boolean; retryKey: string },
+) {
+  try {
+    await pushLineMessage(toUserId, message, options);
+  } catch (e) {
+    // push開始前後の他処理と区別し、実際のLINE送信例外だけをfallback対象にする。
+    throw new LinePushDeliveryError(e);
+  }
+}
+
+async function enqueueLineFallback(
+  ctx: ActionCtx,
+  job: NotificationJob,
+  fallbackEmail: LineFallbackEmail,
+  fallbackReason: string,
+) {
+  try {
+    const enqueueResult = await ctx.runMutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      ...(job.shopId ? { shopId: job.shopId } : {}),
+      ...(job.organizationId ? { organizationId: job.organizationId } : {}),
+      ...(job.organizationInvitationId ? { organizationInvitationId: job.organizationInvitationId } : {}),
+      ...(job.organizationInvitationVersion !== undefined
+        ? { organizationInvitationVersion: job.organizationInvitationVersion }
+        : {}),
+      ...(job.organizationBillingVersionAtEnqueue !== undefined
+        ? { organizationBillingVersionAtOrigin: job.organizationBillingVersionAtEnqueue }
+        : {}),
+      ...(job.purpose ? { purpose: job.purpose } : {}),
+      ...(job.staffId ? { staffId: job.staffId } : {}),
+      ...(job.userId ? { userId: job.userId } : {}),
+      dedupeKey: fallbackEmail.dedupeKey,
+      payload: fallbackEmail.payload,
+    });
+    if (!enqueueResult) throw new Error("LINE fallback email was not enqueued");
+  } catch (e) {
+    try {
+      await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+        eventType: "enqueue_failed",
+        ...(job.shopId ? { shopId: job.shopId } : {}),
+        ...(job.organizationId ? { organizationId: job.organizationId } : {}),
+        ...(job.organizationInvitationId ? { organizationInvitationId: job.organizationInvitationId } : {}),
+        ...(job.organizationInvitationVersion !== undefined
+          ? { organizationInvitationVersion: job.organizationInvitationVersion }
+          : {}),
+        ...(job.staffId ? { staffId: job.staffId } : {}),
+        ...(job.userId ? { userId: job.userId } : {}),
+        outboxId: job._id,
+        channel: "email",
+        dedupeKey: fallbackEmail.dedupeKey,
+        notificationContext: fallbackEmail.payload.context,
+        attemptCount: job.attemptCount,
+        errorMessage: errorMessage(e),
+        ...(errorName(e) ? { errorName: errorName(e) } : {}),
+      });
+    } catch (logError) {
+      console.error("Notification fallback enqueue failure logging failed", logError);
+    }
+    throw e;
+  }
+
+  try {
+    await ctx.runMutation(internal.notificationOutbox.mutations.recordDeliveryEvent, {
+      eventType: "fallback_enqueued",
+      ...(job.shopId ? { shopId: job.shopId } : {}),
+      ...(job.organizationId ? { organizationId: job.organizationId } : {}),
+      ...(job.organizationInvitationId ? { organizationInvitationId: job.organizationInvitationId } : {}),
+      ...(job.organizationInvitationVersion !== undefined
+        ? { organizationInvitationVersion: job.organizationInvitationVersion }
+        : {}),
+      ...(job.staffId ? { staffId: job.staffId } : {}),
+      ...(job.userId ? { userId: job.userId } : {}),
+      outboxId: job._id,
+      channel: job.channel,
+      dedupeKey: job.dedupeKey,
+      notificationContext: fallbackEmail.payload.context,
+      attemptCount: job.attemptCount,
+      errorMessage: fallbackReason,
+    });
+  } catch (logError) {
+    console.error("Notification fallback event logging failed", logError);
+  }
 }
 
 async function sendEmailJob(
@@ -234,10 +341,11 @@ function lineMessageFromPayload(payload: Extract<NotificationJob["payload"], { k
 
 function shouldRetry(job: NotificationJob, e: unknown) {
   if (job.attemptCount >= NOTIFICATION_OUTBOX_MAX_ATTEMPTS) return false;
-  if (e instanceof LineApiError) return e.status === 429 || e.status >= 500;
+  const retryCause = e instanceof LinePushDeliveryError ? e.deliveryCause : e;
+  if (retryCause instanceof LineApiError) return retryCause.status === 429 || retryCause.status >= 500;
   if (e instanceof ResendEmailError) return e.retryable;
 
-  const message = errorMessage(e);
+  const message = errorMessage(retryCause);
   return (
     message.includes("rate_limit_exceeded") ||
     message.includes("application_error") ||

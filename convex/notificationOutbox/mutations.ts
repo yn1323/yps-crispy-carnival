@@ -17,6 +17,7 @@ import {
 } from "../constants";
 import { getStaffLineAccount } from "../line/service";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { hasOpenRecruitmentScope, isManagerVisibleNotificationFailure } from "./failureEligibility";
 import {
@@ -304,7 +305,8 @@ export const prepareOrganizationManagerInvitationEmail = internalMutation({
       return null;
     }
     if (
-      job.payload.kind !== "organizationManagerInvitationEmail" ||
+      (job.payload.kind !== "organizationManagerInvitationEmail" &&
+        job.payload.kind !== "organizationManagerInvitationLine") ||
       !job.organizationId ||
       !job.organizationInvitationId ||
       job.organizationInvitationVersion === undefined
@@ -595,10 +597,12 @@ async function getNotificationEligibility(
   if (notification.channel !== notificationChannelForPayload(notification.payload)) {
     return { cancelReason: "unsupported_channel" };
   }
-  const isInvitationPayload = notification.payload.kind === "organizationManagerInvitationEmail";
+  const isInvitationPayload =
+    notification.payload.kind === "organizationManagerInvitationEmail" ||
+    notification.payload.kind === "organizationManagerInvitationLine";
   const hasInvitationId = notification.organizationInvitationId !== undefined;
   const hasInvitationVersion = notification.organizationInvitationVersion !== undefined;
-  if ((purpose === "billing" || hasInvitationId || hasInvitationVersion) && notification.channel !== "email") {
+  if (purpose === "billing" && notification.channel !== "email") {
     return { cancelReason: "unsupported_channel" };
   }
   if (
@@ -737,7 +741,8 @@ async function getInvitationCancellationReason(
     notification.organizationInvitationVersion === undefined ||
     !Number.isSafeInteger(notification.organizationInvitationVersion) ||
     notification.organizationInvitationVersion < 1 ||
-    notification.payload.kind !== "organizationManagerInvitationEmail"
+    (notification.payload.kind !== "organizationManagerInvitationEmail" &&
+      notification.payload.kind !== "organizationManagerInvitationLine")
   ) {
     return "invitation_inactive";
   }
@@ -746,12 +751,34 @@ async function getInvitationCancellationReason(
   if (
     !invitation ||
     invitation.organizationId !== organizationId ||
-    invitation.status !== "pending" ||
+    !isOrganizationInvitationIssued(invitation) ||
     invitation.expiresAt <= now ||
-    invitation.version !== notification.organizationInvitationVersion ||
+    invitation.version !== notification.organizationInvitationVersion
+  ) {
+    return "invitation_inactive";
+  }
+
+  if (
+    notification.payload.kind === "organizationManagerInvitationEmail" &&
     normalizeEmail(invitation.emailNormalized) !== normalizeEmail(notification.payload.to)
   ) {
     return "invitation_inactive";
+  }
+  if (notification.payload.kind === "organizationManagerInvitationLine") {
+    if (!notification.staffId || !invitation.targetPersonId) return "invitation_inactive";
+    const staff = await ctx.db.get(notification.staffId);
+    const lineAccount = staff ? await getStaffLineAccount(ctx, staff._id) : null;
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.organizationId !== organizationId ||
+      staff.organizationPersonId !== invitation.targetPersonId ||
+      !lineAccount ||
+      !lineAccount.following ||
+      lineAccount.lineUserId !== notification.payload.toUserId
+    ) {
+      return "recipient_inactive";
+    }
   }
 
   return (await resolveOrganizationInvitationEligibility(ctx, invitation)) ? undefined : "invitation_inactive";
@@ -1506,7 +1533,10 @@ function resendProviderIssueDeliveryEventInput(
 }
 
 function isEmailNotificationOutbox(outbox: Doc<"notificationOutbox"> | null): outbox is EmailNotificationOutbox {
-  return outbox?.channel === "email" && outbox.payload.kind !== "line";
+  return (
+    outbox?.channel === "email" &&
+    (outbox.payload.kind === "email" || outbox.payload.kind === "organizationManagerInvitationEmail")
+  );
 }
 
 async function patchOutboxResendProviderState(

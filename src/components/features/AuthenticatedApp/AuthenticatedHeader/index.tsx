@@ -14,7 +14,7 @@ const UserMenu = lazy(() =>
 export const AuthenticatedHeader = () => {
   const hasSelectedShop = useAtomValue(hasSelectedShopAtom);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const showShopSwitcher = hasSelectedShop && pathname !== "/dashboard";
+  const showShopSwitcher = hasSelectedShop && pathname !== "/dashboard" && pathname !== "/settings";
 
   return (
     <Header

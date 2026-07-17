@@ -20,6 +20,7 @@ import {
 } from "../organization/validators";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import { resolveFreeManagerExchangeEligibility } from "../organizationInvitation/service";
 import { normalizeEmail } from "../staff/service";
@@ -562,12 +563,7 @@ export const getDashboardStaffs = managerQuery({
       ? await Promise.all([
           getOrganizationBillingState(ctx, organization._id),
           getOrganizationUsageSnapshot(ctx, organization._id, now),
-          ctx.db
-            .query("organizationInvitations")
-            .withIndex("by_organizationId_and_status", (q) =>
-              q.eq("organizationId", organization._id).eq("status", "pending"),
-            )
-            .collect(),
+          collectIssuedInvitationsByOrganization(ctx, organization._id),
         ])
       : [null, null, []];
     const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
@@ -699,7 +695,7 @@ export const getDashboardStaffs = managerQuery({
                   : {
                       kind: "unavailable",
                       reason: hasOtherFreeExchange
-                        ? "管理者交代の承認を待っています。承認前は現在の管理者が引き続き利用できます。"
+                        ? "次の管理者のログインを待っています。切り替わるまでは現在の管理者が引き続き利用できます。"
                         : "Freeでは、グループ内の既存スタッフとの管理者交代だけを利用できます。",
                     };
             } else if (!policy.canUsePaidFeatures || !policy.limits) {

@@ -9,6 +9,11 @@ import {
   type OrganizationPersonUsageInput,
   projectOrganizationUsage,
 } from "../organizationBilling/policy";
+import {
+  collectIssuedInvitationsByOrganization,
+  collectLinkedInvitationsByOrganization,
+  getOrganizationInvitationLifecycleStatus,
+} from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import {
   resolveFreeManagerExchangeEligibility,
@@ -22,6 +27,8 @@ const organizationPersonViewValidator = v.object({
   email: v.union(v.string(), v.null()),
   managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
   isStaff: v.boolean(),
+  isLineConnected: v.boolean(),
+  hasManagerInvitation: v.boolean(),
   shopNames: v.array(v.string()),
   canRemoveManagerRole: v.boolean(),
   managerRoleRemovalDisabledReason: v.optional(v.string()),
@@ -156,6 +163,8 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
         email: user.email,
         managerRole: "active" as const,
         isStaff: false,
+        isLineConnected: false,
+        hasManagerInvitation: false,
         shopNames: [],
         canRemoveManagerRole: false,
         managerRoleRemovalDisabledReason: migrationReason,
@@ -257,19 +266,8 @@ export const getSettings = managerQuery({
           q.eq("organizationId", organization._id).eq("isDeleted", false),
         )
         .collect(),
-      ctx.db
-        .query("organizationInvitations")
-        .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", organization._id).eq("status", "pending"),
-        )
-        .collect(),
-      ctx.db
-        .query("organizationInvitations")
-        .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", organization._id).eq("status", "accepted"),
-        )
-        .order("desc")
-        .take(100),
+      collectIssuedInvitationsByOrganization(ctx, organization._id),
+      collectLinkedInvitationsByOrganization(ctx, organization._id),
       ctx.db
         .query("organizationInvitations")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -319,6 +317,18 @@ export const getSettings = managerQuery({
       current.push(staff);
       staffRowsByPersonId.set(staff.organizationPersonId, current);
     }
+    const lineConnectedStaffIds = new Set<Id<"staffs">>();
+    await Promise.all(
+      staffDocs.map(async (staff) => {
+        const accounts = await ctx.db
+          .query("staffLineAccounts")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
+          .collect();
+        if (accounts.some((account) => !account.isDeleted && account.following && account.shopId === staff.shopId)) {
+          lineConnectedStaffIds.add(staff._id);
+        }
+      }),
+    );
 
     const managerRoleByPersonId = new Map<Id<"organizationPeople">, ManagerRole>();
     for (const person of people) {
@@ -432,6 +442,11 @@ export const getSettings = managerQuery({
       (invitation) =>
         invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
     );
+    const invitedPersonIds = new Set(
+      pendingInvitations.flatMap((invitation) =>
+        invitation.expiresAt > now && invitation.targetPersonId ? [invitation.targetPersonId] : [],
+      ),
+    );
     const canInviteFreeManagerExchange = Boolean(
       isActiveActor &&
         hasFreeEntitlement &&
@@ -444,10 +459,11 @@ export const getSettings = managerQuery({
     const canRevokeInvitation = Boolean(isActiveActor && policy?.canWriteBusinessData);
     const managerInvitations = await Promise.all(
       invitationDocs.map(async (invitation) => {
+        const lifecycleStatus = getOrganizationInvitationLifecycleStatus(invitation);
         const isExpired =
-          invitation.status === "expired" || (invitation.status === "pending" && invitation.expiresAt <= now);
+          lifecycleStatus === "expired" || (lifecycleStatus === "issued" && invitation.expiresAt <= now);
         const currentVersionOutbox =
-          invitation.status === "pending"
+          lifecycleStatus === "issued"
             ? await ctx.db
                 .query("notificationOutbox")
                 .withIndex("by_organizationInvitationId", (q) => q.eq("organizationInvitationId", invitation._id))
@@ -460,7 +476,7 @@ export const getSettings = managerQuery({
           currentVersionOutbox?.status === "processing" ||
           currentVersionOutbox?.status === "sent";
         const currentVersionEnqueueFailure =
-          invitation.status === "pending" &&
+          lifecycleStatus === "issued" &&
           currentVersionOutbox?.status !== "failed" &&
           !hasSuccessfulCurrentVersionEnqueue
             ? await ctx.db
@@ -478,12 +494,12 @@ export const getSettings = managerQuery({
                 .first()
             : null;
         const isSendFailed = Boolean(
-          invitation.status === "pending" &&
+          lifecycleStatus === "issued" &&
             (currentVersionOutbox?.status === "failed" ||
               (currentVersionEnqueueFailure && !hasSuccessfulCurrentVersionEnqueue)),
         );
         const purpose = getOrganizationInvitationPurpose(invitation);
-        const canRetryStatus = invitation.status === "pending" || invitation.status === "expired";
+        const canRetryStatus = lifecycleStatus === "issued" || lifecycleStatus === "expired";
         const eligibility = canRetryStatus ? await resolveOrganizationInvitationEligibility(ctx, invitation) : null;
         const hasOtherPendingFreeExchange = activeFreeManagerExchangeInvitations.some(
           (candidate) => candidate._id !== invitation._id,
@@ -506,14 +522,14 @@ export const getSettings = managerQuery({
           ? await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, existingPerson._id)
           : false;
         const personReservationAlreadyCounted =
-          invitation.status === "pending" && invitation.expiresAt > now && invitation.reservedSeat;
+          lifecycleStatus === "issued" && invitation.expiresAt > now && invitation.reservedSeat;
         const canFitResentPerson = Boolean(
           policy?.limits &&
             (existingPersonCounts ||
               usage.projectedPeopleCount + (personReservationAlreadyCounted ? 0 : 1) <= policy.limits.maxPeople),
         );
         const managerReservationAlreadyCounted =
-          invitation.status === "pending" && invitation.expiresAt > now && purpose === "managerAddition";
+          lifecycleStatus === "issued" && invitation.expiresAt > now && purpose === "managerAddition";
         const canFitResentManager = Boolean(
           policy?.limits &&
             projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <=
@@ -555,8 +571,12 @@ export const getSettings = managerQuery({
               ? ("limitReached" as const)
               : isSendFailed
                 ? ("sendFailed" as const)
-                : invitation.status;
-        const canRevoke = Boolean(canRevokeInvitation && !isExpired && invitation.status === "pending");
+                : lifecycleStatus === "issued"
+                  ? ("pending" as const)
+                  : lifecycleStatus === "linked"
+                    ? ("accepted" as const)
+                    : lifecycleStatus;
+        const canRevoke = Boolean(canRevokeInvitation && !isExpired && lifecycleStatus === "issued");
         const statusDetail =
           status === "expired"
             ? canResend
@@ -564,23 +584,23 @@ export const getSettings = managerQuery({
               : "この招待は再送できません。権限、利用者、契約状態を確認してください。"
             : status === "sendFailed"
               ? canResend
-                ? "メールを送信できませんでした。アドレスを確認して再送してください。"
+                ? "ログイン案内を送信できませんでした。連絡先を確認して再送してください。"
                 : "この招待は再送できません。権限、利用者、契約状態を確認してください。"
               : status === "limitReached"
-                ? "現在のプラン上限に達しているため、この招待を承認できません。利用状況またはプランを確認してください。"
+                ? "現在のプラン上限に達しているため、アカウントを連携できません。利用状況またはプランを確認してください。"
                 : status === "conflict"
                   ? canRevoke
                     ? "招待後に利用者または契約の状態が変わりました。この招待を取り消して内容を確認してください。"
                     : "招待後に利用者または契約の状態が変わりました。権限、利用者、契約状態を確認してください。"
                   : status === "pending" && purpose === "freeManagerExchange"
-                    ? "承認が完了するまでは、現在の管理者が操作を継続します。"
+                    ? "アカウント連携が完了するまでは、現在の管理者が操作を継続します。"
                     : undefined;
         return {
           id: invitation._id,
           email: invitation.email,
           status,
           ...(statusDetail ? { statusDetail } : {}),
-          ...(invitation.status === "pending" ? { expiresAt: formatDateTimeJa(invitation.expiresAt) } : {}),
+          ...(lifecycleStatus === "issued" ? { expiresAt: formatDateTimeJa(invitation.expiresAt) } : {}),
           canResend,
           canRevoke,
         };
@@ -591,6 +611,8 @@ export const getSettings = managerQuery({
         const managerRole = managerRoleByPersonId.get(person._id) ?? "none";
         const staffRows = staffRowsByPersonId.get(person._id) ?? [];
         const isStaff = staffRows.length > 0;
+        const isLineConnected = staffRows.some((staff) => lineConnectedStaffIds.has(staff._id));
+        const hasManagerInvitation = invitedPersonIds.has(person._id);
         const isLastActiveManager = managerRole === "active" && activeManagerCount <= 1;
         const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
         const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
@@ -656,6 +678,8 @@ export const getSettings = managerQuery({
           email: person.email || null,
           managerRole,
           isStaff,
+          isLineConnected,
+          hasManagerInvitation,
           shopNames,
           canRemoveManagerRole,
           ...(managerRoleRemovalDisabledReason ? { managerRoleRemovalDisabledReason } : {}),
@@ -663,6 +687,7 @@ export const getSettings = managerQuery({
           ...(removeDisabledReason ? { removeDisabledReason } : {}),
         };
       })
+      .filter((person) => person.isStaff || person.managerRole !== "none")
       .sort(
         (a, b) =>
           Number(b.managerRole === "active") - Number(a.managerRole === "active") ||
@@ -891,7 +916,7 @@ export const getSettings = managerQuery({
           : restrictedState
             ? "契約制限中は管理者を招待できません。"
             : managerInvitationMode === "freeManagerExchange" && activeFreeManagerExchangeInvitations.length > 0
-              ? "管理者交代の承認を待っています。承認前は現在の管理者が操作を継続します。"
+              ? "次の管理者のアカウント連携を待っています。連携完了までは現在の管理者が操作を継続します。"
               : managerInvitationMode === "freeManagerExchange"
                 ? "Freeでは、グループ内の既存スタッフとの管理者交代だけを利用できます。"
                 : policy?.paidFeatureBlockReason === "freePlan"
@@ -914,7 +939,7 @@ export const getSettings = managerQuery({
               ? "Freeでは店舗を追加できません。有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから店舗を追加できます。"
-                : "店舗数が現在のプラン上限に達しています。プランを確認してください。";
+                : "店舗はグループごとに5件まで登録できます。";
     const canUpdateOrganizationName = canWriteNormally;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined

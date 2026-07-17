@@ -94,6 +94,7 @@ async function notificationCtaProbe(ctx: QueryCtx, job: Doc<"notificationOutbox"
   const serializedPayload = JSON.stringify(payloadForCta);
   const hasRecognizedCta =
     job.payload.kind === "organizationManagerInvitationEmail" ||
+    job.payload.kind === "organizationManagerInvitationLine" ||
     [
       "/shifts/submit?token=",
       "/shifts/view?token=",

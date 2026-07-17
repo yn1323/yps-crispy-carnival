@@ -40,16 +40,9 @@ export const ShopsSection = ({ shops, canAddShop, addShopDisabledReason, onAddSh
     </Flex>
 
     {!canAddShop && addShopDisabledReason && (
-      <Stack id="organization-shop-add-disabled-reason" gap={2} alignItems="flex-start">
-        <Text fontSize="sm" color="orange.700">
-          {addShopDisabledReason}
-        </Text>
-        {addShopDisabledReason.includes("上限") && (
-          <Button asChild size="xs" variant="outline">
-            <a href="/contact">利用上限について問い合わせる</a>
-          </Button>
-        )}
-      </Stack>
+      <Text id="organization-shop-add-disabled-reason" fontSize="sm" color="orange.700">
+        {addShopDisabledReason}
+      </Text>
     )}
 
     {shops.length === 0 ? (

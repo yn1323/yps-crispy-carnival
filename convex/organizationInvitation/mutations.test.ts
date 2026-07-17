@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { deriveInvitationToken, digestInvitationToken } from "./token";
 
@@ -89,37 +89,71 @@ describe("organizationInvitation/mutations", () => {
     vi.useRealTimers();
   });
 
-  it("新しい人物の枠を一件だけ予約し、確認済みメールの本人が一度だけ承認できる", async () => {
+  it("発行時は人物を作らず、確認済みメールの本人がアカウント連携した時だけ管理者にする", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, { subject: "invite_owner", email: "owner@example.com", plan: "pro" }),
     );
     const owner = t.withIdentity({ subject: "invite_owner", email: "owner@example.com" });
 
-    const created = await owner.mutation(api.organizationInvitation.mutations.create, {
+    const created = await owner.mutation(api.organizationInvitation.mutations.createExternal, {
       shopId: manager.shopId,
+      name: "招待 太郎",
       email: " Invitee@Example.com ",
       requestId: "create-1",
     });
     await t.finishInProgressScheduledFunctions();
-    const repeated = await owner.mutation(api.organizationInvitation.mutations.create, {
+    const repeated = await owner.mutation(api.organizationInvitation.mutations.createExternal, {
       shopId: manager.shopId,
+      name: "招待 太郎",
       email: "invitee@example.com",
       requestId: "create-2",
     });
-    expect(created.status).toBe("created");
-    expect(repeated).toEqual({ status: "alreadyPending", invitationId: created.invitationId });
+    expect(created.status).toBe("issued");
+    expect(repeated.status).toBe("issued");
+    expect(repeated.invitationId).not.toBe(created.invitationId);
 
-    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    const stateAfterResend = await t.run(async (ctx) => ({
+      first: await ctx.db.get(created.invitationId),
+      second: await ctx.db.get(repeated.invitationId),
+    }));
+    expect(stateAfterResend.first).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
+    const invitation = stateAfterResend.second;
     if (!invitation) throw new Error("invitation not found");
     expect(invitation).toMatchObject({
       organizationId: manager.organizationId,
+      invitedName: "招待 太郎",
       emailNormalized: "invitee@example.com",
-      status: "pending",
+      status: "issued",
       reservedSeat: true,
       version: 1,
+      predecessorInvitationId: created.invitationId,
     });
+    const stateBeforeLink = await t.run(async (ctx) => ({
+      people: await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) =>
+          q.eq("organizationId", manager.organizationId).eq("emailNormalized", "invitee@example.com"),
+        )
+        .collect(),
+      members: await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", manager.organizationId).eq("status", "active"),
+        )
+        .collect(),
+    }));
+    expect(stateBeforeLink.people).toEqual([]);
+    expect(stateBeforeLink.members).toHaveLength(1);
     expect(invitation.tokenDigest).not.toContain("invitee@example.com");
+    const firstToken = await deriveInvitationToken({
+      invitationId: created.invitationId,
+      version: 1,
+      signingSecret: SIGNING_SECRET,
+    });
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
+      status: "revoked",
+    });
     const token = await deriveInvitationToken({
       invitationId: invitation._id,
       version: invitation.version,
@@ -133,32 +167,32 @@ describe("organizationInvitation/mutations", () => {
     await expect(
       t
         .withIdentity({ subject: "invitee_unverified", email: "invitee@example.com", emailVerified: false })
-        .mutation(api.organizationInvitation.mutations.accept, { token }),
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
     ).resolves.toEqual({ status: "emailMismatch" });
     await expect(
       t
         .withIdentity({ subject: "invitee_missing_claim", email: "invitee@example.com" })
-        .mutation(api.organizationInvitation.mutations.accept, { token }),
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
     ).resolves.toEqual({ status: "emailMismatch" });
     await expect(
       t
         .withIdentity({ subject: "invitee_wrong", email: "wrong@example.com", emailVerified: true })
-        .mutation(api.organizationInvitation.mutations.accept, { token }),
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
     ).resolves.toEqual({ status: "emailMismatch" });
 
-    const accepted = await t
+    const linked = await t
       .withIdentity({ subject: "invitee", email: "invitee@example.com", emailVerified: true, name: "招待 太郎" })
-      .mutation(api.organizationInvitation.mutations.accept, { token });
-    expect(accepted).toEqual({
-      status: "accepted",
+      .mutation(api.organizationInvitation.mutations.linkAccount, { token });
+    expect(linked).toEqual({
+      status: "linked",
       organizationId: manager.organizationId,
       shopId: manager.shopId,
     });
     await expect(
       t
-        .withIdentity({ subject: "invitee", email: "invitee@example.com" })
-        .mutation(api.organizationInvitation.mutations.accept, { token }),
-    ).resolves.toEqual({ status: "used" });
+        .withIdentity({ subject: "invitee", email: "invitee@example.com", emailVerified: true })
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
+    ).resolves.toEqual({ status: "linked", organizationId: manager.organizationId, shopId: manager.shopId });
 
     const result = await t.run(async (ctx) => {
       const people = await ctx.db
@@ -179,7 +213,7 @@ describe("organizationInvitation/mutations", () => {
     expect(result.people).toHaveLength(1);
     expect(result.members).toHaveLength(1);
     expect(result.members[0]?.status).toBe("active");
-    expect(result.acceptedInvitation).toMatchObject({ status: "accepted", reservedSeat: false });
+    expect(result.acceptedInvitation).toMatchObject({ status: "linked", reservedSeat: false });
     await expect(
       t.action(internal.organizationInvitation.actions.enqueueAcceptanceNotifications, {
         invitationId: invitation._id,
@@ -191,9 +225,7 @@ describe("organizationInvitation/mutations", () => {
         .query("notificationOutbox")
         .collect()
         .then((jobs) =>
-          jobs.filter(
-            (job) => job.payload.kind === "email" && job.payload.context === "organizationInvitation.accepted",
-          ),
+          jobs.filter((job) => job.payload.kind === "email" && job.payload.context === "organizationInvitation.linked"),
         ),
     );
     expect(acceptanceJobs).toHaveLength(2);
@@ -229,7 +261,7 @@ describe("organizationInvitation/mutations", () => {
           q
             .eq("organizationId", manager.organizationId)
             .eq("emailNormalized", "parallel@example.com")
-            .eq("status", "pending"),
+            .eq("status", "issued"),
         )
         .collect(),
     );
@@ -283,7 +315,7 @@ describe("organizationInvitation/mutations", () => {
       emailNormalized: "staff-target-before@example.com",
       purpose: "managerAddition",
       reservedSeat: false,
-      status: "pending",
+      status: "issued",
     });
     const firstToken = await deriveInvitationToken({
       invitationId: firstInvitation._id,
@@ -315,7 +347,7 @@ describe("organizationInvitation/mutations", () => {
       targetPersonId: ids.target.personId,
       predecessorInvitationId: first.invitationId,
       emailNormalized: "staff-target-after@example.com",
-      status: "pending",
+      status: "issued",
     });
     await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
       status: "revoked",
@@ -346,6 +378,119 @@ describe("organizationInvitation/mutations", () => {
           .unique(),
       ),
     ).resolves.toMatchObject({ status: "active" });
+  });
+
+  it("同じ人物への再送は旧URLを失効し、連携前の管理者所属を作らない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "person_resend_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "person_resend_target",
+      });
+      return { ...manager, target };
+    });
+    const owner = t.withIdentity({ subject: "person_resend_owner" });
+
+    const first = await owner.mutation(api.organizationInvitation.mutations.createForPerson, {
+      shopId: ids.shopId,
+      personId: ids.target.personId,
+      requestId: "person-resend-first",
+    });
+    const firstInvitation = await t.run((ctx) => ctx.db.get(first.invitationId));
+    if (!firstInvitation) throw new Error("invitation not found");
+    const firstToken = await deriveInvitationToken({
+      invitationId: firstInvitation._id,
+      version: firstInvitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+
+    const second = await owner.mutation(api.organizationInvitation.mutations.createForPerson, {
+      shopId: ids.shopId,
+      personId: ids.target.personId,
+      requestId: "person-resend-second",
+    });
+    const state = await t.run(async (ctx) => ({
+      first: await ctx.db.get(first.invitationId),
+      second: await ctx.db.get(second.invitationId),
+      members: await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_personId", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("personId", ids.target.personId),
+        )
+        .collect(),
+    }));
+    expect(second.invitationId).not.toBe(first.invitationId);
+    expect(state.first).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
+    expect(state.second).toMatchObject({
+      status: "issued",
+      predecessorInvitationId: first.invitationId,
+      targetPersonId: ids.target.personId,
+    });
+    expect(state.members).toEqual([]);
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token: firstToken })).resolves.toEqual({
+      status: "revoked",
+    });
+    if (!state.second) throw new Error("replacement invitation not found");
+    const secondToken = await deriveInvitationToken({
+      invitationId: state.second._id,
+      version: state.second.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    expect(secondToken).not.toBe(firstToken);
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token: secondToken })).resolves.toMatchObject(
+      {
+        status: "ready",
+      },
+    );
+  });
+
+  it("LINE連携済みの既存人物には生トークンを保存せずLINE招待を予約する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "person_line_invite_owner", plan: "pro" });
+      const target = await seedActiveOrganizationStaff(ctx, {
+        organizationId: manager.organizationId,
+        shopId: manager.shopId,
+        subject: "person_line_invite_target",
+      });
+      await seedStaffLineAccount(ctx, {
+        staffId: target.staffId,
+        shopId: manager.shopId,
+        lineUserId: "U_person_line_invite",
+      });
+      return { ...manager, target };
+    });
+    const created = await t
+      .withIdentity({ subject: "person_line_invite_owner" })
+      .mutation(api.organizationInvitation.mutations.createForPerson, {
+        shopId: ids.shopId,
+        personId: ids.target.personId,
+        requestId: "person-line-invite",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+
+    await expect(
+      t.action(internal.organizationInvitation.actions.enqueueManagerInvitation, {
+        invitationId: invitation._id,
+        expectedVersion: invitation.version,
+      }),
+    ).resolves.toEqual({ enqueued: true });
+    const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      channel: "line",
+      organizationInvitationId: invitation._id,
+      organizationInvitationVersion: invitation.version,
+      payload: {
+        kind: "organizationManagerInvitationLine",
+        toUserId: "U_person_line_invite",
+        context: "organizationInvitation.enqueueManagerInvitation",
+      },
+    });
+    expect(JSON.stringify(jobs[0])).not.toContain("/manager-invite?token=");
   });
 
   it("別スタッフへの並行招待でも有効管理者と追加招待を合計5枠までにする", async () => {
@@ -387,7 +532,7 @@ describe("organizationInvitation/mutations", () => {
       ctx.db
         .query("organizationInvitations")
         .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("status", "pending"),
+          q.eq("organizationId", ids.organizationId).eq("status", "issued"),
         )
         .collect(),
     );
@@ -461,7 +606,7 @@ describe("organizationInvitation/mutations", () => {
     ).rejects.toThrow("少し時間をおいて");
     const invitations = await t.run((ctx) => ctx.db.query("organizationInvitations").collect());
     expect(invitations).toHaveLength(2);
-    expect(invitations.filter((invitation) => invitation.status === "pending")).toHaveLength(1);
+    expect(invitations.filter((invitation) => invitation.status === "issued")).toHaveLength(1);
   });
 
   it("管理者招待の承認は同じtokenの6回目をrate limitし、回復後も所属を重複作成しない", async () => {
@@ -731,7 +876,7 @@ describe("organizationInvitation/mutations", () => {
         )
         .collect(),
     }));
-    expect(state.invitation?.status).toBe("pending");
+    expect(state.invitation?.status).toBe("issued");
     expect(state.oldEmailPeople).toEqual([]);
   });
 
@@ -856,7 +1001,7 @@ describe("organizationInvitation/mutations", () => {
         )
         .collect(),
     );
-    expect(invitations.filter((item) => item.status === "pending" && item.reservedSeat)).toHaveLength(1);
+    expect(invitations.filter((item) => item.status === "issued" && item.reservedSeat)).toHaveLength(1);
   });
 
   it("取消・期限切れ・発行者失効では承認できず、予約枠を解放する", async () => {
@@ -979,7 +1124,7 @@ describe("organizationInvitation/mutations", () => {
         )
         .collect(),
     }));
-    expect(result.invitation).toMatchObject({ status: "pending", reservedSeat: true, version: 1 });
+    expect(result.invitation).toMatchObject({ status: "issued", reservedSeat: true, version: 1 });
     expect(result.targetPeople).toEqual([]);
   });
 
@@ -1102,7 +1247,7 @@ describe("organizationInvitation/mutations", () => {
     });
     const first = await t.run((ctx) => ctx.db.get(created.invitationId));
     if (!first) throw new Error("invitation not found");
-    expect(first).toMatchObject({ purpose: "freeManagerExchange", reservedSeat: false, status: "pending" });
+    expect(first).toMatchObject({ purpose: "freeManagerExchange", reservedSeat: false, status: "issued" });
     const firstToken = await deriveInvitationToken({
       invitationId: first._id,
       version: first.version,
@@ -1152,7 +1297,7 @@ describe("organizationInvitation/mutations", () => {
     });
     const second = await t.run((ctx) => ctx.db.get(resent.invitationId));
     if (!second) throw new Error("resent invitation not found");
-    expect(second).toMatchObject({ purpose: "freeManagerExchange", reservedSeat: false, status: "pending" });
+    expect(second).toMatchObject({ purpose: "freeManagerExchange", reservedSeat: false, status: "issued" });
     const secondToken = await deriveInvitationToken({
       invitationId: second._id,
       version: second.version,
@@ -1243,9 +1388,9 @@ describe("organizationInvitation/mutations", () => {
     expect(result.managerNotification).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
     expect(result.billingNotification).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
     expect(result.staffNotification).toMatchObject({ status: "pending" });
-    expect(result.invitation).toMatchObject({ status: "accepted", reservedSeat: false });
+    expect(result.invitation).toMatchObject({ status: "linked", reservedSeat: false });
     expect(result.audits.map((audit) => audit.action)).toEqual(
-      expect.arrayContaining(["organization.manager_invitation_accepted", "organization.free_selection_changed"]),
+      expect.arrayContaining(["organization.manager_invitation_linked", "organization.free_selection_changed"]),
     );
     expect(result.audits).toEqual(
       expect.arrayContaining([
@@ -1577,7 +1722,7 @@ describe("organizationInvitation/mutations", () => {
       version: oldInvitation.version + 2,
     });
     expect(newInvitation).toMatchObject({
-      status: "pending",
+      status: "issued",
       purpose: "managerAddition",
       reservedSeat: true,
       predecessorInvitationId: oldInvitation._id,
@@ -1602,7 +1747,7 @@ describe("organizationInvitation/mutations", () => {
           q
             .eq("organizationId", manager.organizationId)
             .eq("emailNormalized", "expired-resend@example.com")
-            .eq("status", "pending"),
+            .eq("status", "issued"),
         )
         .collect(),
     );
@@ -1652,7 +1797,7 @@ describe("organizationInvitation/mutations", () => {
         .mutation(api.organizationInvitation.mutations.accept, { token }),
     ).resolves.toMatchObject({ status: "accepted", organizationId: ids.organizationId });
     expect(await t.run((ctx) => ctx.db.get(invitation._id))).toMatchObject({
-      status: "accepted",
+      status: "linked",
       reservedSeat: false,
     });
   });

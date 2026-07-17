@@ -176,15 +176,15 @@ describe("Free管理者交代シナリオ", () => {
     expect(invitation).toMatchObject({
       targetPersonId: beforeExchange.successorPersonId,
       purpose: "freeManagerExchange",
-      status: "pending",
+      status: "issued",
     });
     const token = await deriveInvitationToken({
       invitationId: invitation._id,
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(successor.acceptManagerInvitation(token)).resolves.toEqual({
-      status: "accepted",
+    await expect(successor.linkManagerInvitationAccount(token)).resolves.toEqual({
+      status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
     });
@@ -337,7 +337,7 @@ describe("Free管理者交代シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(successor.acceptManagerInvitation(token)).resolves.toMatchObject({ status: "accepted" });
+    await expect(successor.linkManagerInvitationAccount(token)).resolves.toMatchObject({ status: "linked" });
     expect(await t.run((ctx) => ctx.db.get(seeded.formerStaffId))).toEqual(formerStaffBefore);
     expect(formerStaffBefore?.excludedFromShift).toBe(true);
 

@@ -15,10 +15,16 @@ import {
   requireOrganizationPaidFeature,
   requireRestrictedRecoveryCapability,
 } from "../organizationBilling/service";
+import {
+  collectIssuedInvitationsByInviter,
+  collectIssuedInvitationsByOrganization,
+} from "../organizationInvitation/lifecycle";
 import { ensureDefaultPosition } from "../position/service";
 import { updateShopSettingsSchema } from "../shop/schemas";
+import { editStaffSchema } from "../staff/schemas";
 import { type OrganizationActor, requireOrganizationActorForShop } from "./access";
 import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./audit";
+import { updateOrganizationPersonProfile } from "./personProfile";
 import { organizationNameSchema } from "./schemas";
 import { requireOrganizationBillingState } from "./service";
 import { organizationShopOperatingStatusValidator } from "./validators";
@@ -191,6 +197,66 @@ export const updateOrganizationName = authenticatedMutation({
       toState: parsed.data,
       correlationId,
       occurredAt: now,
+    });
+    return { changed: true };
+  },
+});
+
+export const updatePersonProfile = authenticatedMutation({
+  args: {
+    shopId: v.id("shops"),
+    personId: v.id("organizationPeople"),
+    name: v.string(),
+    email: v.string(),
+    requestId: v.string(),
+  },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    if (!ctx.user) throw new ConvexError("Not found");
+    const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
+    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
+    if (!parsed.success) {
+      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    }
+
+    const requestKey = await toAuditRequestKey(args.requestId);
+    const correlationId = `${actor.organization._id}:person-profile:${args.personId}:${requestKey}`;
+    const prior = await ctx.db
+      .query("organizationAuditEvents")
+      .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
+      .first();
+    if (prior) {
+      if (
+        prior.action !== "organization.person_profile_updated" ||
+        prior.organizationId !== actor.organization._id ||
+        prior.actorUserId !== actor.member.userId ||
+        prior.targetKind !== "person" ||
+        prior.targetId !== args.personId
+      ) {
+        throw new ConvexError("以前の操作結果を確認できません");
+      }
+      return { changed: false };
+    }
+
+    const result = await updateOrganizationPersonProfile(ctx, {
+      organizationId: actor.organization._id,
+      personId: args.personId,
+      actorUser: ctx.user,
+      notificationShopId: actor.shop._id,
+      name: parsed.data.name,
+      email: parsed.data.email,
+    });
+    if (!result.changed) return { changed: false };
+
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId: actor.organization._id,
+      actorUserId: actor.member.userId,
+      actorPersonId: actor.person._id,
+      action: "organization.person_profile_updated",
+      targetKind: "person",
+      targetId: args.personId,
+      correlationId,
     });
     return { changed: true };
   },
@@ -633,15 +699,10 @@ async function findPendingInvitationsForRemovedPerson(
     const issued = await findPendingInvitationsIssuedByManager(ctx, args.organizationId, args.member._id);
     for (const invitation of issued) invitations.set(invitation._id, invitation);
   }
-  const addressedToPerson = await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_organizationId_and_emailNormalized_and_status", (q) =>
-      q
-        .eq("organizationId", args.organizationId)
-        .eq("emailNormalized", args.person.emailNormalized)
-        .eq("status", "pending"),
-    )
-    .collect();
+  const addressedToPerson = (await collectIssuedInvitationsByOrganization(ctx, args.organizationId)).filter(
+    (invitation) =>
+      invitation.targetPersonId === args.person._id || invitation.emailNormalized === args.person.emailNormalized,
+  );
   for (const invitation of addressedToPerson) invitations.set(invitation._id, invitation);
   return [...invitations.values()];
 }
@@ -651,10 +712,7 @@ async function findPendingInvitationsIssuedByManager(
   organizationId: Id<"organizations">,
   memberId: Id<"organizationMembers">,
 ) {
-  const invitations = await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_inviterMemberId_and_status", (q) => q.eq("inviterMemberId", memberId).eq("status", "pending"))
-    .collect();
+  const invitations = await collectIssuedInvitationsByInviter(ctx, memberId);
   return invitations.filter((invitation) => invitation.organizationId === organizationId);
 }
 

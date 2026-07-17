@@ -8,6 +8,7 @@ import { rateLimit } from "../_lib/rateLimits";
 import { getStaffLineAccount } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
+import { updateOrganizationPersonProfile } from "../organization/personProfile";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { addStaffsSchema, editStaffSchema } from "./schemas";
 import {
@@ -343,103 +344,57 @@ export const editStaff = managerMutation({
       throw new ConvexError("スタッフの人物情報を確認できません");
     }
 
-    let updateTargets = [staff];
     if (organizationPerson && organizationId) {
-      const matchingPeople = await ctx.db
-        .query("organizationPeople")
-        .withIndex("by_organizationId_and_emailNormalized", (q) =>
-          q.eq("organizationId", organizationId).eq("emailNormalized", trimmedEmail),
-        )
-        .take(2);
-      if (matchingPeople.some((person) => person._id !== organizationPerson._id)) {
-        throw new ConvexError("このメールアドレスはグループ内の別の利用者が使用しています");
-      }
-
-      const linkedStaffs = await ctx.db
-        .query("staffs")
-        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-          q.eq("organizationId", organizationId).eq("organizationPersonId", organizationPerson._id),
-        )
-        .collect();
-      updateTargets = linkedStaffs.filter((linkedStaff) => !linkedStaff.isDeleted);
-      const targetCountByShop = new Map<Id<"shops">, number>();
-      for (const linkedStaff of updateTargets) {
-        const count = (targetCountByShop.get(linkedStaff.shopId) ?? 0) + 1;
-        targetCountByShop.set(linkedStaff.shopId, count);
-        if (count > 1) throw new ConvexError("スタッフの店舗所属を一意に確認できません");
-
-        const [normalizedMatches, legacyMatches] = await Promise.all([
-          ctx.db
-            .query("staffs")
-            .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-              q.eq("shopId", linkedStaff.shopId).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
-            )
-            .take(2),
-          ctx.db
-            .query("staffs")
-            .withIndex("by_shopId_email_isDeleted", (q) =>
-              q.eq("shopId", linkedStaff.shopId).eq("email", trimmedEmail).eq("isDeleted", false),
-            )
-            .take(2),
-        ]);
-        const duplicates = [...normalizedMatches, ...legacyMatches];
-        if (duplicates.some((duplicate) => duplicate.organizationPersonId !== organizationPerson._id)) {
-          throw new ConvexError("このメールアドレスは既に使用されています");
-        }
-      }
-    } else {
-      const duplicateByNormalized = await ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
-        )
-        .first();
-      const duplicate =
-        duplicateByNormalized ??
-        (await ctx.db
-          .query("staffs")
-          .withIndex("by_shopId_email_isDeleted", (q) =>
-            q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
-          )
-          .first());
-      if (duplicate && duplicate._id !== args.staffId) {
-        throw new ConvexError("このメールアドレスは既に使用されています");
-      }
-    }
-
-    const previousEmailNormalized = normalizeEmail(organizationPerson?.email ?? staff.emailNormalized ?? staff.email);
-    const emailChanged = trimmedEmail !== previousEmailNormalized;
-    const emailChangedAt = Date.now();
-    for (const updateTarget of updateTargets) {
-      await ctx.db.patch(updateTarget._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
-    }
-    if (organizationPerson) {
-      await ctx.db.patch(organizationPerson._id, {
+      await updateOrganizationPersonProfile(ctx, {
+        organizationId,
+        personId: organizationPerson._id,
+        actorUser: ctx.user,
+        notificationShopId: ctx.shop._id,
         name: trimmedName,
         email: trimmedEmail,
-        emailNormalized: trimmedEmail,
-        updatedAt: emailChangedAt,
       });
+      return null;
     }
-    if (organizationPerson?.userId === ctx.user._id || (!organizationPerson && staff.userId === ctx.user._id)) {
+
+    const duplicateByNormalized = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+        q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
+      )
+      .first();
+    const duplicate =
+      duplicateByNormalized ??
+      (await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_email_isDeleted", (q) =>
+          q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
+        )
+        .first());
+    if (duplicate && duplicate._id !== args.staffId) {
+      throw new ConvexError("このメールアドレスは既に使用されています");
+    }
+
+    const previousEmailNormalized = normalizeEmail(staff.emailNormalized ?? staff.email);
+    const emailChanged = trimmedEmail !== previousEmailNormalized;
+    const emailChangedAt = Date.now();
+    await ctx.db.patch(staff._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
+    if (staff.userId === ctx.user._id) {
       // manager 自身をスタッフとして持つ店舗では、スタッフ名と管理者名を同じ表示名として同期する。
       await ctx.db.patch(ctx.user._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
     }
 
     if (emailChanged) {
       const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-      for (const updateTarget of updateTargets) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange,
-          {
-            staffId: updateTarget._id,
-            expectedEmailNormalized: trimmedEmail,
-            emailChangedAt,
-            ...notificationOrigin,
-          },
-        );
-      }
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange,
+        {
+          staffId: staff._id,
+          expectedEmailNormalized: trimmedEmail,
+          emailChangedAt,
+          ...notificationOrigin,
+        },
+      );
     }
     return null;
   },

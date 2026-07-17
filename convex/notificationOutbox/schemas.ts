@@ -116,13 +116,26 @@ export const notificationLinePayloadValidator = v.object({
   fallbackEmail: v.optional(
     v.object({
       dedupeKey: v.string(),
-      payload: notificationRenderedEmailPayloadValidator,
+      payload: notificationEmailPayloadValidator,
     }),
   ),
+});
+
+export const notificationOrganizationManagerInvitationLinePayloadValidator = v.object({
+  kind: v.literal("organizationManagerInvitationLine"),
+  toUserId: v.string(),
+  context: v.string(),
+  suppressDelivery: v.optional(v.boolean()),
+  suppressFailureInbox: v.optional(v.boolean()),
+  fallbackEmail: v.object({
+    dedupeKey: v.string(),
+    payload: notificationOrganizationManagerInvitationEmailPayloadValidator,
+  }),
 });
 
 export const notificationPayloadValidator = v.union(
   notificationRenderedEmailPayloadValidator,
   notificationOrganizationManagerInvitationEmailPayloadValidator,
   notificationLinePayloadValidator,
+  notificationOrganizationManagerInvitationLinePayloadValidator,
 );

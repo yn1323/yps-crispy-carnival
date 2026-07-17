@@ -12,12 +12,7 @@ export function OrganizationUserRow({ person, onOpenDetail }: Props) {
   const initial = person.name.trim().charAt(0) || "?";
   const isManager = person.managerRole !== "none";
   const descriptionId = `organization-user-${person.id}-summary`;
-  const managerRoleLabel =
-    person.managerRole === "active"
-      ? "管理者"
-      : person.managerRole === "readOnly"
-        ? "閲覧のみの管理者"
-        : "管理者ではありません";
+  const roleLabel = isManager ? "管理者" : "スタッフ";
   const shopNames = person.shopNames.length > 0 ? person.shopNames.join("、") : "店舗所属なし";
 
   return (
@@ -78,7 +73,7 @@ export function OrganizationUserRow({ person, onOpenDetail }: Props) {
         <LuChevronRight />
       </Flex>
       <VisuallyHidden id={descriptionId}>
-        {person.isStaff ? "スタッフ" : "スタッフではありません"}、{managerRoleLabel}。所属店舗: {shopNames}。
+        {roleLabel}。{person.isLineConnected ? "LINE連携済み。" : ""}所属店舗: {shopNames}。
       </VisuallyHidden>
     </HStack>
   );

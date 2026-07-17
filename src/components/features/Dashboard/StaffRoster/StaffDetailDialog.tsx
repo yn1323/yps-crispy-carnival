@@ -76,9 +76,12 @@ export const StaffDetailDialog = ({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const directActionRef = useRef<DirectAction | null>(null);
   const [directAction, setDirectAction] = useState<DirectAction | null>(null);
+  const managerInvitationState = staff?.managerInvitationState;
   const managerInvitationCapability =
-    staff?.managerInvitationState.kind === "available"
-      ? `${staff.managerInvitationState.mode}:${staff.managerInvitationState.replacesStaleInvitation}`
+    managerInvitationState && managerInvitationState.kind !== "unavailable"
+      ? `${managerInvitationState.kind}:${managerInvitationState.mode}:${
+          managerInvitationState.kind === "available" ? managerInvitationState.replacesStaleInvitation : true
+        }`
       : null;
   const pendingActionContextKey = `${staff?._id ?? "none"}:${managerInvitationCapability ?? "unavailable"}:${isReadOnly}`;
   const previousPendingActionContextKeyRef = useRef(pendingActionContextKey);

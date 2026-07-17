@@ -1,5 +1,8 @@
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { internalQuery, query } from "../_generated/server";
+import { getStaffLineAccount } from "../line/service";
+import { isOrganizationInvitationIssued, isOrganizationInvitationLinked } from "./lifecycle";
 import { resolveOrganizationInvitationEligibility } from "./service";
 import { digestInvitationToken } from "./token";
 
@@ -24,7 +27,7 @@ export const getPreview = query({
       .take(2);
     if (invitations.length !== 1) return { status: "invalid" as const };
     const invitation = invitations[0];
-    if (invitation.status === "accepted") return { status: "used" as const };
+    if (isOrganizationInvitationLinked(invitation)) return { status: "used" as const };
     if (invitation.status === "revoked") return { status: "revoked" as const };
     if (invitation.status === "expired" || invitation.expiresAt <= Date.now()) {
       return { status: "expired" as const };
@@ -49,12 +52,15 @@ export const getEnqueueData = internalQuery({
       organizationName: v.string(),
       email: v.string(),
       invitationVersion: v.number(),
+      staffId: v.optional(v.id("staffs")),
+      lineUserId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
     const invitation = await ctx.db.get(args.invitationId);
     if (
-      invitation?.status !== "pending" ||
+      !invitation ||
+      !isOrganizationInvitationIssued(invitation) ||
       invitation.version !== args.expectedVersion ||
       invitation.expiresAt <= Date.now()
     ) {
@@ -62,11 +68,36 @@ export const getEnqueueData = internalQuery({
     }
     const eligibility = await resolveOrganizationInvitationEligibility(ctx, invitation);
     if (!eligibility) return null;
+    let lineTarget: { staffId: Id<"staffs">; lineUserId: string } | null = null;
+    if (invitation.targetPersonId) {
+      const staffs = await ctx.db
+        .query("staffs")
+        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+          q.eq("organizationId", invitation.organizationId).eq("organizationPersonId", invitation.targetPersonId),
+        )
+        .collect();
+      const candidates: { staffId: Id<"staffs">; lineUserId: string }[] = [];
+      for (const staff of staffs) {
+        if (staff.isDeleted) continue;
+        const [shop, lineAccount] = await Promise.all([ctx.db.get(staff.shopId), getStaffLineAccount(ctx, staff._id)]);
+        if (
+          shop?.organizationId === invitation.organizationId &&
+          !shop.isDeleted &&
+          shop.operatingStatus === "active" &&
+          lineAccount?.following
+        ) {
+          candidates.push({ staffId: staff._id, lineUserId: lineAccount.lineUserId });
+        }
+      }
+      const uniqueLineUserIds = new Set(candidates.map((candidate) => candidate.lineUserId));
+      if (uniqueLineUserIds.size === 1) lineTarget = candidates[0] ?? null;
+    }
     return {
       organizationId: eligibility.organization._id,
       organizationName: eligibility.organization.name,
       email: invitation.email,
       invitationVersion: invitation.version,
+      ...(lineTarget ?? {}),
     };
   },
 });
@@ -83,7 +114,9 @@ export const getAcceptanceNotificationData = internalQuery({
   ),
   handler: async (ctx, args) => {
     const invitation = await ctx.db.get(args.invitationId);
-    if (invitation?.status !== "accepted" || invitation.version !== args.expectedVersion) return null;
+    if (!invitation || !isOrganizationInvitationLinked(invitation) || invitation.version !== args.expectedVersion) {
+      return null;
+    }
     const organization = await ctx.db.get(invitation.organizationId);
     if (!organization || organization.isDeleted) return null;
 

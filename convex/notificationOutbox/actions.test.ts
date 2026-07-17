@@ -6,6 +6,7 @@ import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
+  NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
   RESEND_EMAIL_SEND_INTERVAL_MS,
   RESEND_RETRY_DELAY_PADDING_MS,
 } from "../constants";
@@ -444,6 +445,90 @@ describe("notificationOutbox/actions", () => {
 
     const after = await t.run(async (ctx) => await ctx.db.get(outboxId));
     expect(after).toMatchObject({ status: "sent", resendEmailId: "email_invitation_123" });
+    expect(JSON.stringify(after)).not.toContain(expectedToken);
+  });
+
+  it("LINE管理者招待も送信直前にtokenを生成し、端末の外部ブラウザで開く", async () => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    vi.stubEnv("APP_URL", "https://app.example.com/base");
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "test-secret-that-is-at-least-32-characters");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId, invitationId } = await setupOrganizationInvitationJob("valid");
+    await t.run(async (ctx) => {
+      const invitation = await ctx.db.get(invitationId);
+      if (!invitation) throw new Error("invitation not found");
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: invitation.organizationId,
+        name: "LINE招待先",
+        email: invitation.email,
+        emailNormalized: invitation.emailNormalized,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const shopId = await ctx.db.insert("shops", {
+        organizationId: invitation.organizationId,
+        operatingStatus: "active",
+        name: "LINE招待店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId,
+        organizationId: invitation.organizationId,
+        organizationPersonId: personId,
+        name: "LINE招待先",
+        email: invitation.email,
+        emailNormalized: invitation.emailNormalized,
+        isDeleted: false,
+      });
+      await ctx.db.insert("staffLineAccounts", {
+        staffId,
+        shopId,
+        lineUserId: "U_manager_invitation",
+        linkedAt: now,
+        following: true,
+        isDeleted: false,
+      });
+      await ctx.db.patch(invitationId, { targetPersonId: personId });
+      await ctx.db.patch(outboxId, {
+        channel: "line",
+        staffId,
+        payload: {
+          kind: "organizationManagerInvitationLine",
+          toUserId: "U_manager_invitation",
+          context: "organizationInvitation.send",
+          fallbackEmail: {
+            dedupeKey: "email:test:manager-invitation-fallback",
+            payload: {
+              kind: "organizationManagerInvitationEmail",
+              from: "シフトリ <noreply@example.com>",
+              to: invitation.email,
+              context: "organizationInvitation.send",
+            },
+          },
+        },
+      });
+    });
+    const expectedToken = await deriveInvitationToken({
+      invitationId,
+      version: 1,
+      signingSecret: "test-secret-that-is-at-least-32-characters",
+    });
+    expect(JSON.stringify(await t.run(async (ctx) => await ctx.db.get(outboxId)))).not.toContain(expectedToken);
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(requestBody).toMatchObject({ to: "U_manager_invitation" });
+    const messageText = requestBody.messages[0].text as string;
+    expect(messageText).toContain(`/manager-invite?token=${expectedToken}&openExternalBrowser=1`);
+    const after = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(after).toMatchObject({ status: "sent" });
     expect(JSON.stringify(after)).not.toContain(expectedToken);
   });
 
@@ -924,6 +1009,174 @@ describe("notificationOutbox/actions", () => {
     });
     expect(failures[0].lastError).toContain("DEBUG_NOTIFY_FAIL");
   });
+  it("LINE管理者招待のretry可能な失敗は最終試行前にはメールへfallbackしない", async () => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    vi.stubEnv("APP_URL", "https://app.example.com/base");
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "test-secret-that-is-at-least-32-characters");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response("line error", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId } = await setupOrganizationInvitationLineJob();
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      _id: outboxId,
+      channel: "line",
+      status: "pending",
+      attemptCount: 1,
+    });
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ eventType: "retry_scheduled", outboxId, attemptCount: 1 });
+  });
+
+  it.each([
+    { label: "retry不能な4xx", status: 400, initialAttemptCount: 0 },
+    {
+      label: "retry上限に達した5xx",
+      status: 500,
+      initialAttemptCount: NOTIFICATION_OUTBOX_MAX_ATTEMPTS - 1,
+    },
+  ])("LINE管理者招待の$labelは同じ招待参照のメールへ一度だけfallbackする", async ({ status, initialAttemptCount }) => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    vi.stubEnv("APP_URL", "https://app.example.com/base");
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "test-secret-that-is-at-least-32-characters");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response("line error", { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId, invitationId, organizationId, staffId, fallbackDedupeKey } =
+      await setupOrganizationInvitationLineJob({ initialAttemptCount });
+    const expectedToken = await deriveInvitationToken({
+      invitationId,
+      version: 1,
+      signingSecret: "test-secret-that-is-at-least-32-characters",
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(2);
+    const lineJobs = jobs.filter((job) => job._id === outboxId);
+    expect(lineJobs).toHaveLength(1);
+    expect(lineJobs[0]).toMatchObject({
+      channel: "line",
+      status: "failed",
+      attemptCount: initialAttemptCount + 1,
+      organizationId,
+      organizationInvitationId: invitationId,
+      organizationInvitationVersion: 1,
+    });
+    expect(lineJobs[0].lastError).toContain(`LINE push failed: ${status}`);
+
+    const fallbackJobs = jobs.filter((job) => job.dedupeKey === fallbackDedupeKey);
+    expect(fallbackJobs).toHaveLength(1);
+    expect(fallbackJobs[0]).toMatchObject({
+      channel: "email",
+      status: "pending",
+      organizationId,
+      organizationInvitationId: invitationId,
+      organizationInvitationVersion: 1,
+      purpose: "business",
+      staffId,
+      payload: {
+        kind: "organizationManagerInvitationEmail",
+        from: "シフトリ <noreply@example.com>",
+        to: "invite@example.com",
+        context: "organizationInvitation.send",
+      },
+    });
+    expect(JSON.stringify(jobs)).not.toContain(expectedToken);
+
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events.map((event) => event.eventType).sort()).toEqual(["fallback_enqueued", "final_failed"]);
+    const fallbackEvents = events.filter((event) => event.eventType === "fallback_enqueued");
+    expect(fallbackEvents).toHaveLength(1);
+    expect(fallbackEvents[0]).toMatchObject({
+      organizationId,
+      organizationInvitationId: invitationId,
+      organizationInvitationVersion: 1,
+      outboxId,
+      channel: "line",
+      notificationContext: "organizationInvitation.send",
+      attemptCount: initialAttemptCount + 1,
+    });
+    expect(fallbackEvents[0].errorMessage).toContain(`LINE push failed: ${status}`);
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toEqual([]);
+  });
+
+  it("LINE管理者招待のnetwork errorも最終試行後はメールへfallbackする", async () => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    vi.stubEnv("APP_URL", "https://app.example.com/base");
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "test-secret-that-is-at-least-32-characters");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => {
+      throw new TypeError("fetch failed");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId, invitationId, fallbackDedupeKey } = await setupOrganizationInvitationLineJob({
+      initialAttemptCount: NOTIFICATION_OUTBOX_MAX_ATTEMPTS - 1,
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(2);
+    const lineJobs = jobs.filter((job) => job._id === outboxId);
+    expect(lineJobs).toHaveLength(1);
+    expect(lineJobs[0]).toMatchObject({
+      status: "failed",
+      attemptCount: NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
+      lastError: "fetch failed",
+    });
+    const fallbackJobs = jobs.filter((job) => job.dedupeKey === fallbackDedupeKey);
+    expect(fallbackJobs).toHaveLength(1);
+    expect(fallbackJobs[0]).toMatchObject({
+      channel: "email",
+      status: "pending",
+      organizationInvitationId: invitationId,
+      organizationInvitationVersion: 1,
+      payload: { kind: "organizationManagerInvitationEmail" },
+    });
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events.map((event) => event.eventType).sort()).toEqual(["fallback_enqueued", "final_failed"]);
+    expect(events.filter((event) => event.eventType === "fallback_enqueued")).toHaveLength(1);
+    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+    expect(failures).toEqual([]);
+  });
+
+  it("LINE管理者招待のquota fallbackは終端失敗処理と重複しない", async () => {
+    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
+    vi.stubEnv("APP_URL", "https://app.example.com/base");
+    vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", "test-secret-that-is-at-least-32-characters");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const { t, outboxId, fallbackDedupeKey } = await setupOrganizationInvitationLineJob();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("lineQuotaStatus", {
+        checkedAt: Date.now(),
+        totalQuota: 200,
+        consumed: 200,
+        remaining: 0,
+        status: "exceeded",
+        plan: "communication",
+      });
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(jobs).toHaveLength(2);
+    expect(jobs.filter((job) => job.dedupeKey === fallbackDedupeKey)).toHaveLength(1);
+    expect(jobs.filter((job) => job._id === outboxId)[0]).toMatchObject({ status: "failed" });
+    const events = await t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect());
+    expect(events.map((event) => event.eventType).sort()).toEqual(["fallback_enqueued", "final_failed"]);
+    expect(events.filter((event) => event.eventType === "fallback_enqueued")).toHaveLength(1);
+  });
 });
 
 async function setupEmailJob(options: { dedupeKey?: string; context?: string; suppressDelivery?: boolean } = {}) {
@@ -1256,4 +1509,70 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
     return { outboxId, invitationId };
   });
   return { t, ...ids };
+}
+
+async function setupOrganizationInvitationLineJob(options: { initialAttemptCount?: number } = {}) {
+  const setup = await setupOrganizationInvitationJob("valid");
+  const fallbackDedupeKey = "email:test:manager-invitation-fallback";
+  const ids = await setup.t.run(async (ctx) => {
+    const invitation = await ctx.db.get(setup.invitationId);
+    if (!invitation) throw new Error("invitation not found");
+    const now = Date.now();
+    const personId = await ctx.db.insert("organizationPeople", {
+      organizationId: invitation.organizationId,
+      name: "LINE招待先",
+      email: invitation.email,
+      emailNormalized: invitation.emailNormalized,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const shopId = await ctx.db.insert("shops", {
+      organizationId: invitation.organizationId,
+      operatingStatus: "active",
+      name: "LINE招待店舗",
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      regularClosedDays: [],
+      isDeleted: false,
+    });
+    const staffId = await ctx.db.insert("staffs", {
+      shopId,
+      organizationId: invitation.organizationId,
+      organizationPersonId: personId,
+      name: "LINE招待先",
+      email: invitation.email,
+      emailNormalized: invitation.emailNormalized,
+      isDeleted: false,
+    });
+    await ctx.db.insert("staffLineAccounts", {
+      staffId,
+      shopId,
+      lineUserId: "U_manager_invitation",
+      linkedAt: now,
+      following: true,
+      isDeleted: false,
+    });
+    await ctx.db.patch(setup.invitationId, { targetPersonId: personId });
+    await ctx.db.patch(setup.outboxId, {
+      channel: "line",
+      staffId,
+      attemptCount: options.initialAttemptCount ?? 0,
+      payload: {
+        kind: "organizationManagerInvitationLine",
+        toUserId: "U_manager_invitation",
+        context: "organizationInvitation.send",
+        fallbackEmail: {
+          dedupeKey: fallbackDedupeKey,
+          payload: {
+            kind: "organizationManagerInvitationEmail",
+            from: "シフトリ <noreply@example.com>",
+            to: invitation.email,
+            context: "organizationInvitation.send",
+          },
+        },
+      },
+    });
+    return { organizationId: invitation.organizationId, shopId, staffId };
+  });
+  return { ...setup, ...ids, fallbackDedupeKey };
 }

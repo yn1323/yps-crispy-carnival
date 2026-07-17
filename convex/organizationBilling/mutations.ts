@@ -11,6 +11,7 @@ import {
   getOrganizationUsageSnapshot,
   removeLegacyOrganizationManagerAccess,
 } from "../organization/service";
+import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { scheduleOrganizationBillingStateDeadline } from "./deadline";
 import {
   createPaymentGraceState,
@@ -153,10 +154,7 @@ async function getValidManagerRelationship(
 }
 
 async function revokePendingManagerInvitations(ctx: MutationCtx, organizationId: Id<"organizations">, now: number) {
-  const invitations = await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "pending"))
-    .collect();
+  const invitations = await collectIssuedInvitationsByOrganization(ctx, organizationId);
   for (const invitation of invitations) {
     await ctx.db.patch(invitation._id, {
       status: "revoked",

@@ -85,6 +85,7 @@ import type * as migrations_m011_staffs_to_organization_people from "../migratio
 import type * as migrations_m012_organizations_add_complimentary_business from "../migrations/m012_organizations_add_complimentary_business.js";
 import type * as migrations_m013_former_managers_remove_manager_access from "../migrations/m013_former_managers_remove_manager_access.js";
 import type * as migrations_m014_removed_organization_members_delete_legacy_shop_members from "../migrations/m014_removed_organization_members_delete_legacy_shop_members.js";
+import type * as migrations_m015_organization_invitations_link_lifecycle from "../migrations/m015_organization_invitations_link_lifecycle.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as notificationOutbox_actions from "../notificationOutbox/actions.js";
 import type * as notificationOutbox_enqueue from "../notificationOutbox/enqueue.js";
@@ -118,6 +119,7 @@ import type * as organizationBilling_queries from "../organizationBilling/querie
 import type * as organizationBilling_service from "../organizationBilling/service.js";
 import type * as organizationInvitation_actions from "../organizationInvitation/actions.js";
 import type * as organizationInvitation_constants from "../organizationInvitation/constants.js";
+import type * as organizationInvitation_lifecycle from "../organizationInvitation/lifecycle.js";
 import type * as organizationInvitation_mutations from "../organizationInvitation/mutations.js";
 import type * as organizationInvitation_purpose from "../organizationInvitation/purpose.js";
 import type * as organizationInvitation_queries from "../organizationInvitation/queries.js";
@@ -128,6 +130,7 @@ import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
 import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
+import type * as organization_personProfile from "../organization/personProfile.js";
 import type * as organization_queries from "../organization/queries.js";
 import type * as organization_schemas from "../organization/schemas.js";
 import type * as organization_service from "../organization/service.js";
@@ -249,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/m012_organizations_add_complimentary_business": typeof migrations_m012_organizations_add_complimentary_business;
   "migrations/m013_former_managers_remove_manager_access": typeof migrations_m013_former_managers_remove_manager_access;
   "migrations/m014_removed_organization_members_delete_legacy_shop_members": typeof migrations_m014_removed_organization_members_delete_legacy_shop_members;
+  "migrations/m015_organization_invitations_link_lifecycle": typeof migrations_m015_organization_invitations_link_lifecycle;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "notificationOutbox/actions": typeof notificationOutbox_actions;
   "notificationOutbox/enqueue": typeof notificationOutbox_enqueue;
@@ -282,6 +286,7 @@ declare const fullApi: ApiFromModules<{
   "organizationBilling/service": typeof organizationBilling_service;
   "organizationInvitation/actions": typeof organizationInvitation_actions;
   "organizationInvitation/constants": typeof organizationInvitation_constants;
+  "organizationInvitation/lifecycle": typeof organizationInvitation_lifecycle;
   "organizationInvitation/mutations": typeof organizationInvitation_mutations;
   "organizationInvitation/purpose": typeof organizationInvitation_purpose;
   "organizationInvitation/queries": typeof organizationInvitation_queries;
@@ -292,6 +297,7 @@ declare const fullApi: ApiFromModules<{
   "organization/audit": typeof organization_audit;
   "organization/migrations": typeof organization_migrations;
   "organization/mutations": typeof organization_mutations;
+  "organization/personProfile": typeof organization_personProfile;
   "organization/queries": typeof organization_queries;
   "organization/schemas": typeof organization_schemas;
   "organization/service": typeof organization_service;

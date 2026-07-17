@@ -6,7 +6,9 @@ import type {
   NotificationEmailPayload,
   NotificationLinePayload,
   NotificationOrganizationManagerInvitationEmailPayload,
+  NotificationOrganizationManagerInvitationLinePayload,
   NotificationRenderedEmailPayload,
+  NotificationRenderedLinePayload,
 } from "./types";
 import { notificationChannelForPayload } from "./types";
 
@@ -23,8 +25,14 @@ export function organizationManagerInvitationEmailPayload(
   return { kind: "organizationManagerInvitationEmail", ...input };
 }
 
-export function linePayload(input: Omit<NotificationLinePayload, "kind">): NotificationLinePayload {
+export function linePayload(input: Omit<NotificationRenderedLinePayload, "kind">): NotificationRenderedLinePayload {
   return { kind: "line", ...input };
+}
+
+export function organizationManagerInvitationLinePayload(
+  input: Omit<NotificationOrganizationManagerInvitationLinePayload, "kind">,
+): NotificationOrganizationManagerInvitationLinePayload {
+  return { kind: "organizationManagerInvitationLine", ...input };
 }
 
 export async function enqueueEmail(
@@ -36,12 +44,19 @@ export async function enqueueEmail(
 
 export async function enqueueLine(
   ctx: EnqueueCtx,
-  input: EnqueueNotificationInput & {
-    purpose?: "business";
-    organizationInvitationId?: never;
-    organizationInvitationVersion?: never;
-    payload: NotificationLinePayload;
-  },
+  input:
+    | (EnqueueNotificationInput & {
+        purpose?: "business";
+        organizationInvitationId?: never;
+        organizationInvitationVersion?: never;
+        payload: Extract<NotificationLinePayload, { kind: "line" }>;
+      })
+    | (EnqueueNotificationInput & {
+        purpose?: "business";
+        organizationInvitationId: Id<"organizationInvitations">;
+        organizationInvitationVersion: number;
+        payload: NotificationOrganizationManagerInvitationLinePayload;
+      }),
 ): Promise<EnqueueResult> {
   return await enqueueNotification(ctx, input);
 }
@@ -97,6 +112,7 @@ async function recordEnqueueFailure(ctx: EnqueueCtx, input: EnqueueNotificationI
 }
 
 function notificationContext(input: EnqueueNotificationInput) {
+  if (input.payload.kind === "organizationManagerInvitationLine") return input.payload.context;
   if (input.payload.kind !== "line") return input.payload.context;
   return input.payload.fallbackEmail?.payload.context ?? input.dedupeKey.split(":").slice(0, 2).join(":");
 }

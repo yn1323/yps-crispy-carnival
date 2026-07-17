@@ -1,20 +1,23 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack, Tabs, Text } from "@chakra-ui/react";
-import { LuBuilding2, LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
-import { IconButton } from "@/src/components/ui/Button";
+import { Box, Skeleton, Stack, Tabs } from "@chakra-ui/react";
+import { LuCreditCard, LuStore, LuUsers } from "react-icons/lu";
+import { OrganizationContext } from "./OrganizationContext";
 import { PeopleSection } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import { ShopsSection } from "./ShopsSection";
 import type { OrganizationSettingsTab, OrganizationSettingsViewProps } from "./types";
 
 export const OrganizationSettingsView = ({
-  organizationName,
+  organizationContext,
   people,
-  managerInvitations,
   shops,
   billing,
   canInviteManager,
+  managerInvitations,
   managerInvitationMode,
+  freeManagerExchangeCandidates,
   inviteManagerDisabledReason,
+  isUpdatingPersonProfile = false,
+  isAssigningManager = false,
   canUpdateOrganizationName,
   updateOrganizationNameDisabledReason,
   canAddShop,
@@ -24,41 +27,13 @@ export const OrganizationSettingsView = ({
   onTabChange,
 }: OrganizationSettingsViewProps) => (
   <Stack gap={{ base: 5, md: 7 }}>
-    <Stack gap={2}>
-      <HStack gap={2} color="teal.700">
-        <LuBuilding2 aria-hidden />
-        <Text fontSize="sm" fontWeight="bold">
-          {organizationName}
-        </Text>
-      </HStack>
-      <Flex align="center" justify="space-between" gap={3}>
-        <Heading as="h1" fontSize={{ base: "2xl", md: "3xl" }} color="gray.900">
-          グループ設定
-        </Heading>
-        <IconButton
-          aria-label="グループ名を変更"
-          size="sm"
-          variant="ghost"
-          colorPalette="teal"
-          onClick={actions.onUpdateOrganizationName}
-          disabled={!canUpdateOrganizationName}
-          title={!canUpdateOrganizationName ? updateOrganizationNameDisabledReason : undefined}
-          aria-describedby={
-            !canUpdateOrganizationName && updateOrganizationNameDisabledReason
-              ? "organization-name-update-disabled-reason"
-              : undefined
-          }
-        >
-          <LuSettings aria-hidden />
-        </IconButton>
-      </Flex>
-      {!canUpdateOrganizationName && updateOrganizationNameDisabledReason && (
-        <Text id="organization-name-update-disabled-reason" fontSize="xs" color="orange.700">
-          {updateOrganizationNameDisabledReason}
-        </Text>
-      )}
-      <Text color="fg.muted">グループ全体のユーザー、店舗、プランと支払いを管理します。</Text>
-    </Stack>
+    <OrganizationContext
+      model={organizationContext}
+      canUpdateOrganizationName={canUpdateOrganizationName}
+      updateOrganizationNameDisabledReason={updateOrganizationNameDisabledReason}
+      onSelectOrganization={actions.onSelectOrganization}
+      onUpdateOrganizationName={actions.onUpdateOrganizationName}
+    />
 
     <Tabs.Root
       value={onTabChange ? defaultTab : undefined}
@@ -85,15 +60,18 @@ export const OrganizationSettingsView = ({
       <Tabs.Content value="people" pt={{ base: 5, md: 6 }}>
         <PeopleSection
           people={people}
-          invitations={managerInvitations}
           canInviteManager={canInviteManager}
+          canOpenManagerInvitation={canInviteManager || managerInvitations.some((invitation) => invitation.canResend)}
           managerInvitationMode={managerInvitationMode}
+          freeManagerExchangeCandidates={freeManagerExchangeCandidates}
           inviteManagerDisabledReason={inviteManagerDisabledReason}
+          isUpdatingPersonProfile={isUpdatingPersonProfile}
+          isAssigningManager={isAssigningManager}
           onInviteManager={actions.onInviteManager}
+          onUpdatePersonProfile={actions.onUpdatePersonProfile}
+          onAssignManager={actions.onAssignManager}
           onRemoveManagerRole={actions.onRemoveManagerRole}
           onRemovePerson={actions.onRemovePerson}
-          onResendInvitation={actions.onResendInvitation}
-          onRevokeInvitation={actions.onRevokeInvitation}
         />
       </Tabs.Content>
 

@@ -15,8 +15,11 @@ export const organizationMemberStatusValidator = v.union(
 );
 
 export const organizationInvitationStatusValidator = v.union(
+  // TODO[narrow]: Remove pending/accepted after m015 has completed everywhere.
   v.literal("pending"),
   v.literal("accepted"),
+  v.literal("issued"),
+  v.literal("linked"),
   v.literal("revoked"),
   v.literal("expired"),
 );

@@ -116,6 +116,8 @@ const schema = defineSchema({
     organizationId: v.id("organizations"),
     email: v.string(),
     emailNormalized: v.string(),
+    // TODO[narrow]: Make required after m015 has backfilled legacy invitations.
+    invitedName: v.optional(v.string()),
     tokenDigest: v.string(),
     status: organizationInvitationStatusValidator,
     // TODO[narrow]: 対象はNarrow着手時に追加するorganizationInvitations purpose補完migration。
@@ -124,13 +126,17 @@ const schema = defineSchema({
     //   organizationInvitation/service.tsのmanagerAddition fallbackも削除する。
     purpose: v.optional(organizationInvitationPurposeValidator),
     inviterMemberId: v.id("organizationMembers"),
-    // スタッフ詳細から作成した招待だけ、承認対象の人物を固定する。任意メール招待では未設定が正しい。
+    // 人物詳細またはスタッフ詳細から発行した招待だけ、アカウント連携対象の人物を固定する。
+    // 外部の新規人物向け招待では未設定が正しい。
     targetPersonId: v.optional(v.id("organizationPeople")),
     reservedSeat: v.boolean(),
     version: v.number(),
     predecessorInvitationId: v.optional(v.id("organizationInvitations")),
     expiresAt: v.number(),
     sentAt: v.optional(v.number()),
+    linkedAt: v.optional(v.number()),
+    linkedByPersonId: v.optional(v.id("organizationPeople")),
+    // TODO[narrow]: Remove accepted* after m015 has copied all legacy values.
     acceptedAt: v.optional(v.number()),
     acceptedByPersonId: v.optional(v.id("organizationPeople")),
     revokedAt: v.optional(v.number()),

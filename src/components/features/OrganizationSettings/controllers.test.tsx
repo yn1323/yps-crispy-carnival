@@ -33,7 +33,10 @@ vi.mock("jotai", async (importOriginal) => ({
 }));
 
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
+import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
+import { usePersonManagerAssignmentController } from "./ManagerInvitation/usePersonManagerAssignmentController";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
+import { usePersonProfileController } from "./PersonProfile/usePersonProfileController";
 import { usePersonRemovalController } from "./PersonRemoval/usePersonRemovalController";
 import { useShopManagementController } from "./ShopManagement/useShopManagementController";
 
@@ -142,5 +145,81 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
     act(() => staleEmailSubmit("new@example.com"));
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
+  });
+
+  it("グループ設定から人物の氏名とメールアドレスを更新する", async () => {
+    mocks.mutation.mockResolvedValue({ changed: true });
+    const target = { ...person, managerRole: "none" as const };
+    const { result } = renderHook(() => usePersonProfileController([target]));
+
+    let succeeded = false;
+    await act(async () => {
+      succeeded =
+        (await result.current.update(target.id, {
+          name: "田中 花子",
+          email: "hanako@example.com",
+        })) === true;
+    });
+
+    expect(succeeded).toBe(true);
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+      shopId: "shop-current",
+      personId: target.id,
+      name: "田中 花子",
+      email: "hanako@example.com",
+      requestId: "request-1",
+    });
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "ユーザー情報を更新しました" });
+  });
+
+  it("既存スタッフへ管理者のログイン案内を送る", async () => {
+    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
+    const target = { ...person, managerRole: "none" as const };
+    const { result } = renderHook(() => usePersonManagerAssignmentController([target]));
+
+    let succeeded = false;
+    await act(async () => {
+      succeeded = (await result.current.assign(target.id)) === true;
+    });
+
+    expect(succeeded).toBe(true);
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+      shopId: "shop-current",
+      personId: target.id,
+      requestId: "request-1",
+    });
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({
+      title: "ログイン案内を送りました",
+      description: "本人のアカウントと店舗人物の連携後に管理者になります。",
+    });
+  });
+
+  it("管理者枠が予約済みでも、同じ外部招待を再送するためのDialogを開く", async () => {
+    mocks.mutation.mockResolvedValue({ status: "issued", invitationId: "invitation-1" });
+    const { result } = renderHook(() =>
+      useManagerInvitationController({
+        canInviteManager: false,
+        canOpenManagerInvitation: true,
+        managerInvitationMode: "addition",
+        freeManagerExchangeCandidates: [],
+      }),
+    );
+
+    act(() => result.current.open());
+    expect(result.current.dialog).toMatchObject({ isOpen: true, isResendOnly: true });
+
+    act(() => {
+      result.current.dialog.onSubmit({ name: "佐藤 花子", email: "sato@example.com" });
+    });
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        name: "佐藤 花子",
+        email: "sato@example.com",
+        requestId: "request-1",
+      }),
+    );
+    await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
   });
 });

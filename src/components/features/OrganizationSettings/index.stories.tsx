@@ -1,21 +1,38 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { OrganizationSettingsView } from ".";
+import type { OrganizationContextModel } from "./OrganizationContext/script";
 import type { OrganizationBillingView, OrganizationSettingsViewProps } from "./types";
 
 const actions = {
+  onSelectOrganization: fn(),
   onUpdateOrganizationName: fn(),
   onInviteManager: fn(),
+  onUpdatePersonProfile: fn(async () => true),
+  onAssignManager: fn(async () => true),
   onRemoveManagerRole: fn(),
   onRemovePerson: fn(),
-  onResendInvitation: fn(),
-  onRevokeInvitation: fn(),
   onAddShop: fn(),
   onOpenShop: fn(),
   onManagePlan: fn(),
   onUpdatePaymentMethod: fn(),
   onUpdateBillingEmail: fn(),
   onOpenInvoice: fn(),
+};
+
+const organizationContext: OrganizationContextModel = {
+  options: [
+    {
+      key: "organization-sakura",
+      organizationName: "株式会社さくらダイニング",
+      shopId: "shop-shibuya",
+      isSelected: true,
+    },
+  ],
+  selectedOrganizationName: "株式会社さくらダイニング",
+  selectedShopId: "shop-shibuya",
+  selectedShopName: "渋谷店",
+  canSwitchOrganization: false,
 };
 
 const baseBilling: OrganizationBillingView = {
@@ -37,6 +54,7 @@ const baseBilling: OrganizationBillingView = {
 };
 
 const baseArgs: OrganizationSettingsViewProps = {
+  organizationContext,
   organizationName: "株式会社さくらダイニング",
   managerInvitations: [],
   canInviteManager: true,
@@ -50,6 +68,7 @@ const baseArgs: OrganizationSettingsViewProps = {
       email: "tanaka@sakura.example.com",
       managerRole: "active",
       isStaff: true,
+      isLineConnected: true,
       shopNames: ["渋谷店", "新宿店"],
       canRemoveManagerRole: false,
       managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
@@ -342,7 +361,7 @@ export const Free: Story = {
       },
     ],
     canAddShop: false,
-    addShopDisabledReason: "稼働店舗数が現在のプラン上限に達しています。プランを確認してください。",
+    addShopDisabledReason: "店舗はグループごとに5件まで登録できます。",
     billing: billing({
       state: "free",
       currentPlan: "free",
@@ -379,7 +398,7 @@ export const Business: Story = {
   args: {
     defaultTab: "billing",
     canAddShop: false,
-    addShopDisabledReason: "稼働店舗数が現在のプラン上限に達しています。プランを確認してください。",
+    addShopDisabledReason: "店舗はグループごとに5件まで登録できます。",
     billing: billing({
       state: "business",
       currentPlan: "business",
@@ -414,15 +433,8 @@ export const ShopCapacityReachedBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const addShopButton = canvas.getByRole("button", { name: "店舗を追加" });
-    await expectDisabledActionDescription(
-      addShopButton,
-      "稼働店舗数が現在のプラン上限に達しています。プランを確認してください。",
-      canvasElement,
-    );
-    await expect(canvas.getByRole("link", { name: "利用上限について問い合わせる" })).toHaveAttribute(
-      "href",
-      "/contact",
-    );
+    await expectDisabledActionDescription(addShopButton, "店舗はグループごとに5件まで登録できます。", canvasElement);
+    await expect(canvas.queryByRole("link", { name: "利用上限について問い合わせる" })).not.toBeInTheDocument();
   },
 };
 

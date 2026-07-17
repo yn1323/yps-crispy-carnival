@@ -62,7 +62,10 @@ describe("useStaffManagerInvitation", () => {
       staffId: target._id,
       requestId: "2b79a222-176c-44d6-9b39-d090c1f72efb",
     });
-    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "管理者招待を送りました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({
+      title: "ログイン案内を送りました",
+      description: "本人のアカウントと店舗人物の連携後に管理者になります。",
+    });
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });
 
@@ -83,7 +86,10 @@ describe("useStaffManagerInvitation", () => {
     });
 
     expect(succeeded).toBe(true);
-    expect(mocks.showSuccessToast).toHaveBeenCalledWith({ title: "管理者交代の招待を送りました" });
+    expect(mocks.showSuccessToast).toHaveBeenCalledWith({
+      title: "ログイン案内を再送しました",
+      description: "以前のURLは利用できません。",
+    });
   });
 
   it("確定を短時間に連打してもmutationを一度だけ実行する", async () => {

@@ -7,27 +7,22 @@ type Props = {
 };
 
 export function OrganizationUserRoleBadges({ person, compact = false }: Props) {
+  const isManager = person.managerRole !== "none";
+
   return (
     <HStack gap={1.5} wrap="wrap">
-      {person.isStaff && (
-        <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle={compact ? "2xs" : undefined}>
-          スタッフ
-        </Badge>
-      )}
-      {person.managerRole === "active" && (
-        <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle={compact ? "2xs" : undefined}>
-          管理者
-        </Badge>
-      )}
-      {person.managerRole === "readOnly" && (
-        <Badge
-          colorPalette="orange"
-          variant="subtle"
-          borderRadius="full"
-          px={2}
-          textStyle={compact ? "2xs" : undefined}
-        >
-          閲覧のみ管理者
+      <Badge
+        colorPalette={isManager ? "teal" : "gray"}
+        variant="subtle"
+        borderRadius="full"
+        px={2}
+        textStyle={compact ? "2xs" : undefined}
+      >
+        {isManager ? "管理者" : "スタッフ"}
+      </Badge>
+      {person.isLineConnected && (
+        <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle={compact ? "2xs" : undefined}>
+          LINE連携済み
         </Badge>
       )}
     </HStack>

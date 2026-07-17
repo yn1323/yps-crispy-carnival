@@ -18,11 +18,11 @@ import {
   formatManagerInvitationExpiry,
 } from "./script";
 
-type AcceptInvitationResult = FunctionReturnType<typeof api.organizationInvitation.mutations.accept>;
-type AcceptResultStatus = AcceptInvitationResult["status"];
-type AcceptedResult = Extract<AcceptInvitationResult, { status: "accepted" }>;
+type LinkInvitationResult = FunctionReturnType<typeof api.organizationInvitation.mutations.linkAccount>;
+type LinkResultStatus = LinkInvitationResult["status"];
+type LinkedResult = Extract<LinkInvitationResult, { status: "linked" }>;
 
-type AcceptedTarget = Omit<AcceptedResult, "status"> & {
+type LinkedTarget = Omit<LinkedResult, "status"> & {
   organizationName: string | null;
 };
 
@@ -37,15 +37,16 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const { isAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
   const preview = useQuery(api.organizationInvitation.queries.getPreview, token ? { token } : "skip");
   const rawShops = useQuery(api.dashboard.queries.getMyShops, isAuthenticated ? {} : "skip");
-  const acceptInvitation = useMutation(api.organizationInvitation.mutations.accept);
-  const [acceptStatus, setAcceptStatus] = useState<AcceptResultStatus | null>(null);
-  const [acceptedTarget, setAcceptedTarget] = useState<AcceptedTarget | null>(null);
+  const linkAccount = useMutation(api.organizationInvitation.mutations.linkAccount);
+  const [linkStatus, setLinkStatus] = useState<LinkResultStatus | null>(null);
+  const [linkedTarget, setLinkedTarget] = useState<LinkedTarget | null>(null);
+  const [failedLinkToken, setFailedLinkToken] = useState<string | null>(null);
   const invitationRedirect = useMemo(() => buildManagerInvitationRedirect(token), [token]);
   const shops = useMemo(() => normalizeShopContextOptions(rawShops ?? []), [rawShops]);
-  const destinationShop = acceptedTarget?.shopId
+  const destinationShop = linkedTarget?.shopId
     ? findAcceptedShopContext(shops, {
-        organizationId: acceptedTarget.organizationId,
-        shopId: acceptedTarget.shopId,
+        organizationId: linkedTarget.organizationId,
+        shopId: linkedTarget.shopId,
       })
     : null;
 
@@ -54,23 +55,38 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     void navigate({ to: "/dashboard", search: { shop: destinationShop.shopId }, replace: true });
   }, [destinationShop, navigate]);
 
-  const { run: acceptOnce, isRunning: isAccepting } = useSingleFlight(async () => {
+  const { run: linkOnce, isRunning: isLinking } = useSingleFlight(async () => {
     if (!token || !isAuthenticated) return;
 
+    setFailedLinkToken(null);
     try {
-      const result = await acceptInvitation({ token });
-      if (result.status === "accepted") {
-        setAcceptedTarget({
+      const result = await linkAccount({ token });
+      if (result.status === "linked") {
+        setLinkedTarget({
           organizationId: result.organizationId,
           shopId: result.shopId,
           organizationName: preview?.status === "ready" ? preview.organizationName : null,
         });
       }
-      setAcceptStatus(result.status);
+      setLinkStatus(result.status);
     } catch {
-      setAcceptStatus("unavailable");
+      setFailedLinkToken(token);
     }
   });
+
+  useEffect(() => {
+    if (
+      !token ||
+      !isAuthenticated ||
+      preview?.status !== "ready" ||
+      linkStatus !== null ||
+      failedLinkToken === token ||
+      isLinking
+    ) {
+      return;
+    }
+    void linkOnce();
+  }, [failedLinkToken, isAuthenticated, isLinking, linkOnce, linkStatus, preview?.status, token]);
 
   const { run: switchAccount, isRunning: isSwitchingAccount } = useSingleFlight(async () => {
     try {
@@ -87,11 +103,12 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     isSignedIn: isSignedIn === true,
     isAuthenticated,
     isConvexAuthLoading,
-    acceptStatus,
-    acceptedTarget,
+    linkStatus,
+    linkedTarget,
     destinationShopFound: destinationShop !== null,
     isDestinationLoading: rawShops === undefined,
-    isAccepting,
+    isLinking,
+    didLinkRequestFail: failedLinkToken === token,
     isSwitchingAccount,
   });
 
@@ -99,7 +116,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     <ManagerInvitationAcceptanceView
       state={state}
       actions={{
-        onAccept: () => void acceptOnce(),
+        onAccept: () => void linkOnce(),
         onLogin: () => void navigate({ to: "/login", search: { redirect: invitationRedirect } }),
         onSignup: () => void navigate({ to: "/signup", search: { redirect: invitationRedirect } }),
         onSwitchAccount: () => void switchAccount(),
@@ -118,11 +135,12 @@ function resolveViewState({
   isSignedIn,
   isAuthenticated,
   isConvexAuthLoading,
-  acceptStatus,
-  acceptedTarget,
+  linkStatus,
+  linkedTarget,
   destinationShopFound,
   isDestinationLoading,
-  isAccepting,
+  isLinking,
+  didLinkRequestFail,
   isSwitchingAccount,
 }: {
   token: string | undefined;
@@ -131,27 +149,29 @@ function resolveViewState({
   isSignedIn: boolean;
   isAuthenticated: boolean;
   isConvexAuthLoading: boolean;
-  acceptStatus: AcceptResultStatus | null;
-  acceptedTarget: AcceptedTarget | null;
+  linkStatus: LinkResultStatus | null;
+  linkedTarget: LinkedTarget | null;
   destinationShopFound: boolean;
   isDestinationLoading: boolean;
-  isAccepting: boolean;
+  isLinking: boolean;
+  didLinkRequestFail: boolean;
   isSwitchingAccount: boolean;
 }): ManagerInvitationAcceptanceViewState {
   if (!token) return { kind: "invalid" };
 
-  if (acceptStatus === "accepted") {
-    if (!acceptedTarget) return { kind: "unavailable" };
+  if (linkStatus === "linked") {
+    if (!linkedTarget) return { kind: "unavailable" };
     return {
       kind: "accepted",
-      organizationName: acceptedTarget.organizationName,
-      isPreparingDestination: acceptedTarget.shopId !== undefined && !destinationShopFound && isDestinationLoading,
+      organizationName: linkedTarget.organizationName,
+      isPreparingDestination: linkedTarget.shopId !== undefined && !destinationShopFound && isDestinationLoading,
       hasDestination: destinationShopFound,
     };
   }
-  if (acceptStatus === "emailMismatch") return { kind: "emailMismatch", isSwitchingAccount };
-  if (acceptStatus === "conflict") return { kind: "conflict", isAccepting };
-  if (acceptStatus) return { kind: acceptStatus };
+  if (linkStatus === "emailMismatch") return { kind: "emailMismatch", isSwitchingAccount };
+  if (linkStatus === "conflict") return { kind: "conflict", isAccepting: isLinking };
+  if (linkStatus) return { kind: linkStatus };
+  if (didLinkRequestFail) return { kind: "retryableError", isRetrying: isLinking };
 
   if (!isClerkLoaded || (isSignedIn && isConvexAuthLoading) || preview === undefined) {
     return { kind: "loading" };
@@ -164,7 +184,7 @@ function resolveViewState({
     organizationName: preview.organizationName,
     expiresAtLabel: formatManagerInvitationExpiry(preview.expiresAt),
     isSignedIn,
-    isAccepting,
+    isAccepting: isLinking,
   };
 }
 

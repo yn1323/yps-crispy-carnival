@@ -43,6 +43,7 @@ function notificationContextForPayload(
   payload:
     | { kind: "email"; context: string }
     | { kind: "organizationManagerInvitationEmail"; context: string }
+    | { kind: "organizationManagerInvitationLine"; context: string }
     | { kind: "line"; fallbackEmail?: { payload: { context: string } } | undefined },
   dedupeKey: string,
 ) {

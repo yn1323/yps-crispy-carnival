@@ -30,7 +30,7 @@ export type NotificationEmailPayload =
   | NotificationRenderedEmailPayload
   | NotificationOrganizationManagerInvitationEmailPayload;
 
-export type NotificationLinePayload = {
+export type NotificationRenderedLinePayload = {
   kind: "line";
   toUserId: string;
   text: string;
@@ -40,16 +40,33 @@ export type NotificationLinePayload = {
   suppressFailureInbox?: boolean;
   fallbackEmail?: {
     dedupeKey: string;
-    payload: NotificationRenderedEmailPayload;
+    payload: NotificationEmailPayload;
   };
 };
+
+/** Reference-only manager invitation. The bearer URL is derived immediately before delivery. */
+export type NotificationOrganizationManagerInvitationLinePayload = {
+  kind: "organizationManagerInvitationLine";
+  toUserId: string;
+  context: string;
+  suppressDelivery?: boolean;
+  suppressFailureInbox?: boolean;
+  fallbackEmail: {
+    dedupeKey: string;
+    payload: NotificationOrganizationManagerInvitationEmailPayload;
+  };
+};
+
+export type NotificationLinePayload =
+  | NotificationRenderedLinePayload
+  | NotificationOrganizationManagerInvitationLinePayload;
 
 export type NotificationPayload = NotificationEmailPayload | NotificationLinePayload;
 
 export type NotificationChannel = "email" | "line";
 
 export function notificationChannelForPayload(payload: NotificationPayload): NotificationChannel {
-  return payload.kind === "line" ? "line" : "email";
+  return payload.kind === "line" || payload.kind === "organizationManagerInvitationLine" ? "line" : "email";
 }
 
 export type NotificationPurpose = "business" | "billing";

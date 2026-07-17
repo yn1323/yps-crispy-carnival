@@ -1,11 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import {
-  ManagerInvitationAcceptanceView,
-  type ManagerInvitationAcceptanceViewProps,
-  type ManagerInvitationAcceptanceViewState,
-} from ".";
+import { ManagerInvitationAcceptanceView } from ".";
 
 const actions = {
   onAccept: fn(),
@@ -58,6 +53,17 @@ export const EmailMismatch: Story = {
   args: { state: { kind: "emailMismatch", isSwitchingAccount: false } },
 };
 export const Conflict: Story = { args: { state: { kind: "conflict", isAccepting: false } } };
+export const RetryableError: Story = {
+  args: {
+    state: { kind: "retryableError", isRetrying: false },
+    actions: { ...actions, onAccept: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "もう一度試す" }));
+    expect(args.actions.onAccept).toHaveBeenCalledOnce();
+  },
+};
 export const Accepted: Story = {
   args: {
     state: {
@@ -86,31 +92,20 @@ export const AcceptedWithoutDestination: Story = {
   },
 };
 
-function AcceptanceBehaviorHarness(props: ManagerInvitationAcceptanceViewProps) {
-  const [state, setState] = useState<ManagerInvitationAcceptanceViewState>(props.state);
-  return (
-    <ManagerInvitationAcceptanceView
-      {...props}
-      state={state}
-      actions={{
-        ...props.actions,
-        onAccept: () =>
-          setState({
-            kind: "accepted",
-            organizationName: "株式会社さくらダイニング",
-            isPreparingDestination: true,
-            hasDestination: true,
-          }),
-      }}
-    />
-  );
-}
-
-export const AcceptBehavior: Story = {
-  render: (args) => <AcceptanceBehaviorHarness {...args} />,
-  play: async ({ canvasElement }) => {
+export const LoginBehavior: Story = {
+  args: {
+    state: {
+      kind: "ready",
+      organizationName: "株式会社さくらダイニング",
+      expiresAtLabel: "2026年7月23日 18:00",
+      isSignedIn: false,
+      isAccepting: false,
+    },
+    actions: { ...actions, onLogin: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "管理者として参加する" }));
-    expect(await canvas.findByRole("heading", { name: "管理者として参加しました" })).toBeTruthy();
+    await userEvent.click(canvas.getByRole("button", { name: "ログインして続ける" }));
+    expect(args.actions.onLogin).toHaveBeenCalledOnce();
   },
 };

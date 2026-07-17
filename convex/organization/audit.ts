@@ -12,6 +12,7 @@ export type OrganizationAuditAction =
   | "organization.person_removed_from_shop"
   | "organization.person_removed"
   | "organization.person_reactivated"
+  | "organization.person_profile_updated"
   | "organization.staff_added"
   | "organization.manager_role_removed"
   | "organization.recovery_managers_changed"
@@ -19,6 +20,7 @@ export type OrganizationAuditAction =
   | "organization.manager_invitation_resent"
   | "organization.manager_invitation_revoked"
   | "organization.manager_invitation_accepted"
+  | "organization.manager_invitation_linked"
   | "organization.free_selection_changed"
   | "organization.billing_state_changed";
 

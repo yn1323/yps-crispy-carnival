@@ -9,6 +9,11 @@ import {
   removeFormerManagerAccess,
 } from "../organization/migrations";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import {
+  collectLinkedInvitationsByOrganization,
+  getOrganizationInvitationLinkedAt,
+  getOrganizationInvitationLinkedByPersonId,
+} from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import { migrations } from "./index";
 import {
@@ -63,10 +68,9 @@ async function getFreeManagerExchangeEvidence(
   ctx: Pick<MutationCtx, "db">,
   member: Doc<"organizationMembers">,
 ): Promise<{ evidence: Evidence | null; conflicted: boolean }> {
-  const invitations = await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_inviterMemberId_and_status", (q) => q.eq("inviterMemberId", member._id).eq("status", "accepted"))
-    .collect();
+  const invitations = (await collectLinkedInvitationsByOrganization(ctx, member.organizationId)).filter(
+    (invitation) => invitation.inviterMemberId === member._id,
+  );
   const exchangeInvitations = invitations.filter(
     (invitation) => getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
   );
@@ -74,10 +78,12 @@ async function getFreeManagerExchangeEvidence(
   let malformed = false;
 
   for (const invitation of exchangeInvitations) {
+    const linkedAt = getOrganizationInvitationLinkedAt(invitation);
+    const linkedByPersonId = getOrganizationInvitationLinkedByPersonId(invitation);
     if (
-      invitation.acceptedAt === undefined ||
-      invitation.acceptedByPersonId === undefined ||
-      invitation.acceptedByPersonId === member.personId ||
+      linkedAt === undefined ||
+      linkedByPersonId === undefined ||
+      linkedByPersonId === member.personId ||
       invitation.version < 1
     ) {
       malformed = true;
@@ -93,13 +99,13 @@ async function getFreeManagerExchangeEvidence(
       audits[0].organizationId !== member.organizationId ||
       audits[0].action !== "organization.free_selection_changed" ||
       audits[0].fromState !== `manager:${member.personId}` ||
-      audits[0].toState !== `manager:${invitation.acceptedByPersonId}` ||
-      audits[0].occurredAt !== invitation.acceptedAt
+      audits[0].toState !== `manager:${linkedByPersonId}` ||
+      audits[0].occurredAt !== linkedAt
     ) {
       malformed = true;
       continue;
     }
-    valid.push({ invitation, occurredAt: invitation.acceptedAt });
+    valid.push({ invitation, occurredAt: linkedAt });
   }
 
   if (malformed || valid.length > 1) return { evidence: null, conflicted: true };
@@ -107,24 +113,22 @@ async function getFreeManagerExchangeEvidence(
   const match = valid[0];
   if (member.updatedAt !== match.occurredAt) return { evidence: null, conflicted: true };
 
-  const acceptedInvitations = await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_organizationId_and_status", (q) =>
-      q.eq("organizationId", member.organizationId).eq("status", "accepted"),
-    )
-    .collect();
-  const laterManagerAddition = acceptedInvitations.some(
-    (invitation) =>
+  const acceptedInvitations = await collectLinkedInvitationsByOrganization(ctx, member.organizationId);
+  const laterManagerAddition = acceptedInvitations.some((invitation) => {
+    const linkedByPersonId = getOrganizationInvitationLinkedByPersonId(invitation);
+    const linkedAt = getOrganizationInvitationLinkedAt(invitation);
+    return (
       getOrganizationInvitationPurpose(invitation) === "managerAddition" &&
-      invitation.acceptedByPersonId === member.personId &&
-      (invitation.acceptedAt ?? 0) > match.occurredAt,
-  );
+      linkedByPersonId === member.personId &&
+      (linkedAt ?? 0) > match.occurredAt
+    );
+  });
   if (laterManagerAddition) return { evidence: null, conflicted: true };
 
   return {
     evidence: {
       kind: "freeManagerExchange",
-      successorPersonId: match.invitation.acceptedByPersonId as Id<"organizationPeople">,
+      successorPersonId: getOrganizationInvitationLinkedByPersonId(match.invitation) as Id<"organizationPeople">,
       occurredAt: match.occurredAt,
     },
     conflicted: false,

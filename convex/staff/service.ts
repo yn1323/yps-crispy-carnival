@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
+import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -69,14 +70,12 @@ export async function releasePendingInvitationReservationsForStaffAddition(
   entries: ReadonlyArray<Pick<PreparedOrganizationStaffEntry, "email">>,
 ) {
   const now = Date.now();
+  const issuedInvitations = await collectIssuedInvitationsByOrganization(ctx, organizationId);
   for (const entry of entries) {
-    const pendingInvitations = await ctx.db
-      .query("organizationInvitations")
-      .withIndex("by_organizationId_and_emailNormalized_and_status", (q) =>
-        q.eq("organizationId", organizationId).eq("emailNormalized", entry.email).eq("status", "pending"),
-      )
-      .filter((q) => q.and(q.eq(q.field("reservedSeat"), true), q.gt(q.field("expiresAt"), now)))
-      .take(2);
+    const pendingInvitations = issuedInvitations.filter(
+      (invitation) =>
+        invitation.emailNormalized === entry.email && invitation.reservedSeat && invitation.expiresAt > now,
+    );
     if (pendingInvitations.length > 1) {
       throw new ConvexError("このメールアドレスの管理者招待を一意に確認できません");
     }

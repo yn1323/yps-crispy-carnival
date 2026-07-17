@@ -2,6 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 
 type DbCtx = {
@@ -118,10 +119,7 @@ export async function getOrganizationUsageSnapshot(
       )
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .collect(),
-    ctx.db
-      .query("organizationInvitations")
-      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "pending"))
-      .collect(),
+    collectIssuedInvitationsByOrganization(ctx, organizationId),
   ]);
 
   const activeManagerPersonIds = new Set(activeMembers.map((member) => member.personId));

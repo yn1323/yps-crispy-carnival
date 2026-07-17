@@ -1,5 +1,6 @@
 import { Badge, Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
 import { LuTrash2 } from "react-icons/lu";
+import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
 import type { StaffManagerInvitationState } from "../types";
 
@@ -47,9 +48,9 @@ export const StaffDetailSettingsTab = ({
   const invitationButtonLabel =
     managerInvitationState.kind === "available"
       ? managerInvitationState.replacesStaleInvitation
-        ? "新しいメールへ招待し直す"
+        ? "新しいメールへ案内を送り直す"
         : managerInvitationState.mode === "freeManagerExchange"
-          ? "管理者交代を依頼"
+          ? "次の管理者として招待"
           : "管理者として招待"
       : "管理者として招待";
 
@@ -95,16 +96,17 @@ export const StaffDetailSettingsTab = ({
             </Text>
           </HStack>
         ) : managerInvitationState.kind === "pending" ? (
-          <Stack gap={1.5}>
-            <HStack>
-              <Badge colorPalette="orange" variant="subtle">
-                招待中
-              </Badge>
-            </HStack>
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              このスタッフへの招待は承認待ちです。再送や取り消しはグループ設定で行えます。
-            </Text>
-          </Stack>
+          <Flex justify="flex-end">
+            <Button
+              colorPalette="teal"
+              variant="outline"
+              loading={isInvitingManager}
+              disabled={isInvitingManager}
+              onClick={onRequestManagerInvitation}
+            >
+              ログイン案内を再送
+            </Button>
+          </Flex>
         ) : managerInvitationState.kind === "available" ? (
           <Flex justify="flex-end">
             <Button
@@ -134,12 +136,16 @@ export const StaffDetailSettingsTab = ({
           </Stack>
         )}
 
-        {isManagerInvitationConfirmationOpen && managerInvitationState.kind === "available" && (
-          <ManagerInvitationConfirmation
-            staffName={staffName}
-            staffEmail={staffEmail}
-            invitationState={managerInvitationState}
-            isInviting={isInvitingManager}
+        {isManagerInvitationConfirmationOpen && managerInvitationState.kind !== "unavailable" && (
+          <ManagerAssignmentConfirmation
+            personName={staffName}
+            personEmail={staffEmail}
+            mode={managerInvitationState.mode}
+            replacesStaleInvitation={
+              managerInvitationState.kind === "available" && managerInvitationState.replacesStaleInvitation
+            }
+            isResend={managerInvitationState.kind === "pending"}
+            isRunning={isInvitingManager}
             onCancel={onCancelManagerInvitation}
             onConfirm={onConfirmManagerInvitation}
           />
@@ -168,60 +174,6 @@ export const StaffDetailSettingsTab = ({
         )}
       </Stack>
     </Stack>
-  );
-};
-
-const ManagerInvitationConfirmation = ({
-  staffName,
-  staffEmail,
-  invitationState,
-  isInviting,
-  onCancel,
-  onConfirm,
-}: {
-  staffName: string;
-  staffEmail: string;
-  invitationState: Extract<StaffManagerInvitationState, { kind: "available" }>;
-  isInviting: boolean;
-  onCancel: () => void;
-  onConfirm: () => void | Promise<void>;
-}) => {
-  const isFreeManagerExchange = invitationState.mode === "freeManagerExchange";
-  return (
-    <Box borderWidth="1px" borderColor={isFreeManagerExchange ? "orange.200" : "teal.200"} borderRadius="md" p={3}>
-      <Stack gap={3}>
-        <Stack gap={1}>
-          <Heading as="h4" fontSize="sm" fontWeight="semibold" color="gray.900">
-            {isFreeManagerExchange
-              ? `${staffName}さんへ管理者を交代しますか？`
-              : `${staffName}さんを管理者として招待しますか？`}
-          </Heading>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            {isFreeManagerExchange
-              ? `承認されると、${staffName}さんが新しい管理者になります。現在の管理者は、このグループのすべての店舗とグループ設定を開けなくなります。スタッフとしての所属と、シフト対象・通知の設定は変更されません。`
-              : `${staffEmail}に招待メールを送ります。承認後、このグループのすべての店舗と、プランと支払いを含む契約設定を管理できるようになります。`}
-          </Text>
-          {invitationState.replacesStaleInvitation && (
-            <Text fontSize="sm" color="orange.700" lineHeight="tall">
-              以前の招待を無効にして、現在のメールアドレスへ招待を送ります。
-            </Text>
-          )}
-          {isFreeManagerExchange && (
-            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              招待が承認されるまでは、現在の管理者が引き続き利用できます。
-            </Text>
-          )}
-        </Stack>
-        <HStack justify="flex-end" gap={2}>
-          <Button variant="outline" onClick={onCancel} disabled={isInviting}>
-            やめる
-          </Button>
-          <Button colorPalette="teal" loading={isInviting} onClick={onConfirm}>
-            {isFreeManagerExchange ? "交代の招待を送る" : "招待メールを送る"}
-          </Button>
-        </HStack>
-      </Stack>
-    </Box>
   );
 };
 

@@ -26,21 +26,32 @@ export function useStaffManagerInvitation(selectedStaff: Staff | null, { isReadO
       latest.isReadOnly ||
       !currentTarget ||
       currentTarget._id !== target._id ||
-      currentTarget.managerInvitationState.kind !== "available"
+      currentTarget.managerInvitationState.kind === "unavailable"
     ) {
       return false;
     }
 
     const invitationMode = currentTarget.managerInvitationState.mode;
+    const isResend = currentTarget.managerInvitationState.kind === "pending";
     try {
       const result = await createForStaff({
         staffId: currentTarget._id,
         requestId: crypto.randomUUID(),
       });
       if (result.status !== "created" && result.status !== "alreadyPending") return false;
+      const didResend = isResend || result.status === "alreadyPending";
 
       showSuccessToast({
-        title: invitationMode === "freeManagerExchange" ? "管理者交代の招待を送りました" : "管理者招待を送りました",
+        title: didResend
+          ? "ログイン案内を再送しました"
+          : invitationMode === "freeManagerExchange"
+            ? "次の管理者として招待しました"
+            : "ログイン案内を送りました",
+        description: didResend
+          ? "以前のURLは利用できません。"
+          : invitationMode === "freeManagerExchange"
+            ? "本人のアカウント連携後に自動で交代します。"
+            : "本人のアカウントと店舗人物の連携後に管理者になります。",
       });
       return true;
     } catch (error) {

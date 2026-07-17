@@ -348,6 +348,22 @@ describe("organization person removal", () => {
         createdAt: NOW,
         updatedAt: NOW,
       });
+      const targetedInvitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "before-profile-change@example.com",
+        emailNormalized: "before-profile-change@example.com",
+        invitedName: "削除対象",
+        tokenDigest: "targeted-issued-invitation-digest",
+        status: "issued",
+        purpose: "managerAddition",
+        inviterMemberId: base.memberId,
+        targetPersonId: target.personId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: NOW + 86_400_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
       const invitationOutboxId = await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "pending",
@@ -401,6 +417,7 @@ describe("organization person removal", () => {
         otherOrganizationOutboxId,
         otherShopId,
         staffOutboxId,
+        targetedInvitationId,
         unrelatedOutboxId,
         userOutboxId,
       };
@@ -447,6 +464,7 @@ describe("organization person removal", () => {
       session: await ctx.db.get(ids.sessionId),
       staffs: await Promise.all(ids.staffIds.map(async (staffId) => await ctx.db.get(staffId))),
       staffOutbox: await ctx.db.get(ids.staffOutboxId),
+      targetedInvitation: await ctx.db.get(ids.targetedInvitationId),
       unrelatedOutbox: await ctx.db.get(ids.unrelatedOutboxId),
       userOutbox: await ctx.db.get(ids.userOutboxId),
     }));
@@ -456,6 +474,7 @@ describe("organization person removal", () => {
     expect(state.session?.revokedAt).toBe(NOW);
     expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
     expect(state.invitation).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
+    expect(state.targetedInvitation).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
     expect(state.invitationOutbox).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
     expect(state.staffOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
     expect(state.userOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
@@ -1184,6 +1203,277 @@ describe("organization person removal", () => {
         shopId: ids.actorShopId,
         personId: ids.otherPersonId,
         requestId: "idor-request",
+      }),
+    ).rejects.toThrow("Not found");
+  });
+});
+
+describe("organization person profile update", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("店舗所属なしの人物正本と自分自身の管理者表示を更新し、同じrequestIdは再適用しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "profile_self_actor",
+          email: "profile-self-before@example.com",
+          plan: "pro",
+        }),
+    );
+    const requestId = "person-profile-self-request";
+    const actor = t.withIdentity({ subject: "profile_self_actor" });
+
+    const first = await actor.mutation(api.organization.mutations.updatePersonProfile, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      name: "  更新後の管理者  ",
+      email: "  Profile-Self-After@Example.com  ",
+      requestId,
+    });
+    const second = await actor.mutation(api.organization.mutations.updatePersonProfile, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      name: "更新後の管理者",
+      email: "profile-self-after@example.com",
+      requestId,
+    });
+
+    expect(first).toEqual({ changed: true });
+    expect(second).toEqual({ changed: false });
+    const state = await t.run(async (ctx) => ({
+      person: await ctx.db.get(ids.personId),
+      user: await ctx.db.get(ids.userId),
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .filter((q) => q.eq(q.field("action"), "organization.person_profile_updated"))
+        .collect(),
+    }));
+    expect(state.person).toMatchObject({
+      name: "更新後の管理者",
+      email: "profile-self-after@example.com",
+      emailNormalized: "profile-self-after@example.com",
+    });
+    expect(state.user).toMatchObject({
+      name: "更新後の管理者",
+      email: "profile-self-after@example.com",
+      emailNormalized: "profile-self-after@example.com",
+    });
+    expect(state.audits).toHaveLength(1);
+    expect(state.audits[0]).toMatchObject({
+      actorUserId: ids.userId,
+      targetKind: "person",
+      targetId: ids.personId,
+    });
+    expect(JSON.stringify(state.audits[0])).not.toContain(requestId);
+    expect(JSON.stringify(state.audits[0])).not.toContain("profile-self-after@example.com");
+  });
+
+  it("人物正本の変更を全店舗の有効スタッフへ同期し、メール変更通知を店舗ごとに予約する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_multi_shop_actor",
+        plan: "pro",
+      });
+      const otherShopId = await seedOrganizationShop(ctx, base.organizationId, "別店舗");
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "同期前",
+        email: "profile-before@example.com",
+        emailNormalized: "profile-before@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffIds = await Promise.all(
+        [base.shopId, otherShopId].map(
+          async (shopId) =>
+            await ctx.db.insert("staffs", {
+              shopId,
+              organizationId: base.organizationId,
+              organizationPersonId: personId,
+              name: "同期前",
+              email: "profile-before@example.com",
+              emailNormalized: "profile-before@example.com",
+              isDeleted: false,
+            }),
+        ),
+      );
+      return { ...base, personId, staffIds };
+    });
+
+    await t
+      .withIdentity({ subject: "profile_multi_shop_actor" })
+      .mutation(api.organization.mutations.updatePersonProfile, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        name: "同期後",
+        email: "profile-after@example.com",
+        requestId: "person-profile-multi-shop",
+      });
+
+    const state = await t.run(async (ctx) => ({
+      person: await ctx.db.get(ids.personId),
+      staffs: await Promise.all(ids.staffIds.map(async (staffId) => await ctx.db.get(staffId))),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.person).toMatchObject({ name: "同期後", emailNormalized: "profile-after@example.com" });
+    expect(state.staffs).toEqual([
+      expect.objectContaining({ name: "同期後", emailNormalized: "profile-after@example.com" }),
+      expect.objectContaining({ name: "同期後", emailNormalized: "profile-after@example.com" }),
+    ]);
+    expect(
+      state.scheduled.filter(
+        (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("グループ内の別人物が使うメールアドレスへの変更を拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_duplicate_actor",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "変更対象",
+        email: "profile-target@example.com",
+        emailNormalized: "profile-target@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "別人物",
+        email: "profile-used@example.com",
+        emailNormalized: "profile-used@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, personId };
+    });
+
+    await expect(
+      t.withIdentity({ subject: "profile_duplicate_actor" }).mutation(api.organization.mutations.updatePersonProfile, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        name: "変更後",
+        email: "profile-used@example.com",
+        requestId: "person-profile-duplicate",
+      }),
+    ).rejects.toThrow("グループ内の別の利用者");
+  });
+
+  it("未正規化の旧スタッフが使うメールアドレスへの変更を拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_legacy_duplicate_actor",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "変更対象",
+        email: "profile-legacy-target@example.com",
+        emailNormalized: "profile-legacy-target@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        name: "変更対象",
+        email: "profile-legacy-target@example.com",
+        emailNormalized: "profile-legacy-target@example.com",
+        isDeleted: false,
+      });
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        name: "旧データ",
+        email: "Legacy-Used@Example.com",
+        isDeleted: false,
+      });
+      return { ...base, personId, staffId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "profile_legacy_duplicate_actor" })
+        .mutation(api.organization.mutations.updatePersonProfile, {
+          shopId: ids.shopId,
+          personId: ids.personId,
+          name: "変更後",
+          email: "legacy-used@example.com",
+          requestId: "person-profile-legacy-duplicate",
+        }),
+    ).rejects.toThrow("このメールアドレスは既に使用されています");
+
+    const state = await t.run(async (ctx) => ({
+      person: await ctx.db.get(ids.personId),
+      staff: await ctx.db.get(ids.staffId),
+    }));
+    expect(state.person).toMatchObject({
+      name: "変更対象",
+      email: "profile-legacy-target@example.com",
+      emailNormalized: "profile-legacy-target@example.com",
+    });
+    expect(state.staff).toMatchObject({
+      name: "変更対象",
+      email: "profile-legacy-target@example.com",
+      emailNormalized: "profile-legacy-target@example.com",
+    });
+  });
+
+  it("別グループの人物IDと閲覧のみ管理者からの更新を拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const actor = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_idor_actor",
+        plan: "pro",
+      });
+      const other = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_idor_other",
+        plan: "pro",
+      });
+      return { actor, other };
+    });
+    const actor = t.withIdentity({ subject: "profile_idor_actor" });
+
+    await expect(
+      actor.mutation(api.organization.mutations.updatePersonProfile, {
+        shopId: ids.actor.shopId,
+        personId: ids.other.personId,
+        name: "不正更新",
+        email: "profile-hack@example.com",
+        requestId: "person-profile-idor",
+      }),
+    ).rejects.toThrow("Not found");
+
+    await t.run(async (ctx) => await ctx.db.patch(ids.actor.memberId, { status: "readOnly" }));
+    await expect(
+      actor.mutation(api.organization.mutations.updatePersonProfile, {
+        shopId: ids.actor.shopId,
+        personId: ids.actor.personId,
+        name: "閲覧のみ更新",
+        email: "profile-readonly@example.com",
+        requestId: "person-profile-readonly",
       }),
     ).rejects.toThrow("Not found");
   });

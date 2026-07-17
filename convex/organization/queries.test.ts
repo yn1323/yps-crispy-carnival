@@ -76,6 +76,7 @@ describe("organization/queries.getSettings", () => {
           id: ids.personId,
           managerRole: "active",
           isStaff: false,
+          isLineConnected: false,
           shopNames: [],
           canRemoveManagerRole: false,
         },
@@ -91,6 +92,176 @@ describe("organization/queries.getSettings", () => {
     expect(JSON.stringify(result)).not.toContain("never-return-this-digest");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
+  });
+
+  it("同じ人物のいずれかの有効スタッフがLINEフォロー中なら連携済みだけを返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_line_connected",
+        shopName: "LINE設定店",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "LINEスタッフ",
+        email: "line-staff@example.com",
+        emailNormalized: "line-staff@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        name: "LINEスタッフ",
+        email: "line-staff@example.com",
+        emailNormalized: "line-staff@example.com",
+        isDeleted: false,
+      });
+      const lineAccountId = await ctx.db.insert("staffLineAccounts", {
+        staffId,
+        shopId: base.shopId,
+        lineUserId: "line-user-settings",
+        linkedAt: now,
+        following: true,
+        isDeleted: false,
+      });
+      return { ...base, lineAccountId, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_line_connected" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    const person = result?.people.find((candidate) => candidate.id === ids.personId);
+    expect(person).toMatchObject({ isStaff: true, isLineConnected: true });
+    expect(person).not.toHaveProperty("lineUserId");
+
+    await t.run(async (ctx) => await ctx.db.patch(ids.lineAccountId, { following: false }));
+    const unfollowedResult = await t
+      .withIdentity({ subject: "settings_line_connected" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    expect(unfollowedResult?.people.find((candidate) => candidate.id === ids.personId)).toMatchObject({
+      isLineConnected: false,
+    });
+  });
+
+  it("既存人物には期限内のissued招待がある時だけ再送可能状態を返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_manager_invitation",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "招待中の人物",
+        email: "invited-person@example.com",
+        emailNormalized: "invited-person@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        name: "招待中の人物",
+        email: "invited-person@example.com",
+        emailNormalized: "invited-person@example.com",
+        isDeleted: false,
+      });
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "invited-person@example.com",
+        emailNormalized: "invited-person@example.com",
+        invitedName: "招待中の人物",
+        tokenDigest: "issued-invitation-digest",
+        status: "issued",
+        purpose: "managerAddition",
+        targetPersonId: personId,
+        inviterMemberId: base.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 86_400_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, invitationId, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_manager_invitation" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({
+      managerRole: "none",
+      isStaff: true,
+      hasManagerInvitation: true,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.invitationId, { status: "expired", expiredAt: Date.now(), reservedSeat: false });
+    });
+    const expiredResult = await t
+      .withIdentity({ subject: "settings_manager_invitation" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    expect(expiredResult?.people.find((person) => person.id === ids.personId)).toMatchObject({
+      managerRole: "none",
+      isStaff: true,
+      hasManagerInvitation: false,
+    });
+  });
+
+  it("店舗所属も管理者権限もないlegacy招待人物は一覧から隠し、再送情報は保持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_legacy_orphan_invitation",
+        plan: "pro",
+      });
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        name: "旧招待人物",
+        email: "legacy-invitee@example.com",
+        emailNormalized: "legacy-invitee@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "legacy-invitee@example.com",
+        emailNormalized: "legacy-invitee@example.com",
+        invitedName: "旧招待人物",
+        tokenDigest: "legacy-issued-invitation-digest",
+        status: "issued",
+        purpose: "managerAddition",
+        targetPersonId: personId,
+        inviterMemberId: base.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 86_400_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, invitationId, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_legacy_orphan_invitation" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.people.find((person) => person.id === ids.personId)).toBeUndefined();
+    expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
+      status: "pending",
+      canResend: true,
+      canRevoke: true,
+    });
   });
 
   it("無償BusinessをBusiness権限と料金なしの最小DTOへ投影する", async () => {

@@ -4,6 +4,7 @@ import { internalMutation, type MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { collectIssuedInvitationsByInviter } from "../organizationInvitation/lifecycle";
 import { recordOrganizationAuditEvent } from "./audit";
 
 export const FORMER_MANAGER_ACCESS_CONFLICT_CODES = {
@@ -139,10 +140,7 @@ export async function getLegacyMembershipsToDeactivate(
 }
 
 async function getPendingInvitationsIssuedByMember(ctx: Pick<MutationCtx, "db">, member: Doc<"organizationMembers">) {
-  return await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_inviterMemberId_and_status", (q) => q.eq("inviterMemberId", member._id).eq("status", "pending"))
-    .collect();
+  return await collectIssuedInvitationsByInviter(ctx, member._id);
 }
 
 /** migrationと手動裁定で共有する、スタッフ所属を残した管理権限解除。 */
