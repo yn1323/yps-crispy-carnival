@@ -1,7 +1,7 @@
 # 店舗単位課金プランの旧検討
 
 この文書名は既存リンクを維持するために残している。
-現在の課金契約は事業者単位であり、実装と業務判断は[事業者課金、複数店舗、複数管理者](organization-billing.md)と[業務フロー](../specs/organization-billing-business-flow.md)を参照する。
+現在の課金契約はグループ単位であり、実装と業務判断は[グループ課金、複数店舗、複数管理者](organization-billing.md)と[業務フロー](../specs/organization-billing-business-flow.md)を参照する。
 
 ## 現行仕様との違い
 

@@ -1,6 +1,6 @@
 # Dashboardお知らせ
 
-有事の連絡やメンテナンス案内を、シフト担当者Dashboardに1件だけ表示する機能。全体、事業者、店舗、事業者の契約プランを表示対象にできる。管理UIは持たず、Convex Dashboard から `dashboardAnnouncements` に直接登録して運用する。
+有事の連絡やメンテナンス案内を、シフト担当者Dashboardに1件だけ表示する機能。全体、グループ、店舗、グループの契約プランを表示対象にできる。管理UIは持たず、Convex Dashboard から `dashboardAnnouncements` に直接登録して運用する。
 
 ## 関連ファイル
 
@@ -34,7 +34,7 @@
 
 ```json
 {
-  "organizationId": "対象事業者ID1,対象事業者ID2（任意）",
+  "organizationId": "対象グループID1,対象グループID2（任意）",
   "shopId": "対象店舗ID1,対象店舗ID2（任意）",
   "organizationPlan": "pro,business（任意）",
   "title": "LINE通知の遅延について",
@@ -59,6 +59,6 @@
 - 複数公開されている場合は、`displayDate` 降順、同日内は作成日時降順の候補から、最初に表示対象となる1件だけを表示する。対象範囲の狭さは優先度に使わない。
 - queryはbounded readのため最新100件だけを返す。公開中のお知らせは100件未満に保ち、終了したお知らせは非公開にする。
 - query読み込み中は何も表示しない。Dashboard全体のSkeleton表示条件には含めない。
-- 対象判定はフロントの表示制御であり認可ではない。公開中の本文、対象ID、対象プランは全認証ユーザーのclientへ返るため、店舗・事業者の機密情報を本文へ登録しない。
+- 対象判定はフロントの表示制御であり認可ではない。公開中の本文、対象ID、対象プランは全認証ユーザーのclientへ返るため、店舗・グループの機密情報を本文へ登録しない。
 - 本文HTMLは表示前に許可タグだけへsanitizeし、`script`、inline style、event handler、iframe、画像は表示しない。
 - 既読管理、予約公開、管理UIは持たない。

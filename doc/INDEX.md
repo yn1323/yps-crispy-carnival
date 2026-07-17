@@ -6,7 +6,7 @@
 
 | 仕様 | 概要 | 状況 |
 |---|---|---|
-| [事業者課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | 事業者単位の契約、利用人数、無料体験、Free移行、支払い失敗、通知、管理者招待の業務基準 | 業務方針確定、料金とStripe連携は外部ゲート |
+| [グループ課金、複数店舗、複数管理者の業務フロー](specs/organization-billing-business-flow.md) | グループ単位の契約、利用人数、無料体験、Free移行、支払い失敗、通知、管理者招待の業務基準 | 業務方針確定、料金とStripe連携は外部ゲート |
 
 ## 機能一覧
 
@@ -17,8 +17,8 @@
 | [LINE通知連携](features/line-notification.md) | スタッフ向け通知をLINE Push / メールで自動振り分け（設定UIなし） | 実装済 |
 | [通知配送outbox](features/notification-outbox.md) | LINE / メール通知を予約し、少量ずつ配送・再試行するバックエンドキュー | 実装済 |
 | [通知不達Dashboard](features/notification-failure-dashboard.md) | 送信できなかった通知をDashboardで確認し、個別/一斉に再通知を受け付ける導線 | 実装済 |
-| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・事業者・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
-| [事業者課金、複数店舗、複数管理者](features/organization-billing.md) | 事業者単位の課金状態、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | ローカル実装済、外部ゲートを除く |
+| [Dashboardお知らせ](features/dashboard-announcements.md) | 有事のお知らせを全体・グループ・店舗の対象別にDashboard上部へ1件表示 | 実装済 |
+| [グループ課金、複数店舗、複数管理者](features/organization-billing.md) | グループ単位の課金状態、人物、管理者招待、店舗管理、店舗切り替え、移行互換 | ローカル実装済、外部ゲートを除く |
 | [スタッフ参加QR・承認導線](features/staff-registration.md) | 店舗専用QR/URLからスタッフ本人が参加申請し、シフト担当者が承認する導線 | 実装済 |
 | [店舗設定](features/shop-settings.md) | 店舗名、シフト時間帯、定休日などシフト作成の前提になる店舗情報を管理 | 実装済 |
 | [ログイン後オンボーディング](features/dashboard-onboarding.md) | 店舗登録後にシフト担当者自身で募集作成・通知確認・提出確認を試すDashboard内Callout | 実装済 |
