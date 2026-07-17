@@ -69,7 +69,11 @@ export const AuthGuard = ({ children }: Props) => {
     }
   }, [myShops, selectableShops, selectedCandidate, selectedShop, setSelectedShop]);
 
-  const hasResolvedShopContext = selectableShops.length === 0 ? selectedShop === null : selectedCandidate !== null;
+  // 同じ店舗でも課金プランなどの保存済みcontextが古い間は子画面を描画せず、誤った対象判定を防ぐ。
+  const hasResolvedShopContext =
+    selectableShops.length === 0
+      ? selectedShop === null
+      : selectedCandidate !== null && isSameSelectedShop(selectedShop, selectedCandidate);
   const isShopContextReady = myShops !== undefined && (isShopSelectionRoute || hasResolvedShopContext);
   const needsShopSelection = myShops !== undefined && selectableShops.length > 1 && selectedCandidate === null;
 

@@ -57,6 +57,7 @@ export type DashboardAnnouncement = {
   _id: Id<"dashboardAnnouncements">;
   organizationId?: string;
   shopId?: string;
+  organizationPlan?: string;
   title: string;
   bodyHtml: string;
   displayDate: string;

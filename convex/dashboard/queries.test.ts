@@ -283,6 +283,7 @@ describe("dashboard/queries", () => {
           shopStatus: "active",
           organizationId: null,
           organizationName: null,
+          organizationPlan: null,
           memberStatus: "active",
         },
         {
@@ -291,6 +292,7 @@ describe("dashboard/queries", () => {
           shopStatus: "active",
           organizationId: null,
           organizationName: null,
+          organizationPlan: null,
           memberStatus: "active",
         },
       ]);
@@ -298,6 +300,7 @@ describe("dashboard/queries", () => {
         "memberStatus",
         "organizationId",
         "organizationName",
+        "organizationPlan",
         "shopId",
         "shopName",
         "shopStatus",
@@ -367,6 +370,7 @@ describe("dashboard/queries", () => {
           shopStatus: "active",
           organizationId: ids.organizationId,
           organizationName: "事業者店舗A事業者",
+          organizationPlan: "pro",
           memberStatus,
         },
         {
@@ -375,11 +379,68 @@ describe("dashboard/queries", () => {
           shopStatus: "archived",
           organizationId: ids.organizationId,
           organizationName: "事業者店舗A事業者",
+          organizationPlan: "pro",
           memberStatus,
         },
       ]);
       expect(result.some((shop) => shop.shopId === ids.deletedShopId)).toBe(false);
       expect(result.some((shop) => shop.shopId === ids.otherShopId)).toBe(false);
+    });
+
+    it.each([
+      {
+        label: "有効なBusiness",
+        seedPlan: "business" as const,
+        state: { kind: "active", plan: "business" } as const,
+        expectedPlan: "business" as const,
+      },
+      {
+        label: "BusinessからProへの変更予約中",
+        seedPlan: "business" as const,
+        state: {
+          kind: "scheduledChange",
+          currentPlan: "business",
+          targetPlan: "pro",
+          effectiveAt: Date.now() + 60_000,
+        } as const,
+        expectedPlan: "business" as const,
+      },
+      {
+        label: "FreeからProへの支払い結果待ち",
+        seedPlan: "free" as const,
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: Date.now() } as const,
+        expectedPlan: "free" as const,
+      },
+      {
+        label: "契約制限中",
+        seedPlan: "business" as const,
+        state: {
+          kind: "restricted",
+          reason: "paymentGraceExpired",
+          previousPlan: "business",
+          recoveryManagerPersonIds: [] as Id<"organizationPeople">[],
+          previousActiveShopIds: [] as Id<"shops">[],
+          restrictedAt: Date.now(),
+        } as const,
+        expectedPlan: null,
+      },
+    ])("$labelは現在利用できるプランを店舗コンテキストへ返す", async ({ seedPlan, state, expectedPlan }) => {
+      const t = convexTest(schema, modules);
+      const subject = `shop_context_plan_${state.kind}_${expectedPlan}`;
+      await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: seedPlan });
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        await ctx.db.patch(billingState._id, { state });
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.organizationPlan).toBe(expectedPlan);
     });
 
     it("論理削除済みユーザーの場合は所属店舗を返さない", async () => {
@@ -438,6 +499,14 @@ describe("dashboard/queries", () => {
           isPublished: true,
           isDeleted: false,
         });
+        await ctx.db.insert("dashboardAnnouncements", {
+          organizationPlan: "pro,business",
+          title: "契約プラン向けのお知らせ",
+          bodyHtml: "<p>旧フロントには表示しません。</p>",
+          displayDate: "2026-06-20",
+          isPublished: true,
+          isDeleted: false,
+        });
         return await ctx.db.insert("dashboardAnnouncements", {
           title: "全体向けのお知らせ",
           bodyHtml: "<p>全体向けです。</p>",
@@ -463,7 +532,49 @@ describe("dashboard/queries", () => {
   describe("getActiveDashboardAnnouncements", () => {
     it("未認証の場合は空配列を返す", async () => {
       const t = convexTest(schema, modules);
-      const result = await t.query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+
+      await expect(t.query(api.dashboard.queries.getActiveDashboardAnnouncements, {})).resolves.toEqual([]);
+    });
+
+    it("旧複数件フロントにはプラン単独指定を返さず全体向けへの誤表示を防ぐ", async () => {
+      const t = convexTest(schema, modules);
+      const globalAnnouncementId = await t.run(async (ctx) => {
+        await ctx.db.insert("dashboardAnnouncements", {
+          organizationPlan: "pro,business",
+          title: "契約プラン向けのお知らせ",
+          bodyHtml: "<p>旧フロントには表示しません。</p>",
+          displayDate: "2026-06-18",
+          isPublished: true,
+          isDeleted: false,
+        });
+        return await ctx.db.insert("dashboardAnnouncements", {
+          title: "全体向けのお知らせ",
+          bodyHtml: "<p>全体向けです。</p>",
+          displayDate: "2026-06-17",
+          isPublished: true,
+          isDeleted: false,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "announcement_plural_compatibility_user" })
+        .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+
+      expect(result).toEqual([
+        {
+          _id: globalAnnouncementId,
+          title: "全体向けのお知らせ",
+          bodyHtml: "<p>全体向けです。</p>",
+          displayDate: "2026-06-17",
+        },
+      ]);
+    });
+  });
+
+  describe("getActiveDashboardAnnouncementsV2", () => {
+    it("未認証の場合は空配列を返す", async () => {
+      const t = convexTest(schema, modules);
+      const result = await t.query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {});
       expect(result).toEqual([]);
     });
 
@@ -481,11 +592,11 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "announcement_user" })
-        .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+        .query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {});
       expect(result).toEqual([]);
     });
 
-    it("単一IDとカンマ区切りの対象指定を必要なフィールドだけ返す", async () => {
+    it("単一値とカンマ区切りの対象指定を必要なフィールドだけ返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const now = Date.now();
@@ -517,6 +628,7 @@ describe("dashboard/queries", () => {
         });
         const organizationTargets = `${organizationId}, ${otherOrganizationId}`;
         const shopTargets = `${shopId}, ${otherShopId}`;
+        const organizationPlanTargets = "pro, business";
         const globalAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
           title: "全体向けのお知らせ",
           bodyHtml: "<p>全体向けです。</p>",
@@ -549,23 +661,40 @@ describe("dashboard/queries", () => {
           isPublished: true,
           isDeleted: false,
         });
+        const organizationPlanAnnouncementId = await ctx.db.insert("dashboardAnnouncements", {
+          organizationPlan: organizationPlanTargets,
+          title: "契約プラン向けのお知らせ",
+          bodyHtml: "<p>契約プラン向けです。</p>",
+          displayDate: "2026-06-21",
+          isPublished: true,
+          isDeleted: false,
+        });
         return {
           organizationId,
           shopId,
           organizationTargets,
           shopTargets,
+          organizationPlanTargets,
           globalAnnouncementId,
           organizationAnnouncementId,
           shopAnnouncementId,
           combinedAnnouncementId,
+          organizationPlanAnnouncementId,
         };
       });
 
       const result = await t
         .withIdentity({ subject: "announcement_user" })
-        .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+        .query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {});
 
       expect(result).toEqual([
+        {
+          _id: ids.organizationPlanAnnouncementId,
+          organizationPlan: ids.organizationPlanTargets,
+          title: "契約プラン向けのお知らせ",
+          bodyHtml: "<p>契約プラン向けです。</p>",
+          displayDate: "2026-06-21",
+        },
         {
           _id: ids.combinedAnnouncementId,
           organizationId: ids.organizationTargets,
@@ -646,7 +775,7 @@ describe("dashboard/queries", () => {
 
         const result = await t
           .withIdentity({ subject: "announcement_user" })
-          .query(api.dashboard.queries.getActiveDashboardAnnouncements, {});
+          .query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {});
 
         expect(result.map((announcement) => announcement.title)).toEqual([
           "同日の後に作ったお知らせ",

@@ -21,7 +21,7 @@ type Props = {
 export const DashboardAnnouncement = ({ announcement, defaultOpen = false, children }: Props) => {
   const selectedShop = useAtomValue(selectedShopAtom);
   const queriedAnnouncements = useQuery(
-    api.dashboard.queries.getActiveDashboardAnnouncements,
+    api.dashboard.queries.getActiveDashboardAnnouncementsV2,
     announcement === undefined ? {} : "skip",
   );
   const resolvedAnnouncement =

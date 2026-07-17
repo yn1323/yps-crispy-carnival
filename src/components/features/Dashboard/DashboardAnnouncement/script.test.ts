@@ -5,10 +5,15 @@ type Announcement = {
   key: string;
   organizationId?: string;
   shopId?: string;
+  organizationPlan?: string;
 };
 
 const globalAnnouncement: Announcement = { key: "global" };
-const currentContext = { organizationId: "organization-current", shopId: "shop-current" };
+const currentContext = {
+  organizationId: "organization-current",
+  shopId: "shop-current",
+  organizationPlan: "business" as const,
+};
 
 describe("selectDashboardAnnouncementForContext", () => {
   it("queryの読み込み中はお知らせを選ばない", () => {
@@ -29,6 +34,18 @@ describe("selectDashboardAnnouncementForContext", () => {
       label: "カンマ区切りの店舗",
     },
     {
+      target: { organizationPlan: `pro, ${currentContext.organizationPlan}` },
+      label: "カンマ区切りの契約プラン",
+    },
+    {
+      target: {
+        organizationId: "organization-other",
+        shopId: "shop-other",
+        organizationPlan: currentContext.organizationPlan,
+      },
+      label: "契約プランまたはIDの片方",
+    },
+    {
       target: { organizationId: currentContext.organizationId, shopId: "shop-other" },
       label: "事業者または店舗の片方",
     },
@@ -47,10 +64,11 @@ describe("selectDashboardAnnouncementForContext", () => {
     expect(selectDashboardAnnouncementForContext(announcements, currentContext)).toBe(targetedAnnouncement);
   });
 
-  it("空白と空要素を無視してIDを完全一致で判定する", () => {
+  it("空白と空要素を無視して対象値を完全一致で判定する", () => {
     const announcements: Announcement[] = [
       { key: "substring", shopId: `${currentContext.shopId}-other` },
-      { key: "empty", organizationId: " , , ", shopId: "" },
+      { key: "plan-substring", organizationPlan: `${currentContext.organizationPlan}-plus` },
+      { key: "empty", organizationId: " , , ", shopId: "", organizationPlan: " , " },
       { key: "matched", shopId: ` , ${currentContext.shopId}, , ` },
     ];
 
@@ -60,6 +78,7 @@ describe("selectDashboardAnnouncementForContext", () => {
   it("対象が一致しなければ次の全体向けお知らせを選ぶ", () => {
     const announcements: Announcement[] = [
       { key: "other", organizationId: "organization-other", shopId: "shop-other" },
+      { key: "other-plan", organizationPlan: "pro" },
       globalAnnouncement,
     ];
 
@@ -78,9 +97,20 @@ describe("selectDashboardAnnouncementForContext", () => {
     const announcements: Announcement[] = [
       { key: "organization", organizationId: currentContext.organizationId },
       { key: "shop", shopId: currentContext.shopId },
-      { key: "empty", organizationId: " , " },
+      { key: "plan", organizationPlan: currentContext.organizationPlan },
+      { key: "empty", organizationId: " , ", organizationPlan: "" },
     ];
 
     expect(selectDashboardAnnouncementForContext(announcements, null)).toBeNull();
+  });
+
+  it("有効な契約プランがない事業者ではプラン指定のお知らせを表示しない", () => {
+    const announcements: Announcement[] = [
+      { key: "plan", organizationPlan: currentContext.organizationPlan },
+      globalAnnouncement,
+    ];
+    const contextWithoutPlan = { ...currentContext, organizationPlan: null };
+
+    expect(selectDashboardAnnouncementForContext(announcements, contextWithoutPlan)).toBe(globalAnnouncement);
   });
 });

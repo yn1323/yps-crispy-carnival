@@ -225,12 +225,14 @@ const schema = defineSchema({
     .index("by_staffId_and_requestId", ["staffId", "requestId"]),
 
   // ========================================
-  // ダッシュボードお知らせ（全体・事業者・店舗対象）
+  // ダッシュボードお知らせ（全体・事業者・店舗・契約プラン対象）
   // ========================================
   dashboardAnnouncements: defineTable({
     // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
     organizationId: v.optional(v.string()),
     shopId: v.optional(v.string()),
+    // trial,free,pro,business の単一値または半角カンマ区切り。現在の権利プランとの表示判定に使う。
+    organizationPlan: v.optional(v.string()),
     title: v.string(),
     bodyHtml: v.string(),
     displayDate: v.string(), // "2026-06-17"

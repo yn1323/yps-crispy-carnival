@@ -9,8 +9,18 @@ describe("shop context store", () => {
       shopStatus: "active",
       organizationId: null,
       organizationName: null,
+      organizationPlan: null,
       memberStatus: "active",
     });
+  });
+
+  it("契約プランを正規化し、未知の値は対象判定へ使わない", () => {
+    const shops = normalizeShopContextOptions([
+      { shopId: "1", shopName: "Pro店", organizationPlan: "pro" },
+      { shopId: "2", shopName: "未知店", organizationPlan: "enterprise" },
+    ]);
+
+    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["pro", null]);
   });
 
   it("壊れた保存値と不正なquery行を除外する", () => {

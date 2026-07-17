@@ -9,6 +9,7 @@ type SelectedShop = {
   shopStatus: "active" | "archived" | "planSuspended";
   organizationId: string | null;
   organizationName: string | null;
+  organizationPlan: "trial" | "free" | "pro" | "business" | null;
   memberStatus: "active" | "readOnly" | "removed";
 } | null;
 
@@ -18,6 +19,7 @@ type ShopRow = {
   shopStatus?: "active" | "archived" | "planSuspended";
   organizationId?: string;
   organizationName?: string;
+  organizationPlan?: "trial" | "free" | "pro" | "business";
   memberStatus?: "active" | "readOnly" | "removed";
 };
 
@@ -104,6 +106,7 @@ beforeEach(() => {
     shopStatus: "active",
     organizationId: null,
     organizationName: null,
+    organizationPlan: null,
     memberStatus: "active",
   };
   mocks.user = { authId: "manager-user", name: "管理者", email: "manager@example.com" };
@@ -144,6 +147,7 @@ describe("AuthGuard", () => {
         shopStatus: "active",
         organizationId: null,
         organizationName: null,
+        organizationPlan: null,
         memberStatus: "active",
       });
     });
@@ -154,6 +158,7 @@ describe("AuthGuard", () => {
       shopStatus: "active",
       organizationId: null,
       organizationName: null,
+      organizationPlan: null,
       memberStatus: "active",
     };
     rerender(
@@ -182,6 +187,42 @@ describe("AuthGuard", () => {
     expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/shop-select");
     await waitFor(() => expect(mocks.setSelectedShop).toHaveBeenCalledWith(null));
     expect(mocks.setSelectedShop).not.toHaveBeenCalledWith(expect.objectContaining({ shopId: "shop-a" }));
+  });
+
+  it("同じ店舗でも契約プランが変わったら選択コンテキストを最新化する", async () => {
+    mocks.myShops = [
+      {
+        shopId: "active-shop",
+        shopName: "所属店舗",
+        organizationId: "organization-a",
+        organizationName: "A社",
+        organizationPlan: "business",
+      },
+    ];
+    mocks.selectedShop = {
+      shopId: "active-shop",
+      shopName: "所属店舗",
+      shopStatus: "active",
+      organizationId: "organization-a",
+      organizationName: "A社",
+      organizationPlan: "pro",
+      memberStatus: "active",
+    };
+
+    render(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(mocks.managerChildRender).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
+    await waitFor(() => {
+      expect(mocks.setSelectedShop).toHaveBeenCalledWith({
+        ...mocks.selectedShop,
+        organizationPlan: "business",
+      });
+    });
   });
 
   it("店舗選択routeは選択前でも描画する", () => {

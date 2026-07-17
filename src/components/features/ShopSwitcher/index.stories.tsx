@@ -12,6 +12,7 @@ const shops: ShopContextOption[] = [
     shopStatus: "active",
     organizationId: "org-sakura",
     organizationName: "株式会社さくらダイニング",
+    organizationPlan: "business",
     memberStatus: "active",
   },
   {
@@ -20,6 +21,7 @@ const shops: ShopContextOption[] = [
     shopStatus: "planSuspended",
     organizationId: "org-sakura",
     organizationName: "株式会社さくらダイニング",
+    organizationPlan: "business",
     memberStatus: "readOnly",
   },
   {
@@ -28,6 +30,7 @@ const shops: ShopContextOption[] = [
     shopStatus: "active",
     organizationId: "org-minato",
     organizationName: "合同会社みなと食堂",
+    organizationPlan: "pro",
     memberStatus: "active",
   },
 ];

@@ -25,6 +25,7 @@ const myShopValidator = v.object({
   shopStatus: organizationShopOperatingStatusValidator,
   organizationId: v.union(v.id("organizations"), v.null()),
   organizationName: v.union(v.string(), v.null()),
+  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"), v.null()),
   memberStatus: organizationMemberStatusValidator,
 });
 
@@ -56,6 +57,7 @@ const dashboardAnnouncementValidator = v.object({
   _id: v.id("dashboardAnnouncements"),
   organizationId: v.optional(v.string()),
   shopId: v.optional(v.string()),
+  organizationPlan: v.optional(v.string()),
   title: v.string(),
   bodyHtml: v.string(),
   displayDate: v.string(),
@@ -220,6 +222,18 @@ async function getActiveDashboardAnnouncementCandidates(db: GenericDatabaseReade
     .take(DASHBOARD_ANNOUNCEMENT_CANDIDATE_LIMIT);
 }
 
+function toDashboardAnnouncement(announcement: Doc<"dashboardAnnouncements">) {
+  return {
+    _id: announcement._id,
+    ...(announcement.organizationId !== undefined ? { organizationId: announcement.organizationId } : {}),
+    ...(announcement.shopId !== undefined ? { shopId: announcement.shopId } : {}),
+    ...(announcement.organizationPlan !== undefined ? { organizationPlan: announcement.organizationPlan } : {}),
+    title: announcement.title,
+    bodyHtml: announcement.bodyHtml,
+    displayDate: announcement.displayDate,
+  };
+}
+
 export const getDashboardShop = managerQuery({
   args: {},
   returns: v.union(dashboardShopValidator, v.null()),
@@ -257,6 +271,7 @@ export const getMyShops = authenticatedQuery({
         shopStatus: "active" | "archived" | "planSuspended";
         organizationId: Doc<"organizations">["_id"] | null;
         organizationName: string | null;
+        organizationPlan: "trial" | "free" | "pro" | "business" | null;
         memberStatus: "active" | "readOnly" | "removed";
       }
     >();
@@ -289,6 +304,7 @@ export const getMyShops = authenticatedQuery({
         ) {
           continue;
         }
+        const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.entitlementPlan ?? null;
 
         const shops = await ctx.db
           .query("shops")
@@ -302,6 +318,7 @@ export const getMyShops = authenticatedQuery({
             shopStatus: shop.operatingStatus ?? "active",
             organizationId: organization._id,
             organizationName: organization.name,
+            organizationPlan,
             memberStatus: membership.status,
           });
         }
@@ -335,6 +352,7 @@ export const getMyShops = authenticatedQuery({
           shopStatus: shop.operatingStatus ?? "active",
           organizationId: null,
           organizationName: null,
+          organizationPlan: null,
           memberStatus: "active",
         });
         continue;
@@ -350,12 +368,14 @@ export const getMyShops = authenticatedQuery({
       if (organizationMemberships.length !== 0) continue;
       const organization = await ctx.db.get(organizationId);
       if (!organization || organization.isDeleted) continue;
+      const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.entitlementPlan ?? null;
       result.set(shop._id, {
         shopId: shop._id,
         shopName: shop.name,
         shopStatus: shop.operatingStatus ?? "active",
         organizationId: organization._id,
         organizationName: organization.name,
+        organizationPlan,
         memberStatus: "active",
       });
     }
@@ -376,7 +396,10 @@ export const getActiveDashboardAnnouncement = authenticatedQuery({
     if (!ctx.identity) return null;
 
     const announcement = (await getActiveDashboardAnnouncementCandidates(ctx.db)).find(
-      (candidate) => candidate.organizationId === undefined && candidate.shopId === undefined,
+      (candidate) =>
+        candidate.organizationId === undefined &&
+        candidate.shopId === undefined &&
+        candidate.organizationPlan === undefined,
     );
     if (!announcement) return null;
 
@@ -389,7 +412,8 @@ export const getActiveDashboardAnnouncement = authenticatedQuery({
   },
 });
 
-// 対象IDは表示制御用であり、認可境界ではない。本文は全認証ユーザーへ返るため機密情報を登録しない。
+// プラン対象を知らない直前版フロントとのdeploy互換用。
+// plan-only行はorg/shop未指定を全体向けと誤認されるため除外し、V2だけへ返す。
 export const getActiveDashboardAnnouncements = authenticatedQuery({
   args: {},
   returns: v.array(dashboardAnnouncementValidator),
@@ -398,14 +422,26 @@ export const getActiveDashboardAnnouncements = authenticatedQuery({
 
     const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
 
-    return announcements.map((announcement) => ({
-      _id: announcement._id,
-      ...(announcement.organizationId !== undefined ? { organizationId: announcement.organizationId } : {}),
-      ...(announcement.shopId !== undefined ? { shopId: announcement.shopId } : {}),
-      title: announcement.title,
-      bodyHtml: announcement.bodyHtml,
-      displayDate: announcement.displayDate,
-    }));
+    return announcements
+      .filter(
+        (announcement) =>
+          announcement.organizationPlan === undefined ||
+          announcement.organizationId !== undefined ||
+          announcement.shopId !== undefined,
+      )
+      .map(toDashboardAnnouncement);
+  },
+});
+
+// 対象値は表示制御用であり、認可境界ではない。本文は全認証ユーザーへ返るため機密情報を登録しない。
+export const getActiveDashboardAnnouncementsV2 = authenticatedQuery({
+  args: {},
+  returns: v.array(dashboardAnnouncementValidator),
+  handler: async (ctx) => {
+    if (!ctx.identity) return [];
+
+    const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
+    return announcements.map(toDashboardAnnouncement);
   },
 });
 

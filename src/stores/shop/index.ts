@@ -3,6 +3,7 @@ import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 export type ShopStatus = "active" | "archived" | "planSuspended";
 export type OrganizationMemberStatus = "active" | "readOnly" | "removed";
+export type OrganizationPlan = "trial" | "free" | "pro" | "business";
 
 export type ShopContextOption = {
   shopId: string;
@@ -10,6 +11,7 @@ export type ShopContextOption = {
   shopStatus: ShopStatus;
   organizationId: string | null;
   organizationName: string | null;
+  organizationPlan: OrganizationPlan | null;
   memberStatus: OrganizationMemberStatus;
 };
 
@@ -19,6 +21,7 @@ export type SelectedShopType = {
   shopStatus: ShopStatus;
   organizationId: string | null;
   organizationName: string | null;
+  organizationPlan: OrganizationPlan | null;
   memberStatus: OrganizationMemberStatus;
 } | null;
 
@@ -51,6 +54,7 @@ export function normalizeShopContextOption(value: unknown): ShopContextOption | 
     shopStatus: isShopStatus(value.shopStatus) ? value.shopStatus : "active",
     organizationId: typeof value.organizationId === "string" ? value.organizationId : null,
     organizationName: typeof value.organizationName === "string" ? value.organizationName : null,
+    organizationPlan: isOrganizationPlan(value.organizationPlan) ? value.organizationPlan : null,
     memberStatus: isOrganizationMemberStatus(value.memberStatus) ? value.memberStatus : "active",
   };
 }
@@ -87,6 +91,7 @@ export function isSameSelectedShop(
     selectedShop.shopStatus === shop.shopStatus &&
     selectedShop.organizationId === shop.organizationId &&
     selectedShop.organizationName === shop.organizationName &&
+    selectedShop.organizationPlan === shop.organizationPlan &&
     selectedShop.memberStatus === shop.memberStatus
   );
 }
@@ -126,4 +131,8 @@ function isShopStatus(value: unknown): value is ShopStatus {
 
 function isOrganizationMemberStatus(value: unknown): value is OrganizationMemberStatus {
   return value === "active" || value === "readOnly" || value === "removed";
+}
+
+function isOrganizationPlan(value: unknown): value is OrganizationPlan {
+  return value === "trial" || value === "free" || value === "pro" || value === "business";
 }

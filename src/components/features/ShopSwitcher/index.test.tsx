@@ -68,6 +68,7 @@ beforeEach(() => {
       shopStatus: "active",
       organizationId: "org-a",
       organizationName: "A社",
+      organizationPlan: "business",
       memberStatus: "active",
     },
     {
@@ -76,6 +77,7 @@ beforeEach(() => {
       shopStatus: "active",
       organizationId: "org-b",
       organizationName: "B社",
+      organizationPlan: "pro",
       memberStatus: "active",
     },
   ]);
@@ -86,6 +88,7 @@ beforeEach(() => {
       shopStatus: "active",
       organizationId: "org-a",
       organizationName: "A社",
+      organizationPlan: "business",
       memberStatus: "active",
     },
     mocks.setSelectedShop,
@@ -110,6 +113,7 @@ describe("ShopSwitcher", () => {
         shopStatus: "active",
         organizationId: "org-b",
         organizationName: "B社",
+        organizationPlan: "pro",
         memberStatus: "active",
       });
       expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", replace: true });

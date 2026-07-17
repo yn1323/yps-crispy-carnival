@@ -1,14 +1,18 @@
+import type { OrganizationPlan } from "@/src/stores/shop";
+
 type TargetedAnnouncement = {
   organizationId?: string;
   shopId?: string;
+  organizationPlan?: string;
 };
 
 type AnnouncementContext = {
   organizationId: string | null;
   shopId: string;
+  organizationPlan: OrganizationPlan | null;
 } | null;
 
-function parseTargetIds(value: string | undefined): string[] {
+function parseTargets(value: string | undefined): string[] {
   return (
     value
       ?.split(",")
@@ -25,15 +29,21 @@ export function selectDashboardAnnouncementForContext<T extends TargetedAnnounce
 
   return (
     announcements.find((announcement) => {
-      const isGlobal = announcement.organizationId === undefined && announcement.shopId === undefined;
+      const isGlobal =
+        announcement.organizationId === undefined &&
+        announcement.shopId === undefined &&
+        announcement.organizationPlan === undefined;
       if (isGlobal) return true;
       if (!context) return false;
 
-      const organizationIds = parseTargetIds(announcement.organizationId);
-      const shopIds = parseTargetIds(announcement.shopId);
+      const organizationIds = parseTargets(announcement.organizationId);
+      const shopIds = parseTargets(announcement.shopId);
+      const organizationPlans = parseTargets(announcement.organizationPlan);
       const matchesOrganization = context.organizationId !== null && organizationIds.includes(context.organizationId);
       const matchesShop = shopIds.includes(context.shopId);
-      return matchesOrganization || matchesShop;
+      const matchesOrganizationPlan =
+        context.organizationPlan !== null && organizationPlans.includes(context.organizationPlan);
+      return matchesOrganization || matchesShop || matchesOrganizationPlan;
     }) ?? null
   );
 }
