@@ -25,14 +25,16 @@
 - URLと保存値のどちらにも有効な店舗がなければ、候補数にかかわらず`getMyShops`の先頭店舗を自動採用する。明示されたURLが候補外の場合だけは別店舗へfallbackせず、汎用エラーを表示する。
 - `organizationBillingStates` がグループ単位の課金状態を保持し、画面とmutationは共通policyから操作可否を導出する。
 - 旧店舗モデルから移行し、移行元店舗との相互リンクを一意に確認でき、課金状態が未設定のグループは`complimentary.business`として、Stripeと接続せずBusinessの利用上限と有料機能を利用する。
-- 管理者招待はメールで送り、トークンのdigest、有効期限、単回利用、再送時の旧招待失効、回数制限を一つのライフサイクルで扱う。
-- グループ設定のユーザータブでは、管理者招待の開始、承認状況、再送、取消を扱う。Freeでは既存スタッフから交代先を選び、承認後に旧管理者の管理画面権限が失効することを事前に案内する。
+- 管理者招待の発行では、本人確認後に管理者所属を作るための一回限りのアカウント連携権限と利用枠だけを予約する。新規人物、管理者所属、既存スタッフの管理者権限は作らない。
+- 招待は、対象人物が有効なLINE連携を持つ場合はLINEへ送り、それ以外はメールへ送る。再送では旧招待を失効させ、トークンをローテーションする。
+- グループ設定のユーザータブには管理者招待ボタンだけを置き、承認状況の一覧は表示しない。既存人物に未連携招待がある場合は、人物詳細からログイン案内を再送できる。
 - `organizationInvitations.status`、`shops.operatingStatus`、`organizationBillingStates.freeShopId`は招待・課金ライフサイクルで引き続き使うため内部に保持する。物理削除は依存する状態遷移を置き換えた後のNarrowで行う。
-- グループ設定では任意のメールアドレス、スタッフ詳細では`targetPersonId`で固定した既存スタッフを招待する。有効な追加招待は承認前から管理者枠を一枠予約する。
-- Freeの管理者交代が承認されると、旧管理者の管理画面権限と旧`shopMembers`だけを失効させる。`organizationPeople`と交代前からある`staffs`は維持し、未所属店舗へスタッフ行を追加しない。
+- グループ設定では氏名と任意のメールアドレスで新規人物を招待でき、人物詳細またはスタッフ詳細では`targetPersonId`で固定した既存人物を招待する。有効な追加招待は`issued`の間から管理者枠を一枠予約する。
+- 招待先が確認済みメールでログインすると、同じmutation内で利用者IDを人物へ紐づけ、`organizationMembers`を`active`にして招待を`linked`へ進める。外部の新規人物はこの時点で初めて作る。
+- Freeの管理者交代では、アカウント連携と同じトランザクションで旧管理者の管理画面権限と旧`shopMembers`だけを失効させる。`organizationPeople`と交代前からある`staffs`は維持し、未所属店舗へスタッフ行を追加しない。
 - 店舗スタッフの編集は`organizationPeople`を正本とし、同じ人物の有効な全店舗スタッフ行へ氏名とメールアドレスを同期する。
 - 店舗から人物を外してもグループ内の人物と利用人数算入は維持し、グループからの削除では全所属と未送信通知を失効する。
-- 課金通知と招待通知は既存のNotification Outboxへメールとして積み、外部送信前にグループ、所属、課金状態、通知起点の課金versionを再確認する。
+- 課金通知と招待通知は既存のNotification Outboxへ積み、外部送信前にグループ、所属、課金状態、通知起点の課金versionを再確認する。招待トークンはOutboxへ保存せず、送信直前に導出する。
 - Free移行または契約制限開始前の業務操作から遅延して作られた通知も、通知起点のversionで判定して送信しない。
 - メール通知は外部送信の直前に現在のグループ内の人物、スタッフ、または利用者のメールアドレスと宛先を照合し、変更前の宛先へ送信しない。
 - 閲覧専用へ切り替わった画面は、開いていた書込ダイアログを閉じ、ShiftBoardの未保存編集を永続化済みデータへ戻す。
@@ -46,7 +48,7 @@
 - `convex/setup/mutations.ts`：グループ、最初の管理者、最初の店舗、Trial課金状態を一つの初期設定処理で作成。
 - `convex/organization/`：グループ設定DTO、店舗操作、人物削除、認可、監査、利用状況集計。
 - `convex/organizationBilling/`：プラン上限、操作policy、期限処理、Free選択、請求先メール、課金通知。
-- `convex/organizationInvitation/`：管理者招待の作成、再送、取消、失効、公開プレビュー、承認、通知。
+- `convex/organizationInvitation/`：管理者招待の発行、再送、取消、失効、公開プレビュー、アカウント連携、通知。
 - `convex/notificationOutbox/`：グループ単位の通知scope、契約制限時の未送信業務通知停止、送信直前の再確認。
 - `convex/migrations/m009_shops_to_organizations.ts`：既存店舗から一店舗一グループを作成。
 - `convex/migrations/m010_shop_members_to_organization_members.ts`：既存店舗管理者をグループ内の人物と管理者所属へ移行。
@@ -54,6 +56,7 @@
 - `convex/migrations/m012_organizations_add_complimentary_business.ts`：移行元店舗との対応を確認できるグループへ無償Businessを付与。
 - `convex/migrations/m013_former_managers_remove_manager_access.ts`：交代済み旧管理者の由来を確認し、管理者所属だけを`removed`へ移行。
 - `convex/migrations/m014_removed_organization_members_delete_legacy_shop_members.ts`：`removed`になった管理者の旧店舗管理権限を削除済みにする。
+- `convex/migrations/m015_organization_invitations_link_lifecycle.ts`：旧`pending`を`issued`へ、旧`accepted`を`linked`へ移行し、連携者と招待時氏名を補完する。
 - `convex/migrations/index.ts`：固定seriesと、旧管理者権限の衝突解消後にm013、m014だけを再評価する専用runnerを公開。
 - `scripts/setupEnv.ts`：管理者招待の署名秘密値を含むサーバー環境変数をConvex環境へ同期。
 
@@ -64,7 +67,7 @@
 - `src/components/features/ShopSwitcher/`：グループごとにまとめた店舗切り替え。
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`：`?shop=`、前回値、利用可能店舗一覧を解決し、有効なAPI候補だけを店舗コンテキストへ同期する。
 - `src/components/features/Dashboard/OperationContext/`：現在のグループと店舗を二枚のカードで表示し、複数候補だけを切り替え可能にする。
-- `src/routes/manager-invite.tsx` と `src/components/features/ManagerInvitationAcceptance/`：公開招待プレビュー、認証導線、承認結果。
+- `src/routes/manager-invite.tsx` と `src/components/features/ManagerInvitationAcceptance/`：公開招待プレビュー、認証導線、ログイン後の自動連携結果。
 - `src/stores/shop/`：最後に確定した有効なグループと店舗の永続化、旧保存値の正規化、選択可否判定。
 - `src/hooks/useShopQuery.ts`、`src/hooks/useShopPaginatedQuery.ts`、`src/hooks/useShopMutation.ts`：選択店舗を管理者APIへ渡すhook。
 - `src/components/features/Dashboard/`：アーカイブ、プラン停止、閲覧のみ所属、契約制限、支払い確認中の店舗を閲覧専用で表示する。
@@ -75,9 +78,9 @@
 
 | 画面 | 役割 |
 | --- | --- |
-| `/settings?shop=<shopId>` | 指定店舗からグループを解決し、グループ全体のユーザー、管理者招待、店舗、現在のプラン、利用上限、支払い情報を表示する。タブは`tab` queryで保持する |
-| 認証済みヘッダー | Dashboard以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
-| `/manager-invite?token=...` | 招待先グループと期限を公開DTOで確認し、ログインまたは登録後に管理者招待を承認する |
+| `/settings?shop=<shopId>` | 指定店舗からグループを解決し、元の店舗へ戻るリンクとグループ名を表示する。複数グループ所属時だけグループを切り替え、ユーザー、管理者招待、店舗、現在のプラン、利用上限、支払い情報を扱う。タブは`tab` queryで保持する |
+| 認証済みヘッダー | Dashboardとグループ設定以外で複数店舗がある場合に、現在のグループと店舗を表示して利用可能な店舗へ切り替える |
+| `/manager-invite?token=...` | 招待先グループと期限を公開DTOで確認し、ログインまたは登録後に確認済みメールのアカウントを自動連携する |
 | `/dashboard?shop=<shopId>` | グループと店舗のコンテキストカードを表示し、候補が複数ある場合だけ切り替える。店舗設定はモーダル、グループ設定は`/settings`へ進む |
 | 各店舗業務画面 | `shop` queryを引き継ぎ、候補照合済みの選択店舗をAPIへ渡して、グループ所属と店舗境界の再検証後に既存データを扱う |
 
@@ -100,11 +103,14 @@
 | `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | スタッフ所属を維持したまま管理者権限だけを外すか、所属のない人物のアクセスを終了する |
 | `api.staff.mutations.editStaff` | `managerMutation` | グループ内の人物と同じ人物の有効な店舗スタッフ情報を同期する |
 | `api.organizationInvitation.queries.getPreview` | 公開`query` | グループ名と期限だけを含む招待プレビューを返す |
-| `api.organizationInvitation.mutations.create` | `authenticatedMutation` | 利用枠を予約して管理者招待を作成し、メール通知を予約する |
-| `api.organizationInvitation.mutations.createForStaff` | `authenticatedMutation` | 選択店舗の既存スタッフを現在の人物メールへ招待し、追加招待またはFree管理者交代を開始する |
+| `api.organizationInvitation.mutations.create` | `authenticatedMutation` | メールアドレスで管理者招待を発行する旧互換API |
+| `api.organizationInvitation.mutations.createExternal` | `authenticatedMutation` | 氏名とメールアドレスを招待へ保存し、人物を作らずに外部の新規人物向けアカウント連携権限を発行する。同じメールの未連携招待がある場合は旧版を失効して再送する |
+| `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | グループ内の既存人物へアカウント連携権限を発行する。同じ人物に未連携招待がある場合は旧版を失効して再送する |
+| `api.organizationInvitation.mutations.createForStaff` | `authenticatedMutation` | 選択店舗の既存スタッフを人物IDと現在のメールへ固定して招待する。同じ人物に未連携招待がある場合は旧版を失効して再送する |
 | `api.organizationInvitation.mutations.resend` | `authenticatedMutation` | 現在の招待を失効させ、新しい招待を発行する |
-| `api.organizationInvitation.mutations.revoke` | `authenticatedMutation` | 未承認招待を取り消して予約枠を解放する |
-| `api.organizationInvitation.mutations.accept` | `authenticatedMutation` | 確認済みメール、期限、最新性、所属、上限を再確認して招待を承認する |
+| `api.organizationInvitation.mutations.revoke` | `authenticatedMutation` | 未連携招待を取り消して予約枠を解放する |
+| `api.organizationInvitation.mutations.linkAccount` | `authenticatedMutation` | 確認済みメール、期限、最新性、所属、上限を再確認し、人物と利用者IDを紐づけて管理者所属を有効化する |
+| `api.organizationInvitation.mutations.accept` | `authenticatedMutation` | 旧クライアント向けの互換API。内部では`linkAccount`と同じ連携処理を行い、成功結果を旧`accepted`形式へ変換する |
 | `api.organizationBilling.mutations.setFreeSelection` | `authenticatedMutation` | Freeで残す管理者と店舗を保存し、契約制限中は再評価する。無償Businessでは拒否する |
 | `api.organizationBilling.mutations.updateBillingEmail` | `authenticatedMutation` | 有効管理者または復旧担当者が請求先メールアドレスを変更する。無償Businessでは拒否する |
 | `api.staffRegistration.mutations.submitRegistrationRequest` | 公開`mutation` | 稼働中店舗の公開登録リンクからスタッフ登録申請を作成する |
@@ -121,11 +127,11 @@
 | `internal.organizationBilling.mutations.setStateFromVerifiedBilling` | `internalMutation` | 検証済みの外部課金結果だけをグループ課金状態へ反映する接続点 |
 | `internal.organizationBilling.queries.getNotificationData` | `internalQuery` | 現在の課金状態と所属から課金メールの宛先を再解決する |
 | `internal.organizationBilling.actions.enqueueBillingNotification` | `internalAction` | 課金メールを既存Notification Outboxへ重複排除付きで予約する |
-| `internal.organizationInvitation.mutations.expire` | `internalMutation` | versionと期限が一致する未承認招待だけを失効させる |
+| `internal.organizationInvitation.mutations.expire` | `internalMutation` | versionと期限が一致する`issued`招待だけを失効させる |
 | `internal.organizationInvitation.queries.getEnqueueData` | `internalQuery` | 送信直前に招待、発行者、グループ、課金状態を再確認する |
-| `internal.organizationInvitation.queries.getAcceptanceNotificationData` | `internalQuery` | 承認通知のグループと有効管理者を再解決する |
-| `internal.organizationInvitation.actions.enqueueManagerInvitation` | `internalAction` | 管理者招待メールを既存Notification Outboxへ予約する |
-| `internal.organizationInvitation.actions.enqueueAcceptanceNotifications` | `internalAction` | 承認者を含む全有効管理者へ承認完了メールを予約する |
+| `internal.organizationInvitation.queries.getAcceptanceNotificationData` | `internalQuery` | アカウント連携完了通知のグループと有効管理者を再解決する |
+| `internal.organizationInvitation.actions.enqueueManagerInvitation` | `internalAction` | 管理者招待をLINEまたはメールのNotification Outboxへ予約する |
+| `internal.organizationInvitation.actions.enqueueAcceptanceNotifications` | `internalAction` | 連携者を含む全有効管理者へ連携完了メールを予約する |
 | `internal.notificationOutbox.mutations.prepareForDelivery` | `internalMutation` | 外部送信直前にグループ、店舗、所属、課金状態を再確認する |
 | `internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail` | `internalMutation` | 招待送信直前に有効性を確認し、生トークンを含まない表示情報を返す |
 | `internal.notificationOutbox.mutations.cancelOrganizationBusinessNotifications` | `internalMutation` | Free移行または契約制限開始後に未送信の業務通知を停止する |
@@ -143,7 +149,7 @@ m012はWiden対応版をproductionへ反映するまで固定seriesへ登録せ�
 - `ORGANIZATION_INVITATION_SIGNING_SECRET`：管理者招待トークンをHMAC-SHA-256で導出する32文字以上のサーバー側秘密値。
 
 秘密値はブラウザへ公開せず、`.env`から`pnpm convex:env-setup`でConvex環境へ同期する。
-秘密値を変更すると未承認の招待トークンを検証できなくなるため、変更時は未承認招待を再発行する。
+秘密値を変更すると`issued`招待のトークンを検証できなくなるため、変更時は未連携招待を再発行する。
 
 ## プラン上限
 
@@ -156,9 +162,9 @@ m012はWiden対応版をproductionへ反映するまで固定seriesへ登録せ�
 | 無償Business | 30 | 5 | 5 |
 
 利用人数は、グループ内の有効なスタッフまたは有効管理者を人物単位で一度だけ数える。
-未承認招待は利用人数に含めず、新しい人物への招待が予約した枠を上限判定へ加える。
+`issued`招待は利用人数に含めず、新しい人物への招待が予約した枠を上限判定へ加える。
 
-管理者上限は、activeな管理者と期限内かつ未承認の追加招待を合計して判定する。
+管理者上限は、activeな管理者と期限内の`issued`追加招待を合計して判定する。
 
 Freeの管理者交代招待は管理者を入れ替えるため、追加枠を予約しない。
 
@@ -183,7 +189,7 @@ Freeの管理者交代招待は管理者を入れ替えるため、追加枠を�
 Freeを保持している間はFreeの基本業務を継続でき、`restricted`を保持している間は閲覧と許可済みの復旧操作だけを継続できる。
 支払い失敗時は保存済みsnapshotへ戻し、支払い成功が検証されるまで有料権限を開放しない。
 期間末変更の取消は検証済み課金イベントだけを受け付け、予約前の有料プランへ戻す。
-BusinessからProへの期間末変更は、未承認招待の予約枠を含む利用状況が予約時点でPro上限内の場合だけ保存し、期限時にも再確認する。
+BusinessからProへの期間末変更は、`issued`招待の予約枠を含む利用状況が予約時点でPro上限内の場合だけ保存し、期限時にも再確認する。
 
 ## 移行状態
 
@@ -222,7 +228,8 @@ BusinessからProへの期間末変更は、未承認招待の予約枠を含む
 
 - `convex/organization/*.test.ts`：グループ境界、店舗操作、人物削除、最後の管理者、冪等性。
 - `convex/organizationBilling/*.test.ts`：上限、利用人数、JST境界、状態遷移、期限処理、通知。
-- `convex/organizationInvitation/*.test.ts`：トークン、期限、単回利用、メール一致、上限、競合、通知。
+- `convex/organizationInvitation/mutations.test.ts`と`token.test.ts`：発行時の人物未作成、トークン、期限、メール一致、再送ローテーション、アカウント連携、上限、競合、通知。
+- `convex/organizationInvitation/lifecycleMigration.test.ts`：旧`pending/accepted`から`issued/linked`への移行と再実行時の冪等性。
 - `convex/organization/freeFormerManagerAccessMigration.test.ts`：旧管理者権限移行、衝突、裁定、再実行、スタッフ所属の不変性。
 - `convex/_scenario/staffManagerInvitation.test.ts`：既存スタッフの招待から管理者化までの状態遷移。
 - `convex/_scenario/organizationManagerExchange.test.ts`：Free管理者交代後の権限失効、スタッフ継続、通知対象の不変性。
@@ -232,5 +239,5 @@ BusinessからProへの期間末変更は、未承認招待の予約枠を含む
 - `src/components/features/AuthenticatedApp/shopContextResolver.test.ts` と `AuthGuard.test.tsx`：URL、前回値、自動fallback、明示URL不正時の解決境界。
 - `src/components/features/Dashboard/OperationContext/` のLogic UTとStory：候補数による静的表示・切り替え、設定導線、PC/SPの代表状態。
 - `src/components/features/OrganizationSettings/index.stories.tsx`：グループ設定の代表状態と操作後の状態。
-- `src/components/features/ManagerInvitationAcceptance/index.stories.tsx`：招待プレビューと承認結果。
+- `src/components/features/ManagerInvitationAcceptance/index.stories.tsx`：招待プレビューとアカウント連携結果。
 - `src/components/features/ShopSwitcher/index.stories.tsx`：Dashboard以外でのグループと店舗の切り替え。
