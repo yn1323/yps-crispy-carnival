@@ -10,7 +10,7 @@ import {
   type ShopContextOption,
   selectedShopAtom,
 } from "@/src/stores/shop";
-import { buildOperationContextModel, getShopForGroupSelection } from "./script";
+import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
 
 export { OperationContextSkeleton, OperationContextView } from "./View";
@@ -53,24 +53,22 @@ export const OperationContext = ({ isReadOnly = false, onOpenShopSettings, data 
     void navigate({ to: "/dashboard", search: { shop: shop.shopId } });
   };
 
-  const handleGroupSelect = (groupKey: string) => {
-    const nextShop = getShopForGroupSelection(model.groups, groupKey, model.selectedShop.shopId);
+  const handleShopSelect = (shopId: string) => {
+    const nextShop = model.groups.flatMap((group) => group.shops).find((shop) => shop.shopId === shopId);
     if (nextShop && nextShop.shopId !== model.selectedShop.shopId) selectShop(nextShop);
   };
 
-  const handleShopSelect = (shopId: string) => {
-    const nextShop = model.selectedGroup.shops.find((shop) => shop.shopId === shopId);
-    if (nextShop && nextShop.shopId !== model.selectedShop.shopId) selectShop(nextShop);
+  const handleOpenGroupSettings = () => {
+    void navigate({ to: "/settings", search: { shop: model.selectedShop.shopId } });
   };
 
   return (
     <OperationContextView
       model={model}
       isReadOnly={isReadOnly}
-      groupSettingsShopId={model.selectedShop.shopId}
-      onGroupSelect={handleGroupSelect}
       onShopSelect={handleShopSelect}
       onOpenShopSettings={onOpenShopSettings}
+      onOpenGroupSettings={handleOpenGroupSettings}
     />
   );
 };

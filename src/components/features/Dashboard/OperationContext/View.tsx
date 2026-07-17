@@ -1,259 +1,204 @@
-import { Badge, Box, Heading, HStack, Icon, Menu, Portal, SimpleGrid, Skeleton, Stack, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
-import type { ElementType, ReactNode } from "react";
+import {
+  Badge,
+  Box,
+  Flex,
+  Heading,
+  HStack,
+  Icon,
+  Menu,
+  Portal,
+  Skeleton,
+  Stack,
+  Text,
+  VisuallyHidden,
+} from "@chakra-ui/react";
 import { LuBuilding2, LuCheck, LuChevronDown, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { ShopContextOption } from "@/src/stores/shop";
 import type { OperationContextModel } from "./script";
 
-type SelectorOption = {
-  key: string;
-  label: string;
-  badges?: ReactNode;
-};
-
 export type OperationContextViewProps = {
   model: OperationContextModel;
   isReadOnly?: boolean;
-  groupSettingsShopId: string;
-  onGroupSelect: (groupKey: string) => void;
   onShopSelect: (shopId: string) => void;
   onOpenShopSettings: () => void;
+  onOpenGroupSettings: () => void;
 };
 
 export const OperationContextView = ({
   model,
   isReadOnly = false,
-  groupSettingsShopId,
-  onGroupSelect,
   onShopSelect,
   onOpenShopSettings,
+  onOpenGroupSettings,
 }: OperationContextViewProps) => {
-  const groupOptions = model.groups.map((group) => ({
-    key: group.key,
-    label: group.organizationName,
-  }));
-  const shopOptions = model.selectedGroup.shops.map((shop) => ({
-    key: shop.shopId,
-    label: shop.shopName,
-    badges: <ShopStatusBadges shop={shop} />,
-  }));
   const readOnlyReason = "閲覧のみの店舗では設定を変更できません";
 
   return (
-    <Stack gap={3}>
-      <Heading as="h1" textStyle="sectionTitle" color="gray.900">
-        現在の操作先
-      </Heading>
+    <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
+      <Text display={{ base: "none", md: "block" }} fontSize="sm" fontWeight="semibold" color="fg.muted">
+        店舗
+      </Text>
 
-      <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-        <ContextSelector
-          kind="グループ"
-          value={model.selectedGroup.organizationName}
-          icon={LuBuilding2}
-          canSwitch={model.canSwitchGroup}
-          options={groupOptions}
-          selectedKey={model.selectedGroup.key}
-          onSelect={onGroupSelect}
-          settingsAction={
-            <Tooltip content={`${model.selectedGroup.organizationName}のグループ設定を開く`}>
-              <IconButton
-                asChild
-                variant="ghost"
-                colorPalette="teal"
-                minW="44px"
-                minH="44px"
-                aria-label={`${model.selectedGroup.organizationName}のグループ設定を開く`}
-              >
-                <RouterLink to="/settings" search={{ shop: groupSettingsShopId }}>
-                  <LuSettings aria-hidden />
-                </RouterLink>
-              </IconButton>
-            </Tooltip>
-          }
+      <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
+        <ShopSelector model={model} onSelect={onShopSelect} />
+        <SettingsMenu
+          isReadOnly={isReadOnly}
+          readOnlyReason={readOnlyReason}
+          onOpenShopSettings={onOpenShopSettings}
+          onOpenGroupSettings={onOpenGroupSettings}
         />
-
-        <ContextSelector
-          kind="店舗"
-          value={model.selectedShop.shopName}
-          icon={LuStore}
-          canSwitch={model.canSwitchShop}
-          options={shopOptions}
-          selectedKey={model.selectedShop.shopId}
-          onSelect={onShopSelect}
-          valueBadges={<ShopStatusBadges shop={model.selectedShop} />}
-          settingsAction={
-            <Tooltip content={isReadOnly ? readOnlyReason : `${model.selectedShop.shopName}の店舗設定を編集`}>
-              <Box as="span" display="inline-flex">
-                <IconButton
-                  variant="ghost"
-                  colorPalette="teal"
-                  minW="44px"
-                  minH="44px"
-                  aria-label={`${model.selectedShop.shopName}の店舗設定を編集`}
-                  disabled={isReadOnly}
-                  title={isReadOnly ? readOnlyReason : undefined}
-                  onClick={onOpenShopSettings}
-                >
-                  <LuSettings aria-hidden />
-                </IconButton>
-              </Box>
-            </Tooltip>
-          }
-        />
-      </SimpleGrid>
+      </Flex>
     </Stack>
   );
 };
 
-type ContextSelectorProps = {
-  kind: "グループ" | "店舗";
-  value: string;
-  icon: ElementType;
-  canSwitch: boolean;
-  options: SelectorOption[];
-  selectedKey: string;
-  onSelect: (key: string) => void;
-  settingsAction: ReactNode;
-  valueBadges?: ReactNode;
-};
-
-const ContextSelector = ({
-  kind,
-  value,
-  icon,
-  canSwitch,
-  options,
-  selectedKey,
-  onSelect,
-  settingsAction,
-  valueBadges,
-}: ContextSelectorProps) => {
-  const selectorContent = (
-    <HStack gap={3} minW={0} w="full">
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        boxSize="40px"
-        borderRadius="lg"
-        bg="teal.50"
-        color="teal.700"
-        flexShrink={0}
-      >
-        <Icon as={icon} boxSize={5} />
+const SettingsMenu = ({
+  isReadOnly,
+  readOnlyReason,
+  onOpenShopSettings,
+  onOpenGroupSettings,
+}: {
+  isReadOnly: boolean;
+  readOnlyReason: string;
+  onOpenShopSettings: () => void;
+  onOpenGroupSettings: () => void;
+}) => (
+  <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
+    <Tooltip content="設定">
+      <Box as="span" display="inline-flex">
+        <Menu.Trigger asChild>
+          <IconButton
+            variant="ghost"
+            colorPalette="teal"
+            minW="44px"
+            minH="44px"
+            aria-label="設定メニューを開く"
+            title="設定"
+          >
+            <LuSettings aria-hidden />
+          </IconButton>
+        </Menu.Trigger>
       </Box>
-      <Stack gap={0.5} minW={0} flex={1} textAlign="left">
-        <Text fontSize="xs" color="fg.muted" fontWeight="semibold">
-          {kind}
-        </Text>
-        <HStack gap={2} minW={0}>
-          <Text fontSize="md" fontWeight="bold" color="gray.900" truncate minW={0}>
-            {value}
-          </Text>
-          {valueBadges}
-        </HStack>
-      </Stack>
-      {canSwitch && <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />}
-    </HStack>
-  );
+    </Tooltip>
 
-  const card = (selector: ReactNode) => (
-    <HStack
-      gap={0}
-      minW={0}
-      minH="72px"
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="xl"
-      bg="white"
-      boxShadow="xs"
-      overflow="hidden"
-    >
-      {selector}
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        alignSelf="stretch"
-        px={2}
-        borderLeftWidth="1px"
-        borderColor="gray.100"
-        flexShrink={0}
-      >
-        {settingsAction}
-      </Box>
-    </HStack>
-  );
+    <Portal>
+      <Menu.Positioner>
+        <Menu.Content minW="200px">
+          <Menu.Item
+            value="shop-settings"
+            cursor={isReadOnly ? "not-allowed" : "pointer"}
+            disabled={isReadOnly}
+            title={isReadOnly ? readOnlyReason : undefined}
+            onClick={onOpenShopSettings}
+          >
+            <LuStore aria-hidden />
+            店舗設定
+          </Menu.Item>
+          <Menu.Item value="group-settings" cursor="pointer" onClick={onOpenGroupSettings}>
+            <LuBuilding2 aria-hidden />
+            グループ設定
+          </Menu.Item>
+        </Menu.Content>
+      </Menu.Positioner>
+    </Portal>
+  </Menu.Root>
+);
 
-  if (!canSwitch) {
-    return card(
-      <Box display="flex" alignItems="center" flex={1} minW={0} alignSelf="stretch" px={4} py={3}>
-        {selectorContent}
-      </Box>,
+const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSelect: (shopId: string) => void }) => {
+  if (!model.canSwitchShop) {
+    return (
+      <HStack gap={2} flex={1} minW={0}>
+        <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
+          {model.selectedShop.shopName}
+        </Heading>
+        <ShopStatusBadges shop={model.selectedShop} />
+      </HStack>
     );
   }
 
   return (
-    <Menu.Root positioning={{ placement: "bottom-start", gutter: 8 }}>
-      {card(
+    <Box flex={1} minW={0}>
+      <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
+      <Menu.Root positioning={{ placement: "bottom-start", gutter: 8 }}>
         <Menu.Trigger asChild>
           <Button
             type="button"
-            variant="plain"
-            aria-label={`${kind}を切り替える。現在は${value}`}
+            variant="outline"
+            aria-label={`店舗を切り替える。現在は${model.selectedShop.shopName}`}
             display="flex"
             alignItems="center"
-            flex={1}
+            justifyContent="space-between"
+            gap={3}
+            w="full"
             minW={0}
-            minH="72px"
+            minH={{ base: "48px", md: "56px" }}
             h="auto"
-            alignSelf="stretch"
-            px={4}
-            py={3}
+            px={{ base: 3, md: 4 }}
+            py={2.5}
+            borderColor="gray.300"
+            borderRadius="lg"
+            color="gray.900"
             cursor="pointer"
-            _hover={{ bg: "gray.50" }}
-            _focusVisible={{ outline: "2px solid", outlineColor: "teal.500", outlineOffset: "-2px" }}
+            _hover={{ bg: "gray.50", borderColor: "gray.400" }}
           >
-            {selectorContent}
+            <HStack gap={2} minW={0} textAlign="left">
+              <Text textStyle={{ base: "sectionTitle", md: "pageTitle" }} fontWeight="bold" truncate minW={0}>
+                {model.selectedShop.shopName}
+              </Text>
+              <ShopStatusBadges shop={model.selectedShop} />
+            </HStack>
+            <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />
           </Button>
-        </Menu.Trigger>,
-      )}
+        </Menu.Trigger>
 
-      <Portal>
-        <Menu.Positioner>
-          <Menu.Content w="min(320px, calc(100vw - 24px))" maxH="min(420px, calc(100dvh - 96px))" overflowY="auto">
-            {options.map((option) => {
-              const isSelected = option.key === selectedKey;
-              return (
-                <Menu.Item
-                  key={option.key}
-                  value={`${kind}-${option.key}`}
-                  aria-current={isSelected ? "true" : undefined}
-                  cursor="pointer"
-                  px={3}
-                  py={2.5}
-                  onClick={() => onSelect(option.key)}
-                >
-                  <HStack w="full" gap={2.5} minW={0}>
-                    <Box w="18px" color="teal.600" flexShrink={0}>
-                      {isSelected && <LuCheck aria-hidden />}
-                    </Box>
-                    <HStack gap={2} flex={1} minW={0}>
-                      <Text fontSize="sm" fontWeight={isSelected ? "bold" : "medium"} truncate minW={0}>
-                        {option.label}
-                      </Text>
-                      {option.badges}
-                    </HStack>
-                  </HStack>
-                </Menu.Item>
-              );
-            })}
-          </Menu.Content>
-        </Menu.Positioner>
-      </Portal>
-    </Menu.Root>
+        <Portal>
+          <Menu.Positioner>
+            <Menu.Content w="min(340px, calc(100vw - 24px))" maxH="min(520px, calc(100dvh - 96px))" overflowY="auto">
+              {model.groups.map((group, groupIndex) => (
+                <Box key={group.key}>
+                  {model.hasMultipleGroups && groupIndex > 0 && <Menu.Separator />}
+                  <Menu.ItemGroup>
+                    {model.hasMultipleGroups && (
+                      <Menu.ItemGroupLabel px={3} pt={2.5} pb={1} fontSize="xs" color="fg.muted" fontWeight="bold">
+                        {group.organizationName}
+                      </Menu.ItemGroupLabel>
+                    )}
+                    {group.shops.map((shop) => {
+                      const isSelected = shop.shopId === model.selectedShop.shopId;
+                      return (
+                        <Menu.Item
+                          key={shop.shopId}
+                          value={`shop-${shop.shopId}`}
+                          aria-current={isSelected ? "true" : undefined}
+                          cursor="pointer"
+                          px={3}
+                          py={2.5}
+                          onClick={() => onSelect(shop.shopId)}
+                        >
+                          <HStack w="full" gap={2.5} minW={0}>
+                            <Box w="18px" color="teal.600" flexShrink={0}>
+                              {isSelected && <LuCheck aria-hidden />}
+                            </Box>
+                            <HStack gap={2} flex={1} minW={0}>
+                              <Text fontSize="sm" fontWeight={isSelected ? "bold" : "medium"} truncate minW={0}>
+                                {shop.shopName}
+                              </Text>
+                              <ShopStatusBadges shop={shop} />
+                            </HStack>
+                          </HStack>
+                        </Menu.Item>
+                      );
+                    })}
+                  </Menu.ItemGroup>
+                </Box>
+              ))}
+            </Menu.Content>
+          </Menu.Positioner>
+        </Portal>
+      </Menu.Root>
+    </Box>
   );
 };
 
@@ -282,12 +227,17 @@ const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
 };
 
 export const OperationContextSkeleton = () => (
-  <Stack gap={3} aria-label="現在の操作先を読み込み中">
-    <Skeleton h="26px" w="144px" />
-    <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-      {["group", "shop"].map((key) => (
-        <Skeleton key={key} h="72px" borderRadius="xl" />
-      ))}
-    </SimpleGrid>
+  <Stack
+    gap={3}
+    pb={{ base: 4, lg: 6 }}
+    borderBottomWidth="1px"
+    borderColor="gray.200"
+    aria-label="現在の店舗を読み込み中"
+  >
+    <Skeleton display={{ base: "none", md: "block" }} h="18px" w="40px" />
+    <Flex align="center" justify="space-between" gap={3}>
+      <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
+      <Skeleton h="44px" w="44px" flexShrink={0} />
+    </Flex>
   </Stack>
 );

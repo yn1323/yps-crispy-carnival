@@ -4,12 +4,22 @@ import { createStore, Provider } from "jotai";
 import { expect, userEvent, within } from "storybook/test";
 import { UserMenu } from "@/src/components/features/UserMenu";
 import { Button } from "@/src/components/ui/Button";
+import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
 const createStoreWithUser = () => {
   const store = createStore();
   store.set(userAtom, { authId: "test", name: "田中太郎", email: "tanaka@example.com" });
+  store.set(selectedShopAtom, {
+    shopId: "shop-a",
+    shopName: "A店舗",
+    shopStatus: "active",
+    organizationId: "organization-a",
+    organizationName: "Aグループ",
+    organizationPlan: "pro",
+    memberStatus: "active",
+  });
   return store;
 };
 
@@ -56,7 +66,10 @@ export const UserWithoutShopDeletionEntry: Story = {
     const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await expect(contactLink).toHaveAttribute("href", "/contact");
     await expect(contactLink).toHaveAttribute("target", "_blank");
-    await expect(screen.getByRole("menuitem", { name: "グループ設定" })).toHaveAttribute("href", "/settings");
+    await expect(screen.getByRole("menuitem", { name: "グループ設定" })).toHaveAttribute(
+      "href",
+      "/settings?shop=shop-a",
+    );
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
     await userEvent.keyboard("{Escape}");

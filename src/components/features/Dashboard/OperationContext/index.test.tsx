@@ -1,35 +1,21 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
+import type { ShopContextOption } from "@/src/stores/shop";
 
 const mocks = vi.hoisted(() => ({
   getMyShops: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
   navigate: vi.fn(),
+  openShopSettings: vi.fn(),
   useQuery: vi.fn(),
   useAtomValue: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
-  Link: ({
-    to,
-    search,
-    children,
-    "aria-label": ariaLabel,
-  }: {
-    to: string;
-    search?: { shop?: string };
-    children: ReactNode;
-    "aria-label"?: string;
-  }) => (
-    <a href={`${to}${search?.shop ? `?shop=${search.shop}` : ""}`} aria-label={ariaLabel}>
-      {children}
-    </a>
-  ),
 }));
 
 vi.mock("convex/react", () => ({
@@ -102,19 +88,23 @@ beforeEach(() => {
     dispatchEvent: vi.fn(),
   }));
   mocks.navigate.mockReset();
+  mocks.openShopSettings.mockReset();
   mocks.useQuery.mockReturnValue(shops);
   mocks.useAtomValue.mockReturnValue(shops[0]);
 });
 
-const renderContext = () =>
+const renderContext = (
+  contextShops: readonly ShopContextOption[] = shops,
+  selectedShop: ShopContextOption = contextShops[0] as ShopContextOption,
+) =>
   render(
     <ChakraProvider>
-      <OperationContext data={{ shops, selectedShop: shops[0] }} onOpenShopSettings={vi.fn()} />
+      <OperationContext data={{ shops: contextShops, selectedShop }} onOpenShopSettings={mocks.openShopSettings} />
     </ChakraProvider>,
   );
 
 describe("OperationContext", () => {
-  it("店舗カードで選んだ店舗をshop queryに指定してDashboardへ遷移する", async () => {
+  it("店舗セレクトで選んだ店舗をshop queryに指定してDashboardへ遷移する", async () => {
     renderContext();
 
     fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える。現在はA店" }));
@@ -125,22 +115,38 @@ describe("OperationContext", () => {
     });
   });
 
-  it("グループカードで選んだグループの先頭店舗をshop queryに指定する", async () => {
+  it("別グループの店舗も同じ店舗セレクトから選べる", async () => {
     renderContext();
 
-    fireEvent.click(screen.getByRole("button", { name: "グループを切り替える。現在はAグループ" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Bグループ/ }));
+    fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える。現在はA店" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /C店/ }));
 
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: { shop: "shop-c" } });
     });
   });
 
-  it("グループ設定リンクに現在店舗のshop queryを引き継ぐ", () => {
+  it("設定メニューから店舗設定と現在店舗のグループ設定を開ける", async () => {
     renderContext();
 
-    expect(screen.getByRole("link", { name: "Aグループのグループ設定を開く" }).getAttribute("href")).toBe(
-      "/settings?shop=shop-a",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "設定メニューを開く" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "店舗設定" }));
+    expect(mocks.openShopSettings).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "設定メニューを開く" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "グループ設定" }));
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
+    });
+  });
+
+  it("1グループ1店舗ではグループ名と切替操作を表示しない", () => {
+    renderContext([shops[0]], shops[0]);
+
+    expect(screen.getByText("A店")).not.toBeNull();
+    expect(screen.queryByText("Aグループ")).toBeNull();
+    expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "設定メニューを開く" })).not.toBeNull();
   });
 });

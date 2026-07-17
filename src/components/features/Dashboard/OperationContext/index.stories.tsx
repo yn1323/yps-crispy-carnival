@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { ShopContextOption } from "@/src/stores/shop";
-import { buildOperationContextModel, getShopForGroupSelection } from "./script";
+import { buildOperationContextModel } from "./script";
 import { OperationContextView } from "./View";
 
 const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
@@ -45,10 +45,9 @@ const meta = {
   ],
   args: {
     isReadOnly: false,
-    groupSettingsShopId: "shop-a-1",
-    onGroupSelect: () => {},
     onShopSelect: () => {},
     onOpenShopSettings: () => {},
+    onOpenGroupSettings: () => {},
   },
 } satisfies Meta<typeof OperationContextView>;
 
@@ -58,6 +57,12 @@ type Story = StoryObj<typeof meta>;
 export const SingleGroupSingleShop: Story = {
   args: {
     model: createModel([shop({})], "shop-a-1"),
+  },
+};
+
+export const SingleGroupMultipleShops: Story = {
+  args: {
+    model: createModel(multipleShops.slice(0, 2), "shop-a-1"),
   },
 };
 
@@ -91,6 +96,22 @@ export const Mobile: Story = {
   },
 };
 
+export const MobileSettingsMenuOpen: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    model: createModel([shop({})], "shop-a-1"),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "設定メニューを開く" }));
+    await expect(await body.findByRole("menuitem", { name: "店舗設定" })).toBeVisible();
+    await expect(await body.findByRole("menuitem", { name: "グループ設定" })).toBeVisible();
+  },
+};
+
 export const SelectionBehavior: Story = {
   args: {
     model: createModel(multipleShops, "shop-a-1"),
@@ -103,12 +124,9 @@ export const SelectionBehavior: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "グループを切り替える。現在は東日本事業部" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: /関西事業部/ }));
-    await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "グループを切り替える。現在は関西事業部" })).toBeVisible(),
-    );
-    await expect(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える。現在はA店舗" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: /C店舗/ }));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" })).toBeVisible());
 
     await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える。現在はC店舗" }));
     await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
@@ -120,18 +138,12 @@ const SelectionBehaviorStory = () => {
   const [selectedShopId, setSelectedShopId] = useState("shop-a-1");
   const model = createModel(multipleShops, selectedShopId);
 
-  const handleGroupSelect = (groupKey: string) => {
-    const nextShop = getShopForGroupSelection(model.groups, groupKey, model.selectedShop.shopId);
-    if (nextShop) setSelectedShopId(nextShop.shopId);
-  };
-
   return (
     <OperationContextView
       model={model}
-      groupSettingsShopId={selectedShopId}
-      onGroupSelect={handleGroupSelect}
       onShopSelect={setSelectedShopId}
       onOpenShopSettings={() => {}}
+      onOpenGroupSettings={() => {}}
     />
   );
 };

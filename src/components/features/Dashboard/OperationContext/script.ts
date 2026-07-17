@@ -4,7 +4,7 @@ export type OperationContextModel = {
   groups: ShopOrganizationGroup[];
   selectedGroup: ShopOrganizationGroup;
   selectedShop: ShopContextOption;
-  canSwitchGroup: boolean;
+  hasMultipleGroups: boolean;
   canSwitchShop: boolean;
 };
 
@@ -22,16 +22,7 @@ export function buildOperationContextModel(
     groups,
     selectedGroup,
     selectedShop,
-    canSwitchGroup: groups.length > 1,
-    canSwitchShop: selectedGroup.shops.length > 1,
+    hasMultipleGroups: groups.length > 1,
+    canSwitchShop: shops.length > 1,
   };
-}
-
-export function getShopForGroupSelection(
-  groups: readonly ShopOrganizationGroup[],
-  groupKey: string,
-  currentShopId: string,
-): ShopContextOption | null {
-  const group = groups.find((candidate) => candidate.key === groupKey);
-  return group?.shops.find((shop) => shop.shopId === currentShopId) ?? group?.shops[0] ?? null;
 }
