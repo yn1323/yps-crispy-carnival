@@ -4,15 +4,8 @@ import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
-import { selectChannel } from "../_lib/notification";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
-import {
-  emailPayload,
-  enqueueEmail,
-  enqueueLine,
-  organizationManagerInvitationEmailPayload,
-  organizationManagerInvitationLinePayload,
-} from "../notificationOutbox/enqueue";
+import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 type ManagerInvitationEnqueueData = {
@@ -20,8 +13,6 @@ type ManagerInvitationEnqueueData = {
   organizationName: string;
   email: string;
   invitationVersion: number;
-  staffId?: Id<"staffs">;
-  lineUserId?: string;
 };
 
 export const enqueueManagerInvitation = internalAction({
@@ -40,41 +31,19 @@ export const enqueueManagerInvitation = internalAction({
 
     const origin = businessNotificationOriginFrom(args);
     const from = formatResendFrom(data.organizationName, RESEND_FROM_EMAIL);
-    const email = organizationManagerInvitationEmailPayload({
-      from,
-      to: data.email,
-      context: "organizationInvitation.enqueueManagerInvitation",
+    const result: { outboxId: Id<"notificationOutbox">; deduped: boolean } | null = await enqueueEmail(ctx, {
+      organizationId: data.organizationId,
+      ...origin,
+      organizationInvitationId: args.invitationId,
+      organizationInvitationVersion: data.invitationVersion,
+      purpose: "business",
+      dedupeKey: `email:organizationManagerInvitation:${args.invitationId}:${data.invitationVersion}`,
+      payload: organizationManagerInvitationEmailPayload({
+        from,
+        to: data.email,
+        context: "organizationInvitation.enqueueManagerInvitation",
+      }),
     });
-    const quota = data.lineUserId ? await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {}) : null;
-    const channel = selectChannel({ lineUserId: data.lineUserId, lineFollowing: Boolean(data.lineUserId) }, quota);
-    const result: { outboxId: Id<"notificationOutbox">; deduped: boolean } | null =
-      channel === "line" && data.lineUserId && data.staffId
-        ? await enqueueLine(ctx, {
-            organizationId: data.organizationId,
-            ...origin,
-            staffId: data.staffId,
-            organizationInvitationId: args.invitationId,
-            organizationInvitationVersion: data.invitationVersion,
-            purpose: "business",
-            dedupeKey: `line:organizationManagerInvitation:${args.invitationId}:${data.invitationVersion}`,
-            payload: organizationManagerInvitationLinePayload({
-              toUserId: data.lineUserId,
-              context: "organizationInvitation.enqueueManagerInvitation",
-              fallbackEmail: {
-                dedupeKey: `email:organizationManagerInvitation:${args.invitationId}:${data.invitationVersion}`,
-                payload: email,
-              },
-            }),
-          })
-        : await enqueueEmail(ctx, {
-            organizationId: data.organizationId,
-            ...origin,
-            organizationInvitationId: args.invitationId,
-            organizationInvitationVersion: data.invitationVersion,
-            purpose: "business",
-            dedupeKey: `email:organizationManagerInvitation:${args.invitationId}:${data.invitationVersion}`,
-            payload: email,
-          });
     return { enqueued: result !== null };
   },
 });

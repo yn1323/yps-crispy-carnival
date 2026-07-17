@@ -26,11 +26,12 @@
 - `organizationBillingStates` がグループ単位の課金状態を保持し、画面とmutationは共通policyから操作可否を導出する。
 - 旧店舗モデルから移行し、移行元店舗との相互リンクを一意に確認でき、課金状態が未設定のグループは`complimentary.business`として、Stripeと接続せずBusinessの利用上限と有料機能を利用する。
 - 管理者招待の発行では、本人確認後に管理者所属を作るための一回限りのアカウント連携権限と利用枠だけを予約する。新規人物、管理者所属、既存スタッフの管理者権限は作らない。
-- 招待は、対象人物が有効なLINE連携を持つ場合はLINEへ送り、それ以外はメールへ送る。再送では旧招待を失効させ、トークンをローテーションする。
-- グループ設定のユーザータブには管理者招待ボタンだけを置き、承認状況の一覧は表示しない。既存人物に未連携招待がある場合は、人物詳細からログイン案内を再送できる。
+- 管理者招待は対象人物のLINE連携状態にかかわらずメールへ送る。再送では旧招待を失効させ、トークンをローテーションする。
+- グループ設定の管理者招待Dialogは「現在のスタッフ」と「名前・メールを入力」の2タブで構成する。Freeでは現在のスタッフから次の管理者を選び、手入力による外部招待は行わない。
+- グループ設定のユーザータブには管理者招待ボタンだけを置き、承認状況の一覧は表示しない。既存人物に未連携招待がある場合は、人物詳細または管理者招待Dialogからログイン案内を再送できる。
 - `organizationInvitations.status`、`shops.operatingStatus`、`organizationBillingStates.freeShopId`は招待・課金ライフサイクルで引き続き使うため内部に保持する。物理削除は依存する状態遷移を置き換えた後のNarrowで行う。
-- グループ設定では氏名と任意のメールアドレスで新規人物を招待でき、人物詳細またはスタッフ詳細では`targetPersonId`で固定した既存人物を招待する。有効な追加招待は`issued`の間から管理者枠を一枠予約する。
-- 招待先が確認済みメールでログインすると、同じmutation内で利用者IDを人物へ紐づけ、`organizationMembers`を`active`にして招待を`linked`へ進める。外部の新規人物はこの時点で初めて作る。
+- グループ設定では氏名とメールアドレスで外部人物を招待でき、人物詳細、スタッフ詳細、管理者招待Dialogのスタッフ選択では`targetPersonId`で固定した既存人物を招待する。有効な追加招待は`issued`の間から管理者枠を一枠予約する。
+- 招待先が確認済みメールでログインすると、同じmutation内で利用者IDを人物へ紐づけ、`organizationMembers`を`active`にして招待を`linked`へ進める。認証済みの既存`users`があれば再利用し、招待先グループにいない外部人物はこの時点で初めて作る。
 - Freeの管理者交代では、アカウント連携と同じトランザクションで旧管理者の管理画面権限と旧`shopMembers`だけを失効させる。`organizationPeople`と交代前からある`staffs`は維持し、未所属店舗へスタッフ行を追加しない。
 - 店舗スタッフの編集は`organizationPeople`を正本とし、同じ人物の有効な全店舗スタッフ行へ氏名とメールアドレスを同期する。
 - 店舗から人物を外してもグループ内の人物と利用人数算入は維持し、グループからの削除では全所属と未送信通知を失効する。
@@ -104,7 +105,7 @@
 | `api.staff.mutations.editStaff` | `managerMutation` | グループ内の人物と同じ人物の有効な店舗スタッフ情報を同期する |
 | `api.organizationInvitation.queries.getPreview` | 公開`query` | グループ名と期限だけを含む招待プレビューを返す |
 | `api.organizationInvitation.mutations.create` | `authenticatedMutation` | メールアドレスで管理者招待を発行する旧互換API |
-| `api.organizationInvitation.mutations.createExternal` | `authenticatedMutation` | 氏名とメールアドレスを招待へ保存し、人物を作らずに外部の新規人物向けアカウント連携権限を発行する。同じメールの未連携招待がある場合は旧版を失効して再送する |
+| `api.organizationInvitation.mutations.createExternal` | `authenticatedMutation` | 氏名とメールアドレスを招待へ保存し、人物を作らずに外部人物向けアカウント連携権限を発行する。同じメールの未連携招待がある場合は旧版を失効して再送し、既存利用者かどうかは招待発行時に判定しない |
 | `api.organizationInvitation.mutations.createForPerson` | `authenticatedMutation` | グループ内の既存人物へアカウント連携権限を発行する。同じ人物に未連携招待がある場合は旧版を失効して再送する |
 | `api.organizationInvitation.mutations.createForStaff` | `authenticatedMutation` | 選択店舗の既存スタッフを人物IDと現在のメールへ固定して招待する。同じ人物に未連携招待がある場合は旧版を失効して再送する |
 | `api.organizationInvitation.mutations.resend` | `authenticatedMutation` | 現在の招待を失効させ、新しい招待を発行する |
@@ -130,7 +131,7 @@
 | `internal.organizationInvitation.mutations.expire` | `internalMutation` | versionと期限が一致する`issued`招待だけを失効させる |
 | `internal.organizationInvitation.queries.getEnqueueData` | `internalQuery` | 送信直前に招待、発行者、グループ、課金状態を再確認する |
 | `internal.organizationInvitation.queries.getAcceptanceNotificationData` | `internalQuery` | アカウント連携完了通知のグループと有効管理者を再解決する |
-| `internal.organizationInvitation.actions.enqueueManagerInvitation` | `internalAction` | 管理者招待をLINEまたはメールのNotification Outboxへ予約する |
+| `internal.organizationInvitation.actions.enqueueManagerInvitation` | `internalAction` | 管理者招待メールをNotification Outboxへ重複排除付きで予約する |
 | `internal.organizationInvitation.actions.enqueueAcceptanceNotifications` | `internalAction` | 連携者を含む全有効管理者へ連携完了メールを予約する |
 | `internal.notificationOutbox.mutations.prepareForDelivery` | `internalMutation` | 外部送信直前にグループ、店舗、所属、課金状態を再確認する |
 | `internal.notificationOutbox.mutations.prepareOrganizationManagerInvitationEmail` | `internalMutation` | 招待送信直前に有効性を確認し、生トークンを含まない表示情報を返す |

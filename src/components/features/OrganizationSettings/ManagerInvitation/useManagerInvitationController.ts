@@ -9,15 +9,44 @@ import {
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
+import type { OrganizationPersonView } from "../types";
+import type { ManagerInvitationStaffCandidate, ManagerInvitationSubmitInput } from "./types";
 
 type Input = {
   canInviteManager: boolean;
   canOpenManagerInvitation: boolean;
   managerInvitationMode: "addition" | "freeManagerExchange";
   freeManagerExchangeCandidates: Array<{ id: string; name: string; email: string }>;
+  people: OrganizationPersonView[];
 };
 
-type Operation = { kind: "create"; name: string; email: string; personId?: Id<"organizationPeople"> };
+type Operation =
+  | { kind: "external"; name: string; email: string }
+  | { kind: "person"; personId: Id<"organizationPeople"> };
+
+function getStaffCandidates(input: Input): ManagerInvitationStaffCandidate[] {
+  const freeCandidateIds = new Set(input.freeManagerExchangeCandidates.map((candidate) => candidate.id));
+  return input.people.flatMap((person) => {
+    if (
+      !person.isStaff ||
+      person.managerRole !== "none" ||
+      !person.email ||
+      (!input.canInviteManager && !person.hasManagerInvitation) ||
+      (input.managerInvitationMode === "freeManagerExchange" && !freeCandidateIds.has(person.id))
+    ) {
+      return [];
+    }
+    return [
+      {
+        id: person.id,
+        name: person.name,
+        email: person.email,
+        shopNames: person.shopNames,
+        isResend: person.hasManagerInvitation === true,
+      },
+    ];
+  });
+}
 
 export function useManagerInvitationController(input: Input) {
   const createInvitation = useShopMutation(api.organizationInvitation.mutations.createExternal);
@@ -26,6 +55,8 @@ export function useManagerInvitationController(input: Input) {
   const [peopleCapacityResolution, setPeopleCapacityResolution] = useState<PeopleCapacityResolution | null>(null);
   const latestRef = useRef(input);
   latestRef.current = input;
+  const staffCandidates = getStaffCandidates(input);
+  const isResendOnly = !input.canInviteManager && input.canOpenManagerInvitation;
 
   useEffect(() => {
     if (input.canOpenManagerInvitation) return;
@@ -35,22 +66,22 @@ export function useManagerInvitationController(input: Input) {
 
   const { run, isRunning } = useSingleFlight(async (operation: Operation) => {
     const latest = latestRef.current;
-    if (operation.kind === "create") {
-      const isCurrentCandidate =
-        latest.managerInvitationMode === "addition" ||
-        latest.freeManagerExchangeCandidates.some((candidate) => candidate.email === operation.email);
-      if (!latest.canOpenManagerInvitation || !isCurrentCandidate) {
-        setIsOpen(false);
-        setPeopleCapacityResolution(null);
-        return;
-      }
+    const isCurrentOperation =
+      latest.canOpenManagerInvitation &&
+      (operation.kind === "external"
+        ? latest.managerInvitationMode === "addition"
+        : getStaffCandidates(latest).some((candidate) => candidate.id === operation.personId));
+    if (!isCurrentOperation) {
+      setIsOpen(false);
+      setPeopleCapacityResolution(null);
+      return;
     }
 
     const requestId = crypto.randomUUID();
-    if (operation.kind === "create") setPeopleCapacityResolution(null);
+    setPeopleCapacityResolution(null);
 
     try {
-      if (operation.personId) {
+      if (operation.kind === "person") {
         await createForPerson({ personId: operation.personId, requestId });
       } else {
         await createInvitation({ name: operation.name, email: operation.email, requestId });
@@ -65,7 +96,7 @@ export function useManagerInvitationController(input: Input) {
       setIsOpen(false);
     } catch (error) {
       const resolution = classifyPeopleCapacityError(getConvexErrorMessage(error));
-      if (operation.kind === "create" && resolution) {
+      if (resolution) {
         setPeopleCapacityResolution(resolution);
         return;
       }
@@ -82,22 +113,25 @@ export function useManagerInvitationController(input: Input) {
     },
     dialog: {
       isOpen,
-      isResendOnly: !input.canInviteManager && input.canOpenManagerInvitation,
+      isResendOnly,
+      defaultTab:
+        isResendOnly && input.managerInvitationMode === "addition" && staffCandidates.length === 0
+          ? ("external" as const)
+          : ("staff" as const),
       managerInvitationMode: input.managerInvitationMode,
-      freeManagerExchangeCandidates: input.freeManagerExchangeCandidates,
+      staffCandidates,
       peopleCapacityResolution,
       isRunning,
       onClose: () => {
         setPeopleCapacityResolution(null);
         setIsOpen(false);
       },
-      onSubmit: (input: { name: string; email: string; personId?: string }) =>
-        void run({
-          kind: "create",
-          name: input.name,
-          email: input.email,
-          ...(input.personId ? { personId: input.personId as Id<"organizationPeople"> } : {}),
-        }).catch(() => undefined),
+      onSubmit: (submitInput: ManagerInvitationSubmitInput) =>
+        void run(
+          submitInput.kind === "person"
+            ? { kind: "person", personId: submitInput.personId as Id<"organizationPeople"> }
+            : { kind: "external", name: submitInput.name, email: submitInput.email },
+        ).catch(() => undefined),
     },
   };
 }

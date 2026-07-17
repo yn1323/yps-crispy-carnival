@@ -45,6 +45,7 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
     canOpenManagerInvitation,
     managerInvitationMode: settings.managerInvitationMode,
     freeManagerExchangeCandidates: settings.freeManagerExchangeCandidates,
+    people: settings.people,
   });
   const personManagerAssignment = usePersonManagerAssignmentController(settings.people);
   const personProfile = usePersonProfileController(settings.people);

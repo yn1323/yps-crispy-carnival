@@ -232,6 +232,90 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceJobs.every((job) => job.channel === "email" && job.purpose === "business")).toBe(true);
   });
 
+  it("別グループに存在する利用者へは人物を事前作成せず、ログイン後に既存利用者を再利用する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const existing = await seedOrganizationManagerShop(ctx, {
+        subject: "existing_invitee",
+        email: "existing-invitee@example.com",
+        shopName: "既存グループ店舗",
+        plan: "pro",
+      });
+      const owner = await seedOrganizationManagerShop(ctx, {
+        subject: "existing_invitee_owner",
+        shopName: "招待元店舗",
+        plan: "pro",
+      });
+      return { existing, owner };
+    });
+
+    const created = await t
+      .withIdentity({ subject: "existing_invitee_owner" })
+      .mutation(api.organizationInvitation.mutations.createExternal, {
+        shopId: ids.owner.shopId,
+        name: "既存 利用者",
+        email: "existing-invitee@example.com",
+        requestId: "existing-user-invitation",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+
+    const beforeLink = await t.run(async (ctx) =>
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) =>
+          q.eq("organizationId", ids.owner.organizationId).eq("emailNormalized", "existing-invitee@example.com"),
+        )
+        .collect(),
+    );
+    expect(beforeLink).toEqual([]);
+
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    await expect(
+      t
+        .withIdentity({
+          subject: "existing_invitee",
+          email: "existing-invitee@example.com",
+          emailVerified: true,
+        })
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
+    ).resolves.toEqual({
+      status: "linked",
+      organizationId: ids.owner.organizationId,
+      shopId: ids.owner.shopId,
+    });
+
+    const linked = await t.run(async (ctx) => {
+      const people = await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_userId", (q) =>
+          q.eq("organizationId", ids.owner.organizationId).eq("userId", ids.existing.userId),
+        )
+        .collect();
+      const members = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_personId", (q) =>
+          q.eq("organizationId", ids.owner.organizationId).eq("personId", people[0]?._id),
+        )
+        .collect();
+      const users = await ctx.db
+        .query("users")
+        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", "https://convex.test|existing_invitee"))
+        .collect();
+      return { people, members, users };
+    });
+    expect(linked.users).toHaveLength(1);
+    expect(linked.users[0]?._id).toBe(ids.existing.userId);
+    expect(linked.people).toHaveLength(1);
+    expect(linked.people[0]?.userId).toBe(ids.existing.userId);
+    expect(linked.members).toHaveLength(1);
+    expect(linked.members[0]).toMatchObject({ userId: ids.existing.userId, status: "active" });
+  });
+
   it("同じメールへの並行招待でもpending招待と予約枠を一件だけ作る", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
@@ -446,7 +530,7 @@ describe("organizationInvitation/mutations", () => {
     );
   });
 
-  it("LINE連携済みの既存人物には生トークンを保存せずLINE招待を予約する", async () => {
+  it("LINE連携済みの既存人物にも生トークンを保存せずメール招待を予約する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const manager = await seedOrganizationManagerShop(ctx, { subject: "person_line_invite_owner", plan: "pro" });
@@ -481,12 +565,12 @@ describe("organizationInvitation/mutations", () => {
     const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({
-      channel: "line",
+      channel: "email",
       organizationInvitationId: invitation._id,
       organizationInvitationVersion: invitation.version,
       payload: {
-        kind: "organizationManagerInvitationLine",
-        toUserId: "U_person_line_invite",
+        kind: "organizationManagerInvitationEmail",
+        to: ids.target.email,
         context: "organizationInvitation.enqueueManagerInvitation",
       },
     });
