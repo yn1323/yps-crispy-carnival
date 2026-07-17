@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
-import { EditShopForm } from "./index.tsx";
+import { ShopForm } from "./index.tsx";
 
 const meta = {
-  title: "Features/Dashboard/EditShopForm",
-  component: EditShopForm,
+  title: "Features/ShopForm",
+  component: ShopForm,
   parameters: {
     layout: "padded",
   },
@@ -18,15 +18,16 @@ const meta = {
     onSubmit: () => {},
     onCancel: () => {},
     initialStep: "shopName",
+    submitLabel: "変更を保存",
   },
-} satisfies Meta<typeof EditShopForm>;
+} satisfies Meta<typeof ShopForm>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const renderInStepperDialog = (args: Story["args"]) => (
-  <StepperDialog title="店舗設定" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-    <EditShopForm
+const renderShopFormInStepperDialog = (args: Story["args"], title: string) => (
+  <StepperDialog title={title} isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
+    <ShopForm
       defaultValues={
         args?.defaultValues ?? {
           shopName: "居酒屋たなか",
@@ -37,9 +38,25 @@ const renderInStepperDialog = (args: Story["args"]) => (
       onSubmit={args?.onSubmit ?? (() => {})}
       onCancel={args?.onCancel ?? (() => {})}
       initialStep={args?.initialStep}
+      submitLabel={args?.submitLabel}
     />
   </StepperDialog>
 );
+
+const renderInStepperDialog = (args: Story["args"]) => renderShopFormInStepperDialog(args, "店舗設定");
+const renderAddShopInStepperDialog = (args: Story["args"]) => renderShopFormInStepperDialog(args, "店舗を追加");
+
+export const AddShopInStepperDialog: Story = {
+  args: {
+    defaultValues: {
+      shopName: "",
+      regularClosedDays: [],
+      submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+    },
+    submitLabel: "店舗を追加",
+  },
+  render: renderAddShopInStepperDialog,
+};
 
 export const DateOnlyInStepperDialog: Story = {
   args: {

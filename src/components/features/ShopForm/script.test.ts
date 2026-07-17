@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildEditShopFormSubmission,
+  buildShopFormSubmission,
   getInitialStep,
   getNextStep,
   getPreviousStep,
@@ -10,7 +10,7 @@ import {
 const DATE_ONLY_PATTERN: ShiftSubmissionPattern = { kind: "dateOnly" };
 const TIME_PATTERN: ShiftSubmissionPattern = { kind: "time", startTime: "09:00", endTime: "22:00" };
 
-describe("店舗設定フォームのステップ遷移", () => {
+describe("店舗フォームのステップ遷移", () => {
   it("日ごとの場合は勤務時間設定を通らない", () => {
     expect(getInitialStep("patternSettings", DATE_ONLY_PATTERN)).toBe("regularClosedDays");
     expect(getNextStep("submissionPattern", DATE_ONLY_PATTERN)).toBe("regularClosedDays");
@@ -24,10 +24,10 @@ describe("店舗設定フォームのステップ遷移", () => {
   });
 });
 
-describe("店舗設定の送信データ", () => {
+describe("店舗フォームの送信データ", () => {
   it("定休日を曜日順、勤務区分を表示順に正規化する", () => {
     expect(
-      buildEditShopFormSubmission(
+      buildShopFormSubmission(
         {
           shopName: "居酒屋たなか",
           regularClosedDays: [],

@@ -1,10 +1,11 @@
 import { LuChevronLeft } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import type { EditShopFormStep } from "./script";
+import type { ShopFormStep } from "./script";
 
-export type EditShopFormActionsProps = {
-  currentStep: EditShopFormStep;
+export type ShopFormActionsProps = {
+  currentStep: ShopFormStep;
   isSubmitting: boolean;
+  submitLabel: string;
   onCancel?: () => void;
   onNext: () => void;
   onPrevious: () => void;
@@ -12,15 +13,16 @@ export type EditShopFormActionsProps = {
   onSubmit: () => void;
 };
 
-export const EditShopFormActions = ({
+export const ShopFormActions = ({
   currentStep,
   isSubmitting,
+  submitLabel,
   onCancel,
   onNext,
   onPrevious,
   onPatternSettingsNext,
   onSubmit,
-}: EditShopFormActionsProps) => {
+}: ShopFormActionsProps) => {
   if (currentStep === "shopName") {
     return (
       <>
@@ -62,7 +64,7 @@ export const EditShopFormActions = ({
           onClick={onSubmit}
           flex={{ base: 1, md: "unset" }}
         >
-          変更を保存
+          {submitLabel}
         </Button>
       </>
     );

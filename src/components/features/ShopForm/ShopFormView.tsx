@@ -2,15 +2,15 @@ import { Stack } from "@chakra-ui/react";
 import { type ComponentProps, useMemo } from "react";
 import { LuCalendarDays, LuClock3, LuListChecks, LuStore } from "react-icons/lu";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
-import { EditShopFormActions } from "./EditShopFormActions";
 import { RegularClosedDaysStep } from "./RegularClosedDaysStep";
 import { ShiftTypePatternSettings } from "./ShiftTypePatternSettings";
+import { ShopFormActions } from "./ShopFormActions";
 import { ShopNameStep } from "./ShopNameStep";
 import { SubmissionPatternStep } from "./SubmissionPatternStep";
-import type { EditShopFormStep, ShiftSubmissionPattern } from "./script";
+import type { ShiftSubmissionPattern, ShopFormStep } from "./script";
 import { TimePatternSettings } from "./TimePatternSettings";
 
-const BASE_STEPS: StepperDialogStep<EditShopFormStep>[] = [
+const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
   {
     value: "shopName",
     label: "店舗名",
@@ -41,7 +41,7 @@ const BASE_STEPS: StepperDialogStep<EditShopFormStep>[] = [
   },
 ];
 
-const getPatternSettingsStep = (kind: ShiftSubmissionPattern["kind"]): StepperDialogStep<EditShopFormStep> => ({
+const getPatternSettingsStep = (kind: ShiftSubmissionPattern["kind"]): StepperDialogStep<ShopFormStep> => ({
   value: "patternSettings",
   label: kind === "shiftType" ? "勤務区分" : "勤務時間",
   icon: kind === "shiftType" ? LuListChecks : LuClock3,
@@ -58,16 +58,16 @@ type PatternSettingsProps =
   | { kind: "shiftType"; props: ComponentProps<typeof ShiftTypePatternSettings> };
 
 type Props = {
-  currentStep: EditShopFormStep;
+  currentStep: ShopFormStep;
   submissionPatternKind: ShiftSubmissionPattern["kind"];
   shopNameStep: ComponentProps<typeof ShopNameStep>;
   submissionPatternStep: ComponentProps<typeof SubmissionPatternStep>;
   patternSettings: PatternSettingsProps;
   regularClosedDaysStep: ComponentProps<typeof RegularClosedDaysStep>;
-  actions: ComponentProps<typeof EditShopFormActions>;
+  actions: ComponentProps<typeof ShopFormActions>;
 };
 
-export const EditShopFormView = ({
+export const ShopFormView = ({
   currentStep,
   submissionPatternKind,
   shopNameStep,
@@ -87,14 +87,14 @@ export const EditShopFormView = ({
 
   return (
     <form
-      id="edit-shop-form"
+      id="shop-form"
       noValidate
       style={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
       }}
     >
-      <StepperDialogContent steps={steps} currentStep={currentStep} actions={<EditShopFormActions {...actions} />}>
+      <StepperDialogContent steps={steps} currentStep={currentStep} actions={<ShopFormActions {...actions} />}>
         {currentStep === "shopName" && <ShopNameStep {...shopNameStep} />}
         {currentStep === "submissionPattern" && <SubmissionPatternStep {...submissionPatternStep} />}
         {currentStep === "patternSettings" && (

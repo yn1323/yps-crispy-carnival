@@ -4,9 +4,6 @@ import { LuCalendarDays, LuClock3, LuListChecks, LuPlus, LuTrash2 } from "react-
 import { MAX_SHIFT_TYPE_OPTIONS } from "@/convex/_lib/submissionPatternConstants";
 import { SHIFT_TYPE_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
 import type { ShiftSubmissionPattern, ShiftTypeOption } from "@/convex/shop/schemas";
-import { Button, IconButton } from "@/src/components/ui/Button";
-import { Select } from "@/src/components/ui/Select";
-import { generateShiftTimeOptions, MAX_SHIFT_TIME_MINUTES, timeToMinutes } from "@/src/domains/shift/time";
 import {
   createShiftTypeOption,
   DEFAULT_TIME_PATTERN,
@@ -14,7 +11,10 @@ import {
   getNestedErrorMessage,
   getShiftTypeOptionErrorMessages,
   normalizeShiftTypeOptions,
-} from "../../submissionPatternForm";
+} from "@/src/components/shared/ShopSubmissionPatternForm";
+import { Button, IconButton } from "@/src/components/ui/Button";
+import { Select } from "@/src/components/ui/Select";
+import { generateShiftTimeOptions, MAX_SHIFT_TIME_MINUTES, timeToMinutes } from "@/src/domains/shift/time";
 import { SUBMISSION_PATTERN_OPTIONS, toSubmissionPattern } from "./script";
 
 export type { Step1Data } from "./types";

@@ -1,85 +1,42 @@
-import { Field, Input, NativeSelect, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
-import type { ShiftSubmissionPattern } from "@/convex/_lib/submissionPattern";
-import { SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
+import { Stack, Text } from "@chakra-ui/react";
+import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { Dialog } from "@/src/components/ui/Dialog";
-import type { ShopManagementDialogState } from "./types";
+import { StepperDialog } from "@/src/components/ui/StepperDialog";
+import type { ShopManagementDialogState, ShopManagementOperation } from "./types";
 
-type Operation =
-  | { kind: "addShop"; shopName: string; submissionPattern: ShiftSubmissionPattern }
-  | { kind: "archiveShop"; shopId: string }
-  | { kind: "reactivateShop"; shopId: string };
+const ADD_SHOP_DEFAULT_VALUES: ShopFormData = {
+  shopName: "",
+  regularClosedDays: [],
+  submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+};
 
 type Props = {
   dialog: ShopManagementDialogState | null;
   isRunning: boolean;
   onClose: () => void;
-  onSubmit: (operation: Operation) => void;
+  onSubmit: (operation: ShopManagementOperation) => void | Promise<void>;
 };
 
 export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: Props) {
-  const [shopName, setShopName] = useState("");
-  const [submissionKind, setSubmissionKind] = useState<"time" | "dateOnly">("time");
-  useEffect(() => {
-    if (dialog?.kind !== "addShop") return;
-    setShopName("");
-    setSubmissionKind("time");
-  }, [dialog?.kind]);
-
   if (!dialog) return null;
 
   if (dialog.kind === "addShop") {
-    const normalizedName = shopName.trim();
-    const submissionPattern: ShiftSubmissionPattern =
-      submissionKind === "dateOnly" ? { kind: "dateOnly" } : { kind: "time", startTime: "09:00", endTime: "22:00" };
     return (
-      <Dialog
+      <StepperDialog
         title="店舗を追加"
         isOpen
         onOpenChange={({ open }) => {
           if (!open) onClose();
         }}
         onClose={onClose}
-        formId="add-organization-shop-form"
-        submitLabel="店舗を追加"
-        isLoading={isRunning}
-        isSubmitDisabled={!normalizedName}
-        maxW={{ base: "calc(100vw - 24px)", md: "520px" }}
       >
-        <form
-          id="add-organization-shop-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (normalizedName) onSubmit({ kind: "addShop", shopName: normalizedName, submissionPattern });
-          }}
-        >
-          <Stack gap={4}>
-            <Field.Root required>
-              <Field.Label>店舗名</Field.Label>
-              <Input
-                value={shopName}
-                maxLength={SHOP_NAME_MAX_LENGTH}
-                placeholder="例：渋谷店"
-                onChange={(event) => setShopName(event.currentTarget.value)}
-              />
-            </Field.Root>
-            <Field.Root required>
-              <Field.Label>希望シフトの提出方法</Field.Label>
-              <NativeSelect.Root>
-                <NativeSelect.Field
-                  value={submissionKind}
-                  onChange={(event) => setSubmissionKind(event.currentTarget.value as "time" | "dateOnly")}
-                >
-                  <option value="time">時間を指定</option>
-                  <option value="dateOnly">出勤日のみ</option>
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
-              <Field.HelperText>時間指定は9:00〜22:00で作成します。追加後に店舗設定から変更できます。</Field.HelperText>
-            </Field.Root>
-          </Stack>
-        </form>
-      </Dialog>
+        <ShopForm
+          defaultValues={ADD_SHOP_DEFAULT_VALUES}
+          onSubmit={(data) => onSubmit({ kind: "addShop", data })}
+          onCancel={onClose}
+          submitLabel="店舗を追加"
+        />
+      </StepperDialog>
     );
   }
 

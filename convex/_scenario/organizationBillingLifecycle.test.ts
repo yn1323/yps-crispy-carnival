@@ -512,6 +512,7 @@ describe("事業者課金ライフサイクル", () => {
     const created = await actor.mutation(api.organization.mutations.addShop, {
       shopId: ids.shopId,
       shopName: "二店舗目",
+      regularClosedDays: [],
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       requestId: "complimentary-business-second-shop",
     });

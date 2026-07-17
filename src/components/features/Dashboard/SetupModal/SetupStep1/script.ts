@@ -1,5 +1,5 @@
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import { createDefaultShiftTypeOptions, DEFAULT_TIME_PATTERN } from "../../submissionPatternForm";
+import { createDefaultShiftTypeOptions, DEFAULT_TIME_PATTERN } from "@/src/components/shared/ShopSubmissionPatternForm";
 
 export const SUBMISSION_PATTERN_OPTIONS: Array<{
   kind: ShiftSubmissionPattern["kind"];

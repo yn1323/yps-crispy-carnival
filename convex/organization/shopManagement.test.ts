@@ -89,6 +89,7 @@ describe("organization shop management", () => {
     const created = await asActor.mutation(api.organization.mutations.addShop, {
       shopId: ids.shopId,
       shopName: "  新店舗  ",
+      regularClosedDays: ["fri", "sun", "tue"],
       submissionPattern,
       requestId: "add-shop-request",
     });
@@ -114,6 +115,8 @@ describe("organization shop management", () => {
       organizationId: ids.organizationId,
       operatingStatus: "active",
       name: "新店舗",
+      regularClosedDays: ["sun", "tue", "fri"],
+      submissionPattern,
       isDeleted: false,
     });
     expect(state.positions).toHaveLength(1);
@@ -127,6 +130,7 @@ describe("organization shop management", () => {
       asActor.mutation(api.organization.mutations.addShop, {
         shopId: ids.shopId,
         shopName: "新店舗",
+        regularClosedDays: ["fri", "sun", "tue"],
         submissionPattern,
         requestId: "add-shop-request",
       }),
@@ -158,6 +162,7 @@ describe("organization shop management", () => {
     await expect(t.run((ctx) => ctx.db.get(created.shopId))).resolves.toMatchObject({
       organizationId: ids.organizationId,
       operatingStatus: "active",
+      regularClosedDays: [],
       isDeleted: false,
     });
   });
@@ -176,6 +181,7 @@ describe("organization shop management", () => {
       t.withIdentity({ subject: "sixth_shop" }).mutation(api.organization.mutations.addShop, {
         shopId: ids.shopId,
         shopName: "6店舗目",
+        regularClosedDays: [],
         submissionPattern,
         requestId: "sixth-shop-request",
       }),
@@ -201,6 +207,7 @@ describe("organization shop management", () => {
       t.withIdentity({ subject: "free_add_shop" }).mutation(api.organization.mutations.addShop, {
         shopId: ids.shopId,
         shopName: "Free追加店舗",
+        regularClosedDays: [],
         submissionPattern,
         requestId: "free-add-shop",
       }),

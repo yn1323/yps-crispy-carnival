@@ -6,8 +6,8 @@ import {
   type UpdateShopSettingsInput,
   updateShopSettingsSchema,
 } from "@/convex/shop/schemas";
+import { normalizeShiftTypeOptions } from "@/src/components/shared/ShopSubmissionPatternForm";
 import { generateShiftTimeOptions, MAX_SHIFT_TIME_MINUTES, timeToMinutes } from "@/src/domains/shift/time";
-import { normalizeShiftTypeOptions } from "../submissionPatternForm";
 
 export type { RegularClosedDay, ShiftSubmissionPattern, ShiftTypeOption };
 export {
@@ -15,11 +15,11 @@ export {
   MAX_SHIFT_TIME_MINUTES,
   MAX_SHIFT_TYPE_OPTIONS,
   timeToMinutes,
-  updateShopSettingsSchema as editShopSchema,
+  updateShopSettingsSchema as shopFormSchema,
 };
-export type EditShopFormData = UpdateShopSettingsInput;
+export type ShopFormData = UpdateShopSettingsInput;
 
-export type EditShopFormStep = "shopName" | "submissionPattern" | "patternSettings" | "regularClosedDays";
+export type ShopFormStep = "shopName" | "submissionPattern" | "patternSettings" | "regularClosedDays";
 
 export const WEEKDAYS: { value: RegularClosedDay; label: string; ariaLabel: string }[] = [
   { value: "sun", label: "日", ariaLabel: "日曜日" },
@@ -47,12 +47,12 @@ export const getAvailableEndTimeOptions = (startTime: string) => {
 export const sortRegularClosedDays = (days: RegularClosedDay[]) =>
   WEEKDAYS.filter((day) => days.includes(day.value)).map((day) => day.value);
 
-export const getInitialStep = (step: EditShopFormStep, submissionPattern: ShiftSubmissionPattern): EditShopFormStep => {
+export const getInitialStep = (step: ShopFormStep, submissionPattern: ShiftSubmissionPattern): ShopFormStep => {
   if (step === "patternSettings" && submissionPattern.kind === "dateOnly") return "regularClosedDays";
   return step;
 };
 
-export const getNextStep = (step: EditShopFormStep, submissionPattern: ShiftSubmissionPattern): EditShopFormStep => {
+export const getNextStep = (step: ShopFormStep, submissionPattern: ShiftSubmissionPattern): ShopFormStep => {
   if (step === "shopName") return "submissionPattern";
   if (step === "submissionPattern") {
     return submissionPattern.kind === "dateOnly" ? "regularClosedDays" : "patternSettings";
@@ -61,10 +61,7 @@ export const getNextStep = (step: EditShopFormStep, submissionPattern: ShiftSubm
   return "regularClosedDays";
 };
 
-export const getPreviousStep = (
-  step: EditShopFormStep,
-  submissionPattern: ShiftSubmissionPattern,
-): EditShopFormStep => {
+export const getPreviousStep = (step: ShopFormStep, submissionPattern: ShiftSubmissionPattern): ShopFormStep => {
   if (step === "regularClosedDays") {
     return submissionPattern.kind === "dateOnly" ? "submissionPattern" : "patternSettings";
   }
@@ -73,10 +70,7 @@ export const getPreviousStep = (
   return "shopName";
 };
 
-export const buildEditShopFormSubmission = (
-  data: EditShopFormData,
-  regularClosedDays: RegularClosedDay[],
-): EditShopFormData => ({
+export const buildShopFormSubmission = (data: ShopFormData, regularClosedDays: RegularClosedDay[]): ShopFormData => ({
   ...data,
   regularClosedDays: sortRegularClosedDays(regularClosedDays),
   submissionPattern:

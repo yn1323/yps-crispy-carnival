@@ -1,16 +1,16 @@
 import { type ReactNode, useEffect } from "react";
 import { api } from "@/convex/_generated/api";
+import type { ShopFormData } from "@/src/components/features/ShopForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type { EditShopFormData } from "../EditShopForm";
 import { ShopSettingsView } from "./ShopSettingsView";
 
 export type ShopSettingsData = {
   name: string;
-  regularClosedDays: EditShopFormData["regularClosedDays"];
-  submissionPattern: EditShopFormData["submissionPattern"];
+  regularClosedDays: ShopFormData["regularClosedDays"];
+  submissionPattern: ShopFormData["submissionPattern"];
 };
 
 type Props = {
@@ -27,7 +27,7 @@ export function ShopSettings({ shop, isReadOnly = false, children }: Props) {
     if (isReadOnly) dialog.close();
   }, [dialog.close, isReadOnly]);
 
-  const { run: handleUpdate } = useSingleFlight(async (data: EditShopFormData) => {
+  const { run: handleUpdate } = useSingleFlight(async (data: ShopFormData) => {
     if (isReadOnly) return;
     try {
       await updateShopSettings(data);

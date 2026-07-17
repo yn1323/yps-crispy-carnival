@@ -8,13 +8,10 @@ import {
   getNestedErrorMessage,
   getShiftTypeOptionErrorMessages,
   normalizeShiftTypeOptions,
-} from "../submissionPatternForm";
-import { EditShopFormView } from "./EditShopFormView";
+} from "@/src/components/shared/ShopSubmissionPatternForm";
+import { ShopFormView } from "./ShopFormView";
 import {
-  buildEditShopFormSubmission,
-  type EditShopFormData,
-  type EditShopFormStep,
-  editShopSchema,
+  buildShopFormSubmission,
   getAvailableEndTimeOptions,
   getAvailableStartTimeOptions,
   getInitialStep,
@@ -24,21 +21,31 @@ import {
   type RegularClosedDay,
   type ShiftSubmissionPattern,
   type ShiftTypeOption,
+  type ShopFormData,
+  type ShopFormStep,
+  shopFormSchema,
   sortRegularClosedDays,
   WEEKDAYS,
 } from "./script";
 
-export type { EditShopFormData } from "./script";
+export type { ShopFormData } from "./script";
 
 type Props = {
-  defaultValues: EditShopFormData;
-  onSubmit: (data: EditShopFormData) => void | Promise<void>;
+  defaultValues: ShopFormData;
+  onSubmit: (data: ShopFormData) => void | Promise<void>;
   onCancel?: () => void;
-  initialStep?: EditShopFormStep;
+  initialStep?: ShopFormStep;
+  submitLabel?: string;
 };
 
-export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = "shopName" }: Props) => {
-  const [currentStep, setCurrentStep] = useState<EditShopFormStep>(() =>
+export const ShopForm = ({
+  defaultValues,
+  onSubmit,
+  onCancel,
+  initialStep = "shopName",
+  submitLabel = "変更を保存",
+}: Props) => {
+  const [currentStep, setCurrentStep] = useState<ShopFormStep>(() =>
     getInitialStep(initialStep, defaultValues.submissionPattern),
   );
   const [regularClosedDays, setRegularClosedDays] = useState<RegularClosedDay[]>(defaultValues.regularClosedDays);
@@ -50,8 +57,8 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
     getValues,
     trigger,
     formState: { errors, isSubmitting },
-  } = useForm<EditShopFormData>({
-    resolver: zodResolver(editShopSchema),
+  } = useForm<ShopFormData>({
+    resolver: zodResolver(shopFormSchema),
     defaultValues,
   });
 
@@ -136,7 +143,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
 
   const submitForm = handleSubmit(
     async (data) => {
-      await onSubmit(buildEditShopFormSubmission(data, regularClosedDays));
+      await onSubmit(buildShopFormSubmission(data, regularClosedDays));
     },
     (invalidErrors) => {
       if (invalidErrors.shopName) {
@@ -210,7 +217,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
         : { kind: "dateOnly" as const };
 
   return (
-    <EditShopFormView
+    <ShopFormView
       currentStep={currentStep}
       submissionPatternKind={submissionPattern.kind}
       shopNameStep={{
@@ -231,6 +238,7 @@ export const EditShopForm = ({ defaultValues, onSubmit, onCancel, initialStep = 
       actions={{
         currentStep,
         isSubmitting,
+        submitLabel,
         onCancel,
         onNext: goToNextStep,
         onPrevious: goToPreviousStep,

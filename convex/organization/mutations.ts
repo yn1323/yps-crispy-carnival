@@ -15,7 +15,7 @@ import {
   requireRestrictedRecoveryCapability,
 } from "../organizationBilling/service";
 import { ensureDefaultPosition } from "../position/service";
-import { createShopSchema } from "../setup/schemas";
+import { updateShopSettingsSchema } from "../shop/schemas";
 import { type OrganizationActor, requireOrganizationActorForShop } from "./access";
 import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./audit";
 import { organizationNameSchema } from "./schemas";
@@ -27,6 +27,8 @@ const shopMutationResultValidator = v.object({
   shopStatus: organizationShopOperatingStatusValidator,
   changed: v.boolean(),
 });
+
+const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function shopStatus(shop: Doc<"shops">) {
   return shop.operatingStatus ?? ("active" as const);
@@ -164,6 +166,19 @@ export const addShop = authenticatedMutation({
   args: {
     shopId: v.id("shops"),
     shopName: v.string(),
+    regularClosedDays: v.optional(
+      v.array(
+        v.union(
+          v.literal("sun"),
+          v.literal("mon"),
+          v.literal("tue"),
+          v.literal("wed"),
+          v.literal("thu"),
+          v.literal("fri"),
+          v.literal("sat"),
+        ),
+      ),
+    ),
     submissionPattern: submissionPatternValidator,
     requestId: v.string(),
   },
@@ -171,8 +186,9 @@ export const addShop = authenticatedMutation({
   handler: async (ctx, args) => {
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
-    const parsed = createShopSchema.safeParse({
+    const parsed = updateShopSettingsSchema.safeParse({
       shopName: args.shopName,
+      regularClosedDays: args.regularClosedDays ?? [],
       submissionPattern: args.submissionPattern,
     });
     if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
@@ -194,7 +210,7 @@ export const addShop = authenticatedMutation({
       organizationId: organization._id,
       operatingStatus: "active",
       name: parsed.data.shopName,
-      regularClosedDays: [],
+      regularClosedDays: WEEKDAY_ORDER.filter((day) => parsed.data.regularClosedDays.includes(day)),
       submissionPattern: normalizeSubmissionPattern(parsed.data.submissionPattern),
       isDeleted: false,
     });

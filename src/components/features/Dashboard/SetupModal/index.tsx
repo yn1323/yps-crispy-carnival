@@ -3,9 +3,9 @@ import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuChevronLeft, LuClock3, LuListChecks, LuStore, LuUserRound } from "react-icons/lu";
 import { createShopSchema as step1Schema } from "@/convex/setup/schemas";
+import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "@/src/components/shared/ShopSubmissionPatternForm";
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
-import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "../submissionPatternForm";
 import { SetupPatternSettingsStep, SetupShopInfoStep, type Step1Data } from "./SetupStep1";
 import { SetupStep2, type Step2Data } from "./SetupStep2";
 

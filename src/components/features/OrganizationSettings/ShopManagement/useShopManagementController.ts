@@ -2,22 +2,16 @@ import { useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { ShiftSubmissionPattern } from "@/convex/_lib/submissionPattern";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { OrganizationShopView } from "../types";
-import type { ShopManagementDialogState } from "./types";
+import type { ShopManagementDialogState, ShopManagementOperation } from "./types";
 
 type Input = {
   canAddShop: boolean;
   shops: OrganizationShopView[];
 };
-
-type Operation =
-  | { kind: "addShop"; shopName: string; submissionPattern: ShiftSubmissionPattern }
-  | { kind: "archiveShop"; shopId: string }
-  | { kind: "reactivateShop"; shopId: string };
 
 export function useShopManagementController(input: Input) {
   const addShop = useShopMutation(api.organization.mutations.addShop);
@@ -42,7 +36,7 @@ export function useShopManagementController(input: Input) {
     if (latestShop !== dialog.shop) setDialog({ ...dialog, shop: latestShop });
   }, [dialog, input.canAddShop, input.shops]);
 
-  const { run, isRunning } = useSingleFlight(async (operation: Operation) => {
+  const { run, isRunning } = useSingleFlight(async (operation: ShopManagementOperation) => {
     const latest = latestRef.current;
     if (operation.kind === "addShop") {
       if (!latest.canAddShop) {
@@ -63,8 +57,7 @@ export function useShopManagementController(input: Input) {
       switch (operation.kind) {
         case "addShop":
           await addShop({
-            shopName: operation.shopName,
-            submissionPattern: operation.submissionPattern,
+            ...operation.data,
             requestId,
           });
           showSuccessToast({ title: "店舗を追加しました" });
@@ -104,7 +97,7 @@ export function useShopManagementController(input: Input) {
       dialog,
       isRunning,
       onClose: () => setDialog(null),
-      onSubmit: (operation: Operation) => void run(operation).catch(() => undefined),
+      onSubmit: (operation: ShopManagementOperation) => run(operation).catch(() => undefined),
     },
   };
 }
