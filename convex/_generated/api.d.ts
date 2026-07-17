@@ -164,6 +164,7 @@ import type * as staffRegistration_notificationQueries from "../staffRegistratio
 import type * as staffRegistration_queries from "../staffRegistration/queries.js";
 import type * as staffRegistration_schemas from "../staffRegistration/schemas.js";
 import type * as staff_mutations from "../staff/mutations.js";
+import type * as staff_queries from "../staff/queries.js";
 import type * as staff_schemas from "../staff/schemas.js";
 import type * as staff_service from "../staff/service.js";
 import type * as testing from "../testing.js";
@@ -331,6 +332,7 @@ declare const fullApi: ApiFromModules<{
   "staffRegistration/queries": typeof staffRegistration_queries;
   "staffRegistration/schemas": typeof staffRegistration_schemas;
   "staff/mutations": typeof staff_mutations;
+  "staff/queries": typeof staff_queries;
   "staff/schemas": typeof staff_schemas;
   "staff/service": typeof staff_service;
   testing: typeof testing;

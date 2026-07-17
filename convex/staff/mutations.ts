@@ -24,6 +24,8 @@ type StaffNotificationKind = "openRecruitments" | "currentShift";
 type ManagerStaffMutationCtx = MutationCtx & {
   user: Doc<"users">;
   shop: Doc<"shops">;
+  organization: Doc<"organizations"> | null;
+  organizationMember: Doc<"organizationMembers"> | null;
 };
 
 const staffAddResultValidator = v.union(
@@ -131,6 +133,181 @@ async function allowStaffNotificationResend(
   return shortLimit.ok;
 }
 
+type AddStaffEntriesArgs = {
+  entries: Array<{ name: string; email: string }>;
+  confirmReactivationPersonIds?: Array<Id<"organizationPeople">>;
+  requestId: string;
+};
+
+async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntriesArgs) {
+  const parsed = addStaffsSchema.safeParse(args);
+  if (!parsed.success) {
+    throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+  }
+  const requestId = await toAuditRequestKey(args.requestId);
+  const validEntries = parsed.data.entries
+    .map((entry) => ({ name: entry.name, email: normalizeEmail(entry.email) }))
+    .filter((e) => e.name !== "");
+  const confirmedPersonIds = args.confirmReactivationPersonIds ?? [];
+  if (new Set(confirmedPersonIds).size !== confirmedPersonIds.length) {
+    throw new ConvexError("確認対象が重複しています。追加内容をもう一度確認してください");
+  }
+
+  const organizationId = ctx.shop.organizationId;
+  if (organizationId) {
+    if (ctx.organization?._id !== organizationId) throw new ConvexError("Not found");
+    const completed = await recoverCompletedStaffAddition(ctx, {
+      organizationId,
+      entries: validEntries,
+      confirmedPersonIds,
+      requestId,
+    });
+    if (completed) return completed;
+  } else if (confirmedPersonIds.length > 0) {
+    throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+  }
+
+  const inputEmails = new Set<string>();
+  for (const entry of validEntries) {
+    if (inputEmails.has(entry.email)) {
+      throw new ConvexError("同じメールアドレスが入力されています");
+    }
+    inputEmails.add(entry.email);
+
+    const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
+    if (existingStaff) {
+      throw new ConvexError("このメールアドレスはすでに登録されています");
+    }
+
+    const pendingRequest = await ctx.db
+      .query("staffRegistrationRequests")
+      .withIndex("by_shopId_emailNormalized_status", (q) =>
+        q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("status", "pending"),
+      )
+      .first();
+    if (pendingRequest) {
+      throw new ConvexError("このメールアドレスは承認待ちです");
+    }
+  }
+
+  type StaffInsertEntry = {
+    name: string;
+    email: string;
+    organizationId?: Id<"organizations">;
+    organizationPersonId?: Id<"organizationPeople">;
+    sourceState: "new" | "activePerson" | "removedPerson";
+    reactivatedPersonId?: Id<"organizationPeople">;
+  };
+  let staffEntries: StaffInsertEntry[] = validEntries.map((entry) => ({ ...entry, sourceState: "new" }));
+  if (organizationId) {
+    const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
+      organizationId,
+      shopId: ctx.shop._id,
+      entries: validEntries,
+      allowRemovedPeople: true,
+      deferCapacityCheck: true,
+    });
+    const reactivationCandidates = prepared.flatMap((entry) =>
+      entry.personState === "removed" && entry.existingPersonId
+        ? [{ personId: entry.existingPersonId, name: entry.name, email: entry.registeredEmail }]
+        : [],
+    );
+    const reactivationPersonIds = reactivationCandidates.map((candidate) => candidate.personId);
+    if (reactivationCandidates.length > 0 && args.confirmReactivationPersonIds === undefined) {
+      return { status: "requiresConfirmation" as const, candidates: reactivationCandidates };
+    }
+    if (!sameIds(reactivationPersonIds, confirmedPersonIds)) {
+      throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+    }
+    if (reactivationCandidates.length > 0 && !ctx.organizationMember) throw new ConvexError("Not found");
+
+    // pending manager招待の予約枠を、これから保存する同一人物へtransaction内で付け替える。
+    await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
+    const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
+    if (additionalPeople > 0) {
+      // pending招待の予約枠も含め、明示確認後の最新read setで再検証する。
+      await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
+    }
+    const materialized = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
+    staffEntries = materialized.map((entry) => ({
+      name: entry.name,
+      email: entry.email,
+      organizationId,
+      organizationPersonId: entry.personId,
+      sourceState: entry.reactivated ? "removedPerson" : entry.personState === "active" ? "activePerson" : "new",
+      ...(entry.reactivated ? { reactivatedPersonId: entry.personId } : {}),
+    }));
+  }
+
+  const inserted: Id<"staffs">[] = [];
+  for (const entry of staffEntries) {
+    const id = await ctx.db.insert("staffs", {
+      shopId: ctx.shop._id,
+      ...(entry.organizationId && entry.organizationPersonId
+        ? { organizationId: entry.organizationId, organizationPersonId: entry.organizationPersonId }
+        : {}),
+      name: entry.name,
+      email: entry.email,
+      emailNormalized: entry.email,
+      isDeleted: false,
+    });
+    inserted.push(id);
+  }
+  const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
+  for (const staffId of inserted) {
+    // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
+    // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
+    await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
+      staffId,
+      ...notificationOrigin,
+    });
+    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+      staffId,
+      ...notificationOrigin,
+    });
+    await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
+      staffId,
+      ...notificationOrigin,
+    });
+  }
+
+  if (organizationId) {
+    const correlationBase = `${organizationId}:staff-add:${requestId}`;
+    const now = Date.now();
+    for (const [index, staffId] of inserted.entries()) {
+      const entry = staffEntries[index];
+      if (!entry) throw new ConvexError("スタッフ追加結果を確認できません");
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember?.personId,
+        action: "organization.staff_added",
+        targetKind: "staff",
+        targetId: staffId,
+        fromState: entry.sourceState,
+        toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
+        correlationId: `${correlationBase}:staff:${index}`,
+        occurredAt: now,
+      });
+      if (entry.reactivatedPersonId) {
+        await recordOrganizationAuditEvent(ctx, {
+          organizationId,
+          actorUserId: ctx.user._id,
+          actorPersonId: ctx.organizationMember?.personId,
+          action: "organization.person_reactivated",
+          targetKind: "person",
+          targetId: entry.reactivatedPersonId,
+          fromState: "removed",
+          toState: "active",
+          correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
+          occurredAt: now,
+        });
+      }
+    }
+  }
+  return { status: "added" as const, staffIds: inserted };
+}
+
 export const addStaffs = managerMutation({
   args: {
     entries: v.array(v.object({ name: v.string(), email: v.string() })),
@@ -138,173 +315,52 @@ export const addStaffs = managerMutation({
     requestId: v.string(),
   },
   returns: staffAddResultValidator,
+  handler: addStaffEntries,
+});
+
+export const addOrganizationPersonToShop = managerMutation({
+  args: {
+    personId: v.id("organizationPeople"),
+    requestId: v.string(),
+  },
+  returns: v.object({ staffId: v.id("staffs") }),
   handler: async (ctx, args) => {
-    const parsed = addStaffsSchema.safeParse(args);
-    if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
-    }
-    const requestId = await toAuditRequestKey(args.requestId);
-    const validEntries = parsed.data.entries
-      .map((entry) => ({ name: entry.name, email: normalizeEmail(entry.email) }))
-      .filter((e) => e.name !== "");
-    const confirmedPersonIds = args.confirmReactivationPersonIds ?? [];
-    if (new Set(confirmedPersonIds).size !== confirmedPersonIds.length) {
-      throw new ConvexError("確認対象が重複しています。追加内容をもう一度確認してください");
+    if (!ctx.organization || ctx.shop.organizationId !== ctx.organization._id) {
+      throw new ConvexError("Not found");
     }
 
-    const organizationId = ctx.shop.organizationId;
-    if (organizationId) {
-      if (ctx.organization?._id !== organizationId) throw new ConvexError("Not found");
-      const completed = await recoverCompletedStaffAddition(ctx, {
-        organizationId,
-        entries: validEntries,
-        confirmedPersonIds,
-        requestId,
-      });
-      if (completed) return completed;
-    } else if (confirmedPersonIds.length > 0) {
-      throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
+    const person = await ctx.db.get(args.personId);
+    if (
+      !person ||
+      person.organizationId !== ctx.organization._id ||
+      person.status !== "active" ||
+      normalizeEmail(person.email) !== person.emailNormalized
+    ) {
+      throw new ConvexError("Not found");
     }
 
-    const inputEmails = new Set<string>();
-    for (const entry of validEntries) {
-      if (inputEmails.has(entry.email)) {
-        throw new ConvexError("同じメールアドレスが入力されています");
-      }
-      inputEmails.add(entry.email);
-
-      const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, entry.email);
-      if (existingStaff) {
-        throw new ConvexError("このメールアドレスはすでに登録されています");
-      }
-
-      const pendingRequest = await ctx.db
-        .query("staffRegistrationRequests")
-        .withIndex("by_shopId_emailNormalized_status", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("emailNormalized", entry.email).eq("status", "pending"),
-        )
-        .first();
-      if (pendingRequest) {
-        throw new ConvexError("このメールアドレスは承認待ちです");
-      }
+    const result = await addStaffEntries(ctx, {
+      entries: [{ name: person.name, email: person.email }],
+      requestId: args.requestId,
+    });
+    if (result.status !== "added" || result.staffIds.length !== 1) {
+      throw new ConvexError("スタッフ追加結果を確認できません");
     }
-
-    type StaffInsertEntry = {
-      name: string;
-      email: string;
-      organizationId?: Id<"organizations">;
-      organizationPersonId?: Id<"organizationPeople">;
-      sourceState: "new" | "activePerson" | "removedPerson";
-      reactivatedPersonId?: Id<"organizationPeople">;
-    };
-    let staffEntries: StaffInsertEntry[] = validEntries.map((entry) => ({ ...entry, sourceState: "new" }));
-    if (organizationId) {
-      const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
-        organizationId,
-        shopId: ctx.shop._id,
-        entries: validEntries,
-        allowRemovedPeople: true,
-        deferCapacityCheck: true,
-      });
-      const reactivationCandidates = prepared.flatMap((entry) =>
-        entry.personState === "removed" && entry.existingPersonId
-          ? [{ personId: entry.existingPersonId, name: entry.name, email: entry.registeredEmail }]
-          : [],
-      );
-      const reactivationPersonIds = reactivationCandidates.map((candidate) => candidate.personId);
-      if (reactivationCandidates.length > 0 && args.confirmReactivationPersonIds === undefined) {
-        return { status: "requiresConfirmation" as const, candidates: reactivationCandidates };
-      }
-      if (!sameIds(reactivationPersonIds, confirmedPersonIds)) {
-        throw new ConvexError("確認対象が変わりました。追加内容をもう一度確認してください");
-      }
-      if (reactivationCandidates.length > 0 && !ctx.organizationMember) throw new ConvexError("Not found");
-
-      // pending manager招待の予約枠を、これから保存する同一人物へtransaction内で付け替える。
-      await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
-      const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
-      if (additionalPeople > 0) {
-        // pending招待の予約枠も含め、明示確認後の最新read setで再検証する。
-        await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
-      }
-      const materialized = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
-      staffEntries = materialized.map((entry) => ({
-        name: entry.name,
-        email: entry.email,
-        organizationId,
-        organizationPersonId: entry.personId,
-        sourceState: entry.reactivated ? "removedPerson" : entry.personState === "active" ? "activePerson" : "new",
-        ...(entry.reactivated ? { reactivatedPersonId: entry.personId } : {}),
-      }));
+    const staffId = result.staffIds[0];
+    const staff = await ctx.db.get(staffId);
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== ctx.shop._id ||
+      staff.organizationId !== ctx.organization._id ||
+      staff.organizationPersonId !== person._id ||
+      staff.name !== person.name ||
+      staff.email !== person.emailNormalized ||
+      staff.emailNormalized !== person.emailNormalized
+    ) {
+      throw new ConvexError("スタッフ追加結果を確認できません");
     }
-
-    const inserted: Id<"staffs">[] = [];
-    for (const entry of staffEntries) {
-      const id = await ctx.db.insert("staffs", {
-        shopId: ctx.shop._id,
-        ...(entry.organizationId && entry.organizationPersonId
-          ? { organizationId: entry.organizationId, organizationPersonId: entry.organizationPersonId }
-          : {}),
-        name: entry.name,
-        email: entry.email,
-        emailNormalized: entry.email,
-        isDeleted: false,
-      });
-      inserted.push(id);
-    }
-    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-    for (const staffId of inserted) {
-      // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
-      // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
-      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
-        staffId,
-        ...notificationOrigin,
-      });
-      await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
-        staffId,
-        ...notificationOrigin,
-      });
-      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
-        staffId,
-        ...notificationOrigin,
-      });
-    }
-
-    if (organizationId) {
-      const correlationBase = `${organizationId}:staff-add:${requestId}`;
-      const now = Date.now();
-      for (const [index, staffId] of inserted.entries()) {
-        const entry = staffEntries[index];
-        if (!entry) throw new ConvexError("スタッフ追加結果を確認できません");
-        await recordOrganizationAuditEvent(ctx, {
-          organizationId,
-          actorUserId: ctx.user._id,
-          actorPersonId: ctx.organizationMember?.personId,
-          action: "organization.staff_added",
-          targetKind: "staff",
-          targetId: staffId,
-          fromState: entry.sourceState,
-          toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
-          correlationId: `${correlationBase}:staff:${index}`,
-          occurredAt: now,
-        });
-        if (entry.reactivatedPersonId) {
-          await recordOrganizationAuditEvent(ctx, {
-            organizationId,
-            actorUserId: ctx.user._id,
-            actorPersonId: ctx.organizationMember?.personId,
-            action: "organization.person_reactivated",
-            targetKind: "person",
-            targetId: entry.reactivatedPersonId,
-            fromState: "removed",
-            toState: "active",
-            correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
-            occurredAt: now,
-          });
-        }
-      }
-    }
-    return { status: "added" as const, staffIds: inserted };
+    return { staffId };
   },
 });
 

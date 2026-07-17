@@ -1,45 +1,15 @@
-import { Alert, Flex, Stack, Text } from "@chakra-ui/react";
-import { LuUserPlus } from "react-icons/lu";
-import type { Id } from "@/convex/_generated/dataModel";
+import { Alert, Stack, Text } from "@chakra-ui/react";
 import { PeopleCapacityResolutionAlert } from "@/src/components/shared/PeopleCapacityResolutionAlert";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
-import type { AddStaffFormData } from "../AddStaffForm";
-import { AddStaffForm } from "../AddStaffForm";
 import type { EditStaffFormData } from "../EditStaffForm";
-import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { StaffRoster } from "../StaffRoster";
 import { StaffDetailDialog } from "../StaffRoster/StaffDetailDialog";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
+import { StaffInvitationDialog, type StaffInvitationViewModel } from "./StaffInvitationDialog";
 
 type DialogState = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-};
-
-type InvitationViewModel = {
-  dialog: DialogState;
-  mode: "qr" | "manual";
-  registrationUrl: string | null;
-  peopleCapacityResolution: PeopleCapacityResolution | null;
-  isRegistrationUrlLoading: boolean;
-  isAddingStaffs: boolean;
-  onOpen: () => void | Promise<void>;
-  onBackOrClose: () => void;
-  onShowManualEntry: () => void;
-  onAddStaffs: (data: AddStaffFormData) => void | Promise<void>;
-  reactivationConfirmation: {
-    dialog: DialogState;
-    candidates: Array<{
-      personId: Id<"organizationPeople">;
-      name: string;
-      email: string;
-    }>;
-    isConfirming: boolean;
-    onConfirm: () => void | Promise<void>;
-    onClose: () => void;
-  };
 };
 
 type StaffDetailViewModel = {
@@ -78,7 +48,7 @@ type Props = {
   onLoadMore: () => void;
   openRecruitments: Recruitment[];
   currentRecruitments: Recruitment[];
-  invitation: InvitationViewModel;
+  invitation: StaffInvitationViewModel;
   detail: StaffDetailViewModel;
 };
 
@@ -105,75 +75,7 @@ export function StaffManagementView({
         onLoadMore={onLoadMore}
       />
 
-      <Dialog
-        title="スタッフを招待"
-        isOpen={invitation.dialog.isOpen && !isReadOnly}
-        onOpenChange={invitation.dialog.onOpenChange}
-        formId={invitation.mode === "manual" ? "add-staff-form" : undefined}
-        submitLabel={invitation.mode === "manual" ? "スタッフを追加する" : undefined}
-        onClose={invitation.onBackOrClose}
-        closeLabel={invitation.mode === "manual" ? "戻る" : "閉じる"}
-        hideFooter={invitation.mode === "qr"}
-        footer={
-          invitation.mode === "manual" ? (
-            <Flex w="full" align="center" justify="space-between" gap={3}>
-              <Button
-                variant="outline"
-                onClick={invitation.onBackOrClose}
-                disabled={isReadOnly || invitation.isAddingStaffs}
-              >
-                戻る
-              </Button>
-              <Button
-                type="submit"
-                form="add-staff-form"
-                colorPalette="teal"
-                loading={invitation.isAddingStaffs}
-                disabled={isReadOnly}
-              >
-                スタッフを追加する
-              </Button>
-            </Flex>
-          ) : undefined
-        }
-        maxW={{ base: "100vw", lg: "640px" }}
-        maxH={{ base: "100dvh", lg: "85dvh" }}
-        contentProps={{
-          w: "100%",
-          h: { base: "100dvh", lg: "auto" },
-          my: { base: 0, lg: "auto" },
-          borderRadius: { base: 0, lg: "l3" },
-        }}
-      >
-        {invitation.mode === "qr" ? (
-          <StaffRegistrationLinkPanel
-            registrationUrl={invitation.registrationUrl}
-            isLoading={invitation.isRegistrationUrlLoading}
-            manualEntryAction={
-              <Button
-                onClick={invitation.onShowManualEntry}
-                size="sm"
-                colorPalette="teal"
-                disabled={isReadOnly}
-                gap={1.5}
-              >
-                <LuUserPlus />
-                スタッフ情報を手入力する
-              </Button>
-            }
-          />
-        ) : (
-          <Stack gap={4}>
-            {invitation.peopleCapacityResolution && (
-              <PeopleCapacityResolutionAlert
-                resolution={invitation.peopleCapacityResolution}
-                retryActionLabel="スタッフを追加"
-              />
-            )}
-            <AddStaffForm onSubmit={invitation.onAddStaffs} />
-          </Stack>
-        )}
-      </Dialog>
+      <StaffInvitationDialog invitation={invitation} isReadOnly={isReadOnly} />
 
       <Dialog
         title="削除済みの人物を再追加しますか？"

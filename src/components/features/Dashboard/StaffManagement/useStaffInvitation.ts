@@ -11,15 +11,18 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { AddStaffFormData } from "../AddStaffForm";
+import type { StaffInvitationTab } from "./StaffInvitationDialog";
 
 export function useStaffInvitation(isReadOnly = false) {
   const isReadOnlyRef = useRef(isReadOnly);
+  const invitationMutationInFlightRef = useRef(false);
   isReadOnlyRef.current = isReadOnly;
   const dialog = useDialog();
   const reactivationDialog = useDialog();
-  const [mode, setMode] = useState<"qr" | "manual">("qr");
+  const [activeTab, setActiveTab] = useState<StaffInvitationTab>("link");
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [peopleCapacityResolution, setPeopleCapacityResolution] = useState<PeopleCapacityResolution | null>(null);
+  const [addingOrganizationPersonId, setAddingOrganizationPersonId] = useState<Id<"organizationPeople"> | null>(null);
   const [pendingReactivation, setPendingReactivation] = useState<{
     data: AddStaffFormData;
     requestId: string;
@@ -30,20 +33,23 @@ export function useStaffInvitation(isReadOnly = false) {
     }>;
   } | null>(null);
   const addStaffs = useShopMutation(api.staff.mutations.addStaffs);
+  const addOrganizationPersonToShop = useShopMutation(api.staff.mutations.addOrganizationPersonToShop);
   const ensureShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
 
   useEffect(() => {
     if (!isReadOnly) return;
     dialog.close();
     reactivationDialog.close();
-    setMode("qr");
+    setActiveTab("link");
     setRegistrationUrl(null);
     setPeopleCapacityResolution(null);
+    setAddingOrganizationPersonId(null);
     setPendingReactivation(null);
   }, [dialog.close, isReadOnly, reactivationDialog.close]);
 
   const { run: handleAddStaffs, isRunning: isAddingStaffs } = useSingleFlight(async (data: AddStaffFormData) => {
-    if (isReadOnlyRef.current) return;
+    if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
+    invitationMutationInFlightRef.current = true;
     setPeopleCapacityResolution(null);
     try {
       const requestId = crypto.randomUUID();
@@ -65,12 +71,15 @@ export function useStaffInvitation(isReadOnly = false) {
         return;
       }
       showErrorToast(error);
+    } finally {
+      invitationMutationInFlightRef.current = false;
     }
   });
 
   const { run: handleConfirmReactivation, isRunning: isConfirmingReactivation } = useSingleFlight(async () => {
-    if (isReadOnlyRef.current || !pendingReactivation) return;
+    if (isReadOnlyRef.current || !pendingReactivation || invitationMutationInFlightRef.current) return;
 
+    invitationMutationInFlightRef.current = true;
     setPeopleCapacityResolution(null);
     try {
       const result = await addStaffs({
@@ -95,6 +104,8 @@ export function useStaffInvitation(isReadOnly = false) {
         return;
       }
       showErrorToast(error);
+    } finally {
+      invitationMutationInFlightRef.current = false;
     }
   });
 
@@ -110,50 +121,83 @@ export function useStaffInvitation(isReadOnly = false) {
     }
   });
 
+  const { run: handleAddOrganizationPerson, isRunning: isAddingOrganizationPerson } = useSingleFlight(
+    async (personId: Id<"organizationPeople">) => {
+      if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
+
+      invitationMutationInFlightRef.current = true;
+      setAddingOrganizationPersonId(personId);
+      try {
+        await addOrganizationPersonToShop({ personId, requestId: crypto.randomUUID() });
+        if (isReadOnlyRef.current) return;
+        dialog.close();
+        showSuccessToast({
+          title: "スタッフを追加しました",
+          description: "この店舗のスタッフとして追加しました。",
+        });
+      } catch (error) {
+        if (!isReadOnlyRef.current) showErrorToast(error);
+      } finally {
+        setAddingOrganizationPersonId(null);
+        invitationMutationInFlightRef.current = false;
+      }
+    },
+  );
+
   const handleOpen = () => {
-    if (isReadOnlyRef.current) return;
-    setMode("qr");
+    if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
+    setActiveTab("link");
     setRegistrationUrl(null);
     setPeopleCapacityResolution(null);
+    setAddingOrganizationPersonId(null);
     setPendingReactivation(null);
     reactivationDialog.close();
     dialog.open();
     void loadRegistrationUrl();
   };
 
-  const handleBackOrClose = () => {
-    if (reactivationDialog.isOpen) return;
-    if (mode === "manual") {
-      setMode("qr");
-      return;
-    }
+  const handleClose = () => {
+    if (reactivationDialog.isOpen || invitationMutationInFlightRef.current) return;
     dialog.close();
   };
 
   return {
-    dialog,
-    mode,
+    dialog: {
+      isOpen: dialog.isOpen,
+      onOpenChange: ({ open }: { open: boolean }) => {
+        if (open) {
+          handleOpen();
+          return;
+        }
+        handleClose();
+      },
+    },
+    activeTab,
     registrationUrl,
     peopleCapacityResolution,
     isRegistrationUrlLoading,
     isAddingStaffs,
+    addingOrganizationPersonId,
+    isAddingOrganizationPerson,
     onOpen: handleOpen,
-    onBackOrClose: handleBackOrClose,
-    onShowManualEntry: () => {
-      if (isReadOnlyRef.current) return;
+    onClose: handleClose,
+    onTabChange: (tab: StaffInvitationTab) => {
+      if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
       setPeopleCapacityResolution(null);
-      setMode("manual");
+      setActiveTab(tab);
     },
     onAddStaffs: handleAddStaffs,
+    onAddOrganizationPerson: handleAddOrganizationPerson,
     reactivationConfirmation: {
       dialog: {
         isOpen: reactivationDialog.isOpen,
         onOpenChange: ({ open }: { open: boolean }) => {
           if (open) {
-            if (isReadOnlyRef.current) return;
+            if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
             reactivationDialog.open();
             return;
           }
+          if (invitationMutationInFlightRef.current) return;
           reactivationDialog.close();
           setPendingReactivation(null);
         },
@@ -162,6 +206,7 @@ export function useStaffInvitation(isReadOnly = false) {
       isConfirming: isConfirmingReactivation,
       onConfirm: handleConfirmReactivation,
       onClose: () => {
+        if (invitationMutationInFlightRef.current) return;
         reactivationDialog.close();
         setPendingReactivation(null);
       },

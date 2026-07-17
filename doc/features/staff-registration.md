@@ -11,7 +11,8 @@
 - `convex/line/actions.ts` / `convex/notification/templates.ts` — 承認後LINE連携メール文脈、承認待ち通知文面
 - `src/pages/staff-registration/` — スタッフ登録ページ
 - `src/components/features/StaffRegistration/` — 登録フォーム、メールtypo警告、確認表示
-- `src/components/features/Dashboard/StaffManagement/useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 店舗専用登録リンクの取得とQR/URL表示
+- `convex/staff/queries.ts` / `convex/staff/mutations.ts` — 同じグループで対象店舗に所属していない人物の取得と、人物IDを固定した店舗スタッフ追加
+- `src/components/features/Dashboard/StaffManagement/StaffInvitationDialog.tsx` / `OrganizationPeopleCandidateList.tsx` / `useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 招待方法の切替、他店舗スタッフ候補、店舗専用登録リンクの取得、QR/URL表示
 - `src/components/features/Dashboard/StaffRegistrationRequestManagement/` — スタッフ参加申請の取得、モーダル、承認/却下
 
 ## 画面一覧
@@ -20,7 +21,7 @@
 |---|---|
 | ダッシュボード | 「スタッフを追加」から店舗専用QR/URLを表示し、参加申請カードからモーダルを開いて承認/却下する |
 | `/staff/register` | スタッフが名前・メール・利用規約/プライバシーポリシー同意を入力して申請する |
-| スタッフ追加モーダル | 既定はQR/URL表示、補助導線として従来の手入力フォームへ切替 |
+| スタッフ追加モーダル | 「リンクから招待」「管理者が登録」「他店舗スタッフを招待」の3タブから追加方法を選ぶ。他店舗スタッフは1人ずつ選択し、対象店舗へ直接追加する |
 
 ## API一覧
 
@@ -32,6 +33,8 @@
 | `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う |
 | `api.staffRegistration.mutations.rejectRequest` | mutation | 申請を却下する |
 | `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 店舗固定の登録リンクを作成/取得 |
+| `api.staff.queries.listOrganizationPeopleAvailableForShop` | query | 同じグループの有効人物から、対象店舗に所属していない候補を取得 |
+| `api.staff.mutations.addOrganizationPersonToShop` | mutation | 選択したグループ人物を人物IDで再検証し、対象店舗のスタッフとして追加 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | ダッシュボードチュートリアル終了をDB保存 |
 | `internal.staffRegistration.actions.sendOwnerDailyDigest` | internalAction | 毎日17:00 JSTに承認待ち申請がある店舗のmanager usersへ通知 |
 | `internal.staffRegistration.notificationQueries.listPendingRequestShopIdsPage` | internalQuery | 直近24時間以内に作成された承認待ち申請がある店舗IDをページング取得 |
@@ -43,6 +46,7 @@
 - メール誤入力対策は、形式チェック、よくあるtypo警告、送信前の大きな確認表示で行う。
 - QR登録で同意済みのスタッフには、承認後に法務同意メールを送らない。
 - 手入力追加は従来通り、法務同意メール・LINE連携メール・募集中シフト通知を送る。Dashboardでは追加完了時に案内通知を送ったことを明示する。
+- 他店舗スタッフの追加では、グループに登録済みの氏名とメールアドレスを正として同じ人物を再利用する。他店舗のスタッフ所属、管理者権限、セッション、LINE連携情報は変更せず、追加先店舗のスタッフ向け案内だけを新しく送る。
 - 参加申請を承認すると、承認済みスタッフへLINE連携案内を送り、募集中シフトがある場合は提出リンクも送る。Dashboardでは承認完了時に案内通知を送ったことを明示する。
 - 承認待ち申請が残っている店舗には、毎日17:00 JSTに店舗のmanager usersへ短い確認通知を送る。manager userに紐づくstaffがLINE連携済みならLINE、未連携・友達解除・Quota超過時はusers.emailへメールで送る。
 - 承認待ち通知のメール / LINE CTAは申請元店舗を `shop` クエリで指定したDashboard URLを使う。
