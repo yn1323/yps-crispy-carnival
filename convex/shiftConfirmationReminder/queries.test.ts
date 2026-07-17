@@ -62,7 +62,11 @@ describe("shiftConfirmationReminder/queries", () => {
         periodLabel: expect.stringContaining("〜"),
       });
       expect(result?.deadlineLabel).toContain("23:59");
-      expect(result?.dashboardUrl).toMatch(/\/dashboard$/);
+      expect(result).not.toBeNull();
+      if (!result) return;
+      const dashboardUrl = new URL(result.dashboardUrl);
+      expect(dashboardUrl.pathname).toBe("/dashboard");
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(result.shopId)]]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ email: "owner-line@example.com", lineUserId: "U_owner_line", lineFollowing: true }),

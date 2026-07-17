@@ -141,7 +141,11 @@ describe("staffRegistration/notificationQueries", () => {
         shopId,
         shopName: "通知店舗",
       });
-      expect(result?.dashboardUrl).toMatch(/\/dashboard$/);
+      expect(result).not.toBeNull();
+      if (!result) return;
+      const dashboardUrl = new URL(result.dashboardUrl);
+      expect(dashboardUrl.pathname).toBe("/dashboard");
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

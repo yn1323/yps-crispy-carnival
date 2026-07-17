@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
-import { APP_URL } from "../_lib/config";
+import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
 
@@ -40,7 +40,7 @@ export const getOwnerDigestTargetForShop = internalQuery({
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: `${APP_URL}/dashboard`,
+      dashboardUrl: buildShopDashboardUrl(shopId),
       recipients,
     };
   },

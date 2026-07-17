@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { filter } from "convex-helpers/server/filter";
 import type { Id } from "../_generated/dataModel";
 import { internalQuery } from "../_generated/server";
-import { APP_URL } from "../_lib/config";
+import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT, NOTIFICATION_FAILURE_REMINDER_WINDOW_MS } from "../constants";
 import { isManagerVisibleNotificationFailure } from "./failureEligibility";
@@ -81,7 +81,7 @@ export const getFailureReminderTargetForShop = internalQuery({
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: `${APP_URL}/dashboard`,
+      dashboardUrl: buildShopDashboardUrl(shopId),
       recipients,
     };
   },
