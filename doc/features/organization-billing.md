@@ -11,6 +11,7 @@
 - 実装順序、移行境界、外部ゲートは `doc/plans/2026-07-14_事業者課金_複数店舗_複数管理者_実装計画.md` を参照する。
 - 既存グループへの無償Business付与は `doc/plans/2026-07-16_既存事業者_無償Business_実装計画.md` を参照する。
 - 管理者5名上限、スタッフ詳細からの招待、Free管理者交代後の権限失効は `doc/plans/2026-07-17_スタッフ詳細_管理者招待_5名上限_実装計画.md` が先行計画を上書きする。
+- Free管理者交代の送信前確認と、同一管理者による複数グループ切替のE2E契約は `doc/plans/2026-07-18_Free管理者交代_複数グループ_追加実装計画.md` を参照する。
 - この文書は現行コードの機能配置とAPI一覧を示し、料金や会計判断は定義しない。
 
 ## 主要な契約
@@ -23,15 +24,18 @@
 - 管理者APIは認証済み利用者からグループ所属を解決し、選択された店舗が同じグループに属することをサーバー側で再確認する。
 - 現在タブの店舗コンテキストは`?shop=`を正とする。URL値は`getMyShops`の候補と照合してから採用し、localStorageの選択店舗はURL指定がない場合の前回値fallbackとしてだけ使う。
 - URLと保存値のどちらにも有効な店舗がなければ、候補数にかかわらず`getMyShops`の先頭店舗を自動採用する。明示されたURLが候補外の場合だけは別店舗へfallbackせず、汎用エラーを表示する。
+- 同じアカウントが無関係な複数グループの有効管理者である場合も、`?shop=`からグループを一意に解決し、Dashboardとグループ設定の切替、表示、更新を選択グループへ限定する。
 - `organizationBillingStates` がグループ単位の課金状態を保持し、画面とmutationは共通policyから操作可否を導出する。
 - 旧店舗モデルから移行し、移行元店舗との相互リンクを一意に確認でき、課金状態が未設定のグループは`complimentary.business`として、Stripeと接続せずBusinessの利用上限と有料機能を利用する。
 - 管理者招待の発行では、本人確認後に管理者所属を作るための一回限りのアカウント連携権限と利用枠だけを予約する。新規人物、管理者所属、既存スタッフの管理者権限は作らない。
 - 管理者招待は対象人物のLINE連携状態にかかわらずメールへ送る。再送では旧招待を失効させ、トークンをローテーションする。
 - グループ設定の管理者招待Dialogは「現在のスタッフ」と「名前・メールを入力」の2タブで構成する。Freeでは現在のスタッフから次の管理者を選び、手入力による外部招待は行わない。
+- Freeの管理者交代では、初回送信と再送の前に、後任がこのグループの唯一の管理者になり、アカウント連携完了時に現管理者の管理者権限が終了することを現管理者へ明示する。最終確認までは招待mutationを実行しない。
 - グループ設定のユーザータブには管理者招待ボタンだけを置き、承認状況の一覧は表示しない。既存人物に未連携招待がある場合は、人物詳細または管理者招待Dialogからログイン案内を再送できる。
 - `organizationInvitations.status`、`shops.operatingStatus`、`organizationBillingStates.freeShopId`は招待・課金ライフサイクルで引き続き使うため内部に保持する。物理削除は依存する状態遷移を置き換えた後のNarrowで行う。
 - グループ設定では氏名とメールアドレスで外部人物を招待でき、人物詳細、スタッフ詳細、管理者招待Dialogのスタッフ選択では`targetPersonId`で固定した既存人物を招待する。有効な追加招待は`issued`の間から管理者枠を一枠予約する。
 - 招待先が確認済みメールでログインすると、同じmutation内で利用者IDを人物へ紐づけ、`organizationMembers`を`active`にして招待を`linked`へ進める。認証済みの既存`users`があれば再利用し、招待先グループにいない外部人物はこの時点で初めて作る。
+- アカウント連携完了通知のグループ設定CTAは、送信時点で対象グループの削除されていない代表店舗を`active`、`planSuspended`、`archived`の順に再解決し、`/settings?shop=<shopId>`へ遷移する。代表店舗がなければ別グループの店舗へfallbackせず、`/settings`に限定する。
 - Freeの管理者交代では、アカウント連携と同じトランザクションで旧管理者の管理画面権限と旧`shopMembers`だけを失効させる。`organizationPeople`と交代前からある`staffs`は維持し、未所属店舗へスタッフ行を追加しない。
 - 店舗スタッフの編集は`organizationPeople`を正本とし、同じ人物の有効な全店舗スタッフ行へ氏名とメールアドレスを同期する。
 - 店舗から人物を外してもグループ内の人物と利用人数算入は維持し、グループからの削除では全所属と未送信通知を失効する。
@@ -130,7 +134,7 @@
 | `internal.organizationBilling.actions.enqueueBillingNotification` | `internalAction` | 課金メールを既存Notification Outboxへ重複排除付きで予約する |
 | `internal.organizationInvitation.mutations.expire` | `internalMutation` | versionと期限が一致する`issued`招待だけを失効させる |
 | `internal.organizationInvitation.queries.getEnqueueData` | `internalQuery` | 送信直前に招待、発行者、グループ、課金状態を再確認する |
-| `internal.organizationInvitation.queries.getAcceptanceNotificationData` | `internalQuery` | アカウント連携完了通知のグループと有効管理者を再解決する |
+| `internal.organizationInvitation.queries.getAcceptanceNotificationData` | `internalQuery` | アカウント連携完了通知のグループ、有効管理者、代表店舗を再解決する |
 | `internal.organizationInvitation.actions.enqueueManagerInvitation` | `internalAction` | 管理者招待メールをNotification Outboxへ重複排除付きで予約する |
 | `internal.organizationInvitation.actions.enqueueAcceptanceNotifications` | `internalAction` | 連携者を含む全有効管理者へ連携完了メールを予約する |
 | `internal.notificationOutbox.mutations.prepareForDelivery` | `internalMutation` | 外部送信直前にグループ、店舗、所属、課金状態を再確認する |
@@ -232,7 +236,7 @@ BusinessからProへの期間末変更は、`issued`招待の予約枠を含む�
 - `convex/organizationInvitation/mutations.test.ts`と`token.test.ts`：発行時の人物未作成、トークン、期限、メール一致、再送ローテーション、アカウント連携、上限、競合、通知。
 - `convex/organizationInvitation/lifecycleMigration.test.ts`：旧`pending/accepted`から`issued/linked`への移行と再実行時の冪等性。
 - `convex/organization/freeFormerManagerAccessMigration.test.ts`：旧管理者権限移行、衝突、裁定、再実行、スタッフ所属の不変性。
-- `convex/_scenario/staffManagerInvitation.test.ts`：既存スタッフの招待から管理者化までの状態遷移。
+- `convex/_scenario/staffManagerInvitation.test.ts`：既存スタッフの招待、管理者化、4種の管理者digest、権限解除後のスタッフ通知維持までの状態遷移。
 - `convex/_scenario/organizationManagerExchange.test.ts`：Free管理者交代後の権限失効、スタッフ継続、通知対象の不変性。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`：複数APIと時間経過をまたぐ課金ライフサイクル。
 - `convex/organization/migrations.test.ts`：m012の対象限定、衝突記録、監査、再実行の冪等性。
