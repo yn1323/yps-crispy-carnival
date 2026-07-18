@@ -211,7 +211,10 @@ export const ReadOnlyShop: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await expect(canvas.getByRole("button", { name: "居酒屋たなかの店舗設定を編集" })).toBeDisabled();
+    await userEvent.click(canvas.getByRole("button", { name: "設定メニューを開く" }));
+    const shopSettingsMenuItem = await body.findByRole("menuitem", { name: "店舗設定" });
+    await expect(shopSettingsMenuItem).toHaveAttribute("aria-disabled", "true");
+    await userEvent.keyboard("{Escape}");
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "スタッフを招待" })).toBeDisabled();
 
@@ -240,7 +243,8 @@ export const ReadOnlyTransitionBehavior: Story = {
       await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
     };
 
-    await userEvent.click(canvas.getByRole("button", { name: "居酒屋たなかの店舗設定を編集" }));
+    await userEvent.click(canvas.getByRole("button", { name: "設定メニューを開く" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "店舗設定" }));
     await body.findByRole("dialog", { name: "店舗設定" });
     await expectDialogClosedByReadOnly("店舗設定");
 
@@ -302,7 +306,8 @@ export const ManagementDialogsBehavior: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await userEvent.click(canvas.getByRole("button", { name: "居酒屋たなかの店舗設定を編集" }));
+    await userEvent.click(canvas.getByRole("button", { name: "設定メニューを開く" }));
+    await userEvent.click(await body.findByRole("menuitem", { name: "店舗設定" }));
     const shopSettingsDialog = await body.findByRole("dialog", { name: "店舗設定" });
     await userEvent.click(within(shopSettingsDialog).getByRole("button", { name: "閉じる" }));
     await waitFor(() => expect(body.queryByRole("dialog", { name: "店舗設定" })).not.toBeInTheDocument());

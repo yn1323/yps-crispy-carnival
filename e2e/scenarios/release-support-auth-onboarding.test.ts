@@ -58,7 +58,7 @@ test.describe("リリース前の認証・オンボーディング回帰", { tag
 
     await test.step("Step 3: reloadしても完了状態が維持される", async () => {
       await page.reload();
-      await expect(page.getByRole("button", { name: "店舗設定を編集" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "設定メニューを開く" })).toBeVisible();
       await support.expectOnboardingHidden();
     });
   });

@@ -3,6 +3,13 @@ import { join } from "node:path";
 const DEFAULT_E2E_CLERK_USER_EMAILS = ["e2e-user-1@test.com", "e2e-user-2@test.com", "e2e-user-3@test.com"];
 const EXPECTED_E2E_USER_COUNT = 3;
 const CURRENT_E2E_USER_INDEX_ENV = "E2E_CURRENT_USER_INDEX";
+const E2E_ACTOR_USER_INDEX = {
+  A: 0,
+  B: 1,
+  C: 2,
+} as const;
+
+export type E2EActor = keyof typeof E2E_ACTOR_USER_INDEX;
 
 export type E2EClerkUser = {
   index: number;
@@ -55,6 +62,10 @@ export function getE2EClerkUserForIndex(index: number): E2EClerkUser {
   const users = getE2EClerkUsers();
   const normalizedIndex = normalizeE2EUserIndex(index, users.length);
   return users[normalizedIndex];
+}
+
+export function getE2EClerkUserForActor(actor: E2EActor): E2EClerkUser {
+  return getE2EClerkUserForIndex(E2E_ACTOR_USER_INDEX[actor]);
 }
 
 export function setCurrentE2EClerkUserIndex(index: number) {

@@ -7,6 +7,10 @@ export class StaffRegistrationPage {
     await this.page.goto(`/staff/register?token=${token}`);
   }
 
+  async expectShopName(shopName: string) {
+    await expect(this.page.getByText(shopName, { exact: true }).first()).toBeVisible();
+  }
+
   async submitRequest(data: { name: string; email: string }) {
     await this.fillRequestForm(data);
     await this.page.getByRole("button", { name: "申請する" }).click();

@@ -7,6 +7,11 @@ export class ShiftBoardPage {
     await expect(this.page).toHaveURL(/\/shiftboard\//);
   }
 
+  async expectShopContext(shopId: string) {
+    const escapedShopId = shopId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(this.page).toHaveURL(new RegExp(`/shiftboard/[^?]+\\?[^#]*shop=${escapedShopId}(?:&|$)`));
+  }
+
   async reload() {
     await this.page.reload();
     await this.expectOnShiftBoard();

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { convexRunJson } from "./convex";
-import { getCurrentE2EClerkUser, getE2EStorageStatePath } from "./e2eUsers";
+import { getCurrentE2EClerkUser, getE2EClerkUserForActor, getE2EStorageStatePath } from "./e2eUsers";
 import { assertNotificationDeliverySuppressed } from "./notificationProbe";
 
 type ClerkStorageState = {
@@ -86,4 +86,176 @@ export function getCurrentManagerShopId() {
   });
   if (!result.shopId) throw new Error("E2E manager shop was not found");
   return result.shopId;
+}
+
+export type MultiShopOrganizationScenarioArgs = {
+  organizationName?: string;
+  primaryShopName?: string;
+  secondaryShopName?: string;
+  primaryMarkerPersonName?: string;
+  primaryMarkerPersonEmail?: string;
+  secondaryMarkerPersonName?: string;
+  secondaryMarkerPersonEmail?: string;
+};
+
+export type MultiShopOrganizationScenarioSeed = {
+  organizationId: string;
+  primaryOrganizationId: string;
+  shopId: string;
+  primaryShopId: string;
+  secondaryShopId: string;
+  userId: string;
+  ownerPersonId: string;
+  managerStaffId: string;
+  primaryMarkerPersonId: string;
+  primaryMarkerStaffId: string;
+  secondaryMarkerPersonId: string;
+  secondaryMarkerStaffId: string;
+  organizationName: string;
+  primaryShopName: string;
+  secondaryShopName: string;
+  primaryMarkerPersonName: string;
+  primaryMarkerPersonEmail: string;
+  secondaryMarkerPersonName: string;
+  secondaryMarkerPersonEmail: string;
+};
+
+export function seedMultiShopOrganizationScenario(
+  args: MultiShopOrganizationScenarioArgs = {},
+): MultiShopOrganizationScenarioSeed {
+  const owner = getCurrentE2EClerkUser();
+  const result = convexRunJson<MultiShopOrganizationScenarioSeed>("testing:seedMultiShopOrganizationScenario", {
+    managerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(owner.index),
+    managerEmail: owner.email,
+    ...args,
+  });
+  assertNotificationDeliverySuppressed(result.primaryShopId);
+  assertNotificationDeliverySuppressed(result.secondaryShopId);
+  return result;
+}
+
+export type MultiActorOrganizationScenarioArgs = {
+  organizationName?: string;
+  primaryShopName?: string;
+  secondaryShopName?: string;
+  actorBName?: string;
+  actorCName?: string;
+  alternateOrganizationName?: string;
+  alternateShopName?: string;
+};
+
+export type MultiActorOrganizationScenarioSeed = {
+  ownerUserId: string;
+  actorBUserId: string;
+  actorCUserId: string;
+  primaryOrganizationId: string;
+  ownerPersonId: string;
+  ownerMemberId: string;
+  primaryShopId: string;
+  secondaryShopId: string;
+  actorBPersonId: string;
+  actorBPrimaryStaffId: string;
+  alternateOrganizationId: string;
+  alternateShopId: string;
+  actorBAlternatePersonId: string;
+  actorBAlternateMemberId: string;
+  organizationName: string;
+  primaryShopName: string;
+  secondaryShopName: string;
+  actorBName: string;
+  actorCName: string;
+  alternateOrganizationName: string;
+  alternateShopName: string;
+};
+
+function getMultiActorSeedIdentity() {
+  const owner = getE2EClerkUserForActor("A");
+  const actorB = getE2EClerkUserForActor("B");
+  const actorC = getE2EClerkUserForActor("C");
+  return {
+    owner,
+    actorB,
+    actorC,
+    ownerManagerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(owner.index),
+    actorBManagerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(actorB.index),
+    actorCManagerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(actorC.index),
+  };
+}
+
+export function seedMultiActorOrganizationScenario(
+  args: MultiActorOrganizationScenarioArgs = {},
+): MultiActorOrganizationScenarioSeed {
+  const identity = getMultiActorSeedIdentity();
+  const result = convexRunJson<MultiActorOrganizationScenarioSeed>("testing:seedMultiActorOrganizationScenario", {
+    ownerManagerAuthTokenIdentifier: identity.ownerManagerAuthTokenIdentifier,
+    ownerManagerEmail: identity.owner.email,
+    actorBManagerAuthTokenIdentifier: identity.actorBManagerAuthTokenIdentifier,
+    actorBManagerEmail: identity.actorB.email,
+    actorCManagerAuthTokenIdentifier: identity.actorCManagerAuthTokenIdentifier,
+    actorCManagerEmail: identity.actorC.email,
+    ...args,
+  });
+  assertNotificationDeliverySuppressed(result.primaryShopId);
+  assertNotificationDeliverySuppressed(result.secondaryShopId);
+  assertNotificationDeliverySuppressed(result.alternateShopId);
+  return result;
+}
+
+export type FreeManagerMultiOrganizationScenarioArgs = {
+  targetOrganizationName?: string;
+  targetShopName?: string;
+  actorBName?: string;
+  alternateOrganizationName?: string;
+  alternateShopName?: string;
+};
+
+export type FreeManagerMultiOrganizationScenarioSeed = {
+  actorAUserId: string;
+  actorAName: string;
+  targetOrganizationId: string;
+  targetOrganizationName: string;
+  targetShopId: string;
+  targetShopName: string;
+  actorATargetPersonId: string;
+  actorATargetMemberId: string;
+  actorATargetStaffId: string;
+  actorBTargetPersonId: string;
+  actorBTargetStaffId: string;
+  actorBName: string;
+  alternateOrganizationId: string;
+  alternateOrganizationName: string;
+  alternateShopId: string;
+  alternateShopName: string;
+  actorAAlternatePersonId: string;
+  actorAAlternateMemberId: string;
+  actorAAlternateStaffId: string;
+};
+
+export function seedFreeManagerMultiOrganizationScenario(
+  args: FreeManagerMultiOrganizationScenarioArgs = {},
+): FreeManagerMultiOrganizationScenarioSeed {
+  const identity = getMultiActorSeedIdentity();
+  const result = convexRunJson<FreeManagerMultiOrganizationScenarioSeed>(
+    "testing:seedFreeManagerMultiOrganizationScenario",
+    {
+      actorAManagerAuthTokenIdentifier: identity.ownerManagerAuthTokenIdentifier,
+      actorAManagerEmail: identity.owner.email,
+      actorBManagerAuthTokenIdentifier: identity.actorBManagerAuthTokenIdentifier,
+      actorBManagerEmail: identity.actorB.email,
+      actorCManagerAuthTokenIdentifier: identity.actorCManagerAuthTokenIdentifier,
+      ...args,
+    },
+  );
+  assertNotificationDeliverySuppressed(result.targetShopId);
+  assertNotificationDeliverySuppressed(result.alternateShopId);
+  return result;
+}
+
+export function resetMultiActorOrganizationScenarioData() {
+  const identity = getMultiActorSeedIdentity();
+  return convexRunJson("testing:resetMultiActorOrganizationScenarioData", {
+    ownerManagerAuthTokenIdentifier: identity.ownerManagerAuthTokenIdentifier,
+    actorBManagerAuthTokenIdentifier: identity.actorBManagerAuthTokenIdentifier,
+    actorCManagerAuthTokenIdentifier: identity.actorCManagerAuthTokenIdentifier,
+  });
 }

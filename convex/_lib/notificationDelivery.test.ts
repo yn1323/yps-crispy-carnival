@@ -111,8 +111,10 @@ describe("E2E manager seed email", () => {
     vi.unstubAllEnvs();
   });
 
-  it("stores the provided E2E manager email on users.email but keeps the manager staff email unchanged", async () => {
+  it("stores the provided E2E manager email on both the owner user and canonical manager staff", async () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://e2e-test.convex.cloud");
+    vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://e2e-test.convex.cloud");
     const t = convexTest(schema, modules);
     const result = await t.mutation(internal.testing.seedLineLinkScenario, {
       managerAuthTokenIdentifier: "manager_e2e",
@@ -128,6 +130,6 @@ describe("E2E manager seed email", () => {
       return { managerEmail: manager?.email, staffEmail: staff?.email };
     });
 
-    expect(stored).toEqual({ managerEmail: "e2e-user-1@test.com", staffEmail: "tanaka@example.com" });
+    expect(stored).toEqual({ managerEmail: "e2e-user-1@test.com", staffEmail: "e2e-user-1@test.com" });
   });
 });

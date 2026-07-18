@@ -7,7 +7,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
 import { StaffViewPage } from "../pages/StaffViewPage";
 
-const MANAGER = { name: "田中太郎", email: "tanaka@example.com" };
+const MANAGER = { name: "田中太郎" };
 const ADDED_STAFF = { name: "確定後追加スタッフ", email: "confirmed-added@example.com" };
 
 type ConfirmedShiftSeed = {
@@ -18,7 +18,11 @@ type ConfirmedShiftSeed = {
 test.describe("確定後に追加したスタッフ", { tag: ["@release", "@notification"] }, () => {
   test.setTimeout(75_000);
 
-  test("既存シフトを保持して新しい行を追加し、割当後は変更対象だけへ閲覧通知する", async ({ browser, page }) => {
+  test("既存シフトを保持して新しい行を追加し、割当後は変更対象だけへ閲覧通知する", async ({
+    browser,
+    page,
+    e2eClerkUser,
+  }) => {
     const seed = seedManagerScenario<ConfirmedShiftSeed>("testing:seedNotificationConfirmationViewScenario", {
       dates: getNextWeekDates(),
     });
@@ -32,7 +36,7 @@ test.describe("確定後に追加したスタッフ", { tag: ["@release", "@noti
       const initialProbe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });
@@ -90,7 +94,7 @@ test.describe("確定後に追加したスタッフ", { tag: ["@release", "@noti
       const managerProbe = getNotificationProbe({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });

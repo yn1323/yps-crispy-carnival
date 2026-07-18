@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { convexRunJson } from "./convex";
 
 export type NotificationProbeJob = {
@@ -9,9 +10,11 @@ export type NotificationProbeJob = {
   hasRecruitmentTarget: boolean;
   hasStaffTarget: boolean;
   hasUserTarget: boolean;
+  recipientUserFingerprint: string | null;
   isResend: boolean;
   hasRecognizedCta: boolean;
   ctaTokenMatchesTarget: boolean | null;
+  ctaShopMatchesTarget: boolean | null;
 };
 
 export type NotificationProbeFailure = {
@@ -27,12 +30,16 @@ export type NotificationProbeResult = {
   duplicateDedupeKeyCount: number;
 };
 
-type NotificationProbeArgs = {
+export type NotificationProbeArgs = {
   shopId: string;
   recruitmentId?: string;
   staffEmail?: string;
   notificationContext?: string;
   channel?: "email" | "line";
+};
+
+type NotificationWaitOptions = {
+  expectedOutboxCount?: number;
 };
 
 type NotificationShopSafetyState = {
@@ -64,7 +71,16 @@ export function assertNotificationRecipientSuppressed(email: string) {
   }
 }
 
-export async function waitForNotificationOutbox(args: NotificationProbeArgs): Promise<NotificationProbeResult> {
+/** 通知probeの宛先をPIIなしで完全一致させるための識別子。 */
+export function fingerprintNotificationRecipient(userId: string): string {
+  return `sha256:${createHash("sha256").update(userId).digest("hex")}`;
+}
+
+export async function waitForNotificationOutbox(
+  args: NotificationProbeArgs,
+  options: NotificationWaitOptions = {},
+): Promise<NotificationProbeResult> {
+  const expectedOutboxCount = options.expectedOutboxCount ?? 1;
   for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
     const result = getNotificationProbe(args);
     if (result.duplicateDedupeKeyCount > 0) {
@@ -73,10 +89,19 @@ export async function waitForNotificationOutbox(args: NotificationProbeArgs): Pr
     if (result.outbox.some((job) => job.status === "failed")) {
       throw new Error(`Notification outbox reached final failure for: ${args.notificationContext ?? "any"}`);
     }
-    if (result.outbox.some((job) => !job.hasRecognizedCta || job.ctaTokenMatchesTarget === false)) {
+    if (
+      result.outbox.some(
+        (job) => !job.hasRecognizedCta || job.ctaTokenMatchesTarget === false || job.ctaShopMatchesTarget === false,
+      )
+    ) {
       throw new Error(`Notification CTA integrity failed for: ${args.notificationContext ?? "any"}`);
     }
-    if (result.outbox.length > 0) return result;
+    if (result.outbox.length > expectedOutboxCount) {
+      throw new Error(
+        `Notification outbox exceeded expected count for ${args.notificationContext ?? "any"}: ${result.outbox.length}/${expectedOutboxCount}`,
+      );
+    }
+    if (result.outbox.length === expectedOutboxCount) return result;
     await sleep(POLL_INTERVAL_MS);
   }
 
@@ -91,4 +116,79 @@ export async function assertNoNotificationOutbox(args: NotificationProbeArgs): P
     }
     await sleep(POLL_INTERVAL_MS);
   }
+}
+
+export type OrganizationNotificationProbeJob = {
+  organizationId: string;
+  organizationInvitationId: string | null;
+  purpose: "business" | "billing" | null;
+  channel: "email" | "line";
+  status: "pending" | "processing" | "sent" | "failed" | "cancelled";
+  notificationContext: string;
+  /** PIIを返さず同一性だけを比較するsha256 fingerprint。 */
+  dedupeKey: string;
+  attemptCount: number;
+  deliverySuppressed: boolean;
+  recipientUserFingerprint: string | null;
+  invitationVersionMatchesTarget: boolean | null;
+  hasRecognizedCta: boolean;
+  ctaTokenMatchesTarget: boolean | null;
+  ctaShopMatchesTarget: boolean | null;
+};
+
+export type OrganizationNotificationProbeResult = {
+  outbox: OrganizationNotificationProbeJob[];
+  duplicateDedupeKeyCount: number;
+};
+
+export type OrganizationNotificationProbeArgs = {
+  organizationId: string;
+  organizationInvitationId?: string;
+  expectedShopId?: string;
+  notificationContext?: string;
+  channel?: "email" | "line";
+};
+
+export function getOrganizationNotificationProbe(
+  args: OrganizationNotificationProbeArgs,
+): OrganizationNotificationProbeResult {
+  return convexRunJson<OrganizationNotificationProbeResult>("testing:getOrganizationNotificationProbe", args);
+}
+
+export async function waitForOrganizationNotificationOutbox(
+  args: OrganizationNotificationProbeArgs,
+  options: NotificationWaitOptions = {},
+): Promise<OrganizationNotificationProbeResult> {
+  const expectedOutboxCount = options.expectedOutboxCount ?? 1;
+  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+    const result = getOrganizationNotificationProbe(args);
+    if (result.duplicateDedupeKeyCount > 0) {
+      throw new Error(
+        `Duplicate organization notification dedupe keys detected for: ${args.notificationContext ?? "any"}`,
+      );
+    }
+    if (result.outbox.some((job) => job.status === "failed" || job.status === "cancelled")) {
+      throw new Error(`Organization notification outbox did not complete for: ${args.notificationContext ?? "any"}`);
+    }
+    if (
+      result.outbox.some(
+        (job) =>
+          !job.hasRecognizedCta ||
+          job.ctaTokenMatchesTarget === false ||
+          job.ctaShopMatchesTarget === false ||
+          job.invitationVersionMatchesTarget === false,
+      )
+    ) {
+      throw new Error(`Organization notification CTA integrity failed for: ${args.notificationContext ?? "any"}`);
+    }
+    if (result.outbox.length > expectedOutboxCount) {
+      throw new Error(
+        `Organization notification outbox exceeded expected count for ${args.notificationContext ?? "any"}: ${result.outbox.length}/${expectedOutboxCount}`,
+      );
+    }
+    if (result.outbox.length === expectedOutboxCount) return result;
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`Organization notification outbox was not accepted for: ${args.notificationContext ?? "any"}`);
 }

@@ -1,37 +1,34 @@
 import { expect, test } from "../fixtures/e2eTest";
 import { formatDateWithWeekday, getNextWeekDates } from "../helpers/date";
-import { waitForNotificationOutbox } from "../helpers/notificationProbe";
+import { assertNoNotificationOutbox, waitForNotificationOutbox } from "../helpers/notificationProbe";
 import { waitForMagicLinkToken } from "../helpers/notificationTokens";
-import { seedManagerScenario } from "../helpers/scenarioSeeds";
+import { seedMultiShopOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ShiftBoardPage } from "../pages/ShiftBoardPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
 import { StaffViewPage } from "../pages/StaffViewPage";
 
-const MANAGER = {
-  name: "田中太郎",
-  email: "tanaka@example.com",
-};
-
-type ShopSettingsSeed = {
-  shopId: string;
-};
-
 test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@notification"] }, () => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
 
-  test("再提出から管理者編集、下書き、確定通知、スタッフ閲覧までつながる", async ({ browser, page }) => {
+  test("REG-P0-01: B店の再提出から確定閲覧までつながり、A店へ混入しない", async ({ browser, page }) => {
     const dates = getNextWeekDates();
     const closedDateLabel = formatDateWithWeekday(dates.dates[0]);
     const firstWorkingDateLabel = formatDateWithWeekday(dates.dates[1]);
-    const seed = seedManagerScenario<ShopSettingsSeed>("testing:seedLegalManagerConsentScenario", {
-      legalConsentState: "current",
+    const seed = seedMultiShopOrganizationScenario({
+      primaryShopName: "勤務区分E2E A店",
+      secondaryShopName: "勤務区分E2E B店",
+      primaryMarkerPersonName: "A店シフトスタッフ",
+      primaryMarkerPersonEmail: "reg-p0-01-primary@shiftori.invalid",
+      secondaryMarkerPersonName: "B店シフトスタッフ",
+      secondaryMarkerPersonEmail: "reg-p0-01-secondary@shiftori.invalid",
     });
     const dashboard = new DashboardPage(page);
     const shiftBoard = new ShiftBoardPage(page);
 
-    await test.step("店舗設定で勤務区分と定休日を保存し、募集を作成する", async () => {
-      await dashboard.goto();
+    await test.step("B店の店舗設定で勤務区分と定休日を保存し、募集を作成する", async () => {
+      await dashboard.goto(seed.secondaryShopId);
+      await dashboard.expectSelectedShop(seed.secondaryShopName, seed.secondaryShopId);
       await dashboard.editShopSettings({
         submissionPattern: {
           kind: "shiftType",
@@ -50,8 +47,8 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
 
     const submitToken = await test.step("スタッフが勤務区分を提出し、内容を修正して再提出する", async () => {
       const recruitmentProbe = await waitForNotificationOutbox({
-        shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        shopId: seed.secondaryShopId,
+        staffEmail: seed.secondaryMarkerPersonEmail,
         notificationContext: "notification.sendRecruitmentNotificationEmails",
         channel: "email",
       });
@@ -60,22 +57,26 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
         deliverySuppressed: true,
         hasRecruitmentTarget: true,
         hasStaffTarget: true,
+        ctaTokenMatchesTarget: true,
       });
       expect(recruitmentProbe.failureInbox).toHaveLength(0);
 
       const token = await waitForMagicLinkToken({
-        shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        shopId: seed.secondaryShopId,
+        staffEmail: seed.secondaryMarkerPersonEmail,
         purpose: "submit",
       });
+      if (!token.recruitmentId) throw new Error("B店の募集IDを取得できませんでした");
 
       const staffContext = await browser.newContext({ baseURL: "http://localhost:3000" });
       const submitPage = new StaffSubmitPage(await staffContext.newPage());
       try {
         await submitPage.goto(token.token);
         await submitPage.expectFormVisible();
+        await submitPage.expectLegalConsentVisible();
         await submitPage.expectShopClosed(closedDateLabel);
         await submitPage.selectShiftTypeDay(firstWorkingDateLabel);
+        await submitPage.acceptLegalConsent();
         await submitPage.submit();
         await submitPage.expectCompletionVisible();
 
@@ -92,24 +93,27 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
       } finally {
         await staffContext.close();
       }
-      return token;
+      return { token: token.token, recruitmentId: token.recruitmentId };
     });
 
-    await test.step("管理者が勤務区分を編集し、下書きがreload後も残る", async () => {
-      await dashboard.goto();
+    await test.step("B店の管理者が勤務区分を編集し、下書きがreload後も残る", async () => {
+      await dashboard.goto(seed.secondaryShopId);
       await dashboard.openShiftBoard();
       await shiftBoard.expectOnShiftBoard();
+      await shiftBoard.expectShopContext(seed.secondaryShopId);
       await shiftBoard.switchDateTab(1);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "早番", false);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "遅番", true);
-      await shiftBoard.toggleShiftTypeAssignment(MANAGER.name, "早番", false);
-      await shiftBoard.toggleShiftTypeAssignment(MANAGER.name, "遅番", true);
+      await shiftBoard.expectShiftTypeAssignment(seed.secondaryMarkerPersonName, "早番", false);
+      await shiftBoard.expectShiftTypeAssignment(seed.secondaryMarkerPersonName, "遅番", true);
+      await shiftBoard.expectStaffNotVisible(seed.primaryMarkerPersonName);
+      await shiftBoard.toggleShiftTypeAssignment(seed.secondaryMarkerPersonName, "早番", false);
+      await shiftBoard.toggleShiftTypeAssignment(seed.secondaryMarkerPersonName, "遅番", true);
       await shiftBoard.saveDraft();
 
       await shiftBoard.reload();
+      await shiftBoard.expectShopContext(seed.secondaryShopId);
       await shiftBoard.switchDateTab(1);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "早番", true);
-      await shiftBoard.expectShiftTypeAssignment(MANAGER.name, "遅番", false);
+      await shiftBoard.expectShiftTypeAssignment(seed.secondaryMarkerPersonName, "早番", true);
+      await shiftBoard.expectShiftTypeAssignment(seed.secondaryMarkerPersonName, "遅番", false);
     });
 
     const viewToken = await test.step("確定通知が受け付けられ、閲覧URLが発行される", async () => {
@@ -117,9 +121,9 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
       await shiftBoard.expectConfirmedStatus();
 
       const probe = await waitForNotificationOutbox({
-        shopId: seed.shopId,
+        shopId: seed.secondaryShopId,
         recruitmentId: submitToken.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: seed.secondaryMarkerPersonEmail,
         notificationContext: "notification.sendConfirmationEmail",
         channel: "email",
       });
@@ -128,13 +132,14 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
         deliverySuppressed: true,
         hasRecruitmentTarget: true,
         hasStaffTarget: true,
+        ctaTokenMatchesTarget: true,
       });
       expect(probe.failureInbox).toHaveLength(0);
 
       return await waitForMagicLinkToken({
-        shopId: seed.shopId,
+        shopId: seed.secondaryShopId,
         recruitmentId: submitToken.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: seed.secondaryMarkerPersonEmail,
         purpose: "view",
       });
     });
@@ -146,11 +151,33 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
         await staffView.goto(viewToken.token);
         await staffView.expectShiftViewVisible();
         await staffView.switchDateTab(1);
-        await staffView.expectShiftTypeAssignment(MANAGER.name, "早番", true);
-        await staffView.expectShiftTypeAssignment(MANAGER.name, "遅番", false);
+        await staffView.expectShiftTypeAssignment(seed.secondaryMarkerPersonName, "早番", true);
+        await staffView.expectShiftTypeAssignment(seed.secondaryMarkerPersonName, "遅番", false);
       } finally {
         await context.close();
       }
+    });
+
+    await test.step("A店にはB店のスタッフ、募集、通知が混入せず、A店のShiftBoardも分離される", async () => {
+      await dashboard.goto(seed.primaryShopId);
+      await dashboard.expectSelectedShop(seed.primaryShopName, seed.primaryShopId);
+      await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
+      await dashboard.expectStaffNotVisible(seed.secondaryMarkerPersonName);
+      await dashboard.expectRecruitmentCardCount(0);
+      await assertNoNotificationOutbox({
+        shopId: seed.primaryShopId,
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+      });
+      await assertNoNotificationOutbox({
+        shopId: seed.primaryShopId,
+        notificationContext: "notification.sendConfirmationEmail",
+      });
+
+      await dashboard.createRecruitment(dates);
+      await dashboard.openShiftBoard();
+      await shiftBoard.expectShopContext(seed.primaryShopId);
+      await shiftBoard.expectStaffVisible(seed.primaryMarkerPersonName);
+      await shiftBoard.expectStaffNotVisible(seed.secondaryMarkerPersonName);
     });
   });
 });

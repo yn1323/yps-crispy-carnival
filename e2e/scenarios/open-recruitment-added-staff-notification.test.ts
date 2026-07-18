@@ -7,19 +7,9 @@ import {
   waitForNotificationOutbox,
 } from "../helpers/notificationProbe";
 import { waitForMagicLinkToken } from "../helpers/notificationTokens";
-import { seedManagerScenario } from "../helpers/scenarioSeeds";
+import { seedManagerScenario, seedMultiShopOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { StaffSubmitPage } from "../pages/StaffSubmitPage";
-
-const ADDED_STAFF = {
-  name: "追加スタッフ",
-  email: "added-staff@example.com",
-};
-
-const MANAGER = {
-  name: "田中太郎",
-  email: "tanaka@example.com",
-};
 
 type OpenRecruitmentSeed = {
   shopId: string;
@@ -27,28 +17,48 @@ type OpenRecruitmentSeed = {
 };
 
 test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@notification"] }, () => {
-  test.setTimeout(75_000);
+  test.setTimeout(90_000);
 
-  test("募集中にスタッフを追加すると、そのスタッフの希望提出リンクが発行される", async ({ page }) => {
+  test("MS-P0-02: A店スタッフをB店へ再利用し、B店の希望提出まで完了できる", async ({ browser, page }) => {
     const dates = getNextWeekDates();
-    const seed = seedManagerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", {
-      dates,
+    const seed = seedMultiShopOrganizationScenario({
+      primaryShopName: "他店舗スタッフ再利用E2E A店",
+      secondaryShopName: "他店舗スタッフ再利用E2E B店",
+      primaryMarkerPersonName: "他店舗再利用スタッフ",
+      primaryMarkerPersonEmail: "ms-p0-02-reused@shiftori.invalid",
+      secondaryMarkerPersonName: "B店既存スタッフ",
+      secondaryMarkerPersonEmail: "ms-p0-02-secondary@shiftori.invalid",
     });
     const dashboard = new DashboardPage(page);
-    const submitPage = new StaffSubmitPage(page);
 
-    await test.step("Step 1: 募集中の店舗にスタッフを追加する", async () => {
-      assertNotificationDeliverySuppressed(seed.shopId);
-      await dashboard.goto();
-      await dashboard.addStaffs([ADDED_STAFF]);
-      await dashboard.expectStaffVisible(ADDED_STAFF.name);
+    await test.step("Step 1: B店で募集を開始し、A店スタッフを他店舗候補から追加する", async () => {
+      assertNotificationDeliverySuppressed(seed.secondaryShopId);
+      await dashboard.goto(seed.secondaryShopId);
+      await dashboard.expectSelectedShop(seed.secondaryShopName, seed.secondaryShopId);
+      await dashboard.expectStaffVisible(seed.secondaryMarkerPersonName);
+      await dashboard.expectStaffNotVisible(seed.primaryMarkerPersonName);
+      await dashboard.createRecruitment(dates);
+      await dashboard.addOrganizationStaff(seed.primaryMarkerPersonName, seed.primaryShopName);
+      await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
+      await dashboard.expectOrganizationStaffNotCandidate(seed.primaryMarkerPersonName);
     });
 
-    await test.step("Step 2: 追加スタッフ向けの希望提出リンクから提出できる", async () => {
+    await test.step("Step 2: A店所属が残り、B店にも同じ人物が表示される", async () => {
+      await dashboard.goto(seed.primaryShopId);
+      await dashboard.expectSelectedShop(seed.primaryShopName, seed.primaryShopId);
+      await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
+      await dashboard.expectStaffNotVisible(seed.secondaryMarkerPersonName);
+
+      await dashboard.goto(seed.secondaryShopId);
+      await dashboard.expectSelectedShop(seed.secondaryShopName, seed.secondaryShopId);
+      await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
+    });
+
+    await test.step("Step 3: 再利用スタッフ向けのB店通知から希望を提出できる", async () => {
       for (const notificationContext of ["legal.sendStaffConsentEmail", "line.sendInviteEmail"] as const) {
         const supportingProbe = await waitForNotificationOutbox({
-          shopId: seed.shopId,
-          staffEmail: ADDED_STAFF.email,
+          shopId: seed.secondaryShopId,
+          staffEmail: seed.primaryMarkerPersonEmail,
           notificationContext,
           channel: "email",
         });
@@ -57,15 +67,15 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
           notificationContext,
           deliverySuppressed: true,
           hasStaffTarget: true,
+          ctaTokenMatchesTarget: true,
         });
         expect(["pending", "processing", "sent"]).toContain(supportingProbe.outbox[0].status);
         expect(supportingProbe.failureInbox).toHaveLength(0);
       }
 
       const probe = await waitForNotificationOutbox({
-        shopId: seed.shopId,
-        recruitmentId: seed.recruitmentId,
-        staffEmail: ADDED_STAFF.email,
+        shopId: seed.secondaryShopId,
+        staffEmail: seed.primaryMarkerPersonEmail,
         notificationContext: "notification.sendOpenRecruitmentNotificationEmailsForStaff",
         channel: "email",
       });
@@ -75,27 +85,47 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
         deliverySuppressed: true,
         hasRecruitmentTarget: true,
         hasStaffTarget: true,
+        ctaTokenMatchesTarget: true,
       });
       expect(["pending", "processing", "sent"]).toContain(probe.outbox[0].status);
       expect(probe.failureInbox).toHaveLength(0);
 
       const token = await waitForMagicLinkToken({
-        recruitmentId: seed.recruitmentId,
-        shopId: seed.shopId,
-        staffEmail: ADDED_STAFF.email,
+        shopId: seed.secondaryShopId,
+        staffEmail: seed.primaryMarkerPersonEmail,
         purpose: "submit",
       });
-      await submitPage.goto(token.token);
-      await submitPage.expectFormVisible();
-      await submitPage.expectUnsubmittedBadge();
-      await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
-      await submitPage.acceptLegalConsent();
-      await submitPage.submit();
-      await submitPage.expectCompletionVisible();
+      expect(token.recruitmentId).toBeTruthy();
+
+      for (const notificationContext of [
+        "legal.sendStaffConsentEmail",
+        "line.sendInviteEmail",
+        "notification.sendOpenRecruitmentNotificationEmailsForStaff",
+      ]) {
+        await assertNoNotificationOutbox({
+          shopId: seed.primaryShopId,
+          staffEmail: seed.primaryMarkerPersonEmail,
+          notificationContext,
+        });
+      }
+
+      const staffContext = await browser.newContext({ baseURL: "http://localhost:3000" });
+      const submitPage = new StaffSubmitPage(await staffContext.newPage());
+      try {
+        await submitPage.goto(token.token);
+        await submitPage.expectFormVisible();
+        await submitPage.expectUnsubmittedBadge();
+        await submitPage.toggleDay(formatDateWithWeekday(dates.dates[0]));
+        await submitPage.acceptLegalConsent();
+        await submitPage.submit();
+        await submitPage.expectCompletionVisible();
+      } finally {
+        await staffContext.close();
+      }
     });
   });
 
-  test("LINE follow時に募集中シフトの希望提出リンクが発行される", async ({ page }) => {
+  test("LINE follow時に募集中シフトの希望提出リンクが発行される", async ({ page, e2eClerkUser }) => {
     const dates = getNextWeekDates();
     const seed = seedManagerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", {
       dates,
@@ -109,7 +139,7 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
       assertNotificationDeliverySuppressed(seed.shopId);
       const result = convexRunJson<{ scheduled: boolean }>("testing:simulateLineFollowForStaff", {
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
       });
       expect(result.scheduled).toBe(true);
     });
@@ -117,7 +147,7 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
     await test.step("Step 2: 法務同意LINEと募集LINEが両方受け付けられる", async () => {
       const legalProbe = await waitForNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "legal.sendStaffConsentEmail",
         channel: "line",
       });
@@ -129,7 +159,7 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
       expect(legalProbe.failureInbox).toHaveLength(0);
       await assertNoNotificationOutbox({
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "legal.sendStaffConsentEmail",
         channel: "email",
       });
@@ -137,7 +167,7 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
       const probe = await waitForNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         notificationContext: "line:openRecruitment",
         channel: "line",
       });
@@ -153,14 +183,14 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
       await assertNoNotificationOutbox({
         shopId: seed.shopId,
         recruitmentId: seed.recruitmentId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         channel: "email",
       });
 
       const token = await waitForMagicLinkToken({
         recruitmentId: seed.recruitmentId,
         shopId: seed.shopId,
-        staffEmail: MANAGER.email,
+        staffEmail: e2eClerkUser,
         purpose: "submit",
       });
       await submitPage.goto(token.token);

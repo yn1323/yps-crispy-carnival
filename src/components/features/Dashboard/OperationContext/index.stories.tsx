@@ -107,8 +107,8 @@ export const MobileSettingsMenuOpen: Story = {
     const body = within(document.body);
 
     await userEvent.click(canvas.getByRole("button", { name: "設定メニューを開く" }));
-    await expect(await body.findByRole("menuitem", { name: "店舗設定" })).toBeVisible();
-    await expect(await body.findByRole("menuitem", { name: "グループ設定" })).toBeVisible();
+    const shopSettingsMenuItem = await body.findByRole("menuitem", { name: "店舗設定" });
+    await waitFor(() => expect(shopSettingsMenuItem).toBeVisible());
   },
 };
 
