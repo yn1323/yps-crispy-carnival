@@ -21,6 +21,7 @@ import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as ArticlesRouteImport } from './routes/articles'
+import { Route as AccountDeletionAcceptedRouteImport } from './routes/account-deletion-accepted'
 import { Route as UnregisteredRouteImport } from './routes/_unregistered'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -102,6 +103,11 @@ const ContactRoute = ContactRouteImport.update({
 const ArticlesRoute = ArticlesRouteImport.update({
   id: '/articles',
   path: '/articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountDeletionAcceptedRoute = AccountDeletionAcceptedRouteImport.update({
+  id: '/account-deletion-accepted',
+  path: '/account-deletion-accepted',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnregisteredRoute = UnregisteredRouteImport.update({
@@ -223,6 +229,7 @@ const UnregisteredLegalStaffConsentRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
   '/features': typeof FeaturesRoute
@@ -293,6 +301,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/_unregistered': typeof UnregisteredRouteWithChildren
+  '/account-deletion-accepted': typeof AccountDeletionAcceptedRoute
   '/articles': typeof ArticlesRouteWithChildren
   '/contact': typeof ContactRoute
   '/faq': typeof FaqRoute
@@ -329,6 +338,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account-deletion-accepted'
     | '/articles'
     | '/contact'
     | '/faq'
@@ -363,6 +373,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/account-deletion-accepted'
     | '/contact'
     | '/faq'
     | '/features'
@@ -398,6 +409,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_auth'
     | '/_unregistered'
+    | '/account-deletion-accepted'
     | '/articles'
     | '/contact'
     | '/faq'
@@ -435,6 +447,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   UnregisteredRoute: typeof UnregisteredRouteWithChildren
+  AccountDeletionAcceptedRoute: typeof AccountDeletionAcceptedRoute
   ArticlesRoute: typeof ArticlesRouteWithChildren
   ContactRoute: typeof ContactRoute
   FaqRoute: typeof FaqRoute
@@ -539,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/articles'
       fullPath: '/articles'
       preLoaderRoute: typeof ArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account-deletion-accepted': {
+      id: '/account-deletion-accepted'
+      path: '/account-deletion-accepted'
+      fullPath: '/account-deletion-accepted'
+      preLoaderRoute: typeof AccountDeletionAcceptedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_unregistered': {
@@ -757,6 +777,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   UnregisteredRoute: UnregisteredRouteWithChildren,
+  AccountDeletionAcceptedRoute: AccountDeletionAcceptedRoute,
   ArticlesRoute: ArticlesRouteWithChildren,
   ContactRoute: ContactRoute,
   FaqRoute: FaqRoute,

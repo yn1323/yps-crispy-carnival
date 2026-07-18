@@ -55,6 +55,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onSubmi
               基本情報に保存したグループ名、店舗名、氏名、メールアドレス、LINE IDを削除済みの値へ置き換えます。
             </Text>
             <Text>ほかのグループに所属するユーザーと、Clerkのログインアカウントは削除しません。</Text>
+            <Text>ほかに所属がない場合は、削除後に新しい店舗を登録できます。</Text>
             <Text>過去のシフト、同意、請求、監査、通知、登録申請、送信済みメールとLINEの記録は残ります。</Text>
           </Stack>
           <Field.Root required>

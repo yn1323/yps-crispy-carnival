@@ -578,6 +578,12 @@ export const SetupWithAnnouncement: Story = {
   },
 };
 
+export const SetupMobile: Story = {
+  args: Setup.args,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const SetupDialogBehavior: Story = {
   args: Setup.args,
   parameters: {

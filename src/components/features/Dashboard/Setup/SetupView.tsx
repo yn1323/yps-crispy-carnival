@@ -1,5 +1,8 @@
+import { Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
+import { AccountDeletion } from "@/src/components/features/AccountDeletion";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
+import { ACCOUNT_DELETION_ENABLED } from "@/src/configs/env";
 import { WelcomeHero } from "../HeroSummary";
 import { SetupModal } from "../SetupModal";
 
@@ -23,7 +26,10 @@ export function SetupView({ announcement, dialog, managerProfileDefaults, isSubm
     <>
       <ContentWrapper>
         {announcement}
-        <WelcomeHero onSetupClick={dialog.open} />
+        <Stack gap={3}>
+          <WelcomeHero onSetupClick={dialog.open} />
+          {ACCOUNT_DELETION_ENABLED ? <AccountDeletion variant="setup" /> : null}
+        </Stack>
       </ContentWrapper>
       <SetupModal
         isOpen={dialog.isOpen}

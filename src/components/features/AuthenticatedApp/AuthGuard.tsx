@@ -34,6 +34,12 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
   const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
+  const accountDeletionRequested = Boolean(
+    isAccountDeleted &&
+      currentUser &&
+      "accountDeletionRequested" in currentUser &&
+      currentUser.accountDeletionRequested === true,
+  );
   const myShops = useQuery(
     api.dashboard.queries.getMyShops,
     isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
@@ -113,7 +119,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   }
 
   // 古いatomやURLが残っていても、削除済み状態を通常画面より先に確定する。
-  if (isAccountDeleted) return <DeletedAccountState />;
+  if (isAccountDeleted) return <DeletedAccountState accountDeletionRequested={accountDeletionRequested} />;
 
   if (user.authId && isShopContextReady) {
     return children;

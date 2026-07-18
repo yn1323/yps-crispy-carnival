@@ -6,7 +6,7 @@ import { OrganizationSettingsPage } from "../../pages/OrganizationSettingsPage";
 test.describe("グループ設定からのグループ削除", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(75_000);
 
-  test("OD-P0-01: 共有アカウントは別グループを継続利用でき、最後のグループ削除後は削除済み画面になる", async ({
+  test("OD-P0-01: 共有アカウントは別グループを継続利用でき、最後のグループ削除後は店舗登録へ戻る", async ({
     actorA,
     multiActorPool,
   }) => {
@@ -49,14 +49,11 @@ test.describe("グループ設定からのグループ削除", { tag: ["@release
       await expect(actorA.page.getByText(seed.actorAName, { exact: true })).toHaveCount(0);
     });
 
-    await test.step("Step 4: 最後のグループも削除するとClerk認証を保ったまま汎用の削除済み画面になる", async () => {
+    await test.step("Step 4: 最後のグループも削除するとClerk認証を保ったまま店舗登録画面になる", async () => {
       await settings.goto(seed.alternateShopId, "settings");
       await settings.deleteOrganization(seed.alternateOrganizationName, null);
 
-      await expect(actorA.page.getByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).toBeVisible({
-        timeout: 20_000,
-      });
-      await expect(actorA.page.getByRole("button", { name: "ログアウト" })).toBeVisible();
+      await dashboard.expectSetupRequired();
       await expect(actorA.page.getByText(actorA.email, { exact: true })).toHaveCount(0);
       await expect(actorA.page.getByText(seed.actorAName, { exact: true })).toHaveCount(0);
       await expect(actorA.page.getByText(seed.alternateOrganizationName, { exact: true })).toHaveCount(0);

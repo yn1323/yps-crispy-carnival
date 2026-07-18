@@ -5,11 +5,19 @@ export const ClerkProvider = ({ children }: { children: ReactNode }) => <>{child
 export const SignInButton = ({ children }: { children: ReactNode }) => <>{children}</>;
 export const SignUpButton = ({ children }: { children: ReactNode }) => <>{children}</>;
 export const SignOutButton = ({ children }: { children: ReactNode }) => <>{children}</>;
-export const useAuth = () => ({ isSignedIn: false, isLoaded: true, userId: null });
+export const useAuth = () => ({
+  isSignedIn: false,
+  isLoaded: true,
+  userId: null,
+  getToken: async () => "storybook-session-token",
+});
 export const useUser = () => ({ isSignedIn: false, isLoaded: true, user: null });
 export const useClerk = () => ({
   handleRedirectCallback: async () => {},
+  signOut: async () => {},
 });
+export const useReverification = <TArgs extends unknown[], TResult>(fetcher: (...args: TArgs) => Promise<TResult>) =>
+  fetcher;
 export const useSignIn = () => ({
   isLoaded: true,
   signIn: {

@@ -24,7 +24,10 @@ type ShopRow = {
   memberStatus?: "active" | "readOnly" | "removed";
 };
 
-type CurrentUser = { name: string; email: string } | { accountDeleted: true } | undefined;
+type CurrentUser =
+  | { name: string; email: string }
+  | { accountDeleted: true; accountDeletionRequested?: boolean }
+  | undefined;
 
 const mocks = vi.hoisted(() => ({
   currentUserQuery: Symbol("getCurrentUser"),
@@ -49,6 +52,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@clerk/clerk-react", () => ({
   SignOutButton: ({ children }: { children: ReactNode }) => children,
   useAuth: mocks.useAuth,
+}));
+
+vi.mock("@chakra-ui/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@chakra-ui/react")>()),
+  Stack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -78,6 +86,14 @@ vi.mock("@/convex/_generated/api", () => ({
 
 vi.mock("@/src/components/templates/FullPageSpinner", () => ({
   FullPageSpinner: () => <div data-testid="full-page-spinner" />,
+}));
+
+vi.mock("@/src/components/features/AccountDeletion", () => ({
+  AccountDeletion: () => <div data-testid="account-deletion-entry" />,
+}));
+
+vi.mock("@/src/configs/env", () => ({
+  ACCOUNT_DELETION_ENABLED: false,
 }));
 
 vi.mock("@/src/components/ui/Button", () => ({
@@ -367,6 +383,7 @@ describe("AuthGuard", () => {
 
     expect(screen.getByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "ログアウト" })).not.toBeNull();
+    expect(screen.queryByTestId("account-deletion-entry")).toBeNull();
     expect(screen.queryByText("管理者")).toBeNull();
     expect(screen.queryByText("manager@example.com")).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
@@ -377,5 +394,21 @@ describe("AuthGuard", () => {
       expect(mocks.setUser).toHaveBeenCalledWith(mocks.emptyUser);
       expect(mocks.setSelectedShop).toHaveBeenCalledWith(null);
     });
+  });
+
+  it("明示的なアカウント削除受付後は受付中の状態を表示する", () => {
+    mocks.currentUser = { accountDeleted: true, accountDeletionRequested: true };
+
+    render(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
+    expect(screen.getByText(/処理の完了まで時間がかかる場合があります/)).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).toBeNull();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
   });
 });

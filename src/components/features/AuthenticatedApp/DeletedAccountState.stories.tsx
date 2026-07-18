@@ -10,9 +10,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Legacy: Story = {};
+
+export const AccountDeletionRequested: Story = {
+  args: { accountDeletionRequested: true },
+};
 
 export const Mobile: Story = {
+  args: { accountDeletionRequested: true },
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };

@@ -49,6 +49,7 @@ const uiProject = defineConfig({
     alias: {
       "convex/react": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
       "convex/react-clerk": path.resolve(dirname, ".storybook/mocks/convex-react.ts"),
+      "@clerk/clerk-react/errors": path.resolve(dirname, ".storybook/mocks/clerk-react-errors.ts"),
       "@clerk/clerk-react": path.resolve(dirname, ".storybook/mocks/clerk-react.tsx"),
     },
   },
