@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { convexRunJson } from "./convex";
-import { getCurrentE2EClerkUser, getE2EClerkUserForActor, getE2EStorageStatePath } from "./e2eUsers";
+import { type E2EActorPool, getCurrentE2EClerkUser, getE2EStorageStatePath } from "./e2eUsers";
 import { assertNotificationDeliverySuppressed } from "./notificationProbe";
 
 type ClerkStorageState = {
@@ -168,10 +168,10 @@ export type MultiActorOrganizationScenarioSeed = {
   alternateShopName: string;
 };
 
-function getMultiActorSeedIdentity() {
-  const owner = getE2EClerkUserForActor("A");
-  const actorB = getE2EClerkUserForActor("B");
-  const actorC = getE2EClerkUserForActor("C");
+function getMultiActorSeedIdentity(pool: E2EActorPool) {
+  const owner = pool.A;
+  const actorB = pool.B;
+  const actorC = pool.C;
   return {
     owner,
     actorB,
@@ -183,9 +183,10 @@ function getMultiActorSeedIdentity() {
 }
 
 export function seedMultiActorOrganizationScenario(
+  pool: E2EActorPool,
   args: MultiActorOrganizationScenarioArgs = {},
 ): MultiActorOrganizationScenarioSeed {
-  const identity = getMultiActorSeedIdentity();
+  const identity = getMultiActorSeedIdentity(pool);
   const result = convexRunJson<MultiActorOrganizationScenarioSeed>("testing:seedMultiActorOrganizationScenario", {
     ownerManagerAuthTokenIdentifier: identity.ownerManagerAuthTokenIdentifier,
     ownerManagerEmail: identity.owner.email,
@@ -232,9 +233,10 @@ export type FreeManagerMultiOrganizationScenarioSeed = {
 };
 
 export function seedFreeManagerMultiOrganizationScenario(
+  pool: E2EActorPool,
   args: FreeManagerMultiOrganizationScenarioArgs = {},
 ): FreeManagerMultiOrganizationScenarioSeed {
-  const identity = getMultiActorSeedIdentity();
+  const identity = getMultiActorSeedIdentity(pool);
   const result = convexRunJson<FreeManagerMultiOrganizationScenarioSeed>(
     "testing:seedFreeManagerMultiOrganizationScenario",
     {
@@ -274,8 +276,8 @@ export function seedOrganizationDeletionScenario(
   return result;
 }
 
-export function resetMultiActorOrganizationScenarioData() {
-  const identity = getMultiActorSeedIdentity();
+export function resetMultiActorOrganizationScenarioData(pool: E2EActorPool) {
+  const identity = getMultiActorSeedIdentity(pool);
   return convexRunJson("testing:resetMultiActorOrganizationScenarioData", {
     ownerManagerAuthTokenIdentifier: identity.ownerManagerAuthTokenIdentifier,
     actorBManagerAuthTokenIdentifier: identity.actorBManagerAuthTokenIdentifier,

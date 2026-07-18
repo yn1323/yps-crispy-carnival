@@ -22,8 +22,9 @@ test.describe("複数管理者の招待と共同管理", { tag: ["@release", "@n
     actorB,
     actorC,
     browser,
+    multiActorPool,
   }) => {
-    const seed = seedMultiActorOrganizationScenario({
+    const seed = seedMultiActorOrganizationScenario(multiActorPool, {
       organizationName: "共同管理E2Eグループ",
       primaryShopName: "共同管理E2E A店",
       secondaryShopName: "共同管理E2E B店",

@@ -8,8 +8,9 @@ test.describe("グループ設定からのグループ削除", { tag: ["@release
 
   test("OD-P0-01: 共有アカウントは別グループを継続利用でき、最後のグループ削除後は削除済み画面になる", async ({
     actorA,
+    multiActorPool,
   }) => {
-    const seed = seedFreeManagerMultiOrganizationScenario({
+    const seed = seedFreeManagerMultiOrganizationScenario(multiActorPool, {
       targetOrganizationName: "グループ削除E2E 対象グループ",
       targetShopName: "グループ削除E2E 対象店舗",
       actorBName: "グループ削除E2E 対象スタッフ",

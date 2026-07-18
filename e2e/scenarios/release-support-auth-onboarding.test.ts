@@ -4,6 +4,9 @@ import { AuthPage } from "../pages/AuthPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ManagerSupportPage } from "../pages/ManagerSupportPage";
 
+// ログアウト後の認証復元でpasswordを入力するため、平文のfill引数をtraceへ保存しない。
+test.use({ trace: "off" });
+
 test.describe("リリース前の認証・オンボーディング回帰", { tag: ["@release"] }, () => {
   test.setTimeout(45_000);
 

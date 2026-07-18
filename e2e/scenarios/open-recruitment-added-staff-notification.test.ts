@@ -97,17 +97,11 @@ test.describe("募集中の追加スタッフ通知", { tag: ["@release", "@noti
       });
       expect(token.recruitmentId).toBeTruthy();
 
-      for (const notificationContext of [
-        "legal.sendStaffConsentEmail",
-        "line.sendInviteEmail",
-        "notification.sendOpenRecruitmentNotificationEmailsForStaff",
-      ]) {
-        await assertNoNotificationOutbox({
-          shopId: seed.primaryShopId,
-          staffEmail: seed.primaryMarkerPersonEmail,
-          notificationContext,
-        });
-      }
+      // A店では対象スタッフ向け通知が一件も増えていないことをまとめて確認する。
+      await assertNoNotificationOutbox({
+        shopId: seed.primaryShopId,
+        staffEmail: seed.primaryMarkerPersonEmail,
+      });
 
       const staffContext = await browser.newContext({ baseURL: "http://localhost:3000" });
       const submitPage = new StaffSubmitPage(await staffContext.newPage());

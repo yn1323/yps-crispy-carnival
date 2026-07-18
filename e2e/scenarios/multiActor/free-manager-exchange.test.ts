@@ -12,8 +12,9 @@ test.describe("Free管理者交代", { tag: ["@release", "@notification", "@secu
   test("MM-P0-04: 送信前に交代結果を確認し、前任者のスタッフ所属と別グループ権限を維持する", async ({
     actorA,
     actorB,
+    multiActorPool,
   }) => {
-    const seed = seedFreeManagerMultiOrganizationScenario({
+    const seed = seedFreeManagerMultiOrganizationScenario(multiActorPool, {
       targetOrganizationName: "Free管理者交代E2Eグループ",
       targetShopName: "Free管理者交代E2E店舗",
       actorBName: "Free後任管理者B",

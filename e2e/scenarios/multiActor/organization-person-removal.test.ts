@@ -9,8 +9,12 @@ import { OrganizationSettingsPage } from "../../pages/OrganizationSettingsPage";
 test.describe("グループからの利用者削除", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(75_000);
 
-  test("MM-P0-03: Bを主グループから削除してもBの別グループ所属を維持する", async ({ actorA, actorB }) => {
-    const seed = seedMultiActorOrganizationScenario({
+  test("MM-P0-03: Bを主グループから削除してもBの別グループ所属を維持する", async ({
+    actorA,
+    actorB,
+    multiActorPool,
+  }) => {
+    const seed = seedMultiActorOrganizationScenario(multiActorPool, {
       organizationName: "利用者削除E2E主グループ",
       primaryShopName: "利用者削除E2E A店",
       secondaryShopName: "利用者削除E2E B店",

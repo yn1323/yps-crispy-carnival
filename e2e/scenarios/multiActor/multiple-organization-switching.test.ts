@@ -6,8 +6,11 @@ import { OrganizationSettingsPage } from "../../pages/OrganizationSettingsPage";
 test.describe("複数グループ切り替え", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(75_000);
 
-  test("MG-P0-01: 同じ管理者が無関係な2グループを往復し、表示と更新を混入させない", async ({ actorA }) => {
-    const seed = seedFreeManagerMultiOrganizationScenario({
+  test("MG-P0-01: 同じ管理者が無関係な2グループを往復し、表示と更新を混入させない", async ({
+    actorA,
+    multiActorPool,
+  }) => {
+    const seed = seedFreeManagerMultiOrganizationScenario(multiActorPool, {
       targetOrganizationName: "複数グループE2E Aグループ",
       targetShopName: "複数グループE2E A店舗",
       actorBName: "Aグループ固有スタッフ",

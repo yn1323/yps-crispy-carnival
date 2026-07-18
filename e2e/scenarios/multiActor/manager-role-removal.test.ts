@@ -9,8 +9,12 @@ import { OrganizationSettingsPage } from "../../pages/OrganizationSettingsPage";
 test.describe("管理者権限だけの解除", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(75_000);
 
-  test("MM-P0-02: Bの管理画面権限だけを外し、A店のスタッフ所属を維持する", async ({ actorA, actorB }) => {
-    const seed = seedMultiActorOrganizationScenario({
+  test("MM-P0-02: Bの管理画面権限だけを外し、A店のスタッフ所属を維持する", async ({
+    actorA,
+    actorB,
+    multiActorPool,
+  }) => {
+    const seed = seedMultiActorOrganizationScenario(multiActorPool, {
       organizationName: "権限解除E2Eグループ",
       primaryShopName: "権限解除E2E A店",
       secondaryShopName: "権限解除E2E B店",

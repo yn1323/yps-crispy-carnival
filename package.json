@@ -43,6 +43,7 @@
     "e2e:a11y": "playwright test --grep @a11y",
     "e2e:deployed": "playwright test --config=playwright.deployed.config.ts",
     "e2e:assert-release-results": "node scripts/assertPlaywrightReleaseResults.mjs",
+    "e2e:assert-artifact-safety": "node scripts/assertPlaywrightArtifactSafety.mjs",
     "e2e:ui": "playwright test --ui",
     "e2e:no-report": "playwright test --reporter=line",
     "e2e:debug": "playwright test --debug",

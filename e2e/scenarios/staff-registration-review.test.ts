@@ -145,14 +145,8 @@ test.describe("スタッフ登録申請の承認/却下", { tag: ["@release"] },
     });
 
     await test.step("Step 4: A店には承認スタッフとB店向け通知が混入しない", async () => {
-      await assertNoNotificationOutbox({
-        shopId: seed.primaryShopId,
-        notificationContext: "line.sendInviteEmail",
-      });
-      await assertNoNotificationOutbox({
-        shopId: seed.primaryShopId,
-        notificationContext: "notification.sendOpenRecruitmentNotificationEmailsForStaff",
-      });
+      // A店には通知種別を問わずB店向けoutboxが一件もないことをまとめて確認する。
+      await assertNoNotificationOutbox({ shopId: seed.primaryShopId });
       await dashboard.goto(seed.primaryShopId);
       await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
       await dashboard.expectStaffRegistrationRequestBannerHidden();

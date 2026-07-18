@@ -164,14 +164,8 @@ test.describe("勤務区分方式のシフト確定", { tag: ["@release", "@noti
       await dashboard.expectStaffVisible(seed.primaryMarkerPersonName);
       await dashboard.expectStaffNotVisible(seed.secondaryMarkerPersonName);
       await dashboard.expectRecruitmentCardCount(0);
-      await assertNoNotificationOutbox({
-        shopId: seed.primaryShopId,
-        notificationContext: "notification.sendRecruitmentNotificationEmails",
-      });
-      await assertNoNotificationOutbox({
-        shopId: seed.primaryShopId,
-        notificationContext: "notification.sendConfirmationEmail",
-      });
+      // A店には通知種別を問わずB店由来のoutboxが一件もないことをまとめて確認する。
+      await assertNoNotificationOutbox({ shopId: seed.primaryShopId });
 
       await dashboard.createRecruitment(dates);
       await dashboard.openShiftBoard();

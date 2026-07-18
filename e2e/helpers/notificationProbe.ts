@@ -114,7 +114,7 @@ export async function assertNoNotificationOutbox(args: NotificationProbeArgs): P
     if (result.outbox.length > 0) {
       throw new Error(`Unexpected notification channel was enqueued for: ${args.notificationContext ?? "any"}`);
     }
-    await sleep(POLL_INTERVAL_MS);
+    if (attempt < 3) await sleep(POLL_INTERVAL_MS);
   }
 }
 

@@ -13,13 +13,21 @@ let testCount = 0;
 const projectCounts = new Map();
 const observedSuiteFiles = new Set();
 const observedContractLocations = [];
+const annotationErrors = [];
+const timingErrors = [];
+const observedE2EUserIndexes = new Set();
+const observedE2EActorPools = new Set();
+const projectWallSpans = new Map();
 
 const requiredProjectMinimums = new Map([
-  ["setup", 3],
-  ["multi-actor-chromium", 5],
-  ["desktop-chromium", 63],
+  ["setup", 6],
+  ["multi-actor-chromium", 6],
+  ["desktop-chromium", 64],
   ["mobile-chrome", 1],
 ]);
+const requiredE2EUserIndexes = new Set([0, 1, 2, 3, 4, 5]);
+const requiredE2EActorPools = new Set([0, 1]);
+const projectsUsingE2EUserIndexes = new Set(["desktop-chromium", "mobile-chrome"]);
 const requiredScenarioSuites = [
   "scenarios/auth-pages.test.ts",
   "scenarios/dashboard-pagination.test.ts",
@@ -128,6 +136,48 @@ function normalizeSuiteFile(file) {
   return file.replaceAll("\\", "/").replace(/^.*\/e2e\//, "");
 }
 
+function observeWallSpan(projectName, title, result) {
+  const start = Date.parse(result.startTime ?? "");
+  const duration = result.duration;
+  if (!Number.isFinite(start) || !Number.isFinite(duration) || duration < 0) {
+    timingErrors.push(`${projectName}: ${title}: result timing is invalid`);
+    return;
+  }
+
+  const end = start + duration;
+  const current = projectWallSpans.get(projectName);
+  projectWallSpans.set(projectName, {
+    start: Math.min(current?.start ?? start, start),
+    end: Math.max(current?.end ?? end, end),
+  });
+}
+
+function observeRequiredNumericAnnotation({ annotations, projectName, title, type, allowed, observed }) {
+  const matches = (annotations ?? []).filter((annotation) => annotation.type === type);
+  if (matches.length !== 1) {
+    annotationErrors.push(`${projectName}: ${title}: requires exactly one ${type} annotation`);
+    return;
+  }
+
+  const description = matches[0].description;
+  if (typeof description !== "string" || !/^\d+$/.test(description)) {
+    annotationErrors.push(`${projectName}: ${title}: ${type} must be a numeric annotation`);
+    return;
+  }
+
+  const value = Number(description);
+  if (!allowed.has(value)) {
+    annotationErrors.push(`${projectName}: ${title}: ${type} is outside the allowed range`);
+    return;
+  }
+
+  observed.add(value);
+}
+
+function formatWallSpan(durationMs) {
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
 function inspectSuite(suite, ancestors, inheritedFile) {
   const path = suite.title ? [...ancestors, suite.title] : ancestors;
   const suiteFile = suite.file ? normalizeSuiteFile(suite.file) : inheritedFile;
@@ -148,10 +198,31 @@ function inspectSuite(suite, ancestors, inheritedFile) {
 
       const results = test.results ?? [];
       const finalResult = results.at(-1);
+      for (const result of results) observeWallSpan(test.projectName, title, result);
       if (!finalResult) {
         failed.push(`${title}: result is missing`);
       } else if (finalResult.status !== "passed") {
         failed.push(`${title}: ${finalResult.status ?? "missing status"}`);
+      }
+      if (finalResult && projectsUsingE2EUserIndexes.has(test.projectName)) {
+        observeRequiredNumericAnnotation({
+          annotations: finalResult.annotations,
+          projectName: test.projectName,
+          title,
+          type: "e2e-user-index",
+          allowed: requiredE2EUserIndexes,
+          observed: observedE2EUserIndexes,
+        });
+      }
+      if (finalResult && test.projectName === "multi-actor-chromium") {
+        observeRequiredNumericAnnotation({
+          annotations: finalResult.annotations,
+          projectName: test.projectName,
+          title,
+          type: "e2e-actor-pool",
+          allowed: requiredE2EActorPools,
+          observed: observedE2EActorPools,
+        });
       }
       const failedBeforePassing =
         finalResult?.status === "passed" &&
@@ -172,6 +243,12 @@ if (unexpectedExpectedStatuses.length > 0) {
 if (failed.length > 0) throw new Error(`Release E2E has failed tests:\n${failed.join("\n")}`);
 if (skipped.length > 0) throw new Error(`Release E2E has skipped tests:\n${skipped.join("\n")}`);
 if (flaky.length > 0) throw new Error(`Release E2E has flaky tests:\n${flaky.join("\n")}`);
+if (annotationErrors.length > 0) {
+  throw new Error(`Release E2E has invalid worker annotations:\n${annotationErrors.join("\n")}`);
+}
+if (timingErrors.length > 0) {
+  throw new Error(`Release E2E has invalid result timing:\n${timingErrors.join("\n")}`);
+}
 
 const unexpectedProjects = [...projectCounts.keys()].filter((project) => !requiredProjectMinimums.has(project));
 if (unexpectedProjects.length > 0) {
@@ -187,6 +264,21 @@ if (missingProjects.length > 0) {
       .map(([project, minimum]) => `${project}: ${projectCounts.get(project) ?? 0}/${minimum}`)
       .join("\n")}`,
   );
+}
+
+const missingE2EUserIndexes = [...requiredE2EUserIndexes].filter((index) => !observedE2EUserIndexes.has(index));
+if (missingE2EUserIndexes.length > 0) {
+  throw new Error(`Release E2E is missing e2e-user-index values: ${missingE2EUserIndexes.join(", ")}`);
+}
+
+const missingE2EActorPools = [...requiredE2EActorPools].filter((index) => !observedE2EActorPools.has(index));
+if (missingE2EActorPools.length > 0) {
+  throw new Error(`Release E2E is missing e2e-actor-pool values: ${missingE2EActorPools.join(", ")}`);
+}
+
+const missingProjectWallSpans = [...requiredProjectMinimums.keys()].filter((project) => !projectWallSpans.has(project));
+if (missingProjectWallSpans.length > 0) {
+  throw new Error(`Release E2E is missing project wall spans: ${missingProjectWallSpans.join(", ")}`);
 }
 
 const missingScenarios = requiredScenarioSuites.filter((required) => !observedSuiteFiles.has(required));
@@ -215,6 +307,18 @@ if (missingContractCoverage.length > 0) {
   );
 }
 
+const observedProjectWallSpans = [...requiredProjectMinimums.keys()]
+  .map((project) => {
+    const span = projectWallSpans.get(project);
+    return span ? `${project}=${formatWallSpan(span.end - span.start)}` : undefined;
+  })
+  .filter(Boolean);
+const wallSpans = [...projectWallSpans.values()];
+const observedOverallWall =
+  wallSpans.length > 0
+    ? formatWallSpan(Math.max(...wallSpans.map(({ end }) => end)) - Math.min(...wallSpans.map(({ start }) => start)))
+    : "unavailable";
+
 console.log(
-  `Release E2E result gate passed: ${testCount} tests, ${requiredScenarioSuites.length} required suites, ${requiredContractIds.size} required P0 contracts across ${requiredContractCoverage.length} suite/project/spec bindings, 0 skipped, 0 flaky.`,
+  `Release E2E result gate passed: ${testCount} tests, ${requiredScenarioSuites.length} required suites, ${requiredContractIds.size} required P0 contracts across ${requiredContractCoverage.length} suite/project/spec bindings, all 6 user indexes, both actor pools, 0 skipped, 0 flaky. Observed wall span: total=${observedOverallWall}; ${observedProjectWallSpans.join(", ")}.`,
 );
