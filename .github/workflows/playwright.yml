@@ -35,14 +35,18 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Configure E2E Preview safety
         run: |
+          E2E_INVITATION_SIGNING_SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$E2E_INVITATION_SIGNING_SECRET"
+          npx convex env set E2E_TESTING_DEPLOYMENT_URL "${{ steps.preview.outputs.PREVIEW_URL }}" --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set E2E_TESTING_ENABLED true --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set ORGANIZATION_INVITATION_SIGNING_SECRET "$E2E_INVITATION_SIGNING_SECRET" --deployment "preview/$CONVEX_PREVIEW_NAME"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Verify Preview E2E Safety
         run: |
           SAFETY_STATE=$(npx convex run testing:getE2ESafetyState --deployment "preview/${CONVEX_PREVIEW_NAME}")
-          node -e 'const state = JSON.parse(process.argv[1]); if (!state.helpersEnabled || !state.notificationDeliverySuppressed) process.exit(1)' "$SAFETY_STATE"
+          node -e 'const state = JSON.parse(process.argv[1]); if (!state.helpersEnabled || !state.notificationDeliverySuppressed || !state.organizationInvitationSigningSecretConfigured) process.exit(1)' "$SAFETY_STATE"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
@@ -76,7 +80,7 @@ jobs:
         run: |
           BACKEND_AUDIT_ARGS=$(node -e 'const emails = (process.env.E2E_CLERK_USERS || "").split(",").map((email) => email.trim()).filter(Boolean); process.stdout.write(JSON.stringify({ managerEmails: emails }));')
           BACKEND_AUDIT=$(npx convex run testing:getE2EBackendAudit "$BACKEND_AUDIT_ARGS" --deployment "preview/${CONVEX_PREVIEW_NAME}")
-          node -e 'const audit = JSON.parse(process.argv[1]); if (audit.requestedManagerEmailCount === 0 || audit.missingManagerEmailCount !== 0 || audit.managerEmailWithoutShopCount !== 0 || audit.auditedShopCount === 0 || audit.unexpectedUnresolvedFailureInboxCount !== 0 || audit.duplicateActiveDedupeKeyCount !== 0) { console.error(audit); process.exit(1); }' "$BACKEND_AUDIT"
+          node -e 'const audit = JSON.parse(process.argv[1]); if (audit.requestedManagerEmailCount === 0 || audit.missingManagerEmailCount !== 0 || audit.managerEmailWithoutShopCount !== 0 || audit.auditedShopCount === 0 || audit.auditedOrganizationCount === 0 || audit.unexpectedUnresolvedFailureInboxCount !== 0 || audit.duplicateActiveDedupeKeyCount !== 0) { console.error(audit); process.exit(1); }' "$BACKEND_AUDIT"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           E2E_CLERK_USERS: ${{ vars.E2E_CLERK_USERS }}
