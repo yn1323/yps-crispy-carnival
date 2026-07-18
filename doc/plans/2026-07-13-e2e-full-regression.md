@@ -25,7 +25,7 @@
 - 本人だけが使う`apps/analytics-dashboard/`の内部BIを自動テストまたはFull Regressionの対象にしない。
 - Stripe Checkout、Customer Portal、Webhook、支払い成功または失敗、プラン変更、請求書、課金通知を現行リリースのE2Eゲートへ含めない。
 - `billingManager`が課金を操作する導線は対象外とする。
-- 複数管理者、複数グループ、複数店舗は課金機能から分離し、`MM-P0-01`から`04`、`MG-P0-01`、`MS-P0-01`から`03`、`REG-P0-01`から`03`の11契約を現行リリースのE2Eゲートへ含める。
+- 複数管理者、複数グループ、グループ削除、複数店舗は課金機能から分離し、`MM-P0-01`から`04`、`MG-P0-01`、`OD-P0-01`から`02`、`MS-P0-01`から`03`、`REG-P0-01`から`03`の13契約を現行リリースのE2Eゲートへ含める。
 - E2E seedが作る固定entitlementは複数管理者と複数店舗を利用するための前提データであり、課金機能の検証結果として扱わない。
 
 ## テストスイートの定義
@@ -52,9 +52,13 @@ Desktop Chromeを必須とし、スタッフ向け代表導線はMobile Chrome�
 
 Desktop ChromeとMobile Chromeを実行し、通知配送はdry-runで抑止する。
 
-複数管理者と複数グループの5シナリオは`multi-actor-chromium` projectで1 workerの直列実行とし、認証済みactor A、B、Cを独立したbrowser contextで使用する。
+複数管理者、複数グループ、グループ削除の6シナリオは`multi-actor-chromium` projectで実行する。
 
-通常のDesktop ChromeとMobile Chromeは、このprojectの完了後に実行する。
+user index 0〜2をpool 0、3〜5をpool 1として各poolを1 workerへ固定する。各worker内では認証済みactor A、B、Cを独立したbrowser contextで使用し、シナリオを直列実行する。
+
+通常のDesktop ChromeとMobile Chromeは合計6 workerで実行する。通常projectの`@notification`テストは、6 worker時に通知probeのConvex CLI呼び出しが重なる実測を踏まえて、150秒をタイムアウト上限とする。性能はこの上限ではなくJSON reportのwall spanで判定する。
+
+`setup`、`multi-actor-chromium`、通常projectのdependencyを維持し、通常projectは2 workerのmulti-actor projectが完了した後に実行する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける。
 
 実行コマンドは`pnpm e2e:release`である。
 
@@ -143,14 +147,14 @@ provider canaryはRC作成時または手動承認後に実行し、通常PRで�
 | G12 | CloudflareへデプロイしたURLでSmokeを成功させる | develop向けPreviewとDevelopのdeploy workflowへ接続済み。本番release workflowではE2Eを実行しない | 実装済み | P0 |
 | G13 | provider canaryを必要なRCで成功させる | 手動手順と必須PRラベルによるrelease gateを実装済み。各RCで実行が必要 | 実装済み | P0 |
 | G14 | Playwright HTML、JSON、trace、動画を保存する | PR workflowで実装済み | 実装済み | P1 |
-| G15 | 今回追加するP0機能のトレーサビリティに未分類行を残さない | 複数管理者、複数グループ、複数店舗、既存影響機能の11契約を`MM`、`MG`、`MS`、`REG`として分類し、test titleと結果ゲートへ接続した | 実装済み | P0 |
+| G15 | 今回追加するP0機能のトレーサビリティに未分類行を残さない | 複数管理者、複数グループ、グループ削除、複数店舗、既存影響機能の13契約を`MM`、`MG`、`OD`、`MS`、`REG`として分類し、test titleと結果ゲートへ接続した | 実装済み | P0 |
 | G16 | P0通知目的をE2Eまたは安全な外部境界contract testへ分類する | N01-N21、N24、N27はE2E。N22は代表UIと目的別再通知contract、N23はoutbox Action/Scenario、N25はWebhook Functionで確認する。Playwright workflowにはE2E以外のテスト層を混在させない | 実装済み | P0 |
 | G17 | develop統合後またはRCのexact SHAでFull Regressionを完了する | develop向けPRのhead SHAだけを実行し、統合後SHAとRC SHAは未実行 | 未実装 | P0 |
 | G18 | production buildを対象に認証済み主要導線を確認する | 通常E2EはVite dev server、deployed Smokeは公開ページだけ | 未実装 | P0 |
 | G19 | browser runtime errorと同一origin 5xxを失敗にする | 共通fixtureはClerk token設定だけで、pageerror、console.error、5xxを監視しない | 未実装 | P0 |
-| G20 | 今回追加した11件の必須契約IDでFull Regressionの欠落を検知する | 必須scenario fileに加え、11件のP0契約IDがPlaywright JSONのtest titleに存在することを検査する。`REG-P0-03`はemail、LINE、複数管理者の3 specを個別に固定する | 実装済み | P0 |
+| G20 | 今回追加した13件の必須契約IDでFull Regressionの欠落を検知する | 必須scenario fileに加え、13件のP0契約IDがPlaywright JSONのtest titleに存在することを検査する。`REG-P0-03`はemail、LINE、複数管理者の3 specを個別に固定する | 実装済み | P0 |
 
-必須project、scenario file、P0契約ID、最終失敗、non-passing expected status、skip、flaky、許可外project、通知dry-run、全E2E管理者のbackend audit、FailureInbox、active dedupe、デプロイ済みURLを確認する自動ゲートが存在する。
+必須project、scenario file、P0契約ID、最終失敗、non-passing expected status、skip、flaky、許可外project、6 user indexと2 actor poolの完全利用、通知dry-run、全E2E管理者のbackend audit、FailureInbox、active dedupe、デプロイ済みURLを確認する自動ゲートが存在する。
 
 ただし、契約IDの存在は各assertionの妥当性まで保証しない。
 
@@ -164,20 +168,57 @@ develop向けPreview／Developのdeployed Smokeはデプロイ後の検知であ
 
 ## 2026年7月18日の実行契約
 
-現行の結果ゲートは、最低合計72件を次のproject内訳で要求する。
+6ユーザー対応後の結果ゲートは、最低合計77件を次のproject内訳で要求する。
 
-- `setup`：3件。
-- `multi-actor-chromium`：5件。
-- `desktop-chromium`：63件。
+- `setup`：6件。
+- `multi-actor-chromium`：6件。
+- `desktop-chromium`：64件。
 - `mobile-chrome`：1件。
 
-2026年7月18日、現在の作業ツリーに対する`pnpm e2e:release`は72件すべて成功した。
+必須32 suite、13件のP0契約、15件のsuite/project/spec bindingを維持する。
+
+通常projectの各テストは数値annotation `e2e-user-index`を持ち、結果ゲートは0から5までの完全利用を確認する。
+
+multi-actor projectの各テストは数値annotation `e2e-actor-pool`を持ち、結果ゲートはpool 0と1の完全利用を確認する。
+
+結果ゲートは各projectと全体について、最初のtest開始時刻から最後のtest終了時刻までのwall spanを出力する。テストdurationの合計は並列実行時間として扱わない。
+
+#### 6ユーザー実行のSecurity Lens
+
+- Actor: Preview環境でFull Regressionを実行するGitHub Actionsと、同じE2E設定を使うローカル開発者。
+- Asset: 6ユーザー共通password、Clerk sessionを含むstorageState、ユーザーごとに分離したE2Eデータ。
+- Trust boundary: GitHub Environmentまたはローカル環境変数からPlaywright workerへ認証情報を渡し、E2E専用Previewへ接続する境界。
+- Abuse case: 複数workerが同じユーザーを同時利用して互いのseedを削除すること、認証情報をログへ含めること、通常projectとmulti-actor projectが同じsessionを同時利用すること。
+- Server-side check: 既存のE2E Preview binding、`E2E_TESTING_ENABLED`、通知dry-run preflight、全6管理者のbackend auditを維持し、新しいpublic APIは追加しない。
+- Lifecycle / recovery: storageStateはrunごとに再生成し、setup時のowner単位force resetと各multi-actorシナリオ終了時のpool単位resetで前回失敗runを回収する。
+- Logs / PII: workflowは各emailとpasswordをmaskし、passwordを入力する認証setupと通常suiteのtraceを無効化する。Playwrightの`webServer.env`へ`process.env`を設定せず、JSON reportへcredentialを直列化しない。割当reportには数値のuser indexとactor poolだけを残し、artifact upload前のfail-closed gateでpassword、user identifier、secret、tokenの混入を検査する。その他の通常シナリオの認証済みtrace・動画はtokenを含み得るため、検査を通過した非公開artifactへ7日だけ保存し、storageStateファイル自体は含めない。
+- Remaining operation: workflowはPreview Environment Secretを優先し、既存Variableを移行互換としてmaskして利用する。Secretへ移行後はVariable fallbackを削除する。
+- Incident follow-up: 旧`webServer.env`設定で生成された有効なPlaywright artifactを削除し、少なくともE2E共通password、Clerk開発用secret、Convex deploy keyをローテーションする。外部artifactの削除とcredential更新は、リポジトリ差分とは別の権限付き運用として実施する。
+- Regression test: 6ユーザーの一意性、2 poolの非重複、範囲外poolのfail-closedをLogic UTで保証し、結果ゲートで全user indexと両poolの実利用を確認する。
+
+### 6ユーザー化後の暫定実測
+
+2026年7月18日、6ユーザー、2 actor pool、6 worker構成の作業ツリーで`@release` 77件がすべて成功した。skip 0件、flaky 0件で、結果ゲートは必須32 suite、13件のP0契約、15件のbinding、全6 user index、両actor poolを確認した。
+
+全体wall spanは450.0秒（7.5分）だった。project別は`setup` 28.0秒、`multi-actor-chromium` 111.1秒、`desktop-chromium` 309.8秒、`mobile-chrome` 6.7秒である。DesktopとMobileは重なるため、project別wall spanを合算して全体時間として扱わない。
+
+6ユーザー化前の10.2分との単純比較では約26%短縮した。テスト総数は72件から77件へ増えているため、同一件数だけの速度比較ではない。また、setupとmulti-actorは通常projectより前に実行するため、ユーザー数を倍にしても全体時間は半分にならない。
+
+この値はローカル作業ツリーでの1回の実測であり、同一commit・同一CI条件の3回中央値ではない。新しい性能基準やG17のexact SHA証跡には使用しない。
+
+### 6ユーザー化前の過去実績
+
+2026年7月18日、6ユーザー化前の作業ツリーに対する`pnpm e2e:release`は72件すべて成功した。
 
 内訳は`setup` 3件、`multi-actor-chromium` 5件、`desktop-chromium` 63件、`mobile-chrome` 1件で、skip 0件、flaky 0件、所要時間10.2分だった。
 
 `pnpm e2e:assert-release-results test-results.json`も成功し、必須30 suite、11件のP0契約、13件のsuite/project/spec bindingを確認した。
 
-この実績はローカルの現在の作業ツリーに対する結果であり、develop統合後またはRCのexact SHAに対するG17の完了証跡ではない。
+この72件には、現在の6本目のmulti-actorシナリオであるグループ削除フローが含まれていない。
+
+この実績は6ユーザー、2 pool、6 worker構成の性能基準または、develop統合後・RCのexact SHAに対するG17の完了証跡として扱わない。
+
+6ユーザー対応後は同じcommitとCI条件で3回実行し、全体とproject別wall spanの中央値を新しい基準値として記録する。
 
 ## 機能とテスト層のトレーサビリティ
 
@@ -364,7 +405,7 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 ## 実装順序
 
 1. required check、exact SHA、production build、runtime error、VRT baselineのゲートを成立させる。
-2. canonical organization seed、owner単位reset、multi-actor project、11件のP0契約IDゲートを維持する。
+2. canonical organization seed、owner単位reset、multi-actor project、13件のP0契約IDゲートを維持する。
 3. 今回の作業差分を安定させ、`@smoke`と`@release`の実行結果を基準値として保存する。
 4. P0通知不足を目的別かつchannel別に追加する。
 5. スタッフ追加、email変更、対象外復帰の仕様を確定し、状態遷移E2Eを追加する。
@@ -385,6 +426,11 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `playwright.deployed.config.ts`
 - `package.json`
 - `scripts/assertPlaywrightReleaseResults.mjs`
+- `scripts/assertPlaywrightReleaseResults.test.ts`
+- `scripts/assertPlaywrightArtifactSafety.mjs`
+- `scripts/assertPlaywrightArtifactSafety.test.ts`
+- `scripts/playwrightConfigSecurity.test.ts`
+- `scripts/e2eUsers.test.ts`
 - `.github/actions/playwright/action.yml`
 - `.github/workflows/playwright.yml`
 - `.github/workflows/pr-report-comments.yml`
@@ -394,8 +440,11 @@ N23、N24は目的ではなくchannel選択条件、N22は復旧lifecycle、N27�
 - `e2e/helpers/notificationProbe.ts`
 - `e2e/helpers/notificationTokens.ts`
 - `e2e/helpers/managerInvitationProbe.ts`
+- `e2e/helpers/convex.ts`
+- `e2e/helpers/e2eUsers.ts`
 - `e2e/helpers/scenarioSeeds.ts`
 - `e2e/helpers/accessibility.ts`
+- `e2e/fixtures/e2eTest.ts`
 - `e2e/fixtures/multiActorTest.ts`
 - `e2e/pages/OrganizationSettingsPage.ts`
 - `e2e/pages/ManagerInvitationPage.ts`

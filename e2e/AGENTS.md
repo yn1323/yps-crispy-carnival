@@ -48,6 +48,11 @@ e2e/
 
 - Playwright Full Regressionはdevelop向けPRでのみ実行する。developからmainへのPRと`release.yml`ではE2E自体を実行せず、成功checkも要求しない
 - ブラウザprojectはChrome系だけとし、Desktop ChromeとMobile Chromeの代表viewportを使う
+- 通常のDesktop ChromeとMobile Chromeは6ユーザーを6 workerへ固定対応させ、同じ認証状態を並行worker間で共有しない
+- 通常projectの`@notification`テストは6 worker時の通知probe負荷を考慮して150秒を上限とする。実行時間の評価にはタイムアウト値ではなくJSON reportのwall spanを使う
+- 6 worker時の初回購読と描画を考慮し、expect/actionは10秒、navigationは15秒を上限とする。ローカルだけ短い上限へ戻さない
+- 複数actorシナリオはuser index 0〜2をpool 0、3〜5をpool 1として2 workerへ固定対応させる。各poolのactor A、B、Cは独立したbrowser contextを使う
+- `setup` → `multi-actor-chromium` → 通常projectのdependencyを維持する。DesktopとMobileは同時実行できるが、Playwrightのworker slotごとの`parallelIndex`で同じユーザーの重複利用を避ける
 - PR専用Convex Previewは自動失効に任せ、E2E専用cleanup workflowを作らない
 - CloudflareへデプロイしたURLの`@deployed` Smokeは、Full Regressionとは別にdevelop向けPreview／Developのdeploy workflowで実行する
 - シフト提出方式は、全方式で初回提出と再提出、管理者の割当編集、下書き保存、reload、確定通知、スタッフ閲覧までを一気通貫で確認する
@@ -76,9 +81,13 @@ e2e/
 
 ## 認証
 
-- `fixtures/auth.setup.ts` で `@clerk/testing` の `clerk.signIn` を利用し、3ユーザー分の storageState を作成
-- CIでは環境変数 `E2E_CLERK_USERS`（カンマ区切り3件） / `E2E_CLERK_PASSWORD` を使用
+- `fixtures/auth.setup.ts` で `@clerk/testing` の `clerk.signIn` を利用し、6ユーザー分の storageState を作成
+- Convex probeは`npx`を経由せず、依存解決したConvex CLIをNodeで直接起動して6 worker時のプロセス競合を抑える
+- CIでは環境変数 `E2E_CLERK_USERS`（カンマ区切り6件） / `E2E_CLERK_PASSWORD`（6ユーザー共通）を使用
 - scenario は `fixtures/e2eTest.ts` の `test` を import し、workerごとに別ユーザーの storageState を使う
+- `E2E_CLERK_USERS`の各値とpasswordはworkflow開始時にmaskし、password入力を行うsetupと通常suiteではtraceを保存しない。結果ゲートの割当情報には数値のuser indexとactor poolだけを記録する
+- Playwrightの`webServer.env`へ`process.env`を設定しない。JSON reportへcredentialを直列化せず、artifact upload前のfail-closed gateでpassword、user identifier、secret、tokenの混入を検査する
+- 通常シナリオの失敗trace・動画は認証済みtokenを含み得るため、Actionsの非公開artifactへ7日だけ保存する。storageStateファイル自体はartifactへ含めない
 
 ## データ
 
