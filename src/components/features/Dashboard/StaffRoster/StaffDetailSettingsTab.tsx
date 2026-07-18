@@ -1,4 +1,4 @@
-import { Badge, Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Switch, Text, VisuallyHidden } from "@chakra-ui/react";
 import { LuTrash2 } from "react-icons/lu";
 import { ManagerAssignmentConfirmation } from "@/src/components/shared/ManagerAssignmentConfirmation";
 import { Button } from "@/src/components/ui/Button";
@@ -87,14 +87,14 @@ export const StaffDetailSettingsTab = ({
         </Heading>
 
         {isManager ? (
-          <HStack gap={2} align="center" wrap="wrap">
-            <Badge colorPalette="teal" variant="subtle">
-              管理者
-            </Badge>
-            <Text fontSize="sm" color="fg.muted">
-              このスタッフは管理者です
+          <Stack gap={2} align="flex-end">
+            <Button aria-describedby="staff-manager-invitation-already-manager-reason" disabled>
+              {invitationButtonLabel}
+            </Button>
+            <Text id="staff-manager-invitation-already-manager-reason" fontSize="sm" color="fg.muted" textAlign="right">
+              すでに管理者です
             </Text>
-          </HStack>
+          </Stack>
         ) : managerInvitationState.kind === "pending" ? (
           <Flex justify="flex-end">
             <Button

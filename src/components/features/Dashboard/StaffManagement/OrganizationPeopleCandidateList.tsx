@@ -86,15 +86,7 @@ export function OrganizationPeopleCandidateListView({
   if (isLoading) return <CandidateListSkeleton />;
 
   if (candidates.length === 0) {
-    return (
-      <Empty
-        icon={LuUsers}
-        title="追加できるスタッフはいません"
-        description="同じグループ内で、この店舗に未登録のスタッフはいません。"
-        tone="brand"
-        variant="section"
-      />
-    );
+    return <Empty icon={LuUsers} title="追加できるスタッフはいません" tone="brand" variant="section" />;
   }
 
   return (
