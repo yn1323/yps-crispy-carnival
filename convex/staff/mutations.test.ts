@@ -753,6 +753,70 @@ describe("staff/mutations", () => {
       expect(state.audits.filter((audit) => audit.action === "organization.person_reactivated")).toHaveLength(1);
     });
 
+    it("アカウント削除受付済みuserを持つ削除済み人物は明示確認しても再有効化しない", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const organization = await seedOrganizationManagerShop(ctx, {
+          subject: "requested_reactivation_manager",
+          email: "requested-reactivation-manager@example.com",
+          plan: "pro",
+        });
+        const removedUserId = await seedUser(ctx, "requested_reactivation_person", "requested-person@example.com");
+        await ctx.db.patch(removedUserId, { accountDeletionRequestedAt: Date.now() });
+        const now = Date.now();
+        const removedPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: organization.organizationId,
+          userId: removedUserId,
+          name: "削除受付済み人物",
+          email: "requested-person@example.com",
+          emailNormalized: "requested-person@example.com",
+          status: "removed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { ...organization, removedPersonId, removedUserId };
+      });
+      const actor = t.withIdentity({ subject: "requested_reactivation_manager" });
+      const requestId = nextStaffAddRequestId();
+      const entries = [{ name: "再追加入力", email: "requested-person@example.com" }];
+      const preview = await actor.mutation(api.staff.mutations.addStaffs, {
+        shopId: seeded.shopId,
+        requestId,
+        entries,
+      });
+      if (preview.status !== "requiresConfirmation") throw new Error("再追加確認候補がありません");
+
+      await expect(
+        actor.mutation(api.staff.mutations.addStaffs, {
+          shopId: seeded.shopId,
+          requestId,
+          entries,
+          confirmReactivationPersonIds: preview.candidates.map((candidate) => candidate.personId),
+        }),
+      ).rejects.toThrow("この人物は再追加できません");
+
+      const state = await t.run(async (ctx) => ({
+        person: await ctx.db.get(seeded.removedPersonId),
+        user: await ctx.db.get(seeded.removedUserId),
+        staffs: await ctx.db
+          .query("staffs")
+          .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+            q.eq("organizationId", seeded.organizationId).eq("organizationPersonId", seeded.removedPersonId),
+          )
+          .collect(),
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.person?.status).toBe("removed");
+      expect(state.user).toMatchObject({
+        isDeleted: false,
+        accountDeletionRequestedAt: expect.any(Number),
+      });
+      expect(state.staffs).toEqual([]);
+      expect(state.audits).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+    });
+
     it("削除済み人物に有効な管理者所属が残る不整合では権限を暗黙復元しない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {

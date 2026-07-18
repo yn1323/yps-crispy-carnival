@@ -12,6 +12,12 @@ crons.interval("notification-outbox-drain", { minutes: 1 }, internal.notificatio
 // 削除cleanupの予約漏れと期限切れleaseを回収する。各jobはbounded mutationで一batchずつ進む。
 crons.interval("deletion-cleanup-recover", { minutes: 1 }, internal.deletionCleanup.mutations.recover, {});
 
+// アカウント削除jobの予約漏れ・期限切れleaseを1分ごとに回収する。
+crons.interval("account-deletion-recover", { minutes: 1 }, internal.accountDeletion.mutations.recover, {});
+
+// 完了したアカウント削除jobを90日後に削除（JST 03:40 = UTC 18:40）。
+crons.cron("account-deletion-prune", "40 18 * * *", internal.accountDeletion.mutations.pruneCompleted, {});
+
 // 通知配送イベントログを1日1回削除（JST 03:30 = UTC 18:30）
 crons.cron(
   "notification-delivery-event-prune",

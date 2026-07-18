@@ -784,6 +784,9 @@ async function linkAccountWithToken(
   if (!verifiedEmail || verifiedEmail !== invitation.emailNormalized) {
     return { status: "emailMismatch" as const };
   }
+  if (ctx.user && (ctx.user.isDeleted || ctx.user.accountDeletionRequestedAt !== undefined)) {
+    return { status: "unavailable" as const };
+  }
   if (isOrganizationInvitationLinked(invitation)) {
     if (options?.linkedInvitationResult === "used") return { status: "used" as const };
     const linkedByPersonId = getOrganizationInvitationLinkedByPersonId(invitation);
@@ -822,7 +825,6 @@ async function linkAccountWithToken(
   const { inviter } = eligibility;
   const purpose = getOrganizationInvitationPurpose(invitation);
 
-  if (ctx.user?.isDeleted) return { status: "unavailable" as const };
   const targetPersonId = invitation.targetPersonId;
   let people: Doc<"organizationPeople">[];
   if (targetPersonId) {

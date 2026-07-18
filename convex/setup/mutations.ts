@@ -28,15 +28,20 @@ export const setupShopAndManager = authenticatedMutation({
     }
     const input = parsed.data;
     const currentUser = ctx.user;
-    if (currentUser?.isDeleted) {
+    if (currentUser?.isDeleted || currentUser?.accountDeletionRequestedAt !== undefined) {
       throw new ConvexError("無効になったアカウントでは初期設定を開始できません");
     }
     if (currentUser) {
-      const selfCreatedOrganization = await ctx.db
+      const selfCreatedOrganizations = await ctx.db
         .query("organizations")
-        .withIndex("by_createdByUserId", (q) => q.eq("createdByUserId", currentUser._id))
-        .first();
-      if (selfCreatedOrganization) {
+        .withIndex("by_createdByUserId_and_isDeleted", (q) =>
+          q.eq("createdByUserId", currentUser._id).eq("isDeleted", false),
+        )
+        .take(2);
+      if (selfCreatedOrganizations.length > 1) {
+        throw new ConvexError("作成済みのグループを一意に確認できません");
+      }
+      if (selfCreatedOrganizations.length === 1) {
         throw new ConvexError("自分で作成できるグループは一つまでです");
       }
 

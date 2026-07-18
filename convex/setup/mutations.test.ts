@@ -3,7 +3,14 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { getShopActivationReminderAt } from "../_lib/dateFormat";
-import { seedManagerShop, seedShop, seedShopMembership, seedUser, testAuthTokenIdentifier } from "../_test/seed";
+import {
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedShop,
+  seedShopMembership,
+  seedUser,
+  testAuthTokenIdentifier,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { PERSON_NAME_MAX_LENGTH, SHOP_NAME_MAX_LENGTH } from "../constants";
 
@@ -51,6 +58,94 @@ describe("setup/mutations", () => {
       expect(state.members).toEqual([]);
       expect(state.shops).toEqual([]);
       expect(state.scheduled).toEqual([]);
+    });
+
+    it("アカウント削除受付済みユーザーは拒否し、事業者・店舗・所属を作成しない", async () => {
+      const t = convexTest(schema, modules);
+      const userId = await t.run(async (ctx) => {
+        const id = await seedUser(ctx, "requested_setup_user", "requested-setup@example.com");
+        await ctx.db.patch(id, { accountDeletionRequestedAt: Date.now() });
+        return id;
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "requested_setup_user" })
+          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).rejects.toThrow("無効になったアカウントでは初期設定を開始できません");
+
+      const state = await t.run(async (ctx) => ({
+        user: await ctx.db.get(userId),
+        organizations: await ctx.db.query("organizations").collect(),
+        people: await ctx.db.query("organizationPeople").collect(),
+        members: await ctx.db.query("organizationMembers").collect(),
+        shops: await ctx.db.query("shops").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.user).toMatchObject({
+        isDeleted: false,
+        accountDeletionRequestedAt: expect.any(Number),
+        email: "requested-setup@example.com",
+      });
+      expect(state.organizations).toEqual([]);
+      expect(state.people).toEqual([]);
+      expect(state.members).toEqual([]);
+      expect(state.shops).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+    });
+
+    it("自分で作成した削除済みグループだけが残るユーザーは新しい店舗を登録できる", async () => {
+      const t = convexTest(schema, modules);
+      const old = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "setup_after_group_deletion",
+          email: "setup-after-group-deletion@example.com",
+          plan: "free",
+        });
+        await ctx.db.patch(seeded.organizationId, { isDeleted: true, updatedAt: Date.now() });
+        return seeded;
+      });
+
+      const shopId = await t
+        .withIdentity({ subject: "setup_after_group_deletion" })
+        .mutation(api.setup.mutations.setupShopAndManager, setupArgs);
+
+      const state = await t.run(async (ctx) => ({
+        newShop: await ctx.db.get(shopId),
+        organizations: await ctx.db
+          .query("organizations")
+          .withIndex("by_createdByUserId", (q) => q.eq("createdByUserId", old.userId))
+          .collect(),
+        user: await ctx.db.get(old.userId),
+      }));
+      expect(state.newShop).toMatchObject({ name: "テスト店舗", isDeleted: false });
+      expect(state.organizations).toHaveLength(2);
+      expect(state.organizations.filter((organization) => !organization.isDeleted)).toHaveLength(1);
+      expect(state.user).toMatchObject({ isDeleted: false, name: "山田 太郎", email: "yamada@example.com" });
+    });
+
+    it("自分で作成した有効グループが重複している場合はfail closedにする", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "duplicate_created_organizations");
+        const now = Date.now();
+        for (const name of ["重複グループA", "重複グループB"]) {
+          await ctx.db.insert("organizations", {
+            createdByUserId: userId,
+            name,
+            isDeleted: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "duplicate_created_organizations" })
+          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).rejects.toThrow("作成済みのグループを一意に確認できません");
+      await expect(t.run(async (ctx) => ctx.db.query("shops").collect())).resolves.toEqual([]);
     });
 
     it("認証識別子に複数userが紐づく場合は新しいuserや事業者を作成しない", async () => {

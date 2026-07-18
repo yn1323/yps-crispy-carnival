@@ -7,7 +7,7 @@ import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
-import { DELETED_SHOP_NAME, organizationTombstone, userTombstone } from "../deletionCleanup/tombstone";
+import { DELETED_SHOP_NAME, organizationTombstone } from "../deletionCleanup/tombstone";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
@@ -141,7 +141,8 @@ async function materializeLegacyManagerMemberships(
       person.userId !== member.userId ||
       person.status !== "active" ||
       !user ||
-      user.isDeleted
+      user.isDeleted ||
+      user.accountDeletionRequestedAt !== undefined
     ) {
       throw new ConvexError("管理者所属を確認できません");
     }
@@ -648,14 +649,6 @@ export const deleteOrganization = authenticatedMutation({
       version: billingState.version + 1,
       updatedAt: now,
     });
-
-    // 操作者が別グループに所属しない場合は、受付時点で終了状態へ固定する。
-    if (!eligibility.actorHasOtherActiveAssociation) {
-      await ctx.db.patch(actor.member.userId, {
-        ...userTombstone(actor.member.userId),
-        isDeleted: true,
-      });
-    }
 
     await recordOrganizationAuditEvent(ctx, {
       organizationId: actor.organization._id,

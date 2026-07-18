@@ -1,15 +1,12 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import {
-  getOtherActiveUserAssociationStatus,
-  hasUnfinishedShopCleanupForOrganization,
-} from "../deletionCleanup/service";
+import { hasUnfinishedShopCleanupForOrganization } from "../deletionCleanup/service";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
 export type OrganizationDeletionEligibility =
-  | { canDelete: true; actorHasOtherActiveAssociation: boolean }
-  | { canDelete: false; reason: string; code: "manager" | "billing" | "cleanup" | "association" };
+  | { canDelete: true }
+  | { canDelete: false; reason: string; code: "manager" | "billing" | "cleanup" };
 
 export async function getOrganizationDeletionEligibility(
   ctx: DbCtx,
@@ -57,22 +54,7 @@ export async function getOrganizationDeletionEligibility(
     };
   }
 
-  const associationStatus = await getOtherActiveUserAssociationStatus(
-    ctx,
-    activeMembers[0].userId,
-    args.organizationId,
-  );
-  if (associationStatus === "unknown") {
-    return {
-      canDelete: false,
-      code: "association",
-      reason: "ユーザーの所属を確認しているため、時間をおいてもう一度お試しください。",
-    };
-  }
-  return {
-    canDelete: true,
-    actorHasOtherActiveAssociation: associationStatus === "found",
-  };
+  return { canDelete: true };
 }
 
 export function isOrganizationBillingStateDeletable(state: Doc<"organizationBillingStates">["state"]) {

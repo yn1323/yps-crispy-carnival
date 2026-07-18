@@ -123,6 +123,15 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 1,
   },
 
+  // 明示的なアカウント削除受付: issuer+subjectのSHA-256 hash単位。
+  // 所属解消後の再試行余地を残しつつ、破壊操作の連打を抑える。
+  accountDeletionRequest: {
+    kind: "token bucket",
+    rate: 3,
+    period: HOUR_MS,
+    capacity: 3,
+  },
+
   // ログイン後の要望送信: userId 単位
   // 1回/分 — 連打と意図しない二重投稿を抑止
   featureRequestShort: {

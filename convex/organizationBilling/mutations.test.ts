@@ -60,6 +60,38 @@ describe("organizationBilling/mutations Free管理者選択", () => {
     ).rejects.toThrow("Freeで残す管理者を確認できません");
   });
 
+  it("Trialではアカウント削除受付済みuserの管理者を選択できない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "free_trial_requested_actor",
+        plan: "business",
+      });
+      const target = await addManager(ctx, seeded.organizationId, "free_trial_requested_user");
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "trial", trialEndsAt: Date.now() + 7 * 24 * 60 * 60 * 1000 },
+      });
+      await ctx.db.patch(target.userId, { accountDeletionRequestedAt: Date.now() });
+      return { ...seeded, targetPersonId: target.personId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "free_trial_requested_actor" })
+        .mutation(api.organizationBilling.mutations.setFreeSelection, {
+          shopId: ids.shopId,
+          managerPersonId: ids.targetPersonId,
+          freeShopId: ids.shopId,
+          requestId: "trial-requested-user",
+        }),
+    ).rejects.toThrow("Freeで残す管理者を確認できません");
+  });
+
   it("支払い猶予中はpersonとmemberのuserが一致しない管理者を選択できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

@@ -116,7 +116,8 @@ export async function hasUnfinishedShopCleanupForOrganization(ctx: DbCtx, organi
   return false;
 }
 
-export type OtherActiveUserAssociationStatus = "found" | "none" | "unknown";
+export type ActiveUserAssociationStatus = "found" | "none" | "unknown";
+export type OtherActiveUserAssociationStatus = ActiveUserAssociationStatus;
 
 export class UnknownUserAssociationError extends Error {
   constructor() {
@@ -125,62 +126,67 @@ export class UnknownUserAssociationError extends Error {
   }
 }
 
-/**
- * 対象外の有効な所属をboundedに確認する。
- * scan上限を超えた状態を「共有あり」と同一視すると匿名化漏れを正常完了にしてしまうため、
- * 呼び出し側が削除拒否または要対応へ寄せられるようunknownを返す。
- */
-export async function getOtherActiveUserAssociationStatus(
+/** 有効な所属をboundedに確認し、親参照の不整合やscan上限超過はunknownへ寄せる。 */
+async function getActiveUserAssociationStatusForScope(
   ctx: DbCtx,
   userId: Id<"users">,
-  excludedOrganizationId: Id<"organizations">,
-): Promise<OtherActiveUserAssociationStatus> {
+  excludedOrganizationId?: Id<"organizations">,
+): Promise<ActiveUserAssociationStatus> {
   for (const status of ["active", "readOnly"] as const) {
-    const members = await ctx.db
+    const memberQuery = ctx.db
       .query("organizationMembers")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", status))
-      .take(USER_ASSOCIATION_SCAN_LIMIT + 1);
+      .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", status));
+    const members = await (excludedOrganizationId
+      ? memberQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
+      : memberQuery
+    ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
     if (members.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
     for (const member of members) {
-      if (member.organizationId === excludedOrganizationId) continue;
       const [organization, person] = await Promise.all([
         ctx.db.get(member.organizationId),
         ctx.db.get(member.personId),
       ]);
-      if (
-        organization &&
-        !organization.isDeleted &&
-        person?.status === "active" &&
-        person.organizationId === organization._id &&
-        person.userId === userId
-      ) {
-        return "found";
+      if (!organization) return "unknown";
+      if (organization.isDeleted) continue;
+      if (person?.status !== "active" || person.organizationId !== organization._id || person.userId !== userId) {
+        return "unknown";
       }
+      return "found";
     }
   }
 
-  const people = await ctx.db
+  const peopleQuery = ctx.db
     .query("organizationPeople")
-    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"))
-    .take(USER_ASSOCIATION_SCAN_LIMIT + 1);
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"));
+  const people = await (excludedOrganizationId
+    ? peopleQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
+    : peopleQuery
+  ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
   if (people.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
   for (const person of people) {
-    if (person.organizationId === excludedOrganizationId) continue;
     const organization = await ctx.db.get(person.organizationId);
-    if (organization && !organization.isDeleted) return "found";
+    if (!organization) return "unknown";
+    if (!organization.isDeleted) return "found";
   }
 
-  const staffs = await ctx.db
+  const staffQuery = ctx.db
     .query("staffs")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false))
-    .take(USER_ASSOCIATION_SCAN_LIMIT + 1);
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false));
+  const staffs = await (excludedOrganizationId
+    ? staffQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
+    : staffQuery
+  ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
   if (staffs.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
   for (const staff of staffs) {
+    if (excludedOrganizationId && staff.organizationId === excludedOrganizationId) continue;
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted || shop.organizationId === excludedOrganizationId) continue;
+    if (!shop) return "unknown";
+    if (shop.isDeleted || (excludedOrganizationId && shop.organizationId === excludedOrganizationId)) continue;
+    if (staff.organizationId && staff.organizationId !== shop.organizationId) return "unknown";
     if (!shop.organizationId) return "found";
     const organization = await ctx.db.get(shop.organizationId);
-    if (organization && !organization.isDeleted) return "found";
+    if (!organization) return "unknown";
+    if (!organization.isDeleted) return "found";
   }
 
   const shopMembers = await ctx.db
@@ -190,12 +196,31 @@ export async function getOtherActiveUserAssociationStatus(
   if (shopMembers.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
   for (const membership of shopMembers) {
     const shop = await ctx.db.get(membership.shopId);
-    if (!shop || shop.isDeleted || shop.organizationId === excludedOrganizationId) continue;
+    if (!shop) return "unknown";
+    if (shop.isDeleted || (excludedOrganizationId && shop.organizationId === excludedOrganizationId)) continue;
     if (!shop.organizationId) return "found";
     const organization = await ctx.db.get(shop.organizationId);
-    if (organization && !organization.isDeleted) return "found";
+    if (!organization) return "unknown";
+    if (!organization.isDeleted) return "found";
   }
   return "none";
+}
+
+/** 有効な所属が一つでもあるかを、除外なしのbounded scanで確認する。 */
+export async function getActiveUserAssociationStatus(
+  ctx: DbCtx,
+  userId: Id<"users">,
+): Promise<ActiveUserAssociationStatus> {
+  return await getActiveUserAssociationStatusForScope(ctx, userId);
+}
+
+/** 指定グループ以外に有効な所属が一つでもあるかをboundedに確認する。 */
+export async function getOtherActiveUserAssociationStatus(
+  ctx: DbCtx,
+  userId: Id<"users">,
+  excludedOrganizationId: Id<"organizations">,
+): Promise<OtherActiveUserAssociationStatus> {
+  return await getActiveUserAssociationStatusForScope(ctx, userId, excludedOrganizationId);
 }
 
 /** 対象外の有効な所属が一つでもあれば、global userは共有資産として維持する。 */

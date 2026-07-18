@@ -7,20 +7,15 @@ import {
   cancelNotificationForInactiveOrganization,
   cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
-import { hasOtherActiveUserAssociation, UnknownUserAssociationError } from "./service";
 import {
-  DELETED_PERSON_NAME,
   DELETED_SHOP_NAME,
-  deletedEmail,
   deletedLineUserId,
   organizationTombstone,
   personTombstone,
   staffTombstone,
-  userTombstone,
 } from "./tombstone";
 
 const CLEANUP_BATCH_SIZE = 100;
-const USER_CLEANUP_BATCH_SIZE = 20;
 const CLEANUP_JOB_LEASE_MS = 60_000;
 const MAX_CLEANUP_ATTEMPTS = 8;
 const RECOVERY_BATCH_SIZE = 25;
@@ -214,16 +209,7 @@ export const process = internalMutation({
       return null;
     }
 
-    let step: StepResult;
-    try {
-      step = await runCleanupStep(ctx, job);
-    } catch (error) {
-      if (error instanceof UnknownUserAssociationError) {
-        await markCleanupActionRequired(ctx, job, "user_association_scan_limit");
-        return null;
-      }
-      throw error;
-    }
+    const step = await runCleanupStep(ctx, job);
     const now = Date.now();
     if (step.completed) {
       await ctx.db.patch(job._id, {
@@ -382,13 +368,9 @@ async function runOrganizationStep(
       const page = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-        .paginate({ cursor: job.cursor ?? null, numItems: USER_CLEANUP_BATCH_SIZE });
+        .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       const now = Date.now();
       for (const person of page.page) {
-        if (person.userId && !(await hasOtherActiveUserAssociation(ctx, person.userId, organizationId))) {
-          const user = await ctx.db.get(person.userId);
-          if (user) await ctx.db.patch(user._id, { ...userTombstone(user._id), isDeleted: true });
-        }
         await ctx.db.patch(person._id, { ...personTombstone(person._id), status: "removed", updatedAt: now });
       }
       return page.isDone ? { phase: "organizationMembers" } : { phase: job.phase, cursor: page.continueCursor };
@@ -397,13 +379,9 @@ async function runOrganizationStep(
       const page = await ctx.db
         .query("organizationMembers")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-        .paginate({ cursor: job.cursor ?? null, numItems: USER_CLEANUP_BATCH_SIZE });
+        .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       const now = Date.now();
       for (const member of page.page) {
-        if (!(await hasOtherActiveUserAssociation(ctx, member.userId, organizationId))) {
-          const user = await ctx.db.get(member.userId);
-          if (user) await ctx.db.patch(user._id, { ...userTombstone(user._id), isDeleted: true });
-        }
         if (member.status !== "removed") await ctx.db.patch(member._id, { status: "removed", updatedAt: now });
       }
       return page.isDone
@@ -420,14 +398,7 @@ async function runOrganizationStep(
       return { phase: "organizationCreatedByUser" };
     }
     case "organizationCreatedByUser": {
-      const organization = await ctx.db.get(organizationId);
-      if (
-        organization?.createdByUserId &&
-        !(await hasOtherActiveUserAssociation(ctx, organization.createdByUserId, organizationId))
-      ) {
-        const user = await ctx.db.get(organization.createdByUserId);
-        if (user) await ctx.db.patch(user._id, { ...userTombstone(user._id), isDeleted: true });
-      }
+      // 旧jobとの互換性のためphaseは維持するが、global userはグループ削除の対象外。
       return { phase: "organizationVerification" };
     }
     case "organizationVerification": {
@@ -463,13 +434,7 @@ async function runOrganizationShopStep(
     nextShopCursor = shops.isDone ? undefined : shops.continueCursor;
   }
 
-  const result = await runShopResource(
-    ctx,
-    shopId,
-    resourceForOrganizationShopPhase(phase),
-    job.cursor ?? null,
-    organizationId,
-  );
+  const result = await runShopResource(ctx, shopId, resourceForOrganizationShopPhase(phase), job.cursor ?? null);
   if (!result.done) {
     return {
       phase,
@@ -489,7 +454,6 @@ async function runShopResource(
   shopId: Id<"shops">,
   resource: ShopResource,
   cursor: string | null,
-  userCleanupOrganizationId?: Id<"organizations">,
 ): Promise<ResourceResult> {
   switch (resource) {
     case "outboxPending": {
@@ -512,19 +476,8 @@ async function runShopResource(
       const page = await ctx.db
         .query("staffs")
         .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
-        .paginate({
-          cursor,
-          numItems: userCleanupOrganizationId ? USER_CLEANUP_BATCH_SIZE : CLEANUP_BATCH_SIZE,
-        });
+        .paginate({ cursor, numItems: CLEANUP_BATCH_SIZE });
       for (const staff of page.page) {
-        if (
-          userCleanupOrganizationId &&
-          staff.userId &&
-          !(await hasOtherActiveUserAssociation(ctx, staff.userId, userCleanupOrganizationId))
-        ) {
-          const user = await ctx.db.get(staff.userId);
-          if (user) await ctx.db.patch(user._id, { ...userTombstone(user._id), isDeleted: true });
-        }
         await ctx.db.patch(staff._id, { ...staffTombstone(staff._id), isDeleted: true });
       }
       return pageResult(page);
@@ -533,34 +486,15 @@ async function runShopResource(
       const members = await ctx.db
         .query("shopMembers")
         .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-        .take(userCleanupOrganizationId ? USER_CLEANUP_BATCH_SIZE : CLEANUP_BATCH_SIZE);
+        .take(CLEANUP_BATCH_SIZE);
       for (const member of members) {
-        if (
-          userCleanupOrganizationId &&
-          !(await hasOtherActiveUserAssociation(ctx, member.userId, userCleanupOrganizationId))
-        ) {
-          const user = await ctx.db.get(member.userId);
-          if (user) await ctx.db.patch(user._id, { ...userTombstone(user._id), isDeleted: true });
-        }
         await ctx.db.patch(member._id, { isDeleted: true });
       }
-      return {
-        done: members.length < (userCleanupOrganizationId ? USER_CLEANUP_BATCH_SIZE : CLEANUP_BATCH_SIZE),
-      };
+      return { done: members.length < CLEANUP_BATCH_SIZE };
     }
     case "memberUsers": {
-      if (!userCleanupOrganizationId) return { done: true };
-      const page = await ctx.db
-        .query("shopMembers")
-        .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", true))
-        .paginate({ cursor, numItems: USER_CLEANUP_BATCH_SIZE });
-      for (const member of page.page) {
-        if (!(await hasOtherActiveUserAssociation(ctx, member.userId, userCleanupOrganizationId))) {
-          const user = await ctx.db.get(member.userId);
-          if (user) await ctx.db.patch(user._id, { ...userTombstone(user._id), isDeleted: true });
-        }
-      }
-      return pageResult(page);
+      // 旧jobとの互換性のためresourceは維持するが、global userはグループ削除の対象外。
+      return { done: true };
     }
     case "lineAccounts": {
       const page = await ctx.db
@@ -734,13 +668,9 @@ async function verifyOrganizationCleanup(
       const page = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-        .paginate({ cursor: job.cursor ?? null, numItems: USER_CLEANUP_BATCH_SIZE });
+        .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       for (const person of page.page) {
         if (!isPersonTombstoned(person)) return { phase: "organizationPeople" };
-        if (person.userId && !(await hasOtherActiveUserAssociation(ctx, person.userId, organizationId))) {
-          const user = await ctx.db.get(person.userId);
-          if (user && !isUserTombstoned(user)) return { phase: "organizationPeople" };
-        }
       }
       return page.isDone
         ? nextOrganizationVerificationStep(resource)
@@ -750,13 +680,9 @@ async function verifyOrganizationCleanup(
       const page = await ctx.db
         .query("organizationMembers")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-        .paginate({ cursor: job.cursor ?? null, numItems: USER_CLEANUP_BATCH_SIZE });
+        .paginate({ cursor: job.cursor ?? null, numItems: CLEANUP_BATCH_SIZE });
       for (const member of page.page) {
         if (member.status !== "removed") return { phase: "organizationMembers" };
-        if (!(await hasOtherActiveUserAssociation(ctx, member.userId, organizationId))) {
-          const user = await ctx.db.get(member.userId);
-          if (user && !isUserTombstoned(user)) return { phase: "organizationMembers" };
-        }
       }
       return page.isDone
         ? nextOrganizationVerificationStep(resource)
@@ -779,13 +705,7 @@ async function verifyOrganizationCleanup(
       return invitation ? { phase: "organizationInvitationsPending" } : nextOrganizationVerificationStep(resource);
     }
     case "organizationCreatedByUser": {
-      const organization = await ctx.db.get(organizationId);
-      if (organization?.createdByUserId) {
-        const user = await ctx.db.get(organization.createdByUserId);
-        if (user && !(await hasOtherActiveUserAssociation(ctx, user._id, organizationId)) && !isUserTombstoned(user)) {
-          return { phase: "organizationCreatedByUser" };
-        }
-      }
+      // 旧verification resourceとの互換性のため残し、global userは検証対象にしない。
       return { completed: true };
     }
     default:
@@ -813,7 +733,7 @@ async function verifyOrganizationShopResource(
   }
 
   const shopResource = organizationVerificationShopResource(resource);
-  const result = await verifyShopResource(ctx, shopId, shopResource, job.cursor ?? null, organizationId);
+  const result = await verifyShopResource(ctx, shopId, shopResource, job.cursor ?? null);
   if (result.violated) return { phase: repairOrganizationShopPhase(shopResource) };
   if (!result.done) {
     return {
@@ -836,7 +756,6 @@ async function verifyShopResource(
   shopId: Id<"shops">,
   resource: ShopVerificationResource | ShopResource,
   cursor: string | null,
-  organizationId?: Id<"organizations">,
 ): Promise<VerificationResourceResult> {
   switch (resource) {
     case "core": {
@@ -864,17 +783,9 @@ async function verifyShopResource(
       const page = await ctx.db
         .query("staffs")
         .withIndex("by_shopId", (q) => q.eq("shopId", shopId))
-        .paginate({ cursor, numItems: organizationId ? USER_CLEANUP_BATCH_SIZE : CLEANUP_BATCH_SIZE });
+        .paginate({ cursor, numItems: CLEANUP_BATCH_SIZE });
       for (const staff of page.page) {
         if (!isStaffTombstoned(staff)) return { done: true, violated: true };
-        if (
-          organizationId &&
-          staff.userId &&
-          !(await hasOtherActiveUserAssociation(ctx, staff.userId, organizationId))
-        ) {
-          const user = await ctx.db.get(staff.userId);
-          if (user && !isUserTombstoned(user)) return { done: true, violated: true };
-        }
       }
       return page.isDone ? { done: true } : { done: false, cursor: page.continueCursor };
     }
@@ -886,18 +797,8 @@ async function verifyShopResource(
       return { done: true, ...(active ? { violated: true } : {}) };
     }
     case "memberUsers": {
-      if (!organizationId) return { done: true };
-      const page = await ctx.db
-        .query("shopMembers")
-        .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", true))
-        .paginate({ cursor, numItems: USER_CLEANUP_BATCH_SIZE });
-      for (const member of page.page) {
-        if (!(await hasOtherActiveUserAssociation(ctx, member.userId, organizationId))) {
-          const user = await ctx.db.get(member.userId);
-          if (user && !isUserTombstoned(user)) return { done: true, violated: true };
-        }
-      }
-      return page.isDone ? { done: true } : { done: false, cursor: page.continueCursor };
+      // 旧verification resourceとの互換性のため残し、global userは検証対象にしない。
+      return { done: true };
     }
     case "lineAccounts": {
       const page = await ctx.db
@@ -980,11 +881,6 @@ function isPersonTombstoned(person: Doc<"organizationPeople">) {
 
 function isLineAccountTombstoned(account: Doc<"staffLineAccounts">) {
   return account.isDeleted && !account.following && account.lineUserId === deletedLineUserId(account._id);
-}
-
-function isUserTombstoned(user: Doc<"users">) {
-  const email = deletedEmail("users", user._id);
-  return user.isDeleted && user.name === DELETED_PERSON_NAME && user.email === email && user.emailNormalized === email;
 }
 
 async function getCleanupInvariantError(

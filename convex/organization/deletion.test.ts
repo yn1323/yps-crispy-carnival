@@ -256,9 +256,9 @@ describe("organization deletion", () => {
       billingEmail: deletedEmail("organizations", ids.organizationId),
     });
     expect(accepted.actorUser).toMatchObject({
-      isDeleted: true,
-      name: DELETED_PERSON_NAME,
-      email: deletedEmail("users", ids.userId),
+      isDeleted: false,
+      name: "管理者",
+      email: "delete_organization@example.com",
     });
     expect(accepted.actorUser?.authTokenIdentifier).toContain("delete_organization");
     expect(accepted.jobs).toHaveLength(1);
@@ -297,8 +297,9 @@ describe("organization deletion", () => {
       email: deletedEmail("organizationPeople", ids.staffPersonId),
     });
     expect(completed.staffUser).toMatchObject({
-      isDeleted: true,
-      email: deletedEmail("users", ids.staffUserId),
+      isDeleted: false,
+      name: "管理者",
+      email: "delete_organization_staff@example.com",
     });
     expect(completed.staff).toMatchObject({
       isDeleted: true,
@@ -527,7 +528,7 @@ describe("organization deletion", () => {
     expect(state.audits).toHaveLength(0);
   });
 
-  it("所属scan上限を超えたuserを共有扱いで正常完了せず、組織とPIIを変更しない", async () => {
+  it("グループ削除はglobal userの所属scanに依存せず、異常なlegacy所属があってもuserを変更しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "delete_association_unknown", plan: "free" });
@@ -547,8 +548,7 @@ describe("organization deletion", () => {
     const actor = t.withIdentity({ subject: "delete_association_unknown" });
 
     await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
-      canDeleteOrganization: false,
-      deleteOrganizationDisabledReason: "ユーザーの所属を確認しているため、時間をおいてもう一度お試しください。",
+      canDeleteOrganization: true,
     });
     await expect(
       actor.mutation(api.organization.mutations.deleteOrganization, {
@@ -558,19 +558,19 @@ describe("organization deletion", () => {
         expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
         requestId: "delete-association-unknown",
       }),
-    ).rejects.toThrow("ユーザーの所属を確認しているため");
+    ).resolves.toMatchObject({ changed: true, accepted: true });
 
     const state = await t.run(async (ctx) => ({
       organization: await ctx.db.get(ids.organizationId),
       user: await ctx.db.get(ids.userId),
       jobs: await ctx.db.query("deletionCleanupJobs").collect(),
     }));
-    expect(state.organization).toMatchObject({ isDeleted: false, name: "テスト店舗事業者" });
+    expect(state.organization).toMatchObject({ isDeleted: true, name: DELETED_ORGANIZATION_NAME });
     expect(state.user).toMatchObject({
       isDeleted: false,
       name: "管理者",
       email: "delete_association_unknown@example.com",
     });
-    expect(state.jobs).toHaveLength(0);
+    expect(state.jobs).toHaveLength(1);
   });
 });

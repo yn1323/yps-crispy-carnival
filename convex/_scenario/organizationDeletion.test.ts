@@ -22,7 +22,7 @@ describe("グループ削除シナリオ", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("複数店舗と100件超の人物を中断後に完走し、共有userと別グループだけを維持する", async () => {
+  it("複数店舗と100件超の人物を中断後に完走し、global userを維持して同じ認証主体で再設定できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const target = await seedOrganizationManagerShop(ctx, {
@@ -264,7 +264,11 @@ describe("グループ削除シナリオ", () => {
         .map((id) => ({ id, isDeleted: true, following: false, lineUserId: deletedLineUserId(id) }))
         .sort((a, b) => a.id.localeCompare(b.id)),
     );
-    expect(state.actorUser).toMatchObject({ isDeleted: true, name: DELETED_PERSON_NAME });
+    expect(state.actorUser).toMatchObject({
+      isDeleted: false,
+      name: "管理者",
+      email: "organization_deletion_owner@example.com",
+    });
     expect(state.sharedUser).toMatchObject({
       isDeleted: false,
       name: "管理者",
@@ -278,5 +282,25 @@ describe("グループ削除シナリオ", () => {
       .withIdentity({ subject: "organization_deletion_shared" })
       .query(api.dashboard.queries.getMyShops, {});
     expect(remainingShops.map((shop) => shop.shopId)).toEqual([ids.other.shopId]);
+
+    const actor = t.withIdentity({ subject: "organization_deletion_owner" });
+    await expect(actor.query(api.dashboard.queries.getMyShops, {})).resolves.toEqual([]);
+    await expect(actor.query(api.dashboard.queries.getCurrentUser, {})).resolves.toEqual({
+      isNewUser: false,
+      name: "管理者",
+      email: "organization_deletion_owner@example.com",
+    });
+
+    const newShopId = await actor.mutation(api.setup.mutations.setupShopAndManager, {
+      shopName: "再登録店舗",
+      submissionPattern: { kind: "dateOnly" },
+      managerName: "再登録管理者",
+      managerEmail: "organization-deletion-owner-new@example.com",
+      acceptedLegal: true,
+    });
+    await expect(t.run((ctx) => ctx.db.get(newShopId))).resolves.toMatchObject({
+      name: "再登録店舗",
+      isDeleted: false,
+    });
   });
 });

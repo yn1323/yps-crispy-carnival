@@ -209,6 +209,12 @@ export async function materializeOrganizationPeopleForStaffAddition(
       ) {
         throw new ConvexError("確認した人物情報が変わりました。もう一度追加内容を確認してください");
       }
+      if (person.userId) {
+        const user = await ctx.db.get(person.userId);
+        if (!user || user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
+          throw new ConvexError("この人物は再追加できません");
+        }
+      }
       await ctx.db.patch(personId, { status: "active", updatedAt: now });
       reactivated = true;
     }

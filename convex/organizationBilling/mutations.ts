@@ -149,7 +149,7 @@ async function getValidManagerRelationship(
     return null;
   }
   const user = await ctx.db.get(member.userId);
-  if (!user || user.isDeleted) return null;
+  if (!user || user.isDeleted || user.accountDeletionRequestedAt !== undefined) return null;
   return { person: args.person, member, user };
 }
 

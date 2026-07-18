@@ -82,7 +82,10 @@ const dashboardAnnouncementValidator = v.object({
 });
 
 const currentUserValidator = v.union(
-  v.object({ accountDeleted: v.literal(true) }),
+  v.object({
+    accountDeleted: v.literal(true),
+    accountDeletionRequested: v.boolean(),
+  }),
   v.object({
     isNewUser: v.literal(true),
     name: v.string(),
@@ -753,8 +756,11 @@ export const getCurrentUser = authenticatedQuery({
   handler: async (ctx) => {
     const { identity, user } = ctx;
     if (!identity) return null;
-    if (user?.isDeleted) {
-      return { accountDeleted: true as const };
+    if (user?.isDeleted || user?.accountDeletionRequestedAt !== undefined) {
+      return {
+        accountDeleted: true as const,
+        accountDeletionRequested: user.accountDeletionRequestedAt !== undefined,
+      };
     }
     if (!user) {
       return {

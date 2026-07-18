@@ -241,6 +241,71 @@ describe("organizationInvitation/mutations", () => {
     }
   });
 
+  it("アカウント削除受付済みユーザーは招待から人物・管理者所属へ再関連付けできない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, {
+        subject: "requested_invite_owner",
+        email: "requested-invite-owner@example.com",
+        plan: "pro",
+      });
+      const targetUserId = await seedUser(ctx, "requested_invitee", "requested-invitee@example.com");
+      await ctx.db.patch(targetUserId, { accountDeletionRequestedAt: Date.now() });
+      return { manager, targetUserId };
+    });
+    const created = await t
+      .withIdentity({ subject: "requested_invite_owner", email: "requested-invite-owner@example.com" })
+      .mutation(api.organizationInvitation.mutations.createExternal, {
+        shopId: seeded.manager.shopId,
+        name: "削除受付済み招待者",
+        email: "requested-invitee@example.com",
+        requestId: "requested-invite-create",
+      });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+
+    await expect(
+      t
+        .withIdentity({
+          subject: "requested_invitee",
+          email: "requested-invitee@example.com",
+          emailVerified: true,
+        })
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
+    ).resolves.toEqual({ status: "unavailable" });
+
+    const state = await t.run(async (ctx) => ({
+      invitation: await ctx.db.get(invitation._id),
+      people: await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) =>
+          q.eq("organizationId", seeded.manager.organizationId).eq("emailNormalized", "requested-invitee@example.com"),
+        )
+        .collect(),
+      members: await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_organizationId", (q) =>
+          q.eq("userId", seeded.targetUserId).eq("organizationId", seeded.manager.organizationId),
+        )
+        .collect(),
+      legacyMemberships: await ctx.db
+        .query("shopMembers")
+        .withIndex("by_userId_and_shopId", (q) =>
+          q.eq("userId", seeded.targetUserId).eq("shopId", seeded.manager.shopId),
+        )
+        .collect(),
+    }));
+    expect(state.invitation).toMatchObject({ status: "issued", reservedSeat: true, version: 1 });
+    expect(state.people).toEqual([]);
+    expect(state.members).toEqual([]);
+    expect(state.legacyMemberships).toEqual([]);
+  });
+
   it.each([
     {
       caseKey: "plan_suspended",

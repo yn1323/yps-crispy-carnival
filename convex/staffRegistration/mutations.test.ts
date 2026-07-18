@@ -842,7 +842,7 @@ describe("staffRegistration/mutations", () => {
     });
   });
 
-  it("削除済み人物の参加申請は承認せず、申請・人物を変更しない", async () => {
+  it("アカウント削除受付済みuserを持つ削除済み人物の参加申請は承認せず、副作用を残さない", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const organization = await seedOrganizationManagerShop(ctx, {
@@ -850,8 +850,11 @@ describe("staffRegistration/mutations", () => {
         email: "registration-removed-manager@example.com",
       });
       const now = Date.now();
+      const removedUserId = await seedUser(ctx, "registration_removed_requested", "registration-removed@example.com");
+      await ctx.db.patch(removedUserId, { accountDeletionRequestedAt: now });
       const removedPersonId = await ctx.db.insert("organizationPeople", {
         organizationId: organization.organizationId,
+        userId: removedUserId,
         name: "削除済み人物",
         email: "registration-removed@example.com",
         emailNormalized: "registration-removed@example.com",
@@ -859,7 +862,7 @@ describe("staffRegistration/mutations", () => {
         createdAt: now,
         updatedAt: now,
       });
-      return { ...organization, removedPersonId };
+      return { ...organization, removedPersonId, removedUserId };
     });
     const asManager = t.withIdentity({ subject: "registration_removed_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
@@ -883,6 +886,7 @@ describe("staffRegistration/mutations", () => {
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(submitResult.requestId),
       person: await ctx.db.get(seeded.removedPersonId),
+      user: await ctx.db.get(seeded.removedUserId),
       staffs: await ctx.db
         .query("staffs")
         .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
@@ -891,6 +895,11 @@ describe("staffRegistration/mutations", () => {
     }));
     expect(state.request?.status).toBe("pending");
     expect(state.person?.status).toBe("removed");
+    expect(state.user).toMatchObject({
+      isDeleted: false,
+      accountDeletionRequestedAt: expect.any(Number),
+      email: "registration-removed@example.com",
+    });
     expect(state.staffs).toEqual([]);
     expect(state.scheduled).toEqual([]);
   });

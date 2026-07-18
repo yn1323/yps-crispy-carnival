@@ -321,7 +321,7 @@ describe("deletionCleanup worker", () => {
     expect(state.otherShop).toMatchObject({ name: "対象外店舗", isDeleted: false });
   });
 
-  it("user所属scanが上限を超えたcleanupを匿名化済みと扱わずactionRequiredへ送る", async () => {
+  it("旧organization user cleanup phaseはglobal userを変更せず、tenant配下だけを匿名化する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -378,29 +378,112 @@ describe("deletionCleanup worker", () => {
       leaseId: "association-scan-lease",
       expectedVersion: 1,
     });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const state = await t.run(async (ctx) => ({
       job: await ctx.db.get(ids.jobId),
       user: await ctx.db.get(ids.userId),
       person: await ctx.db.get(ids.personId),
     }));
-    expect(state.job).toMatchObject({
-      status: "actionRequired",
-      lastErrorCode: "user_association_scan_limit",
-    });
+    expect(state.job).toMatchObject({ status: "completed" });
     expect(state.user).toMatchObject({
       isDeleted: false,
       name: "確認待ちユーザー",
       email: "association-unknown@example.com",
     });
     expect(state.person).toMatchObject({
-      status: "active",
-      name: "確認待ちユーザー",
-      email: "association-unknown@example.com",
+      status: "removed",
+      name: DELETED_PERSON_NAME,
+      email: deletedEmail("organizationPeople", ids.personId),
     });
   });
 
-  it("組織の最終確認でも残存personを検出し、専属userを置換してから完了する", async () => {
+  it("永続済みの旧user cleanup phase/resourceはglobal userを変更せず次工程へ進む", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", {
+        authTokenIdentifier: "https://convex.test|legacy-user-cleanup",
+        name: "維持するユーザー",
+        email: "legacy-user-cleanup@example.com",
+        emailNormalized: "legacy-user-cleanup@example.com",
+        role: "manager",
+        isDeleted: false,
+      });
+      const organizationId = await seedOrganization(ctx, DELETED_ORGANIZATION_NAME, userId, true);
+      const shopId = await seedShop(ctx, { organizationId, name: DELETED_SHOP_NAME, isDeleted: true });
+      await ctx.db.insert("shopMembers", { shopId, userId, role: "manager", isDeleted: true });
+      const base = {
+        scope: "organization" as const,
+        organizationId,
+        status: "processing" as const,
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      };
+      const createdByJobId = await ctx.db.insert("deletionCleanupJobs", {
+        ...base,
+        requestId: "legacy-created-by-user-phase",
+        phase: "organizationCreatedByUser",
+        leaseId: "legacy-created-by-lease",
+      });
+      const memberUsersJobId = await ctx.db.insert("deletionCleanupJobs", {
+        ...base,
+        requestId: "legacy-member-users-phase",
+        phase: "organizationShopMemberUsers",
+        currentShopId: shopId,
+        leaseId: "legacy-member-users-lease",
+      });
+      const verificationJobId = await ctx.db.insert("deletionCleanupJobs", {
+        ...base,
+        requestId: "legacy-member-users-verification",
+        phase: "organizationVerification",
+        resource: "organizationShopMemberUsers",
+        currentShopId: shopId,
+        leaseId: "legacy-verification-lease",
+      });
+      return { userId, createdByJobId, memberUsersJobId, verificationJobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.createdByJobId,
+      leaseId: "legacy-created-by-lease",
+      expectedVersion: 1,
+    });
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.memberUsersJobId,
+      leaseId: "legacy-member-users-lease",
+      expectedVersion: 1,
+    });
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.verificationJobId,
+      leaseId: "legacy-verification-lease",
+      expectedVersion: 1,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      user: await ctx.db.get(ids.userId),
+      createdByJob: await ctx.db.get(ids.createdByJobId),
+      memberUsersJob: await ctx.db.get(ids.memberUsersJobId),
+      verificationJob: await ctx.db.get(ids.verificationJobId),
+    }));
+    expect(state.user).toMatchObject({
+      isDeleted: false,
+      name: "維持するユーザー",
+      email: "legacy-user-cleanup@example.com",
+    });
+    expect(state.createdByJob).toMatchObject({ status: "queued", phase: "organizationVerification" });
+    expect(state.memberUsersJob).toMatchObject({ status: "queued", phase: "organizationShopLineAccounts" });
+    expect(state.verificationJob).toMatchObject({
+      status: "queued",
+      phase: "organizationVerification",
+      resource: "organizationShopLineAccounts",
+    });
+  });
+
+  it("組織の最終確認でも残存personだけを修復し、global userを維持して完了する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", {
@@ -472,10 +555,10 @@ describe("deletionCleanup worker", () => {
       email: deletedEmail("organizationPeople", ids.personId),
     });
     expect(completed.user).toMatchObject({
-      isDeleted: true,
-      name: DELETED_PERSON_NAME,
-      email: deletedEmail("users", ids.userId),
-      emailNormalized: deletedEmail("users", ids.userId),
+      isDeleted: false,
+      name: "組織管理者",
+      email: "owner@example.com",
+      emailNormalized: "owner@example.com",
       authTokenIdentifier: "https://convex.test|organization-owner",
     });
   });

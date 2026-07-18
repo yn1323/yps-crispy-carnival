@@ -1900,9 +1900,37 @@ describe("dashboard/queries", () => {
         .withIdentity({ subject: "deleted_user", name: "Clerkに残る氏名", email: "clerk-remains@example.com" })
         .query(api.dashboard.queries.getCurrentUser, {});
 
-      expect(result).toEqual({ accountDeleted: true });
+      expect(result).toEqual({ accountDeleted: true, accountDeletionRequested: false });
       expect(result).not.toHaveProperty("name");
       expect(result).not.toHaveProperty("email");
+    });
+
+    it("アカウント削除受付済みユーザーはPIIや受付時刻を返さず、受付済み状態だけを返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("users", {
+          authTokenIdentifier: testAuthTokenIdentifier("account_deletion_requested_user"),
+          name: "受付前の氏名",
+          email: "requested-before@example.com",
+          emailNormalized: "requested-before@example.com",
+          role: "manager",
+          isDeleted: false,
+          accountDeletionRequestedAt: Date.now(),
+        });
+      });
+
+      const result = await t
+        .withIdentity({
+          subject: "account_deletion_requested_user",
+          name: "Clerkに残る氏名",
+          email: "clerk-remains@example.com",
+        })
+        .query(api.dashboard.queries.getCurrentUser, {});
+
+      expect(result).toEqual({ accountDeleted: true, accountDeletionRequested: true });
+      expect(result).not.toHaveProperty("name");
+      expect(result).not.toHaveProperty("email");
+      expect(result).not.toHaveProperty("accountDeletionRequestedAt");
     });
   });
 });

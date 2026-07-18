@@ -81,6 +81,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   })
     .index("by_createdByUserId", ["createdByUserId"])
+    .index("by_createdByUserId_and_isDeleted", ["createdByUserId", "isDeleted"])
     .index("by_migrationSourceShopId", ["migrationSourceShopId"]),
 
   organizationPeople: defineTable({
@@ -229,6 +230,40 @@ const schema = defineSchema({
     .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
     .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"]),
 
+  // 明示的なアカウント削除要求だけをClerk削除へ収束させる。
+  // provider識別子は完了transactionでredactし、completed jobは90日後にpruneする。
+  accountDeletionJobs: defineTable({
+    userId: v.id("users"),
+    requestId: v.string(),
+    clerkUserId: v.optional(v.string()),
+    expectedIssuer: v.optional(v.string()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("retrying"),
+      v.literal("actionRequired"),
+      v.literal("completed"),
+    ),
+    phase: v.union(v.literal("verifyProviderUser"), v.literal("deleteProviderUser"), v.literal("complete")),
+    version: v.number(),
+    attemptCount: v.number(),
+    nextRunAt: v.number(),
+    leaseId: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    providerUserVerifiedAt: v.optional(v.number()),
+    deleteAttemptedAt: v.optional(v.number()),
+    providerDeletedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId_and_requestId", ["userId", "requestId"])
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_status", ["userId", "status"])
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"]),
+
   shopBillingStates: defineTable({
     shopId: v.id("shops"),
     planKey: v.union(v.literal("free"), v.literal("standard"), v.literal("premium")),
@@ -247,8 +282,12 @@ const schema = defineSchema({
     emailNormalized: v.optional(v.string()),
     role: v.union(v.literal("admin"), v.literal("manager")),
     isDeleted: v.boolean(),
+    // 明示的なaccount deletion受付だけに設定する。legacy tombstoneからbackfillしない。
+    accountDeletionRequestedAt: v.optional(v.number()),
     dashboardOnboardingDismissedAt: v.optional(v.number()),
-  }).index("by_authTokenIdentifier", ["authTokenIdentifier"]),
+  })
+    .index("by_authTokenIdentifier", ["authTokenIdentifier"])
+    .index("by_isDeleted_and_accountDeletionRequestedAt", ["isDeleted", "accountDeletionRequestedAt"]),
 
   shopMembers: defineTable({
     shopId: v.id("shops"),

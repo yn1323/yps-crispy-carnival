@@ -139,6 +139,43 @@ describe("organization shop management", () => {
     ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
   });
 
+  it("アカウント削除受付済みuserを管理者所属へ再関連付けする店舗追加はtransactionごと拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "requested_add_shop_actor",
+        shopName: "既存店",
+        plan: "pro",
+      });
+      await ctx.db.patch(seeded.userId, { accountDeletionRequestedAt: Date.now() });
+      return seeded;
+    });
+
+    await expect(
+      t.withIdentity({ subject: "requested_add_shop_actor" }).mutation(api.organization.mutations.addShop, {
+        shopId: ids.shopId,
+        shopName: "作成されない店舗",
+        submissionPattern,
+        requestId: "requested-add-shop",
+      }),
+    ).rejects.toThrow("管理者所属を確認できません");
+
+    const state = await t.run(async (ctx) => ({
+      shops: await ctx.db
+        .query("shops")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      positions: await ctx.db.query("positions").collect(),
+      audits: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+    }));
+    expect(state.shops.map((shop) => shop._id)).toEqual([ids.shopId]);
+    expect(state.positions).toEqual([]);
+    expect(state.audits).toEqual([]);
+  });
+
   it.each([
     "archived",
     "planSuspended",
