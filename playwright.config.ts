@@ -11,7 +11,10 @@ dotenv.config({ debug: false, quiet: true });
  *    ├── E2E_CLERK_USERS の3ユーザーでログイン認証を実行
  *    └── 認証状態をファイルに保存
  *
- * 2. 認証済みテスト
+ * 2. 複数actorテスト
+ *    └── 3ユーザーを同一テストで使うため、1 workerで直列実行
+ *
+ * 3. 通常の認証済みテスト
  *    └── workerごとに別ユーザーの storageState を使い、owner単位のseedで並列実行
  *
  * See https://playwright.dev/docs/test-configuration.
@@ -59,23 +62,36 @@ export default defineConfig({
       testMatch: /fixtures\/.*\.setup\.ts/,
     },
 
-    // Step 2: メインユーザー（管理者）のテスト
+    // Step 2: 複数管理者を同時に扱うテスト
     {
-      name: "desktop-chromium",
-      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
-      testIgnore: [/\.mobile\.test\.ts$/, /deployed-smoke\.test\.ts$/],
+      name: "multi-actor-chromium",
+      testMatch: /scenarios\/multiActor\/.*\.test\.ts/,
+      fullyParallel: false,
+      workers: 1,
       use: {
         ...devices["Desktop Chrome"],
       },
       dependencies: ["setup"],
     },
+
+    // Step 3: 通常のメインユーザー（管理者）のテスト
+    {
+      name: "desktop-chromium",
+      testMatch: /scenarios\/(?!userB\/).*\.test\.ts/,
+      testIgnore: [/scenarios\/multiActor\/.*\.test\.ts$/, /\.mobile\.test\.ts$/, /deployed-smoke\.test\.ts$/],
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+      dependencies: ["multi-actor-chromium"],
+    },
     {
       name: "mobile-chrome",
       testMatch: /scenarios\/.*\.mobile\.test\.ts/,
+      testIgnore: [/scenarios\/multiActor\/.*\.test\.ts$/],
       use: {
         ...devices["Pixel 7"],
       },
-      dependencies: ["setup"],
+      dependencies: ["multi-actor-chromium"],
     },
   ],
 
