@@ -19,5 +19,9 @@ describe("authenticated search", () => {
       shop: "shop-a",
       tab: "shops",
     });
+    expect(updateSettingsTabSearch({ shop: "shop-a", tab: "billing" }, "settings")).toEqual({
+      shop: "shop-a",
+      tab: "settings",
+    });
   });
 });

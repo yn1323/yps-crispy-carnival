@@ -3,6 +3,7 @@ import type { MutationCtx } from "../_generated/server";
 
 export type OrganizationAuditAction =
   | "organization.created"
+  | "organization.deleted"
   | "organization.name_changed"
   | "organization.billing_email_changed"
   | "organization.shop_added"

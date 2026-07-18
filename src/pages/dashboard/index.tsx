@@ -76,7 +76,7 @@ export function DashboardPage() {
           )}
           <Dashboard
             shop={shop}
-            currentUser={currentUser}
+            currentUser={currentUser && "accountDeleted" in currentUser ? null : currentUser}
             managerLegalConsentStatus={managerLegalConsentStatus}
             isReadOnly={isReadOnly}
             operationContextData={

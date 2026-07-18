@@ -88,6 +88,7 @@ type NotificationFailureInboxStatus = Doc<"notificationFailureInbox">["status"];
 type OrganizationInvitationStatus = Doc<"organizationInvitations">["status"];
 type OrganizationMemberStatus = Doc<"organizationMembers">["status"];
 type OrganizationPersonStatus = Doc<"organizationPeople">["status"];
+type DeletionCleanupJobStatus = Doc<"deletionCleanupJobs">["status"];
 
 const ORGANIZATION_INVITATION_STATUSES: OrganizationInvitationStatus[] = [
   "pending",
@@ -106,6 +107,14 @@ const ALL_NOTIFICATION_OUTBOX_STATUSES: NotificationOutboxStatus[] = [
   "failed",
   "cancelled",
 ];
+const DELETION_CLEANUP_JOB_STATUSES: DeletionCleanupJobStatus[] = [
+  "queued",
+  "processing",
+  "retrying",
+  "actionRequired",
+  "completed",
+];
+const E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS = 100;
 
 function normalizeDeploymentUrl(value: string | undefined) {
   return value?.trim().replace(/\/+$/, "") ?? "";
@@ -426,6 +435,34 @@ async function deleteShopNotificationGraph(ctx: MutationCtx, shopId: Id<"shops">
   }
 }
 
+async function deleteShopCleanupJobs(ctx: MutationCtx, shopId: Id<"shops">) {
+  for (const status of DELETION_CLEANUP_JOB_STATUSES) {
+    const jobs = await ctx.db
+      .query("deletionCleanupJobs")
+      .withIndex("by_shopId_and_status", (q) => q.eq("shopId", shopId).eq("status", status))
+      .take(E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS + 1);
+    if (jobs.length > E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS) {
+      throw new Error(`E2E shop cleanup job reset limit exceeded: shopId=${shopId}, status=${status}`);
+    }
+    for (const job of jobs) await ctx.db.delete(job._id);
+  }
+}
+
+async function deleteOrganizationCleanupJobs(ctx: MutationCtx, organizationId: Id<"organizations">) {
+  for (const status of DELETION_CLEANUP_JOB_STATUSES) {
+    const jobs = await ctx.db
+      .query("deletionCleanupJobs")
+      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
+      .take(E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS + 1);
+    if (jobs.length > E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS) {
+      throw new Error(
+        `E2E organization cleanup job reset limit exceeded: organizationId=${organizationId}, status=${status}`,
+      );
+    }
+    for (const job of jobs) await ctx.db.delete(job._id);
+  }
+}
+
 async function assertShopNotificationAuditBeforeReset(ctx: MutationCtx, shopId: Id<"shops">) {
   const [unresolvedByStatus, activeOutboxByStatus] = await Promise.all([
     Promise.all(
@@ -470,6 +507,7 @@ async function deleteShopGraph(
   if (auditBeforeReset) await assertShopNotificationAuditBeforeReset(ctx, shopId);
   // 監査済みの通知状態は、次シナリオへ混入しないよう店舗graphと一緒に破棄する。
   await deleteShopNotificationGraph(ctx, shopId);
+  await deleteShopCleanupJobs(ctx, shopId);
 
   const [
     featureRequests,
@@ -615,6 +653,7 @@ async function deleteOrganizationGraph(
 ) {
   if (auditBeforeReset) await assertOrganizationNotificationAuditBeforeReset(ctx, organizationId);
   await deleteOrganizationNotificationGraph(ctx, organizationId);
+  await deleteOrganizationCleanupJobs(ctx, organizationId);
 
   const shops = await ctx.db
     .query("shops")

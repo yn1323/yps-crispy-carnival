@@ -82,6 +82,7 @@ const dashboardAnnouncementValidator = v.object({
 });
 
 const currentUserValidator = v.union(
+  v.object({ accountDeleted: v.literal(true) }),
   v.object({
     isNewUser: v.literal(true),
     name: v.string(),
@@ -411,7 +412,7 @@ export const getActiveDashboardAnnouncement = authenticatedQuery({
   args: {},
   returns: v.union(dashboardAnnouncementValidator, v.null()),
   handler: async (ctx) => {
-    if (!ctx.identity) return null;
+    if (!ctx.identity || ctx.user?.isDeleted) return null;
 
     const announcement = (await getActiveDashboardAnnouncementCandidates(ctx.db)).find(
       (candidate) =>
@@ -436,7 +437,7 @@ export const getActiveDashboardAnnouncements = authenticatedQuery({
   args: {},
   returns: v.array(dashboardAnnouncementValidator),
   handler: async (ctx) => {
-    if (!ctx.identity) return [];
+    if (!ctx.identity || ctx.user?.isDeleted) return [];
 
     const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
 
@@ -456,7 +457,7 @@ export const getActiveDashboardAnnouncementsV2 = authenticatedQuery({
   args: {},
   returns: v.array(dashboardAnnouncementValidator),
   handler: async (ctx) => {
-    if (!ctx.identity) return [];
+    if (!ctx.identity || ctx.user?.isDeleted) return [];
 
     const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
     return announcements.map(toDashboardAnnouncement);
@@ -752,7 +753,10 @@ export const getCurrentUser = authenticatedQuery({
   handler: async (ctx) => {
     const { identity, user } = ctx;
     if (!identity) return null;
-    if (!user || user.isDeleted) {
+    if (user?.isDeleted) {
+      return { accountDeleted: true as const };
+    }
+    if (!user) {
       return {
         isNewUser: true as const,
         name: identity.name ?? "",

@@ -1,4 +1,4 @@
-export type SettingsSearchTab = "people" | "shops" | "billing";
+export type SettingsSearchTab = "people" | "shops" | "billing" | "settings";
 
 export function normalizeShopSearch<T extends Record<string, unknown>>(previous: T, shopId: string) {
   return { ...previous, shop: shopId };

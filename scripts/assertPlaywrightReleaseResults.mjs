@@ -34,10 +34,12 @@ const requiredScenarioSuites = [
   "scenarios/notification-submit-flow.test.ts",
   "scenarios/multiActor/manager-invitation-collaboration.test.ts",
   "scenarios/multiActor/manager-role-removal.test.ts",
+  "scenarios/multiActor/organization-deletion-flow.test.ts",
   "scenarios/multiActor/organization-person-removal.test.ts",
   "scenarios/multiActor/free-manager-exchange.test.ts",
   "scenarios/multiActor/multiple-organization-switching.test.ts",
   "scenarios/open-recruitment-added-staff-notification.test.ts",
+  "scenarios/organization-deletion-flow.test.ts",
   "scenarios/organization-shop-lifecycle.test.ts",
   "scenarios/recruitment-deletion.test.ts",
   "scenarios/release-support-accessibility.test.ts",
@@ -77,6 +79,16 @@ const requiredContractCoverage = [
     id: "MG-P0-01",
     file: "scenarios/multiActor/multiple-organization-switching.test.ts",
     project: "multi-actor-chromium",
+  },
+  {
+    id: "OD-P0-01",
+    file: "scenarios/multiActor/organization-deletion-flow.test.ts",
+    project: "multi-actor-chromium",
+  },
+  {
+    id: "OD-P0-02",
+    file: "scenarios/organization-deletion-flow.test.ts",
+    project: "desktop-chromium",
   },
   { id: "MS-P0-01", file: "scenarios/organization-shop-lifecycle.test.ts", project: "desktop-chromium" },
   {
@@ -127,7 +139,7 @@ function inspectSuite(suite, ancestors, inheritedFile) {
       testCount += 1;
       projectCounts.set(test.projectName, (projectCounts.get(test.projectName) ?? 0) + 1);
       if (suiteFile) {
-        const contractIds = new Set(specTitle.match(/\b(?:MM|MG|MS|REG)-P0-\d+\b/g) ?? []);
+        const contractIds = new Set(specTitle.match(/\b(?:MM|MG|MS|OD|REG)-P0-\d+\b/g) ?? []);
         observedContractLocations.push({ contractIds, file: suiteFile, project: test.projectName, title: specTitle });
       }
       const title = [...path, specTitle].join(" > ");

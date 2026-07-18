@@ -8,6 +8,8 @@ import { ManagerInvitationDialog } from "./ManagerInvitation/ManagerInvitationDi
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { usePersonManagerAssignmentController } from "./ManagerInvitation/usePersonManagerAssignmentController";
 import { buildOrganizationContextModel } from "./OrganizationContext/script";
+import { OrganizationDeletionDialog } from "./OrganizationDeletion/OrganizationDeletionDialog";
+import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { OrganizationNameDialog } from "./OrganizationName/OrganizationNameDialog";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
 import { OrganizationSettingsSkeleton, OrganizationSettingsView } from "./OrganizationSettingsView";
@@ -52,6 +54,14 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
   const personRemoval = usePersonRemovalController(settings.people);
   const shopManagement = useShopManagementController({ canAddShop: settings.canAddShop, shops: settings.shops });
   const billingSettings = useBillingSettingsController({ billing: settings.billing });
+  const organizationDeletion = useOrganizationDeletionController({
+    organizationId: settings.organizationId,
+    organizationUpdatedAt: settings.organizationUpdatedAt,
+    organizationName: settings.organizationName,
+    canDeleteOrganization: settings.canDeleteOrganization,
+    selectedShopId: context.selectedShopId,
+    shops: context.shops,
+  });
 
   if (!organizationContext) return <OrganizationSettingsSkeleton />;
 
@@ -82,6 +92,7 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
           onUpdatePaymentMethod: billingSettings.updatePaymentMethod,
           onUpdateBillingEmail: billingSettings.updateBillingEmail,
           onOpenInvoice: billingSettings.openInvoice,
+          onDeleteOrganization: organizationDeletion.open,
         }}
       />
       <OrganizationNameDialog {...organizationName.dialog} />
@@ -89,6 +100,7 @@ export function OrganizationSettings({ settings, context, defaultTab = "people",
       <PersonRemovalDialog {...personRemoval.dialog} />
       <ShopManagementDialog {...shopManagement.dialog} />
       <BillingEmailDialog {...billingSettings.dialog} />
+      <OrganizationDeletionDialog {...organizationDeletion.dialog} />
     </>
   );
 }

@@ -24,6 +24,8 @@ type ShopRow = {
   memberStatus?: "active" | "readOnly" | "removed";
 };
 
+type CurrentUser = { name: string; email: string } | { accountDeleted: true } | undefined;
+
 const mocks = vi.hoisted(() => ({
   currentUserQuery: Symbol("getCurrentUser"),
   myShopsQuery: Symbol("getMyShops"),
@@ -37,13 +39,15 @@ const mocks = vi.hoisted(() => ({
   setSelectedShop: vi.fn(),
   setUser: vi.fn(),
   managerChildRender: vi.fn(),
-  currentUser: { name: "管理者", email: "manager@example.com" },
+  emptyUser: { authId: "", name: "", email: "" },
+  currentUser: { name: "管理者", email: "manager@example.com" } as CurrentUser,
   myShops: [{ shopId: "active-shop", shopName: "所属店舗" }] as ShopRow[],
   selectedShop: null as SelectedShop,
   user: { authId: "manager-user", name: "管理者", email: "manager@example.com" },
 }));
 
 vi.mock("@clerk/clerk-react", () => ({
+  SignOutButton: ({ children }: { children: ReactNode }) => children,
   useAuth: mocks.useAuth,
 }));
 
@@ -100,6 +104,7 @@ vi.mock("@/src/stores/shop", async (importOriginal) => ({
 }));
 
 vi.mock("@/src/stores/user", () => ({
+  EMPTY_USER: mocks.emptyUser,
   userAtom: mocks.userAtom,
 }));
 
@@ -121,6 +126,7 @@ beforeEach(() => {
   mocks.managerChildRender.mockReset();
 
   mocks.myShops = [{ shopId: "active-shop", shopName: "所属店舗" }];
+  mocks.currentUser = { name: "管理者", email: "manager@example.com" };
   mocks.selectedShop = {
     shopId: "stale-shop",
     shopName: "過去の所属店舗",
@@ -348,5 +354,28 @@ describe("AuthGuard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "ダッシュボードへ戻る" }));
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("削除済みアカウントではClerk由来の個人情報や管理画面を表示せず、店舗queryも実行しない", async () => {
+    mocks.currentUser = { accountDeleted: true };
+
+    render(
+      <AuthGuard requestedShopId="stale-shop">
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    expect(screen.getByRole("heading", { name: "アプリ上のアカウントは削除済みです" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "ログアウト" })).not.toBeNull();
+    expect(screen.queryByText("管理者")).toBeNull();
+    expect(screen.queryByText("manager@example.com")).toBeNull();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(mocks.managerChildRender).not.toHaveBeenCalled();
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.myShopsQuery, "skip");
+
+    await waitFor(() => {
+      expect(mocks.setUser).toHaveBeenCalledWith(mocks.emptyUser);
+      expect(mocks.setSelectedShop).toHaveBeenCalledWith(null);
+    });
   });
 });

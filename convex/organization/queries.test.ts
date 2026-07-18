@@ -39,16 +39,22 @@ describe("organization/queries.getSettings", () => {
     expect(Object.keys(result ?? {}).sort()).toEqual([
       "billing",
       "canAddShop",
+      "canDeleteOrganization",
       "canInviteManager",
       "canUpdateOrganizationName",
+      "deleteOrganizationDisabledReason",
       "freeManagerExchangeCandidates",
       "managerInvitationMode",
       "managerInvitations",
+      "organizationId",
       "organizationName",
+      "organizationUpdatedAt",
       "people",
       "shops",
     ]);
     expect(result).toMatchObject({
+      organizationId: ids.organizationId,
+      organizationUpdatedAt: expect.any(Number),
       organizationName: "設定対象店事業者",
       canAddShop: true,
       canInviteManager: true,
@@ -64,6 +70,8 @@ describe("organization/queries.getSettings", () => {
         },
       ],
       canUpdateOrganizationName: true,
+      canDeleteOrganization: false,
+      deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してからグループを削除してください。",
       billing: {
         state: "pro",
         currentPlan: "pro",
@@ -92,6 +100,24 @@ describe("organization/queries.getSettings", () => {
     expect(JSON.stringify(result)).not.toContain("never-return-this-digest");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
+  });
+
+  it("Freeかつ唯一の有効管理者には、最新組織IDと更新時刻を含む削除可能状態を返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "settings_deletable", plan: "free" }),
+    );
+
+    const result = await t
+      .withIdentity({ subject: "settings_deletable" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result).toMatchObject({
+      organizationId: ids.organizationId,
+      organizationUpdatedAt: expect.any(Number),
+      canDeleteOrganization: true,
+    });
+    expect(result).not.toHaveProperty("deleteOrganizationDisabledReason");
   });
 
   it("削除済みstaff履歴で利用人数に含む店舗未所属ユーザーを一覧へ残す", async () => {

@@ -31,6 +31,8 @@ export const run = migrations.runner([
   internal.migrations.m013_former_managers_remove_manager_access.migration,
   internal.migrations.m014_removed_organization_members_delete_legacy_shop_members.migration,
   internal.migrations.m015_organization_invitations_link_lifecycle.migration,
+  internal.migrations.m016_deleted_shops_enqueue_cleanup_jobs.migration,
+  internal.migrations.m017_deleted_organizations_enqueue_cleanup_jobs.migration,
 ]);
 
 // Widen対応版の確認とm012だけの再実行に使う。固定seriesへはMigrate PRで登録する。

@@ -5,7 +5,7 @@ const SETTINGS_DATA_TIMEOUT = 20_000;
 export class OrganizationSettingsPage {
   constructor(private page: Page) {}
 
-  async goto(shopId: string, tab: "people" | "shops" = "people") {
+  async goto(shopId: string, tab: "people" | "shops" | "billing" | "settings" = "people") {
     await this.page.goto(
       `/settings?shop=${encodeURIComponent(shopId)}${tab === "people" ? "" : `&tab=${encodeURIComponent(tab)}`}`,
     );
@@ -35,6 +35,10 @@ export class OrganizationSettingsPage {
 
   async openShopsTab() {
     await this.page.getByRole("tab", { name: "店舗" }).click();
+  }
+
+  async openSettingsTab() {
+    await this.page.getByRole("tab", { name: "設定" }).click();
   }
 
   async inviteExistingStaffAsManager(personName: string) {
@@ -173,20 +177,67 @@ export class OrganizationSettingsPage {
     const dialog = await this.openShop(shopName);
     await dialog.getByRole("tab", { name: "設定" }).click();
     await dialog.getByRole("button", { name: "この店舗を削除" }).click();
-    await expect(dialog.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "キャンセル" }).click();
-    await expect(dialog.getByText(`「${shopName}」を削除しますか？`, { exact: true })).not.toBeVisible();
-    await dialog.getByRole("button", { name: "閉じる" }).click();
+    const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
+    await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
+    await confirmation.getByRole("button", { name: "キャンセル" }).click();
+    await expect(confirmation).not.toBeVisible();
+    const reopenedDetails = this.page.getByRole("dialog", { name: "店舗詳細" });
+    await reopenedDetails.getByRole("button", { name: "閉じる" }).click();
   }
 
   async deleteShop(shopName: string) {
     const dialog = await this.openShop(shopName);
     await dialog.getByRole("tab", { name: "設定" }).click();
     await dialog.getByRole("button", { name: "この店舗を削除" }).click();
-    await expect(dialog.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "削除する" }).click();
-    await this.expectToast("店舗を削除しました");
-    await expect(dialog).not.toBeVisible();
+    const confirmation = this.page.getByRole("alertdialog", { name: "店舗を削除" });
+    await expect(confirmation.getByText(`「${shopName}」を削除しますか？`, { exact: true })).toBeVisible();
+    await confirmation.getByRole("button", { name: "店舗を削除" }).click();
+    await this.expectToast("店舗の削除を受け付けました");
+    await expect(confirmation).not.toBeVisible();
+  }
+
+  async cancelOrganizationDeletion(organizationName: string) {
+    const confirmation = await this.openOrganizationDeletionConfirmation();
+    await expect(confirmation.getByRole("button", { name: "このグループを削除" })).toBeDisabled();
+    await this.cancelOpenOrganizationDeletion(organizationName);
+  }
+
+  async openOrganizationDeletionConfirmation() {
+    await this.openSettingsTab();
+    await this.page.getByRole("button", { name: "このグループを削除" }).click();
+    const confirmation = this.page.getByRole("alertdialog", { name: "グループを削除" });
+    await expect(confirmation).toBeVisible();
+    return confirmation;
+  }
+
+  async cancelOpenOrganizationDeletion(organizationName: string) {
+    const confirmation = this.page.getByRole("alertdialog", { name: "グループを削除" });
+    await confirmation.getByRole("button", { name: "キャンセル" }).click();
+    await expect(confirmation).not.toBeVisible();
+    await this.expectOrganization(organizationName);
+  }
+
+  async rejectMismatchedOrganizationDeletionName(organizationName: string, mismatchedName: string) {
+    const confirmation = await this.openOrganizationDeletionConfirmation();
+    const submit = confirmation.getByRole("button", { name: "このグループを削除" });
+    await confirmation.getByRole("textbox").fill(mismatchedName);
+    await expect(submit).toBeDisabled();
+    await confirmation.getByRole("button", { name: "キャンセル" }).click();
+    await expect(confirmation).not.toBeVisible();
+    await this.expectOrganization(organizationName);
+  }
+
+  async deleteOrganization(organizationName: string, expectedShopId: string | null) {
+    const confirmation = await this.openOrganizationDeletionConfirmation();
+    const submit = confirmation.getByRole("button", { name: "このグループを削除" });
+    await expect(submit).toBeDisabled();
+    await confirmation.getByRole("textbox").fill(organizationName);
+    await expect(submit).toBeEnabled();
+
+    const destination = expectedShopId
+      ? new RegExp(`/dashboard\\?shop=${escapeRegExp(encodeURIComponent(expectedShopId))}(?:&|$)`)
+      : /\/dashboard$/;
+    await Promise.all([this.page.waitForURL(destination, { timeout: SETTINGS_DATA_TIMEOUT }), submit.click()]);
   }
 
   private async openPerson(personName: string): Promise<Locator> {

@@ -1,7 +1,7 @@
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
 import type { OrganizationContextModel } from "./OrganizationContext/script";
 
-export type OrganizationSettingsTab = "people" | "shops" | "billing";
+export type OrganizationSettingsTab = "people" | "shops" | "billing" | "settings";
 
 export type OrganizationPersonView = {
   id: string;
@@ -109,10 +109,13 @@ export type OrganizationSettingsActions = {
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   onOpenInvoice: (invoiceId: string) => void;
+  onDeleteOrganization: () => void;
 };
 
 export type OrganizationSettingsViewProps = {
   organizationContext: OrganizationContextModel;
+  organizationId?: string;
+  organizationUpdatedAt?: number;
   organizationName: string;
   people: OrganizationPersonView[];
   managerInvitations: ManagerInvitationView[];
@@ -128,6 +131,8 @@ export type OrganizationSettingsViewProps = {
   updateOrganizationNameDisabledReason?: string;
   canAddShop: boolean;
   addShopDisabledReason?: string;
+  canDeleteOrganization: boolean;
+  deleteOrganizationDisabledReason?: string;
   actions: OrganizationSettingsActions;
   defaultTab?: OrganizationSettingsTab;
   onTabChange?: (tab: OrganizationSettingsTab) => void;

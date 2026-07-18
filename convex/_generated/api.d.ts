@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as _lib_activeShop from "../_lib/activeShop.js";
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
 import type * as _lib_config from "../_lib/config.js";
 import type * as _lib_dashboardUrl from "../_lib/dashboardUrl.js";
@@ -56,6 +57,11 @@ import type * as contact_schemas from "../contact/schemas.js";
 import type * as crons from "../crons.js";
 import type * as dashboard_mutations from "../dashboard/mutations.js";
 import type * as dashboard_queries from "../dashboard/queries.js";
+import type * as deletionCleanup_mutations from "../deletionCleanup/mutations.js";
+import type * as deletionCleanup_queries from "../deletionCleanup/queries.js";
+import type * as deletionCleanup_service from "../deletionCleanup/service.js";
+import type * as deletionCleanup_tombstone from "../deletionCleanup/tombstone.js";
+import type * as deletionCleanup_validators from "../deletionCleanup/validators.js";
 import type * as featureRequest_mutations from "../featureRequest/mutations.js";
 import type * as featureRequest_schemas from "../featureRequest/schemas.js";
 import type * as http from "../http.js";
@@ -86,6 +92,8 @@ import type * as migrations_m012_organizations_add_complimentary_business from "
 import type * as migrations_m013_former_managers_remove_manager_access from "../migrations/m013_former_managers_remove_manager_access.js";
 import type * as migrations_m014_removed_organization_members_delete_legacy_shop_members from "../migrations/m014_removed_organization_members_delete_legacy_shop_members.js";
 import type * as migrations_m015_organization_invitations_link_lifecycle from "../migrations/m015_organization_invitations_link_lifecycle.js";
+import type * as migrations_m016_deleted_shops_enqueue_cleanup_jobs from "../migrations/m016_deleted_shops_enqueue_cleanup_jobs.js";
+import type * as migrations_m017_deleted_organizations_enqueue_cleanup_jobs from "../migrations/m017_deleted_organizations_enqueue_cleanup_jobs.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as notification_actions from "../notification/actions.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
@@ -112,6 +120,7 @@ import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.
 import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
+import type * as organization_deletion from "../organization/deletion.js";
 import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
 import type * as organization_personProfile from "../organization/personProfile.js";
@@ -176,6 +185,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "_lib/activeShop": typeof _lib_activeShop;
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
   "_lib/config": typeof _lib_config;
   "_lib/dashboardUrl": typeof _lib_dashboardUrl;
@@ -224,6 +234,11 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "dashboard/mutations": typeof dashboard_mutations;
   "dashboard/queries": typeof dashboard_queries;
+  "deletionCleanup/mutations": typeof deletionCleanup_mutations;
+  "deletionCleanup/queries": typeof deletionCleanup_queries;
+  "deletionCleanup/service": typeof deletionCleanup_service;
+  "deletionCleanup/tombstone": typeof deletionCleanup_tombstone;
+  "deletionCleanup/validators": typeof deletionCleanup_validators;
   "featureRequest/mutations": typeof featureRequest_mutations;
   "featureRequest/schemas": typeof featureRequest_schemas;
   http: typeof http;
@@ -254,6 +269,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/m013_former_managers_remove_manager_access": typeof migrations_m013_former_managers_remove_manager_access;
   "migrations/m014_removed_organization_members_delete_legacy_shop_members": typeof migrations_m014_removed_organization_members_delete_legacy_shop_members;
   "migrations/m015_organization_invitations_link_lifecycle": typeof migrations_m015_organization_invitations_link_lifecycle;
+  "migrations/m016_deleted_shops_enqueue_cleanup_jobs": typeof migrations_m016_deleted_shops_enqueue_cleanup_jobs;
+  "migrations/m017_deleted_organizations_enqueue_cleanup_jobs": typeof migrations_m017_deleted_organizations_enqueue_cleanup_jobs;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "notification/actions": typeof notification_actions;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
@@ -280,6 +297,7 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/types": typeof notificationOutbox_types;
   "organization/access": typeof organization_access;
   "organization/audit": typeof organization_audit;
+  "organization/deletion": typeof organization_deletion;
   "organization/migrations": typeof organization_migrations;
   "organization/mutations": typeof organization_mutations;
   "organization/personProfile": typeof organization_personProfile;

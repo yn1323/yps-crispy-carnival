@@ -19,6 +19,7 @@ import {
   resolveFreeManagerExchangeEligibility,
   resolveOrganizationInvitationEligibility,
 } from "../organizationInvitation/service";
+import { getOrganizationDeletionEligibility } from "./deletion";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "./service";
 
 const organizationPersonViewValidator = v.object({
@@ -105,6 +106,8 @@ const billingViewValidator = v.object({
 });
 
 const organizationSettingsValidator = v.object({
+  organizationId: v.optional(v.id("organizations")),
+  organizationUpdatedAt: v.optional(v.number()),
   organizationName: v.string(),
   people: v.array(organizationPersonViewValidator),
   managerInvitations: v.array(managerInvitationViewValidator),
@@ -118,6 +121,8 @@ const organizationSettingsValidator = v.object({
   updateOrganizationNameDisabledReason: v.optional(v.string()),
   canAddShop: v.boolean(),
   addShopDisabledReason: v.optional(v.string()),
+  canDeleteOrganization: v.boolean(),
+  deleteOrganizationDisabledReason: v.optional(v.string()),
 });
 
 type ManagerRole = "active" | "readOnly" | "none";
@@ -207,6 +212,8 @@ function legacyMigrationPendingSettings(user: Doc<"users">, shop: Doc<"shops">) 
     updateOrganizationNameDisabledReason: migrationReason,
     canAddShop: false,
     addShopDisabledReason: migrationReason,
+    canDeleteOrganization: false,
+    deleteOrganizationDisabledReason: migrationReason,
   };
 }
 
@@ -970,7 +977,20 @@ export const getSettings = managerQuery({
             ? "契約制限中はグループ名を変更できません。"
             : "支払い結果が確定してからグループ名を変更できます。";
 
+    const deletionEligibility = ctx.organizationMember
+      ? await getOrganizationDeletionEligibility(ctx, {
+          organizationId: organization._id,
+          actorMemberId: ctx.organizationMember._id,
+          billingState,
+        })
+      : {
+          canDelete: false as const,
+          reason: "グループ単位の設定を移行しています。完了までお待ちください。",
+        };
+
     return {
+      organizationId: organization._id,
+      organizationUpdatedAt: organization.updatedAt,
       organizationName: organization.name,
       people: peopleView,
       managerInvitations,
@@ -984,6 +1004,8 @@ export const getSettings = managerQuery({
       ...(updateOrganizationNameDisabledReason ? { updateOrganizationNameDisabledReason } : {}),
       canAddShop,
       ...(addShopDisabledReason ? { addShopDisabledReason } : {}),
+      canDeleteOrganization: deletionEligibility.canDelete,
+      ...(!deletionEligibility.canDelete ? { deleteOrganizationDisabledReason: deletionEligibility.reason } : {}),
     };
   },
 });

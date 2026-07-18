@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS } from "../constants";
@@ -19,6 +20,10 @@ export const createStaffConsentToken = internalMutation({
     method: v.optional(v.union(v.literal("staff_email_link"), v.literal("line_link_notice"))),
   },
   handler: async (ctx, args) => {
+    const [staff, shop] = await Promise.all([ctx.db.get(args.staffId), ctx.db.get(args.shopId)]);
+    if (!staff || staff.isDeleted || staff.shopId !== args.shopId || !(await isShopParentActive(ctx, shop))) {
+      throw new ConvexError("Not found");
+    }
     const token = generateUUID();
     const expiresAt = args.expiresAt ?? Date.now() + LEGAL_CONSENT_TOKEN_TTL_MS;
     const method = args.method ?? "staff_email_link";
@@ -53,7 +58,13 @@ export const acceptStaffLegalConsent = mutation({
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (!staff || staff.isDeleted || staff.shopId !== tokenDoc.shopId || !shop || shop.isDeleted) {
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== tokenDoc.shopId ||
+      !shop ||
+      !(await isShopParentActive(ctx, shop))
+    ) {
       return { status: "expired" as const };
     }
 
@@ -77,8 +88,8 @@ export const acceptStaffLegalConsentFromLine = internalMutation({
     shopId: v.id("shops"),
   },
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    if (!staff || staff.isDeleted || staff.shopId !== args.shopId) {
+    const [staff, shop] = await Promise.all([ctx.db.get(args.staffId), ctx.db.get(args.shopId)]);
+    if (!staff || staff.isDeleted || staff.shopId !== args.shopId || !(await isShopParentActive(ctx, shop))) {
       throw new ConvexError("Not found");
     }
     if (await hasCurrentStaffLegalConsent(ctx, args.staffId)) return { status: "already_accepted" as const };

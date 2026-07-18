@@ -8,7 +8,7 @@ import { RootContentWrapper } from "@/src/components/templates/RootContentWrappe
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { isSelectableShop, normalizeShopContextOptions, selectedShopAtom } from "@/src/stores/shop";
 
-type SettingsTab = "people" | "shops" | "billing";
+type SettingsTab = "people" | "shops" | "billing" | "settings";
 
 export function OrganizationSettingsPage({
   defaultTab = "people",

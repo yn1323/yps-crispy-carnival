@@ -9,6 +9,9 @@ crons.cron("line-quota-refresh", "0 17 * * *", internal.line.actions.refreshQuot
 // 通知outboxを1分ごとに回収する。enqueue側ではworker予約を読まず、cronを配送開始の主導線にする。
 crons.interval("notification-outbox-drain", { minutes: 1 }, internal.notificationOutbox.actions.processPending, {});
 
+// 削除cleanupの予約漏れと期限切れleaseを回収する。各jobはbounded mutationで一batchずつ進む。
+crons.interval("deletion-cleanup-recover", { minutes: 1 }, internal.deletionCleanup.mutations.recover, {});
+
 // 通知配送イベントログを1日1回削除（JST 03:30 = UTC 18:30）
 crons.cron(
   "notification-delivery-event-prune",

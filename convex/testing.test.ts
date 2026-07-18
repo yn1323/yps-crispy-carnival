@@ -636,7 +636,33 @@ describe("E2E testing helpers", () => {
         action: "e2e.resetTarget",
         occurredAt: now,
       });
-      return { invitationId, outboxId, auditEventId };
+      const organizationCleanupJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId: seeded.primaryOrganizationId,
+        requestId: "e2e-reset-target-organization",
+        status: "completed",
+        phase: "organizationVerification",
+        version: 2,
+        attemptCount: 0,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: now,
+      });
+      const shopCleanupJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "shop",
+        shopId: seeded.primaryShopId,
+        organizationId: seeded.primaryOrganizationId,
+        requestId: "e2e-reset-target-shop",
+        status: "queued",
+        phase: "shopCore",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { invitationId, outboxId, auditEventId, organizationCleanupJobId, shopCleanupJobId };
     });
 
     const foreign = await t.run(async (ctx) => {
@@ -682,7 +708,19 @@ describe("E2E testing helpers", () => {
         role: "manager",
         isDeleted: false,
       });
-      return { organizationId, personId, memberId, shopId };
+      const cleanupJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "e2e-reset-foreign-organization",
+        status: "retrying",
+        phase: "organizationCore",
+        version: 1,
+        attemptCount: 1,
+        nextRunAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { organizationId, personId, memberId, shopId, cleanupJobId };
     });
 
     const resetArgs = {
@@ -703,6 +741,8 @@ describe("E2E testing helpers", () => {
       targetInvitation: await ctx.db.get(targetGraph.invitationId),
       targetOutbox: await ctx.db.get(targetGraph.outboxId),
       targetAuditEvent: await ctx.db.get(targetGraph.auditEventId),
+      targetOrganizationCleanupJob: await ctx.db.get(targetGraph.organizationCleanupJobId),
+      targetShopCleanupJob: await ctx.db.get(targetGraph.shopCleanupJobId),
       primaryBilling: await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.primaryOrganizationId))
@@ -717,6 +757,7 @@ describe("E2E testing helpers", () => {
       foreignPerson: await ctx.db.get(foreign.personId),
       foreignMember: await ctx.db.get(foreign.memberId),
       foreignShop: await ctx.db.get(foreign.shopId),
+      foreignCleanupJob: await ctx.db.get(foreign.cleanupJobId),
     }));
     expect(after).toMatchObject({
       primaryOrganization: null,
@@ -728,6 +769,8 @@ describe("E2E testing helpers", () => {
       targetInvitation: null,
       targetOutbox: null,
       targetAuditEvent: null,
+      targetOrganizationCleanupJob: null,
+      targetShopCleanupJob: null,
       primaryBilling: [],
       alternateBilling: [],
       actorC: null,
@@ -736,7 +779,48 @@ describe("E2E testing helpers", () => {
       foreignPerson: expect.objectContaining({ userId: seeded.actorBUserId }),
       foreignMember: expect.objectContaining({ userId: seeded.actorBUserId }),
       foreignShop: expect.objectContaining({ name: "別owner保持店舗" }),
+      foreignCleanupJob: expect.objectContaining({ organizationId: foreign.organizationId, status: "retrying" }),
     });
+  });
+
+  it("legacy店舗resetでshop scopeのcleanup jobを次シナリオへ残さない", async () => {
+    vi.stubEnv("E2E_TESTING_ENABLED", "true");
+    const t = convexTest(schema, modules);
+    const subject = "legacy_cleanup_job_reset";
+    const ids = await t.run(async (ctx) => {
+      const base = await seedManagerShop(ctx, {
+        subject,
+        email: "legacy-cleanup-reset@example.com",
+        shopName: "旧店舗cleanup reset",
+      });
+      const now = Date.now();
+      const cleanupJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "shop",
+        shopId: base.shopId,
+        requestId: "e2e-reset-legacy-shop",
+        status: "actionRequired",
+        phase: "shopVerification",
+        version: 5,
+        attemptCount: 8,
+        nextRunAt: now,
+        lastErrorCode: "test_cleanup_failure",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, cleanupJobId };
+    });
+
+    await expect(
+      t.mutation(internal.testing.resetManagerScenarioData, {
+        managerAuthTokenIdentifier: testAuthTokenIdentifier(subject),
+      }),
+    ).resolves.toEqual({ reset: true });
+
+    const remaining = await t.run(async (ctx) => ({
+      shop: await ctx.db.get(ids.shopId),
+      cleanupJob: await ctx.db.get(ids.cleanupJobId),
+    }));
+    expect(remaining).toEqual({ shop: null, cleanupJob: null });
   });
 
   it("Free交代と複数グループの専用seedはAの2グループと既存スタッフBを作り再実行で回収する", async () => {

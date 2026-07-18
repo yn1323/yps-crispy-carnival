@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   removePersonMutation: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
+  setAtom: vi.fn(),
   selectedShop: {
     shopId: "shop-current",
     shopName: "渋谷店",
@@ -44,11 +45,13 @@ vi.mock("@/src/components/shared/feedback", () => ({
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
   useAtomValue: () => mocks.selectedShop,
+  useSetAtom: () => mocks.setAtom,
 }));
 
 import { useBillingSettingsController } from "./BillingSettings/useBillingSettingsController";
 import { useManagerInvitationController } from "./ManagerInvitation/useManagerInvitationController";
 import { usePersonManagerAssignmentController } from "./ManagerInvitation/usePersonManagerAssignmentController";
+import { useOrganizationDeletionController } from "./OrganizationDeletion/useOrganizationDeletionController";
 import { useOrganizationNameController } from "./OrganizationName/useOrganizationNameController";
 import { usePersonProfileController } from "./PersonProfile/usePersonProfileController";
 import { usePersonRemovalController } from "./PersonRemoval/usePersonRemovalController";
@@ -91,6 +94,7 @@ beforeEach(() => {
   mocks.removePersonMutation.mockReset();
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
+  mocks.setAtom.mockReset();
   vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
 });
 
@@ -144,6 +148,104 @@ describe("OrganizationSettings controllers", () => {
     });
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
     await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
+  });
+
+  it("店舗削除は対象IDを二重確認し、同じ操作を一度だけ受け付ける", async () => {
+    let resolveMutation: (() => void) | undefined;
+    mocks.mutation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = () => resolve({ changed: true, accepted: true });
+        }),
+    );
+    const { result } = renderHook((input) => useShopManagementController(input), {
+      initialProps: { canAddShop: true, shops: [shop] },
+    });
+
+    act(() => result.current.openShop(shop.id));
+    act(() => {
+      result.current.dialog.onSubmit({ kind: "deleteShop", shopId: shop.id });
+      result.current.dialog.onSubmit({ kind: "deleteShop", shopId: shop.id });
+    });
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        shopId: shop.id,
+        confirmShopId: shop.id,
+        requestId: "request-1",
+      }),
+    );
+    await act(async () => resolveMutation?.());
+    await waitFor(() =>
+      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+        title: "店舗の削除を受け付けました",
+      }),
+    );
+  });
+
+  it("グループ削除は名前を送信せず固定した対象情報で一度だけ実行する", async () => {
+    mocks.mutation.mockImplementation(() => new Promise(() => undefined));
+    const input = {
+      organizationId: "organization-1",
+      organizationUpdatedAt: 1_721_286_400_000,
+      organizationName: "さくらダイニング",
+      canDeleteOrganization: true,
+      selectedShopId: "shop-current",
+      shops: [
+        {
+          shopId: "shop-current",
+          shopName: "渋谷店",
+          shopStatus: "active" as const,
+          organizationId: "organization-1",
+          organizationName: "さくらダイニング",
+          organizationPlan: "free" as const,
+          memberStatus: "active" as const,
+        },
+      ],
+    };
+    const { result } = renderHook(() => useOrganizationDeletionController(input));
+
+    act(() => result.current.open());
+    expect(result.current.dialog.dialog).toEqual({
+      intentKey: "request-1",
+      organizationName: "さくらダイニング",
+    });
+    act(() => {
+      result.current.dialog.onSubmit();
+      result.current.dialog.onSubmit();
+    });
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        organizationId: "organization-1",
+        confirmOrganizationId: "organization-1",
+        expectedOrganizationUpdatedAt: 1_721_286_400_000,
+        requestId: "request-1",
+      }),
+    );
+  });
+
+  it("グループ削除の可否や対象が変わると古い確定操作を拒否する", async () => {
+    const initialInput = {
+      organizationId: "organization-1",
+      organizationUpdatedAt: 1_721_286_400_000,
+      organizationName: "さくらダイニング",
+      canDeleteOrganization: true,
+      selectedShopId: "shop-current",
+      shops: [],
+    };
+    const { result, rerender } = renderHook((input) => useOrganizationDeletionController(input), {
+      initialProps: initialInput,
+    });
+    act(() => result.current.open());
+    const staleSubmit = result.current.dialog.onSubmit;
+
+    rerender({ ...initialInput, canDeleteOrganization: false });
+
+    await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
+    await act(async () => staleSubmit());
+    expect(mocks.mutation).not.toHaveBeenCalled();
   });
 
   it("請求設定の権限を失うとDialogを閉じ、古い請求先変更を拒否する", async () => {

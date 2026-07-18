@@ -711,6 +711,8 @@ export const processDeadline = internalMutation({
   },
   returns: transitionResultValidator,
   handler: async (ctx, args) => {
+    const organization = await ctx.db.get(args.organizationId);
+    if (!organization || organization.isDeleted) return { changed: false };
     const billingState = await getOrganizationBillingState(ctx, args.organizationId);
     if (!billingState) return { changed: false };
     const decision = decideScheduledTransition({

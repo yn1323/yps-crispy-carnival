@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery, query } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { authenticatedQuery } from "../_lib/functions";
 import { getStaffLineAccount } from "../line/service";
 import { getLegalDocumentsForAudience } from "./documents";
@@ -74,7 +75,13 @@ export const getStaffConsentPageData = query({
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (!staff || staff.isDeleted || staff.shopId !== tokenDoc.shopId || !shop || shop.isDeleted) {
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== tokenDoc.shopId ||
+      !shop ||
+      !(await isShopParentActive(ctx, shop))
+    ) {
       return { status: "expired" as const, documents };
     }
 
@@ -109,7 +116,7 @@ export const getStaffConsentNotificationDataInternal = internalQuery({
     if (!includeConsented && (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
 
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted) return null;
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
     const lineAccount = await getStaffLineAccount(ctx, staff._id);
 
     return {

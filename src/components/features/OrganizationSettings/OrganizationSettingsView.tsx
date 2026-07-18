@@ -1,6 +1,7 @@
 import { Box, Skeleton, Stack, Tabs } from "@chakra-ui/react";
-import { LuCreditCard, LuStore, LuUsers } from "react-icons/lu";
+import { LuCreditCard, LuSettings, LuStore, LuUsers } from "react-icons/lu";
 import { OrganizationContext } from "./OrganizationContext";
+import { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 import { PeopleSection } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import { ShopsSection } from "./ShopsSection";
@@ -8,6 +9,7 @@ import type { OrganizationSettingsTab, OrganizationSettingsViewProps } from "./t
 
 export const OrganizationSettingsView = ({
   organizationContext,
+  organizationName,
   people,
   shops,
   billing,
@@ -22,6 +24,8 @@ export const OrganizationSettingsView = ({
   updateOrganizationNameDisabledReason,
   canAddShop,
   addShopDisabledReason,
+  canDeleteOrganization,
+  deleteOrganizationDisabledReason,
   actions,
   defaultTab = "people",
   onTabChange,
@@ -54,6 +58,10 @@ export const OrganizationSettingsView = ({
         <Tabs.Trigger value="billing" flexShrink={0} gap={2}>
           <LuCreditCard aria-hidden />
           プランと支払い
+        </Tabs.Trigger>
+        <Tabs.Trigger value="settings" flexShrink={0} gap={2}>
+          <LuSettings aria-hidden />
+          設定
         </Tabs.Trigger>
       </Tabs.List>
 
@@ -92,6 +100,15 @@ export const OrganizationSettingsView = ({
           onUpdatePaymentMethod={actions.onUpdatePaymentMethod}
           onUpdateBillingEmail={actions.onUpdateBillingEmail}
           onOpenInvoice={actions.onOpenInvoice}
+        />
+      </Tabs.Content>
+
+      <Tabs.Content value="settings" pt={{ base: 5, md: 6 }}>
+        <OrganizationDeletionSection
+          organizationName={organizationName}
+          canDelete={canDeleteOrganization}
+          disabledReason={deleteOrganizationDisabledReason}
+          onDelete={actions.onDeleteOrganization}
         />
       </Tabs.Content>
     </Tabs.Root>

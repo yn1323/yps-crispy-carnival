@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS } from "../constants";
@@ -18,6 +19,22 @@ export const createMagicLink = internalMutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const [staff, shop, recruitment] = await Promise.all([
+      ctx.db.get(args.staffId),
+      ctx.db.get(args.shopId),
+      ctx.db.get(args.recruitmentId),
+    ]);
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== args.shopId ||
+      !(await isShopParentActive(ctx, shop)) ||
+      !recruitment ||
+      recruitment.isDeleted ||
+      recruitment.shopId !== args.shopId
+    ) {
+      throw new Error("Inactive notification scope");
+    }
     const token = generateUUID();
 
     await ctx.db.insert("magicLinks", {
@@ -45,6 +62,22 @@ export const getOrCreateSubmitMagicLink = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
+    const [staff, shop, recruitment] = await Promise.all([
+      ctx.db.get(args.staffId),
+      ctx.db.get(args.shopId),
+      ctx.db.get(args.recruitmentId),
+    ]);
+    if (
+      !staff ||
+      staff.isDeleted ||
+      staff.shopId !== args.shopId ||
+      !(await isShopParentActive(ctx, shop)) ||
+      !recruitment ||
+      recruitment.isDeleted ||
+      recruitment.shopId !== args.shopId
+    ) {
+      throw new Error("Inactive notification scope");
+    }
     const existingLinks = await ctx.db
       .query("magicLinks")
       .withIndex("by_staffId_recruitmentId_accessKind", (q) =>

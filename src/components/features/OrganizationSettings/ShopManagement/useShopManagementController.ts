@@ -1,10 +1,12 @@
 import { useMutation } from "convex/react";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { selectedShopAtom } from "@/src/stores/shop";
 import type { OrganizationShopView } from "../types";
 import type { ShopManagementDialogState, ShopManagementOperation } from "./types";
 
@@ -16,7 +18,10 @@ type Input = {
 export function useShopManagementController(input: Input) {
   const addShop = useShopMutation(api.organization.mutations.addShop);
   const deleteShop = useMutation(api.organization.mutations.deleteShop);
+  const selectedShop = useAtomValue(selectedShopAtom);
+  const setSelectedShop = useSetAtom(selectedShopAtom);
   const [dialog, setDialog] = useState<ShopManagementDialogState | null>(null);
+  const deleteRequestIdsRef = useRef(new Map<string, string>());
   const latestRef = useRef(input);
   latestRef.current = input;
 
@@ -46,7 +51,11 @@ export function useShopManagementController(input: Input) {
       return;
     }
 
-    const requestId = crypto.randomUUID();
+    const requestId =
+      operation.kind === "deleteShop"
+        ? (deleteRequestIdsRef.current.get(operation.shopId) ?? crypto.randomUUID())
+        : crypto.randomUUID();
+    if (operation.kind === "deleteShop") deleteRequestIdsRef.current.set(operation.shopId, requestId);
     try {
       switch (operation.kind) {
         case "addShop":
@@ -62,7 +71,9 @@ export function useShopManagementController(input: Input) {
             confirmShopId: operation.shopId as Id<"shops">,
             requestId,
           });
-          showSuccessToast({ title: "店舗を削除しました" });
+          deleteRequestIdsRef.current.delete(operation.shopId);
+          if (selectedShop?.shopId === operation.shopId) setSelectedShop(null);
+          showSuccessToast({ title: "店舗の削除を受け付けました" });
           break;
       }
       setDialog(null);
@@ -85,7 +96,10 @@ export function useShopManagementController(input: Input) {
     dialog: {
       dialog,
       isRunning,
-      onClose: () => setDialog(null),
+      onClose: () => {
+        if (dialog?.kind === "shopDetails") deleteRequestIdsRef.current.delete(dialog.shop.id);
+        setDialog(null);
+      },
       onSubmit: (operation: ShopManagementOperation) => run(operation).catch(() => undefined),
     },
   };

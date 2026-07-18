@@ -3,7 +3,7 @@ import { updateSettingsTabSearch } from "@/src/lib/authenticatedSearch";
 import { OrganizationSettingsPage } from "@/src/pages/settings";
 import { buildOrganizationSettingsPageHead } from "@/src/pages/settings/meta";
 
-type SettingsTab = "people" | "shops" | "billing";
+type SettingsTab = "people" | "shops" | "billing" | "settings";
 type SettingsSearch = { tab?: SettingsTab };
 
 export const Route = createFileRoute("/_auth/settings")({
@@ -32,5 +32,5 @@ function SettingsRoute() {
 }
 
 function isSettingsTab(value: unknown): value is SettingsTab {
-  return value === "people" || value === "shops" || value === "billing";
+  return value === "people" || value === "shops" || value === "billing" || value === "settings";
 }

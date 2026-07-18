@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { mutation } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
@@ -85,7 +86,12 @@ export const verifyToken = mutation({
       return expired(magicLink.recruitmentId, "recruitment_deleted");
     }
     // シフト対象外スタッフはマジックリンクからセッションを発行させない。
-    if (!staff || !isShiftTargetStaff(staff) || !shop || shop.isDeleted || staff.shopId !== magicLink.shopId) {
+    if (
+      !staff ||
+      !isShiftTargetStaff(staff) ||
+      staff.shopId !== magicLink.shopId ||
+      !(await isShopParentActive(ctx, shop))
+    ) {
       return expired(magicLink.recruitmentId, "invalid_link");
     }
 
@@ -204,6 +210,8 @@ export const requestReissue = mutation({
     if (recruitment.status !== "confirmed") {
       return logSkip("recruitment_not_confirmed", { status: recruitment.status });
     }
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!(await isShopParentActive(ctx, shop))) return logSkip("shop_inactive");
 
     const staffs = await ctx.db
       .query("staffs")

@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { APP_URL } from "../_lib/config";
 import { managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
@@ -76,6 +77,10 @@ export const generateLinkToken = managerMutation({
 export const createLinkTokenInternal = internalMutation({
   args: { staffId: v.id("staffs"), shopId: v.id("shops") },
   handler: async (ctx, { staffId, shopId }) => {
+    const [staff, shop] = await Promise.all([ctx.db.get(staffId), ctx.db.get(shopId)]);
+    if (!staff || staff.isDeleted || staff.shopId !== shopId || !(await isShopParentActive(ctx, shop))) {
+      throw new ConvexError("Not found");
+    }
     const token = generateUUID();
     await ctx.db.insert("lineLinkTokens", {
       staffId,

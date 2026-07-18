@@ -704,6 +704,26 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
+    it("削除済みユーザーには3世代のお知らせqueryすべてで本文を返さない", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const userId = await seedUser(ctx, "deleted_announcement_user");
+        await ctx.db.patch(userId, { isDeleted: true });
+        await ctx.db.insert("dashboardAnnouncements", {
+          title: "削除済みユーザーへ返さないお知らせ",
+          bodyHtml: "<p>返しません。</p>",
+          displayDate: "2026-06-17",
+          isPublished: true,
+          isDeleted: false,
+        });
+      });
+      const actor = t.withIdentity({ subject: "deleted_announcement_user" });
+
+      await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncement, {})).resolves.toBeNull();
+      await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncements, {})).resolves.toEqual([]);
+      await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {})).resolves.toEqual([]);
+    });
+
     it("公開中のお知らせがない場合は空配列を返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
@@ -1861,6 +1881,28 @@ describe("dashboard/queries", () => {
       });
       const result = await t.withIdentity({ subject: "existing_user" }).query(api.dashboard.queries.getCurrentUser, {});
       expect(result).toEqual({ isNewUser: false, name: "既存ユーザー", email: "existing@example.com" });
+    });
+
+    it("削除済みユーザーはClerkの氏名とメールを返さず、終了状態だけを返す", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("users", {
+          authTokenIdentifier: testAuthTokenIdentifier("deleted_user"),
+          name: "削除済みユーザー",
+          email: "deleted+users.local@example.invalid",
+          emailNormalized: "deleted+users.local@example.invalid",
+          role: "manager",
+          isDeleted: true,
+        });
+      });
+
+      const result = await t
+        .withIdentity({ subject: "deleted_user", name: "Clerkに残る氏名", email: "clerk-remains@example.com" })
+        .query(api.dashboard.queries.getCurrentUser, {});
+
+      expect(result).toEqual({ accountDeleted: true });
+      expect(result).not.toHaveProperty("name");
+      expect(result).not.toHaveProperty("email");
     });
   });
 });

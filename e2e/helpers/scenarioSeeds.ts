@@ -251,6 +251,29 @@ export function seedFreeManagerMultiOrganizationScenario(
   return result;
 }
 
+/** 通常E2E workerのClerkユーザーを、削除可能なFreeグループ2件の唯一の管理者としてseedする。 */
+export function seedOrganizationDeletionScenario(
+  args: FreeManagerMultiOrganizationScenarioArgs = {},
+): FreeManagerMultiOrganizationScenarioSeed {
+  const owner = getCurrentE2EClerkUser();
+  const suffix = `worker-${owner.index}`;
+  const result = convexRunJson<FreeManagerMultiOrganizationScenarioSeed>(
+    "testing:seedFreeManagerMultiOrganizationScenario",
+    {
+      actorAManagerAuthTokenIdentifier: getE2EManagerAuthTokenIdentifier(owner.index),
+      actorAManagerEmail: owner.email,
+      // B/CはClerkで操作しない前提データ。実在E2Eユーザーを指定すると並列workerのseedと競合する。
+      actorBManagerAuthTokenIdentifier: `e2e-organization-deletion-b-${suffix}`,
+      actorBManagerEmail: `organization-deletion-b-${suffix}@example.test`,
+      actorCManagerAuthTokenIdentifier: `e2e-organization-deletion-c-${suffix}`,
+      ...args,
+    },
+  );
+  assertNotificationDeliverySuppressed(result.targetShopId);
+  assertNotificationDeliverySuppressed(result.alternateShopId);
+  return result;
+}
+
 export function resetMultiActorOrganizationScenarioData() {
   const identity = getMultiActorSeedIdentity();
   return convexRunJson("testing:resetMultiActorOrganizationScenarioData", {

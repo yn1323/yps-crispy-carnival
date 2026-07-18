@@ -21,6 +21,7 @@ const actions = {
   onUpdatePaymentMethod: fn(),
   onUpdateBillingEmail: fn(),
   onOpenInvoice: fn(),
+  onDeleteOrganization: fn(),
 };
 
 const organizationContext: OrganizationContextModel = {
@@ -58,6 +59,8 @@ const baseBilling: OrganizationBillingView = {
 
 const baseArgs: OrganizationSettingsViewProps = {
   organizationContext,
+  organizationId: "organization-sakura",
+  organizationUpdatedAt: 1_721_286_400_000,
   organizationName: "株式会社さくらダイニング",
   managerInvitations: [],
   canInviteManager: true,
@@ -121,6 +124,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   ],
   billing: baseBilling,
   canAddShop: true,
+  canDeleteOrganization: true,
   actions,
 };
 
@@ -152,6 +156,8 @@ const disabledActionReasonArgs: Pick<
   | "updateOrganizationNameDisabledReason"
   | "canAddShop"
   | "addShopDisabledReason"
+  | "canDeleteOrganization"
+  | "deleteOrganizationDisabledReason"
   | "billing"
 > = {
   managerInvitations: [],
@@ -163,6 +169,8 @@ const disabledActionReasonArgs: Pick<
   updateOrganizationNameDisabledReason: "閲覧のみの管理者はグループ名を変更できません。",
   canAddShop: false,
   addShopDisabledReason: "閲覧のみの管理者は店舗を追加できません。",
+  canDeleteOrganization: false,
+  deleteOrganizationDisabledReason: "閲覧のみの管理者はグループを削除できません。",
   billing: billing({
     state: "pendingActivation",
     currentPlan: null,
@@ -334,6 +342,29 @@ export const PersonRemovalBehavior: Story = {
 
 export const Shops: Story = { args: { defaultTab: "shops" } };
 
+export const Settings: Story = { args: { defaultTab: "settings" } };
+
+export const SettingsDeletionUnavailable: Story = {
+  args: {
+    defaultTab: "settings",
+    canDeleteOrganization: false,
+    deleteOrganizationDisabledReason: "有料契約やプラン変更を終了してからグループを削除してください。",
+  },
+};
+
+export const OrganizationDeletionActionBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    defaultTab: "settings",
+    actions: { ...actions, onDeleteOrganization: fn() },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "このグループを削除" }));
+    await expect(args.actions.onDeleteOrganization).toHaveBeenCalledTimes(1);
+  },
+};
+
 export const ShopRowBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: { defaultTab: "shops", actions: { ...actions, onOpenShop: fn() } },
@@ -374,6 +405,11 @@ export const DisabledActionReasonsBehavior: Story = {
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "請求先を変更" }),
       "閲覧のみの管理者は請求先を変更できません。",
+    );
+    await userEvent.click(canvas.getByRole("tab", { name: "設定" }));
+    await expectDisabledActionDescription(
+      canvas.getByRole("button", { name: "このグループを削除" }),
+      "閲覧のみの管理者はグループを削除できません。",
     );
   },
 };
@@ -689,6 +725,12 @@ export const MobileUsers: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },
+};
+
+export const MobileSettings: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: { defaultTab: "settings" },
 };
 
 function PersonRemovalBehaviorHarness(args: OrganizationSettingsViewProps) {

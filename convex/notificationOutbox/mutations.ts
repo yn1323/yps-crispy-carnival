@@ -980,6 +980,15 @@ export async function cancelNotificationForInactiveShop(ctx: MutationCtx, job: D
   return await cancelActiveNotification(ctx, job, "shop_inactive", now);
 }
 
+/** 組織削除cleanupから、未送信通知を既存のterminal契約で停止する。 */
+export async function cancelNotificationForInactiveOrganization(
+  ctx: MutationCtx,
+  job: Doc<"notificationOutbox">,
+  now: number,
+) {
+  return await cancelActiveNotification(ctx, job, "organization_inactive", now);
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }

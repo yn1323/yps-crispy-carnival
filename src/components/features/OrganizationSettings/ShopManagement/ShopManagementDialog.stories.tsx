@@ -35,11 +35,16 @@ export const DeleteConfirmationBehavior: Story = {
     const screen = within(canvasElement.ownerDocument.body);
     await userEvent.click(await screen.findByRole("tab", { name: "設定" }));
     await userEvent.click(screen.getByRole("button", { name: "この店舗を削除" }));
-    const confirmation = screen.getByRole("group", { name: "「渋谷店」を削除しますか？" });
+    const confirmation = await screen.findByRole("alertdialog", { name: "店舗を削除" });
     await expect(within(confirmation).getByText("「渋谷店」を削除しますか？")).toBeInTheDocument();
-    const confirmButton = within(confirmation).getByRole("button", { name: "削除する" });
+    const confirmButton = within(confirmation).getByRole("button", { name: "店舗を削除" });
     await expect(confirmButton).toHaveFocus();
     await userEvent.click(confirmButton);
     await expect(onSubmit).toHaveBeenCalledWith({ kind: "deleteShop", shopId: "shop-shibuya" });
   },
+};
+
+export const MobileDetails: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };

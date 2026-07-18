@@ -3,7 +3,7 @@ import { seedMultiShopOrganizationScenario } from "../helpers/scenarioSeeds";
 import { DashboardPage } from "../pages/DashboardPage";
 import { OrganizationSettingsPage } from "../pages/OrganizationSettingsPage";
 
-test.describe("グループ設定からの店舗削除", { tag: ["@release"] }, () => {
+test.describe("グループ設定からの店舗削除", { tag: ["@release", "@security"] }, () => {
   test.setTimeout(60_000);
 
   test("MS-P0-03: 選択中のB店を削除し、B店専属スタッフを店舗所属なしで維持する", async ({ page }) => {

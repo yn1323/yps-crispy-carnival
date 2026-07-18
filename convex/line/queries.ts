@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery } from "../_generated/server";
+import { isShopParentActive } from "../_lib/activeShop";
 import { managerQuery } from "../_lib/functions";
 import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service";
 
@@ -83,6 +84,8 @@ export const findStaffByLineUserId = internalQuery({
     const account = await findStaffLineAccountByLineUserId(ctx, lineUserId);
     const staff = account ? await ctx.db.get(account.staffId) : null;
     if (!staff || staff.isDeleted) return null;
+    const shop = await ctx.db.get(staff.shopId);
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
     return { _id: staff._id, shopId: staff.shopId, name: staff.name };
   },
 });
@@ -108,7 +111,7 @@ export const getInviteEmailData = internalQuery({
     const staff = await ctx.db.get(staffId);
     if (!staff || staff.isDeleted || !staff.email) return null;
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || shop.isDeleted) return null;
+    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
     return {
       staffId: staff._id,
       shopId: staff.shopId,

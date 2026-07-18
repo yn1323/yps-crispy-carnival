@@ -93,6 +93,7 @@ const schema = defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_emailNormalized", ["organizationId", "emailNormalized"])
     .index("by_organizationId_and_status", ["organizationId", "status"])
     .index("by_organizationId_and_userId", ["organizationId", "userId"])
@@ -107,6 +108,7 @@ const schema = defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_status", ["organizationId", "status"])
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_userId_and_organizationId", ["userId", "organizationId"])
@@ -144,6 +146,7 @@ const schema = defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_organizationId", ["organizationId"])
     .index("by_tokenDigest", ["tokenDigest"])
     .index("by_organizationId_and_emailNormalized_and_status", ["organizationId", "emailNormalized", "status"])
     .index("by_organizationId_and_targetPersonId_and_status", ["organizationId", "targetPersonId", "status"])
@@ -190,6 +193,41 @@ const schema = defineSchema({
   })
     .index("by_sourceType_and_sourceId_and_code", ["sourceType", "sourceId", "code"])
     .index("by_organizationId_and_resolvedAt", ["organizationId", "resolvedAt"]),
+
+  // 削除受付後の主要マスタ置換とaccess失効を、bounded batchで再開可能に進める。
+  // 元の氏名・メール・名称は保持せず、対象IDと安全な進捗codeだけを保存する。
+  deletionCleanupJobs: defineTable({
+    scope: v.union(v.literal("shop"), v.literal("organization")),
+    shopId: v.optional(v.id("shops")),
+    organizationId: v.optional(v.id("organizations")),
+    requestId: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("retrying"),
+      v.literal("actionRequired"),
+      v.literal("completed"),
+    ),
+    phase: v.string(),
+    resource: v.optional(v.string()),
+    cursor: v.optional(v.string()),
+    shopCursor: v.optional(v.string()),
+    currentShopId: v.optional(v.id("shops")),
+    version: v.number(),
+    attemptCount: v.number(),
+    nextRunAt: v.number(),
+    leaseId: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_requestId", ["requestId"])
+    .index("by_shopId_and_status", ["shopId", "status"])
+    .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"]),
 
   shopBillingStates: defineTable({
     shopId: v.id("shops"),
@@ -281,6 +319,7 @@ const schema = defineSchema({
     .index("by_shopId_email_isDeleted", ["shopId", "email", "isDeleted"])
     .index("by_shopId_emailNormalized_isDeleted", ["shopId", "emailNormalized", "isDeleted"])
     .index("by_userId_and_shopId", ["userId", "shopId"])
+    .index("by_userId_and_isDeleted", ["userId", "isDeleted"])
     .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
     .index("by_email", ["email"])
@@ -296,6 +335,7 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   })
     .index("by_staffId", ["staffId"])
+    .index("by_shopId", ["shopId"])
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_lineUserId", ["lineUserId"])
     .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"])

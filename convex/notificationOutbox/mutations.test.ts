@@ -125,6 +125,90 @@ describe("notificationOutbox", () => {
     expect(jobs[0].purpose).toBe("business");
   });
 
+  it("組織削除とpending・claim済み通知が競合しても新しい外部送信を開始しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "organization_notification_deleted",
+        email: "organization-notification-deleted@example.com",
+        plan: "free",
+      }),
+    );
+    const payload = {
+      ...emailPayload,
+      to: "organization-notification-deleted@example.com",
+      context: "test.organizationDeleted",
+    };
+    const processing = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "email:test:organization-deleted-processing",
+      payload,
+    });
+    if (!processing) throw new Error("processing notification was not enqueued");
+    vi.advanceTimersByTime(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const claimedBeforeDeletion = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now(),
+    });
+    expect(claimedBeforeDeletion.map(({ _id, status }) => ({ _id, status }))).toEqual([
+      { _id: processing.outboxId, status: "processing" },
+    ]);
+
+    const pending = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "email:test:organization-deleted-pending",
+      payload,
+    });
+    if (!pending) throw new Error("pending notification was not enqueued");
+    await t.run(async (ctx) => await ctx.db.patch(ids.organizationId, { isDeleted: true }));
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId: ids.shopId,
+        organizationId: ids.organizationId,
+        userId: ids.userId,
+        purpose: "business",
+        dedupeKey: "email:test:organization-deleted-after",
+        payload,
+      }),
+    ).resolves.toBeNull();
+
+    vi.advanceTimersByTime(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const claimedAfterDeletion = await t.mutation(internal.notificationOutbox.mutations.claimDue, {
+      now: Date.now(),
+    });
+    expect(claimedAfterDeletion.map((job) => job._id)).toEqual([pending.outboxId]);
+    for (const outboxId of [processing.outboxId, pending.outboxId]) {
+      await expect(
+        t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+          outboxId,
+          now: Date.now(),
+        }),
+      ).resolves.toBeNull();
+    }
+
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    expect(
+      jobs
+        .map(({ dedupeKey, status, cancelReason }) => ({ dedupeKey, status, cancelReason }))
+        .sort((a, b) => a.dedupeKey.localeCompare(b.dedupeKey)),
+    ).toEqual(
+      ["email:test:organization-deleted-pending", "email:test:organization-deleted-processing"].map((dedupeKey) => ({
+        dedupeKey,
+        status: "cancelled",
+        cancelReason: "organization_inactive",
+      })),
+    );
+  });
+
   it.each([
     {
       label: "Trial終了",

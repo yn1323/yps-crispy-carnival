@@ -6,6 +6,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { seedOrganizationManagerShop, seedShopMembership, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { DELETED_SHOP_NAME } from "../deletionCleanup/tombstone";
 import { getOrganizationUsageSnapshot } from "./service";
 
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
@@ -414,17 +415,19 @@ describe("organization shop management", () => {
           organizationId: base.organizationId,
           name: "残す店舗",
         });
+        const staffUserId = await seedUser(ctx, "delete_shop_staff_only", "shop-staff-user@example.com");
+        const staffUserBefore = await ctx.db.get(staffUserId);
+        if (!staffUserBefore) throw new Error("staff user not found");
         const staffId = await ctx.db.insert("staffs", {
           shopId: base.shopId,
           organizationId: base.organizationId,
-          organizationPersonId: base.personId,
-          userId: base.userId,
+          userId: staffUserId,
           name: "所属スタッフ",
-          email: "delete_shop@example.com",
-          emailNormalized: "delete_shop@example.com",
+          email: "shop-staff-user@example.com",
+          emailNormalized: "shop-staff-user@example.com",
           isDeleted: false,
         });
-        return { ...base, remainingShopId, staffId };
+        return { ...base, remainingShopId, staffId, staffUserId, staffUserBefore };
       });
       const asActor = t.withIdentity({ subject: "delete_shop" });
       const args = {
@@ -447,6 +450,7 @@ describe("organization shop management", () => {
         deletedShop: await ctx.db.get(ids.shopId),
         remainingShop: await ctx.db.get(ids.remainingShopId),
         staff: await ctx.db.get(ids.staffId),
+        staffUser: await ctx.db.get(ids.staffUserId),
         usage: await getOrganizationUsageSnapshot(ctx, ids.organizationId),
         audits: await ctx.db
           .query("organizationAuditEvents")
@@ -454,13 +458,18 @@ describe("organization shop management", () => {
             q.eq("correlationId", `${ids.organizationId}:shop:delete:${ids.shopId}:${requestKey}`),
           )
           .collect(),
-        cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) => job.name === "shop/mutations:cleanupDeletedShop",
+        cleanupJobs: await ctx.db
+          .query("deletionCleanupJobs")
+          .withIndex("by_shopId_and_status", (q) => q.eq("shopId", ids.shopId).eq("status", "queued"))
+          .collect(),
+        scheduledKicks: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === "deletionCleanup/mutations:kick",
         ),
       }));
-      expect(state.deletedShop?.isDeleted).toBe(true);
+      expect(state.deletedShop).toMatchObject({ isDeleted: true, name: DELETED_SHOP_NAME });
       expect(state.remainingShop?.isDeleted).toBe(false);
       expect(state.staff?.isDeleted).toBe(false);
+      expect(state.staffUser).toEqual(ids.staffUserBefore);
       expect(state.usage.activeShopCount).toBe(1);
       expect(state.audits).toHaveLength(1);
       expect(state.audits[0]).toMatchObject({
@@ -471,7 +480,26 @@ describe("organization shop management", () => {
         toState: "deleted",
       });
       expect(state.cleanupJobs).toHaveLength(1);
-      expect(state.cleanupJobs[0]?.args[0]?.shopId).toBe(ids.shopId);
+      expect(state.cleanupJobs[0]).toMatchObject({
+        scope: "shop",
+        shopId: ids.shopId,
+        organizationId: ids.organizationId,
+        requestId: requestKey,
+        status: "queued",
+        phase: "shopCore",
+      });
+      expect(state.scheduledKicks).toHaveLength(1);
+      expect(state.scheduledKicks[0]?.args).toEqual([{ jobId: state.cleanupJobs[0]?._id }]);
+
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const cleaned = await t.run(async (ctx) => ({
+        job: await ctx.db.get(state.cleanupJobs[0]._id),
+        staff: await ctx.db.get(ids.staffId),
+        staffUser: await ctx.db.get(ids.staffUserId),
+      }));
+      expect(cleaned.job?.status).toBe("completed");
+      expect(cleaned.staff?.isDeleted).toBe(true);
+      expect(cleaned.staffUser).toEqual(ids.staffUserBefore);
     });
 
     it("2店舗を同時に削除してもOCCで必ず1店舗を残す", async () => {
@@ -507,13 +535,17 @@ describe("organization shop management", () => {
           .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
           .filter((q) => q.eq(q.field("isDeleted"), false))
           .collect(),
-        cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) => job.name === "shop/mutations:cleanupDeletedShop",
+        cleanupJobs: await ctx.db.query("deletionCleanupJobs").collect(),
+        scheduledKicks: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (job) => job.name === "deletionCleanup/mutations:kick",
         ),
       }));
       expect(state.shops).toHaveLength(1);
       expect(state.cleanupJobs).toHaveLength(1);
-      expect(state.cleanupJobs[0]?.args[0]?.shopId).not.toBe(state.shops[0]?._id);
+      expect(state.cleanupJobs[0]).toMatchObject({ scope: "shop", status: "queued" });
+      expect(state.cleanupJobs[0]?.shopId).not.toBe(state.shops[0]?._id);
+      expect(state.scheduledKicks).toHaveLength(1);
+      expect(state.scheduledKicks[0]?.args).toEqual([{ jobId: state.cleanupJobs[0]?._id }]);
     });
 
     it("最後の非削除店舗は削除しない", async () => {
@@ -537,9 +569,7 @@ describe("organization shop management", () => {
           .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
           .filter((q) => q.eq(q.field("action"), "organization.shop_deleted"))
           .collect(),
-        cleanupJobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) => job.name === "shop/mutations:cleanupDeletedShop",
-        ),
+        cleanupJobs: await ctx.db.query("deletionCleanupJobs").collect(),
       }));
       expect(state.shop?.isDeleted).toBe(false);
       expect(state.audits).toHaveLength(0);

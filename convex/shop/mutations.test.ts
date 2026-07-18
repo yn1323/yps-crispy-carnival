@@ -776,12 +776,11 @@ describe("shop/mutations", () => {
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(beforeExpiry.outbox?.status).toBe("processing");
-      expect(
-        beforeExpiry.scheduled.some((job) => job.name === "shop/mutations:cleanupDeletedShopProcessingOutbox"),
-      ).toBe(true);
+      expect(beforeExpiry.scheduled.some((job) => job.name === "deletionCleanup/mutations:kick")).toBe(true);
 
       vi.setSystemTime(startedAt + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS + 1);
       await t.mutation(internal.shop.mutations.cleanupDeletedShopProcessingOutbox, { shopId: ids.shopId });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       const staleOutbox = await t.run(async (ctx) => ctx.db.get(ids.outboxId));
       expect(staleOutbox).toMatchObject({

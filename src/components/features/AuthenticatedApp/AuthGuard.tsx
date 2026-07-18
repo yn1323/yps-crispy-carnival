@@ -16,7 +16,8 @@ import {
   selectedShopAtom,
   toSelectedShop,
 } from "@/src/stores/shop";
-import { userAtom } from "@/src/stores/user";
+import { EMPTY_USER, userAtom } from "@/src/stores/user";
+import { DeletedAccountState } from "./DeletedAccountState";
 import { resolveShopContext } from "./shopContextResolver";
 
 type Props = {
@@ -32,7 +33,11 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   const [user, setUser] = useAtom(userAtom);
   const [selectedShop, setSelectedShop] = useAtom(selectedShopAtom);
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, isSignedIn ? {} : "skip");
-  const myShops = useQuery(api.dashboard.queries.getMyShops, isSignedIn ? {} : "skip");
+  const isAccountDeleted = Boolean(currentUser && "accountDeleted" in currentUser);
+  const myShops = useQuery(
+    api.dashboard.queries.getMyShops,
+    isSignedIn && currentUser !== undefined && !isAccountDeleted ? {} : "skip",
+  );
   const selectableShops = useMemo(
     () => (myShops ? normalizeShopContextOptions(myShops).filter(isSelectableShop) : []),
     [myShops],
@@ -50,7 +55,7 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
   );
 
   useEffect(() => {
-    if (userId && currentUser) {
+    if (userId && currentUser && !("accountDeleted" in currentUser)) {
       setUser({
         authId: userId,
         name: currentUser.name ?? "",
@@ -58,6 +63,12 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
       });
     }
   }, [userId, currentUser, setUser]);
+
+  useEffect(() => {
+    if (!isAccountDeleted) return;
+    setUser(EMPTY_USER);
+    setSelectedShop(null);
+  }, [isAccountDeleted, setSelectedShop, setUser]);
 
   // URLはAPI由来の候補に一致する場合だけ採用する。URLがなければ保存値、候補先頭の順で補完する。
   useEffect(() => {
@@ -100,6 +111,9 @@ export const AuthGuard = ({ children, requestedShopId, onNormalizeShopUrl, onRet
       <Navigate to="/login" search={{ redirect: normalizeAuthRedirect(`${location.pathname}${location.searchStr}`) }} />
     );
   }
+
+  // 古いatomやURLが残っていても、削除済み状態を通常画面より先に確定する。
+  if (isAccountDeleted) return <DeletedAccountState />;
 
   if (user.authId && isShopContextReady) {
     return children;

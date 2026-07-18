@@ -60,13 +60,14 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
   const deleteConfirmationTitleId = `organization-shop-${shop.id}-delete-confirmation-title`;
   return (
     <Dialog
-      title="店舗詳細"
+      title={isDeleteConfirmationOpen ? "店舗を削除" : "店舗詳細"}
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
       }}
       onClose={onClose}
       hideFooter
+      role={isDeleteConfirmationOpen ? "alertdialog" : "dialog"}
       maxW={{ base: "100vw", md: "720px" }}
       maxH={{ base: "100dvh", md: "86dvh" }}
       contentProps={{
@@ -107,20 +108,23 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
                     店舗を削除
                   </Text>
                   <Text id={deleteDescriptionId} fontSize="sm" color="fg.muted" lineHeight="tall">
-                    この店舗を削除し、所属スタッフをこの店舗から外します。削除後はこの店舗を選択できません。過去のシフト履歴は保持されます。この操作は元に戻せません。
+                    この店舗を利用できない状態にします。この操作は元に戻せません。
                   </Text>
                 </Stack>
 
                 {isDeleteConfirmationOpen ? (
-                  <Stack
-                    gap={3}
-                    role="group"
-                    aria-labelledby={deleteConfirmationTitleId}
-                    aria-describedby={deleteDescriptionId}
-                  >
+                  <Stack gap={3} aria-labelledby={deleteConfirmationTitleId} aria-describedby={deleteDescriptionId}>
                     <Text id={deleteConfirmationTitleId} fontSize="sm" fontWeight="semibold">
                       「{shop.name}」を削除しますか？
                     </Text>
+                    <Stack gap={1.5} fontSize="sm" color="fg.muted" lineHeight="tall">
+                      <Text>
+                        店舗とスタッフの基本情報に保存した店舗名、氏名、メールアドレス、LINE
+                        IDを削除済みの値へ置き換えます。
+                      </Text>
+                      <Text>グループのユーザーと管理者権限は残ります。</Text>
+                      <Text>過去のシフト、登録申請、通知履歴、送信済みメールとLINEは残ります。</Text>
+                    </Stack>
                     <HStack gap={2} justify="flex-end" wrap="wrap">
                       <Button
                         variant="outline"
@@ -137,7 +141,7 @@ export function ShopManagementDialog({ dialog, isRunning, onClose, onSubmit }: P
                         loading={isRunning}
                         onClick={() => onSubmit({ kind: "deleteShop", shopId: shop.id })}
                       >
-                        削除する
+                        店舗を削除
                       </Button>
                     </HStack>
                   </Stack>

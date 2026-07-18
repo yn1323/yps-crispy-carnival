@@ -745,6 +745,8 @@ export const expire = internalMutation({
     ) {
       return { changed: false };
     }
+    const organization = await ctx.db.get(invitation.organizationId);
+    if (!organization || organization.isDeleted) return { changed: false };
     const now = Date.now();
     await ctx.db.patch(invitation._id, {
       status: "expired",
@@ -775,6 +777,8 @@ async function linkAccountWithToken(
     .take(2);
   if (invitations.length !== 1) return { status: "invalid" as const };
   const invitation = invitations[0];
+  const organization = await ctx.db.get(invitation.organizationId);
+  if (!organization || organization.isDeleted) return { status: "unavailable" as const };
   const verifiedEmail =
     ctx.identity.emailVerified === true && ctx.identity.email ? normalizeEmail(ctx.identity.email) : null;
   if (!verifiedEmail || verifiedEmail !== invitation.emailNormalized) {
