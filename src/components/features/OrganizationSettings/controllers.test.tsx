@@ -6,6 +6,8 @@ import type { OrganizationBillingView, OrganizationPersonView, OrganizationShopV
 
 const mocks = vi.hoisted(() => ({
   mutation: vi.fn(),
+  removeManagerRoleMutation: vi.fn(),
+  removePersonMutation: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
   selectedShop: {
@@ -18,9 +20,21 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("convex/react", () => ({
-  useMutation: () => mocks.mutation,
-}));
+vi.mock("convex/react", async () => {
+  const { getFunctionName } = await import("convex/server");
+  return {
+    useMutation: (reference: Parameters<typeof getFunctionName>[0]) => {
+      switch (getFunctionName(reference)) {
+        case "organization/mutations:removeManagerRole":
+          return mocks.removeManagerRoleMutation;
+        case "organization/mutations:removePersonFromOrganization":
+          return mocks.removePersonMutation;
+        default:
+          return mocks.mutation;
+      }
+    },
+  };
+});
 
 vi.mock("@/src/components/shared/feedback", () => ({
   showErrorToast: mocks.showErrorToast,
@@ -73,6 +87,8 @@ const billing: OrganizationBillingView = {
 
 beforeEach(() => {
   mocks.mutation.mockReset();
+  mocks.removeManagerRoleMutation.mockReset();
+  mocks.removePersonMutation.mockReset();
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
   vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
@@ -110,7 +126,8 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
     act(() => staleSubmit());
-    await waitFor(() => expect(mocks.mutation).not.toHaveBeenCalled());
+    await waitFor(() => expect(mocks.removePersonMutation).not.toHaveBeenCalled());
+    expect(mocks.removeManagerRoleMutation).not.toHaveBeenCalled();
   });
 
   it("店舗削除の権限を失うと古い確定操作を拒否する", async () => {
@@ -260,6 +277,65 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
     await waitFor(() => expect(result.current.dialog.isOpen).toBe(false));
+  });
+
+  it("管理者権限解除を正しい対象で一度だけ実行し、スタッフ所属の維持を伝える", async () => {
+    let resolveMutation: (() => void) | undefined;
+    mocks.removeManagerRoleMutation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = () => resolve({ changed: true });
+        }),
+    );
+    const { result } = renderHook(() => usePersonRemovalController([person]));
+
+    act(() => result.current.removeManagerRole(person.id));
+    act(() => {
+      result.current.dialog.onSubmit();
+      result.current.dialog.onSubmit();
+    });
+
+    await waitFor(() =>
+      expect(mocks.removeManagerRoleMutation).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        personId: person.id,
+        requestId: "request-1",
+      }),
+    );
+    expect(mocks.removePersonMutation).not.toHaveBeenCalled();
+    await act(async () => resolveMutation?.());
+    await waitFor(() =>
+      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+        title: "管理者権限を外しました",
+        description: "スタッフとしての店舗所属と業務用アクセスは維持しています。",
+      }),
+    );
+    expect(result.current.dialog.dialog).toBeNull();
+  });
+
+  it("グループ削除を正しい対象で実行し、履歴が残ることを伝える", async () => {
+    mocks.removePersonMutation.mockResolvedValue({ changed: true });
+    const target = { ...person, managerRole: "none" as const };
+    const { result } = renderHook(() => usePersonRemovalController([target]));
+
+    act(() => result.current.removePerson(target.id));
+    act(() => result.current.dialog.onSubmit());
+
+    await waitFor(() =>
+      expect(mocks.removePersonMutation).toHaveBeenCalledExactlyOnceWith({
+        shopId: "shop-current",
+        personId: target.id,
+        requestId: "request-1",
+      }),
+    );
+    expect(mocks.removeManagerRoleMutation).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+        title: "利用者をグループから削除しました",
+        description: "過去のシフト履歴は保持されます。",
+      }),
+    );
+    expect(result.current.dialog.dialog).toBeNull();
   });
 
   it("Freeでは手入力による管理者招待を実行しない", async () => {
