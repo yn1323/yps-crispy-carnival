@@ -8,6 +8,10 @@
  * - RESEND_WEBHOOK_SECRET
  * - APP_URL
  * - CLERK_JWT_ISSUER_DOMAIN
+ * - CLERK_SECRET_KEY
+ * - CLERK_PUBLISHABLE_KEY
+ * - CLERK_EXPECTED_INSTANCE_ID
+ * - ACCOUNT_DELETION_ENABLED
  * - ORGANIZATION_INVITATION_SIGNING_SECRET
  */
 import { execFileSync } from "node:child_process";
@@ -18,6 +22,10 @@ const CONVEX_ENV_KEYS = [
   "RESEND_WEBHOOK_SECRET",
   "APP_URL",
   "CLERK_JWT_ISSUER_DOMAIN",
+  "CLERK_SECRET_KEY",
+  "CLERK_PUBLISHABLE_KEY",
+  "CLERK_EXPECTED_INSTANCE_ID",
+  "ACCOUNT_DELETION_ENABLED",
   "ORGANIZATION_INVITATION_SIGNING_SECRET",
 ] as const;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -40,14 +48,16 @@ const main = () => {
     }
 
     try {
-      execFileSync(pnpmCommand, ["exec", "convex", "env", "set", key, value], {
-        stdio: "pipe",
+      execFileSync(pnpmCommand, ["exec", "convex", "env", "set", key], {
+        input: `${value}\n`,
+        stdio: ["pipe", "pipe", "pipe"],
         cwd: process.cwd(),
       });
       console.log(`✅ ${key}: 設定完了`);
       successCount++;
-    } catch (e) {
-      console.error(`❌ ${key}: 設定失敗`, e instanceof Error ? e.message : e);
+    } catch {
+      // child processの出力にはsecretが含まれる可能性があるため、固定メッセージだけを表示する。
+      console.error(`❌ ${key}: 設定失敗`);
     }
   }
 
