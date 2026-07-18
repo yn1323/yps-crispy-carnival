@@ -80,6 +80,7 @@ export const getAcceptanceNotificationData = internalQuery({
     v.object({
       organizationId: v.id("organizations"),
       organizationName: v.string(),
+      shopId: v.optional(v.id("shops")),
       recipients: v.array(v.object({ userId: v.id("users"), name: v.string(), email: v.string() })),
     }),
   ),
@@ -91,12 +92,22 @@ export const getAcceptanceNotificationData = internalQuery({
     const organization = await ctx.db.get(invitation.organizationId);
     if (!organization || organization.isDeleted) return null;
 
-    const members = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", invitation.organizationId).eq("status", "active"),
-      )
-      .collect();
+    const [members, shops] = await Promise.all([
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) =>
+          q.eq("organizationId", invitation.organizationId).eq("status", "active"),
+        )
+        .collect(),
+      ctx.db
+        .query("shops")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", invitation.organizationId))
+        .collect(),
+    ]);
+    const representativeShop =
+      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active") ??
+      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "planSuspended") ??
+      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
     const recipients = [];
     for (const member of members) {
       const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);
@@ -112,6 +123,11 @@ export const getAcceptanceNotificationData = internalQuery({
       }
       recipients.push({ userId: user._id, name: person.name, email: person.email });
     }
-    return { organizationId: organization._id, organizationName: organization.name, recipients };
+    return {
+      organizationId: organization._id,
+      organizationName: organization.name,
+      ...(representativeShop ? { shopId: representativeShop._id } : {}),
+      recipients,
+    };
   },
 });

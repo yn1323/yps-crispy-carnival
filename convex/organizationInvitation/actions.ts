@@ -4,6 +4,7 @@ import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
@@ -25,7 +26,10 @@ export const enqueueManagerInvitation = internalAction({
   handler: async (ctx, args): Promise<{ enqueued: boolean }> => {
     const data: ManagerInvitationEnqueueData | null = await ctx.runQuery(
       internal.organizationInvitation.queries.getEnqueueData,
-      args,
+      {
+        invitationId: args.invitationId,
+        expectedVersion: args.expectedVersion,
+      },
     );
     if (!data) return { enqueued: false };
 
@@ -42,6 +46,7 @@ export const enqueueManagerInvitation = internalAction({
         from,
         to: data.email,
         context: "organizationInvitation.enqueueManagerInvitation",
+        suppressDelivery: isDryRunManagerEmail(data.email),
       }),
     });
     return { enqueued: result !== null };
@@ -56,10 +61,14 @@ export const enqueueAcceptanceNotifications = internalAction({
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
-    const data = await ctx.runQuery(internal.organizationInvitation.queries.getAcceptanceNotificationData, args);
+    const data = await ctx.runQuery(internal.organizationInvitation.queries.getAcceptanceNotificationData, {
+      invitationId: args.invitationId,
+      expectedVersion: args.expectedVersion,
+    });
     if (!data) return { enqueuedCount: 0 };
 
-    const settingsUrl = new URL("/settings", getAppUrl()).toString();
+    const settingsUrl = new URL("/settings", getAppUrl());
+    if (data.shopId) settingsUrl.searchParams.set("shop", data.shopId);
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {
       const result = await enqueueEmail(ctx, {
@@ -77,9 +86,10 @@ export const enqueueAcceptanceNotifications = internalAction({
             organizationName: data.organizationName,
             heading: "管理者のアカウント連携が完了しました",
             paragraphs: ["新しい管理者のアカウントがグループに連携されました。"],
-            action: { label: "グループ設定を確認する", url: settingsUrl },
+            action: { label: "グループ設定を確認する", url: settingsUrl.toString() },
           }),
           context: "organizationInvitation.linked",
+          suppressDelivery: isDryRunManagerEmail(recipient.email),
         }),
       });
       if (result) enqueuedCount += 1;

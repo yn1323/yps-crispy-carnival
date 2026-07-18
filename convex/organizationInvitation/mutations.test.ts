@@ -90,6 +90,7 @@ describe("organizationInvitation/mutations", () => {
   });
 
   it("発行時は人物を作らず、確認済みメールの本人がアカウント連携した時だけ管理者にする", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com");
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, { subject: "invite_owner", email: "owner@example.com", plan: "pro" }),
@@ -218,6 +219,7 @@ describe("organizationInvitation/mutations", () => {
       t.action(internal.organizationInvitation.actions.enqueueAcceptanceNotifications, {
         invitationId: invitation._id,
         expectedVersion: invitation.version + 1,
+        organizationBillingVersionAtOrigin: 1,
       }),
     ).resolves.toEqual({ enqueuedCount: 2 });
     const acceptanceJobs = await t.run((ctx) =>
@@ -230,6 +232,98 @@ describe("organizationInvitation/mutations", () => {
     );
     expect(acceptanceJobs).toHaveLength(2);
     expect(acceptanceJobs.every((job) => job.channel === "email" && job.purpose === "business")).toBe(true);
+    expect(acceptanceJobs.every((job) => job.payload.suppressDelivery === true)).toBe(true);
+    for (const job of acceptanceJobs) {
+      if (job.payload.kind !== "email") throw new Error("email payload expected");
+      const actionUrl = extractOrganizationSettingsActionUrl(job.payload.html);
+      expect(actionUrl.pathname).toBe("/settings");
+      expect([...actionUrl.searchParams.entries()]).toEqual([["shop", manager.shopId]]);
+    }
+  });
+
+  it.each([
+    {
+      caseKey: "plan_suspended",
+      label: "プラン停止中",
+      initialStatus: "planSuspended" as const,
+      removal: null,
+      expectsShop: true,
+    },
+    {
+      caseKey: "archived",
+      label: "アーカイブ",
+      initialStatus: "archived" as const,
+      removal: null,
+      expectsShop: true,
+    },
+    {
+      caseKey: "deleted",
+      label: "削除済み",
+      initialStatus: "active" as const,
+      removal: "logical" as const,
+      expectsShop: false,
+    },
+    {
+      caseKey: "missing",
+      label: "店舗なし",
+      initialStatus: "active" as const,
+      removal: "physical" as const,
+      expectsShop: false,
+    },
+  ])("連携完了CTAは$label店舗の安全な設定URLを使う", async ({ caseKey, initialStatus, removal, expectsShop }) => {
+    const t = convexTest(schema, modules);
+    const subject = `acceptance_cta_${caseKey}`;
+    const targetEmail = `${subject}_target@example.com`;
+    const manager = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+      if (initialStatus !== "active") await ctx.db.patch(seeded.shopId, { operatingStatus: initialStatus });
+      return seeded;
+    });
+    const created = await t.withIdentity({ subject }).mutation(api.organizationInvitation.mutations.createExternal, {
+      shopId: manager.shopId,
+      name: "招待対象",
+      email: targetEmail,
+      requestId: `acceptance-cta-${caseKey}`,
+    });
+    const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
+    if (!invitation) throw new Error("invitation not found");
+    const token = await deriveInvitationToken({
+      invitationId: invitation._id,
+      version: invitation.version,
+      signingSecret: SIGNING_SECRET,
+    });
+    await expect(
+      t
+        .withIdentity({ subject: `${subject}_target`, email: targetEmail, emailVerified: true })
+        .mutation(api.organizationInvitation.mutations.linkAccount, { token }),
+    ).resolves.toMatchObject({ status: "linked", organizationId: manager.organizationId, shopId: manager.shopId });
+
+    if (removal) {
+      await t.run(async (ctx) => {
+        if (removal === "logical") await ctx.db.patch(manager.shopId, { isDeleted: true });
+        else await ctx.db.delete(manager.shopId);
+      });
+    }
+    await expect(
+      t.action(internal.organizationInvitation.actions.enqueueAcceptanceNotifications, {
+        invitationId: invitation._id,
+        expectedVersion: invitation.version + 1,
+      }),
+    ).resolves.toEqual({ enqueuedCount: 2 });
+    const acceptanceHtml = await t.run(async (ctx) => {
+      const jobs = await ctx.db.query("notificationOutbox").collect();
+      return jobs.flatMap((job) =>
+        job.payload.kind === "email" && job.payload.context === "organizationInvitation.linked"
+          ? [job.payload.html]
+          : [],
+      );
+    });
+    expect(acceptanceHtml).toHaveLength(2);
+    for (const html of acceptanceHtml) {
+      const actionUrl = extractOrganizationSettingsActionUrl(html);
+      expect(actionUrl.pathname).toBe("/settings");
+      expect([...actionUrl.searchParams.entries()]).toEqual(expectsShop ? [["shop", manager.shopId]] : []);
+    }
   });
 
   it("別グループに存在する利用者へは人物を事前作成せず、ログイン後に既存利用者を再利用する", async () => {
@@ -531,6 +625,7 @@ describe("organizationInvitation/mutations", () => {
   });
 
   it("LINE連携済みの既存人物にも生トークンを保存せずメール招待を予約する", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "example.com");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const manager = await seedOrganizationManagerShop(ctx, { subject: "person_line_invite_owner", plan: "pro" });
@@ -560,6 +655,7 @@ describe("organizationInvitation/mutations", () => {
       t.action(internal.organizationInvitation.actions.enqueueManagerInvitation, {
         invitationId: invitation._id,
         expectedVersion: invitation.version,
+        organizationBillingVersionAtOrigin: 1,
       }),
     ).resolves.toEqual({ enqueued: true });
     const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
@@ -572,6 +668,7 @@ describe("organizationInvitation/mutations", () => {
         kind: "organizationManagerInvitationEmail",
         to: ids.target.email,
         context: "organizationInvitation.enqueueManagerInvitation",
+        suppressDelivery: true,
       },
     });
     expect(JSON.stringify(jobs[0])).not.toContain("/manager-invite?token=");
@@ -1886,3 +1983,9 @@ describe("organizationInvitation/mutations", () => {
     });
   });
 });
+
+function extractOrganizationSettingsActionUrl(html: string) {
+  const href = html.match(/<a href="([^"]+)"[^>]*>グループ設定を確認する<\/a>/)?.[1];
+  if (!href) throw new Error("organization settings action URL not found");
+  return new URL(href.replaceAll("&amp;", "&"));
+}
